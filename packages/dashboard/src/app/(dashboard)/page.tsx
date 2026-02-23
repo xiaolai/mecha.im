@@ -69,9 +69,9 @@ function MechaContent() {
   // Lazy import the tab content components
   switch (activeTab) {
     case "chat":
-      return <ChatTab mechaId={selectedMechaId} sessionId={selectedSessionId} isRunning={isRunning} />;
+      return <ChatTab mechaId={selectedMechaId} sessionId={selectedSessionId} isRunning={isRunning} node={mecha.node} />;
     case "overview":
-      return <OverviewTab mechaId={selectedMechaId} sessionId={selectedSessionId} isRunning={isRunning} />;
+      return <OverviewTab mechaId={selectedMechaId} sessionId={selectedSessionId} isRunning={isRunning} node={mecha.node} />;
     case "terminal":
       return <TerminalTab mechaId={selectedMechaId} isRunning={isRunning} />;
     case "inspect":
@@ -92,12 +92,15 @@ import { InspectPanel } from "@/components/inspect/InspectPanel";
 import { useDashboardStore as useStore } from "@/lib/store";
 import { useCallback, useEffect, useState } from "react";
 
-function ChatTab({ mechaId, sessionId, isRunning }: { mechaId: string; sessionId: string | null; isRunning: boolean }) {
+function ChatTab({ mechaId, sessionId, isRunning, node }: { mechaId: string; sessionId: string | null; isRunning: boolean; node?: string }) {
   const setSessions = useStore((s) => s.setSessions);
+  const nodeParam = node && node !== "local"
+    ? `?node=${encodeURIComponent(node)}`
+    : "";
 
   const handleStreamComplete = useCallback(async () => {
     try {
-      const res = await fetch(`/api/mechas/${mechaId}/sessions`);
+      const res = await fetch(`/api/mechas/${mechaId}/sessions${nodeParam}`);
       if (res.ok) {
         const data = await res.json();
         const sessions = data.sessions ?? [];
@@ -115,7 +118,7 @@ function ChatTab({ mechaId, sessionId, isRunning }: { mechaId: string; sessionId
         })));
       }
     } catch { /* ignore */ }
-  }, [mechaId, setSessions]);
+  }, [mechaId, nodeParam, setSessions]);
 
   if (!isRunning) {
     return (
@@ -143,22 +146,26 @@ function ChatTab({ mechaId, sessionId, isRunning }: { mechaId: string; sessionId
         key={sessionId}
         mechaId={mechaId}
         sessionId={sessionId}
+        node={node}
         onStreamComplete={handleStreamComplete}
       />
     </div>
   );
 }
 
-function OverviewTab({ mechaId, sessionId, isRunning }: { mechaId: string; sessionId: string | null; isRunning: boolean }) {
+function OverviewTab({ mechaId, sessionId, isRunning, node }: { mechaId: string; sessionId: string | null; isRunning: boolean; node?: string }) {
   const [detail, setDetail] = useState<SessionDetailData | null>(null);
   const [error, setError] = useState("");
+  const nodeParam = node && node !== "local"
+    ? `?node=${encodeURIComponent(node)}`
+    : "";
 
   const loadDetail = useCallback(async () => {
     if (!sessionId) return;
     setDetail(null);
     setError("");
     try {
-      const res = await fetch(`/api/mechas/${mechaId}/sessions/${sessionId}`);
+      const res = await fetch(`/api/mechas/${mechaId}/sessions/${sessionId}${nodeParam}`);
       if (!res.ok) {
         setError(`Failed to load session (${res.status})`);
         return;
@@ -167,7 +174,7 @@ function OverviewTab({ mechaId, sessionId, isRunning }: { mechaId: string; sessi
     } catch {
       setError("Failed to load session");
     }
-  }, [mechaId, sessionId]);
+  }, [mechaId, sessionId, nodeParam]);
 
   useEffect(() => { loadDetail(); }, [loadDetail]);
 

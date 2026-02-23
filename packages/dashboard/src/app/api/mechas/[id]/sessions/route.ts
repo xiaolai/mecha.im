@@ -1,14 +1,20 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { mechaSessionList, mechaSessionCreate } from "@mecha/service";
+import { mechaSessionList, mechaSessionCreate, remoteSessionList } from "@mecha/service";
 import { SessionCapReachedError, toHttpStatus, toSafeMessage } from "@mecha/contracts";
 import { getDockerClient } from "@/lib/docker";
 import { withAuth } from "@/lib/api-auth";
 import { handleDockerError } from "@/lib/docker-errors";
+import { resolveNodeTarget } from "@/lib/resolve-node";
 
-export const GET = withAuth(async (_request: NextRequest, { params }) => {
+export const GET = withAuth(async (request: NextRequest, { params }) => {
   const { id } = await params;
   const client = getDockerClient();
   try {
+    const target = resolveNodeTarget(request);
+    if (target.node !== "local") {
+      const result = await remoteSessionList(client, id, target);
+      return NextResponse.json(result);
+    }
     const sessions = await mechaSessionList(client, { id });
     return NextResponse.json(sessions);
   } catch (err) {

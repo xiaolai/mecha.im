@@ -1,14 +1,27 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { mechaSessionGet, mechaSessionDelete, mechaSessionRename } from "@mecha/service";
+import {
+  mechaSessionGet,
+  mechaSessionDelete,
+  mechaSessionRename,
+  remoteSessionGet,
+  remoteSessionMetaUpdate,
+  remoteSessionDelete,
+} from "@mecha/service";
 import { SessionNotFoundError, toHttpStatus, toSafeMessage } from "@mecha/contracts";
 import { getDockerClient } from "@/lib/docker";
 import { withAuth } from "@/lib/api-auth";
 import { handleDockerError } from "@/lib/docker-errors";
+import { resolveNodeTarget } from "@/lib/resolve-node";
 
-export const GET = withAuth(async (_request: NextRequest, { params }) => {
+export const GET = withAuth(async (request: NextRequest, { params }) => {
   const { id, sessionId } = await params;
   const client = getDockerClient();
   try {
+    const target = resolveNodeTarget(request);
+    if (target.node !== "local") {
+      const session = await remoteSessionGet(client, id, sessionId, target);
+      return NextResponse.json(session);
+    }
     const session = await mechaSessionGet(client, { id, sessionId });
     return NextResponse.json(session);
   } catch (err) {
@@ -45,16 +58,25 @@ export const PATCH = withAuth(async (request: NextRequest, { params }) => {
   }
 
   try {
-    // Handle title rename
+    const target = resolveNodeTarget(request);
+
+    if (target.node !== "local") {
+      // Remote: dispatch via agent
+      const meta: { customTitle?: string; starred?: boolean } = {};
+      if (typeof body.title === "string") meta.customTitle = body.title;
+      if (body.starred !== undefined) meta.starred = body.starred;
+      await remoteSessionMetaUpdate(id, sessionId, meta, target);
+      return NextResponse.json({ ok: true });
+    }
+
+    // Local: handle title rename and starred toggle
     if (typeof body.title === "string") {
       const result = await mechaSessionRename(client, { id, sessionId, title: body.title });
-      // If only title was provided, return immediately
       if (body.starred === undefined) {
         return NextResponse.json(result);
       }
     }
 
-    // Handle starred toggle via metadata
     if (body.starred !== undefined) {
       const { setSessionMeta } = await import("@mecha/core");
       setSessionMeta(id, sessionId, { starred: body.starred });
@@ -69,10 +91,15 @@ export const PATCH = withAuth(async (request: NextRequest, { params }) => {
   }
 });
 
-export const DELETE = withAuth(async (_request: NextRequest, { params }) => {
+export const DELETE = withAuth(async (request: NextRequest, { params }) => {
   const { id, sessionId } = await params;
   const client = getDockerClient();
   try {
+    const target = resolveNodeTarget(request);
+    if (target.node !== "local") {
+      await remoteSessionDelete(client, id, sessionId, target);
+      return new NextResponse(null, { status: 204 });
+    }
     await mechaSessionDelete(client, { id, sessionId });
     return new NextResponse(null, { status: 204 });
   } catch (err) {

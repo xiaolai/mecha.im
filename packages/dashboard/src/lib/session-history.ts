@@ -44,10 +44,14 @@ export function convertSessionMessages(messages: ParsedMessage[]): InitialMessag
 export async function fetchSessionHistory(
   mechaId: string,
   sessionId: string,
+  node?: string,
 ): Promise<InitialMessage[]> {
   try {
+    const nodeParam = node && node !== "local"
+      ? `?node=${encodeURIComponent(node)}`
+      : "";
     const res = await fetch(
-      `/api/mechas/${mechaId}/sessions/${sessionId}`,
+      `/api/mechas/${mechaId}/sessions/${sessionId}${nodeParam}`,
     );
     if (!res.ok) return [];
     const detail = (await res.json()) as ParsedSession;
