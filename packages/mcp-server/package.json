@@ -1,12 +1,19 @@
 {
-  "name": "@mecha/cli",
+  "name": "@mecha/mcp-server",
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "bin": {
-    "mecha": "./dist/bin.js"
+    "mecha-mcp": "dist/main.js"
   },
-  "main": "./dist/bin.js",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
@@ -14,14 +21,14 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@mecha/agent": "workspace:*",
-    "@mecha/channels": "workspace:*",
-    "@mecha/contracts": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.26.0",
     "@mecha/core": "workspace:*",
+    "@mecha/contracts": "workspace:*",
     "@mecha/docker": "workspace:*",
-    "@mecha/mcp-server": "workspace:*",
     "@mecha/service": "workspace:*",
-    "commander": "^13.1.0"
+    "@mecha/agent": "workspace:*",
+    "fastify": "^5.3.3",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^25.3.0",

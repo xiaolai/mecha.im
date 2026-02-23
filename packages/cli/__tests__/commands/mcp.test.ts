@@ -10,6 +10,22 @@ vi.mock("@mecha/service", () => ({
   resolveMcpEndpoint: (...args: unknown[]) => mockResolveMcpEndpoint(...args),
 }));
 
+const mockCreateMeshMcpServer = vi.fn();
+const mockRunStdio = vi.fn();
+const mockRunHttp = vi.fn();
+
+vi.mock("@mecha/mcp-server", () => ({
+  createMeshMcpServer: (...args: unknown[]) => mockCreateMeshMcpServer(...args),
+  runStdio: (...args: unknown[]) => mockRunStdio(...args),
+  runHttp: (...args: unknown[]) => mockRunHttp(...args),
+}));
+
+const mockReadNodes = vi.fn();
+
+vi.mock("@mecha/agent", () => ({
+  readNodes: (...args: unknown[]) => mockReadNodes(...args),
+}));
+
 function createMockFormatter(): Formatter {
   return { info: vi.fn(), error: vi.fn(), success: vi.fn(), json: vi.fn(), table: vi.fn() };
 }
@@ -24,6 +40,8 @@ describe("mecha mcp", () => {
     process.exitCode = undefined;
     vi.clearAllMocks();
   });
+
+  // --- mcp <id> (backward compat via isDefault) ---
 
   it("prints endpoint and masked token", async () => {
     mockResolveMcpEndpoint.mockResolvedValue({
@@ -52,6 +70,20 @@ describe("mecha mcp", () => {
     await program.parseAsync(["mcp", "mx-test-abc123", "--show-token"], { from: "user" });
 
     expect(formatter.info).toHaveBeenCalledWith(expect.stringContaining(fullToken));
+  });
+
+  it("masks short tokens safely", async () => {
+    mockResolveMcpEndpoint.mockResolvedValue({
+      endpoint: "http://127.0.0.1:7700/mcp",
+      token: "short",
+    });
+
+    const program = new Command();
+    registerMcpCommand(program, deps);
+    await program.parseAsync(["mcp", "mx-test-abc123"], { from: "user" });
+
+    expect(formatter.info).toHaveBeenCalledWith(expect.stringContaining("****"));
+    expect(formatter.info).not.toHaveBeenCalledWith(expect.stringContaining("short"));
   });
 
   it("prints (not found) when token is missing", async () => {
@@ -163,5 +195,75 @@ describe("mecha mcp", () => {
 
     expect(formatter.error).toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
+  });
+
+  // --- mcp serve ---
+
+  it("mcp serve starts stdio mode by default", async () => {
+    const mockHandle = { mcpServer: {}, locator: {} };
+    mockCreateMeshMcpServer.mockReturnValue(mockHandle);
+    mockRunStdio.mockResolvedValue(undefined);
+    mockReadNodes.mockReturnValue([]);
+
+    const program = new Command();
+    registerMcpCommand(program, deps);
+    await program.parseAsync(["mcp", "serve"], { from: "user" });
+
+    expect(mockCreateMeshMcpServer).toHaveBeenCalled();
+    expect(mockRunStdio).toHaveBeenCalledWith(mockHandle);
+    expect(mockRunHttp).not.toHaveBeenCalled();
+  });
+
+  it("mcp serve --http starts HTTP transport", async () => {
+    const mockHandle = { mcpServer: {}, locator: {} };
+    mockCreateMeshMcpServer.mockReturnValue(mockHandle);
+    mockRunHttp.mockResolvedValue(undefined);
+    mockReadNodes.mockReturnValue([]);
+
+    const program = new Command();
+    registerMcpCommand(program, deps);
+    await program.parseAsync(["mcp", "serve", "--http", "--port", "8080"], { from: "user" });
+
+    expect(mockRunHttp).toHaveBeenCalledWith(mockHandle, { port: 8080 });
+    expect(mockRunStdio).not.toHaveBeenCalled();
+  });
+
+  it("mcp serve rejects invalid port", async () => {
+    const program = new Command();
+    registerMcpCommand(program, deps);
+    await program.parseAsync(["mcp", "serve", "--http", "--port", "abc"], { from: "user" });
+
+    expect(formatter.error).toHaveBeenCalledWith(expect.stringContaining("Invalid port"));
+    expect(process.exitCode).toBe(1);
+    expect(mockCreateMeshMcpServer).not.toHaveBeenCalled();
+  });
+
+  it("mcp serve catches startup errors", async () => {
+    mockCreateMeshMcpServer.mockImplementation(() => {
+      throw new Error("startup failure");
+    });
+    mockReadNodes.mockReturnValue([]);
+
+    const program = new Command();
+    registerMcpCommand(program, deps);
+    await program.parseAsync(["mcp", "serve"], { from: "user" });
+
+    expect(formatter.error).toHaveBeenCalledWith(expect.stringContaining("startup failure"));
+    expect(process.exitCode).toBe(1);
+  });
+
+  // --- mcp config ---
+
+  it("mcp config outputs mesh MCP config JSON", async () => {
+    const program = new Command();
+    registerMcpCommand(program, deps);
+    await program.parseAsync(["mcp", "config"], { from: "user" });
+
+    expect(formatter.json).toHaveBeenCalledTimes(1);
+    const data = (formatter.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(data.mcpServers["mecha-mesh"]).toBeDefined();
+    expect(data.mcpServers["mecha-mesh"].type).toBe("stdio");
+    expect(data.mcpServers["mecha-mesh"].command).toBe("mecha");
+    expect(data.mcpServers["mecha-mesh"].args).toEqual(["mcp", "serve"]);
   });
 });
