@@ -1,51 +1,39 @@
 import { describe, it, expect, vi } from "vitest";
 import Fastify from "fastify";
 import { registerEventRoutes } from "../../src/routes/events.js";
-import type { DockerClient } from "@mecha/docker";
-
-const mockWatchContainerEvents = vi.fn();
-vi.mock("@mecha/docker", () => ({
-  watchContainerEvents: (...args: unknown[]) => mockWatchContainerEvents(...args),
-}));
+import type { ProcessManager } from "@mecha/process";
 
 describe("event routes", () => {
-  const docker = { docker: {} } as DockerClient;
+  it("subscribes to pm.onEvent when /events is called", async () => {
+    let eventHandler: ((event: unknown) => void) | null = null;
+    const unsubscribe = vi.fn();
+    const pm = {
+      onEvent: vi.fn((handler: (event: unknown) => void) => {
+        eventHandler = handler;
+        return unsubscribe;
+      }),
+    } as unknown as ProcessManager;
 
-  function buildApp() {
     const app = Fastify();
-    registerEventRoutes(app, docker);
-    return app;
-  }
+    registerEventRoutes(app, pm);
 
-  describe("GET /events", () => {
-    it("streams SSE events from Docker", async () => {
-      const events = [
-        { action: "start", containerId: "c1", containerName: "mecha-1", mechaId: "m1", time: 100 },
-        { action: "stop", containerId: "c1", containerName: "mecha-1", mechaId: "m1", time: 200 },
-      ];
+    // Use a raw HTTP connection to test SSE — inject() blocks on open streams
+    await app.listen({ port: 0 });
+    const address = app.server.address() as { port: number };
 
-      mockWatchContainerEvents.mockImplementation(async function* () {
-        for (const e of events) yield e;
-      });
-
-      const app = buildApp();
-      const res = await app.inject({ method: "GET", url: "/events" });
-      expect(res.statusCode).toBe(200);
-      expect(res.headers["content-type"]).toBe("text/event-stream");
-      expect(res.body).toContain(`data: ${JSON.stringify(events[0])}`);
-      expect(res.body).toContain(`data: ${JSON.stringify(events[1])}`);
+    const controller = new AbortController();
+    const fetchPromise = fetch(`http://127.0.0.1:${address.port}/events`, {
+      signal: controller.signal,
     });
 
-    it("handles stream errors gracefully", async () => {
-      mockWatchContainerEvents.mockImplementation(async function* () {
-        throw new Error("Docker gone");
-        // This yield is unreachable but required for TS generator type
-        yield undefined as never;
-      });
+    // Wait for the handler to be registered
+    await vi.waitFor(() => { expect(pm.onEvent).toHaveBeenCalled(); });
+    expect(eventHandler).not.toBeNull();
 
-      const app = buildApp();
-      const res = await app.inject({ method: "GET", url: "/events" });
-      expect(res.statusCode).toBe(200);
-    });
+    // Abort to close the connection
+    controller.abort();
+    await fetchPromise.catch(() => {});
+
+    await app.close();
   });
 });

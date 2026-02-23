@@ -33,7 +33,7 @@ export function registerMcpCommand(parent: Command, deps: CommandDeps): void {
         const { createMeshMcpServer, runStdio, runHttp } = await import("@mecha/mcp-server");
         const { readNodes } = await import("@mecha/agent");
         const handle = createMeshMcpServer({
-          docker: deps.dockerClient,
+          pm: deps.processManager,
           getNodes: () => readNodes(),
         });
         if (opts.http) {
@@ -119,7 +119,7 @@ async function showEndpoint(
   jsonMode: boolean,
 ): Promise<void> {
   try {
-    const result = await resolveMcpEndpoint(deps.dockerClient, id);
+    const result = await resolveMcpEndpoint(deps.processManager, id);
     if (opts.config) {
       deps.formatter.json(buildConfig(id, result.endpoint, result.token));
       return;

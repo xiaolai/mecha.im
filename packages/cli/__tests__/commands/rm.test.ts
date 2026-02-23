@@ -27,7 +27,7 @@ describe("mecha rm", () => {
   beforeEach(() => {
     formatter = createMockFormatter();
     deps = {
-      dockerClient: { docker: {} } as any,
+      processManager: {} as any,
       formatter,
     };
     process.exitCode = undefined;
@@ -40,7 +40,7 @@ describe("mecha rm", () => {
     await program.parseAsync(["rm", "mx-test-abc123"], { from: "user" });
 
     expect(mockMechaRm).toHaveBeenCalledWith(
-      deps.dockerClient,
+      deps.processManager,
       { id: "mx-test-abc123", withState: false, force: false },
     );
     expect(formatter.success).toHaveBeenCalledWith(expect.stringContaining("removed"));
@@ -52,7 +52,7 @@ describe("mecha rm", () => {
     await program.parseAsync(["rm", "--with-state", "mx-test-abc123"], { from: "user" });
 
     expect(mockMechaRm).toHaveBeenCalledWith(
-      deps.dockerClient,
+      deps.processManager,
       { id: "mx-test-abc123", withState: true, force: false },
     );
   });
@@ -63,7 +63,7 @@ describe("mecha rm", () => {
     await program.parseAsync(["rm", "--force", "mx-test-abc123"], { from: "user" });
 
     expect(mockMechaRm).toHaveBeenCalledWith(
-      deps.dockerClient,
+      deps.processManager,
       { id: "mx-test-abc123", withState: false, force: true },
     );
   });

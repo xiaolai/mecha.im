@@ -1,5 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { DockerClient } from "@mecha/docker";
+import type { ProcessManager } from "@mecha/process";
 import type { MechaLocator } from "@mecha/service";
 import type { NodeEntry } from "@mecha/agent";
 import { registerNodeTools } from "./nodes.js";
@@ -10,7 +10,7 @@ import { registerManageTools } from "./manage.js";
 import { registerWorkspaceTools } from "./workspace.js";
 
 export interface ToolContext {
-  docker: DockerClient;
+  pm: ProcessManager;
   getNodes: () => NodeEntry[];
   locator: MechaLocator;
 }

@@ -97,7 +97,7 @@ describe("mecha sessions", () => {
 
   beforeEach(() => {
     formatter = createMockFormatter();
-    deps = { dockerClient: { docker: {} } as any, formatter };
+    deps = { processManager: {} as any, formatter };
     process.exitCode = undefined;
     vi.clearAllMocks();
   });
@@ -113,7 +113,7 @@ describe("mecha sessions", () => {
     registerSessionsCommand(program, deps);
     await program.parseAsync(["sessions", "list", "mx-test"], { from: "user" });
 
-    expect(mockMechaSessionList).toHaveBeenCalledWith(deps.dockerClient, { id: "mx-test" });
+    expect(mockMechaSessionList).toHaveBeenCalledWith(deps.processManager, { id: "mx-test" });
     expect(formatter.table).toHaveBeenCalledWith(
       [expect.objectContaining({
         ID: "abcdef12",
@@ -187,8 +187,8 @@ describe("mecha sessions", () => {
     registerSessionsCommand(program, deps);
     await program.parseAsync(["sessions", "list", "mx-test", "--node", "gpu"], { from: "user" });
 
-    expect(mockResolveTarget).toHaveBeenCalledWith(deps.dockerClient, "mx-test", "gpu");
-    expect(mockRemoteSessionList).toHaveBeenCalledWith(deps.dockerClient, "mx-test", target);
+    expect(mockResolveTarget).toHaveBeenCalledWith(deps.processManager, "mx-test", "gpu");
+    expect(mockRemoteSessionList).toHaveBeenCalledWith(deps.processManager, "mx-test", target);
     expect(mockMechaSessionList).not.toHaveBeenCalled();
     expect(formatter.table).toHaveBeenCalled();
   });
@@ -211,7 +211,7 @@ describe("mecha sessions", () => {
     registerSessionsCommand(program, deps);
     await program.parseAsync(["sessions", "show", "mx-test", "sess-abc"], { from: "user" });
 
-    expect(mockMechaSessionGet).toHaveBeenCalledWith(deps.dockerClient, { id: "mx-test", sessionId: "sess-abc" });
+    expect(mockMechaSessionGet).toHaveBeenCalledWith(deps.processManager, { id: "mx-test", sessionId: "sess-abc" });
     expect(formatter.info).toHaveBeenCalledWith("Session: sess-abc");
     expect(formatter.info).toHaveBeenCalledWith("Project: -home-mecha");
     expect(formatter.info).toHaveBeenCalledWith("Title: Test Session");
@@ -287,8 +287,8 @@ describe("mecha sessions", () => {
     registerSessionsCommand(program, deps);
     await program.parseAsync(["sessions", "show", "mx-test", "sess-abc", "--node", "gpu"], { from: "user" });
 
-    expect(mockResolveTarget).toHaveBeenCalledWith(deps.dockerClient, "mx-test", "gpu");
-    expect(mockRemoteSessionGet).toHaveBeenCalledWith(deps.dockerClient, "mx-test", "sess-abc", target);
+    expect(mockResolveTarget).toHaveBeenCalledWith(deps.processManager, "mx-test", "gpu");
+    expect(mockRemoteSessionGet).toHaveBeenCalledWith(deps.processManager, "mx-test", "sess-abc", target);
     expect(mockMechaSessionGet).not.toHaveBeenCalled();
     expect(formatter.info).toHaveBeenCalledWith("Session: sess-abc");
   });
@@ -301,7 +301,7 @@ describe("mecha sessions", () => {
     registerSessionsCommand(program, deps);
     await program.parseAsync(["sessions", "delete", "mx-test", "sess-del"], { from: "user" });
 
-    expect(mockMechaSessionDelete).toHaveBeenCalledWith(deps.dockerClient, { id: "mx-test", sessionId: "sess-del" });
+    expect(mockMechaSessionDelete).toHaveBeenCalledWith(deps.processManager, { id: "mx-test", sessionId: "sess-del" });
     expect(formatter.success).toHaveBeenCalledWith("Session sess-del deleted");
   });
 
@@ -323,8 +323,8 @@ describe("mecha sessions", () => {
     registerSessionsCommand(program, deps);
     await program.parseAsync(["sessions", "delete", "mx-test", "sess-del", "--node", "gpu"], { from: "user" });
 
-    expect(mockResolveTarget).toHaveBeenCalledWith(deps.dockerClient, "mx-test", "gpu");
-    expect(mockRemoteSessionDelete).toHaveBeenCalledWith(deps.dockerClient, "mx-test", "sess-del", target);
+    expect(mockResolveTarget).toHaveBeenCalledWith(deps.processManager, "mx-test", "gpu");
+    expect(mockRemoteSessionDelete).toHaveBeenCalledWith(deps.processManager, "mx-test", "sess-del", target);
     expect(mockMechaSessionDelete).not.toHaveBeenCalled();
     expect(formatter.success).toHaveBeenCalledWith("Session sess-del deleted");
   });
@@ -337,7 +337,7 @@ describe("mecha sessions", () => {
     registerSessionsCommand(program, deps);
     await program.parseAsync(["sessions", "interrupt", "mx-test", "sess-int"], { from: "user" });
 
-    expect(mockMechaSessionInterrupt).toHaveBeenCalledWith(deps.dockerClient, { id: "mx-test", sessionId: "sess-int" });
+    expect(mockMechaSessionInterrupt).toHaveBeenCalledWith(deps.processManager, { id: "mx-test", sessionId: "sess-int" });
     expect(formatter.success).toHaveBeenCalledWith("Session sess-int interrupted");
   });
 
@@ -368,7 +368,7 @@ describe("mecha sessions", () => {
     registerSessionsCommand(program, deps);
     await program.parseAsync(["sessions", "rename", "mx-test", "sess-ren", "New Title"], { from: "user" });
 
-    expect(mockMechaSessionRename).toHaveBeenCalledWith(deps.dockerClient, { id: "mx-test", sessionId: "sess-ren", title: "New Title" });
+    expect(mockMechaSessionRename).toHaveBeenCalledWith(deps.processManager, { id: "mx-test", sessionId: "sess-ren", title: "New Title" });
     expect(formatter.success).toHaveBeenCalledWith('Session sess-ren renamed to "New Title"');
   });
 
@@ -390,7 +390,7 @@ describe("mecha sessions", () => {
     registerSessionsCommand(program, deps);
     await program.parseAsync(["sessions", "rename", "mx-test", "sess-ren", "Remote Title", "--node", "gpu"], { from: "user" });
 
-    expect(mockResolveTarget).toHaveBeenCalledWith(deps.dockerClient, "mx-test", "gpu");
+    expect(mockResolveTarget).toHaveBeenCalledWith(deps.processManager, "mx-test", "gpu");
     expect(mockRemoteSessionMetaUpdate).toHaveBeenCalledWith("mx-test", "sess-ren", { customTitle: "Remote Title" }, target);
     expect(mockMechaSessionRename).not.toHaveBeenCalled();
     expect(formatter.success).toHaveBeenCalledWith('Session sess-ren renamed to "Remote Title"');
@@ -442,7 +442,7 @@ describe("mecha sessions", () => {
     registerSessionsCommand(program, deps);
     await program.parseAsync(["sessions", "star", "mx-test", "sess-1", "--node", "gpu"], { from: "user" });
 
-    expect(mockResolveTarget).toHaveBeenCalledWith(deps.dockerClient, "mx-test", "gpu");
+    expect(mockResolveTarget).toHaveBeenCalledWith(deps.processManager, "mx-test", "gpu");
     expect(mockRemoteSessionMetaUpdate).toHaveBeenCalledWith("mx-test", "sess-1", { starred: true }, target);
     expect(formatter.success).toHaveBeenCalledWith("Session sess-1 starred");
   });
@@ -465,7 +465,7 @@ describe("mecha sessions", () => {
     registerSessionsCommand(program, deps);
     await program.parseAsync(["sessions", "config", "show", "mx-test", "sess-cfg"], { from: "user" });
 
-    expect(mockMechaSessionGet).toHaveBeenCalledWith(deps.dockerClient, { id: "mx-test", sessionId: "sess-cfg" });
+    expect(mockMechaSessionGet).toHaveBeenCalledWith(deps.processManager, { id: "mx-test", sessionId: "sess-cfg" });
     expect(formatter.info).toHaveBeenCalledWith("Model: claude-sonnet-4-6");
   });
 
@@ -499,7 +499,7 @@ describe("mecha sessions", () => {
       "--model", "claude-opus-4-20250514",
     ], { from: "user" });
 
-    expect(mockMechaSessionConfigUpdate).toHaveBeenCalledWith(deps.dockerClient, {
+    expect(mockMechaSessionConfigUpdate).toHaveBeenCalledWith(deps.processManager, {
       id: "mx-test",
       sessionId: "sess-cfg",
       config: { model: "claude-opus-4-20250514" },
@@ -520,7 +520,7 @@ describe("mecha sessions", () => {
       "--max-budget", "10.5",
     ], { from: "user" });
 
-    expect(mockMechaSessionConfigUpdate).toHaveBeenCalledWith(deps.dockerClient, {
+    expect(mockMechaSessionConfigUpdate).toHaveBeenCalledWith(deps.processManager, {
       id: "mx-test",
       sessionId: "sess-cfg",
       config: {

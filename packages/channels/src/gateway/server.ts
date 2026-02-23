@@ -1,7 +1,7 @@
 import Fastify from "fastify";
 import type { FastifyInstance } from "fastify";
-import { createDockerClient } from "@mecha/docker";
-import type { DockerClient } from "@mecha/docker";
+import { createProcessManager } from "@mecha/process";
+import type { ProcessManager } from "@mecha/process";
 import { ChannelStore } from "../db/store.js";
 import { TelegramAdapter } from "../adapters/telegram.js";
 import type { ChannelAdapter } from "../adapters/types.js";
@@ -23,13 +23,13 @@ export interface GatewayServer {
 export async function createGatewayServer(opts: GatewayServerOptions): Promise<GatewayServer> {
   const { dbPath, port = 7650, host = "127.0.0.1" } = opts;
   const store = new ChannelStore(dbPath);
-  const dockerClient: DockerClient = createDockerClient();
+  const pm: ProcessManager = createProcessManager();
   const adapters = new Map<string, ChannelAdapter>();
   const app = Fastify({ logger: false });
 
   app.get("/healthz", async () => ({ status: "ok" }));
 
-  const deps: GatewayDeps = { store, adapters, dockerClient };
+  const deps: GatewayDeps = { store, adapters, pm };
 
   async function start(): Promise<void> {
     // Start Fastify first so health checks work even if adapters fail

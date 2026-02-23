@@ -49,7 +49,7 @@ export function registerChatCommand(parent: Command, deps: CommandDeps): void {
     .option("-s, --session <sessionId>", "Send message to an existing session")
     .option("-n, --new-session", "Create a new session and send the message")
     .action(async (id: string, message: string, opts: { session?: string; newSession?: boolean }) => {
-      const { dockerClient, formatter } = deps;
+      const { processManager, formatter } = deps;
       try {
         if (opts.session && opts.newSession) {
           formatter.error("Cannot use --session and --new-session together");
@@ -58,17 +58,17 @@ export function registerChatCommand(parent: Command, deps: CommandDeps): void {
         }
         if (opts.session) {
           // Send to existing session
-          const res = await mechaSessionMessage(dockerClient, { id, sessionId: opts.session, message });
+          const res = await mechaSessionMessage(processManager, { id, sessionId: opts.session, message });
           await streamSSEResponse(res, formatter);
         } else if (opts.newSession) {
           // Create session, then send first message
-          const session = await mechaSessionCreate(dockerClient, { id }) as { sessionId: string };
+          const session = await mechaSessionCreate(processManager, { id }) as { sessionId: string };
           formatter.info(`Session: ${session.sessionId}`);
-          const res = await mechaSessionMessage(dockerClient, { id, sessionId: session.sessionId, message });
+          const res = await mechaSessionMessage(processManager, { id, sessionId: session.sessionId, message });
           await streamSSEResponse(res, formatter);
         } else {
           // Stateless (unchanged behavior)
-          const res = await mechaChat(dockerClient, { id, message });
+          const res = await mechaChat(processManager, { id, message });
           await streamSSEResponse(res, formatter);
         }
       } catch (err) {

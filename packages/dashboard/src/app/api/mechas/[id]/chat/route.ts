@@ -1,8 +1,7 @@
 import { type NextRequest } from "next/server";
-import { inspectContainer } from "@mecha/docker";
-import { containerName, ContainerNotFoundError, DEFAULTS, generateTotp } from "@mecha/core";
-import type { MechaId } from "@mecha/core";
-import { getDockerClient } from "@/lib/docker";
+import { generateTotp } from "@mecha/core";
+import { getRuntimeAccess } from "@mecha/service";
+import { getProcessManager } from "@/lib/process";
 import { getOtpSecret } from "@/lib/auth";
 import { withStreamAuth } from "@/lib/api-auth";
 
@@ -11,42 +10,20 @@ export const POST = withStreamAuth(async (
   { params }: { params: Promise<Record<string, string>> },
 ): Promise<Response> => {
   const { id } = await params;
-  const client = getDockerClient();
-  const name = containerName(id as MechaId);
+  const pm = getProcessManager();
 
-  // Inspect container once for both port and env
+  // Get runtime URL and auth token from ProcessManager
   let runtimeUrl: string;
   let authToken: string | undefined;
-  let containerOtp: string | undefined;
   try {
-    const info = await inspectContainer(client, name);
-    const portBindings = info.NetworkSettings?.Ports?.[`${DEFAULTS.CONTAINER_PORT}/tcp`];
-    const hostPort = portBindings?.[0]?.HostPort;
-    if (!hostPort) {
-      return new Response(JSON.stringify({ error: "Container has no exposed port" }), {
-        status: 502,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
-    runtimeUrl = `http://localhost:${hostPort}`;
-
-    // Extract auth credentials from container env
-    const envVars = info.Config?.Env ?? [];
-    for (const env of envVars) {
-      if (env.startsWith("MECHA_AUTH_TOKEN=")) {
-        authToken = env.slice("MECHA_AUTH_TOKEN=".length);
-      } else if (env.startsWith("MECHA_OTP=")) {
-        containerOtp = env.slice("MECHA_OTP=".length);
-      }
-    }
-  } catch (err) {
-    if (err instanceof ContainerNotFoundError) {
-      return new Response(JSON.stringify({ error: "Not found" }), {
-        status: 404,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
-    throw err;
+    const access = await getRuntimeAccess(pm, id);
+    runtimeUrl = access.url;
+    authToken = access.token;
+  } catch {
+    return new Response(JSON.stringify({ error: "Not found" }), {
+      status: 404,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 
   // Forward the request body to runtime
@@ -71,17 +48,15 @@ export const POST = withStreamAuth(async (
     message = lastUserMsg?.content ?? "";
   }
 
-  // Build auth headers for runtime request:
-  // 1. Bearer token if MECHA_AUTH_TOKEN is in container env
-  // 2. TOTP code via x-mecha-otp if container has MECHA_OTP (or dashboard shares it)
+  // Build auth headers for runtime request
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
   if (authToken) {
     headers["Authorization"] = `Bearer ${authToken}`;
   } else {
-    // Fallback: use TOTP from container env or dashboard env
-    const otpSecret = containerOtp ?? getOtpSecret();
+    // Fallback: use TOTP from dashboard env
+    const otpSecret = getOtpSecret();
     if (otpSecret) {
       headers["x-mecha-otp"] = generateTotp(otpSecret);
     }

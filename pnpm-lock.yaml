@@ -29,9 +29,9 @@ importers:
       '@mecha/core':
         specifier: workspace:*
         version: link:../core
-      '@mecha/docker':
+      '@mecha/process':
         specifier: workspace:*
-        version: link:../docker
+        version: link:../process
       '@mecha/service':
         specifier: workspace:*
         version: link:../service
@@ -106,12 +106,12 @@ importers:
       '@mecha/core':
         specifier: workspace:*
         version: link:../core
-      '@mecha/docker':
-        specifier: workspace:*
-        version: link:../docker
       '@mecha/mcp-server':
         specifier: workspace:*
         version: link:../mcp-server
+      '@mecha/process':
+        specifier: workspace:*
+        version: link:../process
       '@mecha/service':
         specifier: workspace:*
         version: link:../service
@@ -186,9 +186,9 @@ importers:
       '@mecha/core':
         specifier: workspace:*
         version: link:../core
-      '@mecha/docker':
+      '@mecha/process':
         specifier: workspace:*
-        version: link:../docker
+        version: link:../process
       '@mecha/service':
         specifier: workspace:*
         version: link:../service
@@ -325,6 +325,25 @@ importers:
         specifier: ^4.0.18
         version: 4.0.18(@types/node@25.3.0)(jiti@2.6.1)(lightningcss@1.31.1)
 
+  packages/process:
+    dependencies:
+      '@mecha/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@types/node':
+        specifier: ^25.3.0
+        version: 25.3.0
+      '@vitest/coverage-v8':
+        specifier: ^4.0.18
+        version: 4.0.18(vitest@4.0.18(@types/node@25.3.0)(jiti@2.6.1)(lightningcss@1.31.1))
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.18
+        version: 4.0.18(@types/node@25.3.0)(jiti@2.6.1)(lightningcss@1.31.1)
+
   packages/runtime:
     dependencies:
       '@anthropic-ai/claude-agent-sdk':
@@ -370,9 +389,9 @@ importers:
       '@mecha/core':
         specifier: workspace:*
         version: link:../core
-      '@mecha/docker':
+      '@mecha/process':
         specifier: workspace:*
-        version: link:../docker
+        version: link:../process
     devDependencies:
       '@types/node':
         specifier: ^25.3.0

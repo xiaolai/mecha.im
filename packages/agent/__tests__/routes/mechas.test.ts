@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import Fastify from "fastify";
 import { registerMechaRoutes } from "../../src/routes/mechas.js";
-import type { DockerClient } from "@mecha/docker";
+import type { ProcessManager } from "@mecha/process";
 
 const mockMechaLs = vi.fn();
 const mockMechaUp = vi.fn();
@@ -24,11 +24,11 @@ vi.mock("@mecha/contracts", () => ({
 }));
 
 describe("mecha routes", () => {
-  const docker = { docker: {} } as DockerClient;
+  const pm = {} as ProcessManager;
 
   function buildApp() {
     const app = Fastify();
-    registerMechaRoutes(app, docker);
+    registerMechaRoutes(app, pm);
     return app;
   }
 

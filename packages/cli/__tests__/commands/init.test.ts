@@ -20,33 +20,22 @@ describe("mecha init", () => {
 
   beforeEach(() => {
     formatter = createMockFormatter();
-    deps = { dockerClient: { docker: {} } as any, formatter };
+    deps = { processManager: {} as any, formatter };
     process.exitCode = undefined;
     vi.clearAllMocks();
     mockMechaInit.mockResolvedValue(undefined);
   });
 
-  it("creates network and config directory", async () => {
+  it("initializes mecha environment", async () => {
     const program = new Command();
     registerInitCommand(program, deps);
     await program.parseAsync(["init"], { from: "user" });
 
-    expect(mockMechaInit).toHaveBeenCalledWith(deps.dockerClient);
+    expect(mockMechaInit).toHaveBeenCalledWith();
     expect(formatter.success).toHaveBeenCalledWith(expect.stringContaining("initialized"));
   });
 
   it("reports error when init fails", async () => {
-    mockMechaInit.mockRejectedValueOnce(new Error("network failed"));
-
-    const program = new Command();
-    registerInitCommand(program, deps);
-    await program.parseAsync(["init"], { from: "user" });
-
-    expect(formatter.error).toHaveBeenCalledWith(expect.stringContaining("network"));
-    expect(process.exitCode).toBe(1);
-  });
-
-  it("reports error when mkdir fails", async () => {
     mockMechaInit.mockRejectedValueOnce(new Error("permission denied"));
 
     const program = new Command();

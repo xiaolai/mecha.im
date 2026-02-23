@@ -19,14 +19,14 @@ vi.mock("@mecha/service", async (importOriginal) => {
 // Must import after mock setup
 const { createMeshMcpServer } = await import("../src/server.js");
 
-function makeMockDocker() {
-  return { docker: {} } as any;
+function makeMockPm() {
+  return {} as any;
 }
 
 describe("createMeshMcpServer", () => {
   it("returns handle with mcpServer and locator", () => {
     const handle = createMeshMcpServer({
-      docker: makeMockDocker(),
+      pm: makeMockPm(),
       getNodes: () => [],
     });
 
@@ -37,7 +37,7 @@ describe("createMeshMcpServer", () => {
   it("uses provided locator when given", () => {
     const locator = { locate: vi.fn(), invalidate: vi.fn(), clear: vi.fn() } as any;
     const handle = createMeshMcpServer({
-      docker: makeMockDocker(),
+      pm: makeMockPm(),
       getNodes: () => [],
       locator,
     });
@@ -47,7 +47,7 @@ describe("createMeshMcpServer", () => {
 
   it("registers all 12 tools", () => {
     const handle = createMeshMcpServer({
-      docker: makeMockDocker(),
+      pm: makeMockPm(),
       getNodes: () => [],
     });
 

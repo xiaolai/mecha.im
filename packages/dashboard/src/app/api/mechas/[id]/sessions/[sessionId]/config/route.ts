@@ -1,13 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { mechaSessionConfigUpdate } from "@mecha/service";
 import { SessionNotFoundError, SessionBusyError, SessionConfig, toHttpStatus, toSafeMessage } from "@mecha/contracts";
-import { getDockerClient } from "@/lib/docker";
+import { getProcessManager } from "@/lib/process";
 import { withAuth } from "@/lib/api-auth";
-import { handleDockerError } from "@/lib/docker-errors";
+import { handleProcessError } from "@/lib/process-errors";
 
 export const PUT = withAuth(async (request: NextRequest, { params }) => {
   const { id, sessionId } = await params;
-  const client = getDockerClient();
+  const pm = getProcessManager();
   try {
     let body: unknown;
     try {
@@ -24,12 +24,12 @@ export const PUT = withAuth(async (request: NextRequest, { params }) => {
       );
     }
 
-    const result = await mechaSessionConfigUpdate(client, { id, sessionId, config: parsed.data });
+    const result = await mechaSessionConfigUpdate(pm, { id, sessionId, config: parsed.data });
     return NextResponse.json(result);
   } catch (err) {
     if (err instanceof SessionNotFoundError || err instanceof SessionBusyError) {
       return NextResponse.json({ error: toSafeMessage(err) }, { status: toHttpStatus(err) });
     }
-    return handleDockerError(err);
+    return handleProcessError(err);
   }
 });

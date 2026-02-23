@@ -30,34 +30,24 @@ describe("mecha prune", () => {
 
   beforeEach(() => {
     formatter = createMockFormatter();
-    deps = { dockerClient: { docker: {} } as any, formatter };
+    deps = { processManager: {} as any, formatter };
     process.exitCode = undefined;
     vi.clearAllMocks();
     readlineAnswer = "y";
   });
 
-  it("removes stopped containers with --force", async () => {
-    mockMechaPrune.mockResolvedValueOnce({ removedContainers: ["mecha-a", "mecha-b"], removedVolumes: [] });
+  it("removes stopped processes with --force", async () => {
+    mockMechaPrune.mockResolvedValueOnce({ removedProcesses: ["mx-a", "mx-b"] });
     const program = new Command();
     registerPruneCommand(program, deps);
     await program.parseAsync(["prune", "--force"], { from: "user" });
 
-    expect(mockMechaPrune).toHaveBeenCalledWith(deps.dockerClient, { volumes: undefined });
-    expect(formatter.success).toHaveBeenCalledWith(expect.stringContaining("2 container(s)"));
+    expect(mockMechaPrune).toHaveBeenCalledWith(deps.processManager);
+    expect(formatter.success).toHaveBeenCalledWith(expect.stringContaining("2 process(es)"));
   });
 
-  it("removes volumes with --volumes --force", async () => {
-    mockMechaPrune.mockResolvedValueOnce({ removedContainers: ["mecha-a"], removedVolumes: ["vol-a"] });
-    const program = new Command();
-    registerPruneCommand(program, deps);
-    await program.parseAsync(["prune", "--volumes", "--force"], { from: "user" });
-
-    expect(mockMechaPrune).toHaveBeenCalledWith(deps.dockerClient, { volumes: true });
-    expect(formatter.success).toHaveBeenCalledWith(expect.stringContaining("1 volume(s)"));
-  });
-
-  it("shows message when no stopped containers", async () => {
-    mockMechaLs.mockResolvedValueOnce([{ state: "running" }, { state: "paused" }]);
+  it("shows message when no stopped Mechas", async () => {
+    mockMechaLs.mockResolvedValueOnce([{ state: "running" }]);
     const program = new Command();
     registerPruneCommand(program, deps);
     await program.parseAsync(["prune"], { from: "user" });
@@ -68,7 +58,7 @@ describe("mecha prune", () => {
 
   it("prompts for confirmation without --force", async () => {
     mockMechaLs.mockResolvedValueOnce([{ state: "exited" }]);
-    mockMechaPrune.mockResolvedValueOnce({ removedContainers: ["mecha-a"], removedVolumes: [] });
+    mockMechaPrune.mockResolvedValueOnce({ removedProcesses: ["mx-a"] });
     const program = new Command();
     registerPruneCommand(program, deps);
     await program.parseAsync(["prune"], { from: "user" });
@@ -89,17 +79,17 @@ describe("mecha prune", () => {
   });
 
   it("outputs JSON with --json --force", async () => {
-    mockMechaPrune.mockResolvedValueOnce({ removedContainers: ["a"], removedVolumes: [] });
+    mockMechaPrune.mockResolvedValueOnce({ removedProcesses: ["a"] });
     const program = new Command();
     program.option("--json", "JSON output");
     registerPruneCommand(program, deps);
     await program.parseAsync(["--json", "prune", "--force"], { from: "user" });
 
-    expect(formatter.json).toHaveBeenCalledWith({ removedContainers: ["a"], removedVolumes: [] });
+    expect(formatter.json).toHaveBeenCalledWith({ removedProcesses: ["a"] });
   });
 
   it("reports error on failure", async () => {
-    mockMechaPrune.mockRejectedValueOnce(new Error("docker error"));
+    mockMechaPrune.mockRejectedValueOnce(new Error("process error"));
     const program = new Command();
     registerPruneCommand(program, deps);
     await program.parseAsync(["prune", "--force"], { from: "user" });

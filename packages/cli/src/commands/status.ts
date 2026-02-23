@@ -9,12 +9,12 @@ export function registerStatusCommand(parent: Command, deps: CommandDeps): void 
     .description("Show status of a Mecha")
     .option("-w, --watch", "Watch for status changes")
     .action(async (id: string, cmdOpts: { watch?: boolean }) => {
-      const { dockerClient, formatter } = deps;
+      const { processManager, formatter } = deps;
       const jsonMode = parent.opts().json ?? false;
 
       const printStatus = async (): Promise<void> => {
         try {
-          const status = await mechaStatus(dockerClient, id);
+          const status = await mechaStatus(processManager, id);
 
           if (jsonMode) {
             formatter.json(status);

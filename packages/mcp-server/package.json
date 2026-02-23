@@ -24,7 +24,7 @@
     "@modelcontextprotocol/sdk": "^1.26.0",
     "@mecha/core": "workspace:*",
     "@mecha/contracts": "workspace:*",
-    "@mecha/docker": "workspace:*",
+    "@mecha/process": "workspace:*",
     "@mecha/service": "workspace:*",
     "@mecha/agent": "workspace:*",
     "fastify": "^5.3.3",

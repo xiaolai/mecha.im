@@ -1,4 +1,4 @@
-import type { DockerClient } from "@mecha/docker";
+import type { ProcessManager } from "@mecha/process";
 import { mechaSessionCreate, mechaSessionMessage } from "@mecha/service";
 import type { ChannelStore } from "../db/store.js";
 import type { ChannelAdapter, InboundMessage } from "../adapters/types.js";
@@ -6,7 +6,7 @@ import type { ChannelAdapter, InboundMessage } from "../adapters/types.js";
 export interface GatewayDeps {
   store: ChannelStore;
   adapters: Map<string, ChannelAdapter>;
-  dockerClient: DockerClient;
+  pm: ProcessManager;
 }
 
 /** Extract final response text from SSE data events.
@@ -114,7 +114,7 @@ export async function handleInbound(
 
 async function ensureSession(
   store: ChannelStore,
-  dockerClient: DockerClient,
+  pm: ProcessManager,
   channelId: string,
   msg: InboundMessage,
   link: { mecha_id: string; session_id: string | null },
@@ -126,7 +126,7 @@ async function ensureSession(
     sessionId = freshLink?.session_id ?? null;
   }
   if (!sessionId) {
-    const session = await mechaSessionCreate(dockerClient, {
+    const session = await mechaSessionCreate(pm, {
       id: link.mecha_id,
       title: `telegram-${msg.chatId}`,
     });
@@ -149,9 +149,9 @@ async function processMessage(
   msg: InboundMessage,
   link: { mecha_id: string; session_id: string | null },
 ): Promise<void> {
-  const { store, dockerClient } = deps;
+  const { store, pm } = deps;
   try {
-    const sessionId = await ensureSession(store, dockerClient, channelId, msg, link);
+    const sessionId = await ensureSession(store, pm, channelId, msg, link);
 
     // Show typing indicator while processing (Telegram's expires after ~5s)
     await adapter.sendTyping(msg.chatId);
@@ -162,7 +162,7 @@ async function processMessage(
     /* v8 ignore stop */
 
     try {
-      const res = await mechaSessionMessage(dockerClient, {
+      const res = await mechaSessionMessage(pm, {
         id: link.mecha_id,
         sessionId,
         message: msg.text,

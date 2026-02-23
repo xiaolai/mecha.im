@@ -11,8 +11,8 @@ export function registerSessionTools(mcpServer: McpServer, ctx: ToolContext): vo
     { mecha_id: z.string().describe("The mecha ID") },
     async ({ mecha_id }) => {
       try {
-        const ref = await ctx.locator.locate(ctx.docker, mecha_id, ctx.getNodes());
-        const result = await remoteSessionList(ctx.docker, mecha_id, {
+        const ref = await ctx.locator.locate(ctx.pm, mecha_id, ctx.getNodes());
+        const result = await remoteSessionList(ctx.pm, mecha_id, {
           node: ref.node,
           entry: ref.entry,
         });
@@ -33,8 +33,8 @@ export function registerSessionTools(mcpServer: McpServer, ctx: ToolContext): vo
     },
     async ({ mecha_id, session_id, include_messages }) => {
       try {
-        const ref = await ctx.locator.locate(ctx.docker, mecha_id, ctx.getNodes());
-        const session = await remoteSessionGet(ctx.docker, mecha_id, session_id, {
+        const ref = await ctx.locator.locate(ctx.pm, mecha_id, ctx.getNodes());
+        const session = await remoteSessionGet(ctx.pm, mecha_id, session_id, {
           node: ref.node,
           entry: ref.entry,
         });

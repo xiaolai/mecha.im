@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 /* v8 ignore start — CLI entrypoint */
-import { createDockerClient } from "@mecha/docker";
+import { createProcessManager } from "@mecha/process";
 import { readNodes } from "@mecha/agent";
 import { createMeshMcpServer } from "./server.js";
 import { runStdio, runHttp } from "./transport.js";
 
 const mode = process.argv[2] ?? "stdio";
-const docker = createDockerClient();
+const pm = createProcessManager();
 const handle = createMeshMcpServer({
-  docker,
+  pm,
   getNodes: () => readNodes(),
 });
 

@@ -11,7 +11,7 @@ export function registerLogsCommand(parent: Command, deps: CommandDeps): void {
     .option("-n, --tail <lines>", "Number of lines to show from the end", "100")
     .option("--since <time>", "Show logs since timestamp or relative time")
     .action(async (id: string, cmdOpts: { follow?: boolean; tail: string; since?: string }) => {
-      const { dockerClient, formatter } = deps;
+      const { processManager, formatter } = deps;
       const tail = parseInt(cmdOpts.tail, 10);
       if (!Number.isInteger(tail) || tail < 0) {
         formatter.error(`Invalid --tail value: ${cmdOpts.tail}`);
@@ -29,7 +29,7 @@ export function registerLogsCommand(parent: Command, deps: CommandDeps): void {
       }
 
       try {
-        const stream = await mechaLogs(dockerClient, { id, follow: cmdOpts.follow ?? false, tail, since });
+        const stream = await mechaLogs(processManager, { id, follow: cmdOpts.follow ?? false, tail, since });
         stream.on("data", (chunk: Buffer) => process.stdout.write(chunk));
         stream.on("error", (err: Error) => {
           formatter.error(err.message);

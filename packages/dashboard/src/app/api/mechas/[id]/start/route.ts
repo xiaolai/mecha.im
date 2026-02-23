@@ -1,16 +1,16 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { mechaStart } from "@mecha/service";
-import { getDockerClient } from "@/lib/docker";
+import { getProcessManager } from "@/lib/process";
 import { withAuth } from "@/lib/api-auth";
-import { handleDockerError } from "@/lib/docker-errors";
+import { handleProcessError } from "@/lib/process-errors";
 
 export const POST = withAuth(async (_request: NextRequest, { params }) => {
   const { id } = await params;
-  const client = getDockerClient();
+  const pm = getProcessManager();
   try {
-    await mechaStart(client, id);
+    await mechaStart(pm, id);
     return NextResponse.json({ ok: true });
   } catch (err) {
-    return handleDockerError(err);
+    return handleProcessError(err);
   }
 });

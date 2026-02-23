@@ -8,9 +8,9 @@ export function registerInitCommand(parent: Command, deps: CommandDeps): void {
     .command("init")
     .description("Initialize mecha environment")
     .action(async () => {
-      const { dockerClient, formatter } = deps;
+      const { formatter } = deps;
       try {
-        await mechaInit(dockerClient);
+        await mechaInit();
         formatter.success("Mecha initialized successfully.");
       } catch (err) {
         formatter.error(toUserMessage(err));

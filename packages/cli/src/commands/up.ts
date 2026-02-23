@@ -15,13 +15,13 @@ export function registerUpCommand(parent: Command, deps: CommandDeps): void {
     .option("--permission-mode <mode>", "Agent permission mode: default, plan, full-auto")
     .option("--show-token", "Print the full auth token to stdout")
     .action(async (pathArg: string, cmdOpts: { port?: string; claudeToken?: string; anthropicKey?: string; otp?: string; permissionMode?: string; showToken?: boolean }) => {
-      const { dockerClient, formatter } = deps;
+      const { processManager, formatter } = deps;
       const projectPath = resolve(pathArg);
 
       // Resolve config: CLI flag > process.env > .env file > undefined
       const dotEnv = loadDotEnvFiles(projectPath, process.cwd());
       try {
-        const result = await mechaUp(dockerClient, {
+        const result = await mechaUp(processManager, {
           projectPath,
           port: cmdOpts.port ? parseInt(cmdOpts.port, 10) : undefined,
           claudeToken: cmdOpts.claudeToken ?? process.env["CLAUDE_CODE_OAUTH_TOKEN"] ?? dotEnv["CLAUDE_CODE_OAUTH_TOKEN"],

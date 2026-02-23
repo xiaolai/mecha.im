@@ -1,8 +1,7 @@
 import type { FastifyInstance } from "fastify";
-import type { DockerClient } from "@mecha/docker";
-import { watchContainerEvents } from "@mecha/docker";
+import type { ProcessManager } from "@mecha/process";
 
-export function registerEventRoutes(app: FastifyInstance, docker: DockerClient): void {
+export function registerEventRoutes(app: FastifyInstance, pm: ProcessManager): void {
   app.get("/events", async (req, reply) => {
     reply.raw.writeHead(200, {
       "Content-Type": "text/event-stream",
@@ -10,23 +9,18 @@ export function registerEventRoutes(app: FastifyInstance, docker: DockerClient):
       Connection: "keep-alive",
     });
 
-    const ac = new AbortController();
+    const unsubscribe = pm.onEvent((event) => {
+      reply.raw.write(`data: ${JSON.stringify(event)}\n\n`);
+    });
+
     /* v8 ignore start -- socket close not testable via inject */
-    const onClose = () => { ac.abort(); };
-    /* v8 ignore stop */
-    req.socket.on("close", onClose);
-
-    try {
-      for await (const event of watchContainerEvents(docker, { signal: ac.signal })) {
-        reply.raw.write(`data: ${JSON.stringify(event)}\n\n`);
-      }
-    } catch {
-      // Stream ended (abort or Docker error) — close gracefully
-    } finally {
-      req.socket.removeListener("close", onClose);
+    req.socket.on("close", () => {
+      unsubscribe();
       reply.raw.end();
-    }
+    });
+    /* v8 ignore stop */
 
+    // Keep the connection open — Fastify won't auto-end a raw response
     return reply;
   });
 }

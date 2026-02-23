@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { mechaEnv } from "@mecha/service";
-import { getDockerClient } from "@/lib/docker";
+import { getProcessManager } from "@/lib/process";
 import { withAuth } from "@/lib/api-auth";
-import { handleDockerError } from "@/lib/docker-errors";
+import { handleProcessError } from "@/lib/process-errors";
 
 const SENSITIVE_KEYS = new Set([
   "CLAUDE_CODE_OAUTH_TOKEN",
@@ -20,15 +20,15 @@ function isSensitiveKey(key: string): boolean {
 export const GET = withAuth(async (request: NextRequest, { params }) => {
   const { id } = await params;
   const showSecrets = request.nextUrl.searchParams.get("showSecrets") === "true";
-  const client = getDockerClient();
+  const pm = getProcessManager();
   try {
-    const result = await mechaEnv(client, id);
+    const result = await mechaEnv(pm, id);
     const env = result.env.map((e) => ({
       key: e.key,
       value: !showSecrets && isSensitiveKey(e.key) ? "***" : e.value,
     }));
     return NextResponse.json({ id: result.id, env });
   } catch (err) {
-    return handleDockerError(err);
+    return handleProcessError(err);
   }
 });

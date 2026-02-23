@@ -33,71 +33,57 @@ describe("mecha doctor", () => {
     vi.clearAllMocks();
   });
 
-  it("reports healthy when Docker is available and network exists", async () => {
+  it("reports healthy when Claude CLI and sandbox are available", async () => {
     mockMechaDoctor.mockResolvedValue({
-      dockerAvailable: true,
-      networkExists: true,
+      claudeCliAvailable: true,
+      sandboxSupported: true,
       issues: [],
     });
 
-    const deps: CommandDeps = { dockerClient: { docker: {} } as any, formatter };
+    const deps: CommandDeps = { processManager: {} as any, formatter };
     const program = new Command();
     registerDoctorCommand(program, deps);
     await program.parseAsync(["doctor"], { from: "user" });
 
-    expect(formatter.success).toHaveBeenCalled();
+    expect(mockMechaDoctor).toHaveBeenCalledWith();
     const successMessages = formatter.calls
       .filter((c) => c.method === "success")
       .map((c) => c.args[0]);
+    expect(successMessages).toContainEqual(expect.stringContaining("Claude CLI: available"));
+    expect(successMessages).toContainEqual(expect.stringContaining("Sandbox: supported"));
     expect(successMessages).toContainEqual(expect.stringContaining("All checks passed"));
     expect(process.exitCode).toBeUndefined();
   });
 
-  it("reports unhealthy when Docker ping fails", async () => {
+  it("reports error when Claude CLI is missing", async () => {
     mockMechaDoctor.mockResolvedValue({
-      dockerAvailable: false,
-      networkExists: false,
-      issues: ["Docker is not available. Is Docker/Colima running?"],
+      claudeCliAvailable: false,
+      sandboxSupported: true,
+      issues: ["Claude CLI not found."],
     });
 
-    const deps: CommandDeps = { dockerClient: { docker: {} } as any, formatter };
+    const deps: CommandDeps = { processManager: {} as any, formatter };
     const program = new Command();
     registerDoctorCommand(program, deps);
     await program.parseAsync(["doctor"], { from: "user" });
 
-    expect(formatter.error).toHaveBeenCalled();
+    expect(formatter.error).toHaveBeenCalledWith(expect.stringContaining("Claude CLI not found"));
     expect(process.exitCode).toBe(1);
   });
 
-  it("reports unhealthy when network check throws", async () => {
+  it("reports error when sandbox is unsupported", async () => {
     mockMechaDoctor.mockResolvedValue({
-      dockerAvailable: true,
-      networkExists: false,
-      issues: ["Failed to check network status."],
+      claudeCliAvailable: true,
+      sandboxSupported: false,
+      issues: ["Sandbox not supported."],
     });
 
-    const deps: CommandDeps = { dockerClient: { docker: {} } as any, formatter };
+    const deps: CommandDeps = { processManager: {} as any, formatter };
     const program = new Command();
     registerDoctorCommand(program, deps);
     await program.parseAsync(["doctor"], { from: "user" });
 
-    expect(formatter.error).toHaveBeenCalled();
-    expect(process.exitCode).toBe(1);
-  });
-
-  it("reports unhealthy when network is missing", async () => {
-    mockMechaDoctor.mockResolvedValue({
-      dockerAvailable: true,
-      networkExists: false,
-      issues: ["Network 'mecha-net' not found. Run 'mecha init' first."],
-    });
-
-    const deps: CommandDeps = { dockerClient: { docker: {} } as any, formatter };
-    const program = new Command();
-    registerDoctorCommand(program, deps);
-    await program.parseAsync(["doctor"], { from: "user" });
-
-    expect(formatter.error).toHaveBeenCalled();
+    expect(formatter.error).toHaveBeenCalledWith(expect.stringContaining("Sandbox not supported"));
     expect(process.exitCode).toBe(1);
   });
 });

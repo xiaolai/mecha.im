@@ -22,11 +22,11 @@ export function registerEnvCommand(parent: Command, deps: CommandDeps): void {
     .description("Show container environment variables")
     .option("--show-secrets", "Show sensitive values instead of masking them")
     .action(async (id: string, cmdOpts: { showSecrets?: boolean }) => {
-      const { dockerClient, formatter } = deps;
+      const { processManager, formatter } = deps;
       const jsonMode = parent.opts().json ?? false;
       const showSecrets = cmdOpts.showSecrets ?? false;
       try {
-        const result = await mechaEnv(dockerClient, id);
+        const result = await mechaEnv(processManager, id);
         const masked = result.env.map((e) => ({
           key: e.key,
           value: !showSecrets && isSensitiveKey(e.key) ? "***" : e.value,

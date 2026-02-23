@@ -8,33 +8,33 @@ import {
   remoteSessionDelete,
 } from "@mecha/service";
 import { SessionNotFoundError, toHttpStatus, toSafeMessage } from "@mecha/contracts";
-import { getDockerClient } from "@/lib/docker";
+import { getProcessManager } from "@/lib/process";
 import { withAuth } from "@/lib/api-auth";
-import { handleDockerError } from "@/lib/docker-errors";
+import { handleProcessError } from "@/lib/process-errors";
 import { resolveNodeTarget } from "@/lib/resolve-node";
 
 export const GET = withAuth(async (request: NextRequest, { params }) => {
   const { id, sessionId } = await params;
-  const client = getDockerClient();
+  const pm = getProcessManager();
   try {
     const target = resolveNodeTarget(request);
     if (target.node !== "local") {
-      const session = await remoteSessionGet(client, id, sessionId, target);
+      const session = await remoteSessionGet(pm, id, sessionId, target);
       return NextResponse.json(session);
     }
-    const session = await mechaSessionGet(client, { id, sessionId });
+    const session = await mechaSessionGet(pm, { id, sessionId });
     return NextResponse.json(session);
   } catch (err) {
     if (err instanceof SessionNotFoundError) {
       return NextResponse.json({ error: toSafeMessage(err) }, { status: toHttpStatus(err) });
     }
-    return handleDockerError(err);
+    return handleProcessError(err);
   }
 });
 
 export const PATCH = withAuth(async (request: NextRequest, { params }) => {
   const { id, sessionId } = await params;
-  const client = getDockerClient();
+  const pm = getProcessManager();
 
   let body: { title?: string; starred?: boolean };
   try {
@@ -71,7 +71,7 @@ export const PATCH = withAuth(async (request: NextRequest, { params }) => {
 
     // Local: handle title rename and starred toggle
     if (typeof body.title === "string") {
-      const result = await mechaSessionRename(client, { id, sessionId, title: body.title });
+      const result = await mechaSessionRename(pm, { id, sessionId, title: body.title });
       if (body.starred === undefined) {
         return NextResponse.json(result);
       }
@@ -87,25 +87,25 @@ export const PATCH = withAuth(async (request: NextRequest, { params }) => {
     if (err instanceof SessionNotFoundError) {
       return NextResponse.json({ error: toSafeMessage(err) }, { status: toHttpStatus(err) });
     }
-    return handleDockerError(err);
+    return handleProcessError(err);
   }
 });
 
 export const DELETE = withAuth(async (request: NextRequest, { params }) => {
   const { id, sessionId } = await params;
-  const client = getDockerClient();
+  const pm = getProcessManager();
   try {
     const target = resolveNodeTarget(request);
     if (target.node !== "local") {
-      await remoteSessionDelete(client, id, sessionId, target);
+      await remoteSessionDelete(pm, id, sessionId, target);
       return new NextResponse(null, { status: 204 });
     }
-    await mechaSessionDelete(client, { id, sessionId });
+    await mechaSessionDelete(pm, { id, sessionId });
     return new NextResponse(null, { status: 204 });
   } catch (err) {
     if (err instanceof SessionNotFoundError) {
       return NextResponse.json({ error: toSafeMessage(err) }, { status: toHttpStatus(err) });
     }
-    return handleDockerError(err);
+    return handleProcessError(err);
   }
 });

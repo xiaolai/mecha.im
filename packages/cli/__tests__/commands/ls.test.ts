@@ -45,7 +45,7 @@ describe("mecha ls", () => {
   });
 
   it("lists containers as a table", async () => {
-    const deps: CommandDeps = { dockerClient: { docker: {} } as any, formatter };
+    const deps: CommandDeps = { processManager: {} as any, formatter };
     const program = new Command();
     program.option("--json", "JSON output");
     registerLsCommand(program, deps);
@@ -61,8 +61,8 @@ describe("mecha ls", () => {
   });
 
   it("reports errors on mechaLs failure", async () => {
-    mockMechaLs.mockRejectedValueOnce(new Error("docker down"));
-    const deps: CommandDeps = { dockerClient: { docker: {} } as any, formatter };
+    mockMechaLs.mockRejectedValueOnce(new Error("process error"));
+    const deps: CommandDeps = { processManager: {} as any, formatter };
 
     const program = new Command();
     program.option("--json", "JSON output");
@@ -74,7 +74,7 @@ describe("mecha ls", () => {
   });
 
   it("outputs JSON when --json flag is set", async () => {
-    const deps: CommandDeps = { dockerClient: { docker: {} } as any, formatter };
+    const deps: CommandDeps = { processManager: {} as any, formatter };
     const program = new Command();
     program.option("--json", "JSON output");
     registerLsCommand(program, deps);

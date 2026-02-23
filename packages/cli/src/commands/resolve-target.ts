@@ -1,4 +1,4 @@
-import type { DockerClient } from "../types.js";
+import type { ProcessManager } from "@mecha/process";
 import { readNodes } from "@mecha/agent";
 import type { NodeEntry } from "@mecha/agent";
 import { MechaLocator } from "@mecha/service";
@@ -11,7 +11,7 @@ import type { RemoteTarget } from "@mecha/service";
  * If --node is omitted, use MechaLocator to auto-detect.
  */
 export async function resolveTarget(
-  client: DockerClient,
+  pm: ProcessManager,
   mechaId: string,
   nodeFlag: string | undefined,
 ): Promise<RemoteTarget> {
@@ -31,6 +31,6 @@ export async function resolveTarget(
 
   // Auto-detect using MechaLocator
   const locator = new MechaLocator();
-  const ref = await locator.locate(client, mechaId, nodes);
+  const ref = await locator.locate(pm, mechaId, nodes);
   return { node: ref.node, entry: ref.entry };
 }

@@ -2,9 +2,9 @@ import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { mechaStart, mechaStop, mechaRestart } from "@mecha/service";
 import { toUserMessage, toExitCode } from "@mecha/contracts";
-import type { DockerClient } from "@mecha/docker";
+import type { ProcessManager } from "@mecha/process";
 
-type Action = (client: DockerClient, id: string) => Promise<void>;
+type Action = (pm: ProcessManager, id: string) => Promise<void>;
 
 function pastTense(verb: string): string {
   /* v8 ignore start */
@@ -18,9 +18,9 @@ function makeLifecycleCommand(verb: string, description: string, action: Action)
   return (parent: Command, deps: CommandDeps) => {
     parent.command(`${verb} <id>`).description(description)
       .action(async (id: string) => {
-        const { dockerClient, formatter } = deps;
+        const { processManager, formatter } = deps;
         try {
-          await action(dockerClient, id);
+          await action(processManager, id);
           formatter.success(`Mecha '${id}' ${pastTense(verb)}.`);
         } catch (err) {
           formatter.error(toUserMessage(err));
@@ -32,15 +32,15 @@ function makeLifecycleCommand(verb: string, description: string, action: Action)
 
 export const registerStartCommand = makeLifecycleCommand(
   "start", "Start a Mecha by ID",
-  (client, id) => mechaStart(client, id),
+  (pm, id) => mechaStart(pm, id),
 );
 
 export const registerStopCommand = makeLifecycleCommand(
   "stop", "Stop a Mecha by ID",
-  (client, id) => mechaStop(client, id),
+  (pm, id) => mechaStop(pm, id),
 );
 
 export const registerRestartCommand = makeLifecycleCommand(
   "restart", "Restart a Mecha by ID",
-  (client, id) => mechaRestart(client, id),
+  (pm, id) => mechaRestart(pm, id),
 );

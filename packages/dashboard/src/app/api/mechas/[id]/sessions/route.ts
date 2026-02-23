@@ -1,30 +1,30 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { mechaSessionList, mechaSessionCreate, remoteSessionList, agentFetch } from "@mecha/service";
 import { SessionCapReachedError, toHttpStatus, toSafeMessage } from "@mecha/contracts";
-import { getDockerClient } from "@/lib/docker";
+import { getProcessManager } from "@/lib/process";
 import { withAuth } from "@/lib/api-auth";
-import { handleDockerError } from "@/lib/docker-errors";
+import { handleProcessError } from "@/lib/process-errors";
 import { resolveNodeTarget } from "@/lib/resolve-node";
 
 export const GET = withAuth(async (request: NextRequest, { params }) => {
   const { id } = await params;
-  const client = getDockerClient();
+  const pm = getProcessManager();
   try {
     const target = resolveNodeTarget(request);
     if (target.node !== "local") {
-      const result = await remoteSessionList(client, id, target);
+      const result = await remoteSessionList(pm, id, target);
       return NextResponse.json(result);
     }
-    const sessions = await mechaSessionList(client, { id });
+    const sessions = await mechaSessionList(pm, { id });
     return NextResponse.json(sessions);
   } catch (err) {
-    return handleDockerError(err);
+    return handleProcessError(err);
   }
 });
 
 export const POST = withAuth(async (request: NextRequest, { params }) => {
   const { id } = await params;
-  const client = getDockerClient();
+  const pm = getProcessManager();
 
   let body: { title?: string; config?: Record<string, unknown> };
   try {
@@ -45,12 +45,12 @@ export const POST = withAuth(async (request: NextRequest, { params }) => {
       const data = await res.json();
       return NextResponse.json(data, { status: 201 });
     }
-    const session = await mechaSessionCreate(client, { id, title: body.title, config: body.config });
+    const session = await mechaSessionCreate(pm, { id, title: body.title, config: body.config });
     return NextResponse.json(session, { status: 201 });
   } catch (err) {
     if (err instanceof SessionCapReachedError) {
       return NextResponse.json({ error: toSafeMessage(err) }, { status: toHttpStatus(err) });
     }
-    return handleDockerError(err);
+    return handleProcessError(err);
   }
 });

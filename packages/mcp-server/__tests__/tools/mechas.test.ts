@@ -18,7 +18,7 @@ vi.mock("@mecha/service", () => ({
 
 function createCtx(nodes: Array<{ name: string; host: string; key: string }> = []): ToolContext {
   return {
-    docker: {} as any,
+    pm: {} as any,
     getNodes: () => nodes,
     locator: { locate: mockLocate, invalidate: mockInvalidate, clear: vi.fn() } as any,
   };

@@ -8,9 +8,9 @@ export function registerUiCommand(parent: Command, deps: CommandDeps): void {
     .command("ui <id>")
     .description("Print the UI URL for a Mecha")
     .action(async (id: string) => {
-      const { dockerClient, formatter } = deps;
+      const { processManager, formatter } = deps;
       try {
-        const result = await resolveUiUrl(dockerClient, id);
+        const result = await resolveUiUrl(processManager, id);
         formatter.info(result.url);
       } catch (err) {
         formatter.error(toUserMessage(err));

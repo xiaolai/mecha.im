@@ -14,8 +14,8 @@ export function registerManageTools(mcpServer: McpServer, ctx: ToolContext): voi
     },
     async ({ mecha_id, session_id }) => {
       try {
-        const ref = await ctx.locator.locate(ctx.docker, mecha_id, ctx.getNodes());
-        await remoteSessionDelete(ctx.docker, mecha_id, session_id, {
+        const ref = await ctx.locator.locate(ctx.pm, mecha_id, ctx.getNodes());
+        await remoteSessionDelete(ctx.pm, mecha_id, session_id, {
           node: ref.node,
           entry: ref.entry,
         });
@@ -36,7 +36,7 @@ export function registerManageTools(mcpServer: McpServer, ctx: ToolContext): voi
     },
     async ({ mecha_id, session_id, starred }) => {
       try {
-        const ref = await ctx.locator.locate(ctx.docker, mecha_id, ctx.getNodes());
+        const ref = await ctx.locator.locate(ctx.pm, mecha_id, ctx.getNodes());
         await remoteSessionMetaUpdate(mecha_id, session_id, { starred }, {
           node: ref.node,
           entry: ref.entry,
@@ -58,7 +58,7 @@ export function registerManageTools(mcpServer: McpServer, ctx: ToolContext): voi
     },
     async ({ mecha_id, session_id, title }) => {
       try {
-        const ref = await ctx.locator.locate(ctx.docker, mecha_id, ctx.getNodes());
+        const ref = await ctx.locator.locate(ctx.pm, mecha_id, ctx.getNodes());
         await remoteSessionMetaUpdate(mecha_id, session_id, { customTitle: title }, {
           node: ref.node,
           entry: ref.entry,

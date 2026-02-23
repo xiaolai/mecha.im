@@ -14,7 +14,7 @@ describe("mecha --version", () => {
   it("outputs the version from package.json", async () => {
     const { createProgram } = await import("../src/program.js");
     const program = createProgram({
-      dockerClient: { docker: {} } as any,
+      processManager: {} as any,
       formatter: { info: vi.fn(), error: vi.fn(), success: vi.fn(), json: vi.fn(), table: vi.fn() },
     });
 

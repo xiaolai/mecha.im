@@ -51,9 +51,9 @@ export function registerQueryTools(mcpServer: McpServer, ctx: ToolContext): void
     },
     async ({ mecha_id, title }) => {
       try {
-        const ref = await ctx.locator.locate(ctx.docker, mecha_id, ctx.getNodes());
+        const ref = await ctx.locator.locate(ctx.pm, mecha_id, ctx.getNodes());
         if (ref.node === "local") {
-          const result = (await mechaSessionCreate(ctx.docker, { id: mecha_id, title })) as {
+          const result = (await mechaSessionCreate(ctx.pm, { id: mecha_id, title })) as {
             id?: string;
             sessionId?: string;
           };
@@ -95,13 +95,13 @@ export function registerQueryTools(mcpServer: McpServer, ctx: ToolContext): void
     },
     async ({ mecha_id, message, session_id }) => {
       try {
-        const ref = await ctx.locator.locate(ctx.docker, mecha_id, ctx.getNodes());
+        const ref = await ctx.locator.locate(ctx.pm, mecha_id, ctx.getNodes());
 
         // Create session if needed
         let sid = session_id;
         if (!sid) {
           if (ref.node === "local") {
-            const created = (await mechaSessionCreate(ctx.docker, { id: mecha_id })) as {
+            const created = (await mechaSessionCreate(ctx.pm, { id: mecha_id })) as {
               id?: string;
               sessionId?: string;
             };
@@ -124,7 +124,7 @@ export function registerQueryTools(mcpServer: McpServer, ctx: ToolContext): void
 
         if (ref.node === "local") {
           const res = await runtimeFetch(
-            ctx.docker,
+            ctx.pm,
             mecha_id,
             `/api/sessions/${encodedSid}/message`,
             {

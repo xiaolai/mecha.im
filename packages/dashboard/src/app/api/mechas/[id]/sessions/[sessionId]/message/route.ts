@@ -2,7 +2,7 @@ import { type NextRequest } from "next/server";
 import { mechaSessionMessage, agentFetch } from "@mecha/service";
 import { toHttpStatus, toSafeMessage } from "@mecha/contracts";
 import { MechaError } from "@mecha/core";
-import { getDockerClient } from "@/lib/docker";
+import { getProcessManager } from "@/lib/process";
 import { withStreamAuth } from "@/lib/api-auth";
 import { resolveNodeTarget } from "@/lib/resolve-node";
 
@@ -11,7 +11,7 @@ export const POST = withStreamAuth(async (
   { params }: { params: Promise<Record<string, string>> },
 ): Promise<Response> => {
   const { id, sessionId } = await params;
-  const client = getDockerClient();
+  const pm = getProcessManager();
 
   let body: { message?: string };
   try {
@@ -62,7 +62,7 @@ export const POST = withStreamAuth(async (
     }
 
     // Local: direct call
-    const res = await mechaSessionMessage(client, { id, sessionId, message }, request.signal);
+    const res = await mechaSessionMessage(pm, { id, sessionId, message }, request.signal);
 
     return new Response(res.body, {
       headers: {

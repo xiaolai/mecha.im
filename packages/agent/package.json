@@ -20,7 +20,7 @@
   "dependencies": {
     "@mecha/contracts": "workspace:*",
     "@mecha/core": "workspace:*",
-    "@mecha/docker": "workspace:*",
+    "@mecha/process": "workspace:*",
     "@mecha/service": "workspace:*",
     "fastify": "^5.3.3"
   },

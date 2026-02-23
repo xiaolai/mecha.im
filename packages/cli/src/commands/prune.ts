@@ -17,16 +17,15 @@ async function confirm(message: string): Promise<boolean> {
 export function registerPruneCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("prune")
-    .description("Remove all stopped Mecha containers")
-    .option("--volumes", "Also remove orphaned volumes")
+    .description("Remove all stopped Mechas")
     .option("-f, --force", "Skip confirmation prompt")
-    .action(async (cmdOpts: { volumes?: boolean; force?: boolean }) => {
-      const { dockerClient, formatter } = deps;
+    .action(async (cmdOpts: { force?: boolean }) => {
+      const { processManager, formatter } = deps;
       const jsonMode = parent.opts().json ?? false;
       try {
         if (!cmdOpts.force) {
-          const items = await mechaLs(dockerClient);
-          const PRUNABLE_STATES = new Set(["exited", "dead", "created"]);
+          const items = await mechaLs(processManager);
+          const PRUNABLE_STATES = new Set(["stopped", "exited", "dead"]);
           const stoppedCount = items.filter((i) => PRUNABLE_STATES.has(i.state)).length;
           if (stoppedCount === 0) {
             formatter.info("No stopped Mechas to remove.");
@@ -38,12 +37,12 @@ export function registerPruneCommand(parent: Command, deps: CommandDeps): void {
             return;
           }
         }
-        const result = await mechaPrune(dockerClient, { volumes: cmdOpts.volumes });
+        const result = await mechaPrune(processManager);
         if (jsonMode) {
           formatter.json(result);
         } else {
           formatter.success(
-            `Removed ${result.removedContainers.length} container(s), ${result.removedVolumes.length} volume(s).`,
+            `Removed ${result.removedProcesses.length} process(es).`,
           );
         }
       } catch (err) {

@@ -8,10 +8,10 @@ export function registerTokenCommand(parent: Command, deps: CommandDeps): void {
     .command("token <id>")
     .description("Retrieve the auth token for a running Mecha")
     .action(async (id: string) => {
-      const { dockerClient, formatter } = deps;
+      const { processManager, formatter } = deps;
       const jsonMode = parent.opts().json ?? false;
       try {
-        const result = await mechaToken(dockerClient, id);
+        const result = await mechaToken(processManager, id);
         if (jsonMode) {
           formatter.json(result);
         } else {

@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mock dependencies before importing
-vi.mock("@mecha/docker", () => ({
-  createDockerClient: () => ({ docker: {} }),
-  listMechaContainers: async () => [],
+vi.mock("@mecha/process", () => ({
+  createProcessManager: () => ({
+    list: () => [],
+    onEvent: () => () => {},
+  }),
 }));
 
 vi.mock("@mecha/service", () => ({

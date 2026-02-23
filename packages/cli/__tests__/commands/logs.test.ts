@@ -21,7 +21,7 @@ describe("mecha logs", () => {
 
   beforeEach(() => {
     formatter = createMockFormatter();
-    deps = { dockerClient: { docker: {} } as any, formatter };
+    deps = { processManager: {} as any, formatter };
     process.exitCode = undefined;
     vi.clearAllMocks();
   });
@@ -58,7 +58,7 @@ describe("mecha logs", () => {
     await p;
 
     expect(mockMechaLogs).toHaveBeenCalledWith(
-      deps.dockerClient,
+      deps.processManager,
       expect.objectContaining({ id: "mx-test-abc123", tail: 50 }),
     );
   });
@@ -75,7 +75,7 @@ describe("mecha logs", () => {
     await p;
 
     expect(mockMechaLogs).toHaveBeenCalledWith(
-      deps.dockerClient,
+      deps.processManager,
       expect.objectContaining({ since: expect.any(Number) }),
     );
   });

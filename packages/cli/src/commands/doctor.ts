@@ -7,22 +7,20 @@ export function registerDoctorCommand(parent: Command, deps: CommandDeps): void 
     .command("doctor")
     .description("Check system requirements")
     .action(async () => {
-      const { dockerClient, formatter } = deps;
+      const { formatter } = deps;
 
-      const result = await mechaDoctor(dockerClient);
+      const result = await mechaDoctor();
 
-      if (result.dockerAvailable) {
-        formatter.success("Docker: available");
+      if (result.claudeCliAvailable) {
+        formatter.success("Claude CLI: available");
       } else {
-        formatter.error("Docker is not available. Is Docker/Colima running?");
+        formatter.error("Claude CLI not found. Install it from https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview");
       }
 
-      if (result.dockerAvailable) {
-        if (result.networkExists) {
-          formatter.success(`Network: exists`);
-        } else {
-          formatter.error(`Network not found. Run 'mecha init' first.`);
-        }
+      if (result.sandboxSupported) {
+        formatter.success("Sandbox: supported");
+      } else {
+        formatter.error("Sandbox not supported on this platform.");
       }
 
       if (result.issues.length === 0) {

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import Fastify from "fastify";
 import { registerSessionRoutes } from "../../src/routes/sessions.js";
-import type { DockerClient } from "@mecha/docker";
+import type { ProcessManager } from "@mecha/process";
 
 const mockMechaSessionList = vi.fn();
 const mockMechaSessionCreate = vi.fn();
@@ -42,11 +42,11 @@ vi.mock("@mecha/contracts", () => ({
 }));
 
 describe("session routes", () => {
-  const docker = { docker: {} } as DockerClient;
+  const pm = {} as ProcessManager;
 
   function buildApp() {
     const app = Fastify();
-    registerSessionRoutes(app, docker);
+    registerSessionRoutes(app, pm);
     return app;
   }
 
@@ -118,7 +118,7 @@ describe("session routes", () => {
       expect(res.headers["content-type"]).toBe("text/event-stream");
       expect(res.body).toContain("data: hello");
       expect(mockMechaSessionMessage).toHaveBeenCalledWith(
-        docker,
+        pm,
         { id: "m1", sessionId: "s1", message: "hi" },
         undefined,
       );
@@ -213,7 +213,7 @@ describe("session routes", () => {
         url: "/mechas/m1/sessions/s1",
       });
       expect(res.statusCode).toBe(204);
-      expect(mockMechaSessionDelete).toHaveBeenCalledWith(docker, { id: "m1", sessionId: "s1" });
+      expect(mockMechaSessionDelete).toHaveBeenCalledWith(pm, { id: "m1", sessionId: "s1" });
     });
 
     it("returns 404 when session not found", async () => {
@@ -238,7 +238,7 @@ describe("session routes", () => {
       });
       expect(res.statusCode).toBe(200);
       expect(res.json()).toEqual(session);
-      expect(mockMechaSessionGet).toHaveBeenCalledWith(docker, { id: "m1", sessionId: "s1" });
+      expect(mockMechaSessionGet).toHaveBeenCalledWith(pm, { id: "m1", sessionId: "s1" });
     });
 
     it("returns 404 when session not found", async () => {

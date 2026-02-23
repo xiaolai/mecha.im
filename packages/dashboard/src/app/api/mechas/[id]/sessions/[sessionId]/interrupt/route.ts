@@ -1,20 +1,20 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { mechaSessionInterrupt } from "@mecha/service";
 import { SessionNotFoundError, toHttpStatus, toSafeMessage } from "@mecha/contracts";
-import { getDockerClient } from "@/lib/docker";
+import { getProcessManager } from "@/lib/process";
 import { withAuth } from "@/lib/api-auth";
-import { handleDockerError } from "@/lib/docker-errors";
+import { handleProcessError } from "@/lib/process-errors";
 
 export const POST = withAuth(async (_request: NextRequest, { params }) => {
   const { id, sessionId } = await params;
-  const client = getDockerClient();
+  const pm = getProcessManager();
   try {
-    const result = await mechaSessionInterrupt(client, { id, sessionId });
+    const result = await mechaSessionInterrupt(pm, { id, sessionId });
     return NextResponse.json(result);
   } catch (err) {
     if (err instanceof SessionNotFoundError) {
       return NextResponse.json({ error: toSafeMessage(err) }, { status: toHttpStatus(err) });
     }
-    return handleDockerError(err);
+    return handleProcessError(err);
   }
 });

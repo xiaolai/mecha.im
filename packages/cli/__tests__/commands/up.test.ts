@@ -46,7 +46,7 @@ describe("mecha up", () => {
   });
 
   it("starts a container for a valid path", async () => {
-    const deps: CommandDeps = { dockerClient: { docker: {} } as any, formatter };
+    const deps: CommandDeps = { processManager: {} as any, formatter };
     const program = new Command();
     registerUpCommand(program, deps);
 
@@ -58,7 +58,7 @@ describe("mecha up", () => {
   });
 
   it("passes options through to mechaUp", async () => {
-    const deps: CommandDeps = { dockerClient: { docker: {} } as any, formatter };
+    const deps: CommandDeps = { processManager: {} as any, formatter };
     const program = new Command();
     registerUpCommand(program, deps);
 
@@ -82,7 +82,7 @@ describe("mecha up", () => {
     process.env["CLAUDE_CODE_OAUTH_TOKEN"] = "env-token";
     process.env["MECHA_OTP"] = "env-otp";
 
-    const deps: CommandDeps = { dockerClient: { docker: {} } as any, formatter };
+    const deps: CommandDeps = { processManager: {} as any, formatter };
     const program = new Command();
     registerUpCommand(program, deps);
 
@@ -96,7 +96,7 @@ describe("mecha up", () => {
   it("falls back to env var for ANTHROPIC_API_KEY", async () => {
     process.env["ANTHROPIC_API_KEY"] = "env-api-key";
 
-    const deps: CommandDeps = { dockerClient: { docker: {} } as any, formatter };
+    const deps: CommandDeps = { processManager: {} as any, formatter };
     const program = new Command();
     registerUpCommand(program, deps);
 
@@ -112,7 +112,7 @@ describe("mecha up", () => {
       MECHA_OTP: "dotenv-otp",
     });
 
-    const deps: CommandDeps = { dockerClient: { docker: {} } as any, formatter };
+    const deps: CommandDeps = { processManager: {} as any, formatter };
     const program = new Command();
     registerUpCommand(program, deps);
 
@@ -129,7 +129,7 @@ describe("mecha up", () => {
       ANTHROPIC_API_KEY: "dotenv-api-key",
     });
 
-    const deps: CommandDeps = { dockerClient: { docker: {} } as any, formatter };
+    const deps: CommandDeps = { processManager: {} as any, formatter };
     const program = new Command();
     registerUpCommand(program, deps);
 
@@ -140,7 +140,7 @@ describe("mecha up", () => {
   });
 
   it("shows full token with --show-token", async () => {
-    const deps: CommandDeps = { dockerClient: { docker: {} } as any, formatter };
+    const deps: CommandDeps = { processManager: {} as any, formatter };
     const program = new Command();
     registerUpCommand(program, deps);
 
@@ -153,7 +153,7 @@ describe("mecha up", () => {
   });
 
   it("truncates token by default", async () => {
-    const deps: CommandDeps = { dockerClient: { docker: {} } as any, formatter };
+    const deps: CommandDeps = { processManager: {} as any, formatter };
     const program = new Command();
     registerUpCommand(program, deps);
 
@@ -168,7 +168,7 @@ describe("mecha up", () => {
   it("reports service errors", async () => {
     mockMechaUp.mockRejectedValueOnce(new Error("image not found"));
 
-    const deps: CommandDeps = { dockerClient: { docker: {} } as any, formatter };
+    const deps: CommandDeps = { processManager: {} as any, formatter };
     const program = new Command();
     registerUpCommand(program, deps);
 
@@ -179,7 +179,7 @@ describe("mecha up", () => {
   });
 
   it("calls loadDotEnvFiles with project path", async () => {
-    const deps: CommandDeps = { dockerClient: { docker: {} } as any, formatter };
+    const deps: CommandDeps = { processManager: {} as any, formatter };
     const program = new Command();
     registerUpCommand(program, deps);
 

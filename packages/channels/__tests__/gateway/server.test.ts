@@ -27,8 +27,8 @@ vi.mock("../../src/adapters/telegram.js", () => ({
   }),
 }));
 
-vi.mock("@mecha/docker", () => ({
-  createDockerClient: vi.fn().mockReturnValue({}),
+vi.mock("@mecha/process", () => ({
+  createProcessManager: vi.fn().mockReturnValue({}),
 }));
 
 import { createGatewayServer } from "../../src/gateway/server.js";

@@ -45,14 +45,14 @@ export function registerSessionsCommand(parent: Command, deps: CommandDeps): voi
       .command("list <id>")
       .description("List all sessions for a Mecha (works when stopped)"),
   ).action(async (id: string, opts: { node?: string }) => {
-    const { dockerClient, formatter } = deps;
+    const { processManager, formatter } = deps;
     try {
       let result: SessionListResult;
       if (opts.node) {
-        const target = await resolveTarget(dockerClient, id, opts.node);
-        result = await remoteSessionList(dockerClient, id, target);
+        const target = await resolveTarget(processManager, id, opts.node);
+        result = await remoteSessionList(processManager, id, target);
       } else {
-        result = await mechaSessionList(dockerClient, { id });
+        result = await mechaSessionList(processManager, { id });
       }
       const { sessions: sessionList, meta } = result;
       formatter.table(
@@ -82,14 +82,14 @@ export function registerSessionsCommand(parent: Command, deps: CommandDeps): voi
       .description("Show session details and messages")
       .option("--raw", "Show full JSON content blocks"),
   ).action(async (id: string, sessionId: string, opts: { raw?: boolean; node?: string }) => {
-    const { dockerClient, formatter } = deps;
+    const { processManager, formatter } = deps;
     try {
       let session: ParsedSession;
       if (opts.node) {
-        const target = await resolveTarget(dockerClient, id, opts.node);
-        session = await remoteSessionGet(dockerClient, id, sessionId, target);
+        const target = await resolveTarget(processManager, id, opts.node);
+        session = await remoteSessionGet(processManager, id, sessionId, target);
       } else {
-        session = await mechaSessionGet(dockerClient, { id, sessionId });
+        session = await mechaSessionGet(processManager, { id, sessionId });
       }
       formatter.info(`Session: ${session.id}`);
       formatter.info(`Project: ${session.projectSlug}`);
@@ -119,13 +119,13 @@ export function registerSessionsCommand(parent: Command, deps: CommandDeps): voi
       .command("delete <id> <sessionId>")
       .description("Delete a session"),
   ).action(async (id: string, sessionId: string, opts: { node?: string }) => {
-    const { dockerClient, formatter } = deps;
+    const { processManager, formatter } = deps;
     try {
       if (opts.node) {
-        const target = await resolveTarget(dockerClient, id, opts.node);
-        await remoteSessionDelete(dockerClient, id, sessionId, target);
+        const target = await resolveTarget(processManager, id, opts.node);
+        await remoteSessionDelete(processManager, id, sessionId, target);
       } else {
-        await mechaSessionDelete(dockerClient, { id, sessionId });
+        await mechaSessionDelete(processManager, { id, sessionId });
       }
       formatter.success(`Session ${sessionId} deleted`);
     } catch (err) {
@@ -138,9 +138,9 @@ export function registerSessionsCommand(parent: Command, deps: CommandDeps): voi
     .command("interrupt <id> <sessionId>")
     .description("Interrupt an active session")
     .action(async (id: string, sessionId: string) => {
-      const { dockerClient, formatter } = deps;
+      const { processManager, formatter } = deps;
       try {
-        const result = await mechaSessionInterrupt(dockerClient, { id, sessionId });
+        const result = await mechaSessionInterrupt(processManager, { id, sessionId });
         if (result.interrupted) {
           formatter.success(`Session ${sessionId} interrupted`);
         } else {
@@ -157,14 +157,14 @@ export function registerSessionsCommand(parent: Command, deps: CommandDeps): voi
       .command("rename <id> <sessionId> <title>")
       .description("Rename a session"),
   ).action(async (id: string, sessionId: string, title: string, opts: { node?: string }) => {
-    const { dockerClient, formatter } = deps;
+    const { processManager, formatter } = deps;
     try {
       if (opts.node) {
-        const target = await resolveTarget(dockerClient, id, opts.node);
+        const target = await resolveTarget(processManager, id, opts.node);
         await remoteSessionMetaUpdate(id, sessionId, { customTitle: title }, target);
         formatter.success(`Session ${sessionId} renamed to "${title}"`);
       } else {
-        const result = await mechaSessionRename(dockerClient, { id, sessionId, title });
+        const result = await mechaSessionRename(processManager, { id, sessionId, title });
         formatter.success(`Session ${sessionId} renamed to "${result.title}"`);
       }
     } catch (err) {
@@ -178,11 +178,11 @@ export function registerSessionsCommand(parent: Command, deps: CommandDeps): voi
       .command("star <id> <sessionId>")
       .description("Toggle starred status for a session"),
   ).action(async (id: string, sessionId: string, opts: { node?: string }) => {
-    const { dockerClient, formatter } = deps;
+    const { processManager, formatter } = deps;
     try {
-      const target = await resolveTarget(dockerClient, id, opts.node);
+      const target = await resolveTarget(processManager, id, opts.node);
       // Fetch current session list to determine current star status
-      const listResult = await remoteSessionList(dockerClient, id, target);
+      const listResult = await remoteSessionList(processManager, id, target);
       const currentMeta = listResult.meta[sessionId];
       const isStarred = currentMeta?.starred === true;
       await remoteSessionMetaUpdate(id, sessionId, { starred: !isStarred }, target);
@@ -205,9 +205,9 @@ export function registerSessionsCommand(parent: Command, deps: CommandDeps): voi
     .command("show <id> <sessionId>")
     .description("Show session summary (model, message count)")
     .action(async (id: string, sessionId: string) => {
-      const { dockerClient, formatter } = deps;
+      const { processManager, formatter } = deps;
       try {
-        const session: ParsedSession = await mechaSessionGet(dockerClient, { id, sessionId });
+        const session: ParsedSession = await mechaSessionGet(processManager, { id, sessionId });
         formatter.info(`Session: ${session.id}`);
         formatter.info(`Model: ${session.model ?? "(default)"}`);
         formatter.info(`Messages: ${session.messageCount}`);
@@ -232,7 +232,7 @@ export function registerSessionsCommand(parent: Command, deps: CommandDeps): voi
       maxTurns?: string;
       maxBudget?: string;
     }) => {
-      const { dockerClient, formatter } = deps;
+      const { processManager, formatter } = deps;
       try {
         const configPayload: Record<string, unknown> = {};
         if (opts.model !== undefined) configPayload.model = opts.model;
@@ -271,7 +271,7 @@ export function registerSessionsCommand(parent: Command, deps: CommandDeps): voi
           return;
         }
 
-        await mechaSessionConfigUpdate(dockerClient, { id, sessionId, config: configPayload });
+        await mechaSessionConfigUpdate(processManager, { id, sessionId, config: configPayload });
         formatter.success(`Session ${sessionId} config updated`);
       } catch (err) {
         formatter.error(toUserMessage(err));

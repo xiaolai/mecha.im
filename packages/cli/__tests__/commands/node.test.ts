@@ -28,7 +28,7 @@ describe("mecha node", () => {
 
   beforeEach(() => {
     formatter = createMockFormatter();
-    deps = { dockerClient: { docker: {} } as never, formatter };
+    deps = { processManager: {} as never, formatter };
     process.exitCode = undefined;
     vi.clearAllMocks();
   });

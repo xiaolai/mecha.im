@@ -2,14 +2,14 @@ import { NextResponse, type NextRequest } from "next/server";
 import { mechaStatus, mechaConfigure, mechaRm } from "@mecha/service";
 import { toHttpStatus, toSafeMessage } from "@mecha/contracts";
 import { ContainerNotFoundError } from "@mecha/core";
-import { getDockerClient } from "@/lib/docker";
+import { getProcessManager } from "@/lib/process";
 import { withAuth } from "@/lib/api-auth";
 
 export const GET = withAuth(async (_request: NextRequest, { params }) => {
   const { id } = await params;
-  const client = getDockerClient();
+  const pm = getProcessManager();
   try {
-    const status = await mechaStatus(client, id);
+    const status = await mechaStatus(pm, id);
     return NextResponse.json(status);
   } catch (err) {
     if (err instanceof ContainerNotFoundError) {
@@ -21,7 +21,7 @@ export const GET = withAuth(async (_request: NextRequest, { params }) => {
 
 export const PATCH = withAuth(async (request: NextRequest, { params }) => {
   const { id } = await params;
-  const client = getDockerClient();
+  const pm = getProcessManager();
 
   let body: { claudeToken?: string; anthropicApiKey?: string; otp?: string; permissionMode?: string };
   try {
@@ -31,7 +31,7 @@ export const PATCH = withAuth(async (request: NextRequest, { params }) => {
   }
 
   try {
-    await mechaConfigure(client, {
+    await mechaConfigure(pm, {
       id,
       claudeToken: body.claudeToken,
       anthropicApiKey: body.anthropicApiKey,
@@ -51,9 +51,9 @@ export const PATCH = withAuth(async (request: NextRequest, { params }) => {
 export const DELETE = withAuth(async (request: NextRequest, { params }) => {
   const { id } = await params;
   const withState = request.nextUrl.searchParams.get("withState") === "true";
-  const client = getDockerClient();
+  const pm = getProcessManager();
   try {
-    await mechaRm(client, { id, force: true, withState });
+    await mechaRm(pm, { id, force: true, withState });
     return NextResponse.json({ ok: true });
   } catch (err) {
     if (err instanceof ContainerNotFoundError) {

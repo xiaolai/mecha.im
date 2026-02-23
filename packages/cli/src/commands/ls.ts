@@ -8,11 +8,11 @@ export function registerLsCommand(parent: Command, deps: CommandDeps): void {
     .command("ls")
     .description("List all mecha containers")
     .action(async () => {
-      const { dockerClient, formatter } = deps;
+      const { processManager, formatter } = deps;
       const jsonMode = parent.opts().json ?? false;
 
       try {
-        const items = await mechaLs(dockerClient);
+        const items = await mechaLs(processManager);
 
         if (jsonMode) {
           formatter.json(items);

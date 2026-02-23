@@ -1,15 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { mechaLs, mechaUp } from "@mecha/service";
 import { toHttpStatus, toSafeMessage, MechaUpInput, BLOCKED_ENV_KEYS } from "@mecha/contracts";
-import { DEFAULTS } from "@mecha/core";
-import { getDockerClient } from "@/lib/docker";
+import { getProcessManager } from "@/lib/process";
 import { withAuth } from "@/lib/api-auth";
 import { getOtpSecret } from "@/lib/auth";
 import { aggregateMechas } from "@/lib/nodes";
 
 export const GET = withAuth(async () => {
-  const client = getDockerClient();
-  const items = await mechaLs(client);
+  const pm = getProcessManager();
+  const items = await mechaLs(pm);
   const all = await aggregateMechas(items);
 
   // Map service response to dashboard-compatible shape (ports array for frontend)
@@ -20,7 +19,7 @@ export const GET = withAuth(async () => {
     status: item.status,
     path: item.path,
     ports: item.port
-      ? [{ PrivatePort: DEFAULTS.CONTAINER_PORT, PublicPort: item.port, Type: "tcp" }]
+      ? [{ PublicPort: item.port, PrivatePort: item.port, Type: "tcp" }]
       : [],
     created: item.created,
     node: item.node,
@@ -75,9 +74,9 @@ export const POST = withAuth(async (request: NextRequest) => {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Validation failed" }, { status: 400 });
   }
 
-  const client = getDockerClient();
+  const pm = getProcessManager();
   try {
-    const result = await mechaUp(client, parsed.data);
+    const result = await mechaUp(pm, parsed.data);
     return NextResponse.json(result, { status: 201 });
   } catch (err) {
     const status = toHttpStatus(err);

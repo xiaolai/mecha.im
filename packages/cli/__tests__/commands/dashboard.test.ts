@@ -37,7 +37,7 @@ describe("mecha dashboard", () => {
 
   beforeEach(() => {
     formatter = createMockFormatter();
-    deps = { dockerClient: { docker: {} } as any, formatter };
+    deps = { processManager: {} as any, formatter };
     process.exitCode = undefined;
     vi.clearAllMocks();
     vi.useFakeTimers();

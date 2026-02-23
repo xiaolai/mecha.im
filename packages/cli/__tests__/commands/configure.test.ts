@@ -20,7 +20,7 @@ describe("mecha configure", () => {
 
   beforeEach(() => {
     formatter = createMockFormatter();
-    deps = { dockerClient: { docker: {} } as any, formatter };
+    deps = { processManager: {} as any, formatter };
     process.exitCode = undefined;
     vi.clearAllMocks();
     mockMechaConfigure.mockResolvedValue(undefined);
@@ -32,7 +32,7 @@ describe("mecha configure", () => {
     await program.parseAsync(["configure", "mx-test-abc123", "--claude-token", "new-token"], { from: "user" });
 
     expect(mockMechaConfigure).toHaveBeenCalledWith(
-      deps.dockerClient,
+      deps.processManager,
       expect.objectContaining({ id: "mx-test-abc123", claudeToken: "new-token" }),
     );
     expect(formatter.success).toHaveBeenCalledWith(expect.stringContaining("reconfigured"));
@@ -44,7 +44,7 @@ describe("mecha configure", () => {
     await program.parseAsync(["configure", "mx-test-abc123", "--anthropic-key", "sk-ant-123"], { from: "user" });
 
     expect(mockMechaConfigure).toHaveBeenCalledWith(
-      deps.dockerClient,
+      deps.processManager,
       expect.objectContaining({ anthropicApiKey: "sk-ant-123" }),
     );
   });
@@ -59,7 +59,7 @@ describe("mecha configure", () => {
     ], { from: "user" });
 
     expect(mockMechaConfigure).toHaveBeenCalledWith(
-      deps.dockerClient,
+      deps.processManager,
       expect.objectContaining({ otp: "my-secret", permissionMode: "plan" }),
     );
   });

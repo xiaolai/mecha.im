@@ -31,7 +31,7 @@ describe("lifecycle commands", () => {
   beforeEach(() => {
     formatter = createMockFormatter();
     deps = {
-      dockerClient: { docker: {} } as any,
+      processManager: {} as any,
       formatter,
     };
     process.exitCode = undefined;
@@ -44,7 +44,7 @@ describe("lifecycle commands", () => {
       registerStopCommand(program, deps);
       await program.parseAsync(["stop", "mx-test-abc123"], { from: "user" });
 
-      expect(mockMechaStop).toHaveBeenCalledWith(deps.dockerClient, "mx-test-abc123");
+      expect(mockMechaStop).toHaveBeenCalledWith(deps.processManager, "mx-test-abc123");
       expect(formatter.success).toHaveBeenCalledWith(expect.stringContaining("stopped"));
     });
 
@@ -65,7 +65,7 @@ describe("lifecycle commands", () => {
       registerStartCommand(program, deps);
       await program.parseAsync(["start", "mx-test-abc123"], { from: "user" });
 
-      expect(mockMechaStart).toHaveBeenCalledWith(deps.dockerClient, "mx-test-abc123");
+      expect(mockMechaStart).toHaveBeenCalledWith(deps.processManager, "mx-test-abc123");
       expect(formatter.success).toHaveBeenCalledWith(expect.stringContaining("started"));
     });
   });
@@ -76,7 +76,7 @@ describe("lifecycle commands", () => {
       registerRestartCommand(program, deps);
       await program.parseAsync(["restart", "mx-test-abc123"], { from: "user" });
 
-      expect(mockMechaRestart).toHaveBeenCalledWith(deps.dockerClient, "mx-test-abc123");
+      expect(mockMechaRestart).toHaveBeenCalledWith(deps.processManager, "mx-test-abc123");
       expect(formatter.success).toHaveBeenCalledWith(expect.stringContaining("restarted"));
     });
   });

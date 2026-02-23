@@ -1,7 +1,7 @@
 import Fastify from "fastify";
 import type { FastifyInstance } from "fastify";
-import { createDockerClient } from "@mecha/docker";
-import type { DockerClient } from "@mecha/docker";
+import { createProcessManager } from "@mecha/process";
+import type { ProcessManager } from "@mecha/process";
 import { createBearerAuth } from "./auth.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerMechaRoutes } from "./routes/mechas.js";
@@ -26,7 +26,7 @@ export interface AgentServer {
 export async function createAgentServer(opts: AgentServerOptions): Promise<AgentServer> {
   const { port = 7660, host = "0.0.0.0", apiKey } = opts;
   const app = Fastify({ logger: false });
-  const docker: DockerClient = createDockerClient();
+  const pm: ProcessManager = createProcessManager();
 
   app.addHook("preHandler", createBearerAuth(apiKey));
 
@@ -36,12 +36,12 @@ export async function createAgentServer(opts: AgentServerOptions): Promise<Agent
 
   registerHealthRoutes(app, {
     startedAt,
-    docker,
+    pm,
     getNodeHealth: () => nodeHealth,
   });
-  registerMechaRoutes(app, docker);
-  registerSessionRoutes(app, docker);
-  registerEventRoutes(app, docker);
+  registerMechaRoutes(app, pm);
+  registerSessionRoutes(app, pm);
+  registerEventRoutes(app, pm);
 
   let heartbeatHandle: { stop: () => void } | null = null;
 

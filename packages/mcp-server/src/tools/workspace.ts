@@ -59,10 +59,10 @@ export function registerWorkspaceTools(mcpServer: McpServer, ctx: ToolContext): 
     },
     async ({ mecha_id, path }) => {
       try {
-        const ref = await ctx.locator.locate(ctx.docker, mecha_id, ctx.getNodes());
+        const ref = await ctx.locator.locate(ctx.pm, mecha_id, ctx.getNodes());
 
         if (ref.node === "local") {
-          const { endpoint, token } = await resolveMcpEndpoint(ctx.docker, mecha_id);
+          const { endpoint, token } = await resolveMcpEndpoint(ctx.pm, mecha_id);
           const result = await callContainerMcpTool(endpoint, token, "mecha_workspace_list", {
             ...(path !== undefined && { path }),
           });
@@ -92,10 +92,10 @@ export function registerWorkspaceTools(mcpServer: McpServer, ctx: ToolContext): 
     },
     async ({ mecha_id, path }) => {
       try {
-        const ref = await ctx.locator.locate(ctx.docker, mecha_id, ctx.getNodes());
+        const ref = await ctx.locator.locate(ctx.pm, mecha_id, ctx.getNodes());
 
         if (ref.node === "local") {
-          const { endpoint, token } = await resolveMcpEndpoint(ctx.docker, mecha_id);
+          const { endpoint, token } = await resolveMcpEndpoint(ctx.pm, mecha_id);
           const result = await callContainerMcpTool(endpoint, token, "mecha_workspace_read", { path });
           return textResult(typeof result === "string" ? result : JSON.stringify(result));
         }

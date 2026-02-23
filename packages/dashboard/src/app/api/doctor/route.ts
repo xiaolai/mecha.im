@@ -1,27 +1,23 @@
 import { NextResponse } from "next/server";
 import { mechaDoctor } from "@mecha/service";
-import { getDockerClient } from "@/lib/docker";
 import { withAuth } from "@/lib/api-auth";
 
 export const GET = withAuth(async () => {
-  const client = getDockerClient();
-  const result = await mechaDoctor(client);
+  const result = await mechaDoctor();
 
   const checks = [
     {
-      name: "docker",
-      ok: result.dockerAvailable,
-      message: result.dockerAvailable ? "Docker is available" : "Docker is not available",
+      name: "claude-cli",
+      ok: result.claudeCliAvailable,
+      message: result.claudeCliAvailable ? "Claude CLI is available" : "Claude CLI is not available",
     },
-    ...(result.dockerAvailable
-      ? [{
-          name: "network",
-          ok: result.networkExists,
-          message: result.networkExists ? "Network exists" : "Network not found",
-        }]
-      : []),
+    {
+      name: "sandbox",
+      ok: result.sandboxSupported,
+      message: result.sandboxSupported ? "Sandbox is supported" : "Sandbox is not supported",
+    },
   ];
 
   const healthy = checks.every((c) => c.ok);
-  return NextResponse.json({ healthy, checks }, { status: healthy ? 200 : 503 });
+  return NextResponse.json({ healthy, checks, issues: result.issues }, { status: healthy ? 200 : 503 });
 });

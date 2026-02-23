@@ -12,9 +12,9 @@ export function registerConfigureCommand(parent: Command, deps: CommandDeps): vo
     .option("--otp <secret>", "TOTP secret")
     .option("--permission-mode <mode>", "Permission mode: default, plan, full-auto")
     .action(async (id: string, cmdOpts: { claudeToken?: string; anthropicKey?: string; otp?: string; permissionMode?: string }) => {
-      const { dockerClient, formatter } = deps;
+      const { processManager, formatter } = deps;
       try {
-        await mechaConfigure(dockerClient, {
+        await mechaConfigure(processManager, {
           id,
           claudeToken: cmdOpts.claudeToken,
           anthropicApiKey: cmdOpts.anthropicKey,

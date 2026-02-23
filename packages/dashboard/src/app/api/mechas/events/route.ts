@@ -1,32 +1,25 @@
 import { type NextRequest } from "next/server";
-import { watchContainerEvents } from "@mecha/docker";
-import { getDockerClient } from "@/lib/docker";
+import { getProcessManager } from "@/lib/process";
 import { withStreamAuth } from "@/lib/api-auth";
 
 export const GET = withStreamAuth(async (request: NextRequest) => {
-  const client = getDockerClient();
+  const pm = getProcessManager();
   const encoder = new TextEncoder();
 
   const readable = new ReadableStream({
-    async start(controller) {
-      const onAbort = () => {
-        try { controller.close(); } catch { /* already closed */ }
-      };
-      request.signal.addEventListener("abort", onAbort, { once: true });
-
-      try {
-        for await (const event of watchContainerEvents(client, { signal: request.signal })) {
-          try {
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
-          } catch {
-            break;
-          }
+    start(controller) {
+      const unsubscribe = pm.onEvent((event) => {
+        try {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+        } catch {
+          unsubscribe();
         }
-      } catch {
-        /* stream error — clean up */
-      }
+      });
 
-      try { controller.close(); } catch { /* already closed */ }
+      request.signal.addEventListener("abort", () => {
+        unsubscribe();
+        try { controller.close(); } catch { /* already closed */ }
+      }, { once: true });
     },
   });
 

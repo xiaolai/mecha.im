@@ -23,7 +23,7 @@ export function registerMechaTools(mcpServer: McpServer, ctx: ToolContext): void
 
         // Local mechas
         if (!nodeFilter || nodeFilter === "local") {
-          const locals = await mechaLs(ctx.docker);
+          const locals = await mechaLs(ctx.pm);
           for (const m of locals) {
             results.push({
               node: "local",
@@ -71,9 +71,9 @@ export function registerMechaTools(mcpServer: McpServer, ctx: ToolContext): void
     { mecha_id: z.string().describe("The mecha ID to inspect") },
     async ({ mecha_id }) => {
       try {
-        const ref = await ctx.locator.locate(ctx.docker, mecha_id, ctx.getNodes());
+        const ref = await ctx.locator.locate(ctx.pm, mecha_id, ctx.getNodes());
         if (ref.node === "local") {
-          const status = await mechaStatus(ctx.docker, mecha_id);
+          const status = await mechaStatus(ctx.pm, mecha_id);
           return textResult(JSON.stringify({ node: "local", ...status }));
         }
         const mid = encodeURIComponent(mecha_id);

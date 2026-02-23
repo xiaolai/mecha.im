@@ -204,7 +204,7 @@ describe("handleInbound", () => {
     deps = {
       store: mockStore as any,
       adapters: new Map([["ch-test", adapter]]),
-      dockerClient: {} as any,
+      pm: {} as any,
     };
   });
 
@@ -237,12 +237,12 @@ describe("handleInbound", () => {
     await handleInbound(deps, "ch-test", msg);
 
     expect(mockSessionCreate).toHaveBeenCalledWith(
-      deps.dockerClient,
+      deps.pm,
       { id: "mx-abc", title: "telegram-12345" },
     );
     expect(mockStore.updateSessionId).toHaveBeenCalledWith("ch-test", "12345", "sess-new");
     expect(mockSessionMessage).toHaveBeenCalledWith(
-      deps.dockerClient,
+      deps.pm,
       { id: "mx-abc", sessionId: "sess-new", message: "Hello" },
     );
     expect(adapter.sendText).toHaveBeenCalledWith("12345", "Bot reply");
@@ -263,7 +263,7 @@ describe("handleInbound", () => {
 
     expect(mockSessionCreate).not.toHaveBeenCalled();
     expect(mockSessionMessage).toHaveBeenCalledWith(
-      deps.dockerClient,
+      deps.pm,
       { id: "mx-abc", sessionId: "sess-existing", message: "Hello" },
     );
   });
@@ -365,7 +365,7 @@ describe("handleInbound", () => {
     // Should NOT have created a new session since re-read found one
     expect(mockSessionCreate).not.toHaveBeenCalled();
     expect(mockSessionMessage).toHaveBeenCalledWith(
-      deps.dockerClient,
+      deps.pm,
       { id: "mx-abc", sessionId: "sess-existing", message: "Hello" },
     );
   });

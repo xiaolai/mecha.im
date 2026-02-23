@@ -26,7 +26,7 @@ describe("mecha completions", () => {
 
   beforeEach(() => {
     formatter = createMockFormatter();
-    deps = { dockerClient: { docker: {} } as any, formatter };
+    deps = { processManager: {} as any, formatter };
     process.exitCode = undefined;
     vi.clearAllMocks();
     logSpy = vi.spyOn(console, "log").mockReturnValue();

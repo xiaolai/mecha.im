@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
-import type { DockerClient } from "@mecha/docker";
+import type { ProcessManager } from "@mecha/process";
 import {
   mechaSessionList,
   mechaSessionCreate,
@@ -15,10 +15,10 @@ function errorResponse(reply: FastifyReply, err: unknown) {
   return { error: toSafeMessage(err) };
 }
 
-export function registerSessionRoutes(app: FastifyInstance, docker: DockerClient): void {
+export function registerSessionRoutes(app: FastifyInstance, pm: ProcessManager): void {
   app.get<{ Params: { id: string } }>("/mechas/:id/sessions", async (req, reply) => {
     try {
-      return await mechaSessionList(docker, { id: req.params.id });
+      return await mechaSessionList(pm, { id: req.params.id });
     } catch (err) {
       return errorResponse(reply, err);
     }
@@ -33,7 +33,7 @@ export function registerSessionRoutes(app: FastifyInstance, docker: DockerClient
           title: req.body?.title,
           config: req.body?.config,
         });
-        const result = await mechaSessionCreate(docker, input);
+        const result = await mechaSessionCreate(pm, input);
         reply.code(201);
         return result;
       } catch (err) {
@@ -47,7 +47,7 @@ export function registerSessionRoutes(app: FastifyInstance, docker: DockerClient
     "/mechas/:id/sessions/:sessionId",
     async (req, reply) => {
       try {
-        return await mechaSessionGet(docker, {
+        return await mechaSessionGet(pm, {
           id: req.params.id,
           sessionId: req.params.sessionId,
         });
@@ -62,7 +62,7 @@ export function registerSessionRoutes(app: FastifyInstance, docker: DockerClient
     "/mechas/:id/sessions/:sessionId",
     async (req, reply) => {
       try {
-        await mechaSessionDelete(docker, {
+        await mechaSessionDelete(pm, {
           id: req.params.id,
           sessionId: req.params.sessionId,
         });
@@ -80,7 +80,7 @@ export function registerSessionRoutes(app: FastifyInstance, docker: DockerClient
     async (req, reply) => {
       try {
         // Verify session exists before writing metadata
-        await mechaSessionGet(docker, {
+        await mechaSessionGet(pm, {
           id: req.params.id,
           sessionId: req.params.sessionId,
         });
@@ -102,7 +102,7 @@ export function registerSessionRoutes(app: FastifyInstance, docker: DockerClient
     async (req, reply) => {
       try {
         const upstream = await mechaSessionMessage(
-          docker,
+          pm,
           { id: req.params.id, sessionId: req.params.sessionId, message: req.body.message },
           undefined,
         );

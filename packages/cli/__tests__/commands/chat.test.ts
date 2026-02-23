@@ -41,7 +41,7 @@ describe("mecha chat", () => {
 
   beforeEach(() => {
     formatter = createMockFormatter();
-    deps = { dockerClient: { docker: {} } as any, formatter };
+    deps = { processManager: {} as any, formatter };
     process.exitCode = undefined;
     vi.clearAllMocks();
     writeSpy = vi.spyOn(process.stdout, "write").mockReturnValue(true);
@@ -211,7 +211,7 @@ describe("mecha chat", () => {
     await program.parseAsync(["chat", "mx-test", "Hi", "--session", "sess-123"], { from: "user" });
 
     expect(mockMechaSessionMessage).toHaveBeenCalledWith(
-      deps.dockerClient,
+      deps.processManager,
       { id: "mx-test", sessionId: "sess-123", message: "Hi" },
     );
     const output = writeSpy.mock.calls.map((c) => String(c[0])).join("");
@@ -230,9 +230,9 @@ describe("mecha chat", () => {
     registerChatCommand(program, deps);
     await program.parseAsync(["chat", "mx-test", "Hello", "--new-session"], { from: "user" });
 
-    expect(mockMechaSessionCreate).toHaveBeenCalledWith(deps.dockerClient, { id: "mx-test" });
+    expect(mockMechaSessionCreate).toHaveBeenCalledWith(deps.processManager, { id: "mx-test" });
     expect(mockMechaSessionMessage).toHaveBeenCalledWith(
-      deps.dockerClient,
+      deps.processManager,
       { id: "mx-test", sessionId: "test-session-id", message: "Hello" },
     );
     expect(formatter.info).toHaveBeenCalledWith("Session: test-session-id");

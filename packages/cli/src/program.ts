@@ -1,6 +1,6 @@
 import { createRequire } from "node:module";
 import { Command } from "commander";
-import { createDockerClient } from "@mecha/docker";
+import { createProcessManager } from "@mecha/process";
 import { createFormatter } from "./output/formatter.js";
 import type { CommandDeps } from "./types.js";
 import type { GlobalOptions } from "@mecha/core";
@@ -13,20 +13,16 @@ import { registerStartCommand, registerStopCommand, registerRestartCommand } fro
 import { registerRmCommand } from "./commands/rm.js";
 import { registerStatusCommand } from "./commands/status.js";
 import { registerLogsCommand } from "./commands/logs.js";
-import { registerExecCommand } from "./commands/exec.js";
 import { registerUiCommand } from "./commands/ui.js";
 import { registerMcpCommand } from "./commands/mcp.js";
 import { registerConfigureCommand } from "./commands/configure.js";
 import { registerDashboardCommand } from "./commands/dashboard.js";
 import { registerTokenCommand } from "./commands/token.js";
-import { registerInspectCommand } from "./commands/inspect.js";
 import { registerEnvCommand } from "./commands/env.js";
 import { registerPruneCommand } from "./commands/prune.js";
-import { registerUpdateCommand } from "./commands/update.js";
 import { registerChatCommand } from "./commands/chat.js";
 import { registerSessionsCommand } from "./commands/sessions.js";
 import { registerCompletionsCommand } from "./commands/completions.js";
-import { registerEjectCommand } from "./commands/eject.js";
 import { registerChannelCommand } from "./commands/channel.js";
 import { registerAgentCommand } from "./commands/agent.js";
 import { registerNodeCommand } from "./commands/node.js";
@@ -48,8 +44,8 @@ export function createProgram(depsOverride?: CommandDeps): Command {
 
   // Build deps lazily so tests can inject their own
   const deps: CommandDeps = depsOverride ?? {
-    get dockerClient() {
-      return createDockerClient();
+    get processManager() {
+      return createProcessManager();
     },
     get formatter() {
       const opts = program.opts() as GlobalOptions;
@@ -71,20 +67,16 @@ export function createProgram(depsOverride?: CommandDeps): Command {
   registerRmCommand(program, deps);
   registerStatusCommand(program, deps);
   registerLogsCommand(program, deps);
-  registerExecCommand(program, deps);
   registerUiCommand(program, deps);
   registerMcpCommand(program, deps);
   registerConfigureCommand(program, deps);
   registerDashboardCommand(program, deps);
   registerTokenCommand(program, deps);
-  registerInspectCommand(program, deps);
   registerEnvCommand(program, deps);
   registerPruneCommand(program, deps);
-  registerUpdateCommand(program, deps);
   registerChatCommand(program, deps);
   registerSessionsCommand(program, deps);
   registerCompletionsCommand(program, deps);
-  registerEjectCommand(program, deps);
   registerChannelCommand(program, deps);
   registerAgentCommand(program, deps);
   registerNodeCommand(program, deps);

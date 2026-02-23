@@ -10,9 +10,9 @@ export function registerRmCommand(parent: Command, deps: CommandDeps): void {
     .option("--with-state", "Also remove the state volume")
     .option("-f, --force", "Force remove even if running")
     .action(async (id: string, cmdOpts: { withState?: boolean; force?: boolean }) => {
-      const { dockerClient, formatter } = deps;
+      const { processManager, formatter } = deps;
       try {
-        await mechaRm(dockerClient, { id, withState: cmdOpts.withState ?? false, force: cmdOpts.force ?? false });
+        await mechaRm(processManager, { id, withState: cmdOpts.withState ?? false, force: cmdOpts.force ?? false });
         formatter.success(`Mecha '${id}' removed.`);
       } catch (err) {
         formatter.error(toUserMessage(err));
