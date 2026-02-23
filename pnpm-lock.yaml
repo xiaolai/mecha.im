@@ -109,6 +109,9 @@ importers:
       '@mecha/docker':
         specifier: workspace:*
         version: link:../docker
+      '@mecha/mcp-server':
+        specifier: workspace:*
+        version: link:../mcp-server
       '@mecha/service':
         specifier: workspace:*
         version: link:../service
@@ -269,6 +272,46 @@ importers:
       '@types/dockerode':
         specifier: ^3.3.38
         version: 3.3.47
+      '@types/node':
+        specifier: ^25.3.0
+        version: 25.3.0
+      '@vitest/coverage-v8':
+        specifier: ^4.0.18
+        version: 4.0.18(vitest@4.0.18(@types/node@25.3.0)(jiti@2.6.1)(lightningcss@1.31.1))
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.18
+        version: 4.0.18(@types/node@25.3.0)(jiti@2.6.1)(lightningcss@1.31.1)
+
+  packages/mcp-server:
+    dependencies:
+      '@mecha/agent':
+        specifier: workspace:*
+        version: link:../agent
+      '@mecha/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@mecha/core':
+        specifier: workspace:*
+        version: link:../core
+      '@mecha/docker':
+        specifier: workspace:*
+        version: link:../docker
+      '@mecha/service':
+        specifier: workspace:*
+        version: link:../service
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.26.0
+        version: 1.26.0(zod@4.3.6)
+      fastify:
+        specifier: ^5.3.3
+        version: 5.7.4
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
+    devDependencies:
       '@types/node':
         specifier: ^25.3.0
         version: 25.3.0

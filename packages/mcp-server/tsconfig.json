@@ -11,8 +11,6 @@
     { "path": "../contracts" },
     { "path": "../docker" },
     { "path": "../service" },
-    { "path": "../channels" },
-    { "path": "../agent" },
-    { "path": "../mcp-server" }
+    { "path": "../agent" }
   ]
 }
