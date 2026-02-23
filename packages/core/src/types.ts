@@ -11,13 +11,13 @@ export interface MechaConfig {
   profile?: "default" | "strict";
   /** Optional explicit ID override */
   id?: MechaId;
-  /** Runtime image to use */
-  image?: string;
   /** Port mapping for the runtime HTTP server */
   port?: number;
+  /** Whether to enable sandbox (default: true). */
+  sandboxEnabled?: boolean;
 }
 
-/** Possible states of a Mecha container */
+/** Possible states of a Mecha process */
 export type MechaState =
   | "creating"
   | "running"
@@ -29,11 +29,10 @@ export type MechaState =
 /** Full info about a Mecha instance */
 export interface MechaInfo {
   id: MechaId;
-  containerName: string;
-  volumeName: string;
   state: MechaState;
   projectPath: string;
   port?: number;
+  pid?: number;
   createdAt?: string;
   startedAt?: string;
 }

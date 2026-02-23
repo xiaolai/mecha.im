@@ -69,12 +69,6 @@ export const MechaLogsInput = z.object({
 });
 export type MechaLogsInput = z.infer<typeof MechaLogsInput>;
 
-export const MechaExecInput = z.object({
-  id:  z.string().min(1),
-  cmd: z.array(z.string()).min(1),
-});
-export type MechaExecInput = z.infer<typeof MechaExecInput>;
-
 export const MechaLsItem = z.object({
   id:      z.string(),
   name:    z.string(),
@@ -93,16 +87,16 @@ export const MechaStatusResult = z.object({
   running:    z.boolean(),
   port:       z.number().optional(),
   path:       z.string(),
-  image:      z.string(),
+  pid:        z.number().optional(),
   startedAt:  z.string().optional(),
   finishedAt: z.string().optional(),
 });
 export type MechaStatusResult = z.infer<typeof MechaStatusResult>;
 
 export const DoctorResult = z.object({
-  dockerAvailable: z.boolean(),
-  networkExists:   z.boolean(),
-  issues:          z.array(z.string()),
+  claudeCliAvailable: z.boolean(),
+  sandboxSupported:   z.boolean(),
+  issues:             z.array(z.string()),
 });
 export type DoctorResult = z.infer<typeof DoctorResult>;
 
@@ -130,17 +124,9 @@ export const MechaEnvResult = z.object({
 export type MechaEnvResult = z.infer<typeof MechaEnvResult>;
 
 export const MechaPruneResult = z.object({
-  removedContainers: z.array(z.string()),
-  removedVolumes:    z.array(z.string()),
+  removedProcesses: z.array(z.string()),
 });
 export type MechaPruneResult = z.infer<typeof MechaPruneResult>;
-
-export const MechaUpdateResult = z.object({
-  id:            z.string(),
-  image:         z.string(),
-  previousImage: z.string(),
-});
-export type MechaUpdateResult = z.infer<typeof MechaUpdateResult>;
 
 export const MechaChatInput = z.object({
   id:      z.string().min(1),
@@ -221,21 +207,6 @@ export const SessionMetaUpdate = z.object({
   { message: "At least one field required: customTitle or starred" },
 );
 export type SessionMetaUpdate = z.infer<typeof SessionMetaUpdate>;
-
-// --- Eject schemas ---
-
-export const MechaEjectInput = z.object({
-  id:    z.string().min(1),
-  force: z.boolean().default(false),
-});
-export type MechaEjectInput = z.infer<typeof MechaEjectInput>;
-
-export const MechaEjectResult = z.object({
-  id:          z.string(),
-  composePath: z.string(),
-  envPath:     z.string(),
-});
-export type MechaEjectResult = z.infer<typeof MechaEjectResult>;
 
 // --- Channel schemas ---
 

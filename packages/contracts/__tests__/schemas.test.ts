@@ -8,7 +8,6 @@ import {
   MechaRmInput,
   MechaConfigureInput,
   MechaLogsInput,
-  MechaExecInput,
   MechaLsItem,
   MechaStatusResult,
   DoctorResult,
@@ -208,21 +207,6 @@ describe("MechaLogsInput", () => {
   });
 });
 
-describe("MechaExecInput", () => {
-  it("parses valid input", () => {
-    const result = MechaExecInput.parse({ id: "mx-foo", cmd: ["echo", "hello"] });
-    expect(result.cmd).toEqual(["echo", "hello"]);
-  });
-
-  it("rejects empty command array", () => {
-    expect(() => MechaExecInput.parse({ id: "mx-foo", cmd: [] })).toThrow();
-  });
-
-  it("rejects empty id", () => {
-    expect(() => MechaExecInput.parse({ id: "", cmd: ["ls"] })).toThrow();
-  });
-});
-
 describe("MechaLsItem", () => {
   it("parses valid item with optional port", () => {
     const item = { id: "mx-foo", name: "mecha-mx-foo", state: "running", status: "Up 5 min", path: "/tmp", port: 7700, created: 1700000000 };
@@ -240,29 +224,30 @@ describe("MechaStatusResult", () => {
   it("parses full status", () => {
     const status = {
       id: "mx-foo", name: "mecha-mx-foo", state: "running", running: true,
-      port: 7700, path: "/tmp", image: "mecha-runtime:latest",
+      port: 7700, path: "/tmp", pid: 12345,
       startedAt: "2025-01-01T00:00:00Z", finishedAt: "",
     };
     expect(MechaStatusResult.parse(status)).toEqual(status);
   });
 
   it("parses without optional fields", () => {
-    const status = { id: "mx-foo", name: "n", state: "exited", running: false, path: "/tmp", image: "img" };
+    const status = { id: "mx-foo", name: "n", state: "exited", running: false, path: "/tmp" };
     const result = MechaStatusResult.parse(status);
     expect(result.port).toBeUndefined();
+    expect(result.pid).toBeUndefined();
     expect(result.startedAt).toBeUndefined();
   });
 });
 
 describe("DoctorResult", () => {
   it("parses healthy result", () => {
-    const result = DoctorResult.parse({ dockerAvailable: true, networkExists: true, issues: [] });
+    const result = DoctorResult.parse({ claudeCliAvailable: true, sandboxSupported: true, issues: [] });
     expect(result.issues).toHaveLength(0);
   });
 
   it("parses unhealthy result", () => {
-    const result = DoctorResult.parse({ dockerAvailable: false, networkExists: false, issues: ["Docker not running"] });
-    expect(result.issues).toEqual(["Docker not running"]);
+    const result = DoctorResult.parse({ claudeCliAvailable: false, sandboxSupported: false, issues: ["Claude CLI not found"] });
+    expect(result.issues).toEqual(["Claude CLI not found"]);
   });
 });
 

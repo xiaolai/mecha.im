@@ -25,17 +25,17 @@ function toSlug(canonicalPath: string): string {
   );
 }
 
-/** Get the Docker container name for a Mecha ID */
+/** @deprecated Docker-only. Will be removed in Phase 7. */
 export function containerName(id: MechaId): string {
   return `mecha-${id}`;
 }
 
-/** Get the Docker volume name for a Mecha ID */
+/** @deprecated Docker-only. Will be removed in Phase 7. */
 export function volumeName(id: MechaId): string {
   return `mecha-state-${id}`;
 }
 
-/** Get the Docker network name (shared across all Mechas) */
+/** @deprecated Docker-only. Will be removed in Phase 7. */
 export function networkName(): string {
   return "mecha-net";
 }

@@ -11,12 +11,15 @@ export class InvalidPermissionModeError extends MechaError {
   constructor(mode: string) { super(`Invalid permission mode: ${mode} (must be one of: default, plan, full-auto)`, "INVALID_PERMISSION_MODE"); }
 }
 
-export class ContainerStartError extends MechaError {
+export class ProcessSpawnError extends MechaError {
   constructor(name: string, cause?: Error) {
-    super(`Failed to start container ${name}: ${cause?.message ?? "unknown"}`, "CONTAINER_START_FAILED");
+    super(`Failed to spawn process ${name}: ${cause?.message ?? "unknown"}`, "PROCESS_SPAWN_FAILED");
     if (cause) this.cause = cause;
   }
 }
+
+/** @deprecated Use ProcessSpawnError instead. Will be removed. */
+export const ContainerStartError = ProcessSpawnError;
 
 export class PathNotFoundError extends MechaError {
   constructor(path: string) { super(`Path does not exist: ${path}`, "PATH_NOT_FOUND"); }
@@ -54,10 +57,6 @@ export class SessionBusyError extends MechaError {
 
 export class SessionCapReachedError extends MechaError {
   constructor() { super("Maximum number of sessions reached", "SESSION_CAP_REACHED"); }
-}
-
-export class EjectFileExistsError extends MechaError {
-  constructor(path: string) { super(`File already exists: ${path}. Use --force to overwrite.`, "EJECT_FILE_EXISTS"); }
 }
 
 // --- Mesh / node errors ---
@@ -105,6 +104,7 @@ const HTTP_STATUS_MAP: Record<string, number> = {
   CONFIGURE_NO_FIELDS: 400,
   CONTAINER_NOT_FOUND: 404,
   CONTAINER_ALREADY_EXISTS: 409,
+  PROCESS_SPAWN_FAILED: 500,
   CONTAINER_START_FAILED: 500,
   DOCKER_NOT_AVAILABLE: 503,
   NO_PORT_BINDING: 500,
@@ -115,7 +115,6 @@ const HTTP_STATUS_MAP: Record<string, number> = {
   SESSION_NOT_FOUND: 404,
   SESSION_BUSY: 409,
   SESSION_CAP_REACHED: 429,
-  EJECT_FILE_EXISTS: 409,
   CHANNEL_NOT_FOUND: 404,
   CHANNEL_LINK_NOT_FOUND: 404,
   CHANNEL_LINK_EXISTS: 409,

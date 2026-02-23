@@ -2,24 +2,40 @@ import { describe, it, expect } from "vitest";
 import { DEFAULTS, MOUNT_PATHS, LABELS, SECURITY } from "../src/constants.js";
 
 describe("DEFAULTS", () => {
-  it("has expected image name", () => {
-    expect(DEFAULTS.IMAGE).toBe("mecha-runtime:latest");
-  });
-
-  it("has expected network name", () => {
-    expect(DEFAULTS.NETWORK).toBe("mecha-net");
-  });
-
-  it("has expected container port", () => {
-    expect(DEFAULTS.CONTAINER_PORT).toBe(3000);
-  });
-
   it("has valid port range", () => {
     expect(DEFAULTS.PORT_BASE).toBeLessThan(DEFAULTS.PORT_MAX);
   });
+
+  it("has stop timeout in milliseconds", () => {
+    expect(DEFAULTS.STOP_TIMEOUT_MS).toBe(10_000);
+  });
+
+  it("has state directory name", () => {
+    expect(DEFAULTS.STATE_DIR).toBe("processes");
+  });
+
+  it("has log directory name", () => {
+    expect(DEFAULTS.LOG_DIR).toBe("logs");
+  });
+
+  it("has events file name", () => {
+    expect(DEFAULTS.EVENTS_FILE).toBe("events.jsonl");
+  });
+
+  it("has home directory name", () => {
+    expect(DEFAULTS.HOME_DIR).toBe(".mecha");
+  });
+
+  it("has dashboard port", () => {
+    expect(DEFAULTS.DASHBOARD_PORT).toBe(7600);
+  });
+
+  it("has heartbeat interval", () => {
+    expect(DEFAULTS.HEARTBEAT_INTERVAL_MS).toBe(30_000);
+  });
 });
 
-describe("MOUNT_PATHS", () => {
+describe("MOUNT_PATHS (deprecated)", () => {
   it("has workspace mount", () => {
     expect(MOUNT_PATHS.WORKSPACE).toBe("/home/mecha");
   });
@@ -33,7 +49,7 @@ describe("MOUNT_PATHS", () => {
   });
 });
 
-describe("LABELS", () => {
+describe("LABELS (deprecated)", () => {
   it("has mecha marker label", () => {
     expect(LABELS.IS_MECHA).toBe("mecha");
   });
@@ -47,7 +63,7 @@ describe("LABELS", () => {
   });
 });
 
-describe("SECURITY", () => {
+describe("SECURITY (deprecated)", () => {
   it("runs as non-root UID", () => {
     expect(SECURITY.UID).toBe(1000);
   });
