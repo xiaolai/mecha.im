@@ -4,8 +4,11 @@ import {
   mechaSessionList,
   mechaSessionCreate,
   mechaSessionMessage,
+  mechaSessionGet,
+  mechaSessionDelete,
 } from "@mecha/service";
-import { SessionCreateInput, toHttpStatus, toSafeMessage } from "@mecha/contracts";
+import { SessionCreateInput, SessionMetaUpdate, toHttpStatus, toSafeMessage } from "@mecha/contracts";
+import { setSessionMeta } from "@mecha/core";
 
 function errorResponse(reply: FastifyReply, err: unknown) {
   reply.code(toHttpStatus(err));
@@ -33,6 +36,56 @@ export function registerSessionRoutes(app: FastifyInstance, docker: DockerClient
         const result = await mechaSessionCreate(docker, input);
         reply.code(201);
         return result;
+      } catch (err) {
+        return errorResponse(reply, err);
+      }
+    },
+  );
+
+  // --- Phase 1.3: GET single session ---
+  app.get<{ Params: { id: string; sessionId: string } }>(
+    "/mechas/:id/sessions/:sessionId",
+    async (req, reply) => {
+      try {
+        return await mechaSessionGet(docker, {
+          id: req.params.id,
+          sessionId: req.params.sessionId,
+        });
+      } catch (err) {
+        return errorResponse(reply, err);
+      }
+    },
+  );
+
+  // --- Phase 1.2: DELETE session ---
+  app.delete<{ Params: { id: string; sessionId: string } }>(
+    "/mechas/:id/sessions/:sessionId",
+    async (req, reply) => {
+      try {
+        await mechaSessionDelete(docker, {
+          id: req.params.id,
+          sessionId: req.params.sessionId,
+        });
+        reply.code(204);
+        return;
+      } catch (err) {
+        return errorResponse(reply, err);
+      }
+    },
+  );
+
+  // --- Phase 1.1: PATCH session metadata ---
+  app.patch<{ Params: { id: string; sessionId: string }; Body: unknown }>(
+    "/mechas/:id/sessions/:sessionId/meta",
+    async (req, reply) => {
+      try {
+        const meta = SessionMetaUpdate.parse(req.body);
+        // Convert null → undefined for clearing fields
+        const patch: { customTitle?: string; starred?: boolean } = {};
+        if (meta.customTitle !== undefined) patch.customTitle = meta.customTitle ?? undefined;
+        if (meta.starred !== undefined) patch.starred = meta.starred ?? undefined;
+        setSessionMeta(req.params.id, req.params.sessionId, patch);
+        return { ok: true };
       } catch (err) {
         return errorResponse(reply, err);
       }
