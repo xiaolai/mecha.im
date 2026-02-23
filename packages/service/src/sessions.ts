@@ -1,6 +1,5 @@
 import { unlinkSync, lstatSync } from "node:fs";
-import type { DockerClient } from "@mecha/docker";
-import { inspectContainer } from "@mecha/docker";
+import type { ProcessManager } from "@mecha/process";
 import type {
   SessionCreateInputType,
   SessionListInputType,
@@ -13,8 +12,6 @@ import type {
 } from "@mecha/contracts";
 import { SessionNotFoundError } from "@mecha/contracts";
 import {
-  containerName,
-  LABELS,
   resolveProjectsDir,
   listSessionFiles,
   parseSessionSummary,
@@ -24,7 +21,6 @@ import {
   deleteSessionMeta,
 } from "@mecha/core";
 import type {
-  MechaId,
   SessionSummary,
   ParsedSession,
   SessionMeta,
@@ -32,21 +28,17 @@ import type {
 import { runtimeFetch } from "./helpers.js";
 
 // ---------------------------------------------------------------------------
-// Helper: get mecha project path from container labels (works when stopped)
+// Helper: get mecha project path from process state
 // ---------------------------------------------------------------------------
 
-export async function getMechaPath(client: DockerClient, mechaId: string): Promise<string> {
-  const cName = containerName(mechaId as MechaId);
-  const info = await inspectContainer(client, cName);
-  const mechaPath = info.Config?.Labels?.[LABELS.MECHA_PATH];
-  if (!mechaPath) {
-    throw new Error(`Container ${cName} has no mecha.path label`);
-  }
-  return mechaPath;
+export function getMechaPath(pm: ProcessManager, mechaId: string): string {
+  const info = pm.get(mechaId);
+  if (!info) throw new Error(`Mecha not found: ${mechaId}`);
+  return info.projectPath;
 }
 
 // ---------------------------------------------------------------------------
-// READ operations — filesystem-based (work when container is stopped)
+// READ operations — filesystem-based (work when process is stopped)
 // ---------------------------------------------------------------------------
 
 export interface SessionListResult {
@@ -56,10 +48,10 @@ export interface SessionListResult {
 
 // --- mechaSessionList ---
 export async function mechaSessionList(
-  client: DockerClient,
+  pm: ProcessManager,
   input: SessionListInputType,
 ): Promise<SessionListResult> {
-  const mechaPath = await getMechaPath(client, input.id);
+  const mechaPath = getMechaPath(pm, input.id);
   const projectsDir = resolveProjectsDir(mechaPath);
   const files = listSessionFiles(projectsDir);
   const sessions = files.map((f) => parseSessionSummary(f.filePath));
@@ -69,10 +61,10 @@ export async function mechaSessionList(
 
 // --- mechaSessionGet ---
 export async function mechaSessionGet(
-  client: DockerClient,
+  pm: ProcessManager,
   input: SessionGetInputType,
 ): Promise<ParsedSession> {
-  const mechaPath = await getMechaPath(client, input.id);
+  const mechaPath = getMechaPath(pm, input.id);
   const projectsDir = resolveProjectsDir(mechaPath);
   const files = listSessionFiles(projectsDir);
   const match = files.find((f) => f.sessionId === input.sessionId);
@@ -81,15 +73,15 @@ export async function mechaSessionGet(
 }
 
 // ---------------------------------------------------------------------------
-// WRITE operations — runtime-based (require running container)
+// WRITE operations — runtime-based (require running process)
 // ---------------------------------------------------------------------------
 
 // --- mechaSessionCreate ---
 export async function mechaSessionCreate(
-  client: DockerClient,
+  pm: ProcessManager,
   input: SessionCreateInputType,
 ): Promise<unknown> {
-  const res = await runtimeFetch(client, input.id, "/api/sessions", {
+  const res = await runtimeFetch(pm, input.id, "/api/sessions", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ title: input.title, config: input.config }),
@@ -99,11 +91,11 @@ export async function mechaSessionCreate(
 
 // --- mechaSessionDelete ---
 export async function mechaSessionDelete(
-  client: DockerClient,
+  pm: ProcessManager,
   input: SessionDeleteInputType,
 ): Promise<void> {
   // Delete the JSONL file on host
-  const mechaPath = await getMechaPath(client, input.id);
+  const mechaPath = getMechaPath(pm, input.id);
   const projectsDir = resolveProjectsDir(mechaPath);
   const files = listSessionFiles(projectsDir);
   const match = files.find((f) => f.sessionId === input.sessionId);
@@ -117,15 +109,15 @@ export async function mechaSessionDelete(
   unlinkSync(match.filePath);
   deleteSessionMeta(input.id, input.sessionId);
 
-  // Best-effort runtime cleanup (container may be stopped)
+  // Best-effort runtime cleanup (process may be stopped)
   try {
     const sid = encodeURIComponent(input.sessionId);
-    await runtimeFetch(client, input.id, `/api/sessions/${sid}`, {
+    await runtimeFetch(pm, input.id, `/api/sessions/${sid}`, {
       method: "DELETE",
       sessionId: input.sessionId,
     });
   } catch (err) {
-    // Only ignore connection errors (container not running)
+    // Only ignore connection errors (process not running)
     const msg = err instanceof Error ? err.message : "";
     if (!msg.includes("ECONNREFUSED") && !msg.includes("fetch failed") && !msg.includes("not running")) {
       throw err;
@@ -135,12 +127,12 @@ export async function mechaSessionDelete(
 
 // --- mechaSessionMessage ---
 export async function mechaSessionMessage(
-  client: DockerClient,
+  pm: ProcessManager,
   input: SessionMessageInputType,
   signal?: AbortSignal,
 ): Promise<Response> {
   const sid = encodeURIComponent(input.sessionId);
-  return runtimeFetch(client, input.id, `/api/sessions/${sid}/message`, {
+  return runtimeFetch(pm, input.id, `/api/sessions/${sid}/message`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ message: input.message }),
@@ -151,11 +143,11 @@ export async function mechaSessionMessage(
 
 // --- mechaSessionInterrupt ---
 export async function mechaSessionInterrupt(
-  client: DockerClient,
+  pm: ProcessManager,
   input: SessionInterruptInputType,
 ): Promise<{ interrupted: boolean }> {
   const sid = encodeURIComponent(input.sessionId);
-  const res = await runtimeFetch(client, input.id, `/api/sessions/${sid}/interrupt`, {
+  const res = await runtimeFetch(pm, input.id, `/api/sessions/${sid}/interrupt`, {
     method: "POST",
     sessionId: input.sessionId,
   });
@@ -164,11 +156,11 @@ export async function mechaSessionInterrupt(
 
 // --- mechaSessionRename ---
 export async function mechaSessionRename(
-  client: DockerClient,
+  pm: ProcessManager,
   input: SessionRenameInputType,
 ): Promise<{ title: string }> {
   // Verify session exists before writing metadata
-  const mechaPath = await getMechaPath(client, input.id);
+  const mechaPath = getMechaPath(pm, input.id);
   const projectsDir = resolveProjectsDir(mechaPath);
   const files = listSessionFiles(projectsDir);
   const match = files.find((f) => f.sessionId === input.sessionId);
@@ -180,11 +172,11 @@ export async function mechaSessionRename(
 
 // --- mechaSessionConfigUpdate ---
 export async function mechaSessionConfigUpdate(
-  client: DockerClient,
+  pm: ProcessManager,
   input: SessionConfigUpdateInputType,
 ): Promise<unknown> {
   const sid = encodeURIComponent(input.sessionId);
-  const res = await runtimeFetch(client, input.id, `/api/sessions/${sid}/config`, {
+  const res = await runtimeFetch(pm, input.id, `/api/sessions/${sid}/config`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input.config),

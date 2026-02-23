@@ -1,4 +1,4 @@
-import type { DockerClient } from "@mecha/docker";
+import type { ProcessManager } from "@mecha/process";
 import type { MechaRef } from "@mecha/core";
 import { MechaNotLocatedError, NodeUnreachableError } from "@mecha/contracts";
 import { mechaLs } from "./inspect.js";
@@ -25,7 +25,7 @@ export class MechaLocator {
 
   /** Resolve a mecha ID to a MechaRef + connection info. */
   async locate(
-    client: DockerClient,
+    pm: ProcessManager,
     mechaId: string,
     nodes: NodeEntry[],
   ): Promise<MechaRef & { entry?: NodeEntry }> {
@@ -35,8 +35,8 @@ export class MechaLocator {
       return cached.ref;
     }
 
-    // 2. Check local Docker
-    const locals = await mechaLs(client);
+    // 2. Check local processes
+    const locals = await mechaLs(pm);
     if (locals.some((m) => m.id === mechaId)) {
       const ref: MechaRef & { entry?: NodeEntry } = { node: "local", id: mechaId };
       this.cache.set(mechaId, { ref, expiresAt: Date.now() + this.ttl });

@@ -1,17 +1,4 @@
-import type { DockerClient } from "@mecha/docker";
-import {
-  getContainerPort,
-  getContainerPortAndEnv,
-  inspectContainer,
-  listMechaContainers,
-  getContainerLogs,
-} from "@mecha/docker";
-import {
-  containerName,
-  DEFAULTS,
-  LABELS,
-} from "@mecha/core";
-import type { MechaId } from "@mecha/core";
+import type { ProcessManager } from "@mecha/process";
 import {
   NoPortBindingError,
   TokenNotFoundError,
@@ -25,99 +12,80 @@ import type {
   MechaTokenResultType,
   MechaEnvResultType,
 } from "@mecha/contracts";
-import { readEnvValue } from "./helpers.js";
 
 // --- mechaLs ---
-export async function mechaLs(client: DockerClient): Promise<MechaLsItemType[]> {
-  const containers = await listMechaContainers(client);
-  return containers.map((c) => ({
-    id: c.Labels[LABELS.MECHA_ID] ?? "",
-    name: c.Names[0]?.replace(/^\//, "") ?? "",
-    state: c.State,
-    status: c.Status,
-    path: c.Labels[LABELS.MECHA_PATH] ?? "",
-    port: c.Ports?.find((p) => p.PrivatePort === DEFAULTS.CONTAINER_PORT)?.PublicPort,
-    created: c.Created,
+export async function mechaLs(pm: ProcessManager): Promise<MechaLsItemType[]> {
+  const processes = pm.list();
+  return processes.map((p) => ({
+    id: p.id,
+    name: p.id,
+    state: p.state,
+    status: p.state === "running" ? `Up (PID ${p.pid})` : `Stopped`,
+    path: p.projectPath,
+    port: p.port || undefined,
+    created: new Date(p.createdAt).getTime() / 1000,
   }));
 }
 
 // --- mechaStatus ---
-export async function mechaStatus(client: DockerClient, id: string): Promise<MechaStatusResultType> {
-  const cName = containerName(id as MechaId);
-  const info = await inspectContainer(client, cName);
-  const portBindings = info.NetworkSettings?.Ports?.[`${DEFAULTS.CONTAINER_PORT}/tcp`];
-  const portStr = portBindings?.[0]?.HostPort;
+export async function mechaStatus(pm: ProcessManager, id: string): Promise<MechaStatusResultType> {
+  const info = pm.get(id);
+  if (!info) throw new Error(`Mecha not found: ${id}`);
   return {
     id,
-    name: info.Name.replace(/^\//, ""),
-    state: info.State?.Status ?? "unknown",
-    running: info.State?.Running ?? false,
-    port: portStr ? parseInt(portStr, 10) : undefined,
-    path: info.Config?.Labels?.[LABELS.MECHA_PATH] ?? "",
-    image: info.Config?.Image ?? "",
-    startedAt: info.State?.StartedAt,
-    finishedAt: info.State?.FinishedAt,
+    name: info.id,
+    state: info.state,
+    running: info.state === "running",
+    port: info.port || undefined,
+    path: info.projectPath,
+    pid: info.pid,
+    startedAt: info.startedAt,
   };
 }
 
 // --- mechaLogs ---
 export async function mechaLogs(
-  client: DockerClient,
+  pm: ProcessManager,
   input: MechaLogsInputType,
 ): Promise<NodeJS.ReadableStream> {
-  const cName = containerName(input.id as MechaId);
-  return getContainerLogs(client, cName, {
+  return pm.logs(input.id, {
     follow: input.follow,
     tail: input.tail,
-    since: input.since,
   });
-}
-
-// --- mechaInspect ---
-export async function mechaInspect(
-  client: DockerClient,
-  id: string,
-): Promise<Record<string, unknown>> {
-  const info = await inspectContainer(client, containerName(id as MechaId));
-  return JSON.parse(JSON.stringify(info)) as Record<string, unknown>;
 }
 
 // --- mechaEnv ---
 export async function mechaEnv(
-  client: DockerClient,
+  pm: ProcessManager,
   id: string,
 ): Promise<MechaEnvResultType> {
-  const info = await inspectContainer(client, containerName(id as MechaId));
-  const env = (info.Config?.Env ?? []).map((e: string) => {
-    const eq = e.indexOf("=");
-    return eq > 0 ? { key: e.slice(0, eq), value: e.slice(eq + 1) } : { key: e, value: "" };
-  });
-  return { id, env };
+  const { env } = pm.getPortAndEnv(id);
+  const envList = Object.entries(env).map(([key, value]) => ({ key, value: String(value) }));
+  return { id, env: envList };
 }
 
 // --- mechaToken ---
 export async function mechaToken(
-  client: DockerClient,
+  pm: ProcessManager,
   id: string,
 ): Promise<MechaTokenResultType> {
-  const { env } = await getContainerPortAndEnv(client, containerName(id as MechaId));
-  const token = readEnvValue(env, "MECHA_AUTH_TOKEN");
+  const { env } = pm.getPortAndEnv(id);
+  const token = env.MECHA_AUTH_TOKEN;
   if (!token) throw new TokenNotFoundError(id);
   return { id, token };
 }
 
 // --- resolveUiUrl ---
-export async function resolveUiUrl(client: DockerClient, id: string): Promise<UiUrlResultType> {
-  const port = await getContainerPort(client, containerName(id as MechaId));
+export async function resolveUiUrl(pm: ProcessManager, id: string): Promise<UiUrlResultType> {
+  const { port } = pm.getPortAndEnv(id);
   if (!port) throw new NoPortBindingError(id);
   return { url: `http://127.0.0.1:${port}` };
 }
 
 // --- resolveMcpEndpoint ---
-export async function resolveMcpEndpoint(client: DockerClient, id: string): Promise<McpEndpointResultType> {
-  const cName = containerName(id as MechaId);
-  const { port, env } = await getContainerPortAndEnv(client, cName);
+export async function resolveMcpEndpoint(pm: ProcessManager, id: string): Promise<McpEndpointResultType> {
+  const { port, env } = pm.getPortAndEnv(id);
   if (!port) throw new NoPortBindingError(id);
-  const token = readEnvValue(env, "MECHA_AUTH_TOKEN");
+  const token = env.MECHA_AUTH_TOKEN;
   return { endpoint: `http://127.0.0.1:${port}/mcp`, token };
 }

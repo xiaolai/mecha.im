@@ -1,4 +1,4 @@
-import type { DockerClient } from "@mecha/docker";
+import type { ProcessManager } from "@mecha/process";
 import type { NodeEntry } from "./agent-client.js";
 import type { ParsedSession } from "@mecha/core";
 import { setSessionMeta } from "@mecha/core";
@@ -19,12 +19,12 @@ function requireEntry(target: RemoteTarget): NodeEntry {
 }
 
 export async function remoteSessionList(
-  client: DockerClient,
+  pm: ProcessManager,
   mechaId: string,
   target: RemoteTarget,
 ): Promise<SessionListResult> {
   if (target.node === "local") {
-    return mechaSessionList(client, { id: mechaId });
+    return mechaSessionList(pm, { id: mechaId });
   }
   const mid = encodeURIComponent(mechaId);
   const res = await agentFetch(requireEntry(target), `/mechas/${mid}/sessions`);
@@ -32,13 +32,13 @@ export async function remoteSessionList(
 }
 
 export async function remoteSessionGet(
-  client: DockerClient,
+  pm: ProcessManager,
   mechaId: string,
   sessionId: string,
   target: RemoteTarget,
 ): Promise<ParsedSession> {
   if (target.node === "local") {
-    return mechaSessionGet(client, { id: mechaId, sessionId });
+    return mechaSessionGet(pm, { id: mechaId, sessionId });
   }
   const mid = encodeURIComponent(mechaId);
   const sid = encodeURIComponent(sessionId);
@@ -66,13 +66,13 @@ export async function remoteSessionMetaUpdate(
 }
 
 export async function remoteSessionDelete(
-  client: DockerClient,
+  pm: ProcessManager,
   mechaId: string,
   sessionId: string,
   target: RemoteTarget,
 ): Promise<void> {
   if (target.node === "local") {
-    return mechaSessionDelete(client, { id: mechaId, sessionId });
+    return mechaSessionDelete(pm, { id: mechaId, sessionId });
   }
   const mid = encodeURIComponent(mechaId);
   const sid = encodeURIComponent(sessionId);

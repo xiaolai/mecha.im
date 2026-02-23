@@ -5,7 +5,7 @@ import {
   remoteSessionMetaUpdate,
   remoteSessionDelete,
 } from "../src/remote-sessions.js";
-import type { DockerClient } from "@mecha/docker";
+import type { ProcessManager } from "@mecha/process";
 import type { NodeEntry } from "../src/agent-client.js";
 
 const mockMechaSessionList = vi.fn();
@@ -32,8 +32,14 @@ vi.mock("@mecha/core", async (importOriginal) => {
   };
 });
 
-const client = {} as DockerClient;
+const pm = {} as ProcessManager;
 const remoteEntry: NodeEntry = { name: "gpu", host: "http://100.64.0.2:7660", key: "k1" };
+
+describe("requireEntry (via remoteSessionList)", () => {
+  it("throws when remote target has no entry", async () => {
+    await expect(remoteSessionList(pm, "mx-foo", { node: "gpu" })).rejects.toThrow("missing node entry");
+  });
+});
 
 describe("remoteSessionList", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -41,7 +47,7 @@ describe("remoteSessionList", () => {
   it("calls mechaSessionList for local target", async () => {
     const result = { sessions: [], meta: {} };
     mockMechaSessionList.mockResolvedValue(result);
-    const res = await remoteSessionList(client, "mx-foo", { node: "local" });
+    const res = await remoteSessionList(pm, "mx-foo", { node: "local" });
     expect(res).toEqual(result);
     expect(mockAgentFetch).not.toHaveBeenCalled();
   });
@@ -49,7 +55,7 @@ describe("remoteSessionList", () => {
   it("calls agentFetch for remote target", async () => {
     const result = { sessions: [{ id: "s1" }], meta: {} };
     mockAgentFetch.mockResolvedValue({ json: async () => result });
-    const res = await remoteSessionList(client, "mx-foo", { node: "gpu", entry: remoteEntry });
+    const res = await remoteSessionList(pm, "mx-foo", { node: "gpu", entry: remoteEntry });
     expect(res).toEqual(result);
     expect(mockAgentFetch).toHaveBeenCalledWith(remoteEntry, "/mechas/mx-foo/sessions");
   });
@@ -61,15 +67,15 @@ describe("remoteSessionGet", () => {
   it("calls mechaSessionGet for local target", async () => {
     const session = { id: "s1", messages: [] };
     mockMechaSessionGet.mockResolvedValue(session);
-    const res = await remoteSessionGet(client, "mx-foo", "s1", { node: "local" });
+    const res = await remoteSessionGet(pm, "mx-foo", "s1", { node: "local" });
     expect(res).toEqual(session);
-    expect(mockMechaSessionGet).toHaveBeenCalledWith(client, { id: "mx-foo", sessionId: "s1" });
+    expect(mockMechaSessionGet).toHaveBeenCalledWith(pm, { id: "mx-foo", sessionId: "s1" });
   });
 
   it("calls agentFetch for remote target with URL-encoded session ID", async () => {
     const session = { id: "s/1", messages: [] };
     mockAgentFetch.mockResolvedValue({ json: async () => session });
-    const res = await remoteSessionGet(client, "mx-foo", "s/1", { node: "gpu", entry: remoteEntry });
+    const res = await remoteSessionGet(pm, "mx-foo", "s/1", { node: "gpu", entry: remoteEntry });
     expect(res).toEqual(session);
     expect(mockAgentFetch).toHaveBeenCalledWith(remoteEntry, `/mechas/mx-foo/sessions/${encodeURIComponent("s/1")}`);
   });
@@ -104,14 +110,14 @@ describe("remoteSessionDelete", () => {
 
   it("calls mechaSessionDelete for local target", async () => {
     mockMechaSessionDelete.mockResolvedValue(undefined);
-    await remoteSessionDelete(client, "mx-foo", "s1", { node: "local" });
-    expect(mockMechaSessionDelete).toHaveBeenCalledWith(client, { id: "mx-foo", sessionId: "s1" });
+    await remoteSessionDelete(pm, "mx-foo", "s1", { node: "local" });
+    expect(mockMechaSessionDelete).toHaveBeenCalledWith(pm, { id: "mx-foo", sessionId: "s1" });
     expect(mockAgentFetch).not.toHaveBeenCalled();
   });
 
   it("DELETEs via agent for remote target", async () => {
     mockAgentFetch.mockResolvedValue({ ok: true });
-    await remoteSessionDelete(client, "mx-foo", "s1", { node: "gpu", entry: remoteEntry });
+    await remoteSessionDelete(pm, "mx-foo", "s1", { node: "gpu", entry: remoteEntry });
     expect(mockAgentFetch).toHaveBeenCalledWith(
       remoteEntry,
       "/mechas/mx-foo/sessions/s1",
@@ -121,7 +127,7 @@ describe("remoteSessionDelete", () => {
 
   it("URL-encodes session IDs with special chars", async () => {
     mockAgentFetch.mockResolvedValue({ ok: true });
-    await remoteSessionDelete(client, "mx-foo", "s/special", { node: "gpu", entry: remoteEntry });
+    await remoteSessionDelete(pm, "mx-foo", "s/special", { node: "gpu", entry: remoteEntry });
     expect(mockAgentFetch).toHaveBeenCalledWith(
       remoteEntry,
       `/mechas/mx-foo/sessions/${encodeURIComponent("s/special")}`,

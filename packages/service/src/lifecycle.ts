@@ -1,181 +1,109 @@
 import { randomBytes } from "node:crypto";
-import type { DockerClient } from "@mecha/docker";
-import {
-  ensureNetwork,
-  ensureVolume,
-  removeVolume,
-  createContainer,
-  getContainerPort,
-  startContainer,
-  stopContainer,
-  removeContainer,
-  listMechaContainers,
-  inspectContainer,
-  execInContainer,
-  pullImage,
-} from "@mecha/docker";
-import {
-  computeMechaId,
-  containerName,
-  volumeName,
-  networkName,
-  DEFAULTS,
-  LABELS,
-} from "@mecha/core";
+import { join } from "node:path";
+import { homedir } from "node:os";
+import type { ProcessManager } from "@mecha/process";
+import { computeMechaId, DEFAULTS } from "@mecha/core";
 import type { MechaId } from "@mecha/core";
-import {
-  ContainerStartError,
-  NoPortBindingError,
-} from "@mecha/contracts";
 import { MechaUpInput } from "@mecha/contracts";
 import type {
   MechaUpInputType,
   MechaUpResultType,
   MechaRmInputType,
-  MechaExecInputType,
   MechaPruneResultType,
-  MechaUpdateResultType,
 } from "@mecha/contracts";
-import {
-  validateProjectPath,
-  extractContainerOpts,
-  stopTolerant,
-  recreateWithRollback,
-} from "./helpers.js";
+import { validateProjectPath } from "./helpers.js";
 
 // --- mechaUp ---
 export async function mechaUp(
-  client: DockerClient,
+  pm: ProcessManager,
   input: MechaUpInputType,
 ): Promise<MechaUpResultType> {
   MechaUpInput.parse(input);
   await validateProjectPath(input.projectPath);
 
   const id = computeMechaId(input.projectPath);
-  const cName = containerName(id);
-  const vName = volumeName(id);
-
-  await ensureNetwork(client, networkName());
-  await ensureVolume(client, vName);
-
-  const extraEnv: string[] = [];
   const authToken = randomBytes(32).toString("hex");
-  extraEnv.push(`MECHA_AUTH_TOKEN=${authToken}`);
 
-  if (input.claudeToken) extraEnv.push(`CLAUDE_CODE_OAUTH_TOKEN=${input.claudeToken}`);
-  if (input.anthropicApiKey) extraEnv.push(`ANTHROPIC_API_KEY=${input.anthropicApiKey}`);
-  if (input.otp) extraEnv.push(`MECHA_OTP=${input.otp}`);
-  if (input.permissionMode) extraEnv.push(`MECHA_PERMISSION_MODE=${input.permissionMode}`);
-  if (input.env) extraEnv.push(...input.env);
-
-  await createContainer(client, {
-    containerName: cName,
-    image: DEFAULTS.IMAGE,
-    mechaId: id,
-    projectPath: input.projectPath,
-    volumeName: vName,
-    hostPort: input.port,
-    env: extraEnv,
-  });
-
-  try {
-    await startContainer(client, cName);
-  } catch (err) {
-    try { await removeContainer(client, cName, true); } catch { /* best effort */ }
-    throw new ContainerStartError(cName,
-      /* v8 ignore next */
-      err instanceof Error ? err : undefined);
+  const env: Record<string, string> = {};
+  if (input.claudeToken) env.CLAUDE_CODE_OAUTH_TOKEN = input.claudeToken;
+  if (input.anthropicApiKey) env.ANTHROPIC_API_KEY = input.anthropicApiKey;
+  if (input.otp) env.MECHA_OTP = input.otp;
+  if (input.permissionMode) env.MECHA_PERMISSION_MODE = input.permissionMode;
+  if (input.env) {
+    for (const entry of input.env) {
+      const eqIdx = entry.indexOf("=");
+      // Zod validates KEY=VALUE format, so eqIdx is always > 0 here
+      env[entry.slice(0, eqIdx)] = entry.slice(eqIdx + 1);
+    }
   }
 
-  // Resolve the actual port (may be Docker-assigned)
-  const actualPort = input.port ?? await getContainerPort(client, cName);
-  if (!actualPort) throw new NoPortBindingError(id);
+  const mechaHome = join(homedir(), DEFAULTS.HOME_DIR);
+  const claudeConfigDir = join(mechaHome, "claude-config", id);
 
-  return { id, name: cName, port: actualPort, authToken };
+  const info = await pm.spawn({
+    mechaId: id,
+    projectPath: input.projectPath,
+    port: input.port ?? 0,
+    claudeConfigDir,
+    authToken,
+    env,
+    permissionMode: input.permissionMode,
+  });
+
+  return { id, name: id, port: info.port, authToken };
 }
 
 // --- mechaRm ---
 export async function mechaRm(
-  client: DockerClient,
+  pm: ProcessManager,
   input: MechaRmInputType,
 ): Promise<void> {
-  const cName = containerName(input.id as MechaId);
-  await removeContainer(client, cName, input.force);
-  if (input.withState) {
-    const vName = volumeName(input.id as MechaId);
-    await removeVolume(client, vName);
-  }
+  await pm.kill(input.id, input.force);
 }
 
 // --- mechaStart ---
-export async function mechaStart(client: DockerClient, id: string): Promise<void> {
-  await startContainer(client, containerName(id as MechaId));
+export async function mechaStart(pm: ProcessManager, id: string): Promise<void> {
+  // Re-spawn from saved state
+  const existing = pm.get(id);
+  if (!existing) throw new Error(`Mecha not found: ${id}`);
+
+  const mechaHome = join(homedir(), DEFAULTS.HOME_DIR);
+  const claudeConfigDir = join(mechaHome, "claude-config", id);
+
+  await pm.spawn({
+    mechaId: id as MechaId,
+    projectPath: existing.projectPath,
+    port: existing.port,
+    claudeConfigDir,
+    authToken: existing.authToken,
+    env: existing.env,
+  });
 }
 
 // --- mechaStop ---
-export async function mechaStop(client: DockerClient, id: string): Promise<void> {
-  await stopContainer(client, containerName(id as MechaId));
+export async function mechaStop(pm: ProcessManager, id: string): Promise<void> {
+  await pm.stop(id);
 }
 
 // --- mechaRestart ---
-export async function mechaRestart(client: DockerClient, id: string): Promise<void> {
-  const cName = containerName(id as MechaId);
-  await stopTolerant(client, cName);
-  await startContainer(client, cName);
-}
-
-// --- mechaExec ---
-export async function mechaExec(
-  client: DockerClient,
-  input: MechaExecInputType,
-): Promise<{ exitCode: number; output: string }> {
-  return execInContainer(client, containerName(input.id as MechaId), input.cmd);
+export async function mechaRestart(pm: ProcessManager, id: string): Promise<void> {
+  await pm.stop(id);
+  await mechaStart(pm, id);
 }
 
 // --- mechaPrune ---
 export async function mechaPrune(
-  client: DockerClient,
-  opts: { volumes?: boolean },
+  pm: ProcessManager,
 ): Promise<MechaPruneResultType> {
-  const containers = await listMechaContainers(client);
-  const PRUNABLE_STATES = new Set(["exited", "dead", "created"]);
-  const stopped = containers.filter((c) => PRUNABLE_STATES.has(c.State));
-  const removedContainers: string[] = [];
-  const removedVolumes: string[] = [];
-  for (const c of stopped) {
-    const name = c.Names[0]?.replace(/^\//, "");
-    if (!name) continue;
+  const all = pm.list();
+  const PRUNABLE_STATES = new Set(["stopped", "exited", "dead"]);
+  const stopped = all.filter((p) => PRUNABLE_STATES.has(p.state));
+  const removedProcesses: string[] = [];
+  for (const p of stopped) {
     try {
-      await removeContainer(client, name, true);
-      removedContainers.push(name);
+      await pm.kill(p.id, true);
+      removedProcesses.push(p.id);
     } catch { /* best effort */ }
-    if (opts.volumes) {
-      const id = c.Labels[LABELS.MECHA_ID] ?? "";
-      if (id) {
-        try {
-          const vName = volumeName(id as MechaId);
-          await removeVolume(client, vName);
-          removedVolumes.push(vName);
-        } catch { /* best effort */ }
-      }
-    }
   }
-  return { removedContainers, removedVolumes };
-}
-
-// --- mechaUpdate ---
-export async function mechaUpdate(
-  client: DockerClient,
-  input: { id: string; noPull?: boolean },
-): Promise<MechaUpdateResultType> {
-  const mechaId = input.id as MechaId;
-  const cName = containerName(mechaId);
-  const info = await inspectContainer(client, cName);
-  const originalOpts = extractContainerOpts(info, cName, mechaId);
-  const previousImage = originalOpts.image;
-  if (!input.noPull) await pullImage(client, DEFAULTS.IMAGE);
-  const newOpts = { ...originalOpts, image: DEFAULTS.IMAGE };
-  await stopTolerant(client, cName);
-  await recreateWithRollback(client, cName, newOpts, originalOpts);
-  return { id: input.id, image: DEFAULTS.IMAGE, previousImage };
+  return { removedProcesses };
 }

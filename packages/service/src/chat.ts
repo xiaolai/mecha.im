@@ -1,4 +1,4 @@
-import type { DockerClient } from "@mecha/docker";
+import type { ProcessManager } from "@mecha/process";
 import {
   ChatRequestFailedError,
 } from "@mecha/contracts";
@@ -11,10 +11,10 @@ import { getRuntimeAccess } from "./helpers.js";
 // Uses getRuntimeAccess directly (not runtimeFetch) because chat errors
 // throw ChatRequestFailedError, not the session-specific mapSessionError.
 export async function mechaChat(
-  client: DockerClient,
+  pm: ProcessManager,
   input: MechaChatInputType,
 ): Promise<Response> {
-  const { url, token } = await getRuntimeAccess(client, input.id);
+  const { url, token } = await getRuntimeAccess(pm, input.id);
   const res = await fetch(`${url}/api/chat`, {
     method: "POST",
     headers: {

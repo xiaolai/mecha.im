@@ -7,17 +7,14 @@ export {
   mechaLs,
   mechaStatus,
   mechaLogs,
-  mechaExec,
   mechaConfigure,
   mechaDoctor,
   mechaInit,
   resolveUiUrl,
   resolveMcpEndpoint,
   mechaToken,
-  mechaInspect,
   mechaEnv,
   mechaPrune,
-  mechaUpdate,
   mechaChat,
   loadDotEnvFiles,
   mechaSessionCreate,
@@ -29,7 +26,6 @@ export {
   mechaSessionConfigUpdate,
   mechaSessionRename,
   getMechaPath,
-  mechaEject,
 } from "./service.js";
 export type { SessionListResult } from "./service.js";
 export { agentFetch } from "./agent-client.js";

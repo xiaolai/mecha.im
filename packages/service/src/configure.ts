@@ -1,17 +1,8 @@
 import { mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { DockerClient } from "@mecha/docker";
-import {
-  ensureNetwork,
-  inspectContainer,
-} from "@mecha/docker";
-import {
-  containerName,
-  networkName,
-  DEFAULTS,
-} from "@mecha/core";
-import type { MechaId } from "@mecha/core";
+import type { ProcessManager } from "@mecha/process";
+import { DEFAULTS } from "@mecha/core";
 import {
   ConfigureNoFieldsError,
 } from "@mecha/contracts";
@@ -20,15 +11,11 @@ import type {
 } from "@mecha/contracts";
 import {
   validatePermissionMode,
-  applyEnvUpdates,
-  extractContainerOpts,
-  stopTolerant,
-  recreateWithRollback,
 } from "./helpers.js";
 
 // --- mechaConfigure ---
 export async function mechaConfigure(
-  client: DockerClient,
+  pm: ProcessManager,
   input: MechaConfigureInputType,
 ): Promise<void> {
   const hasUpdate = input.claudeToken !== undefined ||
@@ -39,40 +26,48 @@ export async function mechaConfigure(
 
   validatePermissionMode(input.permissionMode);
 
-  const mechaId = input.id as MechaId;
-  const cName = containerName(mechaId);
-  const info = await inspectContainer(client, cName);
-  const originalOpts = extractContainerOpts(info, cName, mechaId);
+  const info = pm.get(input.id);
+  if (!info) throw new Error(`Mecha not found: ${input.id}`);
 
   // Build updated env
-  const envMap = new Map<string, string>();
-  for (const entry of info.Config?.Env ?? []) {
-    const eqIdx = entry.indexOf("=");
-    if (eqIdx > 0) envMap.set(entry.slice(0, eqIdx), entry.slice(eqIdx + 1));
+  const envMap = new Map(Object.entries(info.env));
+  if (input.claudeToken !== undefined) {
+    if (input.claudeToken) envMap.set("CLAUDE_CODE_OAUTH_TOKEN", input.claudeToken);
+    else envMap.delete("CLAUDE_CODE_OAUTH_TOKEN");
+  }
+  if (input.anthropicApiKey !== undefined) {
+    if (input.anthropicApiKey) envMap.set("ANTHROPIC_API_KEY", input.anthropicApiKey);
+    else envMap.delete("ANTHROPIC_API_KEY");
+  }
+  if (input.otp !== undefined) {
+    if (input.otp) envMap.set("MECHA_OTP", input.otp);
+    else envMap.delete("MECHA_OTP");
+  }
+  if (input.permissionMode !== undefined) {
+    envMap.set("MECHA_PERMISSION_MODE", input.permissionMode);
   }
 
-  applyEnvUpdates(envMap, {
-    claudeToken: { envKey: "CLAUDE_CODE_OAUTH_TOKEN", value: input.claudeToken },
-    anthropicApiKey: { envKey: "ANTHROPIC_API_KEY", value: input.anthropicApiKey },
-    otp: { envKey: "MECHA_OTP", value: input.otp },
-    permissionMode: { envKey: "MECHA_PERMISSION_MODE", value: input.permissionMode },
+  // Stop → re-spawn with updated env
+  await pm.stop(input.id);
+
+  const mechaHome = join(homedir(), DEFAULTS.HOME_DIR);
+  const claudeConfigDir = join(mechaHome, "claude-config", input.id);
+
+  await pm.spawn({
+    mechaId: info.id,
+    projectPath: info.projectPath,
+    port: info.port,
+    claudeConfigDir,
+    authToken: info.authToken,
+    env: Object.fromEntries(envMap),
+    permissionMode: envMap.get("MECHA_PERMISSION_MODE"),
   });
-
-  const newEnv = Array.from(envMap.entries())
-    .filter(([k]) => k !== "MECHA_ID")
-    .map(([k, v]) => `${k}=${v}`);
-
-  const newOpts = { ...originalOpts, env: newEnv };
-
-  await stopTolerant(client, cName);
-  await recreateWithRollback(client, cName, newOpts, originalOpts);
 }
 
 // --- mechaInit ---
-export async function mechaInit(client: DockerClient): Promise<void> {
-  const net = networkName();
-  await ensureNetwork(client, net);
-
+export async function mechaInit(): Promise<void> {
   const mechaHome = join(homedir(), DEFAULTS.HOME_DIR);
   await mkdir(mechaHome, { recursive: true });
+  await mkdir(join(mechaHome, DEFAULTS.STATE_DIR), { recursive: true });
+  await mkdir(join(mechaHome, DEFAULTS.LOG_DIR), { recursive: true });
 }

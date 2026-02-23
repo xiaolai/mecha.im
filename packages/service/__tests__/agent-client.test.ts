@@ -67,6 +67,13 @@ describe("agentFetch", () => {
     expect(headers.get("Authorization")).toBe("Bearer secret-key");
   });
 
+  it("omits signal when timeoutMs is 0", async () => {
+    mockFetch.mockResolvedValueOnce(new Response("ok", { status: 200 }));
+    await agentFetch(node, "/mechas", { timeoutMs: 0 });
+    const [, init] = mockFetch.mock.calls[0];
+    expect(init.signal).toBeUndefined();
+  });
+
   it("passes method and body through", async () => {
     mockFetch.mockResolvedValueOnce(new Response("ok", { status: 200 }));
     await agentFetch(node, "/mechas/mx-foo/sessions/s1/meta", {

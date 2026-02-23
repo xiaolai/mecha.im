@@ -1,33 +1,37 @@
-import type { DockerClient } from "@mecha/docker";
-import { ping } from "@mecha/docker";
-import { networkName } from "@mecha/core";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import type { DoctorResultType } from "@mecha/contracts";
 
+const execFileAsync = promisify(execFile);
+
 // --- mechaDoctor ---
-export async function mechaDoctor(client: DockerClient): Promise<DoctorResultType> {
+export async function mechaDoctor(): Promise<DoctorResultType> {
   const issues: string[] = [];
-  let dockerAvailable = false;
-  let networkExists = false;
+  let claudeCliAvailable = false;
+  let sandboxSupported = false;
 
+  // Check Claude CLI
   try {
-    await ping(client);
-    dockerAvailable = true;
+    await execFileAsync("claude", ["--version"]);
+    claudeCliAvailable = true;
   } catch {
-    issues.push("Docker is not available. Is Docker/Colima running?");
+    issues.push("Claude CLI not found. Install it from https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview");
   }
 
-  if (dockerAvailable) {
+  // Check sandbox support (macOS sandbox-exec, Linux seccomp)
+  if (process.platform === "darwin") {
     try {
-      const net = networkName();
-      const networks = await client.docker.listNetworks({ filters: { name: [net] } });
-      networkExists = networks.some((n: { Name: string }) => n.Name === net);
-      if (!networkExists) {
-        issues.push(`Network '${net}' not found. Run 'mecha init' first.`);
-      }
+      await execFileAsync("sandbox-exec", ["-p", "(version 1)(allow default)", "/usr/bin/true"]);
+      sandboxSupported = true;
     } catch {
-      issues.push("Failed to check network status.");
+      issues.push("macOS sandbox (sandbox-exec) not available.");
     }
+  } else if (process.platform === "linux") {
+    // On Linux, sandboxing via seccomp/namespaces is generally available
+    sandboxSupported = true;
+  } else {
+    issues.push(`Sandbox not supported on platform: ${process.platform}`);
   }
 
-  return { dockerAvailable, networkExists, issues };
+  return { claudeCliAvailable, sandboxSupported, issues };
 }

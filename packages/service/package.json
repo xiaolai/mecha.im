@@ -15,7 +15,7 @@
   "dependencies": {
     "@mecha/contracts": "workspace:*",
     "@mecha/core": "workspace:*",
-    "@mecha/docker": "workspace:*"
+    "@mecha/process": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^25.3.0",

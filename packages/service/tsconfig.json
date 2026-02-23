@@ -8,6 +8,6 @@
   "references": [
     { "path": "../core" },
     { "path": "../contracts" },
-    { "path": "../docker" }
+    { "path": "../process" }
   ]
 }
