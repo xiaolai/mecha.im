@@ -7,10 +7,16 @@ import {
   mechaSessionInterrupt,
   mechaSessionRename,
   mechaSessionConfigUpdate,
+  remoteSessionList,
+  remoteSessionGet,
+  remoteSessionMetaUpdate,
+  remoteSessionDelete,
 } from "@mecha/service";
 import type { SessionListResult } from "@mecha/service";
 import type { SessionSummary, ParsedSession, ParsedMessage } from "@mecha/core";
 import { toUserMessage, toExitCode } from "@mecha/contracts";
+import { withNodeOption } from "./shared-options.js";
+import { resolveTarget } from "./resolve-target.js";
 
 function formatDate(d: Date): string {
   return d.toLocaleString();
@@ -34,79 +40,99 @@ export function registerSessionsCommand(parent: Command, deps: CommandDeps): voi
     .command("sessions")
     .description("Manage chat sessions for a Mecha");
 
-  sessions
-    .command("list <id>")
-    .description("List all sessions for a Mecha (works when stopped)")
-    .action(async (id: string) => {
-      const { dockerClient, formatter } = deps;
-      try {
-        const result: SessionListResult = await mechaSessionList(dockerClient, { id });
-        const { sessions: sessionList, meta } = result;
-        formatter.table(
-          sessionList.map((s: SessionSummary) => {
-            const m = meta[s.id];
-            return {
-              ID: s.id.slice(0, 8),
-              TITLE: m?.customTitle ?? s.title,
-              SLUG: s.projectSlug,
-              MESSAGES: String(s.messageCount),
-              MODEL: s.model ?? "-",
-              STARRED: m?.starred ? "*" : "",
-              UPDATED: formatDate(s.updatedAt),
-            };
-          }),
-          ["ID", "TITLE", "SLUG", "MESSAGES", "MODEL", "STARRED", "UPDATED"],
-        );
-      } catch (err) {
-        formatter.error(toUserMessage(err));
-        process.exitCode = toExitCode(err);
+  withNodeOption(
+    sessions
+      .command("list <id>")
+      .description("List all sessions for a Mecha (works when stopped)"),
+  ).action(async (id: string, opts: { node?: string }) => {
+    const { dockerClient, formatter } = deps;
+    try {
+      let result: SessionListResult;
+      if (opts.node) {
+        const target = await resolveTarget(dockerClient, id, opts.node);
+        result = await remoteSessionList(dockerClient, id, target);
+      } else {
+        result = await mechaSessionList(dockerClient, { id });
       }
-    });
+      const { sessions: sessionList, meta } = result;
+      formatter.table(
+        sessionList.map((s: SessionSummary) => {
+          const m = meta[s.id];
+          return {
+            ID: s.id.slice(0, 8),
+            TITLE: m?.customTitle ?? s.title,
+            SLUG: s.projectSlug,
+            MESSAGES: String(s.messageCount),
+            MODEL: s.model ?? "-",
+            STARRED: m?.starred ? "*" : "",
+            UPDATED: formatDate(s.updatedAt),
+          };
+        }),
+        ["ID", "TITLE", "SLUG", "MESSAGES", "MODEL", "STARRED", "UPDATED"],
+      );
+    } catch (err) {
+      formatter.error(toUserMessage(err));
+      process.exitCode = toExitCode(err);
+    }
+  });
 
-  sessions
-    .command("show <id> <sessionId>")
-    .description("Show session details and messages")
-    .option("--raw", "Show full JSON content blocks")
-    .action(async (id: string, sessionId: string, opts: { raw?: boolean }) => {
-      const { dockerClient, formatter } = deps;
-      try {
-        const session: ParsedSession = await mechaSessionGet(dockerClient, { id, sessionId });
-        formatter.info(`Session: ${session.id}`);
-        formatter.info(`Project: ${session.projectSlug}`);
-        formatter.info(`Title: ${session.title}`);
-        formatter.info(`Messages: ${session.messageCount}`);
-        formatter.info(`Model: ${session.model ?? "(unknown)"}`);
-        formatter.info(`Created: ${formatDate(session.createdAt)}`);
-        formatter.info(`Updated: ${formatDate(session.updatedAt)}`);
-        if (session.messages.length > 0) {
-          formatter.info("---");
-          for (const msg of session.messages) {
-            if (opts.raw) {
-              formatter.info(`[${msg.role}] ${JSON.stringify(msg.content)}`);
-            } else {
-              formatter.info(`[${msg.role}] ${summarizeContent(msg)}`);
-            }
+  withNodeOption(
+    sessions
+      .command("show <id> <sessionId>")
+      .description("Show session details and messages")
+      .option("--raw", "Show full JSON content blocks"),
+  ).action(async (id: string, sessionId: string, opts: { raw?: boolean; node?: string }) => {
+    const { dockerClient, formatter } = deps;
+    try {
+      let session: ParsedSession;
+      if (opts.node) {
+        const target = await resolveTarget(dockerClient, id, opts.node);
+        session = await remoteSessionGet(dockerClient, id, sessionId, target);
+      } else {
+        session = await mechaSessionGet(dockerClient, { id, sessionId });
+      }
+      formatter.info(`Session: ${session.id}`);
+      formatter.info(`Project: ${session.projectSlug}`);
+      formatter.info(`Title: ${session.title}`);
+      formatter.info(`Messages: ${session.messageCount}`);
+      formatter.info(`Model: ${session.model ?? "(unknown)"}`);
+      formatter.info(`Created: ${formatDate(session.createdAt)}`);
+      formatter.info(`Updated: ${formatDate(session.updatedAt)}`);
+      if (session.messages.length > 0) {
+        formatter.info("---");
+        for (const msg of session.messages) {
+          if (opts.raw) {
+            formatter.info(`[${msg.role}] ${JSON.stringify(msg.content)}`);
+          } else {
+            formatter.info(`[${msg.role}] ${summarizeContent(msg)}`);
           }
         }
-      } catch (err) {
-        formatter.error(toUserMessage(err));
-        process.exitCode = toExitCode(err);
       }
-    });
+    } catch (err) {
+      formatter.error(toUserMessage(err));
+      process.exitCode = toExitCode(err);
+    }
+  });
 
-  sessions
-    .command("delete <id> <sessionId>")
-    .description("Delete a session")
-    .action(async (id: string, sessionId: string) => {
-      const { dockerClient, formatter } = deps;
-      try {
+  withNodeOption(
+    sessions
+      .command("delete <id> <sessionId>")
+      .description("Delete a session"),
+  ).action(async (id: string, sessionId: string, opts: { node?: string }) => {
+    const { dockerClient, formatter } = deps;
+    try {
+      if (opts.node) {
+        const target = await resolveTarget(dockerClient, id, opts.node);
+        await remoteSessionDelete(dockerClient, id, sessionId, target);
+      } else {
         await mechaSessionDelete(dockerClient, { id, sessionId });
-        formatter.success(`Session ${sessionId} deleted`);
-      } catch (err) {
-        formatter.error(toUserMessage(err));
-        process.exitCode = toExitCode(err);
       }
-    });
+      formatter.success(`Session ${sessionId} deleted`);
+    } catch (err) {
+      formatter.error(toUserMessage(err));
+      process.exitCode = toExitCode(err);
+    }
+  });
 
   sessions
     .command("interrupt <id> <sessionId>")
@@ -126,19 +152,49 @@ export function registerSessionsCommand(parent: Command, deps: CommandDeps): voi
       }
     });
 
-  sessions
-    .command("rename <id> <sessionId> <title>")
-    .description("Rename a session")
-    .action(async (id: string, sessionId: string, title: string) => {
-      const { dockerClient, formatter } = deps;
-      try {
+  withNodeOption(
+    sessions
+      .command("rename <id> <sessionId> <title>")
+      .description("Rename a session"),
+  ).action(async (id: string, sessionId: string, title: string, opts: { node?: string }) => {
+    const { dockerClient, formatter } = deps;
+    try {
+      if (opts.node) {
+        const target = await resolveTarget(dockerClient, id, opts.node);
+        await remoteSessionMetaUpdate(id, sessionId, { customTitle: title }, target);
+        formatter.success(`Session ${sessionId} renamed to "${title}"`);
+      } else {
         const result = await mechaSessionRename(dockerClient, { id, sessionId, title });
         formatter.success(`Session ${sessionId} renamed to "${result.title}"`);
-      } catch (err) {
-        formatter.error(toUserMessage(err));
-        process.exitCode = toExitCode(err);
       }
-    });
+    } catch (err) {
+      formatter.error(toUserMessage(err));
+      process.exitCode = toExitCode(err);
+    }
+  });
+
+  withNodeOption(
+    sessions
+      .command("star <id> <sessionId>")
+      .description("Toggle starred status for a session"),
+  ).action(async (id: string, sessionId: string, opts: { node?: string }) => {
+    const { dockerClient, formatter } = deps;
+    try {
+      const target = await resolveTarget(dockerClient, id, opts.node);
+      // Fetch current session list to determine current star status
+      const listResult = await remoteSessionList(dockerClient, id, target);
+      const currentMeta = listResult.meta[sessionId];
+      const isStarred = currentMeta?.starred === true;
+      await remoteSessionMetaUpdate(id, sessionId, { starred: !isStarred }, target);
+      formatter.success(isStarred
+        ? `Session ${sessionId} unstarred`
+        : `Session ${sessionId} starred`,
+      );
+    } catch (err) {
+      formatter.error(toUserMessage(err));
+      process.exitCode = toExitCode(err);
+    }
+  });
 
   // --- config subcommands ---
   const config = sessions

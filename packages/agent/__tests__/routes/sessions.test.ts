@@ -181,6 +181,19 @@ describe("session routes", () => {
       expect(res.statusCode).toBe(500);
     });
 
+    it("converts null values to undefined for clearing fields", async () => {
+      const res = await buildApp().inject({
+        method: "PATCH",
+        url: "/mechas/m1/sessions/s1/meta",
+        payload: { customTitle: null, starred: null },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(mockSetSessionMeta).toHaveBeenCalledWith("m1", "s1", {
+        customTitle: undefined,
+        starred: undefined,
+      });
+    });
+
     it("returns 500 for empty customTitle (validation fails)", async () => {
       const res = await buildApp().inject({
         method: "PATCH",
