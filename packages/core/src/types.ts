@@ -48,6 +48,14 @@ export interface MechaHeartbeat {
   timestamp: string;
 }
 
+/** Mesh-scoped mecha reference. */
+export interface MechaRef {
+  /** Node name: "local" for the current machine, or a registered node name. */
+  node: string;
+  /** Mecha ID on that node (e.g. "mx-myproject-abc123"). */
+  id: string;
+}
+
 /** Global CLI option flags */
 export interface GlobalOptions {
   json?: boolean;

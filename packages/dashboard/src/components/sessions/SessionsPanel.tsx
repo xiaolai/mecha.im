@@ -80,6 +80,9 @@ export function SessionsPanel() {
   const selectedMecha = mechas.find((m) => m.id === selectedMechaId);
   const mechaSessions = selectedMechaId ? sessions[selectedMechaId] ?? [] : [];
   const isRunning = selectedMecha?.state === "running";
+  const nodeParam = selectedMecha?.node && selectedMecha.node !== "local"
+    ? `?node=${encodeURIComponent(selectedMecha.node)}`
+    : "";
 
   const filteredSessions = searchQuery
     ? mechaSessions.filter(
@@ -103,7 +106,7 @@ export function SessionsPanel() {
   const createSession = useCallback(async () => {
     if (!selectedMechaId) return;
     try {
-      const res = await fetch(`/api/mechas/${selectedMechaId}/sessions`, {
+      const res = await fetch(`/api/mechas/${selectedMechaId}/sessions${nodeParam}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
@@ -121,12 +124,12 @@ export function SessionsPanel() {
         setSelectedSessionId(session.sessionId ?? session.id);
       }
     } catch { /* ignore */ }
-  }, [selectedMechaId, addSession, setSelectedSessionId]);
+  }, [selectedMechaId, nodeParam, addSession, setSelectedSessionId]);
 
   const handleRename = useCallback(async (sessionId: string, title: string) => {
     if (!selectedMechaId) return;
     try {
-      const res = await fetch(`/api/mechas/${selectedMechaId}/sessions/${sessionId}`, {
+      const res = await fetch(`/api/mechas/${selectedMechaId}/sessions/${sessionId}${nodeParam}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title }),
@@ -135,14 +138,14 @@ export function SessionsPanel() {
         updateSession(selectedMechaId, sessionId, { customTitle: title });
       }
     } catch { /* network error — UI stays unchanged */ }
-  }, [selectedMechaId, updateSession]);
+  }, [selectedMechaId, nodeParam, updateSession]);
 
   const handleDelete = useCallback(async () => {
     if (!selectedMechaId || !confirmDelete) return;
     const sessionId = confirmDelete;
     setConfirmDelete(null);
     try {
-      const res = await fetch(`/api/mechas/${selectedMechaId}/sessions/${sessionId}`, {
+      const res = await fetch(`/api/mechas/${selectedMechaId}/sessions/${sessionId}${nodeParam}`, {
         method: "DELETE",
       });
       if (res.ok) {
@@ -160,7 +163,7 @@ export function SessionsPanel() {
         }
       }
     } catch { /* network error — no state change */ }
-  }, [selectedMechaId, confirmDelete, removeSession, selectedSessionId, mechaSessions, setSelectedSessionId, createSession]);
+  }, [selectedMechaId, nodeParam, confirmDelete, removeSession, selectedSessionId, mechaSessions, setSelectedSessionId, createSession]);
 
   const handleStar = useCallback(async (sessionId: string) => {
     if (!selectedMechaId) return;
@@ -169,13 +172,13 @@ export function SessionsPanel() {
     updateSession(selectedMechaId, sessionId, { starred: newStarred });
     // Persist to server-side metadata
     try {
-      await fetch(`/api/mechas/${selectedMechaId}/sessions/${sessionId}`, {
+      await fetch(`/api/mechas/${selectedMechaId}/sessions/${sessionId}${nodeParam}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ starred: newStarred }),
       });
     } catch { /* optimistic update already applied */ }
-  }, [selectedMechaId, mechaSessions, updateSession]);
+  }, [selectedMechaId, nodeParam, mechaSessions, updateSession]);
 
   useEffect(() => {
     if (!selectedMechaId) return;
@@ -185,7 +188,7 @@ export function SessionsPanel() {
     (async () => {
       setLoading(true);
       try {
-        const res = await fetch(`/api/mechas/${mechaId}/sessions`, {
+        const res = await fetch(`/api/mechas/${mechaId}/sessions${nodeParam}`, {
           signal: controller.signal,
         });
         if (controller.signal.aborted) return;
@@ -202,7 +205,7 @@ export function SessionsPanel() {
           setSelectedSessionId(storeSessions[0].id);
         } else if (isRunning) {
           // No sessions — auto-create one
-          const createRes = await fetch(`/api/mechas/${mechaId}/sessions`, {
+          const createRes = await fetch(`/api/mechas/${mechaId}/sessions${nodeParam}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({}),
@@ -228,7 +231,7 @@ export function SessionsPanel() {
     })();
 
     return () => controller.abort();
-  }, [selectedMechaId, isRunning, setSessions, addSession, setSelectedSessionId]);
+  }, [selectedMechaId, nodeParam, isRunning, setSessions, addSession, setSelectedSessionId]);
 
   if (!selectedMechaId) {
     return (

@@ -1,14 +1,20 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { mechaSessionList, mechaSessionCreate } from "@mecha/service";
+import { mechaSessionList, mechaSessionCreate, remoteSessionList, agentFetch } from "@mecha/service";
 import { SessionCapReachedError, toHttpStatus, toSafeMessage } from "@mecha/contracts";
 import { getDockerClient } from "@/lib/docker";
 import { withAuth } from "@/lib/api-auth";
 import { handleDockerError } from "@/lib/docker-errors";
+import { resolveNodeTarget } from "@/lib/resolve-node";
 
-export const GET = withAuth(async (_request: NextRequest, { params }) => {
+export const GET = withAuth(async (request: NextRequest, { params }) => {
   const { id } = await params;
   const client = getDockerClient();
   try {
+    const target = resolveNodeTarget(request);
+    if (target.node !== "local") {
+      const result = await remoteSessionList(client, id, target);
+      return NextResponse.json(result);
+    }
     const sessions = await mechaSessionList(client, { id });
     return NextResponse.json(sessions);
   } catch (err) {
@@ -28,6 +34,17 @@ export const POST = withAuth(async (request: NextRequest, { params }) => {
   }
 
   try {
+    const target = resolveNodeTarget(request);
+    if (target.node !== "local" && target.entry) {
+      const mid = encodeURIComponent(id);
+      const res = await agentFetch(target.entry, `/mechas/${mid}/sessions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: body.title, config: body.config }),
+      });
+      const data = await res.json();
+      return NextResponse.json(data, { status: 201 });
+    }
     const session = await mechaSessionCreate(client, { id, title: body.title, config: body.config });
     return NextResponse.json(session, { status: 201 });
   } catch (err) {

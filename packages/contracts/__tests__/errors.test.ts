@@ -25,6 +25,10 @@ import {
   ChannelNotFoundError,
   ChannelLinkNotFoundError,
   ChannelLinkExistsError,
+  NodeUnreachableError,
+  NodeAuthFailedError,
+  NodeRequestFailedError,
+  MechaNotLocatedError,
   toHttpStatus,
   toExitCode,
   toUserMessage,
@@ -148,6 +152,43 @@ describe("error classes", () => {
     expect(err.code).toBe("CHANNEL_LINK_EXISTS");
     expect(err).toBeInstanceOf(MechaError);
   });
+
+  it("NodeUnreachableError has correct message and code", () => {
+    const err = new NodeUnreachableError("gpu-server");
+    expect(err.message).toBe("Node unreachable: gpu-server");
+    expect(err.code).toBe("NODE_UNREACHABLE");
+    expect(err).toBeInstanceOf(MechaError);
+    expect(err).toBeInstanceOf(Error);
+  });
+
+  it("NodeAuthFailedError has correct message and code", () => {
+    const err = new NodeAuthFailedError("gpu-server");
+    expect(err.message).toBe("Authentication failed for node: gpu-server");
+    expect(err.code).toBe("NODE_AUTH_FAILED");
+    expect(err).toBeInstanceOf(MechaError);
+  });
+
+  it("NodeRequestFailedError has correct message, code, and cause", () => {
+    const cause = new Error("timeout");
+    const err = new NodeRequestFailedError("gpu-server", 504, cause);
+    expect(err.message).toBe("Request to node gpu-server failed with status 504");
+    expect(err.code).toBe("NODE_REQUEST_FAILED");
+    expect(err.cause).toBe(cause);
+    expect(err).toBeInstanceOf(MechaError);
+  });
+
+  it("NodeRequestFailedError without cause", () => {
+    const err = new NodeRequestFailedError("gpu-server", 500);
+    expect(err.message).toBe("Request to node gpu-server failed with status 500");
+    expect(err.cause).toBeUndefined();
+  });
+
+  it("MechaNotLocatedError has correct message and code", () => {
+    const err = new MechaNotLocatedError("mx-foo-abc");
+    expect(err.message).toBe("Mecha not found on any node: mx-foo-abc");
+    expect(err.code).toBe("MECHA_NOT_LOCATED");
+    expect(err).toBeInstanceOf(MechaError);
+  });
 });
 
 describe("toHttpStatus", () => {
@@ -173,6 +214,10 @@ describe("toHttpStatus", () => {
     expect(toHttpStatus(new ChannelNotFoundError("ch"))).toBe(404);
     expect(toHttpStatus(new ChannelLinkNotFoundError("ch", "c"))).toBe(404);
     expect(toHttpStatus(new ChannelLinkExistsError("ch", "c"))).toBe(409);
+    expect(toHttpStatus(new NodeUnreachableError("n"))).toBe(502);
+    expect(toHttpStatus(new NodeAuthFailedError("n"))).toBe(403);
+    expect(toHttpStatus(new NodeRequestFailedError("n", 500))).toBe(502);
+    expect(toHttpStatus(new MechaNotLocatedError("mx"))).toBe(404);
   });
 
   it("maps ZodError to 400", () => {

@@ -6,15 +6,37 @@ import type { DockerClient } from "@mecha/docker";
 const mockMechaSessionList = vi.fn();
 const mockMechaSessionCreate = vi.fn();
 const mockMechaSessionMessage = vi.fn();
+const mockMechaSessionGet = vi.fn();
+const mockMechaSessionDelete = vi.fn();
 
 vi.mock("@mecha/service", () => ({
   mechaSessionList: (...args: unknown[]) => mockMechaSessionList(...args),
   mechaSessionCreate: (...args: unknown[]) => mockMechaSessionCreate(...args),
   mechaSessionMessage: (...args: unknown[]) => mockMechaSessionMessage(...args),
+  mechaSessionGet: (...args: unknown[]) => mockMechaSessionGet(...args),
+  mechaSessionDelete: (...args: unknown[]) => mockMechaSessionDelete(...args),
+}));
+
+const mockSetSessionMeta = vi.fn();
+
+vi.mock("@mecha/core", () => ({
+  setSessionMeta: (...args: unknown[]) => mockSetSessionMeta(...args),
 }));
 
 vi.mock("@mecha/contracts", () => ({
   SessionCreateInput: { parse: (v: unknown) => v },
+  SessionMetaUpdate: {
+    parse: (v: unknown) => {
+      const o = v as Record<string, unknown>;
+      if (o.customTitle === undefined && o.starred === undefined) {
+        throw new Error("At least one field required");
+      }
+      if (typeof o.customTitle === "string" && o.customTitle.length === 0) {
+        throw new Error("customTitle min 1");
+      }
+      return v;
+    },
+  },
   toHttpStatus: (err: unknown) => (err instanceof Error && err.message.includes("not found") ? 404 : 500),
   toSafeMessage: (err: unknown) => (err instanceof Error ? err.message : "Unknown error"),
 }));
@@ -120,6 +142,110 @@ describe("session routes", () => {
         method: "POST",
         url: "/mechas/m1/sessions/s1/message",
         payload: { message: "hi" },
+      });
+      expect(res.statusCode).toBe(404);
+      expect(res.json()).toEqual({ error: "not found" });
+    });
+  });
+
+  // --- Phase 1.1: PATCH /mechas/:id/sessions/:sessionId/meta ---
+  describe("PATCH /mechas/:id/sessions/:sessionId/meta", () => {
+    it("sets starred metadata and returns 200", async () => {
+      const res = await buildApp().inject({
+        method: "PATCH",
+        url: "/mechas/m1/sessions/s1/meta",
+        payload: { starred: true },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({ ok: true });
+      expect(mockSetSessionMeta).toHaveBeenCalledWith("m1", "s1", { starred: true });
+    });
+
+    it("sets customTitle metadata and returns 200", async () => {
+      const res = await buildApp().inject({
+        method: "PATCH",
+        url: "/mechas/m1/sessions/s1/meta",
+        payload: { customTitle: "My Title" },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({ ok: true });
+      expect(mockSetSessionMeta).toHaveBeenCalledWith("m1", "s1", { customTitle: "My Title" });
+    });
+
+    it("returns 500 for empty body (validation fails)", async () => {
+      const res = await buildApp().inject({
+        method: "PATCH",
+        url: "/mechas/m1/sessions/s1/meta",
+        payload: {},
+      });
+      expect(res.statusCode).toBe(500);
+    });
+
+    it("converts null values to undefined for clearing fields", async () => {
+      const res = await buildApp().inject({
+        method: "PATCH",
+        url: "/mechas/m1/sessions/s1/meta",
+        payload: { customTitle: null, starred: null },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(mockSetSessionMeta).toHaveBeenCalledWith("m1", "s1", {
+        customTitle: undefined,
+        starred: undefined,
+      });
+    });
+
+    it("returns 500 for empty customTitle (validation fails)", async () => {
+      const res = await buildApp().inject({
+        method: "PATCH",
+        url: "/mechas/m1/sessions/s1/meta",
+        payload: { customTitle: "" },
+      });
+      expect(res.statusCode).toBe(500);
+    });
+  });
+
+  // --- Phase 1.2: DELETE /mechas/:id/sessions/:sessionId ---
+  describe("DELETE /mechas/:id/sessions/:sessionId", () => {
+    it("deletes session and returns 204", async () => {
+      mockMechaSessionDelete.mockResolvedValue(undefined);
+      const res = await buildApp().inject({
+        method: "DELETE",
+        url: "/mechas/m1/sessions/s1",
+      });
+      expect(res.statusCode).toBe(204);
+      expect(mockMechaSessionDelete).toHaveBeenCalledWith(docker, { id: "m1", sessionId: "s1" });
+    });
+
+    it("returns 404 when session not found", async () => {
+      mockMechaSessionDelete.mockRejectedValue(new Error("not found"));
+      const res = await buildApp().inject({
+        method: "DELETE",
+        url: "/mechas/m1/sessions/bad",
+      });
+      expect(res.statusCode).toBe(404);
+      expect(res.json()).toEqual({ error: "not found" });
+    });
+  });
+
+  // --- Phase 1.3: GET /mechas/:id/sessions/:sessionId ---
+  describe("GET /mechas/:id/sessions/:sessionId", () => {
+    it("returns parsed session", async () => {
+      const session = { id: "s1", projectSlug: "-home", messages: [], title: "test" };
+      mockMechaSessionGet.mockResolvedValue(session);
+      const res = await buildApp().inject({
+        method: "GET",
+        url: "/mechas/m1/sessions/s1",
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual(session);
+      expect(mockMechaSessionGet).toHaveBeenCalledWith(docker, { id: "m1", sessionId: "s1" });
+    });
+
+    it("returns 404 when session not found", async () => {
+      mockMechaSessionGet.mockRejectedValue(new Error("not found"));
+      const res = await buildApp().inject({
+        method: "GET",
+        url: "/mechas/m1/sessions/bad",
       });
       expect(res.statusCode).toBe(404);
       expect(res.json()).toEqual({ error: "not found" });

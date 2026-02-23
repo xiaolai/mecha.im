@@ -9,7 +9,10 @@ import { fetchSessionHistory, type InitialMessage } from "@/lib/session-history"
 type JSONValue = string | number | boolean | null | JSONValue[] | { [key: string]: JSONValue };
 type AssistantContentPart = ChatModelRunUpdate["content"][number];
 
-function createMechaAdapter(mechaId: string, sessionId: string, onStreamComplete?: () => void): ChatModelAdapter {
+function createMechaAdapter(mechaId: string, sessionId: string, node?: string, onStreamComplete?: () => void): ChatModelAdapter {
+  const nodeParam = node && node !== "local"
+    ? `?node=${encodeURIComponent(node)}`
+    : "";
   return {
     async *run({ messages, abortSignal }) {
       try {
@@ -19,7 +22,7 @@ function createMechaAdapter(mechaId: string, sessionId: string, onStreamComplete
           .map((c) => c.text)
           .join("") ?? "";
 
-        const url = `/api/mechas/${mechaId}/sessions/${sessionId}/message`;
+        const url = `/api/mechas/${mechaId}/sessions/${sessionId}/message${nodeParam}`;
 
         const res = await fetch(url, {
           method: "POST",
@@ -152,19 +155,20 @@ function extractContentParts(event: Record<string, unknown>): ExtractResult {
 interface MechaChatProps {
   mechaId: string;
   sessionId: string;
+  node?: string;
   onStreamComplete?: () => void;
 }
 
-export function MechaChat({ mechaId, sessionId, onStreamComplete }: MechaChatProps) {
+export function MechaChat({ mechaId, sessionId, node, onStreamComplete }: MechaChatProps) {
   const [history, setHistory] = useState<InitialMessage[] | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    fetchSessionHistory(mechaId, sessionId)
+    fetchSessionHistory(mechaId, sessionId, node)
       .then((messages) => { if (!cancelled) setHistory(messages); })
       .catch(() => { if (!cancelled) setHistory([]); });
     return () => { cancelled = true; };
-  }, [mechaId, sessionId]);
+  }, [mechaId, sessionId, node]);
 
   if (history === null) {
     return (
@@ -178,6 +182,7 @@ export function MechaChat({ mechaId, sessionId, onStreamComplete }: MechaChatPro
     <MechaChatInner
       mechaId={mechaId}
       sessionId={sessionId}
+      node={node}
       initialMessages={history}
       onStreamComplete={onStreamComplete}
     />
@@ -187,10 +192,11 @@ export function MechaChat({ mechaId, sessionId, onStreamComplete }: MechaChatPro
 function MechaChatInner({
   mechaId,
   sessionId,
+  node,
   initialMessages,
   onStreamComplete,
 }: MechaChatProps & { initialMessages: InitialMessage[] }) {
-  const adapter = useMemo(() => createMechaAdapter(mechaId, sessionId, onStreamComplete), [mechaId, sessionId, onStreamComplete]);
+  const adapter = useMemo(() => createMechaAdapter(mechaId, sessionId, node, onStreamComplete), [mechaId, sessionId, node, onStreamComplete]);
   const runtime = useLocalRuntime(adapter, {
     initialMessages: initialMessages.length > 0 ? initialMessages : undefined,
   });

@@ -60,6 +60,27 @@ export class EjectFileExistsError extends MechaError {
   constructor(path: string) { super(`File already exists: ${path}. Use --force to overwrite.`, "EJECT_FILE_EXISTS"); }
 }
 
+// --- Mesh / node errors ---
+
+export class NodeUnreachableError extends MechaError {
+  constructor(node: string) { super(`Node unreachable: ${node}`, "NODE_UNREACHABLE"); }
+}
+
+export class NodeAuthFailedError extends MechaError {
+  constructor(node: string) { super(`Authentication failed for node: ${node}`, "NODE_AUTH_FAILED"); }
+}
+
+export class NodeRequestFailedError extends MechaError {
+  constructor(node: string, status: number, cause?: Error) {
+    super(`Request to node ${node} failed with status ${status}`, "NODE_REQUEST_FAILED");
+    if (cause) this.cause = cause;
+  }
+}
+
+export class MechaNotLocatedError extends MechaError {
+  constructor(id: string) { super(`Mecha not found on any node: ${id}`, "MECHA_NOT_LOCATED"); }
+}
+
 // --- Channel errors ---
 
 export class ChannelNotFoundError extends MechaError {
@@ -98,6 +119,10 @@ const HTTP_STATUS_MAP: Record<string, number> = {
   CHANNEL_NOT_FOUND: 404,
   CHANNEL_LINK_NOT_FOUND: 404,
   CHANNEL_LINK_EXISTS: 409,
+  NODE_UNREACHABLE: 502,
+  NODE_AUTH_FAILED: 403,
+  NODE_REQUEST_FAILED: 502,
+  MECHA_NOT_LOCATED: 404,
 };
 
 export function toHttpStatus(err: unknown): number {

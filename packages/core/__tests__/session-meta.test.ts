@@ -6,6 +6,7 @@ import {
   getSessionMeta,
   setSessionMeta,
   getAllSessionMeta,
+  deleteSessionMeta,
 } from "../src/session-meta.js";
 
 let tmpDir: string;
@@ -98,5 +99,33 @@ describe("getAllSessionMeta", () => {
       s1: { starred: true },
       s2: { customTitle: "Second" },
     });
+  });
+});
+
+describe("deleteSessionMeta", () => {
+  it("removes a specific session entry", () => {
+    setSessionMeta("mecha-1", "s1", { starred: true });
+    setSessionMeta("mecha-1", "s2", { customTitle: "Keep" });
+    deleteSessionMeta("mecha-1", "s1");
+    expect(getSessionMeta("mecha-1", "s1")).toEqual({});
+    expect(getSessionMeta("mecha-1", "s2")).toEqual({ customTitle: "Keep" });
+  });
+
+  it("cleans up mecha key when last session is deleted", () => {
+    setSessionMeta("mecha-1", "s1", { starred: true });
+    deleteSessionMeta("mecha-1", "s1");
+    expect(getAllSessionMeta("mecha-1")).toEqual({});
+  });
+
+  it("is a no-op when session does not exist", () => {
+    setSessionMeta("mecha-1", "s1", { starred: true });
+    deleteSessionMeta("mecha-1", "nonexistent");
+    // Original data untouched
+    expect(getSessionMeta("mecha-1", "s1")).toEqual({ starred: true });
+  });
+
+  it("is a no-op when mecha does not exist", () => {
+    deleteSessionMeta("nonexistent", "s1");
+    expect(getAllSessionMeta("nonexistent")).toEqual({});
   });
 });

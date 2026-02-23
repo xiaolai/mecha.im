@@ -149,6 +149,32 @@ describe("fetchSessionHistory", () => {
     expect(result).toEqual([]);
   });
 
+  it("appends ?node= param for remote nodes", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ id: "s", messages: [] }),
+    });
+
+    await fetchSessionHistory("mecha-1", "sess-1", "gpu-node");
+
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "/api/mechas/mecha-1/sessions/sess-1?node=gpu-node",
+    );
+  });
+
+  it("omits ?node= param for local nodes", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ id: "s", messages: [] }),
+    });
+
+    await fetchSessionHistory("mecha-1", "sess-1", "local");
+
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "/api/mechas/mecha-1/sessions/sess-1",
+    );
+  });
+
   it("returns empty array when JSON parsing throws", async () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,

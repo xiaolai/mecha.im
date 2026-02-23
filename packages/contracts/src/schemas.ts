@@ -211,6 +211,17 @@ export const SessionListInput = z.object({
 });
 export type SessionListInput = z.infer<typeof SessionListInput>;
 
+// --- Session metadata schemas ---
+
+export const SessionMetaUpdate = z.object({
+  customTitle: z.string().min(1).max(200).nullable().optional(),
+  starred: z.boolean().nullable().optional(),
+}).refine(
+  (data) => data.customTitle !== undefined || data.starred !== undefined,
+  { message: "At least one field required: customTitle or starred" },
+);
+export type SessionMetaUpdate = z.infer<typeof SessionMetaUpdate>;
+
 // --- Eject schemas ---
 
 export const MechaEjectInput = z.object({

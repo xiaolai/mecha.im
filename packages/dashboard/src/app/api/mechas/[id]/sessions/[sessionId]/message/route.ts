@@ -1,8 +1,10 @@
 import { type NextRequest } from "next/server";
-import { mechaSessionMessage } from "@mecha/service";
-import { SessionNotFoundError, SessionBusyError, toHttpStatus, toSafeMessage } from "@mecha/contracts";
+import { mechaSessionMessage, agentFetch } from "@mecha/service";
+import { toHttpStatus, toSafeMessage } from "@mecha/contracts";
+import { MechaError } from "@mecha/core";
 import { getDockerClient } from "@/lib/docker";
 import { withStreamAuth } from "@/lib/api-auth";
+import { resolveNodeTarget } from "@/lib/resolve-node";
 
 export const POST = withStreamAuth(async (
   request: NextRequest,
@@ -37,6 +39,29 @@ export const POST = withStreamAuth(async (
   }
 
   try {
+    const target = resolveNodeTarget(request);
+
+    if (target.node !== "local" && target.entry) {
+      // Remote: relay SSE stream through the agent
+      const sid = encodeURIComponent(sessionId);
+      const mid = encodeURIComponent(id);
+      const res = await agentFetch(target.entry, `/mechas/${mid}/sessions/${sid}/message`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message }),
+        timeoutMs: 0, // SSE streams are long-lived — no timeout
+      });
+
+      return new Response(res.body, {
+        headers: {
+          "Content-Type": res.headers.get("Content-Type") ?? "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+        },
+      });
+    }
+
+    // Local: direct call
     const res = await mechaSessionMessage(client, { id, sessionId, message }, request.signal);
 
     return new Response(res.body, {
@@ -47,7 +72,7 @@ export const POST = withStreamAuth(async (
       },
     });
   } catch (err) {
-    if (err instanceof SessionNotFoundError || err instanceof SessionBusyError) {
+    if (err instanceof MechaError) {
       return new Response(JSON.stringify({ error: toSafeMessage(err) }), {
         status: toHttpStatus(err),
         headers: { "Content-Type": "application/json" },
