@@ -1,4 +1,22 @@
 import { defineWorkspace } from "vitest/config";
 
-// v2: workspace projects will be added as packages are created in Phase 0+
-export default defineWorkspace([]);
+export default defineWorkspace([
+  {
+    test: {
+      name: "core",
+      include: ["packages/core/__tests__/**/*.test.ts"],
+    },
+  },
+  {
+    test: {
+      name: "contracts",
+      include: ["packages/contracts/__tests__/**/*.test.ts"],
+    },
+  },
+  {
+    test: {
+      name: "cli",
+      include: ["packages/cli/__tests__/**/*.test.ts"],
+    },
+  },
+]);

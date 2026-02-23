@@ -1,15 +1,14 @@
 {
   "name": "mecha.im",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Local-first multi-agent runtime",
   "scripts": {
-    "build": "turbo run build",
+    "build": "tsc -b packages/core packages/contracts packages/cli",
     "test": "vitest run",
-    "test:integration": "INTEGRATION=true vitest run --project integration",
     "test:coverage": "vitest run --coverage --config vitest.config.ts",
-    "typecheck": "turbo run typecheck",
-    "lint": "turbo run lint",
+    "typecheck": "tsc -b --noEmit",
+    "clean": "rm -rf packages/*/dist",
     "docs:dev": "pnpm --filter @mecha/website dev",
     "docs:build": "pnpm --filter @mecha/website build"
   },
@@ -18,8 +17,8 @@
   "license": "ISC",
   "packageManager": "pnpm@10.26.1",
   "devDependencies": {
+    "@types/node": "^25.3.0",
     "@vitest/coverage-v8": "^4.0.18",
-    "turbo": "^2.5.4",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
   }
