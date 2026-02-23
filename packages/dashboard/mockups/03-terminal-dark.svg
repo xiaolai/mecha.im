@@ -1,0 +1,141 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800">
+  <defs>
+    <style>
+      text { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif; }
+      .mono { font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; }
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="800" fill="#161616"/>
+
+  <!-- Sidebar (280px) -->
+  <rect x="0" y="0" width="280" height="800" fill="#1e1e1e"/>
+  <line x1="280" y1="0" x2="280" y2="800" stroke="#333" stroke-width="1"/>
+
+  <!-- Sidebar Header -->
+  <text x="20" y="36" fill="#e8e8e8" font-size="16" font-weight="600">Mecha Dashboard</text>
+  <circle cx="170" cy="30" r="4" fill="#4ade80"/>
+  <text x="180" y="34" fill="#888" font-size="11">Docker</text>
+  <line x1="16" y1="56" x2="264" y2="56" stroke="#333" stroke-width="1"/>
+
+  <!-- Search -->
+  <rect x="16" y="68" width="248" height="36" rx="8" fill="#2a2a2a" stroke="#444" stroke-width="1"/>
+  <text x="40" y="91" fill="#666" font-size="13">Search mechas...</text>
+
+  <!-- Local group -->
+  <text x="16" y="130" fill="#888" font-size="11" font-weight="600" letter-spacing="0.5">LOCAL</text>
+  <rect x="58" y="118" width="18" height="16" rx="8" fill="#333"/>
+  <text x="63" y="130" fill="#999" font-size="10">3</text>
+
+  <!-- Selected mecha -->
+  <rect x="8" y="144" width="264" height="44" rx="8" fill="#2a2a4a"/>
+  <circle cx="28" cy="166" r="4" fill="#4ade80"/>
+  <text x="40" y="162" fill="#e8e8e8" font-size="13" font-weight="500">mx-antony-104yh9</text>
+  <text x="40" y="176" fill="#666" font-size="11">antony · :7700</text>
+
+  <!-- Other mechas -->
+  <rect x="8" y="192" width="264" height="44" rx="8" fill="transparent"/>
+  <circle cx="28" cy="214" r="4" fill="#f87171"/>
+  <text x="40" y="210" fill="#ccc" font-size="13">mx-bob-2k8fn3</text>
+  <text x="40" y="224" fill="#666" font-size="11">bob-project · exited</text>
+
+  <!-- Footer -->
+  <line x1="16" y1="720" x2="264" y2="720" stroke="#333" stroke-width="1"/>
+  <rect x="16" y="732" width="248" height="36" rx="8" fill="#4f46e5"/>
+  <text x="105" y="755" fill="white" font-size="13" font-weight="500">+ New Mecha</text>
+
+  <!-- ===== Main Content: Terminal Tab ===== -->
+
+  <!-- Top Bar -->
+  <rect x="280" y="0" width="920" height="56" fill="#161616"/>
+  <line x1="280" y1="56" x2="1200" y2="56" stroke="#333" stroke-width="1"/>
+  <text x="300" y="34" fill="#666" font-size="13">local</text>
+  <text x="340" y="34" fill="#555" font-size="13">/</text>
+  <text x="352" y="34" fill="#e8e8e8" font-size="13" font-weight="500">mx-antony-104yh9</text>
+  <rect x="510" y="22" width="70" height="22" rx="11" fill="#16331e"/>
+  <circle cx="525" cy="33" r="3" fill="#4ade80"/>
+  <text x="534" y="37" fill="#4ade80" font-size="11" font-weight="500">running</text>
+
+  <!-- Tab Navigation -->
+  <rect x="280" y="56" width="920" height="44" fill="#1a1a1a"/>
+  <line x1="280" y1="100" x2="1200" y2="100" stroke="#333" stroke-width="1"/>
+  <text x="314" y="83" fill="#888" font-size="13">💬 Chat</text>
+  <text x="396" y="83" fill="#888" font-size="13">📊 Overview</text>
+  <text x="497" y="83" fill="#888" font-size="13">⚙️ Settings</text>
+
+  <!-- Tab: Terminal (active) -->
+  <rect x="576" y="62" width="90" height="32" rx="6" fill="#2a2a4a"/>
+  <text x="587" y="83" fill="#a5b4fc" font-size="13" font-weight="500">⬛ Terminal</text>
+  <rect x="576" y="94" width="90" height="2" fill="#6366f1" rx="1"/>
+
+  <text x="685" y="83" fill="#888" font-size="13">🔍 Inspect</text>
+
+  <!-- ===== Terminal Content ===== -->
+
+  <!-- Log Viewer (top section) -->
+  <rect x="300" y="112" width="880" height="32" fill="#0d0d0d"/>
+  <circle cx="320" cy="128" r="4" fill="#4ade80"/>
+  <text x="330" y="132" fill="#4ade80" font-size="11" font-weight="500">Streaming logs</text>
+  <text x="780" y="132" fill="#666" font-size="11">tail: 200 lines</text>
+  <rect x="860" y="118" width="52" height="20" rx="4" fill="transparent" stroke="#444" stroke-width="1"/>
+  <text x="870" y="132" fill="#888" font-size="10">Clear</text>
+  <rect x="920" y="118" width="52" height="20" rx="4" fill="transparent" stroke="#444" stroke-width="1"/>
+  <text x="930" y="132" fill="#888" font-size="10">Scroll ↓</text>
+
+  <rect x="300" y="144" width="880" height="440" fill="#0a0a0a" rx="0"/>
+
+  <!-- Log lines -->
+  <text x="316" y="168" fill="#4ade80" font-size="11" class="mono">{"level":30,"time":1771737356619,"pid":7,</text>
+  <text x="316" y="186" fill="#4ade80" font-size="11" class="mono"> "hostname":"0eba206bca57","reqId":"req-1l",</text>
+  <text x="316" y="204" fill="#4ade80" font-size="11" class="mono"> "req":{"method":"GET","url":"/api/sessions",</text>
+  <text x="316" y="222" fill="#4ade80" font-size="11" class="mono"> "host":"127.0.0.1:7700"},</text>
+  <text x="316" y="240" fill="#4ade80" font-size="11" class="mono"> "msg":"incoming request"}</text>
+
+  <text x="316" y="268" fill="#60a5fa" font-size="11" class="mono">{"level":30,"time":1771737356620,"pid":7,</text>
+  <text x="316" y="286" fill="#60a5fa" font-size="11" class="mono"> "res":{"statusCode":200},</text>
+  <text x="316" y="304" fill="#60a5fa" font-size="11" class="mono"> "responseTime":0.307,"msg":"request completed"}</text>
+
+  <text x="316" y="332" fill="#4ade80" font-size="11" class="mono">{"level":30,"time":1771737413654,"pid":7,</text>
+  <text x="316" y="350" fill="#4ade80" font-size="11" class="mono"> "req":{"method":"POST","url":"/api/sessions/</text>
+  <text x="316" y="368" fill="#4ade80" font-size="11" class="mono"> 81478cb2-e887/message"},</text>
+  <text x="316" y="386" fill="#4ade80" font-size="11" class="mono"> "msg":"incoming request"}</text>
+
+  <text x="316" y="414" fill="#60a5fa" font-size="11" class="mono">{"level":30,"time":1771737413654,"pid":7,</text>
+  <text x="316" y="432" fill="#60a5fa" font-size="11" class="mono"> "res":{"statusCode":200},</text>
+  <text x="316" y="450" fill="#60a5fa" font-size="11" class="mono"> "responseTime":7858.742,"msg":"request completed"}</text>
+
+  <text x="316" y="478" fill="#f87171" font-size="11" class="mono">{"level":50,"time":1771737565527,"pid":7,</text>
+  <text x="316" y="496" fill="#f87171" font-size="11" class="mono"> "req":{"method":"POST","url":"/api/sessions/</text>
+  <text x="316" y="514" fill="#f87171" font-size="11" class="mono"> a3f92c10-7d44/message"},</text>
+  <text x="316" y="532" fill="#f87171" font-size="11" class="mono"> "res":{"statusCode":404},</text>
+  <text x="316" y="550" fill="#f87171" font-size="11" class="mono"> "msg":"request completed"}</text>
+
+  <!-- Resize Handle -->
+  <rect x="300" y="584" width="880" height="8" fill="#1a1a1a"/>
+  <rect x="580" y="586" width="40" height="4" rx="2" fill="#444"/>
+
+  <!-- Execute Command (bottom section) -->
+  <rect x="300" y="592" width="880" height="40" fill="#1e1e1e"/>
+  <text x="316" y="617" fill="#888" font-size="12" font-weight="500">Execute Command</text>
+  <text x="800" y="617" fill="#555" font-size="11">History: ↑↓</text>
+
+  <rect x="300" y="636" width="880" height="44" fill="#0a0a0a"/>
+  <text x="316" y="662" fill="#4ade80" font-size="13" class="mono">$</text>
+  <rect x="330" y="644" width="700" height="28" rx="0" fill="transparent"/>
+  <text x="332" y="662" fill="#e8e8e8" font-size="13" class="mono">ls -la /workspace</text>
+
+  <!-- Command output area -->
+  <rect x="300" y="684" width="880" height="116" fill="#0a0a0a"/>
+
+  <text x="316" y="706" fill="#ccc" font-size="11" class="mono">total 48</text>
+  <text x="316" y="722" fill="#ccc" font-size="11" class="mono">drwxr-xr-x  8 node node 4096 Feb 21 16:26 .</text>
+  <text x="316" y="738" fill="#ccc" font-size="11" class="mono">drwxr-xr-x  1 root root 4096 Feb 21 16:26 ..</text>
+  <text x="316" y="754" fill="#60a5fa" font-size="11" class="mono">drwxr-xr-x  2 node node 4096 Feb 21 16:26 .claude</text>
+  <text x="316" y="770" fill="#ccc" font-size="11" class="mono">-rw-r--r--  1 node node  842 Feb 21 16:26 package.json</text>
+  <text x="316" y="786" fill="#ccc" font-size="11" class="mono">drwxr-xr-x 12 node node 4096 Feb 21 16:26 src</text>
+
+  <!-- Run button -->
+  <rect x="1040" y="644" width="120" height="28" rx="6" fill="#4f46e5"/>
+  <text x="1080" y="663" fill="white" font-size="12" font-weight="500">Run</text>
+</svg>

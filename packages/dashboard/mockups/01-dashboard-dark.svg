@@ -1,0 +1,204 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800">
+  <defs>
+    <style>
+      text { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif; }
+      .mono { font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; }
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="800" fill="#161616"/>
+
+  <!-- Sidebar (280px) -->
+  <rect x="0" y="0" width="280" height="800" fill="#1e1e1e"/>
+  <line x1="280" y1="0" x2="280" y2="800" stroke="#333" stroke-width="1"/>
+
+  <!-- Sidebar Header -->
+  <rect x="0" y="0" width="280" height="56" fill="#1e1e1e"/>
+  <text x="20" y="36" fill="#e8e8e8" font-size="16" font-weight="600">Mecha Dashboard</text>
+  <circle cx="170" cy="30" r="4" fill="#4ade80"/>
+  <text x="180" y="34" fill="#888" font-size="11">Docker</text>
+
+  <!-- Sidebar Collapse Button -->
+  <rect x="248" y="18" width="20" height="20" rx="4" fill="transparent" stroke="#444" stroke-width="1"/>
+  <text x="253" y="33" fill="#888" font-size="12">«</text>
+
+  <line x1="16" y1="56" x2="264" y2="56" stroke="#333" stroke-width="1"/>
+
+  <!-- Search Bar -->
+  <rect x="16" y="68" width="248" height="36" rx="8" fill="#2a2a2a" stroke="#444" stroke-width="1"/>
+  <text x="40" y="91" fill="#666" font-size="13">Search mechas...</text>
+  <text x="222" y="91" fill="#555" font-size="11" class="mono">⌘K</text>
+  <!-- Search icon -->
+  <circle cx="30" cy="86" r="6" fill="none" stroke="#666" stroke-width="1.5"/>
+  <line x1="34" y1="90" x2="37" y2="93" stroke="#666" stroke-width="1.5"/>
+
+  <!-- Node Group: local -->
+  <rect x="0" y="116" width="280" height="32" fill="transparent"/>
+  <text x="16" y="138" fill="#888" font-size="11" font-weight="600" letter-spacing="0.5">LOCAL</text>
+  <rect x="58" y="126" width="18" height="16" rx="8" fill="#333"/>
+  <text x="63" y="138" fill="#999" font-size="10" font-weight="500">3</text>
+  <!-- Collapse chevron -->
+  <text x="252" y="138" fill="#666" font-size="10">▾</text>
+
+  <!-- Mecha Item 1 (selected) -->
+  <rect x="8" y="152" width="264" height="44" rx="8" fill="#2a2a4a"/>
+  <circle cx="28" cy="174" r="4" fill="#4ade80"/>
+  <text x="40" y="170" fill="#e8e8e8" font-size="13" font-weight="500">mx-antony-104yh9</text>
+  <text x="40" y="184" fill="#666" font-size="11">antony · :7700</text>
+
+  <!-- Mecha Item 2 -->
+  <rect x="8" y="200" width="264" height="44" rx="8" fill="transparent"/>
+  <circle cx="28" cy="222" r="4" fill="#f87171"/>
+  <text x="40" y="218" fill="#ccc" font-size="13" font-weight="500">mx-bob-2k8fn3</text>
+  <text x="40" y="232" fill="#666" font-size="11">bob-project · exited</text>
+
+  <!-- Mecha Item 3 -->
+  <rect x="8" y="248" width="264" height="44" rx="8" fill="transparent"/>
+  <circle cx="28" cy="270" r="4" fill="#4ade80"/>
+  <text x="40" y="266" fill="#ccc" font-size="13" font-weight="500">mx-carol-9xm2p1</text>
+  <text x="40" y="280" fill="#666" font-size="11">carol-app · :7701</text>
+
+  <!-- Node Group: machine-b -->
+  <rect x="0" y="308" width="280" height="32" fill="transparent"/>
+  <circle cx="16" cy="326" r="3" fill="#4ade80"/>
+  <text x="24" y="330" fill="#888" font-size="11" font-weight="600" letter-spacing="0.5">MACHINE-B</text>
+  <rect x="100" y="318" width="18" height="16" rx="8" fill="#333"/>
+  <text x="105" y="330" fill="#999" font-size="10" font-weight="500">2</text>
+  <text x="252" y="330" fill="#666" font-size="10">▾</text>
+
+  <!-- Remote Mecha Item 1 -->
+  <rect x="8" y="344" width="264" height="44" rx="8" fill="transparent"/>
+  <circle cx="28" cy="366" r="4" fill="#4ade80"/>
+  <text x="40" y="362" fill="#ccc" font-size="13" font-weight="500">mx-dave-7pq4r2</text>
+  <text x="40" y="376" fill="#666" font-size="11">dave-service · :7700</text>
+
+  <!-- Remote Mecha Item 2 -->
+  <rect x="8" y="392" width="264" height="44" rx="8" fill="transparent"/>
+  <circle cx="28" cy="414" r="4" fill="#4ade80"/>
+  <text x="40" y="410" fill="#ccc" font-size="13" font-weight="500">mx-eve-3wt5n8</text>
+  <text x="40" y="424" fill="#666" font-size="11">eve-agent · :7701</text>
+
+  <!-- Node Group: machine-c (offline) -->
+  <rect x="0" y="452" width="280" height="32" fill="transparent"/>
+  <circle cx="16" cy="470" r="3" fill="#f87171"/>
+  <text x="24" y="474" fill="#888" font-size="11" font-weight="600" letter-spacing="0.5">MACHINE-C</text>
+  <rect x="100" y="462" width="18" height="16" rx="8" fill="#333"/>
+  <text x="105" y="474" fill="#999" font-size="10" font-weight="500">1</text>
+  <text x="252" y="474" fill="#666" font-size="10">▸</text>
+
+  <!-- Sidebar Footer -->
+  <line x1="16" y1="720" x2="264" y2="720" stroke="#333" stroke-width="1"/>
+
+  <!-- New Mecha Button -->
+  <rect x="16" y="732" width="248" height="36" rx="8" fill="#4f46e5" stroke="none"/>
+  <text x="105" y="755" fill="white" font-size="13" font-weight="500">+ New Mecha</text>
+
+  <!-- Footer actions -->
+  <rect x="16" y="774" width="56" height="20" rx="4" fill="transparent"/>
+  <text x="16" y="789" fill="#666" font-size="11">Prune</text>
+  <text x="90" y="789" fill="#666" font-size="11">Doctor</text>
+  <text x="200" y="789" fill="#666" font-size="11">☾</text>
+  <text x="232" y="789" fill="#666" font-size="11">Logout</text>
+
+  <!-- ===== Main Content Area ===== -->
+
+  <!-- Top Bar -->
+  <rect x="280" y="0" width="920" height="56" fill="#161616"/>
+  <line x1="280" y1="56" x2="1200" y2="56" stroke="#333" stroke-width="1"/>
+
+  <!-- Breadcrumb -->
+  <text x="300" y="34" fill="#666" font-size="13">local</text>
+  <text x="340" y="34" fill="#555" font-size="13">/</text>
+  <text x="352" y="34" fill="#e8e8e8" font-size="13" font-weight="500">mx-antony-104yh9</text>
+
+  <!-- Status badge -->
+  <rect x="510" y="22" width="70" height="22" rx="11" fill="#16331e"/>
+  <circle cx="525" cy="33" r="3" fill="#4ade80"/>
+  <text x="534" y="37" fill="#4ade80" font-size="11" font-weight="500">running</text>
+
+  <!-- Update button -->
+  <rect x="592" y="22" width="60" height="22" rx="6" fill="transparent" stroke="#444" stroke-width="1"/>
+  <text x="602" y="37" fill="#ccc" font-size="11">Update</text>
+
+  <!-- Tab Navigation -->
+  <rect x="280" y="56" width="920" height="44" fill="#1a1a1a"/>
+  <line x1="280" y1="100" x2="1200" y2="100" stroke="#333" stroke-width="1"/>
+
+  <!-- Tab: Chat (active) -->
+  <rect x="300" y="62" width="70" height="32" rx="6" fill="#2a2a4a"/>
+  <text x="314" y="83" fill="#a5b4fc" font-size="13" font-weight="500">💬 Chat</text>
+  <rect x="300" y="94" width="70" height="2" fill="#6366f1" rx="1"/>
+
+  <!-- Tab: Overview -->
+  <text x="392" y="83" fill="#888" font-size="13">📊 Overview</text>
+
+  <!-- Tab: Settings -->
+  <text x="488" y="83" fill="#888" font-size="13">⚙️ Settings</text>
+
+  <!-- Tab: Terminal -->
+  <text x="584" y="83" fill="#888" font-size="13">⬛ Terminal</text>
+
+  <!-- Tab: Inspect -->
+  <text x="676" y="83" fill="#888" font-size="13">🔍 Inspect</text>
+
+  <!-- ===== Chat Tab Content ===== -->
+
+  <!-- Session Picker Bar -->
+  <rect x="300" y="112" width="880" height="40" rx="0" fill="#1e1e1e"/>
+  <text x="316" y="137" fill="#888" font-size="12">Sessions:</text>
+
+  <rect x="380" y="118" width="80" height="28" rx="6" fill="#2a2a4a" stroke="#4f46e5" stroke-width="1"/>
+  <text x="394" y="137" fill="#a5b4fc" font-size="12">Session 1</text>
+
+  <rect x="468" y="118" width="80" height="28" rx="6" fill="transparent" stroke="#444" stroke-width="1"/>
+  <text x="482" y="137" fill="#888" font-size="12">Session 2</text>
+
+  <rect x="556" y="118" width="72" height="28" rx="6" fill="transparent" stroke="#444" stroke-width="1"/>
+  <text x="568" y="137" fill="#888" font-size="12">Stateless</text>
+
+  <rect x="640" y="118" width="32" height="28" rx="6" fill="transparent" stroke="#444" stroke-width="1"/>
+  <text x="650" y="137" fill="#888" font-size="14">+</text>
+
+  <!-- Chat Area -->
+  <rect x="300" y="164" width="880" height="580" fill="#161616"/>
+
+  <!-- Assistant Message -->
+  <rect x="340" y="200" width="600" height="80" rx="12" fill="#1e1e1e"/>
+  <circle cx="360" cy="224" r="14" fill="#4f46e5"/>
+  <text x="354" y="229" fill="white" font-size="12" font-weight="600">M</text>
+  <text x="384" y="224" fill="#e8e8e8" font-size="14" font-weight="600">mx-antony</text>
+  <text x="384" y="248" fill="#ccc" font-size="13">Hello there! How can I help you today?</text>
+  <text x="384" y="266" fill="#666" font-size="11">2 min ago</text>
+
+  <!-- User Message -->
+  <rect x="620" y="310" width="520" height="60" rx="12" fill="#2a2a4a"/>
+  <text x="650" y="338" fill="#e8e8e8" font-size="13">Can you review the auth middleware in src/auth.ts?</text>
+  <text x="650" y="356" fill="#666" font-size="11">1 min ago</text>
+
+  <!-- Assistant Response with tool use -->
+  <rect x="340" y="400" width="700" height="120" rx="12" fill="#1e1e1e"/>
+  <circle cx="360" cy="424" r="14" fill="#4f46e5"/>
+  <text x="354" y="429" fill="white" font-size="12" font-weight="600">M</text>
+  <text x="384" y="424" fill="#e8e8e8" font-size="14" font-weight="600">mx-antony</text>
+  <text x="384" y="448" fill="#ccc" font-size="13">I'll read the auth middleware file and review it for you.</text>
+
+  <!-- Tool call badge -->
+  <rect x="384" y="462" width="200" height="28" rx="6" fill="#1a2332" stroke="#1e3a5f" stroke-width="1"/>
+  <text x="396" y="481" fill="#60a5fa" font-size="11" class="mono">📄 Read src/auth.ts</text>
+  <text x="564" y="481" fill="#4ade80" font-size="11">✓</text>
+
+  <text x="384" y="508" fill="#ccc" font-size="13">The auth middleware looks solid. Here are my findings...</text>
+
+  <!-- Chat Input -->
+  <rect x="340" y="690" width="800" height="48" rx="24" fill="#2a2a2a" stroke="#444" stroke-width="1"/>
+  <text x="380" y="719" fill="#666" font-size="13">Send a message...</text>
+
+  <!-- Attachment button -->
+  <circle cx="366" cy="714" r="12" fill="transparent"/>
+  <text x="360" y="719" fill="#888" font-size="16">+</text>
+
+  <!-- Send button -->
+  <circle cx="1116" cy="714" r="16" fill="#4f46e5"/>
+  <text x="1110" y="719" fill="white" font-size="14">↑</text>
+</svg>

@@ -1,0 +1,191 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800">
+  <defs>
+    <style>
+      text { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif; }
+      .mono { font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; }
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="800" fill="#161616"/>
+
+  <!-- Sidebar (280px) - same as mockup 1 but collapsed to show more content -->
+  <rect x="0" y="0" width="280" height="800" fill="#1e1e1e"/>
+  <line x1="280" y1="0" x2="280" y2="800" stroke="#333" stroke-width="1"/>
+
+  <!-- Sidebar Header -->
+  <text x="20" y="36" fill="#e8e8e8" font-size="16" font-weight="600">Mecha Dashboard</text>
+  <circle cx="170" cy="30" r="4" fill="#4ade80"/>
+  <text x="180" y="34" fill="#888" font-size="11">Docker</text>
+  <line x1="16" y1="56" x2="264" y2="56" stroke="#333" stroke-width="1"/>
+
+  <!-- Search Bar -->
+  <rect x="16" y="68" width="248" height="36" rx="8" fill="#2a2a2a" stroke="#444" stroke-width="1"/>
+  <text x="40" y="91" fill="#666" font-size="13">Search mechas...</text>
+  <circle cx="30" cy="86" r="6" fill="none" stroke="#666" stroke-width="1.5"/>
+  <line x1="34" y1="90" x2="37" y2="93" stroke="#666" stroke-width="1.5"/>
+
+  <!-- Node Group: local -->
+  <text x="16" y="130" fill="#888" font-size="11" font-weight="600" letter-spacing="0.5">LOCAL</text>
+  <rect x="58" y="118" width="18" height="16" rx="8" fill="#333"/>
+  <text x="63" y="130" fill="#999" font-size="10">3</text>
+
+  <!-- Mecha Items -->
+  <rect x="8" y="144" width="264" height="44" rx="8" fill="#2a2a4a"/>
+  <circle cx="28" cy="166" r="4" fill="#4ade80"/>
+  <text x="40" y="162" fill="#e8e8e8" font-size="13" font-weight="500">mx-antony-104yh9</text>
+  <text x="40" y="176" fill="#666" font-size="11">antony · :7700</text>
+
+  <rect x="8" y="192" width="264" height="44" rx="8" fill="transparent"/>
+  <circle cx="28" cy="214" r="4" fill="#f87171"/>
+  <text x="40" y="210" fill="#ccc" font-size="13">mx-bob-2k8fn3</text>
+  <text x="40" y="224" fill="#666" font-size="11">bob-project · exited</text>
+
+  <rect x="8" y="240" width="264" height="44" rx="8" fill="transparent"/>
+  <circle cx="28" cy="262" r="4" fill="#4ade80"/>
+  <text x="40" y="258" fill="#ccc" font-size="13">mx-carol-9xm2p1</text>
+  <text x="40" y="272" fill="#666" font-size="11">carol-app · :7701</text>
+
+  <!-- Remote node -->
+  <circle cx="16" cy="310" r="3" fill="#4ade80"/>
+  <text x="24" y="314" fill="#888" font-size="11" font-weight="600" letter-spacing="0.5">MACHINE-B</text>
+  <rect x="100" y="302" width="18" height="16" rx="8" fill="#333"/>
+  <text x="105" y="314" fill="#999" font-size="10">2</text>
+  <text x="252" y="314" fill="#666" font-size="10">▸</text>
+
+  <!-- Sidebar Footer -->
+  <line x1="16" y1="720" x2="264" y2="720" stroke="#333" stroke-width="1"/>
+  <rect x="16" y="732" width="248" height="36" rx="8" fill="#4f46e5"/>
+  <text x="105" y="755" fill="white" font-size="13" font-weight="500">+ New Mecha</text>
+  <text x="16" y="789" fill="#666" font-size="11">Prune</text>
+  <text x="200" y="789" fill="#666" font-size="11">☾</text>
+  <text x="232" y="789" fill="#666" font-size="11">Logout</text>
+
+  <!-- ===== Main Content: Overview Tab ===== -->
+
+  <!-- Top Bar -->
+  <rect x="280" y="0" width="920" height="56" fill="#161616"/>
+  <line x1="280" y1="56" x2="1200" y2="56" stroke="#333" stroke-width="1"/>
+  <text x="300" y="34" fill="#666" font-size="13">local</text>
+  <text x="340" y="34" fill="#555" font-size="13">/</text>
+  <text x="352" y="34" fill="#e8e8e8" font-size="13" font-weight="500">mx-antony-104yh9</text>
+  <rect x="510" y="22" width="70" height="22" rx="11" fill="#16331e"/>
+  <circle cx="525" cy="33" r="3" fill="#4ade80"/>
+  <text x="534" y="37" fill="#4ade80" font-size="11" font-weight="500">running</text>
+
+  <!-- Tab Navigation -->
+  <rect x="280" y="56" width="920" height="44" fill="#1a1a1a"/>
+  <line x1="280" y1="100" x2="1200" y2="100" stroke="#333" stroke-width="1"/>
+
+  <text x="314" y="83" fill="#888" font-size="13">💬 Chat</text>
+
+  <!-- Tab: Overview (active) -->
+  <rect x="385" y="62" width="90" height="32" rx="6" fill="#2a2a4a"/>
+  <text x="396" y="83" fill="#a5b4fc" font-size="13" font-weight="500">📊 Overview</text>
+  <rect x="385" y="94" width="90" height="2" fill="#6366f1" rx="1"/>
+
+  <text x="497" y="83" fill="#888" font-size="13">⚙️ Settings</text>
+  <text x="590" y="83" fill="#888" font-size="13">⬛ Terminal</text>
+  <text x="680" y="83" fill="#888" font-size="13">🔍 Inspect</text>
+
+  <!-- ===== Overview Content ===== -->
+
+  <!-- Quick Actions Row -->
+  <rect x="312" y="120" width="856" height="48" rx="0" fill="transparent"/>
+
+  <rect x="312" y="124" width="80" height="36" rx="8" fill="transparent" stroke="#f87171" stroke-width="1"/>
+  <text x="332" y="147" fill="#f87171" font-size="12" font-weight="500">■ Stop</text>
+
+  <rect x="400" y="124" width="90" height="36" rx="8" fill="transparent" stroke="#888" stroke-width="1"/>
+  <text x="416" y="147" fill="#ccc" font-size="12" font-weight="500">↻ Restart</text>
+
+  <rect x="498" y="124" width="90" height="36" rx="8" fill="transparent" stroke="#888" stroke-width="1"/>
+  <text x="514" y="147" fill="#ccc" font-size="12" font-weight="500">⬆ Update</text>
+
+  <rect x="596" y="124" width="90" height="36" rx="8" fill="transparent" stroke="#f87171" stroke-width="1"/>
+  <text x="612" y="147" fill="#f87171" font-size="12" font-weight="500">🗑 Remove</text>
+
+  <!-- Info Cards Grid (3 columns) -->
+
+  <!-- Card: Container -->
+  <rect x="312" y="184" width="272" height="100" rx="12" fill="#1e1e1e" stroke="#333" stroke-width="1"/>
+  <text x="332" y="210" fill="#888" font-size="11" font-weight="500">CONTAINER</text>
+  <text x="332" y="236" fill="#e8e8e8" font-size="15" font-weight="600" class="mono">mecha-mx-antony-104yh9</text>
+  <text x="332" y="258" fill="#666" font-size="11">Docker container name</text>
+
+  <!-- Card: Image -->
+  <rect x="600" y="184" width="272" height="100" rx="12" fill="#1e1e1e" stroke="#333" stroke-width="1"/>
+  <text x="620" y="210" fill="#888" font-size="11" font-weight="500">IMAGE</text>
+  <text x="620" y="236" fill="#e8e8e8" font-size="15" font-weight="600" class="mono">mecha-runtime:latest</text>
+  <text x="620" y="258" fill="#666" font-size="11">Container image</text>
+
+  <!-- Card: Port -->
+  <rect x="888" y="184" width="272" height="100" rx="12" fill="#1e1e1e" stroke="#333" stroke-width="1"/>
+  <text x="908" y="210" fill="#888" font-size="11" font-weight="500">PORT</text>
+  <text x="908" y="236" fill="#e8e8e8" font-size="24" font-weight="700" class="mono">:7700</text>
+  <text x="908" y="258" fill="#666" font-size="11">Public port mapping</text>
+
+  <!-- Card: Created -->
+  <rect x="312" y="300" width="272" height="100" rx="12" fill="#1e1e1e" stroke="#333" stroke-width="1"/>
+  <text x="332" y="326" fill="#888" font-size="11" font-weight="500">CREATED</text>
+  <text x="332" y="352" fill="#e8e8e8" font-size="15" font-weight="600">2/21/2026, 4:26 PM</text>
+  <text x="332" y="374" fill="#666" font-size="11">1 day ago</text>
+
+  <!-- Card: Path -->
+  <rect x="600" y="300" width="272" height="100" rx="12" fill="#1e1e1e" stroke="#333" stroke-width="1"/>
+  <text x="620" y="326" fill="#888" font-size="11" font-weight="500">PROJECT PATH</text>
+  <text x="620" y="352" fill="#e8e8e8" font-size="13" font-weight="500" class="mono">/home/user/mecha/</text>
+  <text x="620" y="370" fill="#e8e8e8" font-size="13" class="mono">antony</text>
+  <text x="620" y="388" fill="#666" font-size="11">Host mount path</text>
+
+  <!-- Card: PID -->
+  <rect x="888" y="300" width="272" height="100" rx="12" fill="#1e1e1e" stroke="#333" stroke-width="1"/>
+  <text x="908" y="326" fill="#888" font-size="11" font-weight="500">PID</text>
+  <text x="908" y="352" fill="#e8e8e8" font-size="24" font-weight="700" class="mono">129484</text>
+  <text x="908" y="374" fill="#666" font-size="11">Container process ID</text>
+
+  <!-- MCP Server Section -->
+  <text x="312" y="440" fill="#e8e8e8" font-size="15" font-weight="600">MCP Server</text>
+
+  <rect x="312" y="456" width="848" height="80" rx="12" fill="#1e1e1e" stroke="#333" stroke-width="1"/>
+
+  <text x="332" y="480" fill="#888" font-size="11" font-weight="500">ENDPOINT</text>
+  <text x="332" y="500" fill="#e8e8e8" font-size="13" class="mono">http://127.0.0.1:7700/mcp</text>
+
+  <rect x="600" y="472" width="54" height="24" rx="6" fill="transparent" stroke="#444" stroke-width="1"/>
+  <text x="612" y="489" fill="#ccc" font-size="11">Copy</text>
+
+  <text x="700" y="480" fill="#888" font-size="11" font-weight="500">TOKEN</text>
+  <text x="700" y="500" fill="#e8e8e8" font-size="13" class="mono">5c88...d6a0</text>
+
+  <rect x="820" y="472" width="60" height="24" rx="6" fill="transparent" stroke="#444" stroke-width="1"/>
+  <text x="832" y="489" fill="#ccc" font-size="11">Reveal</text>
+
+  <rect x="888" y="472" width="54" height="24" rx="6" fill="transparent" stroke="#444" stroke-width="1"/>
+  <text x="900" y="489" fill="#ccc" font-size="11">Copy</text>
+
+  <text x="332" y="524" fill="#4f46e5" font-size="12" font-weight="500">Show MCP Config ▸</text>
+
+  <!-- Sessions Section -->
+  <text x="312" y="568" fill="#e8e8e8" font-size="15" font-weight="600">Active Sessions</text>
+
+  <rect x="312" y="584" width="848" height="44" rx="8" fill="#1e1e1e" stroke="#333" stroke-width="1"/>
+  <text x="332" y="608" fill="#888" font-size="11" font-weight="500">SESSION</text>
+  <text x="500" y="608" fill="#888" font-size="11" font-weight="500">MESSAGES</text>
+  <text x="640" y="608" fill="#888" font-size="11" font-weight="500">CREATED</text>
+  <text x="800" y="608" fill="#888" font-size="11" font-weight="500">STATUS</text>
+
+  <rect x="312" y="632" width="848" height="40" rx="0" fill="transparent"/>
+  <text x="332" y="656" fill="#e8e8e8" font-size="12" class="mono">81478cb2-e887-4361...</text>
+  <text x="500" y="656" fill="#e8e8e8" font-size="12">12</text>
+  <text x="640" y="656" fill="#ccc" font-size="12">2 hours ago</text>
+  <rect x="800" y="642" width="50" height="20" rx="10" fill="#16331e"/>
+  <text x="810" y="656" fill="#4ade80" font-size="11">idle</text>
+
+  <rect x="312" y="676" width="848" height="40" rx="0" fill="transparent"/>
+  <text x="332" y="700" fill="#e8e8e8" font-size="12" class="mono">a3f92c10-7d44-485b...</text>
+  <text x="500" y="700" fill="#e8e8e8" font-size="12">3</text>
+  <text x="640" y="700" fill="#ccc" font-size="12">30 min ago</text>
+  <rect x="800" y="686" width="50" height="20" rx="10" fill="#16331e"/>
+  <text x="810" y="700" fill="#4ade80" font-size="11">idle</text>
+</svg>
