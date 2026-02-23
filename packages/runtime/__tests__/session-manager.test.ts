@@ -780,7 +780,7 @@ describe("SessionManager", () => {
 
   // --- sendMessage with workingDirectory fallback and permission mode ---
 
-  it("sendMessage() uses /home/mecha when workingDirectory is undefined", async () => {
+  it("sendMessage() uses process.cwd() when workingDirectory is undefined", async () => {
     const smNoDir = new SessionManager(db, { mechaId: "mx-test" as any });
     const session = smNoDir.create();
 
@@ -795,7 +795,7 @@ describe("SessionManager", () => {
     }
 
     const callArgs = mockQuery.mock.calls[0][0];
-    expect(callArgs.options.cwd).toBe("/home/mecha");
+    expect(callArgs.options.cwd).toBe(process.cwd());
   });
 
   it("sendMessage() uses full-auto permission mode from config", async () => {

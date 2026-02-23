@@ -136,7 +136,7 @@ describe("Fastify server", () => {
     expect(res.statusCode).not.toBe(503);
   });
 
-  it("creates server with agent but no workingDirectory (uses /home/mecha fallback)", async () => {
+  it("creates server with agent but no workingDirectory (uses process.cwd() fallback)", async () => {
     const { createDatabase, runMigrations } = await import("../src/db/sqlite.js");
     const testDb = createDatabase(":memory:");
     runMigrations(testDb);

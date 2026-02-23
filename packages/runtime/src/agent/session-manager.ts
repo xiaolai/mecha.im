@@ -13,7 +13,7 @@ import {
 
 /**
  * Converts a working directory to the SDK project directory path.
- * e.g. "/home/mecha" → "/home/mecha/.claude/projects/-home-mecha"
+ * e.g. "/path/to/project" → "/path/to/project/.claude/projects/-path-to-project"
  */
 export function resolveProjectDir(cwd: string): string {
   const slug = cwd.replace(/\//g, "-");
@@ -305,7 +305,7 @@ export class SessionManager {
       const config = JSON.parse(row.config) as SessionConfigType;
       const options: Record<string, unknown> = {
         abortController,
-        cwd: this.agentOpts.workingDirectory ?? "/home/mecha",
+        cwd: this.agentOpts.workingDirectory ?? process.cwd(),
         permissionMode: PERMISSION_MAP[config.permissionMode ?? this.agentOpts.permissionMode ?? "default"] ?? "default",
       };
       if (config.model) options.model = config.model;

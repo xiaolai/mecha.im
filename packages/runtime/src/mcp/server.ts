@@ -7,7 +7,7 @@ import { resolve, relative } from "node:path";
 import { readdir, readFile } from "node:fs/promises";
 import type { SessionManager } from "../agent/session-manager.js";
 
-const WORKSPACE_ROOT = "/home/mecha";
+const WORKSPACE_ROOT = process.env["MECHA_WORKSPACE"] ?? process.cwd();
 const MAX_SESSIONS = 100;
 const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
 

@@ -171,7 +171,7 @@ describe("Agent routes (casa.ts)", () => {
     });
 
     const args = mockQuery.mock.calls[0][0];
-    expect(args.options.cwd).toBe("/home/mecha");
+    expect(args.options.cwd).toBe(process.cwd());
   });
 
   it("POST /api/chat uses default permission when not specified", async () => {

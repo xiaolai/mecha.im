@@ -1,5 +1,6 @@
 /**
- * Container entrypoint — starts the Fastify runtime server.
+ * Runtime entrypoint — starts the Fastify runtime server.
+ * Runs as a bare process (spawned by ProcessManager) or standalone.
  */
 import { createServer } from "./server.js";
 import { createDatabase, runMigrations } from "./db/sqlite.js";
@@ -7,8 +8,8 @@ import { mkdirSync, writeFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import type { MechaId } from "@mecha/core";
 
-// Ensure Claude onboarding flag exists in $HOME (workspace bind-mount replaces baked-in files)
-const homeDir = process.env["HOME"] ?? "/home/mecha";
+// Ensure Claude onboarding flag exists in $HOME
+const homeDir = process.env["HOME"] ?? process.cwd();
 const claudeJson = join(homeDir, ".claude.json");
 const claudeDir = join(homeDir, ".claude");
 if (!existsSync(claudeJson)) {
@@ -25,10 +26,11 @@ if (!mechaId) {
 }
 
 const port = Number(process.env["PORT"] ?? 3000);
-const host = process.env["HOST"] ?? "0.0.0.0";
+const host = process.env["HOST"] ?? "127.0.0.1";
 
 // Initialize SQLite database for session persistence
-const dbPath = process.env["MECHA_DB_PATH"] ?? "/var/lib/mecha/state.db";
+const workspace = process.env["MECHA_WORKSPACE"] ?? process.cwd();
+const dbPath = process.env["MECHA_DB_PATH"] ?? join(workspace, ".mecha", "state.db");
 mkdirSync(dirname(dbPath), { recursive: true });
 const db = createDatabase(dbPath);
 runMigrations(db);
@@ -45,7 +47,7 @@ const app = createServer({
   otp: process.env["MECHA_OTP"],
   db,
   agent: {
-    workingDirectory: process.env["MECHA_WORKSPACE"] ?? "/home/mecha",
+    workingDirectory: workspace,
     permissionMode: (process.env["MECHA_PERMISSION_MODE"] ?? "default") as "default" | "plan" | "full-auto",
   },
 });
