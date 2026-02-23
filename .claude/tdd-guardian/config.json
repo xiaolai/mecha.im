@@ -1,19 +1,17 @@
 {
   "enabled": true,
-  "enforceOnTaskCompleted": true,
-  "blockCommitWithoutFreshGate": true,
-  "gateFreshnessMinutes": 120,
-  "bypassEnv": "TDD_GUARD_BYPASS",
-  "preflightCommand": "pnpm exec tsc --noEmit",
   "testCommand": "pnpm test",
-  "coverageCommand": "pnpm test -- --coverage",
+  "coverageCommand": "pnpm test:coverage",
   "coverageSummaryPath": "coverage/coverage-summary.json",
-  "coverageThresholds": {
+  "typecheckCommand": "pnpm typecheck",
+  "mutationCommand": null,
+  "thresholds": {
     "lines": 100,
     "functions": 100,
     "branches": 100,
     "statements": 100
   },
-  "requireMutation": false,
-  "mutationCommand": ""
+  "enforceTestFirst": true,
+  "blockOnFailingTests": true,
+  "blockOnCoverageRegression": true
 }
