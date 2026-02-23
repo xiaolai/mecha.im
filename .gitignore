@@ -1,118 +1,74 @@
-# =============================================================================
-# AI CODING ASSISTANTS
-# =============================================================================
 
-# Claude Code - local settings contain personal preferences and may include tokens
-.claude/settings.local.json
-.claude/CLAUDE.local.md
-.claude/*.local.*
-CLAUDE.local.md
-
-# Codex CLI - local files (sessions, logs, config)
-.codex/*
-!.codex/skills/
+__pycache__/
 !.codex/prompts/
-
-# Gemini CLI - local files (settings, tmp)
-.gemini/*
-!.gemini/skills/
+!.codex/skills/
+!.env.example              # Keep example files for documentation
 !.gemini/commands/
-
-# =============================================================================
-# SECRETS & ENVIRONMENT
-# =============================================================================
-
-# Environment files often contain API keys, database credentials, etc.
+!.gemini/skills/
+.claude/*.local.*
+.claude/CLAUDE.local.md
+.claude/settings.local.json
+.codex/*
+.DS_Store
 .env
 .env.*
-!.env.example              # Keep example files for documentation
-
-# Private keys and certificates
-*.pem
-*.key
-
-# Credential files
-credentials.json
-secrets.json
-
-# =============================================================================
-# OPERATING SYSTEM
-# =============================================================================
-
-# macOS - Finder metadata
-.DS_Store
-
-# Windows - thumbnail cache
-Thumbs.db
-
-# =============================================================================
-# EDITORS & IDEs
-# =============================================================================
-
-# JetBrains (IntelliJ, WebStorm, PyCharm, etc.)
+.gemini/*
 .idea/
-
-# Visual Studio Code
-.vscode/
-
-# Vim/Neovim swap and backup files
-*.swp
-*.swo
-*~
-
-# =============================================================================
-# DEPENDENCIES
-# =============================================================================
-
-# Node.js
-node_modules/
-
-# PHP (Composer)
-vendor/
-
-# Python
-__pycache__/
-*.pyc
-.venv/
-venv/
-
-# =============================================================================
-# BUILD OUTPUTS
-# =============================================================================
-
-# Common build directories
-dist/
-build/
 .next/
-next-env.d.ts
-
-# TypeScript incremental build info
-tsconfig.tsbuildinfo
-*.tsbuildinfo
-
-# Turborepo cache
-.turbo/
-
-# Python package build
-*.egg-info/
-
-# Rust/Cargo
-target/
-
-# =============================================================================
-# LOGS & TEMPORARY FILES
-# =============================================================================
-
-*.log
-logs/
-
-# =============================================================================
-# TEST COVERAGE
-# =============================================================================
-
-# JavaScript/TypeScript
-coverage/
 .nyc_output/
-
+.turbo/
+.venv/
+.vscode/
+*.egg-info/
+*.key
+*.log
+*.pem
+*.pyc
+*.swo
+*.swp
+*.tsbuildinfo
+*~
+# =============================================================================
+# AI CODING ASSISTANTS
+# BUILD OUTPUTS
+# Claude Code - local settings contain personal preferences and may include tokens
+# Codex CLI - local files (sessions, logs, config)
+# Common build directories
+# Credential files
+# DEPENDENCIES
+# EDITORS & IDEs
+# Environment files often contain API keys, database credentials, etc.
+# Gemini CLI - local files (settings, tmp)
+# JavaScript/TypeScript
+# JetBrains (IntelliJ, WebStorm, PyCharm, etc.)
+# LOGS & TEMPORARY FILES
+# macOS - Finder metadata
+# Node.js
+# OPERATING SYSTEM
+# PHP (Composer)
+# Private keys and certificates
 # Python
+# Python package build
+# Rust/Cargo
+# SECRETS & ENVIRONMENT
+# TEST COVERAGE
+# Turborepo cache
+# TypeScript incremental build info
+# Vim/Neovim swap and backup files
+# Visual Studio Code
+# Windows - thumbnail cache
+build/
+CLAUDE.local.md
+coverage/
+credentials.json
+dist/
 htmlcov/
+logs/
+next-env.d.ts
+node_modules/
+secrets.json
+target/
+Thumbs.db
+tsconfig.tsbuildinfo
+vendor/
+venv/

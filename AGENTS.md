@@ -28,23 +28,32 @@ This ensures Claude Code, Codex CLI, and Gemini CLI share the same context consi
 
 ## Project Structure
 
-- `.claude/agents/` - Custom subagents for specialized tasks
-- `.claude/skills/` - Claude Code skills (slash commands)
-- `.claude/rules/` - Modular rules auto-loaded into context
-- `.codex/skills/` - Codex CLI skills
-- `.codex/prompts/` - Codex CLI custom slash commands
-- `.gemini/skills/` - Gemini CLI skills
-- `.gemini/commands/` - Gemini CLI custom slash commands (TOML)
-- `.mcp.json` - MCP server configuration
+```
+mecha.im/
+├── packages/              ← v2 source code (empty until Phase 0)
+├── dev-docs/
+│   ├── plan/              ← v2 phase plans (phase-0 through phase-7)
+│   ├── research/          ← discovery, networking, naming research
+│   ├── architecture.md    ← v2 architecture proposal
+│   └── phases.md          ← v2 phase overview
+├── v1/                    ← archived v1 code and docs (read-only reference)
+│   ├── packages/          ← 10 v1 packages (cli, core, runtime, etc.)
+│   ├── docs/              ← v1 specs and design notes
+│   └── scripts/           ← v1 utility scripts
+├── website/               ← landing page + branding assets
+├── .claude/               ← Claude Code config
+│   ├── agents/            ← custom subagents
+│   ├── skills/            ← slash commands
+│   └── rules/             ← modular rules auto-loaded into context
+├── .codex/                ← Codex CLI config
+├── .gemini/               ← Gemini CLI config
+└── .mcp.json              ← MCP server configuration
+```
 
 ## Known Limitations
 
-### Dashboard Sessions
-Dashboard stores sessions in-memory (`packages/dashboard/src/lib/auth.ts`).
-This is single-process only. If multi-instance deployment is needed, replace with signed JWT or Redis sessions.
-
 ### Security Trust Boundary
-Secrets (CLAUDE_CODE_OAUTH_TOKEN, ANTHROPIC_API_KEY, MECHA_OTP) are passed as process environment variables.
+Secrets (ANTHROPIC_API_KEY, MECHA_OTP) are passed as process environment variables.
 Anyone with access to `/proc/<pid>/environ` (root) can read them. This is acceptable for local-first usage.
 
 ### Port Assignment
@@ -62,12 +71,3 @@ No CI/CD pipeline is configured yet. Add GitHub Actions when merging to a shared
 `req.raw` (`IncomingMessage`) `destroyed` and `close` fire when the request body is consumed, NOT when the client disconnects. For POST endpoints this happens immediately after body parsing, breaking the SSE stream.
 
 **Use `req.socket.on("close")` instead** — the socket only closes when the TCP connection drops.
-
-### API Contract
-
-The dashboard API (`/api/mechas`) returns a `ports` array for backward compatibility with the frontend:
-```
-GET /api/mechas → [{ id, name, state, status, path, ports: [{ PublicPort, PrivatePort, Type }], created }]
-POST /api/mechas → { id, name, port, authToken } (body: { path, env?, claudeToken?, otp?, permissionMode? })
-```
-The service layer (`mechaLs`) returns `port` (number). The dashboard route maps this to the `ports` array shape.
