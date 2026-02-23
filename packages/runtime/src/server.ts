@@ -36,7 +36,7 @@ export function createServer(opts: ServerOptions): FastifyInstance {
   const app = Fastify({ logger: opts.logger ?? false });
 
   // --- auth setup ---
-  const token = opts.authToken ?? generateToken();
+  const token = opts.authToken && opts.authToken.length > 0 ? opts.authToken : generateToken();
   if (!opts.skipAuth) {
     if (!opts.authToken) app.addHook("onReady", () => app.log.info(`Auth token: ${token.slice(0, 8)}…`));
     app.addHook("preHandler", createAuthMiddleware(token, opts.otp));

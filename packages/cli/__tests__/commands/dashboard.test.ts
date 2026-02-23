@@ -100,32 +100,36 @@ describe("mecha dashboard", () => {
     );
   });
 
-  it("rejects on build failure", async () => {
+  it("handles build failure gracefully", async () => {
     mockExistsSync.mockReturnValue(false);
     const buildChild = createMockChild();
     mockSpawn.mockReturnValue(buildChild);
 
     const program = new Command();
     registerDashboardCommand(program, deps);
-    const p = program.parseAsync(["dashboard", "--no-open"], { from: "user" });
+    program.parseAsync(["dashboard", "--no-open"], { from: "user" });
     await vi.advanceTimersByTimeAsync(0);
 
     buildChild.emit("exit", 1);
-    await expect(p).rejects.toThrow("Build failed with code 1");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(formatter.error).toHaveBeenCalledWith("Build failed with code 1");
+    expect(process.exitCode).toBe(1);
   });
 
-  it("rejects on build error event", async () => {
+  it("handles build error event gracefully", async () => {
     mockExistsSync.mockReturnValue(false);
     const buildChild = createMockChild();
     mockSpawn.mockReturnValue(buildChild);
 
     const program = new Command();
     registerDashboardCommand(program, deps);
-    const p = program.parseAsync(["dashboard", "--no-open"], { from: "user" });
+    program.parseAsync(["dashboard", "--no-open"], { from: "user" });
     await vi.advanceTimersByTimeAsync(0);
 
     buildChild.emit("error", new Error("spawn ENOENT"));
-    await expect(p).rejects.toThrow("spawn ENOENT");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(formatter.error).toHaveBeenCalledWith("spawn ENOENT");
+    expect(process.exitCode).toBe(1);
   });
 
   it("forwards --port to next start", async () => {

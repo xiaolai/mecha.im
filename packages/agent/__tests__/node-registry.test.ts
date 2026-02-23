@@ -39,10 +39,10 @@ describe("node-registry", () => {
       expect(readNodes()).toEqual([]);
     });
 
-    it("returns empty array when file contains invalid JSON", () => {
+    it("throws on invalid JSON (corrupted file)", () => {
       mkdirSync(mechaDir, { recursive: true });
       writeFileSync(join(mechaDir, "nodes.json"), "{broken");
-      expect(readNodes()).toEqual([]);
+      expect(() => readNodes()).toThrow();
     });
 
     it("reads existing nodes from file", () => {
@@ -77,10 +77,10 @@ describe("node-registry", () => {
       expect(await readNodesAsync()).toEqual([]);
     });
 
-    it("returns empty array when file contains invalid JSON", async () => {
+    it("throws on invalid JSON (corrupted file)", async () => {
       mkdirSync(mechaDir, { recursive: true });
       writeFileSync(join(mechaDir, "nodes.json"), "{broken");
-      expect(await readNodesAsync()).toEqual([]);
+      await expect(readNodesAsync()).rejects.toThrow();
     });
 
     it("reads existing nodes from file", async () => {

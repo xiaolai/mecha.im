@@ -26,8 +26,11 @@ export const GET = withAuth(async (request: NextRequest, { params }) => {
     const env = result.env.map((e) => ({
       key: e.key,
       value: !showSecrets && isSensitiveKey(e.key) ? "***" : e.value,
+      sensitive: isSensitiveKey(e.key),
     }));
-    return NextResponse.json({ id: result.id, env });
+    const response = NextResponse.json({ id: result.id, env });
+    if (showSecrets) response.headers.set("X-Secrets-Revealed", "true");
+    return response;
   } catch (err) {
     return handleProcessError(err);
   }

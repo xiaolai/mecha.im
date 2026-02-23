@@ -4,7 +4,7 @@
  */
 import { createServer } from "./server.js";
 import { createDatabase, runMigrations } from "./db/sqlite.js";
-import { mkdirSync, writeFileSync, existsSync } from "node:fs";
+import { mkdirSync, writeFileSync, existsSync, lstatSync } from "node:fs";
 import { join, dirname } from "node:path";
 import type { MechaId } from "@mecha/core";
 
@@ -14,6 +14,9 @@ const claudeJson = join(homeDir, ".claude.json");
 const claudeDir = join(homeDir, ".claude");
 if (!existsSync(claudeJson)) {
   writeFileSync(claudeJson, '{"hasCompletedOnboarding": true}\n');
+} else {
+  // Refuse to overwrite symlinks to prevent clobbering external files
+  try { if (lstatSync(claudeJson).isSymbolicLink()) { console.warn(`Skipping symlinked ${claudeJson}`); } } catch { /* ignore */ }
 }
 if (!existsSync(claudeDir)) {
   mkdirSync(claudeDir, { recursive: true });

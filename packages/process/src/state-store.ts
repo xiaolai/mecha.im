@@ -62,6 +62,12 @@ export class StateStore {
   }
 
   private filePath(id: string): string {
+    // Prevent path traversal via crafted IDs
+    /* v8 ignore start -- defensive guard; IDs come from computeMechaId */
+    if (id.includes("/") || id.includes("\\") || id.includes("..")) {
+      throw new Error(`Invalid mecha ID: ${id}`);
+    }
+    /* v8 ignore stop */
     return join(this.dir, `${id}.json`);
   }
 }

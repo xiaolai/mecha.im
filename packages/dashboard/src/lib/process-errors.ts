@@ -9,5 +9,9 @@ export function handleProcessError(err: unknown): NextResponse {
   if (err instanceof MechaError) {
     return NextResponse.json({ error: toSafeMessage(err) }, { status: toHttpStatus(err) });
   }
-  throw err;
+  // Return safe 500 for unknown errors — never leak stack traces
+  const message = err instanceof Error && err.message.includes("not found")
+    ? "Not found" : "Internal server error";
+  const status = message === "Not found" ? 404 : 500;
+  return NextResponse.json({ error: message }, { status });
 }

@@ -19,9 +19,11 @@ export const POST = withStreamAuth(async (
     const access = await getRuntimeAccess(pm, id);
     runtimeUrl = access.url;
     authToken = access.token;
-  } catch {
-    return new Response(JSON.stringify({ error: "Not found" }), {
-      status: 404,
+  } catch (err) {
+    const message = err instanceof Error && err.message.includes("not found") ? "Not found" : "Failed to access runtime";
+    const status = message === "Not found" ? 404 : 502;
+    return new Response(JSON.stringify({ error: message }), {
+      status,
       headers: { "Content-Type": "application/json" },
     });
   }

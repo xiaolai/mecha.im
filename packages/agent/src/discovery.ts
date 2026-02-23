@@ -53,9 +53,13 @@ export async function discoverMechaNodes(opts?: { port?: number }): Promise<Node
       if (!ip) return null;
       const probe = await probeMechaAgent(ip, port);
       if (!probe.ok) return null;
+      // Bracket IPv6 addresses for valid URL formatting
+      /* v8 ignore start -- IPv6 branch depends on Tailscale peer addresses */
+      const formattedHost = ip.includes(":") ? `[${ip}]:${port}` : `${ip}:${port}`;
+      /* v8 ignore stop */
       return {
         name: peer.HostName,
-        host: `${ip}:${port}`,
+        host: formattedHost,
         key: "", // Key must be provided manually after discovery
       };
     }),

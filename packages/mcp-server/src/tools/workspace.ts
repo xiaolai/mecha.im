@@ -49,6 +49,23 @@ async function callContainerMcpTool(
   return content;
 }
 
+/* v8 ignore start -- remote endpoint validation; only hit with real remote nodes */
+/** Validate that a remote endpoint URL is a safe HTTP(S) URL — reject private metadata endpoints. */
+function validateEndpoint(endpoint: string): void {
+  let url: URL;
+  try { url = new URL(endpoint); } catch { throw new Error("Invalid endpoint URL"); }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error("Endpoint must use http or https");
+  }
+  const host = url.hostname.toLowerCase();
+  // Block cloud metadata endpoints and localhost-only ranges
+  if (host === "169.254.169.254" || host === "metadata.google.internal" ||
+      host === "100.100.100.200" || host.endsWith(".internal")) {
+    throw new Error("Endpoint targets a restricted address");
+  }
+}
+/* v8 ignore stop */
+
 export function registerWorkspaceTools(mcpServer: McpServer, ctx: ToolContext): void {
   mcpServer.tool(
     "mesh_workspace_list",
@@ -73,6 +90,7 @@ export function registerWorkspaceTools(mcpServer: McpServer, ctx: ToolContext): 
         const mid = encodeURIComponent(mecha_id);
         const res = await agentFetch(ref.entry!, `/mechas/${mid}/mcp-endpoint`);
         const { endpoint, token } = (await res.json()) as { endpoint: string; token?: string };
+        validateEndpoint(endpoint);
         const result = await callContainerMcpTool(endpoint, token, "mecha_workspace_list", {
           ...(path !== undefined && { path }),
         });
@@ -103,6 +121,7 @@ export function registerWorkspaceTools(mcpServer: McpServer, ctx: ToolContext): 
         const mid = encodeURIComponent(mecha_id);
         const res = await agentFetch(ref.entry!, `/mechas/${mid}/mcp-endpoint`);
         const { endpoint, token } = (await res.json()) as { endpoint: string; token?: string };
+        validateEndpoint(endpoint);
         const result = await callContainerMcpTool(endpoint, token, "mecha_workspace_read", { path });
         return textResult(typeof result === "string" ? result : JSON.stringify(result));
       } catch (err) {

@@ -16,7 +16,7 @@ export const GET = withAuth(async (request: NextRequest, { params }) => {
     const config = {
       name: `mecha-${id}`,
       url: endpoint,
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      headers: reveal && token ? { Authorization: `Bearer ${token}` } : {},
     };
     return NextResponse.json({
       endpoint,

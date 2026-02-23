@@ -37,12 +37,14 @@ export function registerStatusCommand(parent: Command, deps: CommandDeps): void 
         process.on("SIGINT", () => process.exit(0));
         let consecutiveErrors = 0;
         while (true) {
+          const prevCode = process.exitCode;
           await printStatus();
-          if (process.exitCode) {
+          if (process.exitCode && process.exitCode !== 0) {
             consecutiveErrors++;
             if (consecutiveErrors >= 3) break; // Stop after 3 consecutive errors
           } else {
             consecutiveErrors = 0;
+            process.exitCode = prevCode; // Restore — don't let stale exitCode accumulate
           }
           const delay = Math.min(2000 * (1 + consecutiveErrors), 10000);
           await new Promise((r) => setTimeout(r, delay));

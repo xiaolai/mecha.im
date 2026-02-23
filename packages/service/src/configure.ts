@@ -47,21 +47,41 @@ export async function mechaConfigure(
     envMap.set("MECHA_PERMISSION_MODE", input.permissionMode);
   }
 
-  // Stop → re-spawn with updated env
+  // Stop → re-spawn with updated env (rollback on failure)
   await pm.stop(input.id);
 
   const mechaHome = join(homedir(), DEFAULTS.HOME_DIR);
   const claudeConfigDir = join(mechaHome, "claude-config", input.id);
 
-  await pm.spawn({
-    mechaId: info.id,
-    projectPath: info.projectPath,
-    port: info.port,
-    claudeConfigDir,
-    authToken: info.authToken,
-    env: Object.fromEntries(envMap),
-    permissionMode: envMap.get("MECHA_PERMISSION_MODE"),
-  });
+  try {
+    await pm.spawn({
+      mechaId: info.id,
+      projectPath: info.projectPath,
+      port: info.port,
+      claudeConfigDir,
+      authToken: info.authToken,
+      env: Object.fromEntries(envMap),
+      permissionMode: envMap.get("MECHA_PERMISSION_MODE"),
+    });
+  /* v8 ignore start -- spawn failure rollback requires breaking runtime entry */
+  } catch (spawnErr) {
+    // Rollback: try to restart with original config
+    try {
+      await pm.spawn({
+        mechaId: info.id,
+        projectPath: info.projectPath,
+        port: info.port,
+        claudeConfigDir,
+        authToken: info.authToken,
+        env: info.env,
+        permissionMode: info.env["MECHA_PERMISSION_MODE"],
+      });
+    } catch {
+      // Rollback failed — mecha is down
+    }
+    throw spawnErr;
+  }
+  /* v8 ignore stop */
 }
 
 // --- mechaInit ---

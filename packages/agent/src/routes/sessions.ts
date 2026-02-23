@@ -137,6 +137,13 @@ export function registerSessionRoutes(app: FastifyInstance, pm: ProcessManager):
 
         return reply;
       } catch (err) {
+        /* v8 ignore start -- headersSent branch requires real TCP connection */
+        if (reply.raw.headersSent) {
+          reply.raw.write(`data: ${JSON.stringify({ type: "error", error: err instanceof Error ? err.message : "Unknown error" })}\n\n`);
+          reply.raw.end();
+          return reply;
+        }
+        /* v8 ignore stop */
         return errorResponse(reply, err);
       }
     },

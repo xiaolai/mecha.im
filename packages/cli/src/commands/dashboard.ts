@@ -24,6 +24,7 @@ export function registerDashboardCommand(parent: Command, deps: CommandDeps): vo
     .option("--no-open", "Do not auto-open browser")
     .action(async (opts: { port: string; open: boolean }) => {
       const { formatter } = deps;
+      try {
       const port = opts.port;
       const dashboardDir = resolveDashboardRoot();
 
@@ -85,5 +86,9 @@ export function registerDashboardCommand(parent: Command, deps: CommandDeps): vo
 
       // Keep alive
       await new Promise(() => {});
+      } catch (err) {
+        formatter.error(err instanceof Error ? err.message : String(err));
+        process.exitCode = 1;
+      }
     });
 }

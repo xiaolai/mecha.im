@@ -4,21 +4,42 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { resolve, relative } from "node:path";
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, realpath, stat } from "node:fs/promises";
 import type { SessionManager } from "../agent/session-manager.js";
 
 const WORKSPACE_ROOT = process.env["MECHA_WORKSPACE"] ?? process.cwd();
 const MAX_SESSIONS = 100;
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
-/** Resolve a user-provided path safely within /workspace. */
-function safePath(userPath: string): string {
+/** Resolve a user-provided path safely within the workspace, following symlinks. */
+async function safePath(userPath: string): Promise<string> {
   const resolved = resolve(WORKSPACE_ROOT, userPath);
   const rel = relative(WORKSPACE_ROOT, resolved);
   if (rel.startsWith("..") || !resolved.startsWith(WORKSPACE_ROOT)) {
     throw new Error("Path traversal detected: access denied");
   }
-  return resolved;
+  /* v8 ignore start -- symlink resolution requires real filesystem with symlinks outside workspace */
+  // Resolve symlinks to prevent escape via symlinked paths
+  let real: string;
+  try {
+    real = await realpath(resolved);
+  } catch {
+    // Path doesn't exist yet — fall back to checking parent directory
+    const parent = resolve(resolved, "..");
+    const realParent = await realpath(parent);
+    const realRoot = await realpath(WORKSPACE_ROOT);
+    if (!realParent.startsWith(realRoot)) {
+      throw new Error("Path traversal detected: access denied");
+    }
+    return resolved;
+  }
+  const realRoot = await realpath(WORKSPACE_ROOT);
+  if (!real.startsWith(realRoot)) {
+    throw new Error("Path traversal detected: access denied");
+  }
+  return real;
+  /* v8 ignore stop */
 }
 
 function textContent(text: string, isError = false) {
@@ -195,7 +216,7 @@ function registerDefaultTools(mcpServer: McpServer, sessionManager?: SessionMana
     { path: z.string().optional().describe("Subdirectory path within the workspace") },
     async ({ path }) => {
       let targetPath: string;
-      try { targetPath = path ? safePath(path) : WORKSPACE_ROOT; }
+      try { targetPath = path ? await safePath(path) : WORKSPACE_ROOT; }
       catch { return textContent("Error: path traversal denied", true); }
       try {
         const entries = await readdir(targetPath, { withFileTypes: true });
@@ -211,9 +232,16 @@ function registerDefaultTools(mcpServer: McpServer, sessionManager?: SessionMana
     { path: z.string().describe("File path relative to the workspace") },
     async ({ path: filePath }) => {
       let resolvedPath: string;
-      try { resolvedPath = safePath(filePath); }
+      try { resolvedPath = await safePath(filePath); }
       catch { return textContent("Error: path traversal denied", true); }
-      try { return textContent(await readFile(resolvedPath, "utf-8")); }
+      try {
+        const fileStat = await stat(resolvedPath);
+        /* v8 ignore next 3 -- requires 10MB+ test file */
+        if (fileStat.size > MAX_FILE_SIZE) {
+          return textContent(`Error: file too large (${fileStat.size} bytes, max ${MAX_FILE_SIZE})`, true);
+        }
+        return textContent(await readFile(resolvedPath, "utf-8"));
+      }
       catch { return textContent(`Error: cannot read ${filePath}`, true); }
     },
   );

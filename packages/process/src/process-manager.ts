@@ -244,6 +244,13 @@ export function createProcessManager(opts?: ProcessManagerOpts): ProcessManager 
   }
 
   function logs(id: string, logOpts?: LogStreamOpts): NodeJS.ReadableStream {
+    /* v8 ignore start -- defensive guard; IDs come from computeMechaId */
+    // Prevent path traversal via crafted IDs
+    if (id.includes("/") || id.includes("\\") || id.includes("..")) {
+      const empty = new Readable({ read() { this.push(null); } });
+      return empty;
+    }
+    /* v8 ignore stop */
     const logPath = join(logDir, `${id}.log`);
     if (!existsSync(logPath)) {
       const empty = new Readable({ read() { this.push(null); } });

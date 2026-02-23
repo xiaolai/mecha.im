@@ -34,8 +34,12 @@ export function readNodes(): NodeEntry[] {
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
     return parsed.filter(isNodeEntry);
-  } catch {
-    return [];
+  } catch (err) {
+    // Only ignore missing file; surface parse/permission errors
+    if (err instanceof Error && "code" in err && (err as NodeJS.ErrnoException).code === "ENOENT") {
+      return [];
+    }
+    throw err;
   }
 }
 
@@ -45,8 +49,11 @@ export async function readNodesAsync(): Promise<NodeEntry[]> {
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
     return parsed.filter(isNodeEntry);
-  } catch {
-    return [];
+  } catch (err) {
+    if (err instanceof Error && "code" in err && (err as NodeJS.ErrnoException).code === "ENOENT") {
+      return [];
+    }
+    throw err;
   }
 }
 

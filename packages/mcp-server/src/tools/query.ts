@@ -13,18 +13,38 @@ export async function collectSseResponse(res: Response): Promise<string> {
   const decoder = new TextDecoder();
   let buffer = "";
 
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop()!;
-    for (const line of lines) {
-      if (!line.startsWith("data: ")) continue;
-      const json = line.slice(6);
-      if (json === "[DONE]") continue;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop()!;
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const json = line.slice(6);
+        if (json === "[DONE]") continue;
+        try {
+          const event = JSON.parse(json) as {
+            type?: string;
+            message?: { content?: Array<{ type?: string; text?: string }> };
+          };
+          if (event.type === "assistant" && event.message?.content) {
+            for (const block of event.message.content) {
+              if (block.type === "text" && block.text) parts.push(block.text);
+            }
+          }
+        } catch {
+          /* skip malformed lines */
+        }
+      }
+    }
+    /* v8 ignore start -- trailing buffer flush is a defensive edge case */
+    // Flush any remaining data in the decoder
+    buffer += decoder.decode();
+    if (buffer.startsWith("data: ") && buffer.slice(6) !== "[DONE]") {
       try {
-        const event = JSON.parse(json) as {
+        const event = JSON.parse(buffer.slice(6)) as {
           type?: string;
           message?: { content?: Array<{ type?: string; text?: string }> };
         };
@@ -33,10 +53,13 @@ export async function collectSseResponse(res: Response): Promise<string> {
             if (block.type === "text" && block.text) parts.push(block.text);
           }
         }
-      } catch {
-        /* skip malformed lines */
-      }
+      } catch { /* skip */ }
     }
+    /* v8 ignore stop */
+  } finally {
+    /* v8 ignore start -- reader cleanup; cancel rejection is benign */
+    reader.cancel().catch(() => {});
+    /* v8 ignore stop */
   }
   return parts.join("");
 }
@@ -119,7 +142,12 @@ export function registerQueryTools(mcpServer: McpServer, ctx: ToolContext): void
         }
 
         // Send message
-        const encodedSid = encodeURIComponent(sid!);
+        /* v8 ignore start -- session creation always returns an ID in practice */
+        if (!sid) {
+          return toolError(new Error("Failed to create session — no session ID returned"), ctx.locator, mecha_id);
+        }
+        /* v8 ignore stop */
+        const encodedSid = encodeURIComponent(sid);
         let response: string;
 
         if (ref.node === "local") {

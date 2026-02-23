@@ -22,9 +22,9 @@ export function registerAgentRoutes(
   agentOpts?: AgentOptions,
 ): void {
   app.post("/api/chat", async (req, reply) => {
-    const body = req.body as { message?: string } | null;
-    if (!body?.message) {
-      return reply.code(400).send({ error: "Missing 'message' field" });
+    const body = req.body as { message?: unknown } | null;
+    if (!body?.message || typeof body.message !== "string") {
+      return reply.code(400).send({ error: "Missing or invalid 'message' field (must be a string)" });
     }
 
     // If no agent options configured, the SDK isn't available

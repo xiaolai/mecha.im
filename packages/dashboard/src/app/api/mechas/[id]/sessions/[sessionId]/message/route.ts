@@ -13,7 +13,7 @@ export const POST = withStreamAuth(async (
   const { id, sessionId } = await params;
   const pm = getProcessManager();
 
-  let body: { message?: string };
+  let body: { message?: unknown };
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -24,7 +24,13 @@ export const POST = withStreamAuth(async (
   }
 
   const MAX_MESSAGE_LENGTH = 100_000;
-  const message = body.message ?? "";
+  if (typeof body.message !== "string") {
+    return new Response(JSON.stringify({ error: "Message must be a string" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+  const message = body.message;
   if (!message) {
     return new Response(JSON.stringify({ error: "Message is required" }), {
       status: 400,
