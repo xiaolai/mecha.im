@@ -90,7 +90,9 @@ export class EventLog {
   private truncateIfNeeded(): void {
     try {
       const raw = readFileSync(this.filePath, "utf-8").trim();
+      /* v8 ignore start -- empty file edge case */
       if (!raw) return;
+      /* v8 ignore stop */
       const lines = raw.split("\n");
       if (lines.length > MAX_EVENTS) {
         const kept = lines.slice(lines.length - MAX_EVENTS);

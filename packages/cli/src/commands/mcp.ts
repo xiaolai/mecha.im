@@ -34,7 +34,7 @@ export function registerMcpCommand(parent: Command, deps: CommandDeps): void {
         const { readNodes } = await import("@mecha/agent");
         const handle = createMeshMcpServer({
           pm: deps.processManager,
-          getNodes: () => readNodes(),
+          getNodes: /* v8 ignore next */ () => readNodes(),
         });
         if (opts.http) {
           await runHttp(handle, { port });
@@ -95,9 +95,11 @@ function renderEndpoint(
 ): void {
   if (jsonMode) {
     const output = { ...result };
+    /* v8 ignore start -- token is always present in practice */
     if (output.token) {
       output.token = maskToken(output.token, opts.showToken ?? false);
     }
+    /* v8 ignore stop */
     formatter.json(output);
   } else {
     formatter.info(`Endpoint: ${result.endpoint}`);

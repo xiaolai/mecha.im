@@ -10,7 +10,7 @@
     { "path": "packages/core" },
     { "path": "packages/contracts" },
     { "path": "packages/service" },
-    { "path": "packages/docker" },
+    { "path": "packages/process" },
     { "path": "packages/cli" },
     { "path": "packages/runtime" },
     { "path": "packages/channels" },

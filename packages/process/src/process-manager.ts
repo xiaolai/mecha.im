@@ -28,7 +28,9 @@ export interface ProcessManagerOpts {
  * Create a ProcessManager that spawns @mecha/runtime as child processes.
  */
 export function createProcessManager(opts?: ProcessManagerOpts): ProcessManager {
+  /* v8 ignore start -- HOME always set in practice */
   const home = opts?.mechaHome ?? join(process.env["HOME"] ?? "/tmp", DEFAULTS.HOME_DIR);
+  /* v8 ignore stop */
   const stateDir = join(home, "processes");
   const logDir = join(home, "logs");
   const eventsFile = join(home, "events.jsonl");

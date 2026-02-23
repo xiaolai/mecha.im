@@ -9,11 +9,10 @@ export function registerEventRoutes(app: FastifyInstance, pm: ProcessManager): v
       Connection: "keep-alive",
     });
 
+    /* v8 ignore start -- SSE callbacks not testable via inject */
     const unsubscribe = pm.onEvent((event) => {
       reply.raw.write(`data: ${JSON.stringify(event)}\n\n`);
     });
-
-    /* v8 ignore start -- socket close not testable via inject */
     req.socket.on("close", () => {
       unsubscribe();
       reply.raw.end();

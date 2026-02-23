@@ -1,6 +1,6 @@
 # Project Instructions
 
-> mecha.im is a local-first multi-agent runtime where each Mecha is a containerized CASA (Claude Agent SDK App) instance.
+> mecha.im is a local-first multi-agent runtime where each Mecha is a sandboxed CASA (Claude Agent SDK App) process.
 
 ## Guidelines
 
@@ -44,11 +44,11 @@ Dashboard stores sessions in-memory (`packages/dashboard/src/lib/auth.ts`).
 This is single-process only. If multi-instance deployment is needed, replace with signed JWT or Redis sessions.
 
 ### Security Trust Boundary
-Secrets (CLAUDE_CODE_OAUTH_TOKEN, ANTHROPIC_API_KEY, MECHA_OTP) are passed as container environment variables.
-This is acceptable when Docker socket access is controlled. Anyone with Docker socket access can read container env.
+Secrets (CLAUDE_CODE_OAUTH_TOKEN, ANTHROPIC_API_KEY, MECHA_OTP) are passed as process environment variables.
+Anyone with access to `/proc/<pid>/environ` (root) can read them. This is acceptable for local-first usage.
 
 ### Port Assignment
-Default port assignment uses Docker-native allocation. Ports are not guaranteed to be in the 7700-7799 range.
+Default port assignment scans the 7700-7799 range for an available port.
 Use `--port` / request body `port` field for deterministic assignment.
 
 ### Quality Gates (Local Only)
