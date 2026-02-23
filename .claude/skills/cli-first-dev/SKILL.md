@@ -27,7 +27,7 @@ export function register{Feature}Command(program: Command, deps: CommandDeps): v
     .description("...")
     .option("--flag <value>", "description")
     .action(async (opts) => {
-      // Implementation using deps.dockerClient, deps.formatter
+      // Implementation using deps.processManager, deps.formatter
     });
 }
 ```
@@ -37,7 +37,7 @@ Register in `packages/cli/src/program.ts`.
 ## Phase 2: Implement the CLI
 
 1. Write the command in `packages/cli/src/commands/`
-2. If shared logic is needed, add it to `packages/core/` or `packages/docker/`
+2. If shared logic is needed, add it to `packages/core/` or `packages/service/`
 3. Use the `CommandDeps` interface for all external dependencies (enables testing)
 4. Use `deps.formatter` for all output (info, error, success, json, table)
 5. Run `pnpm typecheck` to verify types
@@ -68,7 +68,7 @@ describe("{feature} command", () => {
     program = new Command();
     program.exitOverride();
     deps = {
-      dockerClient: { /* mock methods */ } as any,
+      processManager: { /* mock methods */ } as any,
       formatter: {
         info: vi.fn(),
         error: vi.fn(),
@@ -104,7 +104,7 @@ pnpm typecheck         # No type errors
 
 1. Add API route in `packages/dashboard/src/app/api/` if needed
 2. Add dashboard page/component in `packages/dashboard/src/`
-3. GUI must call the same shared logic from `packages/core/` or `packages/docker/`
+3. GUI must call the same shared logic from `packages/core/` or `packages/service/`
 4. GUI must NOT duplicate business logic that exists in the CLI path
 5. Keep GUI components thin — presentation and user interaction only
 

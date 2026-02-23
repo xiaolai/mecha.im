@@ -23,7 +23,7 @@ Check system requirements.
 mecha doctor
 ```
 
-Validates that Docker is running and the mecha network exists. Exits with code 1 if any check fails.
+Validates that Node.js and the Claude Code CLI are available and sandbox support is working. Exits with code 1 if any check fails.
 
 ---
 
@@ -35,7 +35,7 @@ Initialize the mecha environment.
 mecha init
 ```
 
-Sets up the mecha Docker network and other infrastructure.
+Creates the `~/.mecha/` directory structure for process state and logs.
 
 ---
 
@@ -49,7 +49,7 @@ mecha up <path> [options]
 
 | Argument / Option | Description |
 |-------------------|-------------|
-| `<path>` | **(required)** Project path to containerize |
+| `<path>` | **(required)** Project path for the agent's workspace |
 | `-p, --port <port>` | Host port to bind |
 | `--claude-token <token>` | Claude OAuth token |
 | `--anthropic-key <key>` | Anthropic API key |
@@ -76,7 +76,7 @@ mecha up ./my-project --permission-mode full-auto --show-token
 
 ### `mecha ls`
 
-List all Mecha containers.
+List all Mecha instances.
 
 ```bash
 mecha ls
@@ -96,7 +96,7 @@ mecha start <id>
 
 | Argument | Description |
 |----------|-------------|
-| `<id>` | **(required)** Mecha container ID |
+| `<id>` | **(required)** Mecha ID |
 
 ---
 
@@ -110,7 +110,7 @@ mecha stop <id>
 
 | Argument | Description |
 |----------|-------------|
-| `<id>` | **(required)** Mecha container ID |
+| `<id>` | **(required)** Mecha ID |
 
 ---
 
@@ -124,7 +124,7 @@ mecha restart <id>
 
 | Argument | Description |
 |----------|-------------|
-| `<id>` | **(required)** Mecha container ID |
+| `<id>` | **(required)** Mecha ID |
 
 ---
 
@@ -138,8 +138,8 @@ mecha rm <id> [options]
 
 | Argument / Option | Description |
 |-------------------|-------------|
-| `<id>` | **(required)** Mecha container ID |
-| `--with-state` | Also remove the state volume |
+| `<id>` | **(required)** Mecha ID |
+| `--with-state` | Also remove the state data |
 | `-f, --force` | Force remove even if running |
 
 **Example:**
@@ -164,7 +164,7 @@ mecha status <id> [options]
 
 | Argument / Option | Description |
 |-------------------|-------------|
-| `<id>` | **(required)** Mecha container ID |
+| `<id>` | **(required)** Mecha ID |
 | `-w, --watch` | Watch for status changes (polls with exponential backoff) |
 
 Displays ID, name, state, running status, start time, and project path. In watch mode, polls every 2–10 seconds until interrupted with `Ctrl+C`.
@@ -181,10 +181,9 @@ mecha logs <id> [options]
 
 | Argument / Option | Description |
 |-------------------|-------------|
-| `<id>` | **(required)** Mecha container ID |
+| `<id>` | **(required)** Mecha ID |
 | `-f, --follow` | Follow log output (live streaming) |
 | `-n, --tail <lines>` | Number of lines to show (default: `100`) |
-| `--since <time>` | Show logs since timestamp or relative time (e.g. `2h`) |
 
 **Example:**
 
@@ -194,31 +193,6 @@ mecha logs abc123 --tail 50
 
 # Stream logs live
 mecha logs abc123 --follow
-
-# Logs from the last 2 hours
-mecha logs abc123 --since 2h
-```
-
----
-
-### `mecha exec`
-
-Execute a command inside a Mecha container.
-
-```bash
-mecha exec <id> <command...>
-```
-
-| Argument | Description |
-|----------|-------------|
-| `<id>` | **(required)** Mecha container ID |
-| `<command...>` | **(required)** Command and arguments to execute |
-
-**Example:**
-
-```bash
-mecha exec abc123 ls -la /workspace
-mecha exec abc123 node --version
 ```
 
 ---
@@ -233,7 +207,7 @@ mecha ui <id>
 
 | Argument | Description |
 |----------|-------------|
-| `<id>` | **(required)** Mecha container ID |
+| `<id>` | **(required)** Mecha ID |
 
 ---
 
@@ -247,7 +221,7 @@ mecha mcp <id>
 
 | Argument | Description |
 |----------|-------------|
-| `<id>` | **(required)** Mecha container ID |
+| `<id>` | **(required)** Mecha ID |
 
 Returns the MCP endpoint URL for connecting external tools to this Mecha.
 
@@ -263,7 +237,7 @@ mecha configure <id> [options]
 
 | Argument / Option | Description |
 |-------------------|-------------|
-| `<id>` | **(required)** Mecha container ID |
+| `<id>` | **(required)** Mecha ID |
 | `--claude-token <token>` | Claude OAuth token |
 | `--anthropic-key <key>` | Anthropic API key |
 | `--otp <secret>` | TOTP secret |
@@ -293,31 +267,15 @@ mecha token <id>
 
 | Argument | Description |
 |----------|-------------|
-| `<id>` | **(required)** Mecha container ID |
+| `<id>` | **(required)** Mecha ID |
 
 Prints the token directly to stdout (useful for piping).
 
 ---
 
-### `mecha inspect`
-
-Show raw container info as JSON.
-
-```bash
-mecha inspect <id>
-```
-
-| Argument | Description |
-|----------|-------------|
-| `<id>` | **(required)** Mecha container ID |
-
-Returns the full Docker container inspection data.
-
----
-
 ### `mecha env`
 
-Show container environment variables.
+Show environment variables for a Mecha.
 
 ```bash
 mecha env <id> [options]
@@ -325,7 +283,7 @@ mecha env <id> [options]
 
 | Argument / Option | Description |
 |-------------------|-------------|
-| `<id>` | **(required)** Mecha container ID |
+| `<id>` | **(required)** Mecha ID |
 | `--show-secrets` | Show sensitive values instead of masking them |
 
 By default, sensitive keys (tokens, API keys, passwords) are masked with `****`.
@@ -344,7 +302,7 @@ mecha env abc123 --show-secrets
 
 ### `mecha prune`
 
-Remove all stopped Mecha containers.
+Remove all stopped Mecha instances.
 
 ```bash
 mecha prune [options]
@@ -352,10 +310,9 @@ mecha prune [options]
 
 | Option | Description |
 |--------|-------------|
-| `--volumes` | Also remove orphaned volumes |
 | `-f, --force` | Skip confirmation prompt |
 
-Removes containers in exited, dead, or created states.
+Removes instances in exited or dead states.
 
 **Example:**
 
@@ -363,33 +320,8 @@ Removes containers in exited, dead, or created states.
 # Interactive confirmation
 mecha prune
 
-# Skip confirmation and remove volumes
-mecha prune --force --volumes
-```
-
----
-
-### `mecha update`
-
-Pull the latest image and recreate a Mecha container.
-
-```bash
-mecha update <id> [options]
-```
-
-| Argument / Option | Description |
-|-------------------|-------------|
-| `<id>` | **(required)** Mecha container ID |
-| `--no-pull` | Skip image pull, use local image only |
-
-**Example:**
-
-```bash
-# Pull latest and recreate
-mecha update abc123
-
-# Recreate with current local image
-mecha update abc123 --no-pull
+# Skip confirmation
+mecha prune --force
 ```
 
 ---
@@ -404,7 +336,7 @@ mecha chat <id> <message>
 
 | Argument | Description |
 |----------|-------------|
-| `<id>` | **(required)** Mecha container ID |
+| `<id>` | **(required)** Mecha ID |
 | `<message>` | **(required)** Message text to send |
 
 Sends the message and streams the response via SSE to stdout.

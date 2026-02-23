@@ -3,7 +3,7 @@
 ## Prerequisites
 
 - **Node.js** 22 or later
-- **Docker** — running and accessible via the Docker socket
+- **Claude Code CLI** — `npm install -g @anthropic-ai/claude-code`
 - **pnpm** — recommended package manager
 
 ## Install the CLI
@@ -32,15 +32,15 @@ mecha --version
 | `CLAUDE_CODE_OAUTH_TOKEN` | No | OAuth token for Claude Code authentication |
 | `MECHA_OTP` | No | One-time password for agent creation |
 
-## Docker Setup
+## System Check
 
-Mecha requires Docker to be running. Verify with:
+Run `mecha doctor` to verify your environment is ready:
 
 ```bash
-docker info
+mecha doctor
 ```
 
-If Docker is not installed, follow the [official Docker installation guide](https://docs.docker.com/get-docker/).
+This checks that Node.js and the Claude Code CLI are available and sandbox support is working.
 
 ## Next Steps
 

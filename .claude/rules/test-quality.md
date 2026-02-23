@@ -27,7 +27,7 @@ Mock call assertions (`toHaveBeenCalledWith`) are allowed ONLY as supplements al
 
 ## Mock boundaries
 
-**Acceptable to mock**: Docker daemon, network I/O, child_process, Date.now, crypto.randomBytes
+**Acceptable to mock**: network I/O, child_process, Date.now, crypto.randomBytes
 
 **Never mock**: Internal modules from this repo, Zod schemas, pure functions, type definitions
 
@@ -54,4 +54,4 @@ expect(() => MechaUpInput.parse({ projectPath: "" })).toThrow();
 
 ## Security tests
 
-Security properties (readonly root, dropped capabilities, non-root user) MUST be verified via integration tests that inspect real Docker resources — NOT via mock call argument assertions.
+Security properties (sandbox isolation, path traversal guards) MUST be verified via integration tests — NOT via mock call argument assertions.

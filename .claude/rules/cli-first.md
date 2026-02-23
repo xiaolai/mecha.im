@@ -10,7 +10,7 @@ Every new feature MUST follow this development order:
 ## 1. CLI First (packages/cli/)
 - Implement the feature as a CLI command or extend an existing one
 - Follow the existing pattern: export a `register*Command(program, deps)` function
-- Use the `CommandDeps` interface for dependency injection (dockerClient, formatter)
+- Use the `CommandDeps` interface for dependency injection (processManager, formatter)
 - The CLI layer proves the feature works end-to-end before any GUI exists
 
 ## 2. Tests Before GUI
@@ -21,7 +21,7 @@ Every new feature MUST follow this development order:
 
 ## 3. GUI Last (packages/dashboard/, packages/ui/)
 - Only after CLI + tests are complete, add GUI components
-- GUI should call the same underlying logic (via packages/core/, packages/docker/, packages/runtime/)
+- GUI should call the same underlying logic (via packages/core/, packages/service/, packages/runtime/)
 - GUI must NOT implement business logic that doesn't exist in the CLI path
 
 ## Checklist (enforce on every feature)

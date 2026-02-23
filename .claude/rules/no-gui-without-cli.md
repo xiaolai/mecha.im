@@ -17,7 +17,7 @@ If ANY answer is NO → implement the CLI version first.
 
 - New API routes in `packages/dashboard/src/app/api/` must have a CLI equivalent
 - New dashboard pages that perform actions must map to CLI commands
-- Shared business logic belongs in `packages/core/` or `packages/docker/`, not in GUI components
+- Shared business logic belongs in `packages/core/` or `packages/service/`, not in GUI components
 - GUI components are thin wrappers that present data and call shared logic
 
 ## Exceptions
