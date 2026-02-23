@@ -7,7 +7,7 @@ import {
   mechaSessionGet,
   mechaSessionDelete,
 } from "@mecha/service";
-import { SessionCreateInput, SessionMetaUpdate, toHttpStatus, toSafeMessage } from "@mecha/contracts";
+import { SessionCreateInput, SessionMetaUpdate, SessionNotFoundError, toHttpStatus, toSafeMessage } from "@mecha/contracts";
 import { setSessionMeta } from "@mecha/core";
 
 function errorResponse(reply: FastifyReply, err: unknown) {
@@ -79,6 +79,11 @@ export function registerSessionRoutes(app: FastifyInstance, docker: DockerClient
     "/mechas/:id/sessions/:sessionId/meta",
     async (req, reply) => {
       try {
+        // Verify session exists before writing metadata
+        await mechaSessionGet(docker, {
+          id: req.params.id,
+          sessionId: req.params.sessionId,
+        });
         const meta = SessionMetaUpdate.parse(req.body);
         // Convert null → undefined for clearing fields
         const patch: { customTitle?: string; starred?: boolean } = {};

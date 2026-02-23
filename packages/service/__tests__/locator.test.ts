@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MechaLocator } from "../src/locator.js";
 import type { DockerClient } from "@mecha/docker";
 import type { NodeEntry } from "../src/agent-client.js";
+import { NodeUnreachableError } from "@mecha/contracts";
 
 const mockMechaLs = vi.fn();
 vi.mock("../src/inspect.js", () => ({
@@ -90,10 +91,17 @@ describe("MechaLocator", () => {
   it("skips unreachable remote nodes and continues scanning", async () => {
     mockMechaLs.mockResolvedValue([]); // not local
     mockAgentFetch
-      .mockRejectedValueOnce(new Error("Node unreachable: gpu")) // nodeA fails
+      .mockRejectedValueOnce(new NodeUnreachableError("gpu")) // nodeA fails
       .mockResolvedValueOnce({ json: async () => [{ id: "mx-foo-abc" }] }); // nodeB succeeds
     const ref = await locator.locate(client, "mx-foo-abc", [nodeA, nodeB]);
     expect(ref).toEqual({ node: "work", id: "mx-foo-abc", entry: nodeB });
+  });
+
+  it("propagates non-unreachable errors from remote nodes", async () => {
+    mockMechaLs.mockResolvedValue([]); // not local
+    const authErr = new Error("Auth failed");
+    mockAgentFetch.mockRejectedValueOnce(authErr);
+    await expect(locator.locate(client, "mx-foo-abc", [nodeA])).rejects.toThrow("Auth failed");
   });
 
   it("uses default TTL of 30s when no options provided", async () => {

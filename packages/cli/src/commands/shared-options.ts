@@ -4,6 +4,6 @@ import type { Command } from "commander";
 export function withNodeOption(cmd: Command): Command {
   return cmd.option(
     "--node <name>",
-    "Target a specific remote node (default: auto-detect local then remote)",
+    "Target a specific remote node (default: local)",
   );
 }

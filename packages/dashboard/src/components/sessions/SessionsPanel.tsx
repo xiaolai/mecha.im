@@ -124,7 +124,7 @@ export function SessionsPanel() {
         setSelectedSessionId(session.sessionId ?? session.id);
       }
     } catch { /* ignore */ }
-  }, [selectedMechaId, addSession, setSelectedSessionId]);
+  }, [selectedMechaId, nodeParam, addSession, setSelectedSessionId]);
 
   const handleRename = useCallback(async (sessionId: string, title: string) => {
     if (!selectedMechaId) return;
@@ -138,7 +138,7 @@ export function SessionsPanel() {
         updateSession(selectedMechaId, sessionId, { customTitle: title });
       }
     } catch { /* network error — UI stays unchanged */ }
-  }, [selectedMechaId, updateSession]);
+  }, [selectedMechaId, nodeParam, updateSession]);
 
   const handleDelete = useCallback(async () => {
     if (!selectedMechaId || !confirmDelete) return;
@@ -163,7 +163,7 @@ export function SessionsPanel() {
         }
       }
     } catch { /* network error — no state change */ }
-  }, [selectedMechaId, confirmDelete, removeSession, selectedSessionId, mechaSessions, setSelectedSessionId, createSession]);
+  }, [selectedMechaId, nodeParam, confirmDelete, removeSession, selectedSessionId, mechaSessions, setSelectedSessionId, createSession]);
 
   const handleStar = useCallback(async (sessionId: string) => {
     if (!selectedMechaId) return;
@@ -178,7 +178,7 @@ export function SessionsPanel() {
         body: JSON.stringify({ starred: newStarred }),
       });
     } catch { /* optimistic update already applied */ }
-  }, [selectedMechaId, mechaSessions, updateSession]);
+  }, [selectedMechaId, nodeParam, mechaSessions, updateSession]);
 
   useEffect(() => {
     if (!selectedMechaId) return;
@@ -231,7 +231,7 @@ export function SessionsPanel() {
     })();
 
     return () => controller.abort();
-  }, [selectedMechaId, isRunning, setSessions, addSession, setSelectedSessionId]);
+  }, [selectedMechaId, nodeParam, isRunning, setSessions, addSession, setSelectedSessionId]);
 
   if (!selectedMechaId) {
     return (

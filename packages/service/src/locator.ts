@@ -1,6 +1,6 @@
 import type { DockerClient } from "@mecha/docker";
 import type { MechaRef } from "@mecha/core";
-import { MechaNotLocatedError } from "@mecha/contracts";
+import { MechaNotLocatedError, NodeUnreachableError } from "@mecha/contracts";
 import { mechaLs } from "./inspect.js";
 import { agentFetch } from "./agent-client.js";
 import type { NodeEntry } from "./agent-client.js";
@@ -53,9 +53,10 @@ export class MechaLocator {
           this.cache.set(mechaId, { ref, expiresAt: Date.now() + this.ttl });
           return ref;
         }
-      } catch {
-        // Skip unreachable nodes and continue scanning
-        continue;
+      } catch (err) {
+        // Skip unreachable nodes but surface auth/request errors
+        if (err instanceof NodeUnreachableError) continue;
+        throw err;
       }
     }
 

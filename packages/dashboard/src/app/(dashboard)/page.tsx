@@ -188,7 +188,7 @@ function OverviewTab({ mechaId, sessionId, isRunning, node }: { mechaId: string;
     return (
       <div className="p-4 md:p-6 max-w-3xl space-y-6">
         <SessionInfo detail={detail} sessionId={sessionId} />
-        {isRunning && (
+        {isRunning && (!node || node === "local") && (
           <SessionConfigEditor
             mechaId={mechaId}
             sessionId={sessionId}

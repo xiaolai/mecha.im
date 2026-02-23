@@ -5,6 +5,7 @@
 
 import type { NextRequest } from "next/server";
 import { readNodes } from "@mecha/agent";
+import { NodeUnreachableError } from "@mecha/contracts";
 import type { RemoteTarget, ServiceNodeEntry } from "@mecha/service";
 
 /**
@@ -23,7 +24,7 @@ export function resolveNodeTarget(request: NextRequest): RemoteTarget {
   const nodes = readNodes();
   const entry = nodes.find((n: ServiceNodeEntry) => n.name === nodeName);
   if (!entry) {
-    throw new Error(`Node "${nodeName}" not found in node registry`);
+    throw new NodeUnreachableError(nodeName);
   }
 
   return { node: nodeName, entry: entry as ServiceNodeEntry };

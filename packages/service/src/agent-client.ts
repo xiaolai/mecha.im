@@ -4,7 +4,10 @@ import {
   NodeRequestFailedError,
 } from "@mecha/contracts";
 
-/** Duplicated from @mecha/agent to avoid circular dependency. */
+/**
+ * Duplicated from @mecha/agent to avoid circular dependency
+ * (service cannot depend on agent). Keep in sync with agent/src/node-registry.ts.
+ */
 export interface NodeEntry {
   name: string;
   host: string;
@@ -39,7 +42,7 @@ export async function agentFetch(
       method,
       headers,
       body,
-      signal: AbortSignal.timeout(timeoutMs),
+      ...(timeoutMs > 0 ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
     });
   } catch {
     throw new NodeUnreachableError(node.name);

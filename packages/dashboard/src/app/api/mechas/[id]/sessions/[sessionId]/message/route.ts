@@ -1,6 +1,7 @@
 import { type NextRequest } from "next/server";
 import { mechaSessionMessage, agentFetch } from "@mecha/service";
-import { SessionNotFoundError, SessionBusyError, toHttpStatus, toSafeMessage } from "@mecha/contracts";
+import { toHttpStatus, toSafeMessage } from "@mecha/contracts";
+import { MechaError } from "@mecha/core";
 import { getDockerClient } from "@/lib/docker";
 import { withStreamAuth } from "@/lib/api-auth";
 import { resolveNodeTarget } from "@/lib/resolve-node";
@@ -43,7 +44,8 @@ export const POST = withStreamAuth(async (
     if (target.node !== "local" && target.entry) {
       // Remote: relay SSE stream through the agent
       const sid = encodeURIComponent(sessionId);
-      const res = await agentFetch(target.entry, `/mechas/${id}/sessions/${sid}/message`, {
+      const mid = encodeURIComponent(id);
+      const res = await agentFetch(target.entry, `/mechas/${mid}/sessions/${sid}/message`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message }),
@@ -70,7 +72,7 @@ export const POST = withStreamAuth(async (
       },
     });
   } catch (err) {
-    if (err instanceof SessionNotFoundError || err instanceof SessionBusyError) {
+    if (err instanceof MechaError) {
       return new Response(JSON.stringify({ error: toSafeMessage(err) }), {
         status: toHttpStatus(err),
         headers: { "Content-Type": "application/json" },

@@ -11,6 +11,13 @@ export interface RemoteTarget {
   entry?: NodeEntry;
 }
 
+function requireEntry(target: RemoteTarget): NodeEntry {
+  if (!target.entry) {
+    throw new Error(`Remote target "${target.node}" is missing node entry`);
+  }
+  return target.entry;
+}
+
 export async function remoteSessionList(
   client: DockerClient,
   mechaId: string,
@@ -19,7 +26,8 @@ export async function remoteSessionList(
   if (target.node === "local") {
     return mechaSessionList(client, { id: mechaId });
   }
-  const res = await agentFetch(target.entry!, `/mechas/${mechaId}/sessions`);
+  const mid = encodeURIComponent(mechaId);
+  const res = await agentFetch(requireEntry(target), `/mechas/${mid}/sessions`);
   return res.json() as Promise<SessionListResult>;
 }
 
@@ -32,8 +40,9 @@ export async function remoteSessionGet(
   if (target.node === "local") {
     return mechaSessionGet(client, { id: mechaId, sessionId });
   }
+  const mid = encodeURIComponent(mechaId);
   const sid = encodeURIComponent(sessionId);
-  const res = await agentFetch(target.entry!, `/mechas/${mechaId}/sessions/${sid}`);
+  const res = await agentFetch(requireEntry(target), `/mechas/${mid}/sessions/${sid}`);
   return res.json() as Promise<ParsedSession>;
 }
 
@@ -47,8 +56,9 @@ export async function remoteSessionMetaUpdate(
     setSessionMeta(mechaId, sessionId, meta);
     return;
   }
+  const mid = encodeURIComponent(mechaId);
   const sid = encodeURIComponent(sessionId);
-  await agentFetch(target.entry!, `/mechas/${mechaId}/sessions/${sid}/meta`, {
+  await agentFetch(requireEntry(target), `/mechas/${mid}/sessions/${sid}/meta`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(meta),
@@ -64,8 +74,9 @@ export async function remoteSessionDelete(
   if (target.node === "local") {
     return mechaSessionDelete(client, { id: mechaId, sessionId });
   }
+  const mid = encodeURIComponent(mechaId);
   const sid = encodeURIComponent(sessionId);
-  await agentFetch(target.entry!, `/mechas/${mechaId}/sessions/${sid}`, {
+  await agentFetch(requireEntry(target), `/mechas/${mid}/sessions/${sid}`, {
     method: "DELETE",
   });
 }
