@@ -21,6 +21,7 @@ import {
   parseSessionFile,
   setSessionMeta,
   getAllSessionMeta,
+  deleteSessionMeta,
 } from "@mecha/core";
 import type {
   MechaId,
@@ -114,6 +115,7 @@ export async function mechaSessionDelete(
     throw new Error(`Refusing to delete symlinked session file: ${match.filePath}`);
   }
   unlinkSync(match.filePath);
+  deleteSessionMeta(input.id, input.sessionId);
 
   // Best-effort runtime cleanup (container may be stopped)
   try {

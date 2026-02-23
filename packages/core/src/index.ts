@@ -5,8 +5,10 @@ export type {
   MechaState,
   MechaInfo,
   MechaHeartbeat,
+  MechaRef,
   GlobalOptions,
 } from "./types.js";
+export { mechaRefKey, parseMechaRefKey } from "./mecha-ref.js";
 export {
   MechaError,
   DockerNotAvailableError,
@@ -49,4 +51,5 @@ export {
   getSessionMeta,
   setSessionMeta,
   getAllSessionMeta,
+  deleteSessionMeta,
 } from "./session-meta.js";

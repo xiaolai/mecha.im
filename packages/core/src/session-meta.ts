@@ -64,3 +64,12 @@ export function getAllSessionMeta(mechaId: string): Record<string, SessionMeta> 
   const store = readStore();
   return store[mechaId] ?? {};
 }
+
+/** Delete metadata for a specific session. No-op if it doesn't exist. */
+export function deleteSessionMeta(mechaId: string, sessionId: string): void {
+  const store = readStore();
+  if (!store[mechaId]?.[sessionId]) return;
+  delete store[mechaId][sessionId];
+  if (Object.keys(store[mechaId]).length === 0) delete store[mechaId];
+  writeStore(store);
+}

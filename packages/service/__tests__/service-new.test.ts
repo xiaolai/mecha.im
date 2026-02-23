@@ -51,6 +51,7 @@ const mockParseSessionFile = vi.fn().mockReturnValue({
 });
 const mockGetAllSessionMeta = vi.fn().mockReturnValue({});
 const mockSetSessionMeta = vi.fn();
+const mockDeleteSessionMeta = vi.fn();
 
 vi.mock("@mecha/core", async (importOriginal) => {
   const actual = await importOriginal() as Record<string, unknown>;
@@ -62,6 +63,7 @@ vi.mock("@mecha/core", async (importOriginal) => {
     parseSessionFile: (...a: unknown[]) => mockParseSessionFile(...a),
     getAllSessionMeta: (...a: unknown[]) => mockGetAllSessionMeta(...a),
     setSessionMeta: (...a: unknown[]) => mockSetSessionMeta(...a),
+    deleteSessionMeta: (...a: unknown[]) => mockDeleteSessionMeta(...a),
   };
 });
 
@@ -549,6 +551,7 @@ describe("mechaSessionDelete", () => {
 
     await expect(mechaSessionDelete(client, { id: "mx-abc", sessionId: "sess-del" })).resolves.toBeUndefined();
     expect(mockUnlinkSync).toHaveBeenCalledWith("/path/sess-del.jsonl");
+    expect(mockDeleteSessionMeta).toHaveBeenCalledWith("mx-abc", "sess-del");
   });
 
   it("throws SessionNotFoundError when session file not found", async () => {
@@ -568,6 +571,7 @@ describe("mechaSessionDelete", () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValueOnce(new Error("fetch failed")));
     await expect(mechaSessionDelete(client, { id: "mx-abc", sessionId: "sess-del2" })).resolves.toBeUndefined();
     expect(mockUnlinkSync).toHaveBeenCalledWith("/path/sess-del2.jsonl");
+    expect(mockDeleteSessionMeta).toHaveBeenCalledWith("mx-abc", "sess-del2");
   });
 
   it("rethrows non-connection errors from runtime cleanup", async () => {

@@ -35,6 +35,7 @@ export {
   ChannelAddInput,
   ChannelLinkInput,
   ChannelUnlinkInput,
+  SessionMetaUpdate,
 } from "./schemas.js";
 
 export type {
@@ -71,6 +72,7 @@ export type {
   ChannelAddInput as ChannelAddInputType,
   ChannelLinkInput as ChannelLinkInputType,
   ChannelUnlinkInput as ChannelUnlinkInputType,
+  SessionMetaUpdate as SessionMetaUpdateType,
 } from "./schemas.js";
 
 export {
@@ -90,6 +92,10 @@ export {
   ChannelNotFoundError,
   ChannelLinkNotFoundError,
   ChannelLinkExistsError,
+  NodeUnreachableError,
+  NodeAuthFailedError,
+  NodeRequestFailedError,
+  MechaNotLocatedError,
   toHttpStatus,
   toExitCode,
   toUserMessage,

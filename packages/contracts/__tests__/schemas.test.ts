@@ -22,6 +22,7 @@ import {
   SessionInterruptInput,
   SessionConfigUpdateInput,
   SessionListInput,
+  SessionMetaUpdate,
 } from "../src/schemas.js";
 
 describe("PERMISSION_MODES", () => {
@@ -450,5 +451,48 @@ describe("SessionListInput", () => {
 
   it("rejects empty id", () => {
     expect(() => SessionListInput.parse({ id: "" })).toThrow();
+  });
+});
+
+describe("SessionMetaUpdate", () => {
+  it("parses valid update with customTitle only", () => {
+    const result = SessionMetaUpdate.parse({ customTitle: "My Session" });
+    expect(result.customTitle).toBe("My Session");
+    expect(result.starred).toBeUndefined();
+  });
+
+  it("parses valid update with starred only", () => {
+    const result = SessionMetaUpdate.parse({ starred: true });
+    expect(result.starred).toBe(true);
+    expect(result.customTitle).toBeUndefined();
+  });
+
+  it("parses valid update with both fields", () => {
+    const result = SessionMetaUpdate.parse({ customTitle: "Title", starred: false });
+    expect(result.customTitle).toBe("Title");
+    expect(result.starred).toBe(false);
+  });
+
+  it("parses null customTitle (for clearing)", () => {
+    const result = SessionMetaUpdate.parse({ customTitle: null });
+    expect(result.customTitle).toBeNull();
+  });
+
+  it("parses null starred (for clearing)", () => {
+    const result = SessionMetaUpdate.parse({ starred: null });
+    expect(result.starred).toBeNull();
+  });
+
+  it("rejects empty object (at least one field required)", () => {
+    expect(() => SessionMetaUpdate.parse({})).toThrow();
+  });
+
+  it("rejects customTitle exceeding 200 chars", () => {
+    expect(() => SessionMetaUpdate.parse({ customTitle: "x".repeat(201) })).toThrow();
+  });
+
+  it("accepts customTitle at exactly 200 chars", () => {
+    const result = SessionMetaUpdate.parse({ customTitle: "x".repeat(200) });
+    expect(result.customTitle).toHaveLength(200);
   });
 });
