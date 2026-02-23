@@ -19,27 +19,3 @@ export const DEFAULTS = {
   /** Filename for the append-only event log */
   EVENTS_FILE: "events.jsonl",
 } as const;
-
-// --- Deprecated Docker constants (will be removed in Phase 7) ---
-
-/** @deprecated Docker-only. Will be removed. */
-export const MOUNT_PATHS = {
-  WORKSPACE: "/home/mecha",
-  STATE: "/var/lib/mecha",
-  TMP: "/tmp",
-} as const;
-
-/** @deprecated Docker-only. Will be removed. */
-export const LABELS = {
-  IS_MECHA: "mecha",
-  MECHA_ID: "mecha.id",
-  MECHA_PATH: "mecha.path",
-} as const;
-
-/** @deprecated Docker-only. Will be removed. */
-export const SECURITY = {
-  UID: 1000,
-  GID: 1000,
-  CAP_DROP: ["ALL"],
-  SECURITY_OPT: ["no-new-privileges"],
-} as const;

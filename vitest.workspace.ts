@@ -15,19 +15,6 @@ export default defineWorkspace([
   },
   {
     test: {
-      name: "docker",
-      include: ["packages/docker/__tests__/**/*.test.ts"],
-      exclude: ["packages/docker/__tests__/integration/**"],
-    },
-  },
-  {
-    test: {
-      name: "integration",
-      include: ["packages/docker/__tests__/integration/**/*.test.ts"],
-    },
-  },
-  {
-    test: {
       name: "service",
       include: ["packages/service/__tests__/**/*.test.ts"],
     },

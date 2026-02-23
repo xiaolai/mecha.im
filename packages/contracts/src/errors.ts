@@ -18,9 +18,6 @@ export class ProcessSpawnError extends MechaError {
   }
 }
 
-/** @deprecated Use ProcessSpawnError instead. Will be removed. */
-export const ContainerStartError = ProcessSpawnError;
-
 export class PathNotFoundError extends MechaError {
   constructor(path: string) { super(`Path does not exist: ${path}`, "PATH_NOT_FOUND"); }
 }
@@ -105,13 +102,10 @@ const HTTP_STATUS_MAP: Record<string, number> = {
   CONTAINER_NOT_FOUND: 404,
   CONTAINER_ALREADY_EXISTS: 409,
   PROCESS_SPAWN_FAILED: 500,
-  CONTAINER_START_FAILED: 500,
-  DOCKER_NOT_AVAILABLE: 503,
   NO_PORT_BINDING: 500,
   TOKEN_NOT_FOUND: 404,
   CHAT_REQUEST_FAILED: 502,
   INVALID_PATH: 400,
-  IMAGE_NOT_FOUND: 500,
   SESSION_NOT_FOUND: 404,
   SESSION_BUSY: 409,
   SESSION_CAP_REACHED: 429,

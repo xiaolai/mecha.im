@@ -51,7 +51,7 @@ export interface LogStreamOpts {
   follow?: boolean;
 }
 
-/** The ProcessManager interface — replaces DockerClient in all consumers. */
+/** The ProcessManager interface for managing mecha child processes. */
 export interface ProcessManager {
   spawn(opts: SpawnOpts): Promise<MechaProcessInfo>;
   stop(id: string): Promise<void>;

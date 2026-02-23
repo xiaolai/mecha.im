@@ -3,16 +3,13 @@ import { ZodError, z } from "zod";
 import {
   MechaError,
   ContainerNotFoundError,
-  DockerNotAvailableError,
   ContainerAlreadyExistsError,
   InvalidPathError,
-  ImageNotFoundError,
 } from "@mecha/core";
 import {
   InvalidPortError,
   InvalidPermissionModeError,
   ProcessSpawnError,
-  ContainerStartError,
   PathNotFoundError,
   PathNotDirectoryError,
   NoPortBindingError,
@@ -63,10 +60,6 @@ describe("error classes", () => {
     const err = new ProcessSpawnError("mecha-mx-foo");
     expect(err.message).toBe("Failed to spawn process mecha-mx-foo: unknown");
     expect(err.cause).toBeUndefined();
-  });
-
-  it("ContainerStartError is deprecated alias for ProcessSpawnError", () => {
-    expect(ContainerStartError).toBe(ProcessSpawnError);
   });
 
   it("PathNotFoundError has correct message and code", () => {
@@ -198,10 +191,8 @@ describe("toHttpStatus", () => {
     expect(toHttpStatus(new ContainerNotFoundError("x"))).toBe(404);
     expect(toHttpStatus(new ContainerAlreadyExistsError("x"))).toBe(409);
     expect(toHttpStatus(new ProcessSpawnError("x"))).toBe(500);
-    expect(toHttpStatus(new DockerNotAvailableError())).toBe(503);
     expect(toHttpStatus(new NoPortBindingError("x"))).toBe(500);
     expect(toHttpStatus(new InvalidPathError("/x"))).toBe(400);
-    expect(toHttpStatus(new ImageNotFoundError("x"))).toBe(500);
     expect(toHttpStatus(new TokenNotFoundError("x"))).toBe(404);
     expect(toHttpStatus(new ChatRequestFailedError("x", 500, "error"))).toBe(502);
     expect(toHttpStatus(new SessionNotFoundError("s"))).toBe(404);
@@ -281,7 +272,7 @@ describe("toSafeMessage", () => {
   });
 
   it("hides internal error details for non-domain errors", () => {
-    expect(toSafeMessage(new Error("Docker socket /var/run/docker.sock failed"))).toBe("Internal error");
+    expect(toSafeMessage(new Error("Internal process error"))).toBe("Internal error");
     expect(toSafeMessage("string")).toBe("Internal error");
     expect(toSafeMessage(null)).toBe("Internal error");
   });

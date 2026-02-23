@@ -71,7 +71,7 @@ export {
   InvalidPortError,
   InvalidPermissionModeError,
   ProcessSpawnError,
-  ContainerStartError,
+
   PathNotFoundError,
   PathNotDirectoryError,
   NoPortBindingError,

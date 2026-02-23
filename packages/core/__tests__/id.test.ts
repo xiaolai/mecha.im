@@ -1,11 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  computeMechaId,
-  containerName,
-  volumeName,
-  networkName,
-} from "../src/id.js";
-import type { MechaId } from "../src/types.js";
+import { computeMechaId } from "../src/id.js";
 
 describe("computeMechaId", () => {
   it("produces an ID in the format mx-<slug>-<hash>", () => {
@@ -66,25 +60,5 @@ describe("computeMechaId", () => {
     const id2 = computeMechaId("/path/to/project/");
     // resolve() strips trailing slash, so these should be equal
     expect(id1).toBe(id2);
-  });
-});
-
-describe("containerName", () => {
-  it("prefixes the ID with 'mecha-'", () => {
-    const id = "mx-bar-k9f31d" as MechaId;
-    expect(containerName(id)).toBe("mecha-mx-bar-k9f31d");
-  });
-});
-
-describe("volumeName", () => {
-  it("prefixes the ID with 'mecha-state-'", () => {
-    const id = "mx-bar-k9f31d" as MechaId;
-    expect(volumeName(id)).toBe("mecha-state-mx-bar-k9f31d");
-  });
-});
-
-describe("networkName", () => {
-  it("returns the shared network name", () => {
-    expect(networkName()).toBe("mecha-net");
   });
 });

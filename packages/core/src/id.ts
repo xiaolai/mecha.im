@@ -24,18 +24,3 @@ function toSlug(canonicalPath: string): string {
       .toLowerCase() || "root"
   );
 }
-
-/** @deprecated Docker-only. Will be removed in Phase 7. */
-export function containerName(id: MechaId): string {
-  return `mecha-${id}`;
-}
-
-/** @deprecated Docker-only. Will be removed in Phase 7. */
-export function volumeName(id: MechaId): string {
-  return `mecha-state-${id}`;
-}
-
-/** @deprecated Docker-only. Will be removed in Phase 7. */
-export function networkName(): string {
-  return "mecha-net";
-}
