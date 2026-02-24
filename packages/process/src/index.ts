@@ -1,2 +1,2 @@
-// @mecha/process — CASA process management
-// Phase 1: port allocation, health check, state persistence, ProcessManager
+export { checkPort, allocatePort } from "./port.js";
+export { waitForHealthy } from "./health.js";

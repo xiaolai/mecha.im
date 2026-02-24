@@ -8,7 +8,7 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage --config vitest.config.ts",
     "typecheck": "tsc -b --noEmit",
-    "clean": "rm -rf packages/*/dist",
+    "clean": "rm -rf packages/*/dist packages/*/tsconfig.tsbuildinfo",
     "docs:dev": "pnpm --filter @mecha/website dev",
     "docs:build": "pnpm --filter @mecha/website build"
   },
