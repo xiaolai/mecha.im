@@ -30,7 +30,7 @@ export function prepareCasaFilesystem(opts: CasaFilesystemOpts): CasaFilesystemR
   const hooksDir = join(claudeDir, "hooks");
   const workDir = join(casaDir, "workspace");
   const tmpDir = join(casaDir, "tmp");
-  const sessionsDir = join(casaDir, "sessions", "transcripts");
+  const sessionsDir = join(casaDir, "sessions");
   const logsDir = join(casaDir, "logs");
 
   mkdirSync(hooksDir, { recursive: true, mode: 0o700 });

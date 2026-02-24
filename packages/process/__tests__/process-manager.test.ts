@@ -123,7 +123,7 @@ describe("createProcessManager", () => {
     const casaDir = join(tempDir, "casas", testName);
     expect(existsSync(join(casaDir, "home", ".claude", "hooks"))).toBe(true);
     expect(existsSync(join(casaDir, "tmp"))).toBe(true);
-    expect(existsSync(join(casaDir, "sessions", "transcripts"))).toBe(true);
+    expect(existsSync(join(casaDir, "sessions"))).toBe(true);
     expect(existsSync(join(casaDir, "logs"))).toBe(true);
     expect(existsSync(join(casaDir, "config.json"))).toBe(true);
     expect(existsSync(join(casaDir, "state.json"))).toBe(true);
