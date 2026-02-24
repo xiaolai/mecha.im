@@ -85,6 +85,7 @@ describe("createProcessManager", () => {
       mechaDir: tempDir,
       healthTimeoutMs: 3000,
       spawnFn: mockSpawn as any,
+      runtimeEntrypoint: "/fake/runtime.js",
     });
 
     const info = await pm.spawn({
@@ -110,6 +111,7 @@ describe("createProcessManager", () => {
       mechaDir: tempDir,
       healthTimeoutMs: 3000,
       spawnFn: mockSpawn as any,
+      runtimeEntrypoint: "/fake/runtime.js",
     });
 
     await pm.spawn({
@@ -135,6 +137,7 @@ describe("createProcessManager", () => {
       mechaDir: tempDir,
       healthTimeoutMs: 3000,
       spawnFn: mockSpawn as any,
+      runtimeEntrypoint: "/fake/runtime.js",
     });
 
     await pm.spawn({
@@ -160,6 +163,7 @@ describe("createProcessManager", () => {
       mechaDir: tempDir,
       healthTimeoutMs: 3000,
       spawnFn: mockSpawn as any,
+      runtimeEntrypoint: "/fake/runtime.js",
     });
 
     await pm.spawn({
@@ -185,6 +189,7 @@ describe("createProcessManager", () => {
       mechaDir: tempDir,
       healthTimeoutMs: 3000,
       spawnFn: mockSpawn as any,
+      runtimeEntrypoint: "/fake/runtime.js",
     });
 
     await pm.spawn({
@@ -212,6 +217,7 @@ describe("createProcessManager", () => {
       mechaDir: tempDir,
       healthTimeoutMs: 3000,
       spawnFn: mockSpawn as any,
+      runtimeEntrypoint: "/fake/runtime.js",
     });
 
     await pm.spawn({
@@ -233,6 +239,7 @@ describe("createProcessManager", () => {
       mechaDir: tempDir,
       healthTimeoutMs: 3000,
       spawnFn: mockSpawn as any,
+      runtimeEntrypoint: "/fake/runtime.js",
     });
 
     await pm.spawn({
@@ -253,6 +260,7 @@ describe("createProcessManager", () => {
       mechaDir: tempDir,
       healthTimeoutMs: 3000,
       spawnFn: mockSpawn as any,
+      runtimeEntrypoint: "/fake/runtime.js",
     });
 
     await pm.spawn({
@@ -297,6 +305,7 @@ describe("createProcessManager", () => {
       mechaDir: tempDir,
       healthTimeoutMs: 3000,
       spawnFn: mockSpawn as any,
+      runtimeEntrypoint: "/fake/runtime.js",
     });
 
     const info = await pm.spawn({
@@ -324,6 +333,7 @@ describe("createProcessManager", () => {
       mechaDir: tempDir,
       healthTimeoutMs: 3000,
       spawnFn: mockSpawn as any,
+      runtimeEntrypoint: "/fake/runtime.js",
     });
 
     const events: any[] = [];
@@ -366,6 +376,7 @@ describe("createProcessManager", () => {
       mechaDir: tempDir,
       healthTimeoutMs: 3000,
       spawnFn: mockSpawn as any,
+      runtimeEntrypoint: "/fake/runtime.js",
     });
 
     await pm.spawn({
@@ -392,6 +403,7 @@ describe("createProcessManager", () => {
       mechaDir: tempDir,
       healthTimeoutMs: 3000,
       spawnFn: mockSpawn as any,
+      runtimeEntrypoint: "/fake/runtime.js",
     });
 
     await pm.spawn({
@@ -408,6 +420,32 @@ describe("createProcessManager", () => {
     expect(envArg.MECHA_PORT).toBe(String(healthPort));
   });
 
+  it("filters reserved env keys from user env", async () => {
+    const mockChild = createMockChild();
+    const mockSpawn = createMockSpawn(mockChild);
+
+    const pm = createProcessManager({
+      mechaDir: tempDir,
+      healthTimeoutMs: 3000,
+      spawnFn: mockSpawn as any,
+      runtimeEntrypoint: "/fake/runtime.js",
+    });
+
+    await pm.spawn({
+      name: testName,
+      workspacePath: tempDir,
+      port: healthPort,
+      env: { SAFE_KEY: "ok", MECHA_AUTH_TOKEN: "should-be-ignored", HOME: "/evil" },
+    });
+
+    const spawnCall = mockSpawn.mock.calls[0]!;
+    const envArg = spawnCall[2]?.env as Record<string, string>;
+    expect(envArg.SAFE_KEY).toBe("ok");
+    // Security vars applied last — user overrides are stripped
+    expect(envArg.MECHA_AUTH_TOKEN).toMatch(/^mecha_/);
+    expect(envArg.HOME).toContain("home"); // casaDir/home, not /evil
+  });
+
   it("throws ProcessSpawnError when spawnFn throws", async () => {
     const mockSpawn = vi.fn(() => {
       throw new Error("spawn ENOENT");
@@ -417,6 +455,7 @@ describe("createProcessManager", () => {
       mechaDir: tempDir,
       healthTimeoutMs: 3000,
       spawnFn: mockSpawn as any,
+      runtimeEntrypoint: "/fake/runtime.js",
     });
 
     await expect(
@@ -450,6 +489,7 @@ describe("createProcessManager", () => {
       mechaDir: tempDir,
       healthTimeoutMs: 3000,
       spawnFn: mockSpawn as any,
+      runtimeEntrypoint: "/fake/runtime.js",
     });
 
     await expect(
@@ -475,6 +515,7 @@ describe("createProcessManager", () => {
       mechaDir: tempDir,
       healthTimeoutMs: 3000,
       spawnFn: mockSpawn as any,
+      runtimeEntrypoint: "/fake/runtime.js",
     });
 
     await pm.spawn({
@@ -668,6 +709,7 @@ describe("createProcessManager", () => {
       mechaDir: tempDir,
       healthTimeoutMs: 3000,
       spawnFn: mockSpawn as any,
+      runtimeEntrypoint: "/fake/runtime.js",
     });
 
     await expect(
@@ -696,6 +738,7 @@ describe("createProcessManager", () => {
       mechaDir: tempDir,
       healthTimeoutMs: 3000,
       spawnFn: mockSpawn as any,
+      runtimeEntrypoint: "/fake/runtime.js",
     });
 
     await pm.spawn({
@@ -743,6 +786,7 @@ describe("createProcessManager", () => {
       mechaDir: tempDir,
       healthTimeoutMs: 3000,
       spawnFn: mockSpawn as any,
+      runtimeEntrypoint: "/fake/runtime.js",
     });
 
     // Spawn then stop
@@ -776,6 +820,7 @@ describe("createProcessManager", () => {
       mechaDir: tempDir,
       healthTimeoutMs: 3000,
       spawnFn: mockSpawn as any,
+      runtimeEntrypoint: "/fake/runtime.js",
     });
 
     // Spawn first CASA
@@ -805,6 +850,7 @@ describe("createProcessManager", () => {
       mechaDir: tempDir,
       healthTimeoutMs: 500,
       spawnFn: mockSpawn as any,
+      runtimeEntrypoint: "/fake/runtime.js",
     });
 
     // No port provided — allocatePort will find a free port, but health check
@@ -878,6 +924,7 @@ describe("createProcessManager", () => {
       mechaDir: tempDir,
       healthTimeoutMs: 3000,
       spawnFn: mockSpawn as any,
+      runtimeEntrypoint: "/fake/runtime.js",
     });
 
     await expect(
@@ -897,6 +944,7 @@ describe("createProcessManager", () => {
       mechaDir: tempDir,
       healthTimeoutMs: 3000,
       spawnFn: mockSpawn as any,
+      runtimeEntrypoint: "/fake/runtime.js",
     });
 
     await pm.spawn({
@@ -963,6 +1011,7 @@ describe("createProcessManager", () => {
       mechaDir: tempDir,
       healthTimeoutMs: 3000,
       spawnFn: mockSpawn as any,
+      runtimeEntrypoint: "/fake/runtime.js",
     });
 
     const events: any[] = [];
@@ -1047,5 +1096,23 @@ describe("createProcessManager", () => {
       process.kill = origKill;
       Date.now = origDateNow;
     }
+  });
+
+  it("throws on invalid CASA name (path traversal)", async () => {
+    const pm = createProcessManager({ mechaDir: tempDir, runtimeEntrypoint: "/fake/runtime.js" });
+    await expect(
+      pm.spawn({ name: "../etc" as CasaName, workspacePath: "/ws" }),
+    ).rejects.toThrow("Invalid CASA name");
+  });
+
+  it("throws ProcessSpawnError when no runtimeEntrypoint and no runtimeBin", async () => {
+    const mockChild = createMockChild();
+    const pm = createProcessManager({
+      mechaDir: tempDir,
+      spawnFn: createMockSpawn(mockChild) as unknown as typeof import("node:child_process").spawn,
+    });
+    await expect(
+      pm.spawn({ name: testName, workspacePath: "/ws" }),
+    ).rejects.toThrow("No runtimeEntrypoint configured");
   });
 });

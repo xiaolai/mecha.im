@@ -24,8 +24,13 @@ export interface CasaState {
 export function readState(casaDir: string): CasaState | undefined {
   const statePath = join(casaDir, "state.json");
   if (!existsSync(statePath)) return undefined;
-  const raw = readFileSync(statePath, "utf-8");
-  return JSON.parse(raw) as CasaState;
+  try {
+    const raw = readFileSync(statePath, "utf-8");
+    return JSON.parse(raw) as CasaState;
+  } catch {
+    // Corrupted state file — treat as missing
+    return undefined;
+  }
 }
 
 /** Write state.json atomically (write to temp, rename). */

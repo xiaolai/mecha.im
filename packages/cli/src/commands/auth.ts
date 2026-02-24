@@ -25,6 +25,11 @@ export function registerAuthCommand(program: Command, deps: CommandDeps): void {
     .option("--token <token>", "Token value")
     .option("--tag <tags...>", "Tags for the profile")
     .action(async (name: string, opts: { oauth?: boolean; apiKey?: boolean; token?: string; tag?: string[] }) => {
+      if (opts.oauth && opts.apiKey) {
+        deps.formatter.error("Cannot use both --oauth and --api-key");
+        process.exitCode = 1;
+        return;
+      }
       const type = opts.oauth ? "oauth" : "api-key";
       const token = opts.token ?? "";
       const profile = mechaAuthAdd(deps.mechaDir, name, type, token, opts.tag);
@@ -96,6 +101,7 @@ export function registerAuthCommand(program: Command, deps: CommandDeps): void {
         deps.formatter.success(`Profile "${name}" is valid`);
       } else {
         deps.formatter.error(`Profile "${name}" has invalid token`);
+        process.exitCode = 1;
       }
     });
 

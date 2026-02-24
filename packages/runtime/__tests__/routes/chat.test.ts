@@ -32,6 +32,25 @@ describe("chat routes", () => {
     rmSync(tempDir, { recursive: true, force: true });
   });
 
+  it("returns 400 for missing message", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/chat",
+      payload: { sessionId: "abc" },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toContain("message is required");
+  });
+
+  it("returns 400 for empty message", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/chat",
+      payload: { message: "" },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
   it("creates a new session and streams echo response", async () => {
     const res = await app.inject({
       method: "POST",

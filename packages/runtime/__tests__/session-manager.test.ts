@@ -180,6 +180,11 @@ describe("createSessionManager", () => {
       expect(JSON.parse(lines[1]!)).toEqual(msg2);
     });
 
+    it("throws when session does not exist", () => {
+      const msg: SessionMessage = { role: "user", content: "test", timestamp: new Date().toISOString() };
+      expect(() => sm.appendMessage("nonexistent-id", msg)).toThrow("Session not found");
+    });
+
     it("updates session updatedAt", async () => {
       const created = sm.create();
       const originalUpdatedAt = created.updatedAt;
@@ -222,6 +227,18 @@ describe("createSessionManager", () => {
       expect(existsSync(nestedDir)).toBe(true);
       // Use sm2 to suppress unused warning
       expect(sm2.list()).toEqual([]);
+    });
+
+    it("skips malformed lines in JSONL transcript", () => {
+      const created = sm.create();
+      const transcriptPath = join(tempDir, "transcripts", `${created.id}.jsonl`);
+      const { writeFileSync: writeFn } = require("node:fs") as typeof import("node:fs");
+      writeFn(transcriptPath, '{"role":"user","content":"ok","timestamp":"t"}\nnot-json\n{"role":"assistant","content":"hi","timestamp":"t2"}\n');
+
+      const session = sm.get(created.id);
+      expect(session!.messages).toHaveLength(2);
+      expect(session!.messages[0].content).toBe("ok");
+      expect(session!.messages[1].content).toBe("hi");
     });
 
     it("handles empty JSONL file gracefully", () => {

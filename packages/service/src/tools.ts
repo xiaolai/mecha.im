@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, writeFileSync, readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve, relative, isAbsolute } from "node:path";
 
 export interface ToolInfo {
   name: string;
@@ -18,6 +18,11 @@ export interface ToolInstallOpts {
  * Full implementation will download/validate tool packages.
  */
 export function mechaToolInstall(mechaDir: string, opts: ToolInstallOpts): ToolInfo {
+  // Validate tool name — reject path separators and traversal
+  if (!/^[a-z0-9]([a-z0-9._-]*[a-z0-9])?$/i.test(opts.name) || opts.name.includes("..")) {
+    throw new Error(`Invalid tool name: "${opts.name}"`);
+  }
+
   const toolsDir = join(mechaDir, "tools");
   mkdirSync(toolsDir, { recursive: true });
 
@@ -28,6 +33,13 @@ export function mechaToolInstall(mechaDir: string, opts: ToolInstallOpts): ToolI
   };
 
   const toolDir = join(toolsDir, opts.name);
+  // Double-check resolved path stays under toolsDir
+  const rel = relative(resolve(toolsDir), resolve(toolDir));
+  /* v8 ignore start -- defense-in-depth: regex above blocks traversal */
+  if (rel.startsWith("..") || isAbsolute(rel)) {
+    throw new Error(`Invalid tool name: "${opts.name}"`);
+  }
+  /* v8 ignore stop */
   mkdirSync(toolDir, { recursive: true });
   writeFileSync(join(toolDir, "manifest.json"), JSON.stringify(info, null, 2));
 

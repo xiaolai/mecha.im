@@ -99,6 +99,11 @@ export function registerSessionRoutes(
   app.post<{ Params: { id: string } }>(
     "/api/sessions/:id/interrupt",
     async (request, reply) => {
+      const session = sm.get(request.params.id);
+      if (!session) {
+        reply.code(404).send({ error: "Session not found" });
+        return;
+      }
       if (!sm.isBusy(request.params.id)) {
         reply.code(409).send({ error: "Session is not busy" });
         return;

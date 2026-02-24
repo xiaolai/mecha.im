@@ -1,3 +1,4 @@
+import { dirname, join } from "node:path";
 import { createServer } from "./server.js";
 
 const casaName = process.env.MECHA_CASA_NAME;
@@ -13,7 +14,7 @@ if (!casaName || !port || !authToken || !dbPath || !workspace) {
   process.exit(1);
 }
 
-const transcriptDir = logDir ? `${logDir}/transcripts` : `${dbPath}/../transcripts`;
+const transcriptDir = logDir ? join(logDir, "transcripts") : join(dirname(dbPath), "transcripts");
 
 const app = createServer({
   casaName,

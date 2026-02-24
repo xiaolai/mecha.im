@@ -20,6 +20,16 @@ describe("mechaToolInstall", () => {
     expect(existsSync(join(tempDir, "tools", "web-search", "manifest.json"))).toBe(true);
   });
 
+  it("rejects invalid tool name with path traversal", () => {
+    tempDir = mkdtempSync(join(tmpdir(), "mecha-tools-test-"));
+    expect(() => mechaToolInstall(tempDir, { name: "../etc" })).toThrow("Invalid tool name");
+  });
+
+  it("rejects tool name with double dots", () => {
+    tempDir = mkdtempSync(join(tmpdir(), "mecha-tools-test-"));
+    expect(() => mechaToolInstall(tempDir, { name: "foo..bar" })).toThrow("Invalid tool name");
+  });
+
   it("uses defaults for missing version/description", () => {
     tempDir = mkdtempSync(join(tmpdir(), "mecha-tools-test-"));
     const result = mechaToolInstall(tempDir, { name: "basic" });

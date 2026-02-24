@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
-import type { CasaName } from "@mecha/core";
+import { casaName } from "@mecha/core";
 import { casaSpawn } from "@mecha/service";
 
 export function registerSpawnCommand(program: Command, deps: CommandDeps): void {
@@ -12,10 +12,17 @@ export function registerSpawnCommand(program: Command, deps: CommandDeps): void 
     .option("-p, --port <number>", "Port to listen on")
     .option("--auth <profile>", "Auth profile to use")
     .action(async (name: string, path: string, opts: { port?: string; auth?: string }) => {
+      const validated = casaName(name);
+      const port = opts.port ? Number(opts.port) : undefined;
+      if (opts.port && (!Number.isInteger(port) || port! < 1 || port! > 65535)) {
+        deps.formatter.error("Port must be an integer between 1 and 65535");
+        process.exitCode = 1;
+        return;
+      }
       const info = await casaSpawn(deps.processManager, {
-        name: name as CasaName,
+        name: validated,
         workspacePath: path,
-        port: opts.port ? Number(opts.port) : undefined,
+        port,
         auth: opts.auth,
       });
       deps.formatter.success(`Spawned ${info.name} on port ${info.port}`);

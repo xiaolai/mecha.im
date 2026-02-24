@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 export interface AuthProfile {
@@ -31,8 +31,8 @@ function readStore(mechaDir: string): AuthStore {
 
 function writeStore(mechaDir: string, store: AuthStore): void {
   const dir = join(mechaDir, "auth");
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(authStorePath(mechaDir), JSON.stringify(store, null, 2));
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  writeFileSync(authStorePath(mechaDir), JSON.stringify(store, null, 2), { mode: 0o600 });
 }
 
 export function mechaAuthAdd(

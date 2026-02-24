@@ -1,5 +1,5 @@
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { readdirSync, readFileSync, statSync, realpathSync } from "node:fs";
+import { join, relative, resolve, isAbsolute } from "node:path";
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 
 interface JsonRpcRequest {
@@ -46,14 +46,34 @@ const TOOLS: McpToolDef[] = [
   },
 ];
 
-function listFiles(workspacePath: string, subpath: string): string[] {
-  const target = subpath ? join(workspacePath, subpath) : workspacePath;
-  const resolved = join(workspacePath, subpath || ".");
-
-  // Prevent path traversal
-  if (!resolved.startsWith(workspacePath)) {
+/** Check that a resolved path stays inside the workspace boundary, following symlinks. */
+function assertInsideWorkspace(resolved: string, workspacePath: string): void {
+  let realWorkspace: string;
+  try {
+    realWorkspace = realpathSync(workspacePath);
+  } catch {
+    // Workspace itself doesn't exist — cannot validate
+    realWorkspace = resolve(workspacePath);
+  }
+  let real: string;
+  try {
+    real = realpathSync(resolved);
+  } catch {
+    // Target doesn't exist yet — resolve relative to the real workspace path
+    // to handle symlinked temp directories (e.g., /tmp → /private/tmp on macOS)
+    const rel = relative(resolve(workspacePath), resolve(resolved));
+    real = join(realWorkspace, rel);
+  }
+  const rel = relative(realWorkspace, real);
+  if (rel.startsWith("..") || isAbsolute(rel)) {
     throw new Error("Path traversal not allowed");
   }
+}
+
+function listFiles(workspacePath: string, subpath: string): string[] {
+  const target = subpath ? join(workspacePath, subpath) : workspacePath;
+
+  assertInsideWorkspace(target, workspacePath);
 
   try {
     const entries = readdirSync(target, { withFileTypes: true });
@@ -69,10 +89,7 @@ function listFiles(workspacePath: string, subpath: string): string[] {
 function readFile(workspacePath: string, filePath: string): string {
   const resolved = join(workspacePath, filePath);
 
-  // Prevent path traversal
-  if (!resolved.startsWith(workspacePath)) {
-    throw new Error("Path traversal not allowed");
-  }
+  assertInsideWorkspace(resolved, workspacePath);
 
   try {
     const stat = statSync(resolved);
@@ -84,6 +101,11 @@ function readFile(workspacePath: string, filePath: string): string {
     if (err instanceof Error && err.message.startsWith("Path is a directory")) {
       throw err;
     }
+    /* v8 ignore start -- traversal caught by assertInsideWorkspace before stat */
+    if (err instanceof Error && err.message === "Path traversal not allowed") {
+      throw err;
+    }
+    /* v8 ignore stop */
     throw new Error(`File not found: ${filePath}`);
   }
 }
@@ -133,11 +155,19 @@ function handleRequest(workspacePath: string, req: JsonRpcRequest): JsonRpcRespo
         const result = handleToolCall(workspacePath, name, args);
         return { jsonrpc: "2.0", id, result };
       } catch (err) {
+        const msg = (err as Error).message;
+        // Only expose safe error messages; hide filesystem details
+        const safeMsg = msg === "Path traversal not allowed" ? msg
+          : msg.startsWith("Path is a directory") ? msg
+          : msg.startsWith("Unknown tool") ? msg
+          : msg.startsWith("Directory not found") ? msg
+          : msg.startsWith("File not found") ? msg
+          : /* v8 ignore next */ "Tool execution failed";
         return {
           jsonrpc: "2.0",
           id,
           result: {
-            content: [{ type: "text", text: (err as Error).message }],
+            content: [{ type: "text", text: safeMsg }],
             isError: true,
           },
         };

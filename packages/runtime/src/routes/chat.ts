@@ -8,7 +8,12 @@ export function registerChatRoutes(
   app.post<{ Body: { message: string; sessionId?: string } }>(
     "/api/chat",
     async (request: FastifyRequest<{ Body: { message: string; sessionId?: string } }>, reply: FastifyReply) => {
-      const { message, sessionId } = request.body;
+      const body = request.body;
+      if (!body || typeof body.message !== "string" || !body.message) {
+        reply.code(400).send({ error: "message is required and must be a string" });
+        return;
+      }
+      const { message, sessionId } = body;
 
       // Get or create session
       const sid = sessionId ?? sm.create({ title: message.slice(0, 50) }).id;
@@ -25,55 +30,62 @@ export function registerChatRoutes(
 
       sm.setBusy(sid, true);
 
-      // Append user message
-      sm.appendMessage(sid, {
-        role: "user",
-        content: message,
-        timestamp: new Date().toISOString(),
-      });
+      try {
+        // Append user message
+        sm.appendMessage(sid, {
+          role: "user",
+          content: message,
+          timestamp: new Date().toISOString(),
+        });
 
-      // SSE response
-      reply.raw.writeHead(200, {
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
-        Connection: "keep-alive",
-      });
+        // SSE response
+        reply.raw.writeHead(200, {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+        });
 
-      // Detect client disconnect via socket close (NOT req.raw.destroyed)
-      let disconnected = false;
-      /* v8 ignore start -- socket close only fires on real TCP disconnect */
-      request.socket.on("close", () => {
-        disconnected = true;
-        sm.setBusy(sid, false);
-      });
-      /* v8 ignore stop */
-
-      // Placeholder: echo back the message as a streaming response
-      const responseContent = `Echo: ${message}`;
-      const chunks = responseContent.split(" ");
-
-      for (const chunk of chunks) {
-        /* v8 ignore start */
-        if (disconnected) break;
+        // Detect client disconnect via socket close (NOT req.raw.destroyed)
+        let disconnected = false;
+        /* v8 ignore start -- socket close only fires on real TCP disconnect */
+        request.socket.on("close", () => {
+          disconnected = true;
+          sm.setBusy(sid, false);
+        });
         /* v8 ignore stop */
-        reply.raw.write(`data: ${JSON.stringify({ type: "text", content: chunk + " " })}\n\n`);
-      }
 
-      // Append assistant message
-      sm.appendMessage(sid, {
-        role: "assistant",
-        content: responseContent,
-        timestamp: new Date().toISOString(),
-      });
+        // Placeholder: echo back the message as a streaming response
+        const responseContent = `Echo: ${message}`;
+        const chunks = responseContent.split(" ");
 
-      /* v8 ignore start */
-      if (!disconnected) {
-      /* v8 ignore stop */
-        reply.raw.write(`data: ${JSON.stringify({ type: "done", sessionId: sid })}\n\n`);
+        for (const chunk of chunks) {
+          /* v8 ignore start */
+          if (disconnected) break;
+          /* v8 ignore stop */
+          reply.raw.write(`data: ${JSON.stringify({ type: "text", content: chunk + " " })}\n\n`);
+        }
+
+        // Append assistant message
+        sm.appendMessage(sid, {
+          role: "assistant",
+          content: responseContent,
+          timestamp: new Date().toISOString(),
+        });
+
+        /* v8 ignore start */
+        if (!disconnected) {
+        /* v8 ignore stop */
+          reply.raw.write(`data: ${JSON.stringify({ type: "done", sessionId: sid })}\n\n`);
+          sm.setBusy(sid, false);
+        }
+
+        reply.raw.end();
+      } catch (err) {
+        /* v8 ignore start -- only reachable if internal echo logic throws */
         sm.setBusy(sid, false);
+        throw err;
+        /* v8 ignore stop */
       }
-
-      reply.raw.end();
     },
   );
 }

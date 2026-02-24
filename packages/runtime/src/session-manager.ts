@@ -143,6 +143,10 @@ export function createSessionManager(
   }
 
   function appendMessage(id: string, msg: SessionMessage): void {
+    // Verify session exists before writing transcript
+    const row = db.prepare("SELECT id FROM sessions WHERE id = ?").get(id);
+    if (!row) throw new Error(`Session not found: ${id}`);
+
     const transcriptPath = _transcriptPath(id);
     const line = JSON.stringify(msg) + "\n";
     appendFileSync(transcriptPath, line, "utf-8");
@@ -174,7 +178,15 @@ export function createSessionManager(
     const content = readFileSync(path, "utf-8").trim();
     if (!content) return [];
 
-    return content.split("\n").map((line) => JSON.parse(line) as SessionMessage);
+    const messages: SessionMessage[] = [];
+    for (const line of content.split("\n")) {
+      try {
+        messages.push(JSON.parse(line) as SessionMessage);
+      } catch {
+        // skip malformed transcript lines
+      }
+    }
+    return messages;
   }
 
   return {

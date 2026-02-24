@@ -36,6 +36,17 @@ describe("auth commands", () => {
     return { mechaDir, deps };
   }
 
+  it("rejects both --oauth and --api-key", async () => {
+    const { deps } = setup();
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "auth", "add", "bad", "--oauth", "--api-key", "--token", "tok"]);
+    expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("Cannot use both"));
+    expect(process.exitCode).toBe(1);
+    process.exitCode = undefined as unknown as number;
+  });
+
   it("adds an auth profile", async () => {
     const { deps } = setup();
     const program = createProgram(deps);

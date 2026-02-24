@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
-import type { CasaName } from "@mecha/core";
+import { casaName } from "@mecha/core";
 import { casaChat } from "@mecha/service";
 
 export function registerChatCommand(program: Command, deps: CommandDeps): void {
@@ -13,9 +13,11 @@ export function registerChatCommand(program: Command, deps: CommandDeps): void {
     .action(async (name: string, message: string | undefined, opts: { session?: string }) => {
       if (!message) {
         deps.formatter.error("Message is required");
+        process.exitCode = 1;
         return;
       }
-      const stream = await casaChat(deps.processManager, name as CasaName, {
+      const validated = casaName(name);
+      const stream = await casaChat(deps.processManager, validated, {
         message,
         sessionId: opts.session,
       });

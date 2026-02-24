@@ -64,6 +64,17 @@ describe("spawn command", () => {
     );
   });
 
+  it("rejects invalid port value", async () => {
+    const deps = makeDeps();
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "spawn", "test", "/ws", "--port", "abc"]);
+    expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("Port must be"));
+    expect(process.exitCode).toBe(1);
+    process.exitCode = undefined as unknown as number;
+  });
+
   it("spawns with auth option", async () => {
     const deps = makeDeps();
     const program = createProgram(deps);
@@ -172,6 +183,17 @@ describe("logs command", () => {
       process.stdout.write = origWrite;
     }
     expect(writes.join("")).toContain("log line");
+  });
+
+  it("rejects invalid tail value", async () => {
+    const deps = makeDeps();
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "logs", "test", "-n", "abc"]);
+    expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("Tail must be"));
+    expect(process.exitCode).toBe(1);
+    process.exitCode = undefined as unknown as number;
   });
 
   it("passes follow and tail options", async () => {

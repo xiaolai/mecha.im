@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { createServer, type Server } from "node:http";
 import Fastify, { type FastifyInstance } from "fastify";
 import Database from "better-sqlite3";
 import { runMigrations } from "@mecha/runtime";
@@ -28,12 +29,13 @@ describe("session service", () => {
   let tempDir: string;
   let port: number;
   let pm: ProcessManager;
+  let sm: ReturnType<typeof createSessionManager>;
 
   beforeEach(async () => {
     tempDir = mkdtempSync(join(tmpdir(), "mecha-svc-sessions-"));
     db = new Database(":memory:");
     runMigrations(db);
-    const sm = createSessionManager(db, join(tempDir, "transcripts"));
+    sm = createSessionManager(db, join(tempDir, "transcripts"));
 
     app = Fastify();
     registerSessionRoutes(app, sm);
@@ -91,6 +93,16 @@ describe("session service", () => {
     expect(deleted).toBe(true);
   });
 
+  it("returns false when deleting nonexistent session", async () => {
+    const result = await casaSessionDelete(pm, CASA, "nonexistent");
+    expect(result).toBe(false);
+  });
+
+  it("returns false when renaming nonexistent session", async () => {
+    const result = await casaSessionRename(pm, CASA, "nonexistent", "New");
+    expect(result).toBe(false);
+  });
+
   it("renames a session", async () => {
     const created = (await casaSessionCreate(pm, CASA, { title: "Old" })) as { id: string };
     const renamed = await casaSessionRename(pm, CASA, created.id, "New");
@@ -106,10 +118,77 @@ describe("session service", () => {
     expect((result as { role: string }).role).toBe("user");
   });
 
-  it("interrupts a session", async () => {
-    // Interrupt returns false for non-busy session (409)
+  it("interrupts a non-busy session returns false (409)", async () => {
     const created = (await casaSessionCreate(pm, CASA)) as { id: string };
     const result = await casaSessionInterrupt(pm, CASA, created.id);
-    expect(result).toBe(false); // not busy, so interrupt returns 409
+    expect(result).toBe(false);
+  });
+
+  it("interrupts a busy session returns true (200)", async () => {
+    const created = (await casaSessionCreate(pm, CASA)) as { id: string };
+    // Make the session busy via chat, then interrupt
+    sm.setBusy(created.id, true);
+    const result = await casaSessionInterrupt(pm, CASA, created.id);
+    expect(result).toBe(true);
+  });
+});
+
+describe("session service error paths", () => {
+  let errServer: Server;
+  let errPort: number;
+  let pm: ProcessManager;
+
+  beforeEach(async () => {
+    // Simple HTTP server that always returns 500
+    errServer = createServer((_, res) => {
+      res.writeHead(500, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: "internal" }));
+    });
+    await new Promise<void>((resolve) => errServer.listen(0, "127.0.0.1", resolve));
+    const addr = errServer.address();
+    errPort = typeof addr === "object" && addr ? addr.port : 0;
+
+    pm = {
+      spawn: vi.fn(),
+      get: vi.fn().mockReturnValue({ name: CASA, state: "running" }),
+      list: vi.fn().mockReturnValue([]),
+      stop: vi.fn(),
+      kill: vi.fn(),
+      logs: vi.fn(),
+      getPortAndToken: vi.fn().mockReturnValue({ port: errPort, token: TOKEN }),
+      onEvent: vi.fn().mockReturnValue(() => {}),
+    } as ProcessManager;
+  });
+
+  afterEach(async () => {
+    await new Promise<void>((resolve) => errServer.close(() => resolve()));
+  });
+
+  it("throws on unexpected list status", async () => {
+    await expect(casaSessionList(pm, CASA)).rejects.toThrow("Failed to list sessions: 500");
+  });
+
+  it("throws on unexpected get status", async () => {
+    await expect(casaSessionGet(pm, CASA, "x")).rejects.toThrow("Failed to get session: 500");
+  });
+
+  it("throws on unexpected create status", async () => {
+    await expect(casaSessionCreate(pm, CASA)).rejects.toThrow("Failed to create session: 500");
+  });
+
+  it("throws on unexpected delete status", async () => {
+    await expect(casaSessionDelete(pm, CASA, "x")).rejects.toThrow("Failed to delete session: 500");
+  });
+
+  it("throws on unexpected rename status", async () => {
+    await expect(casaSessionRename(pm, CASA, "x", "t")).rejects.toThrow("Failed to rename session: 500");
+  });
+
+  it("throws on unexpected message status", async () => {
+    await expect(casaSessionMessage(pm, CASA, "x", { role: "user", content: "hi" })).rejects.toThrow("Failed to send message: 500");
+  });
+
+  it("throws on unexpected interrupt status", async () => {
+    await expect(casaSessionInterrupt(pm, CASA, "x")).rejects.toThrow("Failed to interrupt session: 500");
   });
 });

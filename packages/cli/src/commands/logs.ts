@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
-import type { CasaName } from "@mecha/core";
+import { casaName } from "@mecha/core";
 import { casaLogs } from "@mecha/service";
 
 export function registerLogsCommand(program: Command, deps: CommandDeps): void {
@@ -11,15 +11,25 @@ export function registerLogsCommand(program: Command, deps: CommandDeps): void {
     .option("-f, --follow", "Follow log output")
     .option("-n, --tail <lines>", "Number of lines to show")
     .action(async (name: string, opts: { follow?: boolean; tail?: string }) => {
-      const stream = casaLogs(deps.processManager, name as CasaName, {
+      const validated = casaName(name);
+      const tail = opts.tail ? Number(opts.tail) : undefined;
+      if (opts.tail && (!Number.isInteger(tail) || tail! < 1)) {
+        deps.formatter.error("Tail must be a positive integer");
+        process.exitCode = 1;
+        return;
+      }
+      const stream = casaLogs(deps.processManager, validated, {
         follow: opts.follow,
-        tail: opts.tail ? Number(opts.tail) : undefined,
+        tail,
       });
-      stream.on("data", (chunk: Buffer) => {
-        process.stdout.write(chunk);
-      });
-      await new Promise<void>((resolve) => {
-        stream.on("end", resolve);
+      await new Promise<void>((resolve, reject) => {
+        stream.on("data", (chunk: Buffer | string) => {
+          process.stdout.write(chunk);
+        });
+        stream.on("end", () => resolve());
+        /* v8 ignore start -- stream error only on I/O failure */
+        stream.on("error", (err) => reject(err));
+        /* v8 ignore stop */
       });
     });
 }

@@ -17,6 +17,7 @@ export function registerDoctorCommand(program: Command, deps: CommandDeps): void
         deps.formatter.success("System is healthy");
       } else {
         deps.formatter.error("System has issues");
+        process.exitCode = 1;
       }
     });
 }

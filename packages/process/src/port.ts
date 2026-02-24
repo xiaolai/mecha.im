@@ -9,14 +9,22 @@ import { PortConflictError } from "@mecha/contracts";
 export function checkPort(port: number): Promise<boolean> {
   return new Promise((resolve) => {
     const socket = createConnection({ port, host: "127.0.0.1" });
+    socket.setTimeout(2000);
     socket.once("connect", () => {
       socket.destroy();
       resolve(false); // port is in use
     });
-    socket.once("error", () => {
+    socket.once("error", (err: NodeJS.ErrnoException) => {
       socket.destroy();
-      resolve(true); // port is free
+      // Only ECONNREFUSED reliably means "port is free"
+      resolve(err.code === "ECONNREFUSED");
     });
+    /* v8 ignore start -- timeout only fires on real network delay */
+    socket.once("timeout", () => {
+      socket.destroy();
+      resolve(false); // timeout — treat as in use / unreachable
+    });
+    /* v8 ignore stop */
   });
 }
 

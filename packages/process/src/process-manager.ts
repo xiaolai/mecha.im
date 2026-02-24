@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync, symlinkSync, createReadStream, existsSync } f
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 import { Readable } from "node:stream";
-import type { CasaName } from "@mecha/core";
+import { type CasaName, isValidName } from "@mecha/core";
 import {
   CasaAlreadyExistsError,
   CasaNotFoundError,
@@ -67,6 +67,8 @@ export interface CreateProcessManagerOpts {
   mechaDir: string;
   healthTimeoutMs?: number;
   spawnFn?: typeof cpSpawn;
+  /** Path to the @mecha/runtime entrypoint. Required for real spawning. */
+  runtimeEntrypoint?: string;
 }
 
 export function createProcessManager(opts: CreateProcessManagerOpts): ProcessManager {
@@ -102,6 +104,10 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
   }
 
   function _casaDir(name: string): string {
+    // Validate name to prevent path traversal
+    if (!isValidName(name)) {
+      throw new Error(`Invalid CASA name: "${name}"`);
+    }
     return join(mechaDir, "casas", name);
   }
 
@@ -193,9 +199,21 @@ cd "$MECHA_WORKSPACE" 2>/dev/null || true
     writeFileSync(join(hooksDir, "sandbox-guard.sh"), sandboxGuard, { mode: 0o755 });
     writeFileSync(join(hooksDir, "bash-guard.sh"), bashGuard, { mode: 0o755 });
 
-    // Build environment
+    // Build environment — user env goes in the middle, security vars last to prevent override
+    const userEnv = spawnOpts.env ?? {};
+    const reservedKeys = new Set([
+      "MECHA_CASA_NAME", "MECHA_PORT", "MECHA_WORKSPACE", "MECHA_DB_PATH",
+      "MECHA_AUTH_TOKEN", "MECHA_LOG_DIR", "MECHA_SANDBOX_ROOT", "HOME", "TMPDIR",
+    ]);
+    const safeUserEnv: Record<string, string> = {};
+    for (const [k, v] of Object.entries(userEnv)) {
+      if (!reservedKeys.has(k)) safeUserEnv[k] = v;
+    }
     const childEnv: Record<string, string> = {
-      ...process.env as Record<string, string>,
+      /* v8 ignore start -- PATH always set in normal environments */
+      PATH: process.env.PATH ?? "",
+      /* v8 ignore stop */
+      ...safeUserEnv,
       HOME: homeDir,
       TMPDIR: tmpDir,
       MECHA_CASA_NAME: name,
@@ -205,12 +223,18 @@ cd "$MECHA_WORKSPACE" 2>/dev/null || true
       MECHA_AUTH_TOKEN: token,
       MECHA_LOG_DIR: logsDir,
       MECHA_SANDBOX_ROOT: casaDir,
-      ...(spawnOpts.env ?? {}),
     };
 
     // Determine runtime binary path
     const runtimeBin = spawnOpts.runtimeBin ?? process.execPath;
-    const runtimeArgs = spawnOpts.runtimeBin ? [] : ["--version"]; // placeholder
+    let runtimeArgs: string[];
+    if (spawnOpts.runtimeBin) {
+      runtimeArgs = [];
+    } else if (opts.runtimeEntrypoint) {
+      runtimeArgs = [opts.runtimeEntrypoint];
+    } else {
+      throw new ProcessSpawnError("No runtimeEntrypoint configured and no runtimeBin provided");
+    }
 
     // Spawn child process
     let child: ChildProcess;
@@ -267,8 +291,22 @@ cd "$MECHA_WORKSPACE" 2>/dev/null || true
       emitter.emit({ type: "stopped", name, exitCode: code ?? undefined });
     });
 
-    // Wait for healthy
-    await waitForHealthy(port, token, healthTimeoutMs, name);
+    // Wait for healthy — clean up on failure
+    try {
+      await waitForHealthy(port, token, healthTimeoutMs, name);
+    } catch (err) {
+      live.delete(name);
+      child.kill("SIGKILL");
+      const failState: CasaState = {
+        name, state: "error", pid: child.pid, port, workspacePath, startedAt,
+        stoppedAt: new Date().toISOString(),
+      };
+      writeState(casaDir, failState);
+      /* v8 ignore start -- waitForHealthy always throws Error */
+      emitter.emit({ type: "error", name, error: err instanceof Error ? err.message : String(err) });
+      /* v8 ignore stop */
+      throw err;
+    }
 
     // Write state
     const state: CasaState = {
@@ -373,8 +411,8 @@ cd "$MECHA_WORKSPACE" 2>/dev/null || true
     }
 
     lp.child.kill("SIGTERM");
-    await _waitForChildExit(lp.child, 5000);
-    if (!lp.child.killed) {
+    const exited = await _waitForChildExit(lp.child, 5000);
+    if (!exited) {
       lp.child.kill("SIGKILL");
     }
   }
@@ -431,12 +469,18 @@ cd "$MECHA_WORKSPACE" 2>/dev/null || true
   };
 }
 
-function _waitForChildExit(child: ChildProcess, timeoutMs: number): Promise<void> {
+function _waitForChildExit(child: ChildProcess, timeoutMs: number): Promise<boolean> {
   return new Promise((resolve) => {
-    const timer = setTimeout(resolve, timeoutMs);
+    /* v8 ignore start -- exit code already set when child exits synchronously */
+    if (child.exitCode !== null && child.exitCode !== undefined) {
+      resolve(true);
+      return;
+    }
+    /* v8 ignore stop */
+    const timer = setTimeout(() => resolve(false), timeoutMs);
     child.once("exit", () => {
       clearTimeout(timer);
-      resolve();
+      resolve(true);
     });
   });
 }

@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
-import type { CasaName } from "@mecha/core";
+import { casaName } from "@mecha/core";
 import {
   casaSessionList,
   casaSessionGet,
@@ -21,7 +21,7 @@ export function registerSessionsCommand(program: Command, deps: CommandDeps): vo
     .description("List sessions")
     .argument("<name>", "CASA name")
     .action(async (name: string) => {
-      const list = await casaSessionList(deps.processManager, name as CasaName);
+      const list = await casaSessionList(deps.processManager, casaName(name));
       deps.formatter.json(list);
     });
 
@@ -31,9 +31,10 @@ export function registerSessionsCommand(program: Command, deps: CommandDeps): vo
     .argument("<name>", "CASA name")
     .argument("<session-id>", "Session ID")
     .action(async (name: string, sessionId: string) => {
-      const session = await casaSessionGet(deps.processManager, name as CasaName, sessionId);
+      const session = await casaSessionGet(deps.processManager, casaName(name), sessionId);
       if (!session) {
         deps.formatter.error("Session not found");
+        process.exitCode = 1;
         return;
       }
       deps.formatter.json(session);
@@ -45,7 +46,7 @@ export function registerSessionsCommand(program: Command, deps: CommandDeps): vo
     .argument("<name>", "CASA name")
     .option("-t, --title <title>", "Session title")
     .action(async (name: string, opts: { title?: string }) => {
-      const session = await casaSessionCreate(deps.processManager, name as CasaName, {
+      const session = await casaSessionCreate(deps.processManager, casaName(name), {
         title: opts.title,
       });
       deps.formatter.json(session);
@@ -57,11 +58,12 @@ export function registerSessionsCommand(program: Command, deps: CommandDeps): vo
     .argument("<name>", "CASA name")
     .argument("<session-id>", "Session ID")
     .action(async (name: string, sessionId: string) => {
-      const deleted = await casaSessionDelete(deps.processManager, name as CasaName, sessionId);
+      const deleted = await casaSessionDelete(deps.processManager, casaName(name), sessionId);
       if (deleted) {
         deps.formatter.success("Session deleted");
       } else {
         deps.formatter.error("Session not found");
+        process.exitCode = 1;
       }
     });
 
@@ -74,7 +76,7 @@ export function registerSessionsCommand(program: Command, deps: CommandDeps): vo
     .action(async (name: string, sessionId: string, content: string) => {
       const msg = await casaSessionMessage(
         deps.processManager,
-        name as CasaName,
+        casaName(name),
         sessionId,
         { role: "user", content },
       );
@@ -87,11 +89,12 @@ export function registerSessionsCommand(program: Command, deps: CommandDeps): vo
     .argument("<name>", "CASA name")
     .argument("<session-id>", "Session ID")
     .action(async (name: string, sessionId: string) => {
-      const ok = await casaSessionInterrupt(deps.processManager, name as CasaName, sessionId);
+      const ok = await casaSessionInterrupt(deps.processManager, casaName(name), sessionId);
       if (ok) {
         deps.formatter.success("Session interrupted");
       } else {
         deps.formatter.error("Session is not busy");
+        process.exitCode = 1;
       }
     });
 
@@ -102,11 +105,12 @@ export function registerSessionsCommand(program: Command, deps: CommandDeps): vo
     .argument("<session-id>", "Session ID")
     .argument("<title>", "New title")
     .action(async (name: string, sessionId: string, title: string) => {
-      const ok = await casaSessionRename(deps.processManager, name as CasaName, sessionId, title);
+      const ok = await casaSessionRename(deps.processManager, casaName(name), sessionId, title);
       if (ok) {
         deps.formatter.success("Session renamed");
       } else {
         deps.formatter.error("Session not found");
+        process.exitCode = 1;
       }
     });
 }

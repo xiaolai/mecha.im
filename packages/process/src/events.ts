@@ -24,7 +24,11 @@ export class ProcessEventEmitter {
 
   emit(event: ProcessEvent): void {
     for (const handler of this.handlers) {
-      handler(event);
+      try {
+        handler(event);
+      } catch {
+        // Isolate handler failures so one bad handler doesn't break others
+      }
     }
   }
 

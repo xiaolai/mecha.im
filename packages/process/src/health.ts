@@ -16,9 +16,11 @@ export async function waitForHealthy(
 
   while (Date.now() - start < timeoutMs) {
     try {
+      const remaining = timeoutMs - (Date.now() - start);
+      const attemptTimeout = Math.min(2000, Math.max(remaining, 500));
       const res = await fetch(`http://127.0.0.1:${port}/healthz`, {
         headers: { Authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(2000),
+        signal: AbortSignal.timeout(attemptTimeout),
       });
       if (res.ok) return;
     } catch {

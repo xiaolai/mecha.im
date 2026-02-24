@@ -36,8 +36,9 @@ export async function runtimeFetch(
 
   const url = `http://127.0.0.1:${info.port}${path}`;
   const headers: Record<string, string> = {
-    authorization: `Bearer ${info.token}`,
     ...opts.headers,
+    // Auth header applied last to prevent caller override
+    authorization: `Bearer ${info.token}`,
   };
 
   if (opts.body !== undefined) {

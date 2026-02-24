@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { readState, writeState, listCasaDirs } from "../src/state-store.js";
@@ -18,6 +18,12 @@ describe("state-store", () => {
 
   describe("readState", () => {
     it("returns undefined for missing state.json", () => {
+      const result = readState(tempDir);
+      expect(result).toBeUndefined();
+    });
+
+    it("returns undefined for corrupted state.json", () => {
+      writeFileSync(join(tempDir, "state.json"), "not-valid-json{{{");
       const result = readState(tempDir);
       expect(result).toBeUndefined();
     });
