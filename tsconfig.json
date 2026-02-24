@@ -9,7 +9,10 @@
   "references": [
     { "path": "packages/core" },
     { "path": "packages/contracts" },
-    { "path": "packages/cli" }
+    { "path": "packages/cli" },
+    { "path": "packages/process" },
+    { "path": "packages/runtime" },
+    { "path": "packages/service" }
   ],
   "include": [],
   "exclude": ["node_modules", "dist", "coverage"]
