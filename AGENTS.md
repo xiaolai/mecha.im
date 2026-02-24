@@ -87,7 +87,6 @@ alice/                              ← CASA root (casaDir)
 │               ├── <session-id>.meta.json   ← session metadata
 │               ├── <session-id>.jsonl       ← SDK transcript
 │               └── <session-id>/            ← subagent data (future)
-├── workspace -> /real/path         ← symlink to workspace
 ├── tmp/                            ← TMPDIR
 ├── logs/                           ← stdout.log, stderr.log
 ├── config.json                     ← port, token, workspace
