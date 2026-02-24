@@ -11,3 +11,8 @@ export type {
   Session,
   CreateSessionOpts,
 } from "./session-manager.js";
+export { createAuthHook } from "./auth.js";
+export { registerHealthRoutes } from "./routes/health.js";
+export type { HealthRouteOpts } from "./routes/health.js";
+export { registerSessionRoutes } from "./routes/sessions.js";
+export { registerChatRoutes } from "./routes/chat.js";
