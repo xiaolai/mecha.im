@@ -26,10 +26,20 @@ describe("CasaSpawnInput", () => {
       model: "claude-sonnet-4-20250514",
       permissionMode: "full-auto",
       port: 7710,
+      auth: "personal",
     });
     expect(result.tags).toEqual(["dev", "gpu"]);
     expect(result.permissionMode).toBe("full-auto");
     expect(result.port).toBe(7710);
+    expect(result.auth).toBe("personal");
+  });
+
+  it("accepts input without auth (optional)", () => {
+    const result = CasaSpawnInput.parse({
+      name: "researcher",
+      workspacePath: "/tmp/workspace",
+    });
+    expect(result.auth).toBeUndefined();
   });
 
   it("rejects empty name", () => {

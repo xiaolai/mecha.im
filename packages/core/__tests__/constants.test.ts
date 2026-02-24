@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { MECHA_DIR, CASAS_DIR, IDENTITY_DIR, DEFAULTS } from "../src/constants.js";
+import {
+  MECHA_DIR,
+  CASAS_DIR,
+  TOOLS_DIR,
+  AUTH_DIR,
+  IDENTITY_DIR,
+  MANAGED_TOOLS,
+  DEFAULTS,
+} from "../src/constants.js";
 
 describe("constants", () => {
   it("MECHA_DIR is .mecha", () => {
@@ -10,8 +18,21 @@ describe("constants", () => {
     expect(CASAS_DIR).toBe("casas");
   });
 
+  it("TOOLS_DIR is tools", () => {
+    expect(TOOLS_DIR).toBe("tools");
+  });
+
+  it("AUTH_DIR is auth", () => {
+    expect(AUTH_DIR).toBe("auth");
+  });
+
   it("IDENTITY_DIR is identity", () => {
     expect(IDENTITY_DIR).toBe("identity");
+  });
+
+  it("MANAGED_TOOLS has expected entries", () => {
+    expect(MANAGED_TOOLS.claude).toBe("@anthropic-ai/claude-code");
+    expect(MANAGED_TOOLS.codex).toBe("@openai/codex");
   });
 
   it("DEFAULTS has expected port values", () => {

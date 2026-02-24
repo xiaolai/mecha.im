@@ -21,6 +21,7 @@ export const CasaSpawnInput = z.object({
   model: z.string().optional(),
   permissionMode: PermissionMode.optional(),
   port: z.number().int().min(1).max(65535).optional(),
+  auth: z.string().optional(),
 });
 export type CasaSpawnInput = z.infer<typeof CasaSpawnInput>;
 

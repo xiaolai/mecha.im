@@ -148,6 +148,38 @@ export class SessionBusyError extends MechaError {
   }
 }
 
+// --- Auth errors ---
+
+export class AuthProfileNotFoundError extends MechaError {
+  constructor(name: string) {
+    super(`Auth profile "${name}" not found`, {
+      code: "AUTH_PROFILE_NOT_FOUND",
+      statusCode: 404,
+      exitCode: 1,
+    });
+  }
+}
+
+export class AuthTokenExpiredError extends MechaError {
+  constructor(profile: string, date: string) {
+    super(`Auth token "${profile}" expired on ${date}`, {
+      code: "AUTH_TOKEN_EXPIRED",
+      statusCode: 401,
+      exitCode: 1,
+    });
+  }
+}
+
+export class AuthTokenInvalidError extends MechaError {
+  constructor(profile: string) {
+    super(`Auth token "${profile}" is invalid`, {
+      code: "AUTH_TOKEN_INVALID",
+      statusCode: 401,
+      exitCode: 1,
+    });
+  }
+}
+
 // --- Process errors ---
 
 export class ProcessSpawnError extends MechaError {

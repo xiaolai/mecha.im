@@ -9,6 +9,9 @@ import {
   CasaNotFoundError,
   ProcessSpawnError,
   AclDeniedError,
+  AuthProfileNotFoundError,
+  AuthTokenExpiredError,
+  AuthTokenInvalidError,
 } from "../src/errors.js";
 
 describe("toHttpStatus", () => {
@@ -16,6 +19,9 @@ describe("toHttpStatus", () => {
     expect(toHttpStatus(new CasaNotFoundError("x"))).toBe(404);
     expect(toHttpStatus(new ProcessSpawnError("fail"))).toBe(500);
     expect(toHttpStatus(new AclDeniedError("a", "b", "c"))).toBe(403);
+    expect(toHttpStatus(new AuthProfileNotFoundError("x"))).toBe(404);
+    expect(toHttpStatus(new AuthTokenExpiredError("x", "2025-01-01"))).toBe(401);
+    expect(toHttpStatus(new AuthTokenInvalidError("x"))).toBe(401);
   });
 
   it("returns 500 for plain Error", () => {
@@ -34,6 +40,9 @@ describe("toExitCode", () => {
     expect(toExitCode(new CasaNotFoundError("x"))).toBe(1);
     expect(toExitCode(new ProcessSpawnError("fail"))).toBe(2);
     expect(toExitCode(new AclDeniedError("a", "b", "c"))).toBe(3);
+    expect(toExitCode(new AuthProfileNotFoundError("x"))).toBe(1);
+    expect(toExitCode(new AuthTokenExpiredError("x", "2025-01-01"))).toBe(1);
+    expect(toExitCode(new AuthTokenInvalidError("x"))).toBe(1);
   });
 
   it("returns 1 for plain Error", () => {

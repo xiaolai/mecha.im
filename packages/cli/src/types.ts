@@ -11,7 +11,7 @@ export interface Formatter {
 /** Dependency injection container for CLI commands */
 export interface CommandDeps {
   formatter: Formatter;
-  // Phase 1 adds: processManager, service
+  // Phase 1 adds: processManager, authManager
   // Phase 3 adds: acl, identity
   // Phase 4 adds: getNodes
 }

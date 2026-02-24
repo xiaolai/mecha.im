@@ -18,6 +18,9 @@ import {
   NodeUnreachableError,
   NodeAuthFailedError,
   CasaNotLocatedError,
+  AuthProfileNotFoundError,
+  AuthTokenExpiredError,
+  AuthTokenInvalidError,
   AclDeniedError,
 } from "../src/errors.js";
 
@@ -142,6 +145,30 @@ describe("error classes", () => {
       expectedExit: 1,
       expectedCode: "SESSION_BUSY",
       messageContains: "abc-123",
+    },
+    {
+      name: "AuthProfileNotFoundError",
+      error: new AuthProfileNotFoundError("personal"),
+      expectedStatus: 404,
+      expectedExit: 1,
+      expectedCode: "AUTH_PROFILE_NOT_FOUND",
+      messageContains: "personal",
+    },
+    {
+      name: "AuthTokenExpiredError",
+      error: new AuthTokenExpiredError("personal", "2025-12-01"),
+      expectedStatus: 401,
+      expectedExit: 1,
+      expectedCode: "AUTH_TOKEN_EXPIRED",
+      messageContains: "expired on 2025-12-01",
+    },
+    {
+      name: "AuthTokenInvalidError",
+      error: new AuthTokenInvalidError("personal"),
+      expectedStatus: 401,
+      expectedExit: 1,
+      expectedCode: "AUTH_TOKEN_INVALID",
+      messageContains: "invalid",
     },
     {
       name: "ProcessSpawnError",

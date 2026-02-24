@@ -4,8 +4,20 @@ export const MECHA_DIR = ".mecha";
 /** Directory name for CASA workspaces: ~/.mecha/casas/ */
 export const CASAS_DIR = "casas";
 
+/** Directory name for managed tool installs: ~/.mecha/tools/ */
+export const TOOLS_DIR = "tools";
+
+/** Directory name for auth profiles and credentials: ~/.mecha/auth/ */
+export const AUTH_DIR = "auth";
+
 /** Directory name for identity keys: ~/.mecha/identity/ (Phase 3) */
 export const IDENTITY_DIR = "identity";
+
+/** Tools that mecha manages in ~/.mecha/tools/ */
+export const MANAGED_TOOLS = {
+  claude: "@anthropic-ai/claude-code",
+  codex: "@openai/codex",
+} as const;
 
 /** Default port assignments */
 export const DEFAULTS = {
