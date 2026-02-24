@@ -4,11 +4,12 @@
   "private": true,
   "description": "Local-first multi-agent runtime",
   "scripts": {
-    "build": "tsc -b packages/core packages/contracts packages/cli",
+    "build": "tsc -b packages/core packages/contracts packages/process packages/runtime packages/service packages/cli",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage --config vitest.config.ts",
     "typecheck": "tsc -b --noEmit",
-    "clean": "rm -rf packages/*/dist",
+    "clean": "rm -rf packages/*/dist packages/*/tsconfig.tsbuildinfo",
+    "lint": "eslint packages/*/src/",
     "docs:dev": "pnpm --filter @mecha/website dev",
     "docs:build": "pnpm --filter @mecha/website build"
   },
@@ -18,7 +19,10 @@
   "packageManager": "pnpm@10.26.1",
   "devDependencies": {
     "@types/node": "^25.3.0",
+    "@typescript-eslint/eslint-plugin": "^8.56.1",
+    "@typescript-eslint/parser": "^8.56.1",
     "@vitest/coverage-v8": "^4.0.18",
+    "eslint": "^10.0.2",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
   }

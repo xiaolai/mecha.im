@@ -1,0 +1,27 @@
+{
+  "name": "@mecha/runtime",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "dependencies": {
+    "@mecha/core": "workspace:*",
+    "@mecha/contracts": "workspace:*",
+    "fastify": "^5.3.3",
+    "better-sqlite3": "^11.10.0",
+    "zod": "^3.25.36"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13"
+  }
+}

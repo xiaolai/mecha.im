@@ -19,4 +19,22 @@ export default defineWorkspace([
       include: ["packages/cli/__tests__/**/*.test.ts"],
     },
   },
+  {
+    test: {
+      name: "process",
+      include: ["packages/process/__tests__/**/*.test.ts"],
+    },
+  },
+  {
+    test: {
+      name: "runtime",
+      include: ["packages/runtime/__tests__/**/*.test.ts"],
+    },
+  },
+  {
+    test: {
+      name: "service",
+      include: ["packages/service/__tests__/**/*.test.ts"],
+    },
+  },
 ]);

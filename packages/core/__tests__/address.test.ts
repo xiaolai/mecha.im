@@ -5,6 +5,7 @@ import {
   parseAddress,
   formatAddress,
 } from "../src/address.js";
+import { InvalidNameError } from "../src/errors.js";
 import type { CasaName, NodeName, CasaAddress } from "../src/types.js";
 
 describe("casaName", () => {
@@ -13,24 +14,27 @@ describe("casaName", () => {
     expect(name).toBe("researcher");
   });
 
-  it("rejects an empty string", () => {
-    expect(() => casaName("")).toThrow("Invalid CASA name");
+  it("rejects an empty string with InvalidNameError", () => {
+    expect(() => casaName("")).toThrow(InvalidNameError);
+    try { casaName(""); } catch (e: any) {
+      expect(e.code).toBe("INVALID_NAME");
+    }
   });
 
   it("rejects uppercase", () => {
-    expect(() => casaName("UPPER")).toThrow("Invalid CASA name");
+    expect(() => casaName("UPPER")).toThrow(InvalidNameError);
   });
 
   it("rejects leading hyphen", () => {
-    expect(() => casaName("-leading")).toThrow("Invalid CASA name");
+    expect(() => casaName("-leading")).toThrow(InvalidNameError);
   });
 
   it("rejects trailing hyphen", () => {
-    expect(() => casaName("trailing-")).toThrow("Invalid CASA name");
+    expect(() => casaName("trailing-")).toThrow(InvalidNameError);
   });
 
   it("rejects names longer than 32 chars", () => {
-    expect(() => casaName("a".repeat(33))).toThrow("Invalid CASA name");
+    expect(() => casaName("a".repeat(33))).toThrow(InvalidNameError);
   });
 });
 
@@ -40,8 +44,11 @@ describe("nodeName", () => {
     expect(name).toBe("alice");
   });
 
-  it("rejects invalid input", () => {
-    expect(() => nodeName("")).toThrow("Invalid node name");
+  it("rejects invalid input with InvalidNameError", () => {
+    expect(() => nodeName("")).toThrow(InvalidNameError);
+    try { nodeName(""); } catch (e: any) {
+      expect(e.code).toBe("INVALID_NAME");
+    }
   });
 });
 
@@ -65,7 +72,7 @@ describe("parseAddress", () => {
   });
 
   it("throws on uppercase", () => {
-    expect(() => parseAddress("UPPERCASE")).toThrow("Invalid CASA name");
+    expect(() => parseAddress("UPPERCASE")).toThrow(InvalidNameError);
   });
 
   it("throws on multiple @ signs", () => {
@@ -73,19 +80,19 @@ describe("parseAddress", () => {
   });
 
   it("throws when casa name is too long", () => {
-    expect(() => parseAddress("a".repeat(33) + "@b")).toThrow("Invalid CASA name");
+    expect(() => parseAddress("a".repeat(33) + "@b")).toThrow(InvalidNameError);
   });
 
   it("throws when node name is too long", () => {
-    expect(() => parseAddress("a@" + "b".repeat(33))).toThrow("Invalid node name");
+    expect(() => parseAddress("a@" + "b".repeat(33))).toThrow(InvalidNameError);
   });
 
   it("throws on invalid characters in casa part", () => {
-    expect(() => parseAddress("has.dot@node")).toThrow("Invalid CASA name");
+    expect(() => parseAddress("has.dot@node")).toThrow(InvalidNameError);
   });
 
   it("throws on invalid characters in node part", () => {
-    expect(() => parseAddress("casa@has.dot")).toThrow("Invalid node name");
+    expect(() => parseAddress("casa@has.dot")).toThrow(InvalidNameError);
   });
 });
 

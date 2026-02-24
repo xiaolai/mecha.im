@@ -20,6 +20,8 @@
   "dependencies": {
     "@mecha/core": "workspace:*",
     "@mecha/contracts": "workspace:*",
+    "@mecha/service": "workspace:*",
+    "@mecha/process": "workspace:*",
     "commander": "^14.0.0"
   }
 }
