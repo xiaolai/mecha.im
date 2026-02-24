@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { NAME_PATTERN, NAME_MAX_LENGTH } from "@mecha/core";
+import { NAME_PATTERN, NAME_MAX_LENGTH } from "./validation.js";
 
 /** Reusable name schema matching CASA/node naming rules */
 const nameSchema = z

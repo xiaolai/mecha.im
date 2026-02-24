@@ -14,7 +14,7 @@ import {
   mechaAuthGet,
   mechaAuthGetDefault,
 } from "../src/auth.js";
-import { AuthProfileNotFoundError } from "@mecha/contracts";
+import { AuthProfileNotFoundError } from "@mecha/core";
 
 describe("auth service", () => {
   let tempDir: string;

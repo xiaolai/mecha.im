@@ -1,7 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { createProgram } from "../../src/program.js";
-import type { CommandDeps } from "../../src/types.js";
-import type { ProcessManager } from "@mecha/process";
+import { makeDeps } from "../test-utils.js";
 
 // Mock @mecha/service session functions
 vi.mock("@mecha/service", async (importOriginal) => {
@@ -12,21 +11,6 @@ vi.mock("@mecha/service", async (importOriginal) => {
     casaSessionGet: vi.fn().mockResolvedValue({ id: "s1", title: "Test", events: [] }),
   };
 });
-
-function makeDeps(): CommandDeps {
-  return {
-    formatter: {
-      success: vi.fn(),
-      error: vi.fn(),
-      warn: vi.fn(),
-      info: vi.fn(),
-      json: vi.fn(),
-      table: vi.fn(),
-    },
-    processManager: {} as ProcessManager,
-    mechaDir: "/tmp/mecha",
-  };
-}
 
 describe("sessions commands", () => {
   it("lists sessions", async () => {

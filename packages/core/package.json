@@ -13,5 +13,8 @@
   "scripts": {
     "build": "tsc -b",
     "typecheck": "tsc -b --noEmit"
+  },
+  "dependencies": {
+    "zod": "^3.25.36"
   }
 }

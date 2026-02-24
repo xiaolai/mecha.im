@@ -8,7 +8,6 @@
   },
   "references": [
     { "path": "packages/core" },
-    { "path": "packages/contracts" },
     { "path": "packages/cli" },
     { "path": "packages/process" },
     { "path": "packages/runtime" },

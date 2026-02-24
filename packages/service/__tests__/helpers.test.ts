@@ -2,8 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { runtimeFetch } from "../src/helpers.js";
-import { CasaNotFoundError, CasaNotRunningError } from "@mecha/contracts";
-import type { CasaName } from "@mecha/core";
+import { CasaNotFoundError, CasaNotRunningError, type CasaName } from "@mecha/core";
 import type { ProcessManager } from "@mecha/process";
 
 function createMockPM(overrides: Partial<ProcessManager> = {}): ProcessManager {

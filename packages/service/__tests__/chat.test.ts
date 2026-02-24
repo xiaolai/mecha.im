@@ -1,8 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import Fastify, { type FastifyInstance } from "fastify";
 import type { ProcessManager } from "@mecha/process";
-import type { CasaName } from "@mecha/core";
-import { CasaNotFoundError, CasaNotRunningError } from "@mecha/contracts";
+import { type CasaName, CasaNotFoundError, CasaNotRunningError } from "@mecha/core";
 import { casaChat } from "../src/chat.js";
 
 const CASA = "test" as CasaName;

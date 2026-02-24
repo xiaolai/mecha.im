@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { Readable } from "node:stream";
 import { createProgram } from "../../src/program.js";
-import type { CommandDeps } from "../../src/types.js";
+import { makeDeps } from "../test-utils.js";
 import type { ProcessManager, ProcessInfo } from "@mecha/process";
 import type { CasaName } from "@mecha/core";
 
@@ -15,34 +15,21 @@ const RUNNING_INFO: ProcessInfo = {
   startedAt: "2026-01-01T00:00:00Z",
 };
 
-function makeDeps(pmOverrides: Partial<ProcessManager> = {}): CommandDeps {
+function defaultPm(): Partial<ProcessManager> {
   return {
-    formatter: {
-      success: vi.fn(),
-      error: vi.fn(),
-      warn: vi.fn(),
-      info: vi.fn(),
-      json: vi.fn(),
-      table: vi.fn(),
-    },
-    processManager: {
-      spawn: vi.fn().mockResolvedValue(RUNNING_INFO),
-      get: vi.fn().mockReturnValue(RUNNING_INFO),
-      list: vi.fn().mockReturnValue([RUNNING_INFO]),
-      stop: vi.fn().mockResolvedValue(undefined),
-      kill: vi.fn().mockResolvedValue(undefined),
-      logs: vi.fn().mockReturnValue(new Readable({ read() { this.push(null); } })),
-      getPortAndToken: vi.fn().mockReturnValue({ port: 7700, token: "tok" }),
-      onEvent: vi.fn().mockReturnValue(() => {}),
-      ...pmOverrides,
-    } as ProcessManager,
-    mechaDir: "/tmp/mecha",
+    spawn: vi.fn().mockResolvedValue(RUNNING_INFO),
+    get: vi.fn().mockReturnValue(RUNNING_INFO),
+    list: vi.fn().mockReturnValue([RUNNING_INFO]),
+    stop: vi.fn().mockResolvedValue(undefined),
+    kill: vi.fn().mockResolvedValue(undefined),
+    logs: vi.fn().mockReturnValue(new Readable({ read() { this.push(null); } })),
+    getPortAndToken: vi.fn().mockReturnValue({ port: 7700, token: "tok" }),
   };
 }
 
 describe("spawn command", () => {
   it("spawns a CASA", async () => {
-    const deps = makeDeps();
+    const deps = makeDeps({ pm: defaultPm() });
     const program = createProgram(deps);
     program.exitOverride();
 
@@ -54,7 +41,7 @@ describe("spawn command", () => {
   });
 
   it("spawns with port option", async () => {
-    const deps = makeDeps();
+    const deps = makeDeps({ pm: defaultPm() });
     const program = createProgram(deps);
     program.exitOverride();
 
@@ -65,7 +52,7 @@ describe("spawn command", () => {
   });
 
   it("rejects invalid port value", async () => {
-    const deps = makeDeps();
+    const deps = makeDeps({ pm: defaultPm() });
     const program = createProgram(deps);
     program.exitOverride();
 
@@ -76,7 +63,7 @@ describe("spawn command", () => {
   });
 
   it("spawns with auth option", async () => {
-    const deps = makeDeps();
+    const deps = makeDeps({ pm: defaultPm() });
     const program = createProgram(deps);
     program.exitOverride();
 
@@ -89,7 +76,7 @@ describe("spawn command", () => {
 
 describe("kill command", () => {
   it("kills a CASA", async () => {
-    const deps = makeDeps();
+    const deps = makeDeps({ pm: defaultPm() });
     const program = createProgram(deps);
     program.exitOverride();
 
@@ -101,7 +88,7 @@ describe("kill command", () => {
 
 describe("ls command", () => {
   it("lists CASAs", async () => {
-    const deps = makeDeps();
+    const deps = makeDeps({ pm: defaultPm() });
     const program = createProgram(deps);
     program.exitOverride();
 
@@ -110,7 +97,7 @@ describe("ls command", () => {
   });
 
   it("shows message when no CASAs", async () => {
-    const deps = makeDeps({ list: vi.fn().mockReturnValue([]) });
+    const deps = makeDeps({ pm: { ...defaultPm(), list: vi.fn().mockReturnValue([]) } });
     const program = createProgram(deps);
     program.exitOverride();
 
@@ -120,9 +107,12 @@ describe("ls command", () => {
 
   it("shows dash for undefined port/pid", async () => {
     const deps = makeDeps({
-      list: vi.fn().mockReturnValue([
-        { name: "x", state: "stopped", port: undefined, pid: undefined },
-      ]),
+      pm: {
+        ...defaultPm(),
+        list: vi.fn().mockReturnValue([
+          { name: "x", state: "stopped", port: undefined, pid: undefined },
+        ]),
+      },
     });
     const program = createProgram(deps);
     program.exitOverride();
@@ -137,7 +127,7 @@ describe("ls command", () => {
 
 describe("status command", () => {
   it("shows CASA status without token", async () => {
-    const deps = makeDeps();
+    const deps = makeDeps({ pm: defaultPm() });
     const program = createProgram(deps);
     program.exitOverride();
 
@@ -151,7 +141,7 @@ describe("status command", () => {
 
 describe("logs command", () => {
   it("streams logs", async () => {
-    const deps = makeDeps();
+    const deps = makeDeps({ pm: defaultPm() });
     const program = createProgram(deps);
     program.exitOverride();
 
@@ -169,7 +159,7 @@ describe("logs command", () => {
         this.push(null);
       },
     });
-    const deps = makeDeps({ logs: vi.fn().mockReturnValue(logStream) });
+    const deps = makeDeps({ pm: { ...defaultPm(), logs: vi.fn().mockReturnValue(logStream) } });
     const program = createProgram(deps);
     program.exitOverride();
 
@@ -189,7 +179,7 @@ describe("logs command", () => {
   });
 
   it("rejects invalid tail value", async () => {
-    const deps = makeDeps();
+    const deps = makeDeps({ pm: defaultPm() });
     const program = createProgram(deps);
     program.exitOverride();
 
@@ -200,7 +190,7 @@ describe("logs command", () => {
   });
 
   it("passes follow and tail options", async () => {
-    const deps = makeDeps();
+    const deps = makeDeps({ pm: defaultPm() });
     const program = createProgram(deps);
     program.exitOverride();
 

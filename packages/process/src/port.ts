@@ -1,6 +1,6 @@
 import { createConnection } from "node:net";
 import { DEFAULTS } from "@mecha/core";
-import { PortConflictError } from "@mecha/contracts";
+import { PortConflictError } from "@mecha/core";
 
 /**
  * Check if a port is available by attempting a TCP connection.

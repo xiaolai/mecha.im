@@ -1,8 +1,6 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { casaName } from "@mecha/core";
-import { casaSpawn } from "@mecha/service";
-
 export function registerSpawnCommand(program: Command, deps: CommandDeps): void {
   program
     .command("spawn")
@@ -19,7 +17,7 @@ export function registerSpawnCommand(program: Command, deps: CommandDeps): void 
         process.exitCode = 1;
         return;
       }
-      const info = await casaSpawn(deps.processManager, {
+      const info = await deps.processManager.spawn({
         name: validated,
         workspacePath: path,
         port,

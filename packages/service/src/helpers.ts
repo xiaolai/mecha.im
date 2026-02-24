@@ -1,6 +1,21 @@
-import type { CasaName } from "@mecha/core";
+import { type CasaName, CasaNotFoundError, CasaNotRunningError } from "@mecha/core";
 import type { ProcessManager } from "@mecha/process";
-import { CasaNotFoundError, CasaNotRunningError } from "@mecha/contracts";
+
+/**
+ * Resolves a running CASA's port and auth token, or throws a typed error.
+ */
+export function resolveCasaEndpoint(
+  pm: ProcessManager,
+  name: CasaName,
+): { port: number; token: string } {
+  const info = pm.getPortAndToken(name);
+  if (!info) {
+    const processInfo = pm.get(name);
+    if (processInfo) throw new CasaNotRunningError(name);
+    throw new CasaNotFoundError(name);
+  }
+  return info;
+}
 
 export interface RuntimeFetchOpts {
   method?: string;
@@ -24,15 +39,7 @@ export async function runtimeFetch(
   path: string,
   opts: RuntimeFetchOpts = {},
 ): Promise<RuntimeFetchResult> {
-  const info = pm.getPortAndToken(name);
-  if (!info) {
-    // Check if CASA exists but is stopped, or doesn't exist at all
-    const processInfo = pm.get(name);
-    if (processInfo) {
-      throw new CasaNotRunningError(name);
-    }
-    throw new CasaNotFoundError(name);
-  }
+  const info = resolveCasaEndpoint(pm, name);
 
   const url = `http://127.0.0.1:${info.port}${path}`;
   const headers: Record<string, string> = {

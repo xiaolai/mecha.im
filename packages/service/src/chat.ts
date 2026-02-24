@@ -1,6 +1,6 @@
 import type { CasaName } from "@mecha/core";
 import type { ProcessManager } from "@mecha/process";
-import { CasaNotFoundError, CasaNotRunningError } from "@mecha/contracts";
+import { resolveCasaEndpoint } from "./helpers.js";
 
 export interface ChatOpts {
   message: string;
@@ -21,12 +21,7 @@ export async function casaChat(
   name: CasaName,
   opts: ChatOpts,
 ): Promise<AsyncIterable<ChatEvent>> {
-  const info = pm.getPortAndToken(name);
-  if (!info) {
-    const processInfo = pm.get(name);
-    if (processInfo) throw new CasaNotRunningError(name);
-    throw new CasaNotFoundError(name);
-  }
+  const info = resolveCasaEndpoint(pm, name);
 
   const url = `http://127.0.0.1:${info.port}/api/chat`;
   const response = await fetch(url, {

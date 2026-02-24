@@ -1,8 +1,6 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { casaName } from "@mecha/core";
-import { casaLogs } from "@mecha/service";
-
 export function registerLogsCommand(program: Command, deps: CommandDeps): void {
   program
     .command("logs")
@@ -18,7 +16,7 @@ export function registerLogsCommand(program: Command, deps: CommandDeps): void {
         process.exitCode = 1;
         return;
       }
-      const stream = casaLogs(deps.processManager, validated, {
+      const stream = deps.processManager.logs(validated, {
         follow: opts.follow,
         tail,
       });

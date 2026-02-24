@@ -1,16 +1,9 @@
 // @mecha/service — business logic layer
 // Phase 1: lifecycle, read-only sessions, init, doctor, tools, auth (chat via Agent SDK)
 
-export { runtimeFetch } from "./helpers.js";
+export { resolveCasaEndpoint, runtimeFetch } from "./helpers.js";
 export type { RuntimeFetchOpts, RuntimeFetchResult } from "./helpers.js";
-export {
-  casaSpawn,
-  casaLs,
-  casaStatus,
-  casaKill,
-  casaStop,
-  casaLogs,
-} from "./lifecycle.js";
+export { casaStatus } from "./lifecycle.js";
 export { casaChat } from "./chat.js";
 export type { ChatOpts, ChatEvent } from "./chat.js";
 export {

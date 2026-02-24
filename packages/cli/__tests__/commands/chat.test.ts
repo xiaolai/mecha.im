@@ -1,7 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { createProgram } from "../../src/program.js";
-import type { CommandDeps } from "../../src/types.js";
-import type { ProcessManager } from "@mecha/process";
+import { makeDeps } from "../test-utils.js";
 
 // Mock casaChat to return an async iterable
 vi.mock("@mecha/service", async (importOriginal) => {
@@ -17,21 +16,6 @@ vi.mock("@mecha/service", async (importOriginal) => {
     }),
   };
 });
-
-function makeDeps(): CommandDeps {
-  return {
-    formatter: {
-      success: vi.fn(),
-      error: vi.fn(),
-      warn: vi.fn(),
-      info: vi.fn(),
-      json: vi.fn(),
-      table: vi.fn(),
-    },
-    processManager: {} as ProcessManager,
-    mechaDir: "/tmp/mecha",
-  };
-}
 
 describe("chat command", () => {
   it("streams chat response", async () => {

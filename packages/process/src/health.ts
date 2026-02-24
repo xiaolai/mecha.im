@@ -1,4 +1,4 @@
-import { ProcessHealthTimeoutError } from "@mecha/contracts";
+import { ProcessHealthTimeoutError } from "@mecha/core";
 
 /**
  * Poll GET /healthz on a CASA runtime until it responds 200

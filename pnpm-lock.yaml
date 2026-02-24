@@ -32,9 +32,6 @@ importers:
 
   packages/cli:
     dependencies:
-      '@mecha/contracts':
-        specifier: workspace:*
-        version: link:../contracts
       '@mecha/core':
         specifier: workspace:*
         version: link:../core
@@ -48,31 +45,20 @@ importers:
         specifier: ^14.0.0
         version: 14.0.3
 
-  packages/contracts:
+  packages/core:
     dependencies:
-      '@mecha/core':
-        specifier: workspace:*
-        version: link:../core
       zod:
         specifier: ^3.25.36
         version: 3.25.76
 
-  packages/core: {}
-
   packages/process:
     dependencies:
-      '@mecha/contracts':
-        specifier: workspace:*
-        version: link:../contracts
       '@mecha/core':
         specifier: workspace:*
         version: link:../core
 
   packages/runtime:
     dependencies:
-      '@mecha/contracts':
-        specifier: workspace:*
-        version: link:../contracts
       '@mecha/core':
         specifier: workspace:*
         version: link:../core
@@ -85,9 +71,6 @@ importers:
 
   packages/service:
     dependencies:
-      '@mecha/contracts':
-        specifier: workspace:*
-        version: link:../contracts
       '@mecha/core':
         specifier: workspace:*
         version: link:../core

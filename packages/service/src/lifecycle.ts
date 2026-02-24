@@ -1,18 +1,5 @@
-import type { CasaName } from "@mecha/core";
-import type { ProcessManager, ProcessInfo, SpawnOpts, LogOpts } from "@mecha/process";
-import { CasaNotFoundError } from "@mecha/contracts";
-import type { Readable } from "node:stream";
-
-export async function casaSpawn(
-  pm: ProcessManager,
-  opts: SpawnOpts,
-): Promise<ProcessInfo> {
-  return pm.spawn(opts);
-}
-
-export function casaLs(pm: ProcessManager): ProcessInfo[] {
-  return pm.list();
-}
+import { type CasaName, CasaNotFoundError } from "@mecha/core";
+import type { ProcessManager, ProcessInfo } from "@mecha/process";
 
 export function casaStatus(
   pm: ProcessManager,
@@ -23,26 +10,4 @@ export function casaStatus(
     throw new CasaNotFoundError(name);
   }
   return info;
-}
-
-export async function casaKill(
-  pm: ProcessManager,
-  name: CasaName,
-): Promise<void> {
-  return pm.kill(name);
-}
-
-export async function casaStop(
-  pm: ProcessManager,
-  name: CasaName,
-): Promise<void> {
-  return pm.stop(name);
-}
-
-export function casaLogs(
-  pm: ProcessManager,
-  name: CasaName,
-  opts?: LogOpts,
-): Readable {
-  return pm.logs(name, opts);
 }

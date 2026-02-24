@@ -3,23 +3,7 @@ import { mkdtempSync, rmSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createProgram } from "../../src/program.js";
-import type { CommandDeps } from "../../src/types.js";
-import type { ProcessManager } from "@mecha/process";
-
-function makeDeps(mechaDir: string): CommandDeps {
-  return {
-    formatter: {
-      success: vi.fn(),
-      error: vi.fn(),
-      warn: vi.fn(),
-      info: vi.fn(),
-      json: vi.fn(),
-      table: vi.fn(),
-    },
-    processManager: {} as ProcessManager,
-    mechaDir,
-  };
-}
+import { makeDeps } from "../test-utils.js";
 
 describe("auth commands", () => {
   let tempDir: string;
@@ -32,7 +16,7 @@ describe("auth commands", () => {
     tempDir = mkdtempSync(join(tmpdir(), "mecha-cli-auth-"));
     const mechaDir = tempDir;
     mkdirSync(join(mechaDir, "auth"), { recursive: true });
-    const deps = makeDeps(mechaDir);
+    const deps = makeDeps({ mechaDir });
     return { mechaDir, deps };
   }
 

@@ -6,7 +6,6 @@
   },
   "include": ["src"],
   "references": [
-    { "path": "../core" },
-    { "path": "../contracts" }
+    { "path": "../core" }
   ]
 }

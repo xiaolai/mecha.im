@@ -3,13 +3,15 @@ import { createReadStream, existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { randomBytes } from "node:crypto";
 import { Readable } from "node:stream";
-import { type CasaName, isValidName, InvalidNameError } from "@mecha/core";
 import {
+  type CasaName,
+  isValidName,
+  InvalidNameError,
   CasaAlreadyExistsError,
   CasaNotFoundError,
   CasaNotRunningError,
   ProcessSpawnError,
-} from "@mecha/contracts";
+} from "@mecha/core";
 import { allocatePort } from "./port.js";
 import { waitForHealthy } from "./health.js";
 import { readState, writeState, listCasaDirs } from "./state-store.js";

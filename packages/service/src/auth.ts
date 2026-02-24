@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, writeFileSync, readFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
-import { AuthProfileNotFoundError } from "@mecha/contracts";
+import { AuthProfileNotFoundError } from "@mecha/core";
 
 export interface AuthProfile {
   name: string;

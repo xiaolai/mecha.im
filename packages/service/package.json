@@ -16,7 +16,6 @@
   },
   "dependencies": {
     "@mecha/core": "workspace:*",
-    "@mecha/contracts": "workspace:*",
     "@mecha/process": "workspace:*"
   },
   "devDependencies": {

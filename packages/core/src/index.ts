@@ -16,4 +16,40 @@ export {
   MANAGED_TOOLS,
   DEFAULTS,
 } from "./constants.js";
-export { MechaError, InvalidNameError } from "./errors.js";
+export {
+  MechaError,
+  InvalidNameError,
+  InvalidAddressError,
+  CasaNotFoundError,
+  CasaAlreadyExistsError,
+  CasaNotRunningError,
+  CasaAlreadyRunningError,
+  PathNotFoundError,
+  PathNotDirectoryError,
+  PortConflictError,
+  InvalidPortError,
+  SessionNotFoundError,
+  SessionBusyError,
+  AuthProfileNotFoundError,
+  AuthTokenExpiredError,
+  AuthTokenInvalidError,
+  ProcessSpawnError,
+  ProcessHealthTimeoutError,
+  NodeUnreachableError,
+  NodeAuthFailedError,
+  CasaNotLocatedError,
+  AclDeniedError,
+} from "./errors.js";
+export {
+  CasaSpawnInput,
+  CasaKillInput,
+  SessionCreateInput,
+  SessionMessageInput,
+  PermissionMode,
+} from "./schemas.js";
+export {
+  toHttpStatus,
+  toExitCode,
+  toUserMessage,
+  toSafeMessage,
+} from "./mapping.js";
