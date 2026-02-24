@@ -1,0 +1,116 @@
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { readState, writeState, listCasaDirs } from "../src/state-store.js";
+import type { CasaState } from "../src/state-store.js";
+
+describe("state-store", () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(join(tmpdir(), "mecha-state-test-"));
+  });
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  describe("readState", () => {
+    it("returns undefined for missing state.json", () => {
+      const result = readState(tempDir);
+      expect(result).toBeUndefined();
+    });
+
+    it("reads valid state.json", () => {
+      const state: CasaState = {
+        name: "researcher",
+        state: "running",
+        pid: 12345,
+        port: 7701,
+        workspacePath: "/home/user/projects",
+        startedAt: "2026-02-24T10:00:00Z",
+      };
+      writeState(tempDir, state);
+      const result = readState(tempDir);
+      expect(result).toEqual(state);
+    });
+  });
+
+  describe("writeState", () => {
+    it("creates directory if needed", () => {
+      const nested = join(tempDir, "deep", "nested");
+      const state: CasaState = {
+        name: "test",
+        state: "stopped",
+        workspacePath: "/tmp",
+      };
+      writeState(nested, state);
+      const result = readState(nested);
+      expect(result).toEqual(state);
+    });
+
+    it("round-trips all fields including optional ones", () => {
+      const state: CasaState = {
+        name: "coder",
+        state: "stopped",
+        pid: 99999,
+        port: 7702,
+        workspacePath: "/home/user/app",
+        startedAt: "2026-01-01T00:00:00Z",
+        stoppedAt: "2026-01-01T01:00:00Z",
+        exitCode: 0,
+      };
+      writeState(tempDir, state);
+      expect(readState(tempDir)).toEqual(state);
+    });
+
+    it("overwrites existing state", () => {
+      const state1: CasaState = {
+        name: "test",
+        state: "running",
+        pid: 111,
+        workspacePath: "/tmp",
+      };
+      const state2: CasaState = {
+        name: "test",
+        state: "stopped",
+        exitCode: 1,
+        workspacePath: "/tmp",
+      };
+      writeState(tempDir, state1);
+      writeState(tempDir, state2);
+      expect(readState(tempDir)).toEqual(state2);
+    });
+  });
+
+  describe("listCasaDirs", () => {
+    it("returns empty array when casas/ does not exist", () => {
+      const result = listCasaDirs(tempDir);
+      expect(result).toEqual([]);
+    });
+
+    it("lists CASA directories", () => {
+      const casasDir = join(tempDir, "casas");
+      mkdirSync(join(casasDir, "alpha"), { recursive: true });
+      mkdirSync(join(casasDir, "beta"), { recursive: true });
+      const result = listCasaDirs(tempDir);
+      expect(result).toHaveLength(2);
+      expect(result.sort()).toEqual([
+        join(casasDir, "alpha"),
+        join(casasDir, "beta"),
+      ]);
+    });
+
+    it("ignores files in casas/", () => {
+      const casasDir = join(tempDir, "casas");
+      mkdirSync(casasDir, { recursive: true });
+      mkdirSync(join(casasDir, "real-casa"));
+      const { writeFileSync } = require("node:fs") as typeof import("node:fs");
+      writeFileSync(join(casasDir, "not-a-dir.txt"), "ignore me");
+      const result = listCasaDirs(tempDir);
+      expect(result).toHaveLength(1);
+      expect(result[0]).toContain("real-casa");
+    });
+  });
+});
