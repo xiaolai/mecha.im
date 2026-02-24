@@ -1,5 +1,5 @@
 import { spawn as cpSpawn, type ChildProcess } from "node:child_process";
-import { mkdirSync, writeFileSync, symlinkSync, createReadStream, existsSync, readFileSync } from "node:fs";
+import { createReadStream, existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { randomBytes } from "node:crypto";
 import { Readable } from "node:stream";
@@ -16,60 +16,18 @@ import { readState, writeState, listCasaDirs } from "./state-store.js";
 import type { CasaState } from "./state-store.js";
 import { ProcessEventEmitter } from "./events.js";
 import type { ProcessEvent } from "./events.js";
+import { isPidAlive, waitForChildExit, waitForPidExit } from "./process-lifecycle.js";
+import { prepareCasaFilesystem } from "./sandbox-setup.js";
+import type {
+  SpawnOpts,
+  ProcessInfo,
+  LogOpts,
+  ProcessManager,
+  LiveProcess,
+  CreateProcessManagerOpts,
+} from "./types.js";
 
-export interface SpawnOpts {
-  name: CasaName;
-  workspacePath: string;
-  port?: number;
-  env?: Record<string, string>;
-  model?: string;
-  permissionMode?: string;
-  auth?: string;
-  runtimeBin?: string;
-}
-
-export interface ProcessInfo {
-  name: CasaName;
-  state: "running" | "stopped" | "error";
-  pid?: number;
-  port?: number;
-  workspacePath: string;
-  token?: string;
-  startedAt?: string;
-  stoppedAt?: string;
-  exitCode?: number;
-}
-
-export interface LogOpts {
-  follow?: boolean;
-  tail?: number;
-}
-
-export interface ProcessManager {
-  spawn(opts: SpawnOpts): Promise<ProcessInfo>;
-  get(name: CasaName): ProcessInfo | undefined;
-  list(): ProcessInfo[];
-  stop(name: CasaName): Promise<void>;
-  kill(name: CasaName): Promise<void>;
-  logs(name: CasaName, opts?: LogOpts): Readable;
-  getPortAndToken(name: CasaName): { port: number; token: string } | undefined;
-  onEvent(handler: (event: ProcessEvent) => void): () => void;
-}
-
-interface LiveProcess {
-  child: ChildProcess;
-  port: number;
-  token: string;
-  name: CasaName;
-}
-
-export interface CreateProcessManagerOpts {
-  mechaDir: string;
-  healthTimeoutMs?: number;
-  spawnFn?: typeof cpSpawn;
-  /** Path to the @mecha/runtime entrypoint. Required for real spawning. */
-  runtimeEntrypoint?: string;
-}
+export type { SpawnOpts, ProcessInfo, LogOpts, ProcessManager, CreateProcessManagerOpts };
 
 export function createProcessManager(opts: CreateProcessManagerOpts): ProcessManager {
   const { mechaDir, healthTimeoutMs = 10_000 } = opts;
@@ -85,21 +43,12 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
       const state = readState(casaDir);
       if (!state) continue;
       if (state.state === "running" && state.pid) {
-        if (!_isPidAlive(state.pid)) {
+        if (!isPidAlive(state.pid)) {
           state.state = "stopped";
           state.stoppedAt = new Date().toISOString();
           writeState(casaDir, state);
         }
       }
-    }
-  }
-
-  function _isPidAlive(pid: number): boolean {
-    try {
-      process.kill(pid, 0);
-      return true;
-    } catch {
-      return false;
     }
   }
 
@@ -110,8 +59,6 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
     }
     return join(mechaDir, "casas", name);
   }
-
-  /** Verify a stale PID is actually our CASA by health-checking its expected port+token. */
 
   function _generateToken(): string {
     return "mecha_" + randomBytes(24).toString("hex");
@@ -128,7 +75,7 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
       throw new CasaAlreadyExistsError(name);
     }
     const existing = readState(casaDir);
-    if (existing && existing.state === "running" && existing.pid && _isPidAlive(existing.pid)) {
+    if (existing && existing.state === "running" && existing.pid && isPidAlive(existing.pid)) {
       throw new CasaAlreadyExistsError(name);
     }
 
@@ -138,100 +85,11 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
     const port = spawnOpts.port ?? await allocatePort(undefined, undefined, usedPorts);
     const token = _generateToken();
 
-    // Create directory structure
-    const homeDir = join(casaDir, "home");
-    const claudeDir = join(homeDir, ".claude");
-    const hooksDir = join(claudeDir, "hooks");
-    const workDir = join(casaDir, "workspace");
-    const tmpDir = join(casaDir, "tmp");
-    const sessionsDir = join(casaDir, "sessions", "transcripts");
-    const logsDir = join(casaDir, "logs");
-
-    mkdirSync(hooksDir, { recursive: true, mode: 0o700 });
-    mkdirSync(tmpDir, { recursive: true, mode: 0o700 });
-    mkdirSync(sessionsDir, { recursive: true, mode: 0o700 });
-    mkdirSync(logsDir, { recursive: true, mode: 0o700 });
-
-    // Create workspace symlink — remove existing if present, then create fresh
-    try { const { unlinkSync } = await import("node:fs"); unlinkSync(workDir); } catch { /* no existing symlink */ }
-    symlinkSync(workspacePath, workDir);
-
-    // Write config
-    const config = { port, token, workspace: workspacePath, model, permissionMode, auth };
-    writeFileSync(join(casaDir, "config.json"), JSON.stringify(config, null, 2) + "\n", { mode: 0o600 });
-
-    // Write sandbox hooks (settings.json)
-    const settings = {
-      hooks: {
-        PreToolUse: [
-          {
-            matcher: "Read|Write|Edit|Glob|Grep",
-            hooks: [{
-              type: "command",
-              command: "$HOME/.claude/hooks/sandbox-guard.sh",
-              timeout: 5,
-            }],
-          },
-          {
-            matcher: "Bash",
-            hooks: [{
-              type: "command",
-              command: "$HOME/.claude/hooks/bash-guard.sh",
-              timeout: 5,
-            }],
-          },
-        ],
-      },
-    };
-    writeFileSync(join(claudeDir, "settings.json"), JSON.stringify(settings, null, 2) + "\n");
-
-    // Write hook scripts
-    const sandboxGuard = `#!/bin/bash
-# Sandbox guard: block file access outside CASA root
-TARGET="$1"
-# Canonicalize target path, following symlinks
-RESOLVED=$(realpath -m "$TARGET" 2>/dev/null || (cd "$(dirname "$TARGET")" 2>/dev/null && pwd)/$(basename "$TARGET"))
-# Canonicalize allowed roots
-SANDBOX=$(realpath -m "$MECHA_SANDBOX_ROOT" 2>/dev/null || echo "$MECHA_SANDBOX_ROOT")
-WORKSPACE=$(realpath -m "$MECHA_WORKSPACE" 2>/dev/null || echo "$MECHA_WORKSPACE")
-case "$RESOLVED" in
-  "$SANDBOX"/*|"$SANDBOX") exit 0 ;;
-  "$WORKSPACE"/*|"$WORKSPACE") exit 0 ;;
-  *) echo "BLOCKED: $RESOLVED is outside sandbox" >&2; exit 2 ;;
-esac
-`;
-    const bashGuard = `#!/bin/bash
-# Bash guard: ensure commands run in workspace context
-cd "$MECHA_WORKSPACE" 2>/dev/null || true
-`;
-    writeFileSync(join(hooksDir, "sandbox-guard.sh"), sandboxGuard, { mode: 0o755 });
-    writeFileSync(join(hooksDir, "bash-guard.sh"), bashGuard, { mode: 0o755 });
-
-    // Build environment — user env goes in the middle, security vars last to prevent override
-    const userEnv = spawnOpts.env ?? {};
-    const reservedKeys = new Set([
-      "MECHA_CASA_NAME", "MECHA_PORT", "MECHA_WORKSPACE", "MECHA_DB_PATH",
-      "MECHA_AUTH_TOKEN", "MECHA_LOG_DIR", "MECHA_SANDBOX_ROOT", "HOME", "TMPDIR",
-    ]);
-    const safeUserEnv: Record<string, string> = {};
-    for (const [k, v] of Object.entries(userEnv)) {
-      if (!reservedKeys.has(k)) safeUserEnv[k] = v;
-    }
-    const childEnv: Record<string, string> = {
-      /* v8 ignore start -- PATH always set in normal environments */
-      PATH: process.env.PATH ?? "",
-      /* v8 ignore stop */
-      ...safeUserEnv,
-      HOME: homeDir,
-      TMPDIR: tmpDir,
-      MECHA_CASA_NAME: name,
-      MECHA_PORT: String(port),
-      MECHA_WORKSPACE: workspacePath,
-      MECHA_DB_PATH: join(casaDir, "sessions", "sessions.db"),
-      MECHA_AUTH_TOKEN: token,
-      MECHA_LOG_DIR: logsDir,
-      MECHA_SANDBOX_ROOT: casaDir,
-    };
+    // Prepare filesystem and environment
+    const { logsDir, childEnv } = prepareCasaFilesystem({
+      casaDir, workspacePath, port, token, name, model, permissionMode, auth,
+      userEnv: spawnOpts.env,
+    });
 
     // Determine runtime binary path
     const runtimeBin = spawnOpts.runtimeBin ?? process.execPath;
@@ -348,7 +206,7 @@ cd "$MECHA_WORKSPACE" 2>/dev/null || true
     const lp = live.get(name);
 
     // Verify liveness — skip if we have a live handle (PID may not match real OS process in tests)
-    if (!lp && state.state === "running" && state.pid && !_isPidAlive(state.pid)) {
+    if (!lp && state.state === "running" && state.pid && !isPidAlive(state.pid)) {
       state.state = "stopped";
       state.stoppedAt = new Date().toISOString();
       writeState(casaDir, state);
@@ -376,7 +234,7 @@ cd "$MECHA_WORKSPACE" 2>/dev/null || true
       const lp = live.get(state.name);
 
       // Check liveness — skip if we have a live handle
-      if (!lp && state.state === "running" && state.pid && !_isPidAlive(state.pid)) {
+      if (!lp && state.state === "running" && state.pid && !isPidAlive(state.pid)) {
         state.state = "stopped";
         state.stoppedAt = new Date().toISOString();
         writeState(casaDir, state);
@@ -404,10 +262,10 @@ cd "$MECHA_WORKSPACE" 2>/dev/null || true
       if (!state) throw new CasaNotFoundError(name);
       if (state.state !== "running") throw new CasaNotRunningError(name);
       // It claims running but we don't have a live handle — signal the PID directly
-      if (state.pid && _isPidAlive(state.pid)) {
+      if (state.pid && isPidAlive(state.pid)) {
         process.kill(state.pid, "SIGTERM");
-        await _waitForPidExit(state.pid, 5000);
-        if (_isPidAlive(state.pid)) {
+        await waitForPidExit(state.pid, 5000);
+        if (isPidAlive(state.pid)) {
           process.kill(state.pid, "SIGKILL");
         }
       }
@@ -419,7 +277,7 @@ cd "$MECHA_WORKSPACE" 2>/dev/null || true
     }
 
     lp.child.kill("SIGTERM");
-    const exited = await _waitForChildExit(lp.child, 5000);
+    const exited = await waitForChildExit(lp.child, 5000);
     if (!exited) {
       lp.child.kill("SIGKILL");
     }
@@ -430,7 +288,7 @@ cd "$MECHA_WORKSPACE" 2>/dev/null || true
     if (!lp) {
       const state = readState(_casaDir(name));
       if (!state) throw new CasaNotFoundError(name);
-      if (state.pid && _isPidAlive(state.pid)) {
+      if (state.pid && isPidAlive(state.pid)) {
         process.kill(state.pid, "SIGKILL");
       }
       state.state = "stopped";
@@ -443,7 +301,7 @@ cd "$MECHA_WORKSPACE" 2>/dev/null || true
     lp.child.kill("SIGKILL");
   }
 
-  function getLogs(name: CasaName, logOpts?: LogOpts): Readable {
+  function getLogs(name: CasaName, _logOpts?: LogOpts): Readable {
     const casaDir = _casaDir(name);
     const state = readState(casaDir);
     if (!state) throw new CasaNotFoundError(name);
@@ -470,7 +328,7 @@ cd "$MECHA_WORKSPACE" 2>/dev/null || true
     // Recover from disk if CASA is running but CLI was restarted
     const casaDir = _casaDir(name);
     const state = readState(casaDir);
-    if (state?.state === "running" && state.pid && _isPidAlive(state.pid)) {
+    if (state?.state === "running" && state.pid && isPidAlive(state.pid)) {
       const config = _readConfig(casaDir);
       if (config) return { port: config.port, token: config.token };
     }
@@ -491,39 +349,4 @@ cd "$MECHA_WORKSPACE" 2>/dev/null || true
     getPortAndToken,
     onEvent,
   };
-}
-
-function _waitForChildExit(child: ChildProcess, timeoutMs: number): Promise<boolean> {
-  return new Promise((resolve) => {
-    /* v8 ignore start -- exit code already set when child exits synchronously */
-    if (child.exitCode !== null && child.exitCode !== undefined) {
-      resolve(true);
-      return;
-    }
-    /* v8 ignore stop */
-    const timer = setTimeout(() => resolve(false), timeoutMs);
-    child.once("exit", () => {
-      clearTimeout(timer);
-      resolve(true);
-    });
-  });
-}
-
-function _waitForPidExit(pid: number, timeoutMs: number): Promise<void> {
-  return new Promise((resolve) => {
-    const start = Date.now();
-    const check = () => {
-      try {
-        process.kill(pid, 0);
-        if (Date.now() - start > timeoutMs) {
-          resolve();
-          return;
-        }
-        setTimeout(check, 100);
-      } catch {
-        resolve();
-      }
-    };
-    check();
-  });
 }
