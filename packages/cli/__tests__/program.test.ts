@@ -2,10 +2,22 @@ import { describe, it, expect, vi } from "vitest";
 import { createProgram } from "../src/program.js";
 import { createFormatter } from "../src/formatter.js";
 import type { CommandDeps } from "../src/types.js";
+import type { ProcessManager } from "@mecha/process";
 
 function makeDeps(): CommandDeps {
   return {
     formatter: createFormatter({ quiet: true }),
+    processManager: {
+      spawn: vi.fn(),
+      get: vi.fn(),
+      list: vi.fn().mockReturnValue([]),
+      stop: vi.fn(),
+      kill: vi.fn(),
+      logs: vi.fn(),
+      getPortAndToken: vi.fn(),
+      onEvent: vi.fn().mockReturnValue(() => {}),
+    } as unknown as ProcessManager,
+    mechaDir: "/tmp/mecha-test",
   };
 }
 
@@ -42,6 +54,22 @@ describe("createProgram", () => {
     const program = createProgram(makeDeps());
     const opt = program.options.find((o) => o.long === "--no-color");
     expect(opt).toBeDefined();
+  });
+
+  it("registers all expected commands", () => {
+    const program = createProgram(makeDeps());
+    const commandNames = program.commands.map((c) => c.name());
+    expect(commandNames).toContain("init");
+    expect(commandNames).toContain("doctor");
+    expect(commandNames).toContain("spawn");
+    expect(commandNames).toContain("kill");
+    expect(commandNames).toContain("ls");
+    expect(commandNames).toContain("status");
+    expect(commandNames).toContain("logs");
+    expect(commandNames).toContain("chat");
+    expect(commandNames).toContain("sessions");
+    expect(commandNames).toContain("tools");
+    expect(commandNames).toContain("auth");
   });
 
   it("parses --version without error", async () => {

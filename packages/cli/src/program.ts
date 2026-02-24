@@ -1,8 +1,19 @@
 import { Command } from "commander";
 import type { CommandDeps } from "./types.js";
+import { registerInitCommand } from "./commands/init.js";
+import { registerDoctorCommand } from "./commands/doctor.js";
+import { registerSpawnCommand } from "./commands/spawn.js";
+import { registerKillCommand } from "./commands/kill.js";
+import { registerLsCommand } from "./commands/ls.js";
+import { registerStatusCommand } from "./commands/status.js";
+import { registerLogsCommand } from "./commands/logs.js";
+import { registerChatCommand } from "./commands/chat.js";
+import { registerSessionsCommand } from "./commands/sessions.js";
+import { registerToolsCommand } from "./commands/tools.js";
+import { registerAuthCommand } from "./commands/auth.js";
 
 /** Create the root mecha CLI program with global flags */
-export function createProgram(_deps: CommandDeps): Command {
+export function createProgram(deps: CommandDeps): Command {
   const program = new Command();
 
   program
@@ -14,7 +25,17 @@ export function createProgram(_deps: CommandDeps): Command {
     .option("--verbose", "Detailed output", false)
     .option("--no-color", "Disable colored output");
 
-  // Phase 1 registers: spawn, kill, ls, status, chat, sessions, logs
+  registerInitCommand(program, deps);
+  registerDoctorCommand(program, deps);
+  registerSpawnCommand(program, deps);
+  registerKillCommand(program, deps);
+  registerLsCommand(program, deps);
+  registerStatusCommand(program, deps);
+  registerLogsCommand(program, deps);
+  registerChatCommand(program, deps);
+  registerSessionsCommand(program, deps);
+  registerToolsCommand(program, deps);
+  registerAuthCommand(program, deps);
 
   return program;
 }

@@ -1,3 +1,5 @@
+import type { ProcessManager } from "@mecha/process";
+
 /** Output formatter for CLI commands */
 export interface Formatter {
   success(msg: string): void;
@@ -11,9 +13,8 @@ export interface Formatter {
 /** Dependency injection container for CLI commands */
 export interface CommandDeps {
   formatter: Formatter;
-  // Phase 1 adds: processManager, authManager
-  // Phase 3 adds: acl, identity
-  // Phase 4 adds: getNodes
+  processManager: ProcessManager;
+  mechaDir: string;
 }
 
 /** Options controlling formatter behavior */
