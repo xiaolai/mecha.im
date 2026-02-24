@@ -1,5 +1,5 @@
 // @mecha/service — business logic layer
-// Phase 1: lifecycle, chat, sessions, init, doctor, tools, auth
+// Phase 1: lifecycle, read-only sessions, init, doctor, tools, auth (chat via Agent SDK)
 
 export { runtimeFetch } from "./helpers.js";
 export type { RuntimeFetchOpts, RuntimeFetchResult } from "./helpers.js";

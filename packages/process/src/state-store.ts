@@ -7,6 +7,7 @@ import {
   existsSync,
 } from "node:fs";
 import { join } from "node:path";
+import { randomBytes } from "node:crypto";
 
 /** Persisted CASA state — written to ~/.mecha/<name>/state.json */
 export interface CasaState {
@@ -37,7 +38,7 @@ export function readState(casaDir: string): CasaState | undefined {
 export function writeState(casaDir: string, state: CasaState): void {
   mkdirSync(casaDir, { recursive: true });
   const statePath = join(casaDir, "state.json");
-  const tmp = statePath + ".tmp";
+  const tmp = statePath + `.${process.pid}.${randomBytes(4).toString("hex")}.tmp`;
   writeFileSync(tmp, JSON.stringify(state, null, 2) + "\n", "utf-8");
   renameSync(tmp, statePath);
 }

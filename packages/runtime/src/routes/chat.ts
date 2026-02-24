@@ -3,9 +3,12 @@ import type { FastifyInstance } from "fastify";
 export function registerChatRoutes(
   app: FastifyInstance,
 ): void {
-  // Placeholder — real chat will be handled by Claude Agent SDK.
+  // Chat is handled by Claude Agent SDK, not the runtime HTTP server.
   // The SDK writes transcripts to the projects dir naturally.
+  // This stub returns 501 so callers get a clear error.
   app.post("/api/chat", async (_request, reply) => {
-    reply.code(501).send({ error: "Chat is handled by Claude Agent SDK — not implemented in runtime" });
+    reply.code(501).send({
+      error: "Chat is handled by Claude Agent SDK. Use 'claude' CLI or Agent SDK directly.",
+    });
   });
 }

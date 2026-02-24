@@ -2,9 +2,11 @@ import {
   existsSync,
   readdirSync,
   readFileSync,
+  statSync,
 } from "node:fs";
-import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+
+const MAX_TRANSCRIPT_BYTES = 10 * 1024 * 1024; // 10 MB safety cap
 
 export interface SessionMeta {
   id: string;
@@ -45,6 +47,11 @@ interface StoredMeta {
  * Creates a read-only session manager that reads session files
  * written by Claude Code (Agent SDK) in the projects directory.
  */
+/** Validate session ID — must be a simple slug (no path separators or traversal). */
+function _validateId(id: string): boolean {
+  return /^[a-zA-Z0-9_-]+$/.test(id);
+}
+
 export function createSessionManager(
   projectsDir: string,
 ): SessionManager {
@@ -102,6 +109,7 @@ export function createSessionManager(
   }
 
   async function get(id: string): Promise<Session | undefined> {
+    if (!_validateId(id)) return undefined;
     const meta = _readMeta(id);
     if (!meta) return undefined;
 
@@ -119,9 +127,15 @@ export function createSessionManager(
 
   async function _readTranscript(id: string): Promise<TranscriptEvent[]> {
     const path = _transcriptPath(id);
-    if (!existsSync(path)) return [];
 
-    const content = (await readFile(path, "utf-8")).trim();
+    // Guard: reject missing or excessively large transcripts.
+    // Using sync read eliminates the TOCTOU gap between stat and read.
+    let content: string;
+    try {
+      const st = statSync(path);
+      if (st.size > MAX_TRANSCRIPT_BYTES) return [];
+      content = readFileSync(path, "utf-8").trim();
+    } catch { return []; }
     if (!content) return [];
 
     const events: TranscriptEvent[] = [];

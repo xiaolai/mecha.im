@@ -69,5 +69,21 @@ describe("session routes (read-only)", () => {
       const res = await app.inject({ method: "GET", url: "/api/sessions/nonexistent" });
       expect(res.statusCode).toBe(404);
     });
+
+    it("returns 404 for path traversal attempt with ../", async () => {
+      const res = await app.inject({ method: "GET", url: "/api/sessions/..%2F..%2Fetc%2Fpasswd" });
+      expect(res.statusCode).toBe(404);
+    });
+
+    it("returns 404 for ID with path separators", async () => {
+      const res = await app.inject({ method: "GET", url: "/api/sessions/foo%2Fbar" });
+      expect(res.statusCode).toBe(404);
+    });
+
+    it("returns 404 for very long ID", async () => {
+      const longId = "a".repeat(1000);
+      const res = await app.inject({ method: "GET", url: `/api/sessions/${longId}` });
+      expect(res.statusCode).toBe(404);
+    });
   });
 });

@@ -76,10 +76,16 @@ export function prepareCasaFilesystem(opts: CasaFilesystemOpts): CasaFilesystemR
   };
   writeFileSync(join(claudeDir, "settings.json"), JSON.stringify(settings, null, 2) + "\n");
 
-  // Write hook scripts
+  // Write hook scripts — hooks receive JSON on stdin per Claude Code PreToolUse spec
   const sandboxGuard = `#!/bin/bash
 # Sandbox guard: block file access outside CASA root
-TARGET="$1"
+# Claude Code PreToolUse hooks receive JSON on stdin with tool_name + tool_input
+INPUT=$(cat)
+# Extract the path from tool_input (handles Read, Write, Edit, Glob, Grep)
+TARGET=$(echo "$INPUT" | grep -o '"\\(file_path\\|path\\|pattern\\|directory\\)"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"\\([^"]*\\)"$/\\1/')
+if [ -z "$TARGET" ]; then
+  exit 0  # No path argument — allow (e.g. Glob with only pattern)
+fi
 # Canonicalize target path, following symlinks
 RESOLVED=$(realpath -m "$TARGET" 2>/dev/null || (cd "$(dirname "$TARGET")" 2>/dev/null && pwd)/$(basename "$TARGET"))
 # Canonicalize allowed roots
@@ -92,8 +98,15 @@ case "$RESOLVED" in
 esac
 `;
   const bashGuard = `#!/bin/bash
-# Bash guard: ensure commands run in workspace context
-cd "$MECHA_WORKSPACE" 2>/dev/null || true
+# Bash guard: enforce workspace context for Bash tool calls
+# Claude Code PreToolUse hooks receive JSON on stdin with tool_input.command
+INPUT=$(cat)
+COMMAND=$(echo "$INPUT" | grep -o '"command"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"\\([^"]*\\)"$/\\1/')
+if [ -z "$COMMAND" ]; then
+  exit 0
+fi
+# Prefix command with cd to workspace (output on stdout tells Claude Code to use this)
+echo "cd \\"$MECHA_WORKSPACE\\" && $COMMAND"
 `;
   writeFileSync(join(hooksDir, "sandbox-guard.sh"), sandboxGuard, { mode: 0o755 });
   writeFileSync(join(hooksDir, "bash-guard.sh"), bashGuard, { mode: 0o755 });

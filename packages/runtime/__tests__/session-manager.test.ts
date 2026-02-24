@@ -146,5 +146,16 @@ describe("createSessionManager (read-only)", () => {
       writeFileSync(join(projectsDir, "corrupt.meta.json"), "not-json");
       expect(await sm.get("corrupt")).toBeUndefined();
     });
+
+    it("returns empty events when transcript exceeds 10 MB", async () => {
+      writeMeta(projectsDir, "huge", { title: "Huge" });
+      // Create a file just over the 10 MB limit
+      const buf = Buffer.alloc(10 * 1024 * 1024 + 1, "x");
+      writeFileSync(join(projectsDir, "huge.jsonl"), buf);
+
+      const session = await sm.get("huge");
+      expect(session).toBeDefined();
+      expect(session!.events).toEqual([]);
+    });
   });
 });

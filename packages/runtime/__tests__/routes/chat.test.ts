@@ -22,6 +22,6 @@ describe("chat routes (stub)", () => {
       payload: { message: "Hello" },
     });
     expect(res.statusCode).toBe(501);
-    expect(res.json().error).toContain("not implemented");
+    expect(res.json().error).toContain("Agent SDK");
   });
 });
