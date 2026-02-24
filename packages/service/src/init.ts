@@ -14,11 +14,10 @@ export interface InitResult {
 export function mechaInit(mechaDir: string): InitResult {
   const existed = existsSync(mechaDir);
 
-  // Create directory structure
-  mkdirSync(join(mechaDir, "casas"), { recursive: true });
-  mkdirSync(join(mechaDir, "auth"), { recursive: true });
-  mkdirSync(join(mechaDir, "tools"), { recursive: true });
-  mkdirSync(join(mechaDir, "logs"), { recursive: true });
+  // Create directory structure with restrictive permissions
+  mkdirSync(join(mechaDir, "auth"), { recursive: true, mode: 0o700 });
+  mkdirSync(join(mechaDir, "tools"), { recursive: true, mode: 0o700 });
+  mkdirSync(join(mechaDir, "logs"), { recursive: true, mode: 0o700 });
 
   // Generate or read node-id
   const nodeIdPath = join(mechaDir, "node-id");
@@ -27,7 +26,7 @@ export function mechaInit(mechaDir: string): InitResult {
     nodeId = readFileSync(nodeIdPath, "utf-8").trim();
   } else {
     nodeId = randomUUID();
-    writeFileSync(nodeIdPath, nodeId + "\n");
+    writeFileSync(nodeIdPath, nodeId + "\n", { mode: 0o600 });
   }
 
   return {

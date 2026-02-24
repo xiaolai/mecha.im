@@ -16,8 +16,7 @@ describe("createServer", () => {
 
   function setup() {
     tempDir = mkdtempSync(join(tmpdir(), "mecha-server-test-"));
-    const dbPath = join(tempDir, "sessions.db");
-    const transcriptDir = join(tempDir, "transcripts");
+    const projectsDir = join(tempDir, "projects");
     const workspacePath = join(tempDir, "workspace");
     mkdirSync(workspacePath);
     writeFileSync(join(workspacePath, "README.md"), "# Test");
@@ -26,8 +25,7 @@ describe("createServer", () => {
       casaName: "test-casa",
       port: 7700,
       authToken: "test-token",
-      dbPath,
-      transcriptDir,
+      projectsDir,
       workspacePath,
     });
     return app;
@@ -120,37 +118,37 @@ describe("createServer", () => {
     expect(res.json().result.content[0].text).toBe("# Test");
   });
 
-  it("session CRUD works end-to-end", async () => {
+  it("session read works end-to-end", async () => {
     const server = setup();
     await server.ready();
 
     const headers = { authorization: "Bearer test-token" };
 
-    // Create
-    const create = await server.inject({
-      method: "POST",
-      url: "/api/sessions",
-      payload: { title: "E2E Test" },
-      headers,
-    });
-    expect(create.statusCode).toBe(200);
-    const { id } = create.json();
+    // Write session files directly (simulating Claude Code)
+    const projectsDir = join(tempDir, "projects");
+    mkdirSync(projectsDir, { recursive: true });
+    writeFileSync(
+      join(projectsDir, "sess-1.meta.json"),
+      JSON.stringify({ id: "sess-1", title: "E2E Test", starred: false, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" }),
+    );
+    writeFileSync(
+      join(projectsDir, "sess-1.jsonl"),
+      '{"type":"user","content":"Hello"}\n',
+    );
+
+    // List
+    const list = await server.inject({ method: "GET", url: "/api/sessions", headers });
+    expect(list.statusCode).toBe(200);
+    expect(list.json()).toHaveLength(1);
 
     // Get
-    const get = await server.inject({
-      method: "GET",
-      url: `/api/sessions/${id}`,
-      headers,
-    });
+    const get = await server.inject({ method: "GET", url: "/api/sessions/sess-1", headers });
     expect(get.statusCode).toBe(200);
     expect(get.json().title).toBe("E2E Test");
+    expect(get.json().events).toHaveLength(1);
 
-    // Delete
-    const del = await server.inject({
-      method: "DELETE",
-      url: `/api/sessions/${id}`,
-      headers,
-    });
-    expect(del.statusCode).toBe(204);
+    // 404 for unknown
+    const notFound = await server.inject({ method: "GET", url: "/api/sessions/nope", headers });
+    expect(notFound.statusCode).toBe(404);
   });
 });

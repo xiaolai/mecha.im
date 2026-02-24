@@ -91,29 +91,35 @@ describe("state-store", () => {
   });
 
   describe("listCasaDirs", () => {
-    it("returns empty array when casas/ does not exist", () => {
+    it("returns empty array when mechaDir does not exist", () => {
+      const result = listCasaDirs(join(tempDir, "nonexistent"));
+      expect(result).toEqual([]);
+    });
+
+    it("returns empty array when no dirs have state.json", () => {
+      mkdirSync(join(tempDir, "alpha"), { recursive: true });
+      mkdirSync(join(tempDir, "beta"), { recursive: true });
       const result = listCasaDirs(tempDir);
       expect(result).toEqual([]);
     });
 
-    it("lists CASA directories", () => {
-      const casasDir = join(tempDir, "casas");
-      mkdirSync(join(casasDir, "alpha"), { recursive: true });
-      mkdirSync(join(casasDir, "beta"), { recursive: true });
+    it("lists directories that contain state.json", () => {
+      mkdirSync(join(tempDir, "alpha"), { recursive: true });
+      mkdirSync(join(tempDir, "beta"), { recursive: true });
+      writeFileSync(join(tempDir, "alpha", "state.json"), "{}");
+      writeFileSync(join(tempDir, "beta", "state.json"), "{}");
       const result = listCasaDirs(tempDir);
       expect(result).toHaveLength(2);
       expect(result.sort()).toEqual([
-        join(casasDir, "alpha"),
-        join(casasDir, "beta"),
+        join(tempDir, "alpha"),
+        join(tempDir, "beta"),
       ]);
     });
 
-    it("ignores files in casas/", () => {
-      const casasDir = join(tempDir, "casas");
-      mkdirSync(casasDir, { recursive: true });
-      mkdirSync(join(casasDir, "real-casa"));
-      const { writeFileSync } = require("node:fs") as typeof import("node:fs");
-      writeFileSync(join(casasDir, "not-a-dir.txt"), "ignore me");
+    it("ignores files in mechaDir", () => {
+      mkdirSync(join(tempDir, "real-casa"), { recursive: true });
+      writeFileSync(join(tempDir, "real-casa", "state.json"), "{}");
+      writeFileSync(join(tempDir, "not-a-dir.txt"), "ignore me");
       const result = listCasaDirs(tempDir);
       expect(result).toHaveLength(1);
       expect(result[0]).toContain("real-casa");

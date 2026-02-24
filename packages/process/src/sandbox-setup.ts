@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync, symlinkSync, unlinkSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 export interface CasaFilesystemOpts {
@@ -17,30 +17,35 @@ export interface CasaFilesystemResult {
   homeDir: string;
   tmpDir: string;
   logsDir: string;
-  sessionsDir: string;
+  projectsDir: string;
   childEnv: Record<string, string>;
+}
+
+/**
+ * Encode a workspace path into a directory name matching Claude Code's convention.
+ * `/home/user/my-project` → `-home-alice-my-project`
+ */
+export function encodeProjectPath(workspacePath: string): string {
+  return workspacePath.replace(/\//g, "-");
 }
 
 export function prepareCasaFilesystem(opts: CasaFilesystemOpts): CasaFilesystemResult {
   const { casaDir, workspacePath, port, token, name, model, permissionMode, auth, userEnv } = opts;
 
-  // Create directory structure
+  // Create directory structure mirroring real Claude Code
   const homeDir = join(casaDir, "home");
   const claudeDir = join(homeDir, ".claude");
   const hooksDir = join(claudeDir, "hooks");
-  const workDir = join(casaDir, "workspace");
+  const projectsBaseDir = join(claudeDir, "projects");
+  const encodedPath = encodeProjectPath(workspacePath);
+  const projectsDir = join(projectsBaseDir, encodedPath);
   const tmpDir = join(casaDir, "tmp");
-  const sessionsDir = join(casaDir, "sessions", "transcripts");
   const logsDir = join(casaDir, "logs");
 
   mkdirSync(hooksDir, { recursive: true, mode: 0o700 });
+  mkdirSync(projectsDir, { recursive: true, mode: 0o700 });
   mkdirSync(tmpDir, { recursive: true, mode: 0o700 });
-  mkdirSync(sessionsDir, { recursive: true, mode: 0o700 });
   mkdirSync(logsDir, { recursive: true, mode: 0o700 });
-
-  // Create workspace symlink — remove existing if present, then create fresh
-  try { unlinkSync(workDir); } catch { /* no existing symlink */ }
-  symlinkSync(workspacePath, workDir);
 
   // Write config
   const config = { port, token, workspace: workspacePath, model, permissionMode, auth };
@@ -71,10 +76,16 @@ export function prepareCasaFilesystem(opts: CasaFilesystemOpts): CasaFilesystemR
   };
   writeFileSync(join(claudeDir, "settings.json"), JSON.stringify(settings, null, 2) + "\n");
 
-  // Write hook scripts
+  // Write hook scripts — hooks receive JSON on stdin per Claude Code PreToolUse spec
   const sandboxGuard = `#!/bin/bash
 # Sandbox guard: block file access outside CASA root
-TARGET="$1"
+# Claude Code PreToolUse hooks receive JSON on stdin with tool_name + tool_input
+INPUT=$(cat)
+# Extract the path from tool_input (handles Read, Write, Edit, Glob, Grep)
+TARGET=$(echo "$INPUT" | grep -o '"\\(file_path\\|path\\|pattern\\|directory\\)"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"\\([^"]*\\)"$/\\1/')
+if [ -z "$TARGET" ]; then
+  exit 0  # No path argument — allow (e.g. Glob with only pattern)
+fi
 # Canonicalize target path, following symlinks
 RESOLVED=$(realpath -m "$TARGET" 2>/dev/null || (cd "$(dirname "$TARGET")" 2>/dev/null && pwd)/$(basename "$TARGET"))
 # Canonicalize allowed roots
@@ -87,8 +98,15 @@ case "$RESOLVED" in
 esac
 `;
   const bashGuard = `#!/bin/bash
-# Bash guard: ensure commands run in workspace context
-cd "$MECHA_WORKSPACE" 2>/dev/null || true
+# Bash guard: enforce workspace context for Bash tool calls
+# Claude Code PreToolUse hooks receive JSON on stdin with tool_input.command
+INPUT=$(cat)
+COMMAND=$(echo "$INPUT" | grep -o '"command"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"\\([^"]*\\)"$/\\1/')
+if [ -z "$COMMAND" ]; then
+  exit 0
+fi
+# Prefix command with cd to workspace (output on stdout tells Claude Code to use this)
+echo "cd \\"$MECHA_WORKSPACE\\" && $COMMAND"
 `;
   writeFileSync(join(hooksDir, "sandbox-guard.sh"), sandboxGuard, { mode: 0o755 });
   writeFileSync(join(hooksDir, "bash-guard.sh"), bashGuard, { mode: 0o755 });
@@ -96,7 +114,7 @@ cd "$MECHA_WORKSPACE" 2>/dev/null || true
   // Build environment — user env goes in the middle, security vars last to prevent override
   const resolvedUserEnv = userEnv ?? {};
   const reservedKeys = new Set([
-    "MECHA_CASA_NAME", "MECHA_PORT", "MECHA_WORKSPACE", "MECHA_DB_PATH",
+    "MECHA_CASA_NAME", "MECHA_PORT", "MECHA_WORKSPACE", "MECHA_PROJECTS_DIR",
     "MECHA_AUTH_TOKEN", "MECHA_LOG_DIR", "MECHA_SANDBOX_ROOT", "HOME", "TMPDIR",
   ]);
   const safeUserEnv: Record<string, string> = {};
@@ -113,11 +131,11 @@ cd "$MECHA_WORKSPACE" 2>/dev/null || true
     MECHA_CASA_NAME: name,
     MECHA_PORT: String(port),
     MECHA_WORKSPACE: workspacePath,
-    MECHA_DB_PATH: join(casaDir, "sessions", "sessions.db"),
+    MECHA_PROJECTS_DIR: projectsDir,
     MECHA_AUTH_TOKEN: token,
     MECHA_LOG_DIR: logsDir,
     MECHA_SANDBOX_ROOT: casaDir,
   };
 
-  return { homeDir, tmpDir, logsDir, sessionsDir, childEnv };
+  return { homeDir, tmpDir, logsDir, projectsDir, childEnv };
 }

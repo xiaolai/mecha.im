@@ -57,7 +57,7 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
     if (!isValidName(name)) {
       throw new InvalidNameError(name);
     }
-    return join(mechaDir, "casas", name);
+    return join(mechaDir, name);
   }
 
   function _generateToken(): string {

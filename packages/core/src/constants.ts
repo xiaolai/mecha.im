@@ -1,9 +1,6 @@
 /** Base directory name for mecha config: ~/.mecha */
 export const MECHA_DIR = ".mecha";
 
-/** Directory name for CASA workspaces: ~/.mecha/casas/ */
-export const CASAS_DIR = "casas";
-
 /** Directory name for managed tool installs: ~/.mecha/tools/ */
 export const TOOLS_DIR = "tools";
 

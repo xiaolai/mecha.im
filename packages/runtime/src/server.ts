@@ -1,5 +1,4 @@
 import Fastify, { type FastifyInstance } from "fastify";
-import { createDatabase } from "./database.js";
 import { createSessionManager } from "./session-manager.js";
 import { createAuthHook } from "./auth.js";
 import { registerHealthRoutes } from "./routes/health.js";
@@ -11,8 +10,7 @@ export interface CreateServerOpts {
   casaName: string;
   port: number;
   authToken: string;
-  dbPath: string;
-  transcriptDir: string;
+  projectsDir: string;
   workspacePath: string;
 }
 
@@ -22,9 +20,8 @@ export function createServer(opts: CreateServerOpts): FastifyInstance {
   // Auth middleware
   app.addHook("onRequest", createAuthHook(opts.authToken));
 
-  // Database + session manager
-  const db = createDatabase(opts.dbPath);
-  const sm = createSessionManager(db, opts.transcriptDir);
+  // Session manager (filesystem-only)
+  const sm = createSessionManager(opts.projectsDir);
 
   // Routes
   registerHealthRoutes(app, {
@@ -33,13 +30,8 @@ export function createServer(opts: CreateServerOpts): FastifyInstance {
     startedAt: new Date().toISOString(),
   });
   registerSessionRoutes(app, sm);
-  registerChatRoutes(app, sm);
+  registerChatRoutes(app);
   registerMcpRoutes(app, { workspacePath: opts.workspacePath });
-
-  // Cleanup on close
-  app.addHook("onClose", async () => {
-    db.close();
-  });
 
   return app;
 }

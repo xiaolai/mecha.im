@@ -7,8 +7,9 @@ import {
   existsSync,
 } from "node:fs";
 import { join } from "node:path";
+import { randomBytes } from "node:crypto";
 
-/** Persisted CASA state — written to ~/.mecha/casas/<name>/state.json */
+/** Persisted CASA state — written to ~/.mecha/<name>/state.json */
 export interface CasaState {
   name: string;
   state: "running" | "stopped" | "error";
@@ -37,16 +38,16 @@ export function readState(casaDir: string): CasaState | undefined {
 export function writeState(casaDir: string, state: CasaState): void {
   mkdirSync(casaDir, { recursive: true });
   const statePath = join(casaDir, "state.json");
-  const tmp = statePath + ".tmp";
+  const tmp = statePath + `.${process.pid}.${randomBytes(4).toString("hex")}.tmp`;
   writeFileSync(tmp, JSON.stringify(state, null, 2) + "\n", "utf-8");
   renameSync(tmp, statePath);
 }
 
-/** List all CASA directories under mechaDir/casas/ */
+/** List all CASA directories under mechaDir/ (each with a state.json) */
 export function listCasaDirs(mechaDir: string): string[] {
-  const casasDir = join(mechaDir, "casas");
-  if (!existsSync(casasDir)) return [];
-  return readdirSync(casasDir, { withFileTypes: true })
+  if (!existsSync(mechaDir)) return [];
+  return readdirSync(mechaDir, { withFileTypes: true })
     .filter((d) => d.isDirectory())
-    .map((d) => join(casasDir, d.name));
+    .map((d) => join(mechaDir, d.name))
+    .filter((dir) => existsSync(join(dir, "state.json")));
 }

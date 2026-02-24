@@ -13,5 +13,5 @@ export type {
   CreateProcessManagerOpts,
 } from "./types.js";
 export { isPidAlive, waitForChildExit, waitForPidExit } from "./process-lifecycle.js";
-export { prepareCasaFilesystem } from "./sandbox-setup.js";
+export { prepareCasaFilesystem, encodeProjectPath } from "./sandbox-setup.js";
 export type { CasaFilesystemOpts, CasaFilesystemResult } from "./sandbox-setup.js";

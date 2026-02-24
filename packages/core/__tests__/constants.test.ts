@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
   MECHA_DIR,
-  CASAS_DIR,
   TOOLS_DIR,
   AUTH_DIR,
   IDENTITY_DIR,
@@ -12,10 +11,6 @@ import {
 describe("constants", () => {
   it("MECHA_DIR is .mecha", () => {
     expect(MECHA_DIR).toBe(".mecha");
-  });
-
-  it("CASAS_DIR is casas", () => {
-    expect(CASAS_DIR).toBe("casas");
   });
 
   it("TOOLS_DIR is tools", () => {

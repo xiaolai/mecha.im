@@ -18,7 +18,6 @@ describe("mechaInit", () => {
     const result = mechaInit(mechaDir);
     expect(result.created).toBe(true);
     expect(result.mechaDir).toBe(mechaDir);
-    expect(existsSync(join(mechaDir, "casas"))).toBe(true);
     expect(existsSync(join(mechaDir, "auth"))).toBe(true);
     expect(existsSync(join(mechaDir, "tools"))).toBe(true);
     expect(existsSync(join(mechaDir, "logs"))).toBe(true);

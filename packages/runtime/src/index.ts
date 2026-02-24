@@ -1,15 +1,12 @@
 // @mecha/runtime — standalone Fastify server for each CASA process
-// Phase 1: auth, sessions, chat SSE, workspace MCP
+// Phase 1: auth, read-only sessions, workspace MCP (chat via Agent SDK)
 
-export { createDatabase, runMigrations } from "./database.js";
-export type { Database } from "./database.js";
 export { createSessionManager } from "./session-manager.js";
 export type {
   SessionManager,
   SessionMeta,
-  SessionMessage,
+  TranscriptEvent,
   Session,
-  CreateSessionOpts,
 } from "./session-manager.js";
 export { createAuthHook } from "./auth.js";
 export { registerHealthRoutes } from "./routes/health.js";

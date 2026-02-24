@@ -62,4 +62,19 @@ describe("chat command", () => {
     await program.parseAsync(["node", "mecha", "chat", "researcher"]);
     expect(deps.formatter.error).toHaveBeenCalledWith("Message is required");
   });
+
+  it("handles runtime 501 error from chat endpoint", async () => {
+    const { casaChat } = await import("@mecha/service");
+    vi.mocked(casaChat).mockRejectedValueOnce(
+      new Error("Chat is handled by Claude Agent SDK. Use 'claude' CLI or Agent SDK directly."),
+    );
+
+    const deps = makeDeps();
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await expect(
+      program.parseAsync(["node", "mecha", "chat", "researcher", "Hello"]),
+    ).rejects.toThrow("Chat is handled by Claude Agent SDK");
+  });
 });

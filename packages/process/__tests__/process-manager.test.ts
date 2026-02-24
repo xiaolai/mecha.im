@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { mkdtempSync, mkdirSync, rmSync, existsSync, readFileSync, statSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { EventEmitter } from "node:events";
@@ -46,7 +46,6 @@ describe("createProcessManager", () => {
 
   beforeEach(async () => {
     tempDir = mkdtempSync(join(tmpdir(), "mecha-pm-test-"));
-    mkdirSync(join(tempDir, "casas"), { recursive: true });
 
     // Start a health server
     healthServer = createServer((req: IncomingMessage, res: ServerResponse) => {
@@ -120,10 +119,10 @@ describe("createProcessManager", () => {
       port: healthPort,
     });
 
-    const casaDir = join(tempDir, "casas", testName);
+    const casaDir = join(tempDir, testName);
     expect(existsSync(join(casaDir, "home", ".claude", "hooks"))).toBe(true);
     expect(existsSync(join(casaDir, "tmp"))).toBe(true);
-    expect(existsSync(join(casaDir, "sessions", "transcripts"))).toBe(true);
+    expect(existsSync(join(casaDir, "home", ".claude", "projects"))).toBe(true);
     expect(existsSync(join(casaDir, "logs"))).toBe(true);
     expect(existsSync(join(casaDir, "config.json"))).toBe(true);
     expect(existsSync(join(casaDir, "state.json"))).toBe(true);
@@ -146,7 +145,7 @@ describe("createProcessManager", () => {
       port: healthPort,
     });
 
-    const casaDir = join(tempDir, "casas", testName);
+    const casaDir = join(tempDir, testName);
     const mode = statSync(join(casaDir, "config.json")).mode & 0o777;
     expect(mode).toBe(0o600);
   });
@@ -168,7 +167,7 @@ describe("createProcessManager", () => {
       port: healthPort,
     });
 
-    const casaDir = join(tempDir, "casas", testName);
+    const casaDir = join(tempDir, testName);
     const hooksMode = statSync(join(casaDir, "home", ".claude", "hooks")).mode & 0o777;
     const tmpMode = statSync(join(casaDir, "tmp")).mode & 0o777;
     expect(hooksMode).toBe(0o700);
@@ -192,7 +191,7 @@ describe("createProcessManager", () => {
       port: healthPort,
     });
 
-    const casaDir = join(tempDir, "casas", testName);
+    const casaDir = join(tempDir, testName);
     const guardPath = join(casaDir, "home", ".claude", "hooks", "sandbox-guard.sh");
     const script = readFileSync(guardPath, "utf-8");
 
@@ -220,7 +219,7 @@ describe("createProcessManager", () => {
       port: healthPort,
     });
 
-    const casaDir = join(tempDir, "casas", testName);
+    const casaDir = join(tempDir, testName);
     const settings = JSON.parse(readFileSync(join(casaDir, "home", ".claude", "settings.json"), "utf-8"));
     expect(settings.hooks).toBeDefined();
     expect(settings.hooks.PreToolUse).toHaveLength(2);
@@ -359,7 +358,7 @@ describe("createProcessManager", () => {
 
   it("stop throws CasaNotRunningError for stopped CASA", async () => {
     // Write a stopped state
-    const casaDir = join(tempDir, "casas", "stopped-one");
+    const casaDir = join(tempDir, "stopped-one");
     const state: CasaState = {
       name: "stopped-one",
       state: "stopped",
@@ -401,7 +400,7 @@ describe("createProcessManager", () => {
 
   it("getPortAndToken recovers port+token from config.json when CASA is alive but not in live Map", () => {
     const { writeFileSync: wf } = require("node:fs");
-    const casaDir = join(tempDir, "casas", "recover-me");
+    const casaDir = join(tempDir, "recover-me");
 
     // Write state showing running with current process PID (alive)
     writeState(casaDir, {
@@ -431,7 +430,7 @@ describe("createProcessManager", () => {
 
   it("getPortAndToken returns undefined when CASA state is running but PID is dead", () => {
     const { writeFileSync: wf } = require("node:fs");
-    const casaDir = join(tempDir, "casas", "dead-recover");
+    const casaDir = join(tempDir, "dead-recover");
 
     writeState(casaDir, {
       name: "dead-recover",
@@ -454,7 +453,7 @@ describe("createProcessManager", () => {
   });
 
   it("getPortAndToken returns undefined when config.json is missing", () => {
-    const casaDir = join(tempDir, "casas", "no-config");
+    const casaDir = join(tempDir, "no-config");
 
     writeState(casaDir, {
       name: "no-config",
@@ -472,7 +471,7 @@ describe("createProcessManager", () => {
 
   it("getPortAndToken returns undefined when config.json is malformed", () => {
     const { writeFileSync: wf } = require("node:fs");
-    const casaDir = join(tempDir, "casas", "bad-config");
+    const casaDir = join(tempDir, "bad-config");
 
     writeState(casaDir, {
       name: "bad-config",
@@ -516,7 +515,7 @@ describe("createProcessManager", () => {
 
   it("recovers stopped state on init when PID is dead", () => {
     // Write a "running" state with a PID that doesn't exist
-    const casaDir = join(tempDir, "casas", "ghost");
+    const casaDir = join(tempDir, "ghost");
     const state: CasaState = {
       name: "ghost",
       state: "running",
@@ -694,7 +693,7 @@ describe("createProcessManager", () => {
 
   it("stop handles running state without live handle (dead PID)", async () => {
     // Write a "running" state with a dead PID
-    const casaDir = join(tempDir, "casas", "orphan");
+    const casaDir = join(tempDir, "orphan");
     const state: CasaState = {
       name: "orphan",
       state: "running",
@@ -713,7 +712,7 @@ describe("createProcessManager", () => {
 
   it("kill handles state without live handle (dead PID)", async () => {
     // Write a "running" state — recovery will mark it stopped
-    const casaDir = join(tempDir, "casas", "dead-kill");
+    const casaDir = join(tempDir, "dead-kill");
     const state: CasaState = {
       name: "dead-kill",
       state: "running",
@@ -733,7 +732,7 @@ describe("createProcessManager", () => {
 
   it("kill with live PID but no live handle", async () => {
     // Write a running state with current process PID (which IS alive)
-    const casaDir = join(tempDir, "casas", "kill-live-pid");
+    const casaDir = join(tempDir, "kill-live-pid");
     const state: CasaState = {
       name: "kill-live-pid",
       state: "running",
@@ -765,7 +764,7 @@ describe("createProcessManager", () => {
   });
 
   it("stop with live PID but no live handle sends SIGTERM then resolves", async () => {
-    const casaDir = join(tempDir, "casas", "stop-live-pid");
+    const casaDir = join(tempDir, "stop-live-pid");
     const state: CasaState = {
       name: "stop-live-pid",
       state: "running",
@@ -802,7 +801,7 @@ describe("createProcessManager", () => {
 
   it("logs returns empty stream when no log file exists", () => {
     // Write state but don't create log files
-    const casaDir = join(tempDir, "casas", "no-logs");
+    const casaDir = join(tempDir, "no-logs");
     mkdirSync(casaDir, { recursive: true });
     const state: CasaState = {
       name: "no-logs",
@@ -819,7 +818,7 @@ describe("createProcessManager", () => {
 
   it("list recovers dead PID state for non-live CASAs", () => {
     // Write a running state with dead PID
-    const casaDir = join(tempDir, "casas", "list-dead");
+    const casaDir = join(tempDir, "list-dead");
     const state: CasaState = {
       name: "list-dead",
       state: "running",
@@ -837,7 +836,7 @@ describe("createProcessManager", () => {
   });
 
   it("get recovers dead PID state for non-live CASA", () => {
-    const casaDir = join(tempDir, "casas", "get-dead");
+    const casaDir = join(tempDir, "get-dead");
     const state: CasaState = {
       name: "get-dead",
       state: "running",
@@ -855,7 +854,7 @@ describe("createProcessManager", () => {
   });
 
   it("throws CasaAlreadyExistsError when state shows running with alive PID", async () => {
-    const casaDir = join(tempDir, "casas", testName);
+    const casaDir = join(tempDir, testName);
     const state: CasaState = {
       name: testName,
       state: "running",
@@ -923,7 +922,7 @@ describe("createProcessManager", () => {
     expect(mockChild.kill).toHaveBeenCalledWith("SIGKILL");
   });
 
-  it("re-spawns CASA after stop (workspace symlink already exists)", async () => {
+  it("re-spawns CASA after stop", async () => {
     const mockChild1 = createMockChild(111);
     const mockChild2 = createMockChild(222);
     let callCount = 0;
@@ -947,7 +946,7 @@ describe("createProcessManager", () => {
     });
     await pm.stop(testName);
 
-    // Re-spawn — workspace symlink already exists
+    // Re-spawn
     const info2 = await pm.spawn({
       name: testName,
       workspacePath: tempDir,
@@ -1016,13 +1015,13 @@ describe("createProcessManager", () => {
 
     // Verify spawn was called (directory creation happened)
     expect(mockSpawn).toHaveBeenCalledOnce();
-    const casaDir = join(tempDir, "casas", testName);
+    const casaDir = join(tempDir, testName);
     expect(existsSync(join(casaDir, "home", ".claude", "hooks"))).toBe(true);
   });
 
   it("logs returns existing log file stream", async () => {
     // Create a CASA with a log file that has content
-    const casaDir = join(tempDir, "casas", "with-logs");
+    const casaDir = join(tempDir, "with-logs");
     mkdirSync(join(casaDir, "logs"), { recursive: true });
     const { writeFileSync: wf } = await import("node:fs");
     wf(join(casaDir, "logs", "stdout.log"), "line 1\nline 2\n");
@@ -1041,18 +1040,20 @@ describe("createProcessManager", () => {
     expect(chunks.join("")).toContain("line 1");
   });
 
-  it("recovery skips casas with no state file", () => {
-    // Create a casa dir with no state.json
-    mkdirSync(join(tempDir, "casas", "empty-casa"), { recursive: true });
+  it("recovery skips casas with corrupted state file", () => {
+    // Create a casa dir with corrupted state.json (listCasaDirs will find it, readState returns undefined)
+    const casaDir = join(tempDir, "corrupt-casa");
+    mkdirSync(casaDir, { recursive: true });
+    writeFileSync(join(casaDir, "state.json"), "not-valid-json{{{");
 
     // Should not throw
     const pm = createProcessManager({ mechaDir: tempDir });
-    const info = pm.get("empty-casa" as CasaName);
+    const info = pm.get("corrupt-casa" as CasaName);
     expect(info).toBeUndefined();
   });
 
   it("recovery skips stopped casas", () => {
-    const casaDir = join(tempDir, "casas", "already-stopped");
+    const casaDir = join(tempDir, "already-stopped");
     const state: CasaState = {
       name: "already-stopped",
       state: "stopped",
@@ -1113,7 +1114,7 @@ describe("createProcessManager", () => {
     const pm = createProcessManager({ mechaDir: tempDir });
 
     // Write state AFTER PM init (simulating external state change)
-    const casaDir = join(tempDir, "casas", "late-dead");
+    const casaDir = join(tempDir, "late-dead");
     writeState(casaDir, {
       name: "late-dead",
       state: "running",
@@ -1132,7 +1133,7 @@ describe("createProcessManager", () => {
     const pm = createProcessManager({ mechaDir: tempDir });
 
     // Write state AFTER PM init
-    const casaDir = join(tempDir, "casas", "late-dead-list");
+    const casaDir = join(tempDir, "late-dead-list");
     writeState(casaDir, {
       name: "late-dead-list",
       state: "running",
@@ -1147,8 +1148,10 @@ describe("createProcessManager", () => {
     expect(all[0]!.state).toBe("stopped");
   });
 
-  it("list skips casas with no state file", () => {
-    mkdirSync(join(tempDir, "casas", "no-state"), { recursive: true });
+  it("list skips casas with corrupted state file", () => {
+    const casaDir = join(tempDir, "corrupt-list");
+    mkdirSync(casaDir, { recursive: true });
+    writeFileSync(join(casaDir, "state.json"), "not-valid-json{{{");
     const pm = createProcessManager({ mechaDir: tempDir });
     expect(pm.list()).toHaveLength(0);
   });
@@ -1188,7 +1191,7 @@ describe("createProcessManager", () => {
     const pm = createProcessManager({ mechaDir: tempDir });
 
     // Write state AFTER init with running+dead PID
-    const casaDir = join(tempDir, "casas", "dead-running");
+    const casaDir = join(tempDir, "dead-running");
     writeState(casaDir, {
       name: "dead-running",
       state: "running",
@@ -1205,7 +1208,7 @@ describe("createProcessManager", () => {
   });
 
   it("stop with PID still alive after SIGTERM waits then sends SIGKILL", async () => {
-    const casaDir = join(tempDir, "casas", "stubborn");
+    const casaDir = join(tempDir, "stubborn");
     writeState(casaDir, {
       name: "stubborn",
       state: "running",
