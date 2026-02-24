@@ -16,3 +16,7 @@ export { registerHealthRoutes } from "./routes/health.js";
 export type { HealthRouteOpts } from "./routes/health.js";
 export { registerSessionRoutes } from "./routes/sessions.js";
 export { registerChatRoutes } from "./routes/chat.js";
+export { registerMcpRoutes } from "./mcp/server.js";
+export type { McpRouteOpts } from "./mcp/server.js";
+export { createServer } from "./server.js";
+export type { CreateServerOpts } from "./server.js";
