@@ -16,11 +16,6 @@ export type { ChatOpts, ChatEvent } from "./chat.js";
 export {
   casaSessionList,
   casaSessionGet,
-  casaSessionCreate,
-  casaSessionDelete,
-  casaSessionRename,
-  casaSessionMessage,
-  casaSessionInterrupt,
 } from "./sessions.js";
 export { mechaInit } from "./init.js";
 export type { InitResult } from "./init.js";

@@ -4,11 +4,6 @@ import { casaName } from "@mecha/core";
 import {
   casaSessionList,
   casaSessionGet,
-  casaSessionCreate,
-  casaSessionDelete,
-  casaSessionMessage,
-  casaSessionInterrupt,
-  casaSessionRename,
 } from "@mecha/service";
 
 export function registerSessionsCommand(program: Command, deps: CommandDeps): void {
@@ -38,79 +33,5 @@ export function registerSessionsCommand(program: Command, deps: CommandDeps): vo
         return;
       }
       deps.formatter.json(session);
-    });
-
-  sessions
-    .command("create")
-    .description("Create a new session")
-    .argument("<name>", "CASA name")
-    .option("-t, --title <title>", "Session title")
-    .action(async (name: string, opts: { title?: string }) => {
-      const session = await casaSessionCreate(deps.processManager, casaName(name), {
-        title: opts.title,
-      });
-      deps.formatter.json(session);
-    });
-
-  sessions
-    .command("delete")
-    .description("Delete a session")
-    .argument("<name>", "CASA name")
-    .argument("<session-id>", "Session ID")
-    .action(async (name: string, sessionId: string) => {
-      const deleted = await casaSessionDelete(deps.processManager, casaName(name), sessionId);
-      if (deleted) {
-        deps.formatter.success("Session deleted");
-      } else {
-        deps.formatter.error("Session not found");
-        process.exitCode = 1;
-      }
-    });
-
-  sessions
-    .command("message")
-    .description("Send a message to a session")
-    .argument("<name>", "CASA name")
-    .argument("<session-id>", "Session ID")
-    .argument("<content>", "Message content")
-    .action(async (name: string, sessionId: string, content: string) => {
-      const msg = await casaSessionMessage(
-        deps.processManager,
-        casaName(name),
-        sessionId,
-        { role: "user", content },
-      );
-      deps.formatter.json(msg);
-    });
-
-  sessions
-    .command("interrupt")
-    .description("Interrupt an active session")
-    .argument("<name>", "CASA name")
-    .argument("<session-id>", "Session ID")
-    .action(async (name: string, sessionId: string) => {
-      const ok = await casaSessionInterrupt(deps.processManager, casaName(name), sessionId);
-      if (ok) {
-        deps.formatter.success("Session interrupted");
-      } else {
-        deps.formatter.error("Session is not busy");
-        process.exitCode = 1;
-      }
-    });
-
-  sessions
-    .command("rename")
-    .description("Rename a session")
-    .argument("<name>", "CASA name")
-    .argument("<session-id>", "Session ID")
-    .argument("<title>", "New title")
-    .action(async (name: string, sessionId: string, title: string) => {
-      const ok = await casaSessionRename(deps.processManager, casaName(name), sessionId, title);
-      if (ok) {
-        deps.formatter.success("Session renamed");
-      } else {
-        deps.formatter.error("Session not found");
-        process.exitCode = 1;
-      }
     });
 }

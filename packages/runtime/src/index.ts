@@ -7,7 +7,6 @@ export type {
   SessionMeta,
   TranscriptEvent,
   Session,
-  CreateSessionOpts,
 } from "./session-manager.js";
 export { createAuthHook } from "./auth.js";
 export { registerHealthRoutes } from "./routes/health.js";

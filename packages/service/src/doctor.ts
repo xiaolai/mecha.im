@@ -26,7 +26,7 @@ export function mechaDoctor(mechaDir: string): DoctorResult {
   }
 
   // Check subdirectories
-  for (const sub of ["casas", "auth", "tools", "logs"]) {
+  for (const sub of ["auth", "tools", "logs"]) {
     const dir = join(mechaDir, sub);
     if (existsSync(dir)) {
       checks.push({ name: sub, status: "ok", message: `Found ${dir}` });

@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync, symlinkSync, unlinkSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 export interface CasaFilesystemOpts {
@@ -39,7 +39,6 @@ export function prepareCasaFilesystem(opts: CasaFilesystemOpts): CasaFilesystemR
   const projectsBaseDir = join(claudeDir, "projects");
   const encodedPath = encodeProjectPath(workspacePath);
   const projectsDir = join(projectsBaseDir, encodedPath);
-  const workDir = join(casaDir, "workspace");
   const tmpDir = join(casaDir, "tmp");
   const logsDir = join(casaDir, "logs");
 
@@ -47,10 +46,6 @@ export function prepareCasaFilesystem(opts: CasaFilesystemOpts): CasaFilesystemR
   mkdirSync(projectsDir, { recursive: true, mode: 0o700 });
   mkdirSync(tmpDir, { recursive: true, mode: 0o700 });
   mkdirSync(logsDir, { recursive: true, mode: 0o700 });
-
-  // Create workspace symlink — remove existing if present, then create fresh
-  try { unlinkSync(workDir); } catch { /* no existing symlink */ }
-  symlinkSync(workspacePath, workDir);
 
   // Write config
   const config = { port, token, workspace: workspacePath, model, permissionMode, auth };

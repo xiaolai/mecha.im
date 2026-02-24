@@ -32,7 +32,7 @@ describe("doctor command", () => {
     tempDir = mkdtempSync(join(tmpdir(), "mecha-cli-doctor-"));
     const mechaDir = join(tempDir, ".mecha");
     mkdirSync(mechaDir, { recursive: true });
-    for (const sub of ["casas", "auth", "tools", "logs"]) mkdirSync(join(mechaDir, sub));
+    for (const sub of ["auth", "tools", "logs"]) mkdirSync(join(mechaDir, sub));
     writeFileSync(join(mechaDir, "node-id"), "test-id\n");
 
     const deps = makeDeps(mechaDir);

@@ -1,13 +1,9 @@
-import { randomUUID } from "node:crypto";
 import {
-  mkdirSync,
-  unlinkSync,
   existsSync,
   readdirSync,
   readFileSync,
-  writeFileSync,
 } from "node:fs";
-import { appendFile, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 export interface SessionMeta {
@@ -20,11 +16,7 @@ export interface SessionMeta {
 
 /**
  * A transcript event — any JSON object with a `type` field.
- * Matches the Claude Agent SDK's native transcript format:
- * - { type: "user", message: { role: "user", content: "..." }, timestamp, ... }
- * - { type: "assistant", message: { role: "assistant", content: [...] }, timestamp, ... }
- * - { type: "progress", data: { ... }, timestamp, ... }
- * - { type: "file-history-snapshot", snapshot: { ... }, ... }
+ * Written by Claude Code (Agent SDK) naturally during conversations.
  */
 export interface TranscriptEvent {
   type: string;
@@ -35,20 +27,10 @@ export interface Session extends SessionMeta {
   events: TranscriptEvent[];
 }
 
-export interface CreateSessionOpts {
-  title?: string;
-}
-
+/** Read-only session manager — reads what Claude Code writes to the projects dir. */
 export interface SessionManager {
-  create(opts?: CreateSessionOpts): SessionMeta;
   list(): SessionMeta[];
   get(id: string): Promise<Session | undefined>;
-  delete(id: string): boolean;
-  rename(id: string, title: string): boolean;
-  star(id: string, starred: boolean): boolean;
-  appendEvent(id: string, event: TranscriptEvent): Promise<void>;
-  isBusy(id: string): boolean;
-  setBusy(id: string, busy: boolean): void;
 }
 
 interface StoredMeta {
@@ -59,13 +41,13 @@ interface StoredMeta {
   updatedAt: string;
 }
 
+/**
+ * Creates a read-only session manager that reads session files
+ * written by Claude Code (Agent SDK) in the projects directory.
+ */
 export function createSessionManager(
   projectsDir: string,
 ): SessionManager {
-  mkdirSync(projectsDir, { recursive: true });
-
-  const busySessions = new Set<string>();
-
   function _metaPath(id: string): string {
     return join(projectsDir, `${id}.meta.json`);
   }
@@ -82,21 +64,6 @@ export function createSessionManager(
     } catch {
       return undefined;
     }
-  }
-
-  function _writeMeta(meta: StoredMeta): void {
-    writeFileSync(_metaPath(meta.id), JSON.stringify(meta, null, 2) + "\n", "utf-8");
-  }
-
-  function create(opts?: CreateSessionOpts): SessionMeta {
-    const id = randomUUID();
-    const now = new Date().toISOString();
-    const title = opts?.title ?? "";
-
-    const meta: StoredMeta = { id, title, starred: false, createdAt: now, updatedAt: now };
-    _writeMeta(meta);
-
-    return { id, title, starred: false, createdAt: now, updatedAt: now };
   }
 
   function list(): SessionMeta[] {
@@ -150,64 +117,6 @@ export function createSessionManager(
     };
   }
 
-  function deleteSession(id: string): boolean {
-    const metaPath = _metaPath(id);
-    if (!existsSync(metaPath)) return false;
-
-    unlinkSync(metaPath);
-
-    const transcriptPath = _transcriptPath(id);
-    if (existsSync(transcriptPath)) {
-      unlinkSync(transcriptPath);
-    }
-    busySessions.delete(id);
-    return true;
-  }
-
-  function rename(id: string, title: string): boolean {
-    const meta = _readMeta(id);
-    if (!meta) return false;
-
-    meta.title = title;
-    meta.updatedAt = new Date().toISOString();
-    _writeMeta(meta);
-    return true;
-  }
-
-  function star(id: string, starred: boolean): boolean {
-    const meta = _readMeta(id);
-    if (!meta) return false;
-
-    meta.starred = starred;
-    meta.updatedAt = new Date().toISOString();
-    _writeMeta(meta);
-    return true;
-  }
-
-  async function appendEvent(id: string, event: TranscriptEvent): Promise<void> {
-    const meta = _readMeta(id);
-    if (!meta) throw new Error(`Session not found: ${id}`);
-
-    const transcriptPath = _transcriptPath(id);
-    const line = JSON.stringify(event) + "\n";
-    await appendFile(transcriptPath, line, "utf-8");
-
-    meta.updatedAt = new Date().toISOString();
-    _writeMeta(meta);
-  }
-
-  function isBusy(id: string): boolean {
-    return busySessions.has(id);
-  }
-
-  function setBusy(id: string, busy: boolean): void {
-    if (busy) {
-      busySessions.add(id);
-    } else {
-      busySessions.delete(id);
-    }
-  }
-
   async function _readTranscript(id: string): Promise<TranscriptEvent[]> {
     const path = _transcriptPath(id);
     if (!existsSync(path)) return [];
@@ -227,14 +136,7 @@ export function createSessionManager(
   }
 
   return {
-    create,
     list,
     get,
-    delete: deleteSession,
-    rename,
-    star,
-    appendEvent,
-    isBusy,
-    setBusy,
   };
 }

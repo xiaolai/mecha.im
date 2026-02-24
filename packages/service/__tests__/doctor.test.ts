@@ -25,7 +25,6 @@ describe("mechaDoctor", () => {
     tempDir = mkdtempSync(join(tmpdir(), "mecha-doctor-test-"));
     const mechaDir = join(tempDir, ".mecha");
     mkdirSync(mechaDir, { recursive: true });
-    mkdirSync(join(mechaDir, "casas"));
     mkdirSync(join(mechaDir, "auth"));
     mkdirSync(join(mechaDir, "tools"));
     mkdirSync(join(mechaDir, "logs"));

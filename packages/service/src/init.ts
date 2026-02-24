@@ -15,7 +15,6 @@ export function mechaInit(mechaDir: string): InitResult {
   const existed = existsSync(mechaDir);
 
   // Create directory structure
-  mkdirSync(join(mechaDir, "casas"), { recursive: true });
   mkdirSync(join(mechaDir, "auth"), { recursive: true });
   mkdirSync(join(mechaDir, "tools"), { recursive: true });
   mkdirSync(join(mechaDir, "logs"), { recursive: true });

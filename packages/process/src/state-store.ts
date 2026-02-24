@@ -8,7 +8,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 
-/** Persisted CASA state — written to ~/.mecha/casas/<name>/state.json */
+/** Persisted CASA state — written to ~/.mecha/<name>/state.json */
 export interface CasaState {
   name: string;
   state: "running" | "stopped" | "error";
@@ -42,11 +42,11 @@ export function writeState(casaDir: string, state: CasaState): void {
   renameSync(tmp, statePath);
 }
 
-/** List all CASA directories under mechaDir/casas/ */
+/** List all CASA directories under mechaDir/ (each with a state.json) */
 export function listCasaDirs(mechaDir: string): string[] {
-  const casasDir = join(mechaDir, "casas");
-  if (!existsSync(casasDir)) return [];
-  return readdirSync(casasDir, { withFileTypes: true })
+  if (!existsSync(mechaDir)) return [];
+  return readdirSync(mechaDir, { withFileTypes: true })
     .filter((d) => d.isDirectory())
-    .map((d) => join(casasDir, d.name));
+    .map((d) => join(mechaDir, d.name))
+    .filter((dir) => existsSync(join(dir, "state.json")));
 }

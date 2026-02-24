@@ -30,7 +30,7 @@ export function createServer(opts: CreateServerOpts): FastifyInstance {
     startedAt: new Date().toISOString(),
   });
   registerSessionRoutes(app, sm);
-  registerChatRoutes(app, sm);
+  registerChatRoutes(app);
   registerMcpRoutes(app, { workspacePath: opts.workspacePath });
 
   return app;
