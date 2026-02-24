@@ -1,5 +1,6 @@
 import type { CasaName, NodeName, CasaAddress, Address } from "./types.js";
 import { isValidName, NAME_MAX_LENGTH } from "./validation.js";
+import { InvalidNameError } from "./errors.js";
 
 /** The default node name for unqualified addresses */
 const LOCAL_NODE = "local" as NodeName;
@@ -10,9 +11,7 @@ const LOCAL_NODE = "local" as NodeName;
  */
 export function casaName(input: string): CasaName {
   if (!isValidName(input)) {
-    throw new Error(
-      `Invalid CASA name: "${input}" (must be lowercase alphanumeric/hyphens, 1-${NAME_MAX_LENGTH} chars, no leading/trailing hyphen)`,
-    );
+    throw new InvalidNameError(input);
   }
   return input as CasaName;
 }
@@ -23,9 +22,7 @@ export function casaName(input: string): CasaName {
  */
 export function nodeName(input: string): NodeName {
   if (!isValidName(input)) {
-    throw new Error(
-      `Invalid node name: "${input}" (must be lowercase alphanumeric/hyphens, 1-${NAME_MAX_LENGTH} chars, no leading/trailing hyphen)`,
-    );
+    throw new InvalidNameError(input);
   }
   return input as NodeName;
 }

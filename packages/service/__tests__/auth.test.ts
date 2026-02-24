@@ -14,6 +14,7 @@ import {
   mechaAuthGet,
   mechaAuthGetDefault,
 } from "../src/auth.js";
+import { AuthProfileNotFoundError } from "@mecha/contracts";
 
 describe("auth service", () => {
   let tempDir: string;
@@ -84,9 +85,9 @@ describe("auth service", () => {
       expect(profiles.find((p) => p.name === "a")!.isDefault).toBe(false);
     });
 
-    it("throws for unknown profile", () => {
+    it("throws AuthProfileNotFoundError for unknown profile", () => {
       const dir = setup();
-      expect(() => mechaAuthDefault(dir, "nope")).toThrow("not found");
+      expect(() => mechaAuthDefault(dir, "nope")).toThrow(AuthProfileNotFoundError);
     });
   });
 
@@ -117,9 +118,9 @@ describe("auth service", () => {
       expect(mechaAuthGetDefault(dir)).toBeUndefined();
     });
 
-    it("throws for unknown profile", () => {
+    it("throws AuthProfileNotFoundError for unknown profile", () => {
       const dir = setup();
-      expect(() => mechaAuthRm(dir, "nope")).toThrow("not found");
+      expect(() => mechaAuthRm(dir, "nope")).toThrow(AuthProfileNotFoundError);
     });
   });
 
@@ -131,9 +132,9 @@ describe("auth service", () => {
       expect(mechaAuthGet(dir, "tagged")!.tags).toEqual(["research", "coding"]);
     });
 
-    it("throws for unknown profile", () => {
+    it("throws AuthProfileNotFoundError for unknown profile", () => {
       const dir = setup();
-      expect(() => mechaAuthTag(dir, "nope", ["tag"])).toThrow("not found");
+      expect(() => mechaAuthTag(dir, "nope", ["tag"])).toThrow(AuthProfileNotFoundError);
     });
   });
 
@@ -147,9 +148,9 @@ describe("auth service", () => {
       expect(mechaAuthGetDefault(dir)!.name).toBe("b");
     });
 
-    it("throws for unknown profile", () => {
+    it("throws AuthProfileNotFoundError for unknown profile", () => {
       const dir = setup();
-      expect(() => mechaAuthSwitch(dir, "nope")).toThrow("not found");
+      expect(() => mechaAuthSwitch(dir, "nope")).toThrow(AuthProfileNotFoundError);
     });
   });
 
@@ -170,9 +171,9 @@ describe("auth service", () => {
       expect(result.valid).toBe(false);
     });
 
-    it("throws for unknown profile", () => {
+    it("throws AuthProfileNotFoundError for unknown profile", () => {
       const dir = setup();
-      expect(() => mechaAuthTest(dir, "nope")).toThrow("not found");
+      expect(() => mechaAuthTest(dir, "nope")).toThrow(AuthProfileNotFoundError);
     });
   });
 
@@ -185,9 +186,9 @@ describe("auth service", () => {
       expect(mechaAuthGet(dir, "renew-me")!.token).toBe("new-tok");
     });
 
-    it("throws for unknown profile", () => {
+    it("throws AuthProfileNotFoundError for unknown profile", () => {
       const dir = setup();
-      expect(() => mechaAuthRenew(dir, "nope", "tok")).toThrow("not found");
+      expect(() => mechaAuthRenew(dir, "nope", "tok")).toThrow(AuthProfileNotFoundError);
     });
   });
 

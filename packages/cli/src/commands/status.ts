@@ -11,6 +11,7 @@ export function registerStatusCommand(program: Command, deps: CommandDeps): void
     .action(async (name: string) => {
       const validated = casaName(name);
       const info = casaStatus(deps.processManager, validated);
-      deps.formatter.json(info);
+      const { token: _token, ...safeInfo } = info;
+      deps.formatter.json(safeInfo);
     });
 }

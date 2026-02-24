@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { mkdtempSync, mkdirSync, rmSync, existsSync, readFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { EventEmitter } from "node:events";
@@ -127,6 +127,80 @@ describe("createProcessManager", () => {
     expect(existsSync(join(casaDir, "logs"))).toBe(true);
     expect(existsSync(join(casaDir, "config.json"))).toBe(true);
     expect(existsSync(join(casaDir, "state.json"))).toBe(true);
+  });
+
+  it("sets config.json to mode 0o600 after spawn", async () => {
+    const mockChild = createMockChild();
+    const mockSpawn = createMockSpawn(mockChild);
+
+    const pm = createProcessManager({
+      mechaDir: tempDir,
+      healthTimeoutMs: 3000,
+      spawnFn: mockSpawn as any,
+      runtimeEntrypoint: "/fake/runtime.js",
+    });
+
+    await pm.spawn({
+      name: testName,
+      workspacePath: tempDir,
+      port: healthPort,
+    });
+
+    const casaDir = join(tempDir, "casas", testName);
+    const mode = statSync(join(casaDir, "config.json")).mode & 0o777;
+    expect(mode).toBe(0o600);
+  });
+
+  it("sets CASA directories to mode 0o700 after spawn", async () => {
+    const mockChild = createMockChild();
+    const mockSpawn = createMockSpawn(mockChild);
+
+    const pm = createProcessManager({
+      mechaDir: tempDir,
+      healthTimeoutMs: 3000,
+      spawnFn: mockSpawn as any,
+      runtimeEntrypoint: "/fake/runtime.js",
+    });
+
+    await pm.spawn({
+      name: testName,
+      workspacePath: tempDir,
+      port: healthPort,
+    });
+
+    const casaDir = join(tempDir, "casas", testName);
+    const hooksMode = statSync(join(casaDir, "home", ".claude", "hooks")).mode & 0o777;
+    const tmpMode = statSync(join(casaDir, "tmp")).mode & 0o777;
+    expect(hooksMode).toBe(0o700);
+    expect(tmpMode).toBe(0o700);
+  });
+
+  it("sandbox guard rejects sibling paths", async () => {
+    const mockChild = createMockChild();
+    const mockSpawn = createMockSpawn(mockChild);
+
+    const pm = createProcessManager({
+      mechaDir: tempDir,
+      healthTimeoutMs: 3000,
+      spawnFn: mockSpawn as any,
+      runtimeEntrypoint: "/fake/runtime.js",
+    });
+
+    await pm.spawn({
+      name: testName,
+      workspacePath: tempDir,
+      port: healthPort,
+    });
+
+    const casaDir = join(tempDir, "casas", testName);
+    const guardPath = join(casaDir, "home", ".claude", "hooks", "sandbox-guard.sh");
+    const script = readFileSync(guardPath, "utf-8");
+
+    // The guard should use strict path matching with "/" separator
+    expect(script).toContain('"$MECHA_SANDBOX_ROOT"/*|"$MECHA_SANDBOX_ROOT")');
+    expect(script).toContain('"$MECHA_WORKSPACE"/*|"$MECHA_WORKSPACE")');
+    // Should NOT have the old loose pattern
+    expect(script).not.toMatch(/"\$MECHA_SANDBOX_ROOT"\*\)/);
   });
 
   it("writes sandbox hooks on spawn", async () => {
@@ -323,6 +397,96 @@ describe("createProcessManager", () => {
   it("getPortAndToken returns undefined for non-live CASA", () => {
     const pm = createProcessManager({ mechaDir: tempDir });
     expect(pm.getPortAndToken("nope" as CasaName)).toBeUndefined();
+  });
+
+  it("getPortAndToken recovers port+token from config.json when CASA is alive but not in live Map", () => {
+    const { writeFileSync: wf } = require("node:fs");
+    const casaDir = join(tempDir, "casas", "recover-me");
+
+    // Write state showing running with current process PID (alive)
+    writeState(casaDir, {
+      name: "recover-me",
+      state: "running",
+      pid: process.pid,
+      port: 7777,
+      workspacePath: "/tmp",
+      startedAt: "2026-01-01T00:00:00Z",
+    });
+
+    // Write config.json with port+token
+    wf(join(casaDir, "config.json"), JSON.stringify({
+      port: 7777,
+      token: "mecha_recovered_token",
+      workspace: "/tmp",
+    }));
+
+    // Create a NEW ProcessManager (simulating CLI restart — empty live Map)
+    const pm = createProcessManager({ mechaDir: tempDir });
+
+    const pt = pm.getPortAndToken("recover-me" as CasaName);
+    expect(pt).toBeDefined();
+    expect(pt!.port).toBe(7777);
+    expect(pt!.token).toBe("mecha_recovered_token");
+  });
+
+  it("getPortAndToken returns undefined when CASA state is running but PID is dead", () => {
+    const { writeFileSync: wf } = require("node:fs");
+    const casaDir = join(tempDir, "casas", "dead-recover");
+
+    writeState(casaDir, {
+      name: "dead-recover",
+      state: "running",
+      pid: 999999999,
+      port: 7778,
+      workspacePath: "/tmp",
+      startedAt: "2026-01-01T00:00:00Z",
+    });
+
+    wf(join(casaDir, "config.json"), JSON.stringify({
+      port: 7778,
+      token: "mecha_dead_token",
+      workspace: "/tmp",
+    }));
+
+    const pm = createProcessManager({ mechaDir: tempDir });
+    // PID is dead, so recovery should not return config data
+    expect(pm.getPortAndToken("dead-recover" as CasaName)).toBeUndefined();
+  });
+
+  it("getPortAndToken returns undefined when config.json is missing", () => {
+    const casaDir = join(tempDir, "casas", "no-config");
+
+    writeState(casaDir, {
+      name: "no-config",
+      state: "running",
+      pid: process.pid,
+      port: 7779,
+      workspacePath: "/tmp",
+      startedAt: "2026-01-01T00:00:00Z",
+    });
+
+    // No config.json written
+    const pm = createProcessManager({ mechaDir: tempDir });
+    expect(pm.getPortAndToken("no-config" as CasaName)).toBeUndefined();
+  });
+
+  it("getPortAndToken returns undefined when config.json is malformed", () => {
+    const { writeFileSync: wf } = require("node:fs");
+    const casaDir = join(tempDir, "casas", "bad-config");
+
+    writeState(casaDir, {
+      name: "bad-config",
+      state: "running",
+      pid: process.pid,
+      port: 7780,
+      workspacePath: "/tmp",
+      startedAt: "2026-01-01T00:00:00Z",
+    });
+
+    wf(join(casaDir, "config.json"), "not-valid-json{{{");
+
+    const pm = createProcessManager({ mechaDir: tempDir });
+    expect(pm.getPortAndToken("bad-config" as CasaName)).toBeUndefined();
   });
 
   it("onEvent fires on spawn", async () => {
@@ -759,20 +923,6 @@ describe("createProcessManager", () => {
     expect(mockChild.kill).toHaveBeenCalledWith("SIGKILL");
   });
 
-  it("spawns with auto-allocated port when port not provided", async () => {
-    const mockChild = createMockChild();
-    const mockSpawn = createMockSpawn(mockChild);
-
-    // We need to make the health server listen on whatever port gets allocated
-    // Instead, just test that allocatePort is called — mock it
-    // Actually, let's just ensure spawn works with explicit port (already tested)
-    // and test allocatePort integration separately. For coverage, we need the
-    // `spawnOpts.port ?? await allocatePort(...)` branch where port is undefined.
-    // But the health check will fail because there's no server on the allocated port.
-    // Let's skip this specific branch test — it's tested via port.test.ts integration.
-    expect(true).toBe(true);
-  });
-
   it("re-spawns CASA after stop (workspace symlink already exists)", async () => {
     const mockChild1 = createMockChild(111);
     const mockChild2 = createMockChild(222);
@@ -1098,11 +1248,12 @@ describe("createProcessManager", () => {
     }
   });
 
-  it("throws on invalid CASA name (path traversal)", async () => {
+  it("throws InvalidNameError on invalid CASA name (path traversal)", async () => {
+    const { InvalidNameError } = await import("@mecha/core");
     const pm = createProcessManager({ mechaDir: tempDir, runtimeEntrypoint: "/fake/runtime.js" });
     await expect(
       pm.spawn({ name: "../etc" as CasaName, workspacePath: "/ws" }),
-    ).rejects.toThrow("Invalid CASA name");
+    ).rejects.toThrow(InvalidNameError);
   });
 
   it("throws ProcessSpawnError when no runtimeEntrypoint and no runtimeBin", async () => {

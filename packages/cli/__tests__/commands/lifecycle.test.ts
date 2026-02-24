@@ -136,13 +136,16 @@ describe("ls command", () => {
 });
 
 describe("status command", () => {
-  it("shows CASA status", async () => {
+  it("shows CASA status without token", async () => {
     const deps = makeDeps();
     const program = createProgram(deps);
     program.exitOverride();
 
     await program.parseAsync(["node", "mecha", "status", "test"]);
-    expect(deps.formatter.json).toHaveBeenCalledWith(RUNNING_INFO);
+    const jsonArg = (deps.formatter.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(jsonArg).not.toHaveProperty("token");
+    expect(jsonArg.name).toBe("test");
+    expect(jsonArg.state).toBe("running");
   });
 });
 

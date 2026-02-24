@@ -1,9 +1,9 @@
 import { spawn as cpSpawn, type ChildProcess } from "node:child_process";
-import { mkdirSync, writeFileSync, symlinkSync, createReadStream, existsSync } from "node:fs";
+import { mkdirSync, writeFileSync, symlinkSync, createReadStream, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 import { Readable } from "node:stream";
-import { type CasaName, isValidName } from "@mecha/core";
+import { type CasaName, isValidName, InvalidNameError } from "@mecha/core";
 import {
   CasaAlreadyExistsError,
   CasaNotFoundError,
@@ -106,7 +106,7 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
   function _casaDir(name: string): string {
     // Validate name to prevent path traversal
     if (!isValidName(name)) {
-      throw new Error(`Invalid CASA name: "${name}"`);
+      throw new InvalidNameError(name);
     }
     return join(mechaDir, "casas", name);
   }
@@ -143,10 +143,10 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
     const sessionsDir = join(casaDir, "sessions", "transcripts");
     const logsDir = join(casaDir, "logs");
 
-    mkdirSync(hooksDir, { recursive: true });
-    mkdirSync(tmpDir, { recursive: true });
-    mkdirSync(sessionsDir, { recursive: true });
-    mkdirSync(logsDir, { recursive: true });
+    mkdirSync(hooksDir, { recursive: true, mode: 0o700 });
+    mkdirSync(tmpDir, { recursive: true, mode: 0o700 });
+    mkdirSync(sessionsDir, { recursive: true, mode: 0o700 });
+    mkdirSync(logsDir, { recursive: true, mode: 0o700 });
 
     // Create workspace symlink — remove existing if present, then create fresh
     try { const { unlinkSync } = await import("node:fs"); unlinkSync(workDir); } catch { /* no existing symlink */ }
@@ -154,7 +154,7 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
 
     // Write config
     const config = { port, token, workspace: workspacePath, model, permissionMode, auth };
-    writeFileSync(join(casaDir, "config.json"), JSON.stringify(config, null, 2) + "\n");
+    writeFileSync(join(casaDir, "config.json"), JSON.stringify(config, null, 2) + "\n", { mode: 0o600 });
 
     // Write sandbox hooks (settings.json)
     const settings = {
@@ -187,8 +187,8 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
 TARGET="$1"
 RESOLVED=$(cd "$(dirname "$TARGET")" 2>/dev/null && pwd)/$(basename "$TARGET")
 case "$RESOLVED" in
-  "$MECHA_SANDBOX_ROOT"*) exit 0 ;;
-  "$MECHA_WORKSPACE"*) exit 0 ;;
+  "$MECHA_SANDBOX_ROOT"/*|"$MECHA_SANDBOX_ROOT") exit 0 ;;
+  "$MECHA_WORKSPACE"/*|"$MECHA_WORKSPACE") exit 0 ;;
   *) echo "BLOCKED: $RESOLVED is outside sandbox" >&2; exit 2 ;;
 esac
 `;
@@ -447,9 +447,25 @@ cd "$MECHA_WORKSPACE" 2>/dev/null || true
     return createReadStream(logPath, { encoding: "utf-8" });
   }
 
+  function _readConfig(casaDir: string): { port: number; token: string; workspace: string } | undefined {
+    const configPath = join(casaDir, "config.json");
+    if (!existsSync(configPath)) return undefined;
+    try {
+      return JSON.parse(readFileSync(configPath, "utf-8")) as { port: number; token: string; workspace: string };
+    } catch { return undefined; }
+  }
+
   function getPortAndToken(name: CasaName): { port: number; token: string } | undefined {
     const lp = live.get(name);
     if (lp) return { port: lp.port, token: lp.token };
+
+    // Recover from disk if CASA is running but CLI was restarted
+    const casaDir = _casaDir(name);
+    const state = readState(casaDir);
+    if (state?.state === "running" && state.pid && _isPidAlive(state.pid)) {
+      const config = _readConfig(casaDir);
+      if (config) return { port: config.port, token: config.token };
+    }
     return undefined;
   }
 

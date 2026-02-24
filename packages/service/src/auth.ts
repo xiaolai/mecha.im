@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { AuthProfileNotFoundError } from "@mecha/contracts";
 
 export interface AuthProfile {
   name: string;
@@ -70,7 +71,7 @@ export function mechaAuthLs(mechaDir: string): AuthProfile[] {
 export function mechaAuthDefault(mechaDir: string, name: string): void {
   const store = readStore(mechaDir);
   const profile = store.profiles.find((p) => p.name === name);
-  if (!profile) throw new Error(`Auth profile "${name}" not found`);
+  if (!profile) throw new AuthProfileNotFoundError(name);
 
   for (const p of store.profiles) p.isDefault = false;
   profile.isDefault = true;
@@ -81,7 +82,7 @@ export function mechaAuthDefault(mechaDir: string, name: string): void {
 export function mechaAuthRm(mechaDir: string, name: string): void {
   const store = readStore(mechaDir);
   const idx = store.profiles.findIndex((p) => p.name === name);
-  if (idx === -1) throw new Error(`Auth profile "${name}" not found`);
+  if (idx === -1) throw new AuthProfileNotFoundError(name);
 
   const wasDefault = store.profiles[idx]!.isDefault;
   store.profiles.splice(idx, 1);
@@ -99,7 +100,7 @@ export function mechaAuthRm(mechaDir: string, name: string): void {
 export function mechaAuthTag(mechaDir: string, name: string, tags: string[]): void {
   const store = readStore(mechaDir);
   const profile = store.profiles.find((p) => p.name === name);
-  if (!profile) throw new Error(`Auth profile "${name}" not found`);
+  if (!profile) throw new AuthProfileNotFoundError(name);
 
   profile.tags = tags;
   writeStore(mechaDir, store);
@@ -108,7 +109,7 @@ export function mechaAuthTag(mechaDir: string, name: string, tags: string[]): vo
 export function mechaAuthSwitch(mechaDir: string, name: string): AuthProfile {
   const store = readStore(mechaDir);
   const profile = store.profiles.find((p) => p.name === name);
-  if (!profile) throw new Error(`Auth profile "${name}" not found`);
+  if (!profile) throw new AuthProfileNotFoundError(name);
 
   for (const p of store.profiles) p.isDefault = false;
   profile.isDefault = true;
@@ -120,7 +121,7 @@ export function mechaAuthSwitch(mechaDir: string, name: string): AuthProfile {
 export function mechaAuthTest(mechaDir: string, name: string): { valid: boolean; profile: AuthProfile } {
   const store = readStore(mechaDir);
   const profile = store.profiles.find((p) => p.name === name);
-  if (!profile) throw new Error(`Auth profile "${name}" not found`);
+  if (!profile) throw new AuthProfileNotFoundError(name);
 
   // Basic validation — check token is non-empty
   const valid = profile.token.length > 0;
@@ -130,7 +131,7 @@ export function mechaAuthTest(mechaDir: string, name: string): { valid: boolean;
 export function mechaAuthRenew(mechaDir: string, name: string, newToken: string): AuthProfile {
   const store = readStore(mechaDir);
   const profile = store.profiles.find((p) => p.name === name);
-  if (!profile) throw new Error(`Auth profile "${name}" not found`);
+  if (!profile) throw new AuthProfileNotFoundError(name);
 
   profile.token = newToken;
   writeStore(mechaDir, store);

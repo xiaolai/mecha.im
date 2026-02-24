@@ -17,3 +17,4 @@ export {
   MANAGED_TOOLS,
   DEFAULTS,
 } from "./constants.js";
+export { MechaError, InvalidNameError } from "./errors.js";
