@@ -4,10 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createServer, type Server } from "node:http";
 import Fastify, { type FastifyInstance } from "fastify";
-import Database from "better-sqlite3";
-import { runMigrations } from "@mecha/runtime";
-import { createSessionManager } from "@mecha/runtime";
-import { registerSessionRoutes } from "@mecha/runtime";
+import { createSessionManager, registerSessionRoutes } from "@mecha/runtime";
 import type { ProcessManager } from "@mecha/process";
 import type { CasaName } from "@mecha/core";
 import {
@@ -25,7 +22,6 @@ const TOKEN = "test-token";
 
 describe("session service", () => {
   let app: FastifyInstance;
-  let db: InstanceType<typeof Database>;
   let tempDir: string;
   let port: number;
   let pm: ProcessManager;
@@ -33,9 +29,7 @@ describe("session service", () => {
 
   beforeEach(async () => {
     tempDir = mkdtempSync(join(tmpdir(), "mecha-svc-sessions-"));
-    db = new Database(":memory:");
-    runMigrations(db);
-    sm = createSessionManager(db, join(tempDir, "transcripts"));
+    sm = createSessionManager(join(tempDir, "projects"));
 
     app = Fastify();
     registerSessionRoutes(app, sm);
@@ -57,7 +51,6 @@ describe("session service", () => {
 
   afterEach(async () => {
     await app.close();
-    db.close();
     rmSync(tempDir, { recursive: true, force: true });
   });
 
@@ -115,7 +108,7 @@ describe("session service", () => {
       role: "user",
       content: "Hello",
     });
-    expect((result as { role: string }).role).toBe("user");
+    expect((result as { type: string }).type).toBe("user");
   });
 
   it("interrupts a non-busy session returns false (409)", async () => {

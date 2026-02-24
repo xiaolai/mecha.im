@@ -3,23 +3,18 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import Fastify, { type FastifyInstance } from "fastify";
-import Database from "better-sqlite3";
-import { runMigrations } from "../../src/database.js";
 import { createSessionManager } from "../../src/session-manager.js";
 import { registerSessionRoutes } from "../../src/routes/sessions.js";
 import type { SessionManager } from "../../src/session-manager.js";
 
 describe("session routes", () => {
   let app: FastifyInstance;
-  let db: InstanceType<typeof Database>;
   let sm: SessionManager;
   let tempDir: string;
 
   beforeEach(async () => {
     tempDir = mkdtempSync(join(tmpdir(), "mecha-routes-test-"));
-    db = new Database(":memory:");
-    runMigrations(db);
-    sm = createSessionManager(db, join(tempDir, "transcripts"));
+    sm = createSessionManager(join(tempDir, "projects"));
 
     app = Fastify();
     registerSessionRoutes(app, sm);
@@ -28,7 +23,6 @@ describe("session routes", () => {
 
   afterEach(async () => {
     await app.close();
-    db.close();
     rmSync(tempDir, { recursive: true, force: true });
   });
 
@@ -76,9 +70,9 @@ describe("session routes", () => {
   describe("GET /api/sessions/:id", () => {
     it("returns session with messages", async () => {
       const session = sm.create({ title: "Test" });
-      await sm.appendMessage(session.id, {
-        role: "user",
-        content: "Hi",
+      await sm.appendEvent(session.id, {
+        type: "user",
+        message: { role: "user", content: "Hi" },
         timestamp: "2026-01-01T00:00:00Z",
       });
 
@@ -89,7 +83,7 @@ describe("session routes", () => {
       expect(res.statusCode).toBe(200);
       const body = res.json();
       expect(body.title).toBe("Test");
-      expect(body.messages).toHaveLength(1);
+      expect(body.events).toHaveLength(1);
     });
 
     it("returns 404 for unknown session", async () => {
@@ -165,26 +159,26 @@ describe("session routes", () => {
     });
   });
 
-  describe("POST /api/sessions/:id/message", () => {
-    it("appends a message", async () => {
+  describe("POST /api/sessions/:id/event", () => {
+    it("appends an event", async () => {
       const session = sm.create();
       const res = await app.inject({
         method: "POST",
-        url: `/api/sessions/${session.id}/message`,
-        payload: { role: "user", content: "Hello" },
+        url: `/api/sessions/${session.id}/event`,
+        payload: { type: "user", message: { role: "user", content: "Hello" } },
       });
       expect(res.statusCode).toBe(200);
       const body = res.json();
-      expect(body.role).toBe("user");
-      expect(body.content).toBe("Hello");
+      expect(body.type).toBe("user");
       expect(body.timestamp).toBeDefined();
+      expect(body.sessionId).toBe(session.id);
     });
 
     it("returns 404 for unknown session", async () => {
       const res = await app.inject({
         method: "POST",
-        url: "/api/sessions/nonexistent/message",
-        payload: { role: "user", content: "Hello" },
+        url: "/api/sessions/nonexistent/event",
+        payload: { type: "user", message: { role: "user", content: "Hello" } },
       });
       expect(res.statusCode).toBe(404);
     });
@@ -194,8 +188,8 @@ describe("session routes", () => {
       sm.setBusy(session.id, true);
       const res = await app.inject({
         method: "POST",
-        url: `/api/sessions/${session.id}/message`,
-        payload: { role: "user", content: "Hello" },
+        url: `/api/sessions/${session.id}/event`,
+        payload: { type: "user", message: { role: "user", content: "Hello" } },
       });
       expect(res.statusCode).toBe(409);
     });

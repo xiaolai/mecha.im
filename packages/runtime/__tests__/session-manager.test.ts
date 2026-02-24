@@ -1,26 +1,22 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
+import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import Database from "better-sqlite3";
-import { runMigrations } from "../src/database.js";
 import { createSessionManager } from "../src/session-manager.js";
-import type { SessionManager, SessionMessage } from "../src/session-manager.js";
+import type { SessionManager, TranscriptEvent } from "../src/session-manager.js";
 
 describe("createSessionManager", () => {
   let tempDir: string;
-  let db: InstanceType<typeof Database>;
+  let projectsDir: string;
   let sm: SessionManager;
 
   beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), "mecha-sm-test-"));
-    db = new Database(":memory:");
-    runMigrations(db);
-    sm = createSessionManager(db, join(tempDir, "transcripts"));
+    projectsDir = join(tempDir, "projects");
+    sm = createSessionManager(projectsDir);
   });
 
   afterEach(() => {
-    db.close();
     rmSync(tempDir, { recursive: true, force: true });
   });
 
@@ -44,6 +40,15 @@ describe("createSessionManager", () => {
       const s2 = sm.create();
       expect(s1.id).not.toBe(s2.id);
     });
+
+    it("writes meta.json file", () => {
+      const session = sm.create({ title: "Test" });
+      const metaPath = join(projectsDir, `${session.id}.meta.json`);
+      expect(existsSync(metaPath)).toBe(true);
+      const meta = JSON.parse(readFileSync(metaPath, "utf-8"));
+      expect(meta.title).toBe("Test");
+      expect(meta.id).toBe(session.id);
+    });
   });
 
   describe("list", () => {
@@ -51,8 +56,10 @@ describe("createSessionManager", () => {
       expect(sm.list()).toEqual([]);
     });
 
-    it("returns all sessions ordered by updatedAt DESC", () => {
+    it("returns all sessions ordered by updatedAt DESC", async () => {
       sm.create({ title: "First" });
+      // Ensure timestamp difference so ordering is deterministic
+      await new Promise((r) => setTimeout(r, 10));
       sm.create({ title: "Second" });
       const all = sm.list();
       expect(all).toHaveLength(2);
@@ -63,49 +70,53 @@ describe("createSessionManager", () => {
   });
 
   describe("get", () => {
-    it("returns session with messages", async () => {
+    it("returns session with events", async () => {
       const created = sm.create({ title: "Test" });
-      const msg: SessionMessage = {
-        role: "user",
-        content: "Hello",
+      const event: TranscriptEvent = {
+        type: "user",
+        message: { role: "user", content: "Hello" },
         timestamp: new Date().toISOString(),
       };
-      await sm.appendMessage(created.id, msg);
+      await sm.appendEvent(created.id, event);
 
       const session = await sm.get(created.id);
       expect(session).toBeDefined();
       expect(session!.title).toBe("Test");
-      expect(session!.messages).toHaveLength(1);
-      expect(session!.messages[0]!.content).toBe("Hello");
+      expect(session!.events).toHaveLength(1);
+      expect(session!.events[0]!.type).toBe("user");
+      expect((session!.events[0]!.message as { content: string }).content).toBe("Hello");
     });
 
     it("returns undefined for nonexistent session", async () => {
       expect(await sm.get("nonexistent-id")).toBeUndefined();
     });
 
-    it("returns empty messages for session with no transcript", async () => {
+    it("returns empty events for session with no transcript", async () => {
       const created = sm.create();
       const session = await sm.get(created.id);
-      expect(session!.messages).toEqual([]);
+      expect(session!.events).toEqual([]);
     });
   });
 
   describe("delete", () => {
     it("deletes session and transcript", async () => {
       const created = sm.create();
-      const msg: SessionMessage = {
-        role: "user",
-        content: "test",
+      const event: TranscriptEvent = {
+        type: "user",
+        message: { role: "user", content: "test" },
         timestamp: new Date().toISOString(),
       };
-      await sm.appendMessage(created.id, msg);
+      await sm.appendEvent(created.id, event);
 
       const result = sm.delete(created.id);
       expect(result).toBe(true);
       expect(await sm.get(created.id)).toBeUndefined();
 
-      const transcriptPath = join(tempDir, "transcripts", `${created.id}.jsonl`);
+      const transcriptPath = join(projectsDir, `${created.id}.jsonl`);
       expect(existsSync(transcriptPath)).toBe(false);
+
+      const metaPath = join(projectsDir, `${created.id}.meta.json`);
+      expect(existsSync(metaPath)).toBe(false);
     });
 
     it("returns false for nonexistent session", () => {
@@ -164,25 +175,25 @@ describe("createSessionManager", () => {
     });
   });
 
-  describe("appendMessage", () => {
-    it("appends messages to JSONL file", async () => {
+  describe("appendEvent", () => {
+    it("appends events to JSONL file", async () => {
       const created = sm.create();
-      const msg1: SessionMessage = { role: "user", content: "Hi", timestamp: "2026-01-01T00:00:00Z" };
-      const msg2: SessionMessage = { role: "assistant", content: "Hello!", timestamp: "2026-01-01T00:00:01Z" };
+      const event1: TranscriptEvent = { type: "user", message: { role: "user", content: "Hi" }, timestamp: "2026-01-01T00:00:00Z" };
+      const event2: TranscriptEvent = { type: "assistant", message: { role: "assistant", content: [{ type: "text", text: "Hello!" }] }, timestamp: "2026-01-01T00:00:01Z" };
 
-      await sm.appendMessage(created.id, msg1);
-      await sm.appendMessage(created.id, msg2);
+      await sm.appendEvent(created.id, event1);
+      await sm.appendEvent(created.id, event2);
 
-      const transcriptPath = join(tempDir, "transcripts", `${created.id}.jsonl`);
+      const transcriptPath = join(projectsDir, `${created.id}.jsonl`);
       const lines = readFileSync(transcriptPath, "utf-8").trim().split("\n");
       expect(lines).toHaveLength(2);
-      expect(JSON.parse(lines[0]!)).toEqual(msg1);
-      expect(JSON.parse(lines[1]!)).toEqual(msg2);
+      expect(JSON.parse(lines[0]!)).toEqual(event1);
+      expect(JSON.parse(lines[1]!)).toEqual(event2);
     });
 
     it("throws when session does not exist", async () => {
-      const msg: SessionMessage = { role: "user", content: "test", timestamp: new Date().toISOString() };
-      await expect(sm.appendMessage("nonexistent-id", msg)).rejects.toThrow("Session not found");
+      const event: TranscriptEvent = { type: "user", message: { role: "user", content: "test" }, timestamp: new Date().toISOString() };
+      await expect(sm.appendEvent("nonexistent-id", event)).rejects.toThrow("Session not found");
     });
 
     it("updates session updatedAt", async () => {
@@ -192,11 +203,25 @@ describe("createSessionManager", () => {
       // Wait to ensure timestamp difference
       await new Promise((r) => setTimeout(r, 10));
 
-      const msg: SessionMessage = { role: "user", content: "test", timestamp: new Date().toISOString() };
-      await sm.appendMessage(created.id, msg);
+      const event: TranscriptEvent = { type: "user", message: { role: "user", content: "test" }, timestamp: new Date().toISOString() };
+      await sm.appendEvent(created.id, event);
 
       const session = await sm.get(created.id);
       expect(session!.updatedAt).not.toBe(originalUpdatedAt);
+    });
+
+    it("stores arbitrary event types", async () => {
+      const created = sm.create();
+      const progressEvent: TranscriptEvent = {
+        type: "progress",
+        data: { toolUseId: "abc", content: "Reading file..." },
+        timestamp: "2026-01-01T00:00:00Z",
+      };
+      await sm.appendEvent(created.id, progressEvent);
+
+      const session = await sm.get(created.id);
+      expect(session!.events[0]!.type).toBe("progress");
+      expect((session!.events[0]!.data as { toolUseId: string }).toolUseId).toBe("abc");
     });
   });
 
@@ -221,9 +246,9 @@ describe("createSessionManager", () => {
   });
 
   describe("transcript handling", () => {
-    it("creates transcript directory if not exists", () => {
-      const nestedDir = join(tempDir, "deep", "nested", "transcripts");
-      const sm2 = createSessionManager(db, nestedDir);
+    it("creates projects directory if not exists", () => {
+      const nestedDir = join(tempDir, "deep", "nested", "projects");
+      const sm2 = createSessionManager(nestedDir);
       expect(existsSync(nestedDir)).toBe(true);
       // Use sm2 to suppress unused warning
       expect(sm2.list()).toEqual([]);
@@ -231,25 +256,65 @@ describe("createSessionManager", () => {
 
     it("skips malformed lines in JSONL transcript", async () => {
       const created = sm.create();
-      const transcriptPath = join(tempDir, "transcripts", `${created.id}.jsonl`);
-      const { writeFileSync: writeFn } = require("node:fs") as typeof import("node:fs");
-      writeFn(transcriptPath, '{"role":"user","content":"ok","timestamp":"t"}\nnot-json\n{"role":"assistant","content":"hi","timestamp":"t2"}\n');
+      const transcriptPath = join(projectsDir, `${created.id}.jsonl`);
+      writeFileSync(transcriptPath, '{"type":"user","message":{"role":"user","content":"ok"}}\nnot-json\n{"type":"assistant","message":{"role":"assistant","content":"hi"}}\n');
 
       const session = await sm.get(created.id);
-      expect(session!.messages).toHaveLength(2);
-      expect(session!.messages[0].content).toBe("ok");
-      expect(session!.messages[1].content).toBe("hi");
+      expect(session!.events).toHaveLength(2);
+      expect(session!.events[0]!.type).toBe("user");
+      expect(session!.events[1]!.type).toBe("assistant");
     });
 
     it("handles empty JSONL file gracefully", async () => {
       const created = sm.create();
-      // Create empty file
-      const transcriptPath = join(tempDir, "transcripts", `${created.id}.jsonl`);
-      const { writeFileSync } = require("node:fs") as typeof import("node:fs");
+      const transcriptPath = join(projectsDir, `${created.id}.jsonl`);
       writeFileSync(transcriptPath, "");
 
       const session = await sm.get(created.id);
-      expect(session!.messages).toEqual([]);
+      expect(session!.events).toEqual([]);
+    });
+
+    it("handles corrupted meta.json gracefully", () => {
+      const created = sm.create();
+      const metaPath = join(projectsDir, `${created.id}.meta.json`);
+      writeFileSync(metaPath, "not-valid-json");
+
+      // list should skip corrupted entries
+      const sessions = sm.list();
+      expect(sessions).toHaveLength(0);
+    });
+
+    it("list skips non-meta files in projects directory", async () => {
+      sm.create({ title: "Real" });
+      // Write a .jsonl file and a random file — list should skip them
+      writeFileSync(join(projectsDir, "random-file.jsonl"), "data");
+      writeFileSync(join(projectsDir, "notes.txt"), "text");
+
+      const sessions = sm.list();
+      expect(sessions).toHaveLength(1);
+      expect(sessions[0]!.title).toBe("Real");
+    });
+
+    it("list returns empty for nonexistent directory", () => {
+      const sm2 = createSessionManager(join(tempDir, "nonexistent"));
+      // Remove the directory that was auto-created
+      rmSync(join(tempDir, "nonexistent"), { recursive: true, force: true });
+      expect(sm2.list()).toEqual([]);
+    });
+
+    it("sort uses secondary id sort when updatedAt is equal", () => {
+      // Create two sessions with identical timestamps by writing meta directly
+      const id1 = "aaaa-session";
+      const id2 = "zzzz-session";
+      const now = "2026-01-01T00:00:00.000Z";
+      writeFileSync(join(projectsDir, `${id1}.meta.json`), JSON.stringify({ id: id1, title: "A", starred: false, createdAt: now, updatedAt: now }));
+      writeFileSync(join(projectsDir, `${id2}.meta.json`), JSON.stringify({ id: id2, title: "Z", starred: false, createdAt: now, updatedAt: now }));
+
+      const sessions = sm.list();
+      expect(sessions).toHaveLength(2);
+      // zzzz comes first (DESC by id)
+      expect(sessions[0]!.id).toBe(id2);
+      expect(sessions[1]!.id).toBe(id1);
     });
   });
 });

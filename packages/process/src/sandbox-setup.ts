@@ -17,25 +17,35 @@ export interface CasaFilesystemResult {
   homeDir: string;
   tmpDir: string;
   logsDir: string;
-  sessionsDir: string;
+  projectsDir: string;
   childEnv: Record<string, string>;
+}
+
+/**
+ * Encode a workspace path into a directory name matching Claude Code's convention.
+ * `/home/user/my-project` → `-home-alice-my-project`
+ */
+export function encodeProjectPath(workspacePath: string): string {
+  return workspacePath.replace(/\//g, "-");
 }
 
 export function prepareCasaFilesystem(opts: CasaFilesystemOpts): CasaFilesystemResult {
   const { casaDir, workspacePath, port, token, name, model, permissionMode, auth, userEnv } = opts;
 
-  // Create directory structure
+  // Create directory structure mirroring real Claude Code
   const homeDir = join(casaDir, "home");
   const claudeDir = join(homeDir, ".claude");
   const hooksDir = join(claudeDir, "hooks");
+  const projectsBaseDir = join(claudeDir, "projects");
+  const encodedPath = encodeProjectPath(workspacePath);
+  const projectsDir = join(projectsBaseDir, encodedPath);
   const workDir = join(casaDir, "workspace");
   const tmpDir = join(casaDir, "tmp");
-  const sessionsDir = join(casaDir, "sessions");
   const logsDir = join(casaDir, "logs");
 
   mkdirSync(hooksDir, { recursive: true, mode: 0o700 });
+  mkdirSync(projectsDir, { recursive: true, mode: 0o700 });
   mkdirSync(tmpDir, { recursive: true, mode: 0o700 });
-  mkdirSync(sessionsDir, { recursive: true, mode: 0o700 });
   mkdirSync(logsDir, { recursive: true, mode: 0o700 });
 
   // Create workspace symlink — remove existing if present, then create fresh
@@ -96,7 +106,7 @@ cd "$MECHA_WORKSPACE" 2>/dev/null || true
   // Build environment — user env goes in the middle, security vars last to prevent override
   const resolvedUserEnv = userEnv ?? {};
   const reservedKeys = new Set([
-    "MECHA_CASA_NAME", "MECHA_PORT", "MECHA_WORKSPACE", "MECHA_DB_PATH",
+    "MECHA_CASA_NAME", "MECHA_PORT", "MECHA_WORKSPACE", "MECHA_PROJECTS_DIR",
     "MECHA_AUTH_TOKEN", "MECHA_LOG_DIR", "MECHA_SANDBOX_ROOT", "HOME", "TMPDIR",
   ]);
   const safeUserEnv: Record<string, string> = {};
@@ -113,11 +123,11 @@ cd "$MECHA_WORKSPACE" 2>/dev/null || true
     MECHA_CASA_NAME: name,
     MECHA_PORT: String(port),
     MECHA_WORKSPACE: workspacePath,
-    MECHA_DB_PATH: join(casaDir, "sessions", "sessions.db"),
+    MECHA_PROJECTS_DIR: projectsDir,
     MECHA_AUTH_TOKEN: token,
     MECHA_LOG_DIR: logsDir,
     MECHA_SANDBOX_ROOT: casaDir,
   };
 
-  return { homeDir, tmpDir, logsDir, sessionsDir, childEnv };
+  return { homeDir, tmpDir, logsDir, projectsDir, childEnv };
 }

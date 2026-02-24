@@ -16,8 +16,7 @@ describe("createServer", () => {
 
   function setup() {
     tempDir = mkdtempSync(join(tmpdir(), "mecha-server-test-"));
-    const dbPath = join(tempDir, "sessions.db");
-    const transcriptDir = join(tempDir, "transcripts");
+    const projectsDir = join(tempDir, "projects");
     const workspacePath = join(tempDir, "workspace");
     mkdirSync(workspacePath);
     writeFileSync(join(workspacePath, "README.md"), "# Test");
@@ -26,8 +25,7 @@ describe("createServer", () => {
       casaName: "test-casa",
       port: 7700,
       authToken: "test-token",
-      dbPath,
-      transcriptDir,
+      projectsDir,
       workspacePath,
     });
     return app;

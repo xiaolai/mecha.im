@@ -3,23 +3,18 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import Fastify, { type FastifyInstance } from "fastify";
-import Database from "better-sqlite3";
-import { runMigrations } from "../../src/database.js";
 import { createSessionManager } from "../../src/session-manager.js";
 import { registerChatRoutes } from "../../src/routes/chat.js";
 import type { SessionManager } from "../../src/session-manager.js";
 
 describe("chat routes", () => {
   let app: FastifyInstance;
-  let db: InstanceType<typeof Database>;
   let sm: SessionManager;
   let tempDir: string;
 
   beforeEach(async () => {
     tempDir = mkdtempSync(join(tmpdir(), "mecha-chat-test-"));
-    db = new Database(":memory:");
-    runMigrations(db);
-    sm = createSessionManager(db, join(tempDir, "transcripts"));
+    sm = createSessionManager(join(tempDir, "projects"));
 
     app = Fastify();
     registerChatRoutes(app, sm);
@@ -28,7 +23,6 @@ describe("chat routes", () => {
 
   afterEach(async () => {
     await app.close();
-    db.close();
     rmSync(tempDir, { recursive: true, force: true });
   });
 
@@ -84,11 +78,11 @@ describe("chat routes", () => {
     });
     expect(res.statusCode).toBe(200);
 
-    // Session should have messages appended
+    // Session should have events appended
     const updated = await sm.get(session.id);
-    expect(updated!.messages).toHaveLength(2); // user + assistant
-    expect(updated!.messages[0].role).toBe("user");
-    expect(updated!.messages[1].role).toBe("assistant");
+    expect(updated!.events).toHaveLength(2); // user + assistant
+    expect(updated!.events[0]!.type).toBe("user");
+    expect(updated!.events[1]!.type).toBe("assistant");
   });
 
   it("returns 404 for nonexistent sessionId", async () => {

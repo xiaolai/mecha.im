@@ -79,11 +79,11 @@ export function registerSessionRoutes(
     },
   );
 
-  // Append message
+  // Append event to transcript
   app.post<{
     Params: { id: string };
-    Body: { role: "user" | "assistant"; content: string };
-  }>("/api/sessions/:id/message", async (request, reply) => {
+    Body: { type: string; [key: string]: unknown };
+  }>("/api/sessions/:id/event", async (request, reply) => {
     const session = await sm.get(request.params.id);
     if (!session) {
       reply.code(404).send({ error: "Session not found" });
@@ -94,18 +94,18 @@ export function registerSessionRoutes(
       return;
     }
 
-    if (!request.body || typeof request.body.role !== "string" || typeof request.body.content !== "string") {
-      reply.code(400).send({ error: "role and content are required strings" });
+    if (!request.body || typeof request.body.type !== "string") {
+      reply.code(400).send({ error: "type is required and must be a string" });
       return;
     }
 
-    const msg = {
-      role: request.body.role,
-      content: request.body.content,
-      timestamp: new Date().toISOString(),
+    const event = {
+      ...request.body,
+      timestamp: (request.body.timestamp as string) ?? new Date().toISOString(),
+      sessionId: request.params.id,
     };
-    await sm.appendMessage(request.params.id, msg);
-    return msg;
+    await sm.appendEvent(request.params.id, event);
+    return event;
   });
 
   // Interrupt session

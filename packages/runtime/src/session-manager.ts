@@ -3,10 +3,12 @@ import {
   mkdirSync,
   unlinkSync,
   existsSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
 } from "node:fs";
 import { appendFile, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { Database } from "better-sqlite3";
 
 export interface SessionMeta {
   id: string;
@@ -16,14 +18,21 @@ export interface SessionMeta {
   updatedAt: string;
 }
 
-export interface SessionMessage {
-  role: "user" | "assistant";
-  content: string;
-  timestamp: string;
+/**
+ * A transcript event — any JSON object with a `type` field.
+ * Matches the Claude Agent SDK's native transcript format:
+ * - { type: "user", message: { role: "user", content: "..." }, timestamp, ... }
+ * - { type: "assistant", message: { role: "assistant", content: [...] }, timestamp, ... }
+ * - { type: "progress", data: { ... }, timestamp, ... }
+ * - { type: "file-history-snapshot", snapshot: { ... }, ... }
+ */
+export interface TranscriptEvent {
+  type: string;
+  [key: string]: unknown;
 }
 
 export interface Session extends SessionMeta {
-  messages: SessionMessage[];
+  events: TranscriptEvent[];
 }
 
 export interface CreateSessionOpts {
@@ -37,85 +46,115 @@ export interface SessionManager {
   delete(id: string): boolean;
   rename(id: string, title: string): boolean;
   star(id: string, starred: boolean): boolean;
-  appendMessage(id: string, msg: SessionMessage): Promise<void>;
+  appendEvent(id: string, event: TranscriptEvent): Promise<void>;
   isBusy(id: string): boolean;
   setBusy(id: string, busy: boolean): void;
 }
 
+interface StoredMeta {
+  id: string;
+  title: string;
+  starred: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export function createSessionManager(
-  db: Database,
-  transcriptDir: string,
+  projectsDir: string,
 ): SessionManager {
-  mkdirSync(transcriptDir, { recursive: true });
+  mkdirSync(projectsDir, { recursive: true });
 
   const busySessions = new Set<string>();
+
+  function _metaPath(id: string): string {
+    return join(projectsDir, `${id}.meta.json`);
+  }
+
+  function _transcriptPath(id: string): string {
+    return join(projectsDir, `${id}.jsonl`);
+  }
+
+  function _readMeta(id: string): StoredMeta | undefined {
+    const path = _metaPath(id);
+    if (!existsSync(path)) return undefined;
+    try {
+      return JSON.parse(readFileSync(path, "utf-8")) as StoredMeta;
+    } catch {
+      return undefined;
+    }
+  }
+
+  function _writeMeta(meta: StoredMeta): void {
+    writeFileSync(_metaPath(meta.id), JSON.stringify(meta, null, 2) + "\n", "utf-8");
+  }
 
   function create(opts?: CreateSessionOpts): SessionMeta {
     const id = randomUUID();
     const now = new Date().toISOString();
     const title = opts?.title ?? "";
 
-    db.prepare(
-      "INSERT INTO sessions (id, title, starred, created_at, updated_at) VALUES (?, ?, 0, ?, ?)",
-    ).run(id, title, now, now);
+    const meta: StoredMeta = { id, title, starred: false, createdAt: now, updatedAt: now };
+    _writeMeta(meta);
 
     return { id, title, starred: false, createdAt: now, updatedAt: now };
   }
 
   function list(): SessionMeta[] {
-    const rows = db
-      .prepare(
-        "SELECT id, title, starred, created_at, updated_at FROM sessions ORDER BY updated_at DESC, rowid DESC",
-      )
-      .all() as Array<{
-      id: string;
-      title: string;
-      starred: number;
-      created_at: string;
-      updated_at: string;
-    }>;
+    let files: string[];
+    try {
+      files = readdirSync(projectsDir);
+    } catch {
+      return [];
+    }
 
-    return rows.map((r) => ({
-      id: r.id,
-      title: r.title,
-      starred: r.starred === 1,
-      createdAt: r.created_at,
-      updatedAt: r.updated_at,
-    }));
+    const metas: SessionMeta[] = [];
+    for (const file of files) {
+      if (!file.endsWith(".meta.json")) continue;
+      const id = file.slice(0, -".meta.json".length);
+      const meta = _readMeta(id);
+      if (meta) {
+        metas.push({
+          id: meta.id,
+          title: meta.title,
+          starred: meta.starred,
+          createdAt: meta.createdAt,
+          updatedAt: meta.updatedAt,
+        });
+      }
+    }
+
+    // Sort by updatedAt DESC (most recent first)
+    metas.sort((a, b) => {
+      const cmp = b.updatedAt.localeCompare(a.updatedAt);
+      if (cmp !== 0) return cmp;
+      // Stable secondary sort by id for determinism
+      return b.id.localeCompare(a.id);
+    });
+
+    return metas;
   }
 
   async function get(id: string): Promise<Session | undefined> {
-    const row = db
-      .prepare(
-        "SELECT id, title, starred, created_at, updated_at FROM sessions WHERE id = ?",
-      )
-      .get(id) as
-      | {
-          id: string;
-          title: string;
-          starred: number;
-          created_at: string;
-          updated_at: string;
-        }
-      | undefined;
+    const meta = _readMeta(id);
+    if (!meta) return undefined;
 
-    if (!row) return undefined;
-
-    const messages = await _readTranscript(id);
+    const events = await _readTranscript(id);
 
     return {
-      id: row.id,
-      title: row.title,
-      starred: row.starred === 1,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-      messages,
+      id: meta.id,
+      title: meta.title,
+      starred: meta.starred,
+      createdAt: meta.createdAt,
+      updatedAt: meta.updatedAt,
+      events,
     };
   }
 
   function deleteSession(id: string): boolean {
-    const result = db.prepare("DELETE FROM sessions WHERE id = ?").run(id);
-    if (result.changes === 0) return false;
+    const metaPath = _metaPath(id);
+    if (!existsSync(metaPath)) return false;
+
+    unlinkSync(metaPath);
 
     const transcriptPath = _transcriptPath(id);
     if (existsSync(transcriptPath)) {
@@ -126,32 +165,35 @@ export function createSessionManager(
   }
 
   function rename(id: string, title: string): boolean {
-    const now = new Date().toISOString();
-    const result = db
-      .prepare("UPDATE sessions SET title = ?, updated_at = ? WHERE id = ?")
-      .run(title, now, id);
-    return result.changes > 0;
+    const meta = _readMeta(id);
+    if (!meta) return false;
+
+    meta.title = title;
+    meta.updatedAt = new Date().toISOString();
+    _writeMeta(meta);
+    return true;
   }
 
   function star(id: string, starred: boolean): boolean {
-    const now = new Date().toISOString();
-    const result = db
-      .prepare("UPDATE sessions SET starred = ?, updated_at = ? WHERE id = ?")
-      .run(starred ? 1 : 0, now, id);
-    return result.changes > 0;
+    const meta = _readMeta(id);
+    if (!meta) return false;
+
+    meta.starred = starred;
+    meta.updatedAt = new Date().toISOString();
+    _writeMeta(meta);
+    return true;
   }
 
-  async function appendMessage(id: string, msg: SessionMessage): Promise<void> {
-    // Verify session exists before writing transcript
-    const row = db.prepare("SELECT id FROM sessions WHERE id = ?").get(id);
-    if (!row) throw new Error(`Session not found: ${id}`);
+  async function appendEvent(id: string, event: TranscriptEvent): Promise<void> {
+    const meta = _readMeta(id);
+    if (!meta) throw new Error(`Session not found: ${id}`);
 
     const transcriptPath = _transcriptPath(id);
-    const line = JSON.stringify(msg) + "\n";
+    const line = JSON.stringify(event) + "\n";
     await appendFile(transcriptPath, line, "utf-8");
 
-    const now = new Date().toISOString();
-    db.prepare("UPDATE sessions SET updated_at = ? WHERE id = ?").run(now, id);
+    meta.updatedAt = new Date().toISOString();
+    _writeMeta(meta);
   }
 
   function isBusy(id: string): boolean {
@@ -166,26 +208,22 @@ export function createSessionManager(
     }
   }
 
-  function _transcriptPath(id: string): string {
-    return join(transcriptDir, `${id}.jsonl`);
-  }
-
-  async function _readTranscript(id: string): Promise<SessionMessage[]> {
+  async function _readTranscript(id: string): Promise<TranscriptEvent[]> {
     const path = _transcriptPath(id);
     if (!existsSync(path)) return [];
 
     const content = (await readFile(path, "utf-8")).trim();
     if (!content) return [];
 
-    const messages: SessionMessage[] = [];
+    const events: TranscriptEvent[] = [];
     for (const line of content.split("\n")) {
       try {
-        messages.push(JSON.parse(line) as SessionMessage);
+        events.push(JSON.parse(line) as TranscriptEvent);
       } catch {
         // skip malformed transcript lines
       }
     }
-    return messages;
+    return events;
   }
 
   return {
@@ -195,7 +233,7 @@ export function createSessionManager(
     delete: deleteSession,
     rename,
     star,
-    appendMessage,
+    appendEvent,
     isBusy,
     setBusy,
   };

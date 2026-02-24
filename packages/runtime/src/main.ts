@@ -1,27 +1,22 @@
-import { dirname, join } from "node:path";
 import { createServer } from "./server.js";
 
 const casaName = process.env.MECHA_CASA_NAME;
 const port = Number(process.env.MECHA_PORT);
 const authToken = process.env.MECHA_AUTH_TOKEN;
-const dbPath = process.env.MECHA_DB_PATH;
+const projectsDir = process.env.MECHA_PROJECTS_DIR;
 const workspace = process.env.MECHA_WORKSPACE;
-const logDir = process.env.MECHA_LOG_DIR;
 
 /* v8 ignore start -- entrypoint validated at integration level */
-if (!casaName || !port || !authToken || !dbPath || !workspace) {
+if (!casaName || !port || !authToken || !projectsDir || !workspace) {
   console.error("Missing required environment variables");
   process.exit(1);
 }
-
-const transcriptDir = logDir ? join(logDir, "transcripts") : join(dirname(dbPath), "transcripts");
 
 const app = createServer({
   casaName,
   port,
   authToken,
-  dbPath,
-  transcriptDir,
+  projectsDir,
   workspacePath: workspace,
 });
 

@@ -73,9 +73,13 @@ export async function casaSessionMessage(
   sessionId: string,
   message: { role: "user" | "assistant"; content: string },
 ): Promise<unknown> {
-  const result = await runtimeFetch(pm, name, `${sessionPath(sessionId)}/message`, {
+  const event = {
+    type: message.role,
+    message: { role: message.role, content: message.content },
+  };
+  const result = await runtimeFetch(pm, name, `${sessionPath(sessionId)}/event`, {
     method: "POST",
-    body: message,
+    body: event,
   });
   if (result.status !== 200) throw new Error(`Failed to send message: ${result.status}`);
   return result.body;

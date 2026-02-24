@@ -31,11 +31,12 @@ export function registerChatRoutes(
       sm.setBusy(sid, true);
 
       try {
-        // Append user message
-        await sm.appendMessage(sid, {
-          role: "user",
-          content: message,
+        // Append user event (SDK-compatible format)
+        await sm.appendEvent(sid, {
+          type: "user",
+          message: { role: "user", content: message },
           timestamp: new Date().toISOString(),
+          sessionId: sid,
         });
 
         // SSE response
@@ -65,11 +66,12 @@ export function registerChatRoutes(
           reply.raw.write(`data: ${JSON.stringify({ type: "text", content: chunk + " " })}\n\n`);
         }
 
-        // Append assistant message
-        await sm.appendMessage(sid, {
-          role: "assistant",
-          content: responseContent,
+        // Append assistant event (SDK-compatible format)
+        await sm.appendEvent(sid, {
+          type: "assistant",
+          message: { role: "assistant", content: [{ type: "text", text: responseContent }] },
           timestamp: new Date().toISOString(),
+          sessionId: sid,
         });
 
         /* v8 ignore start */

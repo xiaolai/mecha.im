@@ -3,8 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import Fastify, { type FastifyInstance } from "fastify";
-import Database from "better-sqlite3";
-import { runMigrations, createSessionManager, registerChatRoutes } from "@mecha/runtime";
+import { createSessionManager, registerChatRoutes } from "@mecha/runtime";
 import type { ProcessManager } from "@mecha/process";
 import type { CasaName } from "@mecha/core";
 import { CasaNotFoundError, CasaNotRunningError } from "@mecha/contracts";
@@ -15,16 +14,13 @@ const TOKEN = "test-token";
 
 describe("casaChat", () => {
   let app: FastifyInstance;
-  let db: InstanceType<typeof Database>;
   let tempDir: string;
   let port: number;
   let pm: ProcessManager;
 
   beforeEach(async () => {
     tempDir = mkdtempSync(join(tmpdir(), "mecha-svc-chat-"));
-    db = new Database(":memory:");
-    runMigrations(db);
-    const sm = createSessionManager(db, join(tempDir, "transcripts"));
+    const sm = createSessionManager(join(tempDir, "projects"));
 
     app = Fastify();
     registerChatRoutes(app, sm);
@@ -46,7 +42,6 @@ describe("casaChat", () => {
 
   afterEach(async () => {
     await app.close();
-    db.close();
     rmSync(tempDir, { recursive: true, force: true });
   });
 

@@ -71,3 +71,32 @@ No CI/CD pipeline is configured yet. Add GitHub Actions when merging to a shared
 `req.raw` (`IncomingMessage`) `destroyed` and `close` fire when the request body is consumed, NOT when the client disconnects. For POST endpoints this happens immediately after body parsing, breaking the SSE stream.
 
 **Use `req.socket.on("close")` instead** — the socket only closes when the TCP connection drops.
+
+### CASA Filesystem: Mirrors Real Claude Code
+
+Each CASA's directory structure mirrors the real `~/.claude/` layout:
+
+```
+alice/                              ← CASA root (casaDir)
+├── home/
+│   └── .claude/
+│       ├── settings.json           ← hooks config
+│       ├── hooks/                  ← sandbox-guard.sh, bash-guard.sh
+│       └── projects/
+│           └── <workspace-path-encoded>/
+│               ├── <session-id>.meta.json   ← session metadata
+│               ├── <session-id>.jsonl       ← SDK transcript
+│               └── <session-id>/            ← subagent data (future)
+├── workspace -> /real/path         ← symlink to workspace
+├── tmp/                            ← TMPDIR
+├── logs/                           ← stdout.log, stderr.log
+├── config.json                     ← port, token, workspace
+└── state.json                      ← running/stopped/error state
+```
+
+**No SQLite.** Session storage is pure filesystem:
+- `<session-id>.meta.json` — metadata (title, starred, createdAt, updatedAt)
+- `<session-id>.jsonl` — SDK native transcript (user, assistant, progress, file-history-snapshot events)
+- Path encoding: `/home/testuser/project` → `-home-alice-project` (same as Claude Code)
+
+Environment variable `MECHA_PROJECTS_DIR` points to the workspace-specific projects directory.
