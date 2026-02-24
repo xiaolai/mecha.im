@@ -168,6 +168,24 @@ describe("MCP routes", () => {
     });
   });
 
+  describe("tools/call — mecha_workspace_read file size limit", () => {
+    it("returns error for file exceeding 10 MB", async () => {
+      // Create a file just over 10 MB
+      const bigPath = join(workDir, "big.bin");
+      const { writeFileSync: writeFn } = require("node:fs") as typeof import("node:fs");
+      writeFn(bigPath, Buffer.alloc(10 * 1024 * 1024 + 1));
+
+      const res = await rpc("tools/call", {
+        name: "mecha_workspace_read",
+        arguments: { path: "big.bin" },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json().result;
+      expect(body.isError).toBe(true);
+      expect(body.content[0].text).toContain("File too large");
+    });
+  });
+
   describe("unknown tool", () => {
     it("returns error", async () => {
       const res = await rpc("tools/call", {

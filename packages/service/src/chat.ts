@@ -36,6 +36,7 @@ export async function casaChat(
       "content-type": "application/json",
     },
     body: JSON.stringify(opts),
+    signal: AbortSignal.timeout(60_000),
   });
 
   if (!response.ok) {

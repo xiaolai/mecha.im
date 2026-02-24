@@ -31,7 +31,12 @@ export function registerAuthCommand(program: Command, deps: CommandDeps): void {
         return;
       }
       const type = opts.oauth ? "oauth" : "api-key";
-      const token = opts.token ?? "";
+      const token = opts.token;
+      if (!token) {
+        deps.formatter.error("Token is required (use --token <value>)");
+        process.exitCode = 1;
+        return;
+      }
       const profile = mechaAuthAdd(deps.mechaDir, name, type, token, opts.tag);
       deps.formatter.success(`Added auth profile "${profile.name}" (${profile.type})`);
       if (profile.isDefault) {

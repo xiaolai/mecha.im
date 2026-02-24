@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /* v8 ignore start -- entrypoint wiring, tested via command integration tests */
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 import { homedir } from "node:os";
+import { fileURLToPath } from "node:url";
 import { createProgram } from "./program.js";
 import { createFormatter } from "./formatter.js";
 import { createProcessManager } from "@mecha/process";
@@ -14,7 +15,10 @@ const formatter = createFormatter({
 });
 
 const mechaDir = process.env.MECHA_DIR ?? join(homedir(), ".mecha");
-const processManager = createProcessManager({ mechaDir });
+// Resolve the @mecha/runtime entrypoint relative to this package
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const runtimeEntrypoint = join(__dirname, "..", "..", "runtime", "dist", "main.js");
+const processManager = createProcessManager({ mechaDir, runtimeEntrypoint });
 
 const deps: CommandDeps = { formatter, processManager, mechaDir };
 const program = createProgram(deps);

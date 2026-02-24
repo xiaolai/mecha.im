@@ -76,7 +76,7 @@ describe("session routes", () => {
   describe("GET /api/sessions/:id", () => {
     it("returns session with messages", async () => {
       const session = sm.create({ title: "Test" });
-      sm.appendMessage(session.id, {
+      await sm.appendMessage(session.id, {
         role: "user",
         content: "Hi",
         timestamp: "2026-01-01T00:00:00Z",
@@ -109,7 +109,7 @@ describe("session routes", () => {
         url: `/api/sessions/${session.id}`,
       });
       expect(res.statusCode).toBe(204);
-      expect(sm.get(session.id)).toBeUndefined();
+      expect(await sm.get(session.id)).toBeUndefined();
     });
 
     it("returns 404 for unknown session", async () => {
@@ -130,7 +130,7 @@ describe("session routes", () => {
         payload: { title: "New" },
       });
       expect(res.statusCode).toBe(200);
-      expect(sm.get(session.id)!.title).toBe("New");
+      expect((await sm.get(session.id))!.title).toBe("New");
     });
 
     it("returns 404 for unknown session", async () => {
@@ -152,7 +152,7 @@ describe("session routes", () => {
         payload: { starred: true },
       });
       expect(res.statusCode).toBe(200);
-      expect(sm.get(session.id)!.starred).toBe(true);
+      expect((await sm.get(session.id))!.starred).toBe(true);
     });
 
     it("returns 404 for unknown session", async () => {

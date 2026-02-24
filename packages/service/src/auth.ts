@@ -1,5 +1,6 @@
-import { existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, readFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
+import { randomBytes } from "node:crypto";
 import { AuthProfileNotFoundError } from "@mecha/contracts";
 
 export interface AuthProfile {
@@ -13,7 +14,6 @@ export interface AuthProfile {
 
 interface AuthStore {
   profiles: AuthProfile[];
-  defaultProfile?: string;
 }
 
 function authStorePath(mechaDir: string): string {
@@ -33,7 +33,11 @@ function readStore(mechaDir: string): AuthStore {
 function writeStore(mechaDir: string, store: AuthStore): void {
   const dir = join(mechaDir, "auth");
   mkdirSync(dir, { recursive: true, mode: 0o700 });
-  writeFileSync(authStorePath(mechaDir), JSON.stringify(store, null, 2), { mode: 0o600 });
+  // Atomic write: temp file + rename to prevent corruption on crash
+  const target = authStorePath(mechaDir);
+  const tmp = target + "." + randomBytes(4).toString("hex") + ".tmp";
+  writeFileSync(tmp, JSON.stringify(store, null, 2), { mode: 0o600 });
+  renameSync(tmp, target);
 }
 
 export function mechaAuthAdd(
@@ -59,7 +63,6 @@ export function mechaAuthAdd(
   };
 
   store.profiles.push(profile);
-  if (profile.isDefault) store.defaultProfile = name;
   writeStore(mechaDir, store);
   return profile;
 }
@@ -68,14 +71,17 @@ export function mechaAuthLs(mechaDir: string): AuthProfile[] {
   return readStore(mechaDir).profiles;
 }
 
-export function mechaAuthDefault(mechaDir: string, name: string): void {
-  const store = readStore(mechaDir);
+function _setDefaultProfile(store: AuthStore, name: string): AuthProfile {
   const profile = store.profiles.find((p) => p.name === name);
   if (!profile) throw new AuthProfileNotFoundError(name);
-
   for (const p of store.profiles) p.isDefault = false;
   profile.isDefault = true;
-  store.defaultProfile = name;
+  return profile;
+}
+
+export function mechaAuthDefault(mechaDir: string, name: string): void {
+  const store = readStore(mechaDir);
+  _setDefaultProfile(store, name);
   writeStore(mechaDir, store);
 }
 
@@ -89,9 +95,6 @@ export function mechaAuthRm(mechaDir: string, name: string): void {
 
   if (wasDefault && store.profiles.length > 0) {
     store.profiles[0]!.isDefault = true;
-    store.defaultProfile = store.profiles[0]!.name;
-  } else if (store.profiles.length === 0) {
-    store.defaultProfile = undefined;
   }
 
   writeStore(mechaDir, store);
@@ -108,12 +111,7 @@ export function mechaAuthTag(mechaDir: string, name: string, tags: string[]): vo
 
 export function mechaAuthSwitch(mechaDir: string, name: string): AuthProfile {
   const store = readStore(mechaDir);
-  const profile = store.profiles.find((p) => p.name === name);
-  if (!profile) throw new AuthProfileNotFoundError(name);
-
-  for (const p of store.profiles) p.isDefault = false;
-  profile.isDefault = true;
-  store.defaultProfile = name;
+  const profile = _setDefaultProfile(store, name);
   writeStore(mechaDir, store);
   return profile;
 }

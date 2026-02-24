@@ -196,10 +196,10 @@ describe("createProcessManager", () => {
     const guardPath = join(casaDir, "home", ".claude", "hooks", "sandbox-guard.sh");
     const script = readFileSync(guardPath, "utf-8");
 
-    // The guard should use strict path matching with "/" separator
-    expect(script).toContain('"$MECHA_SANDBOX_ROOT"/*|"$MECHA_SANDBOX_ROOT")');
-    expect(script).toContain('"$MECHA_WORKSPACE"/*|"$MECHA_WORKSPACE")');
-    // Should NOT have the old loose pattern
+    // The guard should use strict path matching with "/" separator on canonicalized vars
+    expect(script).toContain('"$SANDBOX"/*|"$SANDBOX")');
+    expect(script).toContain('"$WORKSPACE"/*|"$WORKSPACE")');
+    // Should NOT have the old loose pattern (raw env var with glob)
     expect(script).not.toMatch(/"\$MECHA_SANDBOX_ROOT"\*\)/);
   });
 

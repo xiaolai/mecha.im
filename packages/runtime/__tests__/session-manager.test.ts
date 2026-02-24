@@ -63,46 +63,46 @@ describe("createSessionManager", () => {
   });
 
   describe("get", () => {
-    it("returns session with messages", () => {
+    it("returns session with messages", async () => {
       const created = sm.create({ title: "Test" });
       const msg: SessionMessage = {
         role: "user",
         content: "Hello",
         timestamp: new Date().toISOString(),
       };
-      sm.appendMessage(created.id, msg);
+      await sm.appendMessage(created.id, msg);
 
-      const session = sm.get(created.id);
+      const session = await sm.get(created.id);
       expect(session).toBeDefined();
       expect(session!.title).toBe("Test");
       expect(session!.messages).toHaveLength(1);
       expect(session!.messages[0]!.content).toBe("Hello");
     });
 
-    it("returns undefined for nonexistent session", () => {
-      expect(sm.get("nonexistent-id")).toBeUndefined();
+    it("returns undefined for nonexistent session", async () => {
+      expect(await sm.get("nonexistent-id")).toBeUndefined();
     });
 
-    it("returns empty messages for session with no transcript", () => {
+    it("returns empty messages for session with no transcript", async () => {
       const created = sm.create();
-      const session = sm.get(created.id);
+      const session = await sm.get(created.id);
       expect(session!.messages).toEqual([]);
     });
   });
 
   describe("delete", () => {
-    it("deletes session and transcript", () => {
+    it("deletes session and transcript", async () => {
       const created = sm.create();
       const msg: SessionMessage = {
         role: "user",
         content: "test",
         timestamp: new Date().toISOString(),
       };
-      sm.appendMessage(created.id, msg);
+      await sm.appendMessage(created.id, msg);
 
       const result = sm.delete(created.id);
       expect(result).toBe(true);
-      expect(sm.get(created.id)).toBeUndefined();
+      expect(await sm.get(created.id)).toBeUndefined();
 
       const transcriptPath = join(tempDir, "transcripts", `${created.id}.jsonl`);
       expect(existsSync(transcriptPath)).toBe(false);
@@ -127,12 +127,12 @@ describe("createSessionManager", () => {
   });
 
   describe("rename", () => {
-    it("renames a session", () => {
+    it("renames a session", async () => {
       const created = sm.create({ title: "Old" });
       const result = sm.rename(created.id, "New");
       expect(result).toBe(true);
 
-      const session = sm.get(created.id);
+      const session = await sm.get(created.id);
       expect(session!.title).toBe("New");
     });
 
@@ -142,20 +142,20 @@ describe("createSessionManager", () => {
   });
 
   describe("star", () => {
-    it("stars a session", () => {
+    it("stars a session", async () => {
       const created = sm.create();
       expect(sm.star(created.id, true)).toBe(true);
 
-      const session = sm.get(created.id);
+      const session = await sm.get(created.id);
       expect(session!.starred).toBe(true);
     });
 
-    it("unstars a session", () => {
+    it("unstars a session", async () => {
       const created = sm.create();
       sm.star(created.id, true);
       sm.star(created.id, false);
 
-      const session = sm.get(created.id);
+      const session = await sm.get(created.id);
       expect(session!.starred).toBe(false);
     });
 
@@ -165,13 +165,13 @@ describe("createSessionManager", () => {
   });
 
   describe("appendMessage", () => {
-    it("appends messages to JSONL file", () => {
+    it("appends messages to JSONL file", async () => {
       const created = sm.create();
       const msg1: SessionMessage = { role: "user", content: "Hi", timestamp: "2026-01-01T00:00:00Z" };
       const msg2: SessionMessage = { role: "assistant", content: "Hello!", timestamp: "2026-01-01T00:00:01Z" };
 
-      sm.appendMessage(created.id, msg1);
-      sm.appendMessage(created.id, msg2);
+      await sm.appendMessage(created.id, msg1);
+      await sm.appendMessage(created.id, msg2);
 
       const transcriptPath = join(tempDir, "transcripts", `${created.id}.jsonl`);
       const lines = readFileSync(transcriptPath, "utf-8").trim().split("\n");
@@ -180,9 +180,9 @@ describe("createSessionManager", () => {
       expect(JSON.parse(lines[1]!)).toEqual(msg2);
     });
 
-    it("throws when session does not exist", () => {
+    it("throws when session does not exist", async () => {
       const msg: SessionMessage = { role: "user", content: "test", timestamp: new Date().toISOString() };
-      expect(() => sm.appendMessage("nonexistent-id", msg)).toThrow("Session not found");
+      await expect(sm.appendMessage("nonexistent-id", msg)).rejects.toThrow("Session not found");
     });
 
     it("updates session updatedAt", async () => {
@@ -193,9 +193,9 @@ describe("createSessionManager", () => {
       await new Promise((r) => setTimeout(r, 10));
 
       const msg: SessionMessage = { role: "user", content: "test", timestamp: new Date().toISOString() };
-      sm.appendMessage(created.id, msg);
+      await sm.appendMessage(created.id, msg);
 
-      const session = sm.get(created.id);
+      const session = await sm.get(created.id);
       expect(session!.updatedAt).not.toBe(originalUpdatedAt);
     });
   });
@@ -229,26 +229,26 @@ describe("createSessionManager", () => {
       expect(sm2.list()).toEqual([]);
     });
 
-    it("skips malformed lines in JSONL transcript", () => {
+    it("skips malformed lines in JSONL transcript", async () => {
       const created = sm.create();
       const transcriptPath = join(tempDir, "transcripts", `${created.id}.jsonl`);
       const { writeFileSync: writeFn } = require("node:fs") as typeof import("node:fs");
       writeFn(transcriptPath, '{"role":"user","content":"ok","timestamp":"t"}\nnot-json\n{"role":"assistant","content":"hi","timestamp":"t2"}\n');
 
-      const session = sm.get(created.id);
+      const session = await sm.get(created.id);
       expect(session!.messages).toHaveLength(2);
       expect(session!.messages[0].content).toBe("ok");
       expect(session!.messages[1].content).toBe("hi");
     });
 
-    it("handles empty JSONL file gracefully", () => {
+    it("handles empty JSONL file gracefully", async () => {
       const created = sm.create();
       // Create empty file
       const transcriptPath = join(tempDir, "transcripts", `${created.id}.jsonl`);
       const { writeFileSync } = require("node:fs") as typeof import("node:fs");
       writeFileSync(transcriptPath, "");
 
-      const session = sm.get(created.id);
+      const session = await sm.get(created.id);
       expect(session!.messages).toEqual([]);
     });
   });

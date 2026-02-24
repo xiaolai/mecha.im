@@ -75,13 +75,15 @@ describe("auth commands", () => {
     expect(deps.formatter.info).toHaveBeenCalledWith("No auth profiles");
   });
 
-  it("adds profile without --token flag", async () => {
+  it("rejects profile without --token flag", async () => {
     const { deps } = setup();
     const program = createProgram(deps);
     program.exitOverride();
 
     await program.parseAsync(["node", "mecha", "auth", "add", "empty-tok", "--oauth"]);
-    expect(deps.formatter.success).toHaveBeenCalledWith(expect.stringContaining("Added"));
+    expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("Token is required"));
+    expect(process.exitCode).toBe(1);
+    process.exitCode = undefined as unknown as number;
   });
 
   it("lists profiles with default and non-default", async () => {
@@ -150,14 +152,30 @@ describe("auth commands", () => {
     expect(deps.formatter.success).toHaveBeenCalledWith(expect.stringContaining("valid"));
   });
 
-  it("reports invalid profile", async () => {
+  it("rejects empty token via --token ''", async () => {
     const { deps } = setup();
     const program = createProgram(deps);
     program.exitOverride();
 
+    // Empty string token is rejected at CLI level
     await program.parseAsync(["node", "mecha", "auth", "add", "empty", "--oauth", "--token", ""]);
+    expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("Token is required"));
+    expect(process.exitCode).toBe(1);
+    process.exitCode = undefined as unknown as number;
+  });
+
+  it("reports invalid profile via auth test", async () => {
+    const { mechaDir, deps } = setup();
+    // Bypass CLI to create profile with empty token directly
+    const { mechaAuthAdd } = await import("@mecha/service");
+    mechaAuthAdd(mechaDir, "empty", "oauth", "");
+    const program = createProgram(deps);
+    program.exitOverride();
+
     await program.parseAsync(["node", "mecha", "auth", "test", "empty"]);
     expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("invalid"));
+    expect(process.exitCode).toBe(1);
+    process.exitCode = undefined as unknown as number;
   });
 
   it("renews a token", async () => {

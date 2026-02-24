@@ -17,7 +17,7 @@ export function registerChatRoutes(
 
       // Get or create session
       const sid = sessionId ?? sm.create({ title: message.slice(0, 50) }).id;
-      const session = sm.get(sid);
+      const session = await sm.get(sid);
       if (!session) {
         reply.code(404).send({ error: "Session not found" });
         return;
@@ -32,7 +32,7 @@ export function registerChatRoutes(
 
       try {
         // Append user message
-        sm.appendMessage(sid, {
+        await sm.appendMessage(sid, {
           role: "user",
           content: message,
           timestamp: new Date().toISOString(),
@@ -48,7 +48,7 @@ export function registerChatRoutes(
         // Detect client disconnect via socket close (NOT req.raw.destroyed)
         let disconnected = false;
         /* v8 ignore start -- socket close only fires on real TCP disconnect */
-        request.socket.on("close", () => {
+        request.socket.once("close", () => {
           disconnected = true;
           sm.setBusy(sid, false);
         });
@@ -66,7 +66,7 @@ export function registerChatRoutes(
         }
 
         // Append assistant message
-        sm.appendMessage(sid, {
+        await sm.appendMessage(sid, {
           role: "assistant",
           content: responseContent,
           timestamp: new Date().toISOString(),

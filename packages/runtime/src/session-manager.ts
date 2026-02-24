@@ -1,11 +1,10 @@
 import { randomUUID } from "node:crypto";
 import {
   mkdirSync,
-  appendFileSync,
-  readFileSync,
   unlinkSync,
   existsSync,
 } from "node:fs";
+import { appendFile, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Database } from "better-sqlite3";
 
@@ -34,11 +33,11 @@ export interface CreateSessionOpts {
 export interface SessionManager {
   create(opts?: CreateSessionOpts): SessionMeta;
   list(): SessionMeta[];
-  get(id: string): Session | undefined;
+  get(id: string): Promise<Session | undefined>;
   delete(id: string): boolean;
   rename(id: string, title: string): boolean;
   star(id: string, starred: boolean): boolean;
-  appendMessage(id: string, msg: SessionMessage): void;
+  appendMessage(id: string, msg: SessionMessage): Promise<void>;
   isBusy(id: string): boolean;
   setBusy(id: string, busy: boolean): void;
 }
@@ -85,7 +84,7 @@ export function createSessionManager(
     }));
   }
 
-  function get(id: string): Session | undefined {
+  async function get(id: string): Promise<Session | undefined> {
     const row = db
       .prepare(
         "SELECT id, title, starred, created_at, updated_at FROM sessions WHERE id = ?",
@@ -102,7 +101,7 @@ export function createSessionManager(
 
     if (!row) return undefined;
 
-    const messages = _readTranscript(id);
+    const messages = await _readTranscript(id);
 
     return {
       id: row.id,
@@ -142,14 +141,14 @@ export function createSessionManager(
     return result.changes > 0;
   }
 
-  function appendMessage(id: string, msg: SessionMessage): void {
+  async function appendMessage(id: string, msg: SessionMessage): Promise<void> {
     // Verify session exists before writing transcript
     const row = db.prepare("SELECT id FROM sessions WHERE id = ?").get(id);
     if (!row) throw new Error(`Session not found: ${id}`);
 
     const transcriptPath = _transcriptPath(id);
     const line = JSON.stringify(msg) + "\n";
-    appendFileSync(transcriptPath, line, "utf-8");
+    await appendFile(transcriptPath, line, "utf-8");
 
     const now = new Date().toISOString();
     db.prepare("UPDATE sessions SET updated_at = ? WHERE id = ?").run(now, id);
@@ -171,11 +170,11 @@ export function createSessionManager(
     return join(transcriptDir, `${id}.jsonl`);
   }
 
-  function _readTranscript(id: string): SessionMessage[] {
+  async function _readTranscript(id: string): Promise<SessionMessage[]> {
     const path = _transcriptPath(id);
     if (!existsSync(path)) return [];
 
-    const content = readFileSync(path, "utf-8").trim();
+    const content = (await readFile(path, "utf-8")).trim();
     if (!content) return [];
 
     const messages: SessionMessage[] = [];

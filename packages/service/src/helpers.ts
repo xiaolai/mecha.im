@@ -49,6 +49,7 @@ export async function runtimeFetch(
     method: opts.method ?? "GET",
     headers,
     body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+    signal: AbortSignal.timeout(30_000),
   });
 
   const contentType = response.headers.get("content-type") ?? "";

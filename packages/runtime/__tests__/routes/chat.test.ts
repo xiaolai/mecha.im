@@ -85,7 +85,7 @@ describe("chat routes", () => {
     expect(res.statusCode).toBe(200);
 
     // Session should have messages appended
-    const updated = sm.get(session.id);
+    const updated = await sm.get(session.id);
     expect(updated!.messages).toHaveLength(2); // user + assistant
     expect(updated!.messages[0].role).toBe("user");
     expect(updated!.messages[1].role).toBe("assistant");
@@ -123,7 +123,7 @@ describe("chat routes", () => {
     // Parse done event to get sessionId
     const lines = res.body.split("\n").filter((l) => l.startsWith("data: "));
     const doneEvent = JSON.parse(lines[lines.length - 1].replace("data: ", ""));
-    const session = sm.get(doneEvent.sessionId);
+    const session = await sm.get(doneEvent.sessionId);
     expect(session!.title).toBe("A".repeat(50));
   });
 

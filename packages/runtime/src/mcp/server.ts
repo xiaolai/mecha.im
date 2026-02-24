@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync, realpathSync } from "node:fs";
+import { readdirSync, readFileSync, statSync, realpathSync, promises as fsp } from "node:fs";
 import { join, relative, resolve, isAbsolute } from "node:path";
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 
@@ -86,6 +86,8 @@ function listFiles(workspacePath: string, subpath: string): string[] {
   }
 }
 
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+
 function readFile(workspacePath: string, filePath: string): string {
   const resolved = join(workspacePath, filePath);
 
@@ -96,9 +98,15 @@ function readFile(workspacePath: string, filePath: string): string {
     if (stat.isDirectory()) {
       throw new Error(`Path is a directory: ${filePath}`);
     }
+    if (stat.size > MAX_FILE_SIZE) {
+      throw new Error(`File too large: ${filePath} (${stat.size} bytes, max ${MAX_FILE_SIZE})`);
+    }
     return readFileSync(resolved, "utf-8");
   } catch (err) {
     if (err instanceof Error && err.message.startsWith("Path is a directory")) {
+      throw err;
+    }
+    if (err instanceof Error && err.message.startsWith("File too large")) {
       throw err;
     }
     /* v8 ignore start -- traversal caught by assertInsideWorkspace before stat */
@@ -159,6 +167,7 @@ function handleRequest(workspacePath: string, req: JsonRpcRequest): JsonRpcRespo
         // Only expose safe error messages; hide filesystem details
         const safeMsg = msg === "Path traversal not allowed" ? msg
           : msg.startsWith("Path is a directory") ? msg
+          : msg.startsWith("File too large") ? msg
           : msg.startsWith("Unknown tool") ? msg
           : msg.startsWith("Directory not found") ? msg
           : msg.startsWith("File not found") ? msg

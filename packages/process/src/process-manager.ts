@@ -1,6 +1,6 @@
 import { spawn as cpSpawn, type ChildProcess } from "node:child_process";
 import { mkdirSync, writeFileSync, symlinkSync, createReadStream, existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { randomBytes } from "node:crypto";
 import { Readable } from "node:stream";
 import { type CasaName, isValidName, InvalidNameError } from "@mecha/core";
@@ -111,12 +111,16 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
     return join(mechaDir, "casas", name);
   }
 
+  /** Verify a stale PID is actually our CASA by health-checking its expected port+token. */
+
   function _generateToken(): string {
     return "mecha_" + randomBytes(24).toString("hex");
   }
 
   async function spawnCasa(spawnOpts: SpawnOpts): Promise<ProcessInfo> {
-    const { name, workspacePath, model, permissionMode, auth } = spawnOpts;
+    const { name, model, permissionMode, auth } = spawnOpts;
+    // Resolve to absolute path for consistent sandbox matching
+    const workspacePath = resolve(spawnOpts.workspacePath);
     const casaDir = _casaDir(name);
 
     // Check not already exists and running
@@ -185,10 +189,14 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
     const sandboxGuard = `#!/bin/bash
 # Sandbox guard: block file access outside CASA root
 TARGET="$1"
-RESOLVED=$(cd "$(dirname "$TARGET")" 2>/dev/null && pwd)/$(basename "$TARGET")
+# Canonicalize target path, following symlinks
+RESOLVED=$(realpath -m "$TARGET" 2>/dev/null || (cd "$(dirname "$TARGET")" 2>/dev/null && pwd)/$(basename "$TARGET"))
+# Canonicalize allowed roots
+SANDBOX=$(realpath -m "$MECHA_SANDBOX_ROOT" 2>/dev/null || echo "$MECHA_SANDBOX_ROOT")
+WORKSPACE=$(realpath -m "$MECHA_WORKSPACE" 2>/dev/null || echo "$MECHA_WORKSPACE")
 case "$RESOLVED" in
-  "$MECHA_SANDBOX_ROOT"/*|"$MECHA_SANDBOX_ROOT") exit 0 ;;
-  "$MECHA_WORKSPACE"/*|"$MECHA_WORKSPACE") exit 0 ;;
+  "$SANDBOX"/*|"$SANDBOX") exit 0 ;;
+  "$WORKSPACE"/*|"$WORKSPACE") exit 0 ;;
   *) echo "BLOCKED: $RESOLVED is outside sandbox" >&2; exit 2 ;;
 esac
 `;
@@ -395,7 +403,7 @@ cd "$MECHA_WORKSPACE" 2>/dev/null || true
       const state = readState(_casaDir(name));
       if (!state) throw new CasaNotFoundError(name);
       if (state.state !== "running") throw new CasaNotRunningError(name);
-      // It claims running but we don't have a live handle — check PID
+      // It claims running but we don't have a live handle — signal the PID directly
       if (state.pid && _isPidAlive(state.pid)) {
         process.kill(state.pid, "SIGTERM");
         await _waitForPidExit(state.pid, 5000);
