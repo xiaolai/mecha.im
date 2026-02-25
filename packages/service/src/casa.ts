@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { type CasaName, CasaNotFoundError, isValidName, readCasaConfig, updateCasaConfig } from "@mecha/core";
+import { type CasaName, CasaNotFoundError, isValidName, readCasaConfig, updateCasaConfig, matchesDiscoveryFilter } from "@mecha/core";
 import type { ProcessManager, ProcessInfo } from "@mecha/process";
 
 export interface FindResult extends ProcessInfo {
@@ -24,10 +24,7 @@ export function casaFind(
     const config = readCasaConfig(join(mechaDir, info.name));
     const raw = config?.tags;
     const tags = Array.isArray(raw) ? raw.filter((t): t is string => typeof t === "string") : [];
-    if (opts.tags && opts.tags.length > 0) {
-      const has = new Set(tags);
-      if (!opts.tags.every((t) => has.has(t))) continue;
-    }
+    if (!matchesDiscoveryFilter({ tags, expose: [] }, opts)) continue;
     results.push({ ...info, tags });
   }
   return results;

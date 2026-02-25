@@ -55,6 +55,8 @@ export {
 export { readCasaConfig, updateCasaConfig } from "./casa-config.js";
 export type { CasaConfig } from "./casa-config.js";
 export { forwardQueryToCasa } from "./forwarding.js";
+export { matchesDiscoveryFilter } from "./discovery.js";
+export type { DiscoverableEntry, DiscoveryFilter } from "./discovery.js";
 
 // Identity (Phase 3)
 export {

@@ -7,6 +7,7 @@ import {
   forwardQueryToCasa,
   isValidName,
   isCapability,
+  matchesDiscoveryFilter,
 } from "@mecha/core";
 
 interface McpToolDef {
@@ -96,8 +97,7 @@ async function discoverCasas(
     }
     /* v8 ignore stop */
 
-    if (opts.tag && !tags.includes(opts.tag)) continue;
-    if (opts.capability && !expose.includes(opts.capability)) continue;
+    if (!matchesDiscoveryFilter({ tags, expose }, opts)) continue;
 
     results.push({ name: entry, tags, expose, state: "unknown" });
   }
