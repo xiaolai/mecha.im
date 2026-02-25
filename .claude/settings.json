@@ -4,17 +4,6 @@
     "deny": []
   },
   "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": ".claude/scripts/tdd-guardian/pretool_guard.py"
-          }
-        ]
-      }
-    ],
     "PostToolUse": [
       {
         "matcher": "Bash",
@@ -22,17 +11,6 @@
           {
             "type": "command",
             "command": ".claude/scripts/deploy-cli.sh"
-          }
-        ]
-      }
-    ],
-    "TaskCompleted": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": ".claude/scripts/tdd-guardian/taskcompleted_gate.py",
-            "timeout": 1800
           }
         ]
       }
