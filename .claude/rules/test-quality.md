@@ -55,3 +55,42 @@ expect(() => MechaUpInput.parse({ projectPath: "" })).toThrow();
 ## Security tests
 
 Security properties (sandbox isolation, path traversal guards) MUST be verified via integration tests — NOT via mock call argument assertions.
+
+## v8 ignore pragmas
+
+Use `/* v8 ignore start */` / `/* v8 ignore stop */` for defensive branches that can't be reached in tests. **Never** use `/* v8 ignore next N */` — it fails silently on:
+
+- `??` null coalescing fallback branches
+- `? :` ternary alternate branches
+- `catch` block bodies
+- `&&` / `||` short-circuit branches
+
+```typescript
+// WRONG — v8 still counts branches inside "next" pragmas
+/* v8 ignore next */
+const x = value ?? fallback;
+/* v8 ignore next 3 */
+} catch {
+  return undefined;
+}
+
+// RIGHT — start/stop reliably excludes everything between them
+/* v8 ignore start -- reason */
+const x = value ?? fallback;
+/* v8 ignore stop */
+
+/* v8 ignore start -- corrupt file fallback */
+} catch {
+  return undefined;
+}
+/* v8 ignore stop */
+```
+
+**Allowed uses** (always include a reason comment):
+- Catch blocks for corrupt file / IO fallbacks
+- Type guard functions only hit with valid data
+- Default parameter lambdas overridden in tests
+- Null coalescing fallbacks for optional fields
+- Race condition guards (config vanishes between checks)
+
+**Never ignore**: Business logic, security checks, error handling that should be tested.

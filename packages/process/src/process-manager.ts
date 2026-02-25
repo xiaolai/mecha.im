@@ -5,6 +5,7 @@ import { randomBytes } from "node:crypto";
 import { Readable } from "node:stream";
 import {
   type CasaName,
+  DEFAULTS,
   isValidName,
   InvalidNameError,
   CasaAlreadyExistsError,
@@ -33,7 +34,7 @@ import type {
 export type { SpawnOpts, ProcessInfo, LogOpts, ProcessManager, CreateProcessManagerOpts };
 
 export function createProcessManager(opts: CreateProcessManagerOpts): ProcessManager {
-  const { mechaDir, healthTimeoutMs = 10_000 } = opts;
+  const { mechaDir, healthTimeoutMs = DEFAULTS.HEALTH_TIMEOUT_MS } = opts;
   const spawnFn = opts.spawnFn ?? cpSpawn;
   const emitter = new ProcessEventEmitter();
   const live = new Map<string, LiveProcess>();
@@ -90,7 +91,8 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
 
     // Prepare filesystem and environment
     const { logsDir, childEnv } = prepareCasaFilesystem({
-      casaDir, workspacePath, port, token, name, model, permissionMode, auth, tags,
+      casaDir, workspacePath, port, token, name, mechaDir, model, permissionMode, auth, tags,
+      expose: spawnOpts.expose,
       userEnv: spawnOpts.env,
     });
 
@@ -148,8 +150,9 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
       const state: CasaState = {
         name,
         state: "stopped",
-        /* v8 ignore next -- pid always set after spawn guard */
+        /* v8 ignore start -- pid always set after spawn guard */
         pid: child.pid ?? undefined,
+        /* v8 ignore stop */
         port,
         workspacePath,
         startedAt,
@@ -267,7 +270,7 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
       // It claims running but we don't have a live handle — signal the PID directly
       if (state.pid && isPidAlive(state.pid)) {
         process.kill(state.pid, "SIGTERM");
-        await waitForPidExit(state.pid, 5000);
+        await waitForPidExit(state.pid, DEFAULTS.STOP_GRACE_MS);
         if (isPidAlive(state.pid)) {
           process.kill(state.pid, "SIGKILL");
         }
@@ -280,7 +283,7 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
     }
 
     lp.child.kill("SIGTERM");
-    const exited = await waitForChildExit(lp.child, 5000);
+    const exited = await waitForChildExit(lp.child, DEFAULTS.STOP_GRACE_MS);
     if (!exited) {
       lp.child.kill("SIGKILL");
     }

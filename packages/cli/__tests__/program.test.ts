@@ -3,6 +3,7 @@ import { createProgram } from "../src/program.js";
 import { createFormatter } from "../src/formatter.js";
 import type { CommandDeps } from "../src/types.js";
 import type { ProcessManager } from "@mecha/process";
+import type { AclEngine } from "@mecha/core";
 
 function makeDeps(): CommandDeps {
   return {
@@ -18,6 +19,14 @@ function makeDeps(): CommandDeps {
       onEvent: vi.fn().mockReturnValue(() => {}),
     } as unknown as ProcessManager,
     mechaDir: "/tmp/mecha-test",
+    acl: {
+      grant: vi.fn(),
+      revoke: vi.fn(),
+      check: vi.fn(),
+      listRules: vi.fn().mockReturnValue([]),
+      listConnections: vi.fn().mockReturnValue([]),
+      save: vi.fn(),
+    } as unknown as AclEngine,
   };
 }
 
@@ -72,6 +81,7 @@ describe("createProgram", () => {
     expect(commandNames).toContain("auth");
     expect(commandNames).toContain("find");
     expect(commandNames).toContain("configure");
+    expect(commandNames).toContain("acl");
   });
 
   it("parses --version without error", async () => {

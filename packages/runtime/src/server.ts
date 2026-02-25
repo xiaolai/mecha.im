@@ -12,6 +12,7 @@ export interface CreateServerOpts {
   authToken: string;
   projectsDir: string;
   workspacePath: string;
+  mechaDir?: string;
 }
 
 export function createServer(opts: CreateServerOpts): FastifyInstance {
@@ -31,7 +32,11 @@ export function createServer(opts: CreateServerOpts): FastifyInstance {
   });
   registerSessionRoutes(app, sm);
   registerChatRoutes(app);
-  registerMcpRoutes(app, { workspacePath: opts.workspacePath });
+  registerMcpRoutes(app, {
+    workspacePath: opts.workspacePath,
+    mechaDir: opts.mechaDir,
+    casaName: opts.casaName,
+  });
 
   return app;
 }

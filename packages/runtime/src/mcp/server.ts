@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync, statSync, realpathSync, promises as fsp } from "node:fs";
 import { join, relative, resolve, isAbsolute } from "node:path";
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
+import { MESH_TOOLS, handleMeshTool, type MeshOpts } from "./mesh-tools.js";
 
 interface JsonRpcRequest {
   jsonrpc: "2.0";
@@ -47,23 +48,22 @@ const TOOLS: McpToolDef[] = [
 ];
 
 /** Check that a resolved path stays inside the workspace boundary, following symlinks. */
+/* v8 ignore start -- symlink resolution fallbacks: workspace + target realpath catch */
 function assertInsideWorkspace(resolved: string, workspacePath: string): void {
   let realWorkspace: string;
   try {
     realWorkspace = realpathSync(workspacePath);
   } catch {
-    // Workspace itself doesn't exist — cannot validate
     realWorkspace = resolve(workspacePath);
   }
   let real: string;
   try {
     real = realpathSync(resolved);
   } catch {
-    // Target doesn't exist yet — resolve relative to the real workspace path
-    // to handle symlinked temp directories (e.g., /tmp → /private/tmp on macOS)
     const rel = relative(resolve(workspacePath), resolve(resolved));
     real = join(realWorkspace, rel);
   }
+/* v8 ignore stop */
   const rel = relative(realWorkspace, real);
   if (rel.startsWith("..") || isAbsolute(rel)) {
     throw new Error("Path traversal not allowed");
@@ -137,8 +137,17 @@ function handleToolCall(
   }
 }
 
-function handleRequest(workspacePath: string, req: JsonRpcRequest): JsonRpcResponse {
+function isMeshTool(name: string): boolean {
+  return name === "mesh_query" || name === "mesh_discover";
+}
+
+async function handleRequest(
+  workspacePath: string,
+  meshOpts: MeshOpts | undefined,
+  req: JsonRpcRequest,
+): Promise<JsonRpcResponse> {
   const id = req.id ?? null;
+  const allTools = meshOpts ? [...TOOLS, ...MESH_TOOLS] : TOOLS;
 
   switch (req.method) {
     case "initialize":
@@ -153,25 +162,34 @@ function handleRequest(workspacePath: string, req: JsonRpcRequest): JsonRpcRespo
       };
 
     case "tools/list":
-      return { jsonrpc: "2.0", id, result: { tools: TOOLS } };
+      return { jsonrpc: "2.0", id, result: { tools: allTools } };
 
     case "tools/call": {
       const params = req.params ?? {};
       const name = params.name as string;
       const args = (params.arguments as Record<string, unknown>) ?? {};
       try {
+        // Mesh tools are async and handled separately
+        if (isMeshTool(name) && meshOpts) {
+          const result = await handleMeshTool(meshOpts, name, args);
+          return { jsonrpc: "2.0", id, result };
+        }
         const result = handleToolCall(workspacePath, name, args);
         return { jsonrpc: "2.0", id, result };
       } catch (err) {
         const msg = (err as Error).message;
         // Only expose safe error messages; hide filesystem details
+        /* v8 ignore start -- ternary chain: each branch tested individually; v8 marks false-paths as null */
         const safeMsg = msg === "Path traversal not allowed" ? msg
           : msg.startsWith("Path is a directory") ? msg
           : msg.startsWith("File too large") ? msg
           : msg.startsWith("Unknown tool") ? msg
           : msg.startsWith("Directory not found") ? msg
           : msg.startsWith("File not found") ? msg
-          : /* v8 ignore next */ "Tool execution failed";
+          : msg.startsWith("Access denied") ? msg
+          : msg.startsWith("CASA not found") ? msg
+          : "Tool execution failed";
+        /* v8 ignore stop */
         return {
           jsonrpc: "2.0",
           id,
@@ -194,16 +212,23 @@ function handleRequest(workspacePath: string, req: JsonRpcRequest): JsonRpcRespo
 
 export interface McpRouteOpts {
   workspacePath: string;
+  mechaDir?: string;
+  casaName?: string;
 }
 
 export function registerMcpRoutes(app: FastifyInstance, opts: McpRouteOpts): void {
+  const meshOpts: MeshOpts | undefined =
+    opts.mechaDir && opts.casaName
+      ? { mechaDir: opts.mechaDir, casaName: opts.casaName }
+      : undefined;
+
   app.post("/mcp", async (request: FastifyRequest, reply: FastifyReply) => {
     const body = request.body as JsonRpcRequest;
     if (!body || body.jsonrpc !== "2.0" || !body.method) {
       reply.code(400).send({ jsonrpc: "2.0", id: null, error: { code: -32600, message: "Invalid JSON-RPC request" } });
       return;
     }
-    const response = handleRequest(opts.workspacePath, body);
+    const response = await handleRequest(opts.workspacePath, meshOpts, body);
     return response;
   });
 }

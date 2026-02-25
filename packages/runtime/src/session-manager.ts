@@ -5,8 +5,7 @@ import {
   statSync,
 } from "node:fs";
 import { join } from "node:path";
-
-const MAX_TRANSCRIPT_BYTES = 10 * 1024 * 1024; // 10 MB safety cap
+import { DEFAULTS } from "@mecha/core";
 
 export interface SessionMeta {
   id: string;
@@ -133,7 +132,7 @@ export function createSessionManager(
     let content: string;
     try {
       const st = statSync(path);
-      if (st.size > MAX_TRANSCRIPT_BYTES) return [];
+      if (st.size > DEFAULTS.MAX_TRANSCRIPT_BYTES) return [];
       content = readFileSync(path, "utf-8").trim();
     } catch { return []; }
     if (!content) return [];

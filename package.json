@@ -7,7 +7,7 @@
     "build": "tsc -b packages/core packages/process packages/runtime packages/service packages/cli",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage --config vitest.config.ts",
-    "typecheck": "tsc -b --noEmit",
+    "typecheck": "tsc -b",
     "clean": "rm -rf packages/*/dist packages/*/tsconfig.tsbuildinfo",
     "lint": "eslint packages/*/src/",
     "docs:dev": "pnpm --filter @mecha/website dev",

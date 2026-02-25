@@ -16,7 +16,7 @@ export const MANAGED_TOOLS = {
   codex: "@openai/codex",
 } as const;
 
-/** Default port assignments */
+/** Operational defaults — single source of truth for all tuning knobs */
 export const DEFAULTS = {
   /** First port in the runtime scan range */
   RUNTIME_PORT_BASE: 7700,
@@ -28,4 +28,12 @@ export const DEFAULTS = {
   MCP_HTTP_PORT: 7670,
   /** Dashboard port (Phase 7) */
   DASHBOARD_PORT: 3457,
+  /** Health check timeout (ms) */
+  HEALTH_TIMEOUT_MS: 10_000,
+  /** Grace period for SIGTERM before SIGKILL (ms) */
+  STOP_GRACE_MS: 5_000,
+  /** HTTP forwarding request timeout (ms) */
+  FORWARD_TIMEOUT_MS: 60_000,
+  /** Max transcript file size to read (bytes) */
+  MAX_TRANSCRIPT_BYTES: 10 * 1024 * 1024,
 } as const;

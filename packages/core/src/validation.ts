@@ -1,3 +1,5 @@
+import { ALL_CAPABILITIES, type Capability } from "./acl/types.js";
+
 /** Valid name pattern: lowercase alphanumeric + hyphens, 1-32 chars, no leading/trailing hyphen */
 export const NAME_PATTERN = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
 
@@ -40,4 +42,16 @@ export function validateTags(tags: string[]): { ok: true; tags: string[] } | { o
     }
   }
   return { ok: true, tags: result };
+}
+
+/** Validate a list of capability strings. Returns validated capabilities or an error message. */
+export function validateCapabilities(caps: string[]): { ok: true; capabilities: Capability[] } | { ok: false; error: string } {
+  const result: Capability[] = [];
+  for (const c of caps) {
+    if (!(ALL_CAPABILITIES as readonly string[]).includes(c)) {
+      return { ok: false, error: `Invalid capability: "${c}"` };
+    }
+    result.push(c as Capability);
+  }
+  return { ok: true, capabilities: result };
 }

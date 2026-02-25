@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isValidName, NAME_PATTERN, NAME_MAX_LENGTH, validateTags, TAG_PATTERN, TAG_MAX_LENGTH, MAX_TAGS } from "../src/validation.js";
+import { isValidName, NAME_PATTERN, NAME_MAX_LENGTH, validateTags, validateCapabilities, TAG_PATTERN, TAG_MAX_LENGTH, MAX_TAGS } from "../src/validation.js";
 
 describe("isValidName", () => {
   it("accepts simple lowercase names", () => {
@@ -145,5 +145,28 @@ describe("TAG_MAX_LENGTH / MAX_TAGS", () => {
   it("has expected values", () => {
     expect(TAG_MAX_LENGTH).toBe(32);
     expect(MAX_TAGS).toBe(20);
+  });
+});
+
+describe("validateCapabilities", () => {
+  it("accepts valid capabilities", () => {
+    const result = validateCapabilities(["query", "read_workspace"]);
+    expect(result).toEqual({ ok: true, capabilities: ["query", "read_workspace"] });
+  });
+
+  it("accepts all valid capabilities", () => {
+    const result = validateCapabilities(["query", "read_workspace", "write_workspace", "execute", "read_sessions", "lifecycle"]);
+    expect(result.ok).toBe(true);
+  });
+
+  it("accepts empty array", () => {
+    const result = validateCapabilities([]);
+    expect(result).toEqual({ ok: true, capabilities: [] });
+  });
+
+  it("rejects invalid capability", () => {
+    const result = validateCapabilities(["query", "fly"]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("fly");
   });
 });

@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
-import { casaFind } from "@mecha/service";
+import { casaFind, buildHierarchy, flattenHierarchy } from "@mecha/service";
 
 export function registerLsCommand(program: Command, deps: CommandDeps): void {
   program
@@ -12,14 +12,18 @@ export function registerLsCommand(program: Command, deps: CommandDeps): void {
         deps.formatter.info("No CASAs running");
         return;
       }
+
+      const tree = buildHierarchy(list);
+      const flat = flattenHierarchy(tree);
+
       deps.formatter.table(
         ["Name", "State", "Port", "PID", "Tags"],
-        list.map((p) => [
-          p.name,
-          p.state,
-          String(p.port ?? "-"),
-          String(p.pid ?? "-"),
-          p.tags.join(", ") || "-",
+        flat.map(({ casa, depth }) => [
+          "  ".repeat(depth) + casa.name,
+          casa.state,
+          String(casa.port ?? "-"),
+          String(casa.pid ?? "-"),
+          casa.tags.join(", ") || "-",
         ]),
       );
     });

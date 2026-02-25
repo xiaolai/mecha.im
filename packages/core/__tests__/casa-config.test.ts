@@ -1,8 +1,9 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync, readFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { readCasaConfig, updateCasaConfig } from "../src/casa-config.js";
+import { forwardQueryToCasa } from "../src/forwarding.js";
 
 describe("readCasaConfig", () => {
   let tempDir: string;
@@ -48,6 +49,16 @@ describe("readCasaConfig", () => {
     expect(readCasaConfig(tempDir)).toBeUndefined();
   });
 
+  it("normalizes non-array expose to undefined", () => {
+    tempDir = mkdtempSync(join(tmpdir(), "mecha-cfg-"));
+    writeFileSync(join(tempDir, "config.json"), JSON.stringify({
+      port: 7700, token: "tok", workspace: "/ws", expose: "not-an-array",
+    }));
+    const cfg = readCasaConfig(tempDir);
+    expect(cfg).toBeDefined();
+    expect(cfg!.expose).toBeUndefined();
+  });
+
   it("normalizes non-array tags to undefined", () => {
     tempDir = mkdtempSync(join(tmpdir(), "mecha-cfg-"));
     writeFileSync(join(tempDir, "config.json"), JSON.stringify({
@@ -89,5 +100,31 @@ describe("updateCasaConfig", () => {
     updateCasaConfig(tempDir, { tags: ["a"] });
     const cfg = JSON.parse(readFileSync(join(tempDir, "config.json"), "utf-8"));
     expect(cfg.tags).toEqual(["a"]);
+  });
+});
+
+describe("forwardQueryToCasa", () => {
+  it("returns response text on success", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ response: "hello" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    const result = await forwardQueryToCasa(7700, "tok", "hi");
+    expect(result).toBe("hello");
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "http://127.0.0.1:7700/api/chat",
+      expect.objectContaining({ method: "POST" }),
+    );
+    fetchSpy.mockRestore();
+  });
+
+  it("throws on non-OK response", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("error", { status: 500 }),
+    );
+    await expect(forwardQueryToCasa(7700, "tok", "hi")).rejects.toThrow("returned HTTP 500");
+    fetchSpy.mockRestore();
   });
 });

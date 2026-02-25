@@ -150,28 +150,22 @@ export const ProcessHealthTimeoutError = defError<[string]>(
   (name) => `CASA "${name}" failed health check`,
 );
 
-// --- Node errors (Phase 4) ---
-export const NodeUnreachableError = defError<[string]>(
-  "NodeUnreachableError",
-  { code: "NODE_UNREACHABLE", statusCode: 502, exitCode: 2 },
-  (name) => `Node "${name}" is unreachable`,
-);
-
-export const NodeAuthFailedError = defError<[string]>(
-  "NodeAuthFailedError",
-  { code: "NODE_AUTH_FAILED", statusCode: 401, exitCode: 2 },
-  (name) => `Authentication failed for node "${name}"`,
-);
-
-export const CasaNotLocatedError = defError<[string]>(
-  "CasaNotLocatedError",
-  { code: "CASA_NOT_LOCATED", statusCode: 404, exitCode: 2 },
-  (address) => `Cannot locate CASA: "${address}"`,
-);
-
 // --- ACL errors (Phase 3) ---
 export const AclDeniedError = defError<[string, string, string]>(
   "AclDeniedError",
   { code: "ACL_DENIED", statusCode: 403, exitCode: 3 },
   (source, capability, target) => `Access denied: ${source} cannot ${capability} ${target}`,
+);
+
+// --- Identity errors (Phase 3) ---
+export const IdentityNotFoundError = defError<[string]>(
+  "IdentityNotFoundError",
+  { code: "IDENTITY_NOT_FOUND", statusCode: 404, exitCode: 1 },
+  (name) => `Identity not found: "${name}"`,
+);
+
+export const InvalidCapabilityError = defError<[string]>(
+  "InvalidCapabilityError",
+  { code: "INVALID_CAPABILITY", statusCode: 400, exitCode: 2 },
+  (cap) => `Invalid capability: "${cap}"`,
 );

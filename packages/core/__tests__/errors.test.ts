@@ -15,13 +15,12 @@ import {
   SessionBusyError,
   ProcessSpawnError,
   ProcessHealthTimeoutError,
-  NodeUnreachableError,
-  NodeAuthFailedError,
-  CasaNotLocatedError,
   AuthProfileNotFoundError,
   AuthTokenExpiredError,
   AuthTokenInvalidError,
   AclDeniedError,
+  IdentityNotFoundError,
+  InvalidCapabilityError,
 } from "../src/errors.js";
 
 describe("MechaError base", () => {
@@ -187,36 +186,28 @@ describe("error classes", () => {
       messageContains: "researcher",
     },
     {
-      name: "NodeUnreachableError",
-      error: new NodeUnreachableError("alice"),
-      expectedStatus: 502,
-      expectedExit: 2,
-      expectedCode: "NODE_UNREACHABLE",
-      messageContains: "alice",
-    },
-    {
-      name: "NodeAuthFailedError",
-      error: new NodeAuthFailedError("alice"),
-      expectedStatus: 401,
-      expectedExit: 2,
-      expectedCode: "NODE_AUTH_FAILED",
-      messageContains: "alice",
-    },
-    {
-      name: "CasaNotLocatedError",
-      error: new CasaNotLocatedError("researcher@alice"),
-      expectedStatus: 404,
-      expectedExit: 2,
-      expectedCode: "CASA_NOT_LOCATED",
-      messageContains: "researcher@alice",
-    },
-    {
       name: "AclDeniedError",
       error: new AclDeniedError("coder", "query", "researcher"),
       expectedStatus: 403,
       expectedExit: 3,
       expectedCode: "ACL_DENIED",
       messageContains: "coder cannot query researcher",
+    },
+    {
+      name: "IdentityNotFoundError",
+      error: new IdentityNotFoundError("alice"),
+      expectedStatus: 404,
+      expectedExit: 1,
+      expectedCode: "IDENTITY_NOT_FOUND",
+      messageContains: "alice",
+    },
+    {
+      name: "InvalidCapabilityError",
+      error: new InvalidCapabilityError("bad_cap"),
+      expectedStatus: 400,
+      expectedExit: 2,
+      expectedCode: "INVALID_CAPABILITY",
+      messageContains: "bad_cap",
     },
   ];
 

@@ -30,3 +30,7 @@ export {
   mechaAuthGetDefault,
 } from "./auth.js";
 export type { AuthProfile } from "./auth.js";
+export { buildHierarchy, flattenHierarchy } from "./hierarchy.js";
+export type { HierarchyNode } from "./hierarchy.js";
+export { createCasaRouter } from "./router.js";
+export type { CasaRouter, CreateRouterOpts } from "./router.js";

@@ -1,5 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import type { CasaName } from "@mecha/core";
+import { loadNodeIdentity, loadNodePrivateKey, createCasaIdentity } from "@mecha/core";
 
 export interface CasaFilesystemOpts {
   casaDir: string;
@@ -7,10 +9,12 @@ export interface CasaFilesystemOpts {
   port: number;
   token: string;
   name: string;
+  mechaDir: string;
   model?: string;
   permissionMode?: string;
   auth?: string;
   tags?: string[];
+  expose?: string[];
   userEnv?: Record<string, string>;
 }
 
@@ -49,8 +53,17 @@ export function prepareCasaFilesystem(opts: CasaFilesystemOpts): CasaFilesystemR
   mkdirSync(logsDir, { recursive: true, mode: 0o700 });
 
   // Write config
-  const config = { port, token, workspace: workspacePath, model, permissionMode, auth, tags };
+  const config = { port, token, workspace: workspacePath, model, permissionMode, auth, tags, expose: opts.expose };
   writeFileSync(join(casaDir, "config.json"), JSON.stringify(config, null, 2) + "\n", { mode: 0o600 });
+
+  // Generate CASA identity if node identity exists
+  const nodeIdentity = loadNodeIdentity(opts.mechaDir);
+  const nodePrivateKey = loadNodePrivateKey(opts.mechaDir);
+  /* v8 ignore start -- identity creation tested in integration; unit tests lack node keys */
+  if (nodeIdentity && nodePrivateKey) {
+    createCasaIdentity(casaDir, name as CasaName, nodeIdentity, nodePrivateKey);
+  }
+  /* v8 ignore stop */
 
   // Write sandbox hooks (settings.json)
   const settings = {
@@ -116,7 +129,7 @@ echo "cd \\"$MECHA_WORKSPACE\\" && $COMMAND"
   const resolvedUserEnv = userEnv ?? {};
   const reservedKeys = new Set([
     "MECHA_CASA_NAME", "MECHA_PORT", "MECHA_WORKSPACE", "MECHA_PROJECTS_DIR",
-    "MECHA_AUTH_TOKEN", "MECHA_LOG_DIR", "MECHA_SANDBOX_ROOT", "HOME", "TMPDIR",
+    "MECHA_AUTH_TOKEN", "MECHA_LOG_DIR", "MECHA_SANDBOX_ROOT", "MECHA_DIR", "HOME", "TMPDIR",
   ]);
   const safeUserEnv: Record<string, string> = {};
   for (const [k, v] of Object.entries(resolvedUserEnv)) {
@@ -136,6 +149,7 @@ echo "cd \\"$MECHA_WORKSPACE\\" && $COMMAND"
     MECHA_AUTH_TOKEN: token,
     MECHA_LOG_DIR: logsDir,
     MECHA_SANDBOX_ROOT: casaDir,
+    MECHA_DIR: opts.mechaDir,
   };
 
   return { homeDir, tmpDir, logsDir, projectsDir, childEnv };

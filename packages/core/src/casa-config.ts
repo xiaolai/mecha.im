@@ -11,6 +11,7 @@ export interface CasaConfig {
   permissionMode?: string;
   auth?: string;
   tags?: string[];
+  expose?: string[];
 }
 
 function isCasaConfig(v: unknown): v is CasaConfig {
@@ -26,9 +27,12 @@ export function readCasaConfig(casaDir: string): CasaConfig | undefined {
   try {
     const parsed: unknown = JSON.parse(readFileSync(configPath, "utf-8"));
     if (!isCasaConfig(parsed)) return undefined;
-    // Normalize tags to string[] | undefined
+    // Normalize tags and expose to string[] | undefined
     if (parsed.tags !== undefined && !Array.isArray(parsed.tags)) {
       parsed.tags = undefined;
+    }
+    if (parsed.expose !== undefined && !Array.isArray(parsed.expose)) {
+      parsed.expose = undefined;
     }
     return parsed;
   } catch {
