@@ -2,12 +2,13 @@ import { promises as fsp } from "node:fs";
 import { join } from "node:path";
 import {
   type Capability,
-  createAclEngine,
+  type ForwardResult,
   readCasaConfig,
-  forwardQueryToCasa,
   isValidName,
   isCapability,
   matchesDiscoveryFilter,
+  AclDeniedError,
+  CasaNotFoundError,
 } from "@mecha/core";
 
 interface McpToolDef {
@@ -43,9 +44,20 @@ export const MESH_TOOLS: McpToolDef[] = [
   },
 ];
 
+/** Router interface — matches CasaRouter.routeQuery signature */
+export interface MeshRouter {
+  routeQuery(
+    source: string,
+    target: string,
+    message: string,
+    sessionId?: string,
+  ): Promise<ForwardResult>;
+}
+
 export interface MeshOpts {
   mechaDir: string;
   casaName: string;
+  router?: MeshRouter;
 }
 
 interface MeshResult {
@@ -128,37 +140,22 @@ export async function handleMeshTool(
         return { content: [{ type: "text", text: "Missing required: target, message" }], isError: true };
       }
 
-      // Read target config once for both ACL expose check and routing
-      const config = readCasaConfig(join(mechaDir, target));
-      if (!config) {
-        return { content: [{ type: "text", text: `CASA not found: ${target}` }], isError: true };
-      }
-
-      const acl = createAclEngine({
-        mechaDir,
-        /* v8 ignore start -- getExpose: only target path tested; non-target requires multi-CASA setup */
-        getExpose: (name) => {
-          if (name === target) return (config.expose ?? []) as Capability[];
-          const other = readCasaConfig(join(mechaDir, name));
-          return (other?.expose ?? []) as Capability[];
-        },
-        /* v8 ignore stop */
-      });
-      const result = acl.check(casaName, target, "query" as Capability);
-
-      if (!result.allowed) {
-        const reason = result.reason === "not_exposed"
-          ? `${target} does not expose "query"`
-          : `No ACL grant: ${casaName} → ${target} (query)`;
-        return { content: [{ type: "text", text: `Access denied: ${reason}` }], isError: true };
+      if (!opts.router) {
+        return { content: [{ type: "text", text: "Mesh routing not available" }], isError: true };
       }
 
       try {
-        const fwd = await forwardQueryToCasa(config.port, config.token, message, sessionId);
+        const fwd = await opts.router.routeQuery(casaName, target, message, sessionId);
         const result: MeshResult = { content: [{ type: "text", text: fwd.text }] };
         if (fwd.sessionId) result._meta = { sessionId: fwd.sessionId };
         return result;
       } catch (err) {
+        if (err instanceof AclDeniedError) {
+          return { content: [{ type: "text", text: `Access denied: ${err.message}` }], isError: true };
+        }
+        if (err instanceof CasaNotFoundError) {
+          return { content: [{ type: "text", text: `CASA not found: ${target}` }], isError: true };
+        }
         return {
           content: [{ type: "text", text: (err as Error).message }],
           isError: true,
