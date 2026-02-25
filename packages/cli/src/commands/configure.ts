@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
-import { casaName } from "@mecha/core";
+import { casaName, validateTags } from "@mecha/core";
 import { casaConfigure } from "@mecha/service";
 
 export function registerConfigureCommand(program: Command, deps: CommandDeps): void {
@@ -13,7 +13,17 @@ export function registerConfigureCommand(program: Command, deps: CommandDeps): v
       const validated = casaName(name);
       const updates: { tags?: string[] } = {};
       if (opts.tags) {
-        updates.tags = opts.tags.split(",").map((t) => t.trim()).filter(Boolean);
+        const result = validateTags(opts.tags.split(",").map((t) => t.trim()).filter(Boolean));
+        if (!result.ok) {
+          deps.formatter.error(result.error);
+          process.exitCode = 1;
+          return;
+        }
+        updates.tags = result.tags;
+      }
+      if (Object.keys(updates).length === 0) {
+        deps.formatter.info("Nothing to update");
+        return;
       }
       casaConfigure(deps.mechaDir, deps.processManager, validated, updates);
       deps.formatter.success(`${validated} updated`);

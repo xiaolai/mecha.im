@@ -31,12 +31,8 @@ describe("configure command", () => {
     expect(cfg.tags).toEqual(["research", "papers"]);
   });
 
-  it("passes undefined tags when --tags not provided", async () => {
+  it("shows nothing-to-update when no flags provided", async () => {
     mechaDir = mkdtempSync(join(tmpdir(), "mecha-cfg-"));
-    const casaDir = join(mechaDir, "alice");
-    mkdirSync(casaDir, { recursive: true });
-    writeFileSync(join(casaDir, "config.json"), JSON.stringify({ port: 7700, token: "t", workspace: "/ws", tags: ["old"] }));
-
     const info: ProcessInfo = { name: "alice" as CasaName, state: "running", workspacePath: "/ws", port: 7700 };
     const deps = makeDeps({
       mechaDir,
@@ -46,9 +42,39 @@ describe("configure command", () => {
     program.exitOverride();
 
     await program.parseAsync(["node", "mecha", "configure", "alice"]);
+    expect(deps.formatter.info).toHaveBeenCalledWith("Nothing to update");
+  });
+
+  it("rejects invalid tags", async () => {
+    mechaDir = mkdtempSync(join(tmpdir(), "mecha-cfg-"));
+    const deps = makeDeps({ mechaDir });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "configure", "alice", "--tags", "has space"]);
+    expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("invalid characters"));
+    expect(process.exitCode).toBe(1);
+    process.exitCode = undefined as unknown as number;
+  });
+
+  it("writes config even when existing config is corrupt", async () => {
+    mechaDir = mkdtempSync(join(tmpdir(), "mecha-cfg-"));
+    const casaDir = join(mechaDir, "alice");
+    mkdirSync(casaDir, { recursive: true });
+    writeFileSync(join(casaDir, "config.json"), "not-json{{{");
+
+    const info: ProcessInfo = { name: "alice" as CasaName, state: "running", workspacePath: "/ws", port: 7700 };
+    const deps = makeDeps({
+      mechaDir,
+      pm: { get: vi.fn().mockReturnValue(info) },
+    });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "configure", "alice", "--tags", "new-tag"]);
     expect(deps.formatter.success).toHaveBeenCalledWith("alice updated");
     const cfg = JSON.parse(readFileSync(join(casaDir, "config.json"), "utf-8"));
-    expect(cfg.tags).toEqual(["old"]);
+    expect(cfg.tags).toEqual(["new-tag"]);
   });
 
   it("handles CasaNotFoundError", async () => {

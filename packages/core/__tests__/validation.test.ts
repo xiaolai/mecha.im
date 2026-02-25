@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isValidName, NAME_PATTERN, NAME_MAX_LENGTH } from "../src/validation.js";
+import { isValidName, NAME_PATTERN, NAME_MAX_LENGTH, validateTags, TAG_PATTERN, TAG_MAX_LENGTH, MAX_TAGS } from "../src/validation.js";
 
 describe("isValidName", () => {
   it("accepts simple lowercase names", () => {
@@ -86,5 +86,64 @@ describe("NAME_PATTERN", () => {
 describe("NAME_MAX_LENGTH", () => {
   it("is 32", () => {
     expect(NAME_MAX_LENGTH).toBe(32);
+  });
+});
+
+describe("validateTags", () => {
+  it("accepts valid tags", () => {
+    const result = validateTags(["code", "research", "ml-ops"]);
+    expect(result).toEqual({ ok: true, tags: ["code", "research", "ml-ops"] });
+  });
+
+  it("normalizes to lowercase", () => {
+    const result = validateTags(["CODE", "Research"]);
+    expect(result).toEqual({ ok: true, tags: ["code", "research"] });
+  });
+
+  it("deduplicates tags", () => {
+    const result = validateTags(["code", "Code", "CODE"]);
+    expect(result).toEqual({ ok: true, tags: ["code"] });
+  });
+
+  it("rejects tags with invalid characters", () => {
+    const result = validateTags(["valid", "has space"]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("invalid characters");
+  });
+
+  it("rejects tags exceeding max length", () => {
+    const result = validateTags(["a".repeat(33)]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("1-32");
+  });
+
+  it("rejects too many tags", () => {
+    const tags = Array.from({ length: 21 }, (_, i) => `tag${i}`);
+    const result = validateTags(tags);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("Too many");
+  });
+
+  it("rejects empty tag strings", () => {
+    const result = validateTags([""]);
+    expect(result.ok).toBe(false);
+  });
+
+  it("accepts empty array", () => {
+    const result = validateTags([]);
+    expect(result).toEqual({ ok: true, tags: [] });
+  });
+});
+
+describe("TAG_PATTERN", () => {
+  it("is a RegExp", () => {
+    expect(TAG_PATTERN).toBeInstanceOf(RegExp);
+  });
+});
+
+describe("TAG_MAX_LENGTH / MAX_TAGS", () => {
+  it("has expected values", () => {
+    expect(TAG_MAX_LENGTH).toBe(32);
+    expect(MAX_TAGS).toBe(20);
   });
 });

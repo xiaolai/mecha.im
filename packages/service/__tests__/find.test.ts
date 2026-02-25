@@ -93,6 +93,34 @@ describe("casaFind", () => {
     expect(results).toHaveLength(0);
   });
 
+  it("skips CASAs with invalid names", () => {
+    mechaDir = mkdtempSync(join(tmpdir(), "mecha-find-"));
+    const pm = createMockPM({
+      list: vi.fn().mockReturnValue([
+        { ...makeInfo("alice"), name: "../traversal" as unknown as import("@mecha/core").CasaName },
+      ]),
+    });
+
+    const results = casaFind(mechaDir, pm, {});
+    expect(results).toHaveLength(0);
+  });
+
+  it("filters non-string entries from tags array", () => {
+    mechaDir = mkdtempSync(join(tmpdir(), "mecha-find-"));
+    const dir = join(mechaDir, "alice");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "config.json"), JSON.stringify({
+      port: 7700, token: "t", workspace: "/ws", tags: ["valid", 123, null, "also-valid"],
+    }));
+    const pm = createMockPM({
+      list: vi.fn().mockReturnValue([makeInfo("alice")]),
+    });
+
+    const results = casaFind(mechaDir, pm, {});
+    expect(results).toHaveLength(1);
+    expect(results[0].tags).toEqual(["valid", "also-valid"]);
+  });
+
   it("defaults to empty tags for CASAs without tags field", () => {
     mechaDir = mkdtempSync(join(tmpdir(), "mecha-find-"));
     const dir = join(mechaDir, "alice");

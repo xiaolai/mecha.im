@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
-import { casaName } from "@mecha/core";
+import { casaName, validateTags } from "@mecha/core";
 export function registerSpawnCommand(program: Command, deps: CommandDeps): void {
   program
     .command("spawn")
@@ -18,7 +18,16 @@ export function registerSpawnCommand(program: Command, deps: CommandDeps): void 
         process.exitCode = 1;
         return;
       }
-      const tags = opts.tags ? opts.tags.split(",").map(t => t.trim()).filter(Boolean) : undefined;
+      let tags: string[] | undefined;
+      if (opts.tags) {
+        const result = validateTags(opts.tags.split(",").map(t => t.trim()).filter(Boolean));
+        if (!result.ok) {
+          deps.formatter.error(result.error);
+          process.exitCode = 1;
+          return;
+        }
+        tags = result.tags;
+      }
       const info = await deps.processManager.spawn({
         name: validated,
         workspacePath: path,

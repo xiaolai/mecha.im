@@ -76,6 +76,17 @@ describe("spawn command", () => {
     );
   });
 
+  it("rejects invalid tags", async () => {
+    const deps = makeDeps({ pm: defaultPm() });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "spawn", "test", "/ws", "--tags", "has space,ok"]);
+    expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("invalid characters"));
+    expect(process.exitCode).toBe(1);
+    process.exitCode = undefined as unknown as number;
+  });
+
   it("spawns with auth option", async () => {
     const deps = makeDeps({ pm: defaultPm() });
     const program = createProgram(deps);

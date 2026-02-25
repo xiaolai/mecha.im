@@ -1,5 +1,5 @@
 import { spawn as cpSpawn, type ChildProcess } from "node:child_process";
-import { createReadStream, existsSync, readFileSync } from "node:fs";
+import { createReadStream, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { randomBytes } from "node:crypto";
 import { Readable } from "node:stream";
@@ -11,6 +11,7 @@ import {
   CasaNotFoundError,
   CasaNotRunningError,
   ProcessSpawnError,
+  readCasaConfig,
 } from "@mecha/core";
 import { allocatePort } from "./port.js";
 import { waitForHealthy } from "./health.js";
@@ -315,14 +316,6 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
     return createReadStream(logPath, { encoding: "utf-8" });
   }
 
-  function _readConfig(casaDir: string): { port: number; token: string; workspace: string } | undefined {
-    const configPath = join(casaDir, "config.json");
-    if (!existsSync(configPath)) return undefined;
-    try {
-      return JSON.parse(readFileSync(configPath, "utf-8")) as { port: number; token: string; workspace: string };
-    } catch { return undefined; }
-  }
-
   function getPortAndToken(name: CasaName): { port: number; token: string } | undefined {
     const lp = live.get(name);
     if (lp) return { port: lp.port, token: lp.token };
@@ -331,7 +324,7 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
     const casaDir = _casaDir(name);
     const state = readState(casaDir);
     if (state?.state === "running" && state.pid && isPidAlive(state.pid)) {
-      const config = _readConfig(casaDir);
+      const config = readCasaConfig(casaDir);
       if (config) return { port: config.port, token: config.token };
     }
     return undefined;

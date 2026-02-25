@@ -29,6 +29,34 @@ describe("readCasaConfig", () => {
     writeFileSync(join(tempDir, "config.json"), "not-json{{{");
     expect(readCasaConfig(tempDir)).toBeUndefined();
   });
+
+  it("returns undefined for structurally invalid config (missing required fields)", () => {
+    tempDir = mkdtempSync(join(tmpdir(), "mecha-cfg-"));
+    writeFileSync(join(tempDir, "config.json"), JSON.stringify({ foo: "bar" }));
+    expect(readCasaConfig(tempDir)).toBeUndefined();
+  });
+
+  it("returns undefined for non-object JSON (null)", () => {
+    tempDir = mkdtempSync(join(tmpdir(), "mecha-cfg-"));
+    writeFileSync(join(tempDir, "config.json"), "null");
+    expect(readCasaConfig(tempDir)).toBeUndefined();
+  });
+
+  it("returns undefined for array JSON", () => {
+    tempDir = mkdtempSync(join(tmpdir(), "mecha-cfg-"));
+    writeFileSync(join(tempDir, "config.json"), "[]");
+    expect(readCasaConfig(tempDir)).toBeUndefined();
+  });
+
+  it("normalizes non-array tags to undefined", () => {
+    tempDir = mkdtempSync(join(tmpdir(), "mecha-cfg-"));
+    writeFileSync(join(tempDir, "config.json"), JSON.stringify({
+      port: 7700, token: "tok", workspace: "/ws", tags: "not-an-array",
+    }));
+    const cfg = readCasaConfig(tempDir);
+    expect(cfg).toBeDefined();
+    expect(cfg!.tags).toBeUndefined();
+  });
 });
 
 describe("updateCasaConfig", () => {
