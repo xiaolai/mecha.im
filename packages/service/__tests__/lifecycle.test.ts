@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { casaStatus } from "../src/lifecycle.js";
+import { casaStatus } from "../src/casa.js";
 import { CasaNotFoundError, type CasaName } from "@mecha/core";
 import type { ProcessManager, ProcessInfo } from "@mecha/process";
 

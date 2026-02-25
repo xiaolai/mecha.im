@@ -1,5 +1,8 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { Readable } from "node:stream";
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { createProgram } from "../../src/program.js";
 import { makeDeps } from "../test-utils.js";
 import type { ProcessManager, ProcessInfo } from "@mecha/process";
@@ -62,6 +65,28 @@ describe("spawn command", () => {
     process.exitCode = undefined as unknown as number;
   });
 
+  it("spawns with tags option", async () => {
+    const deps = makeDeps({ pm: defaultPm() });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "spawn", "test", "/ws", "--tags", "dev,research, ml"]);
+    expect(deps.processManager.spawn).toHaveBeenCalledWith(
+      expect.objectContaining({ tags: ["dev", "research", "ml"] }),
+    );
+  });
+
+  it("rejects invalid tags", async () => {
+    const deps = makeDeps({ pm: defaultPm() });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "spawn", "test", "/ws", "--tags", "has space,ok"]);
+    expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("invalid characters"));
+    expect(process.exitCode).toBe(1);
+    process.exitCode = undefined as unknown as number;
+  });
+
   it("spawns with auth option", async () => {
     const deps = makeDeps({ pm: defaultPm() });
     const program = createProgram(deps);
@@ -87,17 +112,32 @@ describe("kill command", () => {
 });
 
 describe("ls command", () => {
-  it("lists CASAs", async () => {
-    const deps = makeDeps({ pm: defaultPm() });
+  let mechaDir: string;
+  afterEach(() => { if (mechaDir) rmSync(mechaDir, { recursive: true, force: true }); });
+
+  function writeCasaConfig(name: string, tags: string[]): void {
+    const dir = join(mechaDir, name);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ port: 7700, token: "t", workspace: "/ws", tags }));
+  }
+
+  it("lists CASAs with tags", async () => {
+    mechaDir = mkdtempSync(join(tmpdir(), "mecha-ls-"));
+    writeCasaConfig("test", ["code", "dev"]);
+    const deps = makeDeps({ mechaDir, pm: defaultPm() });
     const program = createProgram(deps);
     program.exitOverride();
 
     await program.parseAsync(["node", "mecha", "ls"]);
-    expect(deps.formatter.table).toHaveBeenCalled();
+    expect(deps.formatter.table).toHaveBeenCalledWith(
+      ["Name", "State", "Port", "PID", "Tags"],
+      [["test", "running", "7700", "12345", "code, dev"]],
+    );
   });
 
   it("shows message when no CASAs", async () => {
-    const deps = makeDeps({ pm: { ...defaultPm(), list: vi.fn().mockReturnValue([]) } });
+    mechaDir = mkdtempSync(join(tmpdir(), "mecha-ls-"));
+    const deps = makeDeps({ mechaDir, pm: { ...defaultPm(), list: vi.fn().mockReturnValue([]) } });
     const program = createProgram(deps);
     program.exitOverride();
 
@@ -105,12 +145,18 @@ describe("ls command", () => {
     expect(deps.formatter.info).toHaveBeenCalledWith("No CASAs running");
   });
 
-  it("shows dash for undefined port/pid", async () => {
+  it("shows dash for undefined port/pid and empty tags", async () => {
+    mechaDir = mkdtempSync(join(tmpdir(), "mecha-ls-"));
+    const dir = join(mechaDir, "x");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ port: 7700, token: "t", workspace: "/ws" }));
+
     const deps = makeDeps({
+      mechaDir,
       pm: {
         ...defaultPm(),
         list: vi.fn().mockReturnValue([
-          { name: "x", state: "stopped", port: undefined, pid: undefined },
+          { name: "x", state: "stopped", port: undefined, pid: undefined, workspacePath: "/ws" },
         ]),
       },
     });
@@ -119,8 +165,8 @@ describe("ls command", () => {
 
     await program.parseAsync(["node", "mecha", "ls"]);
     expect(deps.formatter.table).toHaveBeenCalledWith(
-      ["Name", "State", "Port", "PID"],
-      [["x", "stopped", "-", "-"]],
+      ["Name", "State", "Port", "PID", "Tags"],
+      [["x", "stopped", "-", "-", "-"]],
     );
   });
 });

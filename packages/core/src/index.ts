@@ -7,7 +7,7 @@ export type {
 } from "./types.js";
 export { isCasaAddress, isGroupAddress } from "./types.js";
 export { casaName, nodeName, parseAddress, formatAddress } from "./address.js";
-export { NAME_PATTERN, NAME_MAX_LENGTH, isValidName } from "./validation.js";
+export { NAME_PATTERN, NAME_MAX_LENGTH, isValidName, TAG_PATTERN, TAG_MAX_LENGTH, MAX_TAGS, validateTags } from "./validation.js";
 export {
   MECHA_DIR,
   TOOLS_DIR,
@@ -53,3 +53,5 @@ export {
   toUserMessage,
   toSafeMessage,
 } from "./mapping.js";
+export { readCasaConfig, updateCasaConfig } from "./casa-config.js";
+export type { CasaConfig } from "./casa-config.js";
