@@ -44,6 +44,9 @@ importers:
 
   packages/cli:
     dependencies:
+      '@mecha/agent':
+        specifier: workspace:*
+        version: link:../agent
       '@mecha/core':
         specifier: workspace:*
         version: link:../core
@@ -90,6 +93,9 @@ importers:
         specifier: workspace:*
         version: link:../process
     devDependencies:
+      '@mecha/agent':
+        specifier: workspace:*
+        version: link:../agent
       '@mecha/runtime':
         specifier: workspace:*
         version: link:../runtime

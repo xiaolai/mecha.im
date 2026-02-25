@@ -24,7 +24,7 @@ export const MESH_TOOLS: McpToolDef[] = [
     inputSchema: {
       type: "object",
       properties: {
-        target: { type: "string", description: "Target CASA name" },
+        target: { type: "string", description: "Target CASA name or address (name@node)" },
         message: { type: "string", description: "Message to send" },
         sessionId: { type: "string", description: "Session ID for multi-turn conversations (optional)" },
       },

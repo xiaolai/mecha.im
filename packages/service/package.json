@@ -19,6 +19,7 @@
     "@mecha/process": "workspace:*"
   },
   "devDependencies": {
+    "@mecha/agent": "workspace:*",
     "@mecha/runtime": "workspace:*",
     "fastify": "^5.3.3",
     "better-sqlite3": "^11.10.0",
