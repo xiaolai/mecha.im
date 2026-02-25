@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, writeFileSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve, relative, isAbsolute } from "node:path";
+import { InvalidToolNameError } from "@mecha/core";
 
 export interface ToolInfo {
   name: string;
@@ -20,7 +21,7 @@ export interface ToolInstallOpts {
 export function mechaToolInstall(mechaDir: string, opts: ToolInstallOpts): ToolInfo {
   // Validate tool name — reject path separators and traversal
   if (!/^[a-z0-9]([a-z0-9._-]*[a-z0-9])?$/i.test(opts.name) || opts.name.includes("..")) {
-    throw new Error(`Invalid tool name: "${opts.name}"`);
+    throw new InvalidToolNameError(opts.name);
   }
 
   const toolsDir = join(mechaDir, "tools");
@@ -37,7 +38,7 @@ export function mechaToolInstall(mechaDir: string, opts: ToolInstallOpts): ToolI
   const rel = relative(resolve(toolsDir), resolve(toolDir));
   /* v8 ignore start -- defense-in-depth: regex above blocks traversal */
   if (rel.startsWith("..") || isAbsolute(rel)) {
-    throw new Error(`Invalid tool name: "${opts.name}"`);
+    throw new InvalidToolNameError(opts.name);
   }
   /* v8 ignore stop */
   mkdirSync(toolDir, { recursive: true });

@@ -6,6 +6,7 @@ import {
   type ForwardResult,
   AclDeniedError,
   CasaNotFoundError,
+  RemoteRoutingError,
   readCasaConfig,
   forwardQueryToCasa,
   isValidName,
@@ -74,8 +75,9 @@ export function createCasaRouter(opts: CreateRouterOpts): CasaRouter {
           return forwardQueryToCasa(located.port, located.token, message, sessionId);
         }
 
+        // TODO(Phase 6): Plumb signFn into agentFetch for signed remote routing
         if (located.location === "remote" && !opts.agentFetch) {
-          throw new Error("Remote routing configured but agentFetch transport not provided");
+          throw new RemoteRoutingError("(no transport)", 0);
         }
         if (located.location === "remote" && opts.agentFetch) {
           // Only append @node if source is bare (no @ already)
@@ -90,7 +92,7 @@ export function createCasaRouter(opts: CreateRouterOpts): CasaRouter {
             source: sourceAddr,
           });
           if (!res.ok) {
-            throw new Error(`Remote node ${located.node.name} returned HTTP ${res.status}`);
+            throw new RemoteRoutingError(located.node.name, res.status);
           }
           /* v8 ignore start -- null content-type fallback */
           const contentType = res.headers.get("content-type") ?? "";

@@ -98,7 +98,7 @@ INPUT=$(cat)
 # Extract the path from tool_input (handles Read, Write, Edit, Glob, Grep)
 TARGET=$(echo "$INPUT" | grep -o '"\\(file_path\\|path\\|pattern\\|directory\\)"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"\\([^"]*\\)"$/\\1/')
 if [ -z "$TARGET" ]; then
-  exit 0  # No path argument — allow (e.g. Glob with only pattern)
+  exit 2  # No path extracted — deny by default (fail-closed)
 fi
 # Canonicalize target path, following symlinks
 RESOLVED=$(realpath -m "$TARGET" 2>/dev/null || (cd "$(dirname "$TARGET")" 2>/dev/null && pwd)/$(basename "$TARGET"))

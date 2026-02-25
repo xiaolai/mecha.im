@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { hostname } from "node:os";
 import type { NodeName } from "@mecha/core";
-import { isValidName, InvalidNameError } from "@mecha/core";
+import { isValidName, InvalidNameError, CorruptConfigError } from "@mecha/core";
 
 const NODE_FILE = "node.json";
 
@@ -33,7 +33,7 @@ export function nodeInit(mechaDir: string, opts?: { name?: string }): NodeInitRe
     /* v8 ignore start -- corrupt node.json fallback */
     } catch (err) {
       if (err instanceof InvalidNameError) throw err;
-      throw new Error("Corrupt node.json — delete and re-run 'mecha node init'");
+      throw new CorruptConfigError("node.json");
     }
     /* v8 ignore stop */
   }

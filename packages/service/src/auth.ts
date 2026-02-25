@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, writeFileSync, readFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
-import { AuthProfileNotFoundError } from "@mecha/core";
+import { AuthProfileNotFoundError, AuthProfileAlreadyExistsError } from "@mecha/core";
 
 export interface AuthProfile {
   name: string;
@@ -50,7 +50,7 @@ export function mechaAuthAdd(
   const store = readStore(mechaDir);
   const existing = store.profiles.find((p) => p.name === name);
   if (existing) {
-    throw new Error(`Auth profile "${name}" already exists`);
+    throw new AuthProfileAlreadyExistsError(name);
   }
 
   const profile: AuthProfile = {

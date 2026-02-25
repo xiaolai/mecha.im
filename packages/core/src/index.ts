@@ -40,6 +40,15 @@ export {
   InvalidCapabilityError,
   NodeNotFoundError,
   DuplicateNodeError,
+  AuthProfileAlreadyExistsError,
+  ForwardingError,
+  InvalidToolNameError,
+  SessionFetchError,
+  ChatRequestError,
+  RemoteRoutingError,
+  CorruptConfigError,
+  PortRangeExhaustedError,
+  GroupAddressNotSupportedError,
 } from "./errors.js";
 export {
   CasaSpawnInput,

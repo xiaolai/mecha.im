@@ -1,6 +1,6 @@
 import type { CasaName, NodeName, CasaAddress, Address } from "./types.js";
 import { isValidName, NAME_MAX_LENGTH } from "./validation.js";
-import { InvalidNameError } from "./errors.js";
+import { InvalidNameError, InvalidAddressError, GroupAddressNotSupportedError } from "./errors.js";
 
 /** The default node name for unqualified addresses */
 const LOCAL_NODE = "local" as NodeName;
@@ -38,20 +38,16 @@ export function nodeName(input: string): NodeName {
  */
 export function parseAddress(input: string): Address {
   if (!input) {
-    throw new Error('Invalid address: "" (empty string)');
+    throw new InvalidAddressError("");
   }
 
   if (input.startsWith("+")) {
-    throw new Error(
-      `Group addresses are not supported yet: "${input}"`,
-    );
+    throw new GroupAddressNotSupportedError(input);
   }
 
   const atCount = (input.match(/@/g) ?? []).length;
   if (atCount > 1) {
-    throw new Error(
-      `Invalid address: "${input}" (multiple @ signs)`,
-    );
+    throw new InvalidAddressError(input);
   }
 
   if (atCount === 1) {

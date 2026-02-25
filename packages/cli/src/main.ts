@@ -27,14 +27,16 @@ const acl = createAclEngine({ mechaDir });
 const deps: CommandDeps = { formatter, processManager, mechaDir, acl, sandbox };
 const program = createProgram(deps);
 
-// Graceful shutdown: stop all running CASAs on SIGINT/SIGTERM
+// Graceful shutdown: only stop CASAs that this CLI process spawned (in-memory live map).
+// Scoped to prevent `mecha ls; Ctrl-C` from killing all running CASAs.
 let shuttingDown = false;
 function shutdown() {
   if (shuttingDown) return;
   shuttingDown = true;
-  const running = processManager.list().filter((p) => p.state === "running");
-  if (running.length > 0) {
-    Promise.allSettled(running.map((p) => processManager.stop(p.name)))
+  // Only stop CASAs with a live child process handle (spawned by this CLI invocation)
+  const live = processManager.list().filter((p) => p.state === "running" && p.token);
+  if (live.length > 0) {
+    Promise.allSettled(live.map((p) => processManager.stop(p.name)))
       .then(() => { process.exit(0); })
       .catch(() => { process.exit(1); });
   } else {

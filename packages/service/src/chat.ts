@@ -1,4 +1,4 @@
-import { type CasaName, DEFAULTS } from "@mecha/core";
+import { type CasaName, DEFAULTS, ChatRequestError } from "@mecha/core";
 import type { ProcessManager } from "@mecha/process";
 import { resolveCasaEndpoint } from "./helpers.js";
 
@@ -35,13 +35,17 @@ export async function casaChat(
   });
 
   if (!response.ok) {
-    const body = await response.json().catch(/* v8 ignore start */ () => ({}) /* v8 ignore stop */);
-    throw new Error((body as { error?: string }).error ?? `Chat request failed: ${response.status}`);
+    let body: Record<string, unknown> = {};
+    try { body = await response.json() as Record<string, unknown>; } catch { /* empty fallback */ }
+    throw new ChatRequestError(
+      response.status,
+      (body as { error?: string }).error ?? `Chat request failed: ${response.status}`,
+    );
   }
 
   /* v8 ignore start -- response.body is always present with real fetch */
   if (!response.body) {
-    throw new Error("No response body");
+    throw new ChatRequestError(response.status, "No response body");
   }
   /* v8 ignore stop */
 

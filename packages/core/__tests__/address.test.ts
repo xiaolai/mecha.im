@@ -68,7 +68,7 @@ describe("parseAddress", () => {
   });
 
   it("throws on empty string", () => {
-    expect(() => parseAddress("")).toThrow("empty string");
+    expect(() => parseAddress("")).toThrow('Invalid address: ""');
   });
 
   it("throws on uppercase", () => {
@@ -76,7 +76,7 @@ describe("parseAddress", () => {
   });
 
   it("throws on multiple @ signs", () => {
-    expect(() => parseAddress("a@b@c")).toThrow("multiple @ signs");
+    expect(() => parseAddress("a@b@c")).toThrow('Invalid address: "a@b@c"');
   });
 
   it("throws when casa name is too long", () => {

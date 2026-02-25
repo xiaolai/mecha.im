@@ -182,3 +182,66 @@ export const DuplicateNodeError = defError<[string]>(
   { code: "DUPLICATE_NODE", statusCode: 409, exitCode: 1 },
   (name) => `Node "${name}" already registered`,
 );
+
+// --- Auth profile errors ---
+export const AuthProfileAlreadyExistsError = defError<[string]>(
+  "AuthProfileAlreadyExistsError",
+  { code: "AUTH_PROFILE_ALREADY_EXISTS", statusCode: 409, exitCode: 1 },
+  (name) => `Auth profile "${name}" already exists`,
+);
+
+// --- Forwarding errors ---
+export const ForwardingError = defError<[number]>(
+  "ForwardingError",
+  { code: "FORWARDING_ERROR", statusCode: 502, exitCode: 2 },
+  (status) => `Target returned HTTP ${status}`,
+);
+
+// --- Tool errors ---
+export const InvalidToolNameError = defError<[string]>(
+  "InvalidToolNameError",
+  { code: "INVALID_TOOL_NAME", statusCode: 400, exitCode: 1 },
+  (name) => `Invalid tool name: "${name}"`,
+);
+
+// --- Session fetch errors ---
+export const SessionFetchError = defError<[string, number]>(
+  "SessionFetchError",
+  { code: "SESSION_FETCH_ERROR", statusCode: 502, exitCode: 2 },
+  (op, status) => `Failed to ${op} sessions: ${status}`,
+);
+
+// --- Chat errors ---
+export const ChatRequestError = defError<[number, string]>(
+  "ChatRequestError",
+  { code: "CHAT_REQUEST_ERROR", statusCode: 502, exitCode: 2 },
+  (status, detail) => detail || `Chat request failed: ${status}`,
+);
+
+// --- Remote routing errors ---
+export const RemoteRoutingError = defError<[string, number]>(
+  "RemoteRoutingError",
+  { code: "REMOTE_ROUTING_ERROR", statusCode: 502, exitCode: 2 },
+  (node, status) => `Remote node ${node} returned HTTP ${status}`,
+);
+
+// --- Node config errors ---
+export const CorruptConfigError = defError<[string]>(
+  "CorruptConfigError",
+  { code: "CORRUPT_CONFIG", statusCode: 500, exitCode: 1 },
+  (file) => `Corrupt ${file} — delete and re-initialize`,
+);
+
+// --- Port range exhaustion ---
+export const PortRangeExhaustedError = defError<[number, number]>(
+  "PortRangeExhaustedError",
+  { code: "PORT_RANGE_EXHAUSTED", statusCode: 503, exitCode: 2 },
+  (base, max) => `No available port in range ${base}-${max}`,
+);
+
+// --- Group address not supported ---
+export const GroupAddressNotSupportedError = defError<[string]>(
+  "GroupAddressNotSupportedError",
+  { code: "GROUP_ADDRESS_NOT_SUPPORTED", statusCode: 400, exitCode: 1 },
+  (input) => `Group addresses are not supported yet: "${input}"`,
+);

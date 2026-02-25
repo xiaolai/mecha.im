@@ -15,3 +15,4 @@ export type {
 export { isPidAlive, waitForChildExit, waitForPidExit } from "./process-lifecycle.js";
 export { prepareCasaFilesystem, encodeProjectPath } from "./sandbox-setup.js";
 export type { CasaFilesystemOpts, CasaFilesystemResult } from "./sandbox-setup.js";
+export { readLogs } from "./log-reader.js";

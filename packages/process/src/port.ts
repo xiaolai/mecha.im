@@ -1,6 +1,5 @@
 import { createConnection } from "node:net";
-import { DEFAULTS } from "@mecha/core";
-import { PortConflictError } from "@mecha/core";
+import { DEFAULTS, PortRangeExhaustedError } from "@mecha/core";
 
 /**
  * Check if a port is available by attempting a TCP connection.
@@ -31,7 +30,7 @@ export function checkPort(port: number): Promise<boolean> {
 /**
  * Allocate the first available port in [base, max] range,
  * skipping ports in the exclude set.
- * Throws PortConflictError if no port is available.
+ * Throws PortRangeExhaustedError if no port is available.
  */
 export async function allocatePort(
   base: number = DEFAULTS.RUNTIME_PORT_BASE,
@@ -43,6 +42,5 @@ export async function allocatePort(
     const free = await checkPort(port);
     if (free) return port;
   }
-  // Use base port as the representative — all ports in range are in use
-  throw new PortConflictError(base);
+  throw new PortRangeExhaustedError(base, max);
 }

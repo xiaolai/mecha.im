@@ -6,8 +6,8 @@ export function registerLogsCommand(program: Command, deps: CommandDeps): void {
     .command("logs")
     .description("View CASA logs")
     .argument("<name>", "CASA name")
-    .option("-f, --follow", "Follow log output (not yet implemented)")
-    .option("-n, --tail <lines>", "Number of lines to show (not yet implemented)")
+    .option("-f, --follow", "Follow log output")
+    .option("-n, --tail <lines>", "Number of lines to show")
     .action(async (name: string, opts: { follow?: boolean; tail?: string }) => {
       const validated = casaName(name);
       const tail = opts.tail ? Number(opts.tail) : undefined;

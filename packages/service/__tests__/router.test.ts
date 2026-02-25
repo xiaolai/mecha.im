@@ -315,7 +315,7 @@ describe("createCasaRouter", () => {
       const router = createCasaRouter({ mechaDir, acl, pm: makePm(), locator });
       await expect(
         router.routeQuery("coder", "analyst@bob", "hello"),
-      ).rejects.toThrow(/agentFetch/);
+      ).rejects.toThrow(/Remote node/);
     });
 
     it("returns text when remote response is not JSON", async () => {

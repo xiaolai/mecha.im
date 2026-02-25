@@ -121,6 +121,6 @@ describe("session service error paths", () => {
   });
 
   it("throws on unexpected get status", async () => {
-    await expect(casaSessionGet(pm, CASA, "x")).rejects.toThrow("Failed to get session: 500");
+    await expect(casaSessionGet(pm, CASA, "x")).rejects.toThrow("Failed to get sessions: 500");
   });
 });

@@ -65,11 +65,11 @@ describe("allocatePort", () => {
     }
   });
 
-  it("throws PortConflictError when range exhausted", async () => {
+  it("throws PortRangeExhaustedError when range exhausted", async () => {
     // Exclude all ports in a tiny range
     const exclude = new Set([19900, 19901]);
     await expect(
       allocatePort(19900, 19901, exclude),
-    ).rejects.toThrow("Port 19900 is already in use");
+    ).rejects.toThrow("No available port in range 19900-19901");
   });
 });

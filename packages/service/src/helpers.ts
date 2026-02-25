@@ -1,4 +1,4 @@
-import { type CasaName, CasaNotFoundError, CasaNotRunningError } from "@mecha/core";
+import { type CasaName, CasaNotFoundError, CasaNotRunningError, DEFAULTS } from "@mecha/core";
 import type { ProcessManager } from "@mecha/process";
 
 /**
@@ -56,7 +56,7 @@ export async function runtimeFetch(
     method: opts.method ?? "GET",
     headers,
     body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-    signal: AbortSignal.timeout(30_000),
+    signal: AbortSignal.timeout(DEFAULTS.FORWARD_TIMEOUT_MS),
   });
 
   const contentType = response.headers.get("content-type") ?? "";

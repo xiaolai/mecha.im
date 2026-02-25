@@ -1,4 +1,4 @@
-import type { CasaName } from "@mecha/core";
+import { type CasaName, SessionFetchError } from "@mecha/core";
 import type { ProcessManager } from "@mecha/process";
 import { runtimeFetch } from "./helpers.js";
 
@@ -11,7 +11,7 @@ export async function casaSessionList(
   name: CasaName,
 ): Promise<unknown[]> {
   const result = await runtimeFetch(pm, name, "/api/sessions");
-  if (result.status !== 200) throw new Error(`Failed to list sessions: ${result.status}`);
+  if (result.status !== 200) throw new SessionFetchError("list", result.status);
   return result.body as unknown[];
 }
 
@@ -22,6 +22,6 @@ export async function casaSessionGet(
 ): Promise<unknown> {
   const result = await runtimeFetch(pm, name, sessionPath(sessionId));
   if (result.status === 404) return undefined;
-  if (result.status !== 200) throw new Error(`Failed to get session: ${result.status}`);
+  if (result.status !== 200) throw new SessionFetchError("get", result.status);
   return result.body;
 }

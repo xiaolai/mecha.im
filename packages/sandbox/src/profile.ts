@@ -89,6 +89,6 @@ export function profileFromConfig(opts: ProfileFromConfigOpts): SandboxProfile {
     readPaths: dedup(readPaths),
     writePaths: dedup(writePaths),
     allowedProcesses: dedup(allowedProcesses),
-    allowNetwork: config.allowNetwork !== false,
+    allowNetwork: config.allowNetwork === true,
   };
 }

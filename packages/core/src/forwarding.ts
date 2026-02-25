@@ -3,6 +3,7 @@
  * Isolated from casa-config.ts to keep config reading pure (no I/O beyond filesystem).
  */
 import { DEFAULTS } from "./constants.js";
+import { ForwardingError } from "./errors.js";
 
 export interface ForwardResult {
   text: string;
@@ -34,7 +35,7 @@ export async function forwardQueryToCasa(
   });
 
   if (!response.ok) {
-    throw new Error(`Target returned HTTP ${response.status}`);
+    throw new ForwardingError(response.status);
   }
 
   /* v8 ignore start -- content-type parsing branches */

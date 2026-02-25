@@ -87,14 +87,14 @@ describe("profileFromConfig", () => {
     ]);
   });
 
-  it("allows network access by default", () => {
+  it("denies network access by default", () => {
     const profile = profileFromConfig({
       config: baseConfig,
       casaDir: "/mecha/alice",
       mechaDir: "/mecha",
     });
 
-    expect(profile.allowNetwork).toBe(true);
+    expect(profile.allowNetwork).toBe(false);
   });
 
   it("disables network when config.allowNetwork is false", () => {
