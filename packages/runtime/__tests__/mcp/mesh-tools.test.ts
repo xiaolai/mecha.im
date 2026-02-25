@@ -160,7 +160,7 @@ describe("mesh_query", () => {
     const opts: MeshOpts = { mechaDir, casaName: "coder", router: mockRouter };
     const result = await handleMeshTool(opts, "mesh_query", { target: "researcher", message: "hello" });
 
-    expect(result.content[0].text).toContain("HTTP 500");
+    expect(result.content[0].text).toBe("Mesh query failed");
     expect(result.isError).toBe(true);
   });
 
@@ -169,6 +169,22 @@ describe("mesh_query", () => {
     const result = await handleMeshTool(opts, "mesh_query", {});
 
     expect(result.content[0].text).toContain("Missing required");
+    expect(result.isError).toBe(true);
+  });
+
+  it("returns error when target is empty string", async () => {
+    const opts: MeshOpts = { mechaDir, casaName: "coder", router: mockRouter };
+    const result = await handleMeshTool(opts, "mesh_query", { target: "", message: "hello" });
+
+    expect(result.content[0].text).toContain("Missing required: target");
+    expect(result.isError).toBe(true);
+  });
+
+  it("returns error when message is empty string", async () => {
+    const opts: MeshOpts = { mechaDir, casaName: "coder", router: mockRouter };
+    const result = await handleMeshTool(opts, "mesh_query", { target: "researcher", message: "" });
+
+    expect(result.content[0].text).toContain("Missing required: message");
     expect(result.isError).toBe(true);
   });
 

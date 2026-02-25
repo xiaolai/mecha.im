@@ -39,14 +39,24 @@ describe("agent commands", () => {
       );
     });
 
-    it("uses default api key when not provided", async () => {
+    it("errors when api key not provided", async () => {
       const deps = makeDeps();
       const program = createProgram(deps);
       program.exitOverride();
 
-      await program.parseAsync(["node", "mecha", "agent", "start"]);
-      expect(deps.formatter.success).toHaveBeenCalledWith(
-        expect.stringContaining("Agent server started"),
+      await expect(
+        program.parseAsync(["node", "mecha", "agent", "start"]),
+      ).rejects.toThrow();
+    });
+
+    it("reports invalid port", async () => {
+      const deps = makeDeps();
+      const program = createProgram(deps);
+      program.exitOverride();
+
+      await program.parseAsync(["node", "mecha", "agent", "start", "--api-key", "k", "--port", "abc"]);
+      expect(deps.formatter.error).toHaveBeenCalledWith(
+        expect.stringContaining("Invalid port"),
       );
     });
 
@@ -81,6 +91,17 @@ describe("agent commands", () => {
       await program.parseAsync(["node", "mecha", "agent", "status", "--port", "7660"]);
       expect(deps.formatter.success).toHaveBeenCalledWith(
         expect.stringContaining("running on port 7660"),
+      );
+    });
+
+    it("reports invalid port", async () => {
+      const deps = makeDeps();
+      const program = createProgram(deps);
+      program.exitOverride();
+
+      await program.parseAsync(["node", "mecha", "agent", "status", "--port", "abc"]);
+      expect(deps.formatter.error).toHaveBeenCalledWith(
+        expect.stringContaining("Invalid port"),
       );
     });
 

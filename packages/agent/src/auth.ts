@@ -1,20 +1,27 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
+import { timingSafeEqual } from "node:crypto";
 
 export interface AuthOpts {
   apiKey: string;
 }
 
+/** Constant-time string comparison to prevent timing side-channel attacks. */
+function safeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(Buffer.from(a), Buffer.from(b));
+}
+
 /**
  * Fastify onRequest hook that validates Bearer token.
- * Extracts X-Mecha-Source header for inter-node identification.
  */
 export function createAuthHook(opts: AuthOpts) {
   return async (request: FastifyRequest, reply: FastifyReply) => {
-    // Healthz is public
-    if (request.url === "/healthz") return;
+    // Healthz is public (match pathname only, ignore query string)
+    const pathname = request.url.split("?")[0];
+    if (pathname === "/healthz") return;
 
     const auth = request.headers.authorization;
-    if (!auth || !auth.startsWith("Bearer ") || auth.slice(7) !== opts.apiKey) {
+    if (!auth || !auth.startsWith("Bearer ") || !safeEqual(auth.slice(7), opts.apiKey)) {
       reply.code(401).send({ error: "Unauthorized" });
       return;
     }

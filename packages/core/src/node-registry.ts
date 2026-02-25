@@ -1,9 +1,8 @@
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
-import type { NodeName } from "./types.js";
 import { isValidName } from "./validation.js";
-import { InvalidNameError, DuplicateNodeError, NodeNotFoundError } from "./errors.js";
+import { InvalidNameError, DuplicateNodeError } from "./errors.js";
 
 const NODES_FILE = "nodes.json";
 
@@ -40,6 +39,8 @@ export function writeNodes(mechaDir: string, nodes: NodeEntry[]): void {
 /** Add a peer node. Throws DuplicateNodeError if name already registered. */
 export function addNode(mechaDir: string, entry: NodeEntry): void {
   if (!isValidName(entry.name)) throw new InvalidNameError(entry.name);
+  // Validate full entry shape via Zod
+  NodeEntrySchema.parse(entry);
   const nodes = readNodes(mechaDir);
   if (nodes.some((n) => n.name === entry.name)) {
     throw new DuplicateNodeError(entry.name);

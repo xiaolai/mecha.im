@@ -19,8 +19,10 @@ export function registerDiscoverRoutes(app: FastifyInstance, opts: DiscoverRoute
         .filter((p) => isValidName(p.name))
         .map((p) => {
           const config = readCasaConfig(join(opts.mechaDir, p.name));
-          const tags: string[] = (config?.tags as string[]) ?? [];
-          const expose: string[] = (config?.expose as string[]) ?? [];
+          const rawTags = config?.tags;
+          const rawExpose = config?.expose;
+          const tags = Array.isArray(rawTags) ? rawTags.filter((t): t is string => typeof t === "string") : [];
+          const expose = Array.isArray(rawExpose) ? rawExpose.filter((e): e is string => typeof e === "string") : [];
           return { name: p.name, state: p.state, tags, expose };
         })
         .filter((c) => {

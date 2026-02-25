@@ -137,8 +137,10 @@ function handleToolCall(
   }
 }
 
+const MESH_TOOL_NAMES = new Set(MESH_TOOLS.map((t) => t.name));
+
 function isMeshTool(name: string): boolean {
-  return name === "mesh_query" || name === "mesh_discover";
+  return MESH_TOOL_NAMES.has(name);
 }
 
 async function handleRequest(

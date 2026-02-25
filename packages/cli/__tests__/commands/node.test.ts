@@ -63,14 +63,25 @@ describe("node commands", () => {
       expect(nodes[0].host).toBe("192.168.1.10");
     });
 
+    it("rejects invalid port", async () => {
+      const deps = makeDeps({ mechaDir });
+      const program = createProgram(deps);
+      program.exitOverride();
+
+      await program.parseAsync(["node", "mecha", "node", "add", "bob", "192.168.1.10", "--api-key", "k", "--port", "xyz"]);
+      expect(deps.formatter.error).toHaveBeenCalledWith(
+        expect.stringContaining("Invalid port"),
+      );
+    });
+
     it("rejects duplicate node name", async () => {
       const deps = makeDeps({ mechaDir });
       const program = createProgram(deps);
       program.exitOverride();
 
-      await program.parseAsync(["node", "mecha", "node", "add", "bob", "192.168.1.10"]);
+      await program.parseAsync(["node", "mecha", "node", "add", "bob", "192.168.1.10", "--api-key", "k"]);
       await expect(
-        program.parseAsync(["node", "mecha", "node", "add", "bob", "192.168.1.20"]),
+        program.parseAsync(["node", "mecha", "node", "add", "bob", "192.168.1.20", "--api-key", "k"]),
       ).rejects.toThrow(/already registered/);
     });
   });
@@ -81,7 +92,7 @@ describe("node commands", () => {
       const program = createProgram(deps);
       program.exitOverride();
 
-      await program.parseAsync(["node", "mecha", "node", "add", "bob", "192.168.1.10"]);
+      await program.parseAsync(["node", "mecha", "node", "add", "bob", "192.168.1.10", "--api-key", "k"]);
       await program.parseAsync(["node", "mecha", "node", "rm", "bob"]);
       expect(deps.formatter.success).toHaveBeenCalledWith("Node removed: bob");
       expect(readNodes(mechaDir)).toHaveLength(0);
@@ -113,7 +124,7 @@ describe("node commands", () => {
       const program = createProgram(deps);
       program.exitOverride();
 
-      await program.parseAsync(["node", "mecha", "node", "add", "bob", "192.168.1.10"]);
+      await program.parseAsync(["node", "mecha", "node", "add", "bob", "192.168.1.10", "--api-key", "k"]);
       await program.parseAsync(["node", "mecha", "node", "ls"]);
       expect(deps.formatter.table).toHaveBeenCalledWith(
         ["Name", "Host", "Port", "Added"],

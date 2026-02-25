@@ -74,8 +74,12 @@ export function createCasaRouter(opts: CreateRouterOpts): CasaRouter {
           return forwardQueryToCasa(located.port, located.token, message, sessionId);
         }
 
+        if (located.location === "remote" && !opts.agentFetch) {
+          throw new Error("Remote routing configured but agentFetch transport not provided");
+        }
         if (located.location === "remote" && opts.agentFetch) {
-          const sourceAddr = opts.sourceName
+          // Only append @node if source is bare (no @ already)
+          const sourceAddr = opts.sourceName && !source.includes("@")
             ? `${source}@${opts.sourceName}`
             : source;
           const res = await opts.agentFetch({
@@ -88,12 +92,18 @@ export function createCasaRouter(opts: CreateRouterOpts): CasaRouter {
           if (!res.ok) {
             throw new Error(`Remote node ${located.node.name} returned HTTP ${res.status}`);
           }
-          const data = (await res.json()) as Record<string, unknown>;
-          const text = typeof data.response === "string"
-            ? data.response
-            : JSON.stringify(data);
-          const returnedSessionId = typeof data.sessionId === "string" ? data.sessionId : undefined;
-          return { text, sessionId: returnedSessionId };
+          /* v8 ignore start -- null content-type fallback */
+          const contentType = res.headers.get("content-type") ?? "";
+          /* v8 ignore stop */
+          if (contentType.includes("application/json")) {
+            const data = (await res.json()) as Record<string, unknown>;
+            const text = typeof data.response === "string"
+              ? data.response
+              : JSON.stringify(data);
+            const returnedSessionId = typeof data.sessionId === "string" ? data.sessionId : undefined;
+            return { text, sessionId: returnedSessionId };
+          }
+          return { text: await res.text() };
         }
 
         throw new CasaNotFoundError(target);

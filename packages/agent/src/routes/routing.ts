@@ -31,8 +31,13 @@ export function registerRoutingRoutes(app: FastifyInstance, opts: RoutingRouteOp
       /* v8 ignore stop */
       const source = getSource(request);
 
-      if (!message) {
-        reply.code(400).send({ error: "Missing required field: message" });
+      if (!source) {
+        reply.code(400).send({ error: "Missing required header: X-Mecha-Source" });
+        return;
+      }
+
+      if (typeof message !== "string" || !message) {
+        reply.code(400).send({ error: "Missing required field: message (string)" });
         return;
       }
 
@@ -41,13 +46,11 @@ export function registerRoutingRoutes(app: FastifyInstance, opts: RoutingRouteOp
         return;
       }
 
-      // ACL check if source provided
-      if (source) {
-        const result = acl.check(source, target, "query" as Capability);
-        if (!result.allowed) {
-          reply.code(403).send({ error: new AclDeniedError(source, "query", target).message });
-          return;
-        }
+      // ACL check — always enforced
+      const aclResult = acl.check(source, target, "query" as Capability);
+      if (!aclResult.allowed) {
+        reply.code(403).send({ error: new AclDeniedError(source, "query", target).message });
+        return;
       }
 
       const config = readCasaConfig(join(mechaDir, target));
@@ -56,8 +59,12 @@ export function registerRoutingRoutes(app: FastifyInstance, opts: RoutingRouteOp
         return;
       }
 
-      const fwd = await forwardQueryToCasa(config.port, config.token, message, sessionId);
-      return { response: fwd.text, sessionId: fwd.sessionId };
+      try {
+        const fwd = await forwardQueryToCasa(config.port, config.token, message, sessionId);
+        return { response: fwd.text, sessionId: fwd.sessionId };
+      } catch {
+        reply.code(502).send({ error: "Upstream CASA unavailable" });
+      }
     },
   );
 }

@@ -1,5 +1,5 @@
-import type { FastifyInstance, FastifyRequest } from "fastify";
-import type { CasaName } from "@mecha/core";
+import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
+import { type CasaName, isValidName } from "@mecha/core";
 import type { ProcessManager } from "@mecha/process";
 
 export function registerCasaRoutes(app: FastifyInstance, pm: ProcessManager): void {
@@ -12,10 +12,16 @@ export function registerCasaRoutes(app: FastifyInstance, pm: ProcessManager): vo
     }));
   });
 
-  app.get("/casas/:name/status", async (request: FastifyRequest<{ Params: { name: string } }>) => {
-    const info = pm.get(request.params.name as CasaName);
+  app.get("/casas/:name/status", async (request: FastifyRequest<{ Params: { name: string } }>, reply: FastifyReply) => {
+    const name = request.params.name;
+    if (!isValidName(name)) {
+      reply.code(400).send({ error: `Invalid CASA name: ${name}` });
+      return;
+    }
+    const info = pm.get(name as CasaName);
     if (!info) {
-      return { status: "not_found" };
+      reply.code(404).send({ error: `CASA not found: ${name}` });
+      return;
     }
     return { name: info.name, state: info.state, port: info.port };
   });

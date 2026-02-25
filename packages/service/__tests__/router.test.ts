@@ -336,6 +336,52 @@ describe("createCasaRouter", () => {
       ).rejects.toThrow(/not found/i);
     });
 
+    it("throws when remote but agentFetch not provided", async () => {
+      mechaDir = mkdtempSync(join(tmpdir(), "router-"));
+      const acl = makeAcl();
+      const locator = makeLocator({ location: "remote", node: bobNode });
+
+      const router = createCasaRouter({ mechaDir, acl, pm: makePm(), locator });
+      await expect(
+        router.routeQuery("coder", "analyst@bob", "hello"),
+      ).rejects.toThrow(/agentFetch/);
+    });
+
+    it("returns text when remote response is not JSON", async () => {
+      mechaDir = mkdtempSync(join(tmpdir(), "router-"));
+      const acl = makeAcl();
+      const locator = makeLocator({ location: "remote", node: bobNode });
+      const mockFetch = vi.fn().mockResolvedValue(
+        new Response("plain text", { status: 200, headers: { "content-type": "text/plain" } }),
+      );
+
+      const router = createCasaRouter({ mechaDir, acl, pm: makePm(), locator, agentFetch: mockFetch });
+      const result = await router.routeQuery("coder", "analyst@bob", "hello");
+      expect(result.text).toBe("plain text");
+    });
+
+    it("does not double-qualify source that already has @", async () => {
+      mechaDir = mkdtempSync(join(tmpdir(), "router-"));
+      const acl = makeAcl();
+      const locator = makeLocator({ location: "remote", node: bobNode });
+      const mockFetch = vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ response: "ok" }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+
+      const router = createCasaRouter({
+        mechaDir, acl, pm: makePm(), locator,
+        agentFetch: mockFetch, sourceName: "alice",
+      });
+      await router.routeQuery("coder@alice", "analyst@bob", "hello");
+
+      expect(mockFetch).toHaveBeenCalledWith(expect.objectContaining({
+        source: "coder@alice",
+      }));
+    });
+
     it("uses source name without @node when sourceName not set", async () => {
       mechaDir = mkdtempSync(join(tmpdir(), "router-"));
       const acl = makeAcl();

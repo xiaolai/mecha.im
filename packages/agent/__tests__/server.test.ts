@@ -127,14 +127,24 @@ describe("AgentServer", () => {
       expect(res.json().state).toBe("running");
     });
 
-    it("returns not_found for unknown CASA", async () => {
+    it("returns 404 for unknown CASA", async () => {
       const app = createServer();
       const res = await app.inject({
         method: "GET",
         url: "/casas/ghost/status",
         headers: { authorization: "Bearer test-key" },
       });
-      expect(res.json().status).toBe("not_found");
+      expect(res.statusCode).toBe(404);
+    });
+
+    it("returns 400 for invalid CASA name", async () => {
+      const app = createServer();
+      const res = await app.inject({
+        method: "GET",
+        url: "/casas/BAD_NAME/status",
+        headers: { authorization: "Bearer test-key" },
+      });
+      expect(res.statusCode).toBe(400);
     });
   });
 
@@ -164,12 +174,24 @@ describe("AgentServer", () => {
       expect(res.json().response).toBe("Found papers");
     });
 
-    it("returns 400 when message missing", async () => {
+    it("returns 400 when source header missing", async () => {
       const app = createServer();
       const res = await app.inject({
         method: "POST",
         url: "/casas/researcher/query",
         headers: { authorization: "Bearer test-key" },
+        payload: { message: "hello" },
+      });
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error).toContain("X-Mecha-Source");
+    });
+
+    it("returns 400 when message missing", async () => {
+      const app = createServer();
+      const res = await app.inject({
+        method: "POST",
+        url: "/casas/researcher/query",
+        headers: { authorization: "Bearer test-key", "x-mecha-source": "coder" },
         payload: {},
       });
       expect(res.statusCode).toBe(400);
@@ -180,7 +202,7 @@ describe("AgentServer", () => {
       const res = await app.inject({
         method: "POST",
         url: "/casas/BAD_NAME/query",
-        headers: { authorization: "Bearer test-key" },
+        headers: { authorization: "Bearer test-key", "x-mecha-source": "coder" },
         payload: { message: "hello" },
       });
       expect(res.statusCode).toBe(400);
@@ -207,32 +229,29 @@ describe("AgentServer", () => {
       const res = await app.inject({
         method: "POST",
         url: "/casas/ghost/query",
-        headers: { authorization: "Bearer test-key" },
+        headers: { authorization: "Bearer test-key", "x-mecha-source": "coder" },
         payload: { message: "hello" },
       });
       expect(res.statusCode).toBe(404);
     });
 
-    it("skips ACL check when no source header", async () => {
-      const acl = makeAcl();
-      const app = createServer({ acl });
-      writeCasaConfig(mechaDir, "researcher", { port: 7700, token: "tok", workspace: "/ws" });
+    it("returns 502 when upstream CASA fails", async () => {
+      const app = createServer();
+      writeCasaConfig(mechaDir, "researcher", { port: 7700, token: "tok", workspace: "/ws", expose: ["query"] });
 
-      vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        new Response(JSON.stringify({ response: "ok" }), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        }),
-      );
+      vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("ECONNREFUSED"));
 
       const res = await app.inject({
         method: "POST",
         url: "/casas/researcher/query",
-        headers: { authorization: "Bearer test-key" },
+        headers: {
+          authorization: "Bearer test-key",
+          "x-mecha-source": "coder@remote",
+        },
         payload: { message: "hello" },
       });
-      expect(res.statusCode).toBe(200);
-      expect(acl.check).not.toHaveBeenCalled();
+      expect(res.statusCode).toBe(502);
+      expect(res.json().error).toBe("Upstream CASA unavailable");
     });
   });
 

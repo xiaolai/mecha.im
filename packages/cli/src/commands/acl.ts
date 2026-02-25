@@ -49,7 +49,9 @@ export function registerAclCommand(program: Command, deps: CommandDeps): void {
     .action((name?: string) => {
       const rules = deps.acl.listRules();
       const filtered = name
-        ? rules.filter((r) => r.source === name || r.target === name)
+        ? rules.filter((r) =>
+            r.source === name || r.target === name
+            || r.source.split("@")[0] === name || r.target.split("@")[0] === name)
         : rules;
 
       if (filtered.length === 0) {

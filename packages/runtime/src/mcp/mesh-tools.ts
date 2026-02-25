@@ -1,7 +1,6 @@
 import { promises as fsp } from "node:fs";
 import { join } from "node:path";
 import {
-  type Capability,
   type ForwardResult,
   readCasaConfig,
   isValidName,
@@ -128,17 +127,19 @@ export async function handleMeshTool(
 
   switch (name) {
     case "mesh_query": {
-      const target = args.target as string;
-      const message = args.message as string;
+      const target = args.target;
+      const message = args.message;
+      if (typeof target !== "string" || !target) {
+        return { content: [{ type: "text", text: "Missing required: target (string)" }], isError: true };
+      }
+      if (typeof message !== "string" || !message) {
+        return { content: [{ type: "text", text: "Missing required: message (string)" }], isError: true };
+      }
       const rawSessionId = args.sessionId;
       if (rawSessionId !== undefined && typeof rawSessionId !== "string") {
         return { content: [{ type: "text", text: "sessionId must be a string" }], isError: true };
       }
       const sessionId = rawSessionId as string | undefined;
-
-      if (!target || !message) {
-        return { content: [{ type: "text", text: "Missing required: target, message" }], isError: true };
-      }
 
       if (!opts.router) {
         return { content: [{ type: "text", text: "Mesh routing not available" }], isError: true };
@@ -157,7 +158,7 @@ export async function handleMeshTool(
           return { content: [{ type: "text", text: `CASA not found: ${target}` }], isError: true };
         }
         return {
-          content: [{ type: "text", text: (err as Error).message }],
+          content: [{ type: "text", text: "Mesh query failed" }],
           isError: true,
         };
       }

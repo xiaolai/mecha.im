@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { nodeInit, readNodeName } from "../src/node-init.js";
@@ -35,6 +35,11 @@ describe("nodeInit", () => {
 
   it("throws InvalidNameError for invalid name", () => {
     expect(() => nodeInit(mechaDir, { name: "BAD NAME" })).toThrow(/Invalid name/);
+  });
+
+  it("throws InvalidNameError when existing node.json has invalid name", () => {
+    writeFileSync(join(mechaDir, "node.json"), JSON.stringify({ name: "BAD NAME!", createdAt: "2026-01-01" }));
+    expect(() => nodeInit(mechaDir)).toThrow(/Invalid name/);
   });
 });
 

@@ -26,8 +26,16 @@ export function nodeInit(mechaDir: string, opts?: { name?: string }): NodeInitRe
   const nodePath = join(mechaDir, NODE_FILE);
 
   if (existsSync(nodePath)) {
-    const raw = JSON.parse(readFileSync(nodePath, "utf-8")) as NodeConfig;
-    return { name: raw.name as NodeName, created: false };
+    try {
+      const raw = JSON.parse(readFileSync(nodePath, "utf-8")) as NodeConfig;
+      if (!isValidName(raw.name)) throw new InvalidNameError(raw.name);
+      return { name: raw.name as NodeName, created: false };
+    /* v8 ignore start -- corrupt node.json fallback */
+    } catch (err) {
+      if (err instanceof InvalidNameError) throw err;
+      throw new Error("Corrupt node.json — delete and re-run 'mecha node init'");
+    }
+    /* v8 ignore stop */
   }
 
   const name = opts?.name ?? generateNodeName();
@@ -49,8 +57,12 @@ export function readNodeName(mechaDir: string): NodeName | undefined {
 
 function generateNodeName(): string {
   const host = hostname().toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+  let stem = host;
+  /* v8 ignore start -- empty hostname fallback (only on machines with non-alphanumeric hostnames) */
+  if (!stem) stem = "node";
+  /* v8 ignore stop */
   const hash = createHash("sha256").update(hostname()).digest("hex").slice(0, 4);
-  const name = `${host}-${hash}`;
-  // Truncate to fit name max length
-  return name.slice(0, 32);
+  // Reserve 5 chars for "-" + 4-char hash, truncate stem, trim trailing "-"
+  const truncated = stem.slice(0, 27).replace(/-$/, "");
+  return `${truncated}-${hash}`;
 }

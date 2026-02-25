@@ -7,10 +7,14 @@ export function registerAgentStartCommand(parent: Command, deps: CommandDeps): v
     .command("start")
     .description("Start the agent server for cross-node communication")
     .option("--port <port>", "Agent server port", String(DEFAULTS.AGENT_PORT))
-    .option("--api-key <key>", "API key for authentication")
-    .action(async (opts: { port: string; apiKey?: string }) => {
-      const port = parseInt(opts.port, 10);
-      const apiKey = opts.apiKey ?? "default-key";
+    .requiredOption("--api-key <key>", "API key for authentication (required)")
+    .action(async (opts: { port: string; apiKey: string }) => {
+      const port = Number(opts.port);
+      if (!Number.isInteger(port) || port < 1 || port > 65535) {
+        deps.formatter.error(`Invalid port: ${opts.port}`);
+        return;
+      }
+      const apiKey = opts.apiKey;
 
       // Lazy import to avoid pulling in fastify when not needed
       const { createAgentServer } = await import("@mecha/agent");

@@ -10,12 +10,17 @@ export function registerNodeAddCommand(parent: Command, deps: CommandDeps): void
     .argument("<name>", "Peer node name")
     .argument("<host>", "Peer node hostname or IP")
     .option("--port <port>", "Agent server port", String(DEFAULTS.AGENT_PORT))
-    .option("--api-key <key>", "API key for authentication", "")
+    .requiredOption("--api-key <key>", "API key for authentication (required)")
     .action((name: string, host: string, opts: { port: string; apiKey: string }) => {
+      const port = Number(opts.port);
+      if (!Number.isInteger(port) || port < 1 || port > 65535) {
+        deps.formatter.error(`Invalid port: ${opts.port}`);
+        return;
+      }
       addNode(deps.mechaDir, {
         name,
         host,
-        port: parseInt(opts.port, 10),
+        port,
         apiKey: opts.apiKey,
         addedAt: new Date().toISOString(),
       });
