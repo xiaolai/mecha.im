@@ -87,4 +87,57 @@ describe("configure command", () => {
       program.parseAsync(["node", "mecha", "configure", "unknown", "--tags", "foo"]),
     ).rejects.toThrow();
   });
+
+  it("updates expose capabilities", async () => {
+    mechaDir = mkdtempSync(join(tmpdir(), "mecha-cfg-"));
+    const casaDir = join(mechaDir, "alice");
+    mkdirSync(casaDir, { recursive: true });
+    writeFileSync(join(casaDir, "config.json"), JSON.stringify({ port: 7700, token: "t", workspace: "/ws" }));
+
+    const info: ProcessInfo = { name: "alice" as CasaName, state: "running", workspacePath: "/ws", port: 7700 };
+    const deps = makeDeps({
+      mechaDir,
+      pm: { get: vi.fn().mockReturnValue(info) },
+    });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "configure", "alice", "--expose", "query,read_workspace"]);
+    expect(deps.formatter.success).toHaveBeenCalledWith("alice updated");
+    const cfg = JSON.parse(readFileSync(join(casaDir, "config.json"), "utf-8"));
+    expect(cfg.expose).toEqual(["query", "read_workspace"]);
+  });
+
+  it("rejects invalid capability", async () => {
+    mechaDir = mkdtempSync(join(tmpdir(), "mecha-cfg-"));
+    const deps = makeDeps({ mechaDir });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "configure", "alice", "--expose", "invalid_cap"]);
+    expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("Invalid capability"));
+    expect(process.exitCode).toBe(1);
+    process.exitCode = undefined as unknown as number;
+  });
+
+  it("updates both tags and expose together", async () => {
+    mechaDir = mkdtempSync(join(tmpdir(), "mecha-cfg-"));
+    const casaDir = join(mechaDir, "alice");
+    mkdirSync(casaDir, { recursive: true });
+    writeFileSync(join(casaDir, "config.json"), JSON.stringify({ port: 7700, token: "t", workspace: "/ws" }));
+
+    const info: ProcessInfo = { name: "alice" as CasaName, state: "running", workspacePath: "/ws", port: 7700 };
+    const deps = makeDeps({
+      mechaDir,
+      pm: { get: vi.fn().mockReturnValue(info) },
+    });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "configure", "alice", "--tags", "dev", "--expose", "query"]);
+    expect(deps.formatter.success).toHaveBeenCalledWith("alice updated");
+    const cfg = JSON.parse(readFileSync(join(casaDir, "config.json"), "utf-8"));
+    expect(cfg.tags).toEqual(["dev"]);
+    expect(cfg.expose).toEqual(["query"]);
+  });
 });

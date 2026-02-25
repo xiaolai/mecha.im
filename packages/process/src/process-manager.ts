@@ -90,7 +90,8 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
 
     // Prepare filesystem and environment
     const { logsDir, childEnv } = prepareCasaFilesystem({
-      casaDir, workspacePath, port, token, name, model, permissionMode, auth, tags,
+      casaDir, workspacePath, port, token, name, mechaDir, model, permissionMode, auth, tags,
+      expose: spawnOpts.expose,
       userEnv: spawnOpts.env,
     });
 
@@ -148,8 +149,9 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
       const state: CasaState = {
         name,
         state: "stopped",
-        /* v8 ignore next -- pid always set after spawn guard */
+        /* v8 ignore start -- pid always set after spawn guard */
         pid: child.pid ?? undefined,
+        /* v8 ignore stop */
         port,
         workspacePath,
         startedAt,

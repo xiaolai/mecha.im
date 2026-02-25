@@ -7,7 +7,7 @@ export type {
 } from "./types.js";
 export { isCasaAddress, isGroupAddress } from "./types.js";
 export { casaName, nodeName, parseAddress, formatAddress } from "./address.js";
-export { NAME_PATTERN, NAME_MAX_LENGTH, isValidName, TAG_PATTERN, TAG_MAX_LENGTH, MAX_TAGS, validateTags } from "./validation.js";
+export { NAME_PATTERN, NAME_MAX_LENGTH, isValidName, TAG_PATTERN, TAG_MAX_LENGTH, MAX_TAGS, validateTags, validateCapabilities } from "./validation.js";
 export {
   MECHA_DIR,
   TOOLS_DIR,
@@ -39,6 +39,8 @@ export {
   NodeAuthFailedError,
   CasaNotLocatedError,
   AclDeniedError,
+  IdentityNotFoundError,
+  InvalidCapabilityError,
 } from "./errors.js";
 export {
   CasaSpawnInput,
@@ -53,5 +55,38 @@ export {
   toUserMessage,
   toSafeMessage,
 } from "./mapping.js";
-export { readCasaConfig, updateCasaConfig } from "./casa-config.js";
+export { readCasaConfig, updateCasaConfig, forwardQueryToCasa } from "./casa-config.js";
 export type { CasaConfig } from "./casa-config.js";
+
+// Identity (Phase 3)
+export {
+  generateKeyPair,
+  fingerprint,
+  loadPrivateKey,
+  createNodeIdentity,
+  loadNodeIdentity,
+  loadNodePrivateKey,
+  createCasaIdentity,
+  loadCasaIdentity,
+  loadCasaIdentityFromDir,
+  signMessage,
+  verifySignature,
+} from "./identity/index.js";
+export type { KeyPair, NodeIdentity, CasaIdentity } from "./identity/index.js";
+
+// ACL (Phase 3)
+export {
+  ALL_CAPABILITIES,
+  isCapability,
+  createAclEngine,
+  loadAcl,
+  saveAcl,
+} from "./acl/index.js";
+export type {
+  Capability,
+  AclRule,
+  AclResult,
+  AclEngine,
+  CreateAclEngineOpts,
+  AclData,
+} from "./acl/index.js";

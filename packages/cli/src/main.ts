@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { createProgram } from "./program.js";
 import { createFormatter } from "./formatter.js";
 import { createProcessManager } from "@mecha/process";
+import { createAclEngine, MechaError } from "@mecha/core";
 import type { CommandDeps } from "./types.js";
 
 const formatter = createFormatter({
@@ -20,11 +21,12 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const runtimeEntrypoint = join(__dirname, "..", "..", "runtime", "dist", "main.js");
 const processManager = createProcessManager({ mechaDir, runtimeEntrypoint });
 
-const deps: CommandDeps = { formatter, processManager, mechaDir };
+const acl = createAclEngine({ mechaDir });
+const deps: CommandDeps = { formatter, processManager, mechaDir, acl };
 const program = createProgram(deps);
 
 program.parseAsync(process.argv).catch((err: unknown) => {
   formatter.error(err instanceof Error ? err.message : String(err));
-  process.exitCode = 1;
+  process.exitCode = err instanceof MechaError ? err.exitCode : 1;
 });
 /* v8 ignore stop */

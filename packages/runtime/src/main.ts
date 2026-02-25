@@ -5,6 +5,7 @@ const port = Number(process.env.MECHA_PORT);
 const authToken = process.env.MECHA_AUTH_TOKEN;
 const projectsDir = process.env.MECHA_PROJECTS_DIR;
 const workspace = process.env.MECHA_WORKSPACE;
+const mechaDir = process.env.MECHA_DIR;
 
 /* v8 ignore start -- entrypoint validated at integration level */
 if (!casaName || !port || !authToken || !projectsDir || !workspace) {
@@ -18,6 +19,7 @@ const app = createServer({
   authToken,
   projectsDir,
   workspacePath: workspace,
+  mechaDir,
 });
 
 app.listen({ port, host: "127.0.0.1" }, (err) => {

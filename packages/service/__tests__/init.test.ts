@@ -23,19 +23,22 @@ describe("mechaInit", () => {
     expect(existsSync(join(mechaDir, "logs"))).toBe(true);
   });
 
-  it("generates node-id on first run", () => {
+  it("generates node-id and keypair on first run", () => {
     tempDir = mkdtempSync(join(tmpdir(), "mecha-init-test-"));
     const mechaDir = join(tempDir, ".mecha");
 
     const result = mechaInit(mechaDir);
     expect(result.nodeId).toBeDefined();
     expect(result.nodeId.length).toBeGreaterThan(0);
+    expect(result.fingerprint).toMatch(/^[0-9a-f]{16}$/);
 
     const savedId = readFileSync(join(mechaDir, "node-id"), "utf-8").trim();
     expect(savedId).toBe(result.nodeId);
+    expect(existsSync(join(mechaDir, "identity", "node.json"))).toBe(true);
+    expect(existsSync(join(mechaDir, "identity", "node.key"))).toBe(true);
   });
 
-  it("preserves existing node-id on re-init", () => {
+  it("preserves existing node-id and keypair on re-init", () => {
     tempDir = mkdtempSync(join(tmpdir(), "mecha-init-test-"));
     const mechaDir = join(tempDir, ".mecha");
 
@@ -43,6 +46,7 @@ describe("mechaInit", () => {
     const second = mechaInit(mechaDir);
 
     expect(second.nodeId).toBe(first.nodeId);
+    expect(second.fingerprint).toBe(first.fingerprint);
     expect(second.created).toBe(false);
   });
 });

@@ -37,7 +37,7 @@ export function casaConfigure(
   mechaDir: string,
   pm: ProcessManager,
   name: CasaName,
-  updates: { tags?: string[] },
+  updates: { tags?: string[]; expose?: string[] },
 ): void {
   const info = pm.get(name);
   if (!info) throw new CasaNotFoundError(name);

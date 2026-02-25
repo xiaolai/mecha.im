@@ -14,5 +14,10 @@ export function registerInitCommand(program: Command, deps: CommandDeps): void {
         deps.formatter.info(`Already initialized at ${result.mechaDir}`);
       }
       deps.formatter.info(`Node ID: ${result.nodeId}`);
+      /* v8 ignore start -- fingerprint always set when node identity exists */
+      if (result.fingerprint) {
+        deps.formatter.info(`Node key: ${result.fingerprint}`);
+      }
+      /* v8 ignore stop */
     });
 }

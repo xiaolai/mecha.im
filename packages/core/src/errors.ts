@@ -175,3 +175,16 @@ export const AclDeniedError = defError<[string, string, string]>(
   { code: "ACL_DENIED", statusCode: 403, exitCode: 3 },
   (source, capability, target) => `Access denied: ${source} cannot ${capability} ${target}`,
 );
+
+// --- Identity errors (Phase 3) ---
+export const IdentityNotFoundError = defError<[string]>(
+  "IdentityNotFoundError",
+  { code: "IDENTITY_NOT_FOUND", statusCode: 404, exitCode: 1 },
+  (name) => `Identity not found: "${name}"`,
+);
+
+export const InvalidCapabilityError = defError<[string]>(
+  "InvalidCapabilityError",
+  { code: "INVALID_CAPABILITY", statusCode: 400, exitCode: 2 },
+  (cap) => `Invalid capability: "${cap}"`,
+);

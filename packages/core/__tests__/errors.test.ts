@@ -22,6 +22,8 @@ import {
   AuthTokenExpiredError,
   AuthTokenInvalidError,
   AclDeniedError,
+  IdentityNotFoundError,
+  InvalidCapabilityError,
 } from "../src/errors.js";
 
 describe("MechaError base", () => {
@@ -217,6 +219,22 @@ describe("error classes", () => {
       expectedExit: 3,
       expectedCode: "ACL_DENIED",
       messageContains: "coder cannot query researcher",
+    },
+    {
+      name: "IdentityNotFoundError",
+      error: new IdentityNotFoundError("alice"),
+      expectedStatus: 404,
+      expectedExit: 1,
+      expectedCode: "IDENTITY_NOT_FOUND",
+      messageContains: "alice",
+    },
+    {
+      name: "InvalidCapabilityError",
+      error: new InvalidCapabilityError("bad_cap"),
+      expectedStatus: 400,
+      expectedExit: 2,
+      expectedCode: "INVALID_CAPABILITY",
+      messageContains: "bad_cap",
     },
   ];
 

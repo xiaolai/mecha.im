@@ -12,6 +12,7 @@ export interface SpawnOpts {
   permissionMode?: string;
   auth?: string;
   tags?: string[];
+  expose?: string[];
   runtimeBin?: string;
 }
 
