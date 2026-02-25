@@ -64,7 +64,7 @@ export {
   toUserMessage,
   toSafeMessage,
 } from "./mapping.js";
-export { readCasaConfig, updateCasaConfig } from "./casa-config.js";
+export { readCasaConfig, updateCasaConfig, CASA_CONFIG_VERSION } from "./casa-config.js";
 export type { CasaConfig, SandboxMode } from "./casa-config.js";
 export { forwardQueryToCasa } from "./forwarding.js";
 export type { ForwardResult } from "./forwarding.js";

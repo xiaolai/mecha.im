@@ -1,5 +1,5 @@
 import { type ChildProcess } from "node:child_process";
-import { openSync, closeSync } from "node:fs";
+import { openSync, closeSync, chmodSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { randomBytes } from "node:crypto";
 import {
@@ -108,9 +108,14 @@ export async function spawnCasa(ctx: SpawnContext, spawnOpts: SpawnOpts): Promis
   }
   /* v8 ignore stop */
 
-  // Open log files as FDs
-  const stdoutFd = openSync(join(logsDir, "stdout.log"), "a");
-  const stderrFd = openSync(join(logsDir, "stderr.log"), "a");
+  // Open log files as FDs and enforce 0o600 permissions (owner-only read/write).
+  // openSync mode only applies on creation; chmodSync ensures existing files are hardened too.
+  const stdoutPath = join(logsDir, "stdout.log");
+  const stderrPath = join(logsDir, "stderr.log");
+  const stdoutFd = openSync(stdoutPath, "a", 0o600);
+  chmodSync(stdoutPath, 0o600);
+  const stderrFd = openSync(stderrPath, "a", 0o600);
+  chmodSync(stderrPath, 0o600);
 
   // Spawn child process
   let child: ChildProcess;
@@ -124,7 +129,7 @@ export async function spawnCasa(ctx: SpawnContext, spawnOpts: SpawnOpts): Promis
   } catch (err) {
     closeSync(stdoutFd);
     closeSync(stderrFd);
-    throw new ProcessSpawnError(err instanceof Error ? err.message : String(err));
+    throw new ProcessSpawnError(err instanceof Error ? err.message : String(err), { cause: err });
   }
 
   closeSync(stdoutFd);

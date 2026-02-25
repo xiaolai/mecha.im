@@ -52,7 +52,9 @@ describe("MechaError base", () => {
     expect(err).toBeInstanceOf(Error);
     expect(err).toBeInstanceOf(MechaError);
   });
+
 });
+// Cause chain tests live in error-cause.test.ts
 
 describe("error classes", () => {
   const cases: Array<{

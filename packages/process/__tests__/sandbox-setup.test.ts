@@ -7,6 +7,7 @@ vi.mock("@mecha/core", () => ({
   loadNodeIdentity: vi.fn().mockReturnValue(null),
   loadNodePrivateKey: vi.fn().mockReturnValue(null),
   createCasaIdentity: vi.fn(),
+  CASA_CONFIG_VERSION: 1,
 }));
 
 import { prepareCasaFilesystem, encodeProjectPath, type CasaFilesystemOpts } from "../src/sandbox-setup.js";
@@ -63,6 +64,7 @@ describe("sandbox-setup", () => {
     it("writes config.json with correct content", () => {
       prepareCasaFilesystem(makeOpts({ tags: ["code"], expose: ["query"] }));
       const config = JSON.parse(readFileSync(join(casaDir, "config.json"), "utf-8"));
+      expect(config.configVersion).toBe(1);
       expect(config.port).toBe(7700);
       expect(config.token).toBe("test-token");
       expect(config.workspace).toBe("/home/testuser/project");

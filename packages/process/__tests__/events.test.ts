@@ -79,4 +79,34 @@ describe("ProcessEventEmitter", () => {
       emitter.emit({ type: "stopped", name }),
     ).not.toThrow();
   });
+
+  it("isolates handler errors and logs to stderr", () => {
+    const emitter = new ProcessEventEmitter();
+    const good = vi.fn();
+    const bad = vi.fn().mockImplementation(() => { throw new Error("handler boom"); });
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    emitter.subscribe(bad);
+    emitter.subscribe(good);
+
+    const event: ProcessEvent = { type: "spawned", name, pid: 1, port: 7700 };
+    emitter.emit(event);
+
+    // Good handler still called despite bad handler throwing
+    expect(good).toHaveBeenCalledWith(event);
+    expect(spy).toHaveBeenCalledWith("[ProcessEventEmitter] Handler threw:", "handler boom");
+    spy.mockRestore();
+  });
+
+  it("logs non-Error thrown values as strings", () => {
+    const emitter = new ProcessEventEmitter();
+    const bad = vi.fn().mockImplementation(() => { throw "string error"; });
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    emitter.subscribe(bad);
+    emitter.emit({ type: "stopped", name });
+
+    expect(spy).toHaveBeenCalledWith("[ProcessEventEmitter] Handler threw:", "string error");
+    spy.mockRestore();
+  });
 });

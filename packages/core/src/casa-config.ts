@@ -5,8 +5,13 @@ import { randomBytes } from "node:crypto";
 /** Sandbox enforcement mode */
 export type SandboxMode = "auto" | "off" | "require";
 
+/** Current config schema version — bump when shape changes */
+export const CASA_CONFIG_VERSION = 1;
+
 /** CASA configuration persisted in config.json */
 export interface CasaConfig {
+  /** Schema version for forward-compatible reads */
+  configVersion?: number;
   port: number;
   token: string;
   workspace: string;
@@ -56,7 +61,7 @@ export function updateCasaConfig(
 ): void {
   const configPath = join(casaDir, "config.json");
   const existing = readCasaConfig(casaDir) ?? ({} as Partial<CasaConfig>);
-  const merged = { ...existing, ...updates };
+  const merged = { ...existing, ...updates, configVersion: CASA_CONFIG_VERSION };
   const tmp = configPath + `.${randomBytes(4).toString("hex")}.tmp`;
   writeFileSync(tmp, JSON.stringify(merged, null, 2) + "\n", { mode: 0o600 });
   renameSync(tmp, configPath);

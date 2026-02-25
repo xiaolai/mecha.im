@@ -11,8 +11,13 @@ import { randomBytes } from "node:crypto";
 import type { SandboxMode } from "@mecha/core";
 import type { SandboxPlatform } from "@mecha/sandbox";
 
+/** Current state schema version — bump when shape changes */
+export const STATE_VERSION = 1;
+
 /** Persisted CASA state — written to ~/.mecha/<name>/state.json */
 export interface CasaState {
+  /** Schema version for forward-compatible reads */
+  stateVersion?: number;
   name: string;
   state: "running" | "stopped" | "error";
   pid?: number;
@@ -38,12 +43,13 @@ export function readState(casaDir: string): CasaState | undefined {
   }
 }
 
-/** Write state.json atomically (write to temp, rename). */
+/** Write state.json atomically (write to temp, rename). Stamps stateVersion. */
 export function writeState(casaDir: string, state: CasaState): void {
   mkdirSync(casaDir, { recursive: true });
   const statePath = join(casaDir, "state.json");
   const tmp = statePath + `.${process.pid}.${randomBytes(4).toString("hex")}.tmp`;
-  writeFileSync(tmp, JSON.stringify(state, null, 2) + "\n", "utf-8");
+  const versioned = { ...state, stateVersion: STATE_VERSION };
+  writeFileSync(tmp, JSON.stringify(versioned, null, 2) + "\n", "utf-8");
   renameSync(tmp, statePath);
 }
 

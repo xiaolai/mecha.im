@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { readState, writeState, listCasaDirs } from "../src/state-store.js";
+import { readState, writeState, listCasaDirs, STATE_VERSION } from "../src/state-store.js";
 import type { CasaState } from "../src/state-store.js";
 
 describe("state-store", () => {
@@ -39,7 +39,7 @@ describe("state-store", () => {
       };
       writeState(tempDir, state);
       const result = readState(tempDir);
-      expect(result).toEqual(state);
+      expect(result).toEqual({ ...state, stateVersion: STATE_VERSION });
     });
   });
 
@@ -53,7 +53,7 @@ describe("state-store", () => {
       };
       writeState(nested, state);
       const result = readState(nested);
-      expect(result).toEqual(state);
+      expect(result).toEqual({ ...state, stateVersion: STATE_VERSION });
     });
 
     it("round-trips all fields including optional ones", () => {
@@ -68,7 +68,7 @@ describe("state-store", () => {
         exitCode: 0,
       };
       writeState(tempDir, state);
-      expect(readState(tempDir)).toEqual(state);
+      expect(readState(tempDir)).toEqual({ ...state, stateVersion: STATE_VERSION });
     });
 
     it("overwrites existing state", () => {
@@ -86,7 +86,7 @@ describe("state-store", () => {
       };
       writeState(tempDir, state1);
       writeState(tempDir, state2);
-      expect(readState(tempDir)).toEqual(state2);
+      expect(readState(tempDir)).toEqual({ ...state2, stateVersion: STATE_VERSION });
     });
   });
 

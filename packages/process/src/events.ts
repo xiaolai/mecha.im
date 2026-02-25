@@ -27,8 +27,10 @@ export class ProcessEventEmitter {
     for (const handler of this.handlers) {
       try {
         handler(event);
-      } catch {
-        // Isolate handler failures so one bad handler doesn't break others
+      } catch (err) {
+        // Isolate handler failures so one bad handler doesn't break others.
+        // Log to stderr so failures are not completely invisible.
+        console.error("[ProcessEventEmitter] Handler threw:", err instanceof Error ? err.message : String(err));
       }
     }
   }

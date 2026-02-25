@@ -15,11 +15,13 @@ export function registerHealthRoutes(
   });
 
   app.get("/info", async () => {
+    const mem = process.memoryUsage();
     return {
       name: opts.casaName,
       port: opts.port,
       startedAt: opts.startedAt,
       uptime: process.uptime(),
+      memoryMB: Math.floor(mem.rss / 1_048_576),
     };
   });
 }

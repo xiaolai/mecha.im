@@ -25,7 +25,7 @@ describe("health routes", () => {
     expect(res.json()).toEqual({ status: "ok" });
   });
 
-  it("GET /info returns CASA info", async () => {
+  it("GET /info returns CASA info with metrics", async () => {
     const res = await app.inject({ method: "GET", url: "/info" });
     expect(res.statusCode).toBe(200);
     const body = res.json();
@@ -33,5 +33,6 @@ describe("health routes", () => {
     expect(body.port).toBe(7700);
     expect(body.startedAt).toBe("2026-01-01T00:00:00Z");
     expect(typeof body.uptime).toBe("number");
+    expect(typeof body.memoryMB).toBe("number");
   });
 });

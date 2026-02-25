@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { CasaName } from "@mecha/core";
-import { loadNodeIdentity, loadNodePrivateKey, createCasaIdentity } from "@mecha/core";
+import { loadNodeIdentity, loadNodePrivateKey, createCasaIdentity, CASA_CONFIG_VERSION } from "@mecha/core";
 
 export interface CasaFilesystemOpts {
   casaDir: string;
@@ -53,7 +53,7 @@ export function prepareCasaFilesystem(opts: CasaFilesystemOpts): CasaFilesystemR
   mkdirSync(logsDir, { recursive: true, mode: 0o700 });
 
   // Write config
-  const config = { port, token, workspace: workspacePath, model, permissionMode, auth, tags, expose: opts.expose };
+  const config = { configVersion: CASA_CONFIG_VERSION, port, token, workspace: workspacePath, model, permissionMode, auth, tags, expose: opts.expose };
   writeFileSync(join(casaDir, "config.json"), JSON.stringify(config, null, 2) + "\n", { mode: 0o600 });
 
   // Generate CASA identity if node identity exists
@@ -136,8 +136,15 @@ echo "cd \\"$MECHA_WORKSPACE\\" && $COMMAND"
     if (!reservedKeys.has(k)) safeUserEnv[k] = v;
   }
   const childEnv: Record<string, string> = {
-    /* v8 ignore start -- PATH always set in normal environments */
-    PATH: process.env.PATH ?? "",
+    /* v8 ignore start -- construct minimal PATH: node binary dir + standard system paths */
+    PATH: [
+      ...new Set([
+        ...(process.execPath ? [process.execPath.replace(/\/[^/]+$/, "")] : []),
+        "/usr/local/bin",
+        "/usr/bin",
+        "/bin",
+      ]),
+    ].join(":"),
     /* v8 ignore stop */
     ...safeUserEnv,
     HOME: homeDir,
