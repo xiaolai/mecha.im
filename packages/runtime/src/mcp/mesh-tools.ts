@@ -25,6 +25,7 @@ export const MESH_TOOLS: McpToolDef[] = [
       properties: {
         target: { type: "string", description: "Target CASA name" },
         message: { type: "string", description: "Message to send" },
+        sessionId: { type: "string", description: "Session ID for multi-turn conversations (optional)" },
       },
       required: ["target", "message"],
     },
@@ -50,6 +51,7 @@ export interface MeshOpts {
 interface MeshResult {
   content: Array<{ type: string; text: string }>;
   isError?: boolean;
+  _meta?: Record<string, unknown>;
 }
 
 /** Discover CASAs by scanning mechaDir (no ProcessManager needed). */
@@ -116,6 +118,11 @@ export async function handleMeshTool(
     case "mesh_query": {
       const target = args.target as string;
       const message = args.message as string;
+      const rawSessionId = args.sessionId;
+      if (rawSessionId !== undefined && typeof rawSessionId !== "string") {
+        return { content: [{ type: "text", text: "sessionId must be a string" }], isError: true };
+      }
+      const sessionId = rawSessionId as string | undefined;
 
       if (!target || !message) {
         return { content: [{ type: "text", text: "Missing required: target, message" }], isError: true };
@@ -147,8 +154,10 @@ export async function handleMeshTool(
       }
 
       try {
-        const text = await forwardQueryToCasa(config.port, config.token, message);
-        return { content: [{ type: "text", text }] };
+        const fwd = await forwardQueryToCasa(config.port, config.token, message, sessionId);
+        const result: MeshResult = { content: [{ type: "text", text: fwd.text }] };
+        if (fwd.sessionId) result._meta = { sessionId: fwd.sessionId };
+        return result;
       } catch (err) {
         return {
           content: [{ type: "text", text: (err as Error).message }],

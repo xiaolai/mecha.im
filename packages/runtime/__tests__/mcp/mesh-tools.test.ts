@@ -88,7 +88,7 @@ describe("mesh_query", () => {
   beforeEach(() => {
     mechaDir = mkdtempSync(join(tmpdir(), "mesh-test-"));
   });
-  afterEach(() => { rmSync(mechaDir, { recursive: true, force: true }); });
+  afterEach(() => { rmSync(mechaDir, { recursive: true, force: true }); vi.restoreAllMocks(); });
 
   function writeCasa(name: string, cfg: Record<string, unknown>): void {
     const dir = join(mechaDir, name);
@@ -152,7 +152,7 @@ describe("mesh_query", () => {
     writeCasa("researcher", { port: 7700, token: "tok", workspace: "/ws", expose: ["query"] });
     writeAcl([{ source: "coder", target: "researcher", capabilities: ["query"] }]);
 
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ response: "Found papers" }), {
         status: 200,
         headers: { "content-type": "application/json" },
@@ -164,22 +164,63 @@ describe("mesh_query", () => {
 
     expect(result.content[0].text).toBe("Found papers");
     expect(result.isError).toBeUndefined();
-    expect(fetchSpy).toHaveBeenCalledWith(
+    expect(fetch).toHaveBeenCalledWith(
       "http://127.0.0.1:7700/api/chat",
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({ authorization: "Bearer tok" }),
       }),
     );
+  });
 
-    fetchSpy.mockRestore();
+  it("threads sessionId through and returns it as _meta", async () => {
+    writeCasa("researcher", { port: 7700, token: "tok", workspace: "/ws", expose: ["query"] });
+    writeAcl([{ source: "coder", target: "researcher", capabilities: ["query"] }]);
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ response: "Continued", sessionId: "sess-123" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    const opts: MeshOpts = { mechaDir, casaName: "coder" };
+    const result = await handleMeshTool(opts, "mesh_query", {
+      target: "researcher", message: "continue", sessionId: "sess-123",
+    });
+
+    expect(result.content[0].text).toBe("Continued");
+    expect(result._meta).toEqual({ sessionId: "sess-123" });
+    expect(result.isError).toBeUndefined();
+
+    const call = vi.mocked(fetch).mock.calls[0];
+    const body = JSON.parse(call[1]!.body as string);
+    expect(body.sessionId).toBe("sess-123");
+  });
+
+  it("does not include _meta when sessionId not returned", async () => {
+    writeCasa("researcher", { port: 7700, token: "tok", workspace: "/ws", expose: ["query"] });
+    writeAcl([{ source: "coder", target: "researcher", capabilities: ["query"] }]);
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ response: "One-shot answer" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    const opts: MeshOpts = { mechaDir, casaName: "coder" };
+    const result = await handleMeshTool(opts, "mesh_query", { target: "researcher", message: "hello" });
+
+    expect(result.content[0].text).toBe("One-shot answer");
+    expect(result._meta).toBeUndefined();
   });
 
   it("returns error on HTTP failure", async () => {
     writeCasa("researcher", { port: 7700, token: "tok", workspace: "/ws", expose: ["query"] });
     writeAcl([{ source: "coder", target: "researcher", capabilities: ["query"] }]);
 
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response("error", { status: 500 }),
     );
 
@@ -188,8 +229,6 @@ describe("mesh_query", () => {
 
     expect(result.content[0].text).toContain("HTTP 500");
     expect(result.isError).toBe(true);
-
-    fetchSpy.mockRestore();
   });
 
   it("returns error when missing required fields", async () => {
@@ -200,11 +239,21 @@ describe("mesh_query", () => {
     expect(result.isError).toBe(true);
   });
 
+  it("returns error when sessionId is not a string", async () => {
+    const opts: MeshOpts = { mechaDir, casaName: "coder" };
+    const result = await handleMeshTool(opts, "mesh_query", {
+      target: "researcher", message: "hello", sessionId: 123,
+    });
+
+    expect(result.content[0].text).toBe("sessionId must be a string");
+    expect(result.isError).toBe(true);
+  });
+
   it("returns plain text when response is not JSON", async () => {
     writeCasa("researcher", { port: 7700, token: "tok", workspace: "/ws", expose: ["query"] });
     writeAcl([{ source: "coder", target: "researcher", capabilities: ["query"] }]);
 
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response("plain text answer", { status: 200, headers: { "content-type": "text/plain" } }),
     );
 
@@ -213,15 +262,13 @@ describe("mesh_query", () => {
 
     expect(result.content[0].text).toBe("plain text answer");
     expect(result.isError).toBeUndefined();
-
-    fetchSpy.mockRestore();
   });
 
   it("returns JSON stringified when response.response is not a string", async () => {
     writeCasa("researcher", { port: 7700, token: "tok", workspace: "/ws", expose: ["query"] });
     writeAcl([{ source: "coder", target: "researcher", capabilities: ["query"] }]);
 
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ data: [1, 2, 3] }), {
         status: 200,
         headers: { "content-type": "application/json" },
@@ -234,7 +281,8 @@ describe("mesh_query", () => {
     expect(result.content[0].text).toContain('"data"');
     expect(result.isError).toBeUndefined();
 
-    fetchSpy.mockRestore();
+
+
   });
 });
 

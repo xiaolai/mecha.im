@@ -3,6 +3,7 @@ import {
   type CasaName,
   type Capability,
   type AclEngine,
+  type ForwardResult,
   AclDeniedError,
   CasaNotFoundError,
   readCasaConfig,
@@ -14,7 +15,7 @@ import { casaFind, type FindResult } from "./casa.js";
 
 export interface CasaRouter {
   /** Route a query from source to target, checking ACL. */
-  routeQuery(source: CasaName, target: CasaName, message: string): Promise<string>;
+  routeQuery(source: CasaName, target: CasaName, message: string, sessionId?: string): Promise<ForwardResult>;
 
   /** Discover CASAs visible to source (ACL-filtered). */
   routeDiscover(
@@ -46,14 +47,14 @@ export function createCasaRouter(opts: CreateRouterOpts): CasaRouter {
   }
 
   return {
-    async routeQuery(source, target, message) {
+    async routeQuery(source, target, message, sessionId?) {
       const result = acl.check(source, target, "query");
       if (!result.allowed) {
         throw new AclDeniedError(source, "query", target);
       }
 
       const { port, token } = resolveTarget(target);
-      return forwardQueryToCasa(port, token, message);
+      return forwardQueryToCasa(port, token, message, sessionId);
     },
 
     routeDiscover(source, discoverOpts) {
