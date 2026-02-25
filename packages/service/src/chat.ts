@@ -1,4 +1,4 @@
-import type { CasaName } from "@mecha/core";
+import { type CasaName, DEFAULTS } from "@mecha/core";
 import type { ProcessManager } from "@mecha/process";
 import { resolveCasaEndpoint } from "./helpers.js";
 
@@ -31,7 +31,7 @@ export async function casaChat(
       "content-type": "application/json",
     },
     body: JSON.stringify(opts),
-    signal: AbortSignal.timeout(60_000),
+    signal: AbortSignal.timeout(DEFAULTS.FORWARD_TIMEOUT_MS),
   });
 
   if (!response.ok) {

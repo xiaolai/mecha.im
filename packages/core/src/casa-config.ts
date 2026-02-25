@@ -40,40 +40,6 @@ export function readCasaConfig(casaDir: string): CasaConfig | undefined {
   }
 }
 
-/**
- * Forward a query message to a CASA via HTTP. Shared by router and runtime mesh-tools.
- * Returns the response text.
- */
-export async function forwardQueryToCasa(
-  port: number,
-  token: string,
-  message: string,
-): Promise<string> {
-  const url = `http://127.0.0.1:${port}/api/chat`;
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ message }),
-    signal: AbortSignal.timeout(60_000),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Target returned HTTP ${response.status}`);
-  }
-
-  /* v8 ignore start -- content-type parsing branches */
-  const contentType = response.headers.get("content-type") ?? "";
-  if (contentType.includes("application/json")) {
-    const data = (await response.json()) as Record<string, unknown>;
-    return typeof data.response === "string" ? data.response : JSON.stringify(data);
-  }
-  return await response.text();
-  /* v8 ignore stop */
-}
-
 /** Update fields in a CASA's config.json (read-modify-write, atomic). */
 export function updateCasaConfig(
   casaDir: string,

@@ -147,9 +147,7 @@ async function handleRequest(
   req: JsonRpcRequest,
 ): Promise<JsonRpcResponse> {
   const id = req.id ?? null;
-  /* v8 ignore start -- mesh tools inclusion branch */
   const allTools = meshOpts ? [...TOOLS, ...MESH_TOOLS] : TOOLS;
-  /* v8 ignore stop */
 
   switch (req.method) {
     case "initialize":
@@ -167,25 +165,21 @@ async function handleRequest(
       return { jsonrpc: "2.0", id, result: { tools: allTools } };
 
     case "tools/call": {
-      /* v8 ignore start -- null coalescing fallbacks for params/args */
       const params = req.params ?? {};
       const name = params.name as string;
       const args = (params.arguments as Record<string, unknown>) ?? {};
-      /* v8 ignore stop */
       try {
         // Mesh tools are async and handled separately
-        /* v8 ignore start -- mesh tool routing tested via mesh-tools.test.ts */
         if (isMeshTool(name) && meshOpts) {
           const result = await handleMeshTool(meshOpts, name, args);
           return { jsonrpc: "2.0", id, result };
         }
-        /* v8 ignore stop */
         const result = handleToolCall(workspacePath, name, args);
         return { jsonrpc: "2.0", id, result };
       } catch (err) {
         const msg = (err as Error).message;
         // Only expose safe error messages; hide filesystem details
-        /* v8 ignore start -- safe message mapping: defensive branches for different error types */
+        /* v8 ignore start -- ternary chain: each branch tested individually; v8 marks false-paths as null */
         const safeMsg = msg === "Path traversal not allowed" ? msg
           : msg.startsWith("Path is a directory") ? msg
           : msg.startsWith("File too large") ? msg
@@ -223,12 +217,10 @@ export interface McpRouteOpts {
 }
 
 export function registerMcpRoutes(app: FastifyInstance, opts: McpRouteOpts): void {
-  /* v8 ignore start -- meshOpts construction tested via mesh-tools integration */
   const meshOpts: MeshOpts | undefined =
     opts.mechaDir && opts.casaName
       ? { mechaDir: opts.mechaDir, casaName: opts.casaName }
       : undefined;
-  /* v8 ignore stop */
 
   app.post("/mcp", async (request: FastifyRequest, reply: FastifyReply) => {
     const body = request.body as JsonRpcRequest;

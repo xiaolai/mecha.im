@@ -2,7 +2,8 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync, readFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { readCasaConfig, updateCasaConfig, forwardQueryToCasa } from "../src/casa-config.js";
+import { readCasaConfig, updateCasaConfig } from "../src/casa-config.js";
+import { forwardQueryToCasa } from "../src/forwarding.js";
 
 describe("readCasaConfig", () => {
   let tempDir: string;

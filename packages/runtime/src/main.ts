@@ -29,4 +29,6 @@ app.listen({ port, host: "127.0.0.1" }, (err) => {
   }
   console.log(`CASA ${casaName} listening on port ${port}`);
 });
+
+process.on("SIGTERM", () => { app.close(); });
 /* v8 ignore stop */

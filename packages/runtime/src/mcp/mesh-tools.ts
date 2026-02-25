@@ -127,17 +127,16 @@ export async function handleMeshTool(
         return { content: [{ type: "text", text: `CASA not found: ${target}` }], isError: true };
       }
 
-      /* v8 ignore start -- getExpose null coalescing + non-target config read */
       const acl = createAclEngine({
         mechaDir,
+        /* v8 ignore start -- getExpose: only target path tested; non-target requires multi-CASA setup */
         getExpose: (name) => {
-          // Use already-loaded config for the target; read from disk for others
           if (name === target) return (config.expose ?? []) as Capability[];
           const other = readCasaConfig(join(mechaDir, name));
           return (other?.expose ?? []) as Capability[];
         },
+        /* v8 ignore stop */
       });
-      /* v8 ignore stop */
       const result = acl.check(casaName, target, "query" as Capability);
 
       if (!result.allowed) {

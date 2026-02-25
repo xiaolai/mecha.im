@@ -1,4 +1,4 @@
-import { ProcessHealthTimeoutError } from "@mecha/core";
+import { ProcessHealthTimeoutError, DEFAULTS } from "@mecha/core";
 
 /**
  * Poll GET /healthz on a CASA runtime until it responds 200
@@ -8,7 +8,7 @@ import { ProcessHealthTimeoutError } from "@mecha/core";
 export async function waitForHealthy(
   port: number,
   token: string,
-  timeoutMs: number = 10_000,
+  timeoutMs: number = DEFAULTS.HEALTH_TIMEOUT_MS,
   casaName: string = "unknown",
 ): Promise<void> {
   const start = Date.now();

@@ -35,9 +35,6 @@ export {
   AuthTokenInvalidError,
   ProcessSpawnError,
   ProcessHealthTimeoutError,
-  NodeUnreachableError,
-  NodeAuthFailedError,
-  CasaNotLocatedError,
   AclDeniedError,
   IdentityNotFoundError,
   InvalidCapabilityError,
@@ -55,8 +52,9 @@ export {
   toUserMessage,
   toSafeMessage,
 } from "./mapping.js";
-export { readCasaConfig, updateCasaConfig, forwardQueryToCasa } from "./casa-config.js";
+export { readCasaConfig, updateCasaConfig } from "./casa-config.js";
 export type { CasaConfig } from "./casa-config.js";
+export { forwardQueryToCasa } from "./forwarding.js";
 
 // Identity (Phase 3)
 export {

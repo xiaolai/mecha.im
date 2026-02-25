@@ -150,25 +150,6 @@ export const ProcessHealthTimeoutError = defError<[string]>(
   (name) => `CASA "${name}" failed health check`,
 );
 
-// --- Node errors (Phase 4) ---
-export const NodeUnreachableError = defError<[string]>(
-  "NodeUnreachableError",
-  { code: "NODE_UNREACHABLE", statusCode: 502, exitCode: 2 },
-  (name) => `Node "${name}" is unreachable`,
-);
-
-export const NodeAuthFailedError = defError<[string]>(
-  "NodeAuthFailedError",
-  { code: "NODE_AUTH_FAILED", statusCode: 401, exitCode: 2 },
-  (name) => `Authentication failed for node "${name}"`,
-);
-
-export const CasaNotLocatedError = defError<[string]>(
-  "CasaNotLocatedError",
-  { code: "CASA_NOT_LOCATED", statusCode: 404, exitCode: 2 },
-  (address) => `Cannot locate CASA: "${address}"`,
-);
-
 // --- ACL errors (Phase 3) ---
 export const AclDeniedError = defError<[string, string, string]>(
   "AclDeniedError",

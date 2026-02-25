@@ -25,6 +25,21 @@ const acl = createAclEngine({ mechaDir });
 const deps: CommandDeps = { formatter, processManager, mechaDir, acl };
 const program = createProgram(deps);
 
+// Graceful shutdown: stop all running CASAs on SIGINT/SIGTERM
+let shuttingDown = false;
+function shutdown() {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  const running = processManager.list().filter((p) => p.state === "running");
+  if (running.length > 0) {
+    Promise.allSettled(running.map((p) => processManager.stop(p.name)))
+      .then(() => { process.exit(0); })
+      .catch(() => { process.exit(1); });
+  }
+}
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
+
 program.parseAsync(process.argv).catch((err: unknown) => {
   formatter.error(err instanceof Error ? err.message : String(err));
   process.exitCode = err instanceof MechaError ? err.exitCode : 1;

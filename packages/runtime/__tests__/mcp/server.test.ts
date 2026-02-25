@@ -283,3 +283,64 @@ describe("MCP routes", () => {
     });
   });
 });
+
+describe("MCP routes with mesh enabled", () => {
+  let app: FastifyInstance;
+  let workDir: string;
+  let mechaDir: string;
+
+  beforeEach(async () => {
+    workDir = mkdtempSync(join(tmpdir(), "mecha-mcp-mesh-"));
+    mechaDir = mkdtempSync(join(tmpdir(), "mecha-mesh-"));
+    writeFileSync(join(workDir, "file.txt"), "content");
+
+    app = Fastify();
+    registerMcpRoutes(app, { workspacePath: workDir, mechaDir, casaName: "alice" });
+    await app.ready();
+  });
+
+  afterEach(async () => {
+    await app.close();
+    rmSync(workDir, { recursive: true, force: true });
+    rmSync(mechaDir, { recursive: true, force: true });
+  });
+
+  function rpc(method: string, params?: Record<string, unknown>) {
+    return app.inject({
+      method: "POST",
+      url: "/mcp",
+      payload: { jsonrpc: "2.0", id: 1, method, params },
+    });
+  }
+
+  it("includes mesh tools in tools/list", async () => {
+    const res = await rpc("tools/list");
+    expect(res.statusCode).toBe(200);
+    const { tools } = res.json().result;
+    expect(tools).toHaveLength(4);
+    const names = tools.map((t: { name: string }) => t.name);
+    expect(names).toContain("mesh_query");
+    expect(names).toContain("mesh_discover");
+  });
+
+  it("routes mesh_discover through handleMeshTool", async () => {
+    const res = await rpc("tools/call", {
+      name: "mesh_discover",
+      arguments: {},
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json().result;
+    expect(body.content[0].text).toBe("No matching CASAs found");
+  });
+
+  it("routes mesh_query with missing args", async () => {
+    const res = await rpc("tools/call", {
+      name: "mesh_query",
+      arguments: {},
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json().result;
+    expect(body.content[0].text).toContain("Missing required");
+    expect(body.isError).toBe(true);
+  });
+});
