@@ -1,42 +1,13 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createCasaRouter } from "../src/router.js";
-import type { AclEngine, CasaName, CasaAddress, NodeName, Capability, NodeEntry } from "@mecha/core";
-import type { ProcessManager, ProcessInfo } from "@mecha/process";
+import type { CasaName, Capability, NodeEntry } from "@mecha/core";
+import type { ProcessInfo } from "@mecha/process";
 import type { MechaLocator, LocateResult } from "../src/locator.js";
-
-function writeCasaConfig(mechaDir: string, name: string, cfg: Record<string, unknown>): void {
-  const dir = join(mechaDir, name);
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, "config.json"), JSON.stringify(cfg));
-}
-
-function makeAcl(overrides: Partial<AclEngine> = {}): AclEngine {
-  return {
-    grant: vi.fn(),
-    revoke: vi.fn(),
-    check: vi.fn().mockReturnValue({ allowed: true }),
-    listRules: vi.fn().mockReturnValue([]),
-    listConnections: vi.fn().mockReturnValue([]),
-    save: vi.fn(),
-    ...overrides,
-  } as unknown as AclEngine;
-}
-
-function makePm(list: ProcessInfo[] = []): ProcessManager {
-  return {
-    spawn: vi.fn(),
-    get: vi.fn(),
-    list: vi.fn().mockReturnValue(list),
-    stop: vi.fn(),
-    kill: vi.fn(),
-    logs: vi.fn(),
-    getPortAndToken: vi.fn(),
-    onEvent: vi.fn().mockReturnValue(() => {}),
-  } as unknown as ProcessManager;
-}
+import { makeAcl, writeCasaConfig } from "../../core/__tests__/test-utils.js";
+import { makePm } from "./test-utils.js";
 
 describe("createCasaRouter", () => {
   let mechaDir: string;

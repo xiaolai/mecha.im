@@ -2,12 +2,13 @@ import { describe, it, expect, vi, afterEach, afterAll, beforeAll } from "vitest
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import type { AclEngine, CasaName, Capability, NodeEntry } from "@mecha/core";
-import type { ProcessManager, ProcessInfo } from "@mecha/process";
+import type { CasaName, NodeEntry } from "@mecha/core";
 import { createAgentServer } from "@mecha/agent";
 import { createCasaRouter } from "../src/router.js";
 import { createLocator } from "../src/locator.js";
 import { agentFetch } from "../src/agent-fetch.js";
+import { makeAcl } from "../../core/__tests__/test-utils.js";
+import { makePm } from "./test-utils.js";
 
 /**
  * End-to-end mesh integration test.
@@ -32,30 +33,6 @@ vi.mock("@mecha/core", async (importOriginal) => {
     }),
   };
 });
-
-function makeAcl(allowed = true): AclEngine {
-  return {
-    grant: vi.fn(),
-    revoke: vi.fn(),
-    check: vi.fn().mockReturnValue({ allowed }),
-    listRules: vi.fn().mockReturnValue([]),
-    listConnections: vi.fn().mockReturnValue([]),
-    save: vi.fn(),
-  } as unknown as AclEngine;
-}
-
-function makePm(list: ProcessInfo[] = []): ProcessManager {
-  return {
-    spawn: vi.fn(),
-    get: vi.fn().mockImplementation((name: string) => list.find((p) => p.name === name)),
-    list: vi.fn().mockReturnValue(list),
-    stop: vi.fn(),
-    kill: vi.fn(),
-    logs: vi.fn(),
-    getPortAndToken: vi.fn(),
-    onEvent: vi.fn().mockReturnValue(() => {}),
-  } as unknown as ProcessManager;
-}
 
 describe("mesh e2e: cross-node query", () => {
   let bobDir: string;
@@ -82,7 +59,7 @@ describe("mesh e2e: cross-node query", () => {
       port: 0, // will be overridden by listen
       apiKey: bobApiKey,
       processManager: makePm(),
-      acl: makeAcl(true),
+      acl: makeAcl(),
       mechaDir: bobDir,
       nodeName: "bob",
     });
@@ -119,7 +96,7 @@ describe("mesh e2e: cross-node query", () => {
     // Alice's router with locator + real agentFetch
     const router = createCasaRouter({
       mechaDir: aliceDir,
-      acl: makeAcl(true),
+      acl: makeAcl(),
       pm: makePm(),
       locator,
       agentFetch,
@@ -150,7 +127,7 @@ describe("mesh e2e: cross-node query", () => {
     // Alice's ACL denies the query
     const router = createCasaRouter({
       mechaDir: aliceDir,
-      acl: makeAcl(false),
+      acl: makeAcl({ check: vi.fn().mockReturnValue({ allowed: false, reason: "no_connect" }) }),
       pm: makePm(),
       locator,
       agentFetch,
@@ -172,7 +149,7 @@ describe("mesh e2e: cross-node query", () => {
 
     const router = createCasaRouter({
       mechaDir: aliceDir,
-      acl: makeAcl(true),
+      acl: makeAcl(),
       pm: makePm(),
       locator,
       agentFetch,

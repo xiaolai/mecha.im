@@ -1,41 +1,12 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createAgentServer } from "../src/server.js";
-import type { AclEngine, CasaName, Capability } from "@mecha/core";
-import type { ProcessManager, ProcessInfo } from "@mecha/process";
-
-function makeAcl(overrides: Partial<AclEngine> = {}): AclEngine {
-  return {
-    grant: vi.fn(),
-    revoke: vi.fn(),
-    check: vi.fn().mockReturnValue({ allowed: true }),
-    listRules: vi.fn().mockReturnValue([]),
-    listConnections: vi.fn().mockReturnValue([]),
-    save: vi.fn(),
-    ...overrides,
-  } as unknown as AclEngine;
-}
-
-function makePm(list: ProcessInfo[] = []): ProcessManager {
-  return {
-    spawn: vi.fn(),
-    get: vi.fn().mockImplementation((name: string) => list.find((p) => p.name === name)),
-    list: vi.fn().mockReturnValue(list),
-    stop: vi.fn(),
-    kill: vi.fn(),
-    logs: vi.fn(),
-    getPortAndToken: vi.fn(),
-    onEvent: vi.fn().mockReturnValue(() => {}),
-  } as unknown as ProcessManager;
-}
-
-function writeCasaConfig(mechaDir: string, name: string, cfg: Record<string, unknown>): void {
-  const dir = join(mechaDir, name);
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, "config.json"), JSON.stringify(cfg));
-}
+import type { AclEngine, CasaName } from "@mecha/core";
+import type { ProcessInfo } from "@mecha/process";
+import { makeAcl, writeCasaConfig } from "../../core/__tests__/test-utils.js";
+import { makePm } from "../../service/__tests__/test-utils.js";
 
 describe("AgentServer", () => {
   let mechaDir: string;

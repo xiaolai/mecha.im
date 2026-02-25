@@ -1,29 +1,12 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
+import { describe, it, expect, afterEach } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createLocator } from "../src/locator.js";
-import type { CasaAddress, CasaName, NodeName, NodeEntry } from "@mecha/core";
-import type { ProcessManager, ProcessInfo } from "@mecha/process";
-
-function writeCasaConfig(mechaDir: string, name: string, cfg: Record<string, unknown>): void {
-  const dir = join(mechaDir, name);
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, "config.json"), JSON.stringify(cfg));
-}
-
-function makePm(infos: Record<string, Partial<ProcessInfo>> = {}): ProcessManager {
-  return {
-    spawn: vi.fn(),
-    get: vi.fn().mockImplementation((name: string) => infos[name] ?? undefined),
-    list: vi.fn().mockReturnValue(Object.values(infos)),
-    stop: vi.fn(),
-    kill: vi.fn(),
-    logs: vi.fn(),
-    getPortAndToken: vi.fn(),
-    onEvent: vi.fn().mockReturnValue(() => {}),
-  } as unknown as ProcessManager;
-}
+import type { CasaName, NodeName, NodeEntry } from "@mecha/core";
+import type { ProcessInfo } from "@mecha/process";
+import { writeCasaConfig } from "../../core/__tests__/test-utils.js";
+import { makePm } from "./test-utils.js";
 
 describe("createLocator", () => {
   let mechaDir: string;
@@ -34,7 +17,7 @@ describe("createLocator", () => {
       mechaDir = mkdtempSync(join(tmpdir(), "locator-"));
       writeCasaConfig(mechaDir, "alice", { port: 7700, token: "tok", workspace: "/ws" });
 
-      const pm = makePm({ alice: { name: "alice" as CasaName, state: "running", port: 7700 } });
+      const pm = makePm([{ name: "alice" as CasaName, state: "running", port: 7700, workspacePath: "/ws" }]);
       const locator = createLocator({ mechaDir, pm, getNodes: () => [] });
 
       const result = locator.locate({ casa: "alice" as CasaName, node: "local" as NodeName });
