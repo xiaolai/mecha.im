@@ -83,6 +83,9 @@ importers:
       '@mecha/core':
         specifier: workspace:*
         version: link:../core
+      '@mecha/process':
+        specifier: workspace:*
+        version: link:../process
       fastify:
         specifier: ^5.3.3
         version: 5.7.4

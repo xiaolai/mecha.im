@@ -49,6 +49,10 @@ export {
   CorruptConfigError,
   PortRangeExhaustedError,
   GroupAddressNotSupportedError,
+  ScheduleNotFoundError,
+  DuplicateScheduleError,
+  InvalidIntervalError,
+  ScheduleBudgetExceededError,
 } from "./errors.js";
 export {
   CasaSpawnInput,
@@ -104,3 +108,20 @@ export type {
 // Node Registry (Phase 4)
 export { readNodes, writeNodes, addNode, removeNode, getNode } from "./node-registry.js";
 export type { NodeEntry } from "./node-registry.js";
+
+// Schedule Engine
+export {
+  parseInterval,
+  ScheduleEntrySchema,
+  ScheduleRunResultSchema,
+  ScheduleConfigSchema,
+  ScheduleStateSchema,
+  ScheduleAddInput,
+  SCHEDULE_DEFAULTS,
+} from "./schedule.js";
+export type {
+  ScheduleEntry,
+  ScheduleRunResult,
+  ScheduleConfig,
+  ScheduleState,
+} from "./schedule.js";

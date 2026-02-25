@@ -13,13 +13,16 @@ if (!casaName || !port || !authToken || !projectsDir || !workspace) {
   process.exit(1);
 }
 
-const app = createServer({
+const casaDir = process.env.MECHA_SANDBOX_ROOT;
+
+const { app } = createServer({
   casaName,
   port,
   authToken,
   projectsDir,
   workspacePath: workspace,
   mechaDir,
+  casaDir,
 });
 
 app.listen({ port, host: "127.0.0.1" }, (err) => {

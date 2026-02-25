@@ -245,3 +245,28 @@ export const GroupAddressNotSupportedError = defError<[string]>(
   { code: "GROUP_ADDRESS_NOT_SUPPORTED", statusCode: 400, exitCode: 1 },
   (input) => `Group addresses are not supported yet: "${input}"`,
 );
+
+// --- Schedule errors ---
+export const ScheduleNotFoundError = defError<[string]>(
+  "ScheduleNotFoundError",
+  { code: "SCHEDULE_NOT_FOUND", statusCode: 404, exitCode: 1 },
+  (id) => `Schedule "${id}" not found`,
+);
+
+export const DuplicateScheduleError = defError<[string]>(
+  "DuplicateScheduleError",
+  { code: "DUPLICATE_SCHEDULE", statusCode: 409, exitCode: 1 },
+  (id) => `Schedule "${id}" already exists`,
+);
+
+export const InvalidIntervalError = defError<[string]>(
+  "InvalidIntervalError",
+  { code: "INVALID_INTERVAL", statusCode: 400, exitCode: 1 },
+  (interval) => `Invalid interval: "${interval}" (use format like "30s", "5m", "1h"; min 10s, max 24h)`,
+);
+
+export const ScheduleBudgetExceededError = defError<[number]>(
+  "ScheduleBudgetExceededError",
+  { code: "SCHEDULE_BUDGET_EXCEEDED", statusCode: 429, exitCode: 1 },
+  (limit) => `Daily run budget exceeded (max ${limit} runs/day)`,
+);

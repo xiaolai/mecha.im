@@ -32,6 +32,10 @@ import {
   CorruptConfigError,
   PortRangeExhaustedError,
   GroupAddressNotSupportedError,
+  ScheduleNotFoundError,
+  DuplicateScheduleError,
+  InvalidIntervalError,
+  ScheduleBudgetExceededError,
 } from "../src/errors.js";
 
 describe("MechaError base", () => {
@@ -315,6 +319,38 @@ describe("error classes", () => {
       expectedExit: 1,
       expectedCode: "GROUP_ADDRESS_NOT_SUPPORTED",
       messageContains: "+team",
+    },
+    {
+      name: "ScheduleNotFoundError",
+      error: new ScheduleNotFoundError("inbox-check"),
+      expectedStatus: 404,
+      expectedExit: 1,
+      expectedCode: "SCHEDULE_NOT_FOUND",
+      messageContains: "inbox-check",
+    },
+    {
+      name: "DuplicateScheduleError",
+      error: new DuplicateScheduleError("daily-sync"),
+      expectedStatus: 409,
+      expectedExit: 1,
+      expectedCode: "DUPLICATE_SCHEDULE",
+      messageContains: "daily-sync",
+    },
+    {
+      name: "InvalidIntervalError",
+      error: new InvalidIntervalError("2s"),
+      expectedStatus: 400,
+      expectedExit: 1,
+      expectedCode: "INVALID_INTERVAL",
+      messageContains: "2s",
+    },
+    {
+      name: "ScheduleBudgetExceededError",
+      error: new ScheduleBudgetExceededError(50),
+      expectedStatus: 429,
+      expectedExit: 1,
+      expectedCode: "SCHEDULE_BUDGET_EXCEEDED",
+      messageContains: "50",
     },
   ];
 

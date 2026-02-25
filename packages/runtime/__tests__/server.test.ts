@@ -21,13 +21,14 @@ describe("createServer", () => {
     mkdirSync(workspacePath);
     writeFileSync(join(workspacePath, "README.md"), "# Test");
 
-    app = createServer({
+    const result = createServer({
       casaName: "test-casa",
       port: 7700,
       authToken: "test-token",
       projectsDir,
       workspacePath,
     });
+    app = result.app;
     return app;
   }
 

@@ -39,3 +39,12 @@ export { agentFetch } from "./agent-fetch.js";
 export type { AgentFetchOpts } from "./agent-fetch.js";
 export { createLocator } from "./locator.js";
 export type { MechaLocator, LocateResult, CreateLocatorOpts } from "./locator.js";
+export {
+  casaScheduleAdd,
+  casaScheduleRemove,
+  casaScheduleList,
+  casaSchedulePause,
+  casaScheduleResume,
+  casaScheduleRun,
+  casaScheduleHistory,
+} from "./schedule.js";

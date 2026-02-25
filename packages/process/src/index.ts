@@ -16,3 +16,12 @@ export { isPidAlive, waitForChildExit, waitForPidExit } from "./process-lifecycl
 export { prepareCasaFilesystem, encodeProjectPath } from "./sandbox-setup.js";
 export type { CasaFilesystemOpts, CasaFilesystemResult } from "./sandbox-setup.js";
 export { readLogs } from "./log-reader.js";
+export {
+  readScheduleConfig,
+  writeScheduleConfig,
+  readScheduleState,
+  writeScheduleState,
+  appendRunHistory,
+  readRunHistory,
+  removeScheduleData,
+} from "./schedule-store.js";
