@@ -551,6 +551,7 @@ describe("createProcessManager", () => {
     const stream = pm.logs(testName);
     expect(stream).toBeDefined();
     stream.destroy();
+    await new Promise<void>((resolve) => stream.on("close", resolve));
   });
 
   it("logs throws CasaNotFoundError for unknown CASA", () => {
@@ -664,14 +665,8 @@ describe("createProcessManager", () => {
     ).rejects.toThrow("Failed to get child PID");
   });
 
-  it("pipes stdout and stderr to log files when available", async () => {
+  it("passes log file FDs as stdio to child process", async () => {
     const mockChild = createMockChild();
-    // Add mock stdout and stderr streams
-    mockChild.stdout = new EventEmitter() as any;
-    (mockChild.stdout as any).pipe = vi.fn();
-    mockChild.stderr = new EventEmitter() as any;
-    (mockChild.stderr as any).pipe = vi.fn();
-
     const mockSpawn = createMockSpawn(mockChild);
 
     const pm = createProcessManager({
@@ -687,8 +682,13 @@ describe("createProcessManager", () => {
       port: healthPort,
     });
 
-    expect((mockChild.stdout as any).pipe).toHaveBeenCalled();
-    expect((mockChild.stderr as any).pipe).toHaveBeenCalled();
+    // Verify spawn was called with FD-based stdio (not "pipe")
+    const spawnCall = mockSpawn.mock.calls[0];
+    const stdio = spawnCall[2].stdio;
+    expect(stdio[0]).toBe("ignore");
+    // FDs are numbers — verify they were passed (not "pipe" strings)
+    expect(typeof stdio[1]).toBe("number");
+    expect(typeof stdio[2]).toBe("number");
   });
 
   it("stop handles running state without live handle (dead PID)", async () => {

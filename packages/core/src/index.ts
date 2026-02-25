@@ -7,7 +7,7 @@ export type {
 } from "./types.js";
 export { isCasaAddress, isGroupAddress } from "./types.js";
 export { casaName, nodeName, parseAddress, formatAddress } from "./address.js";
-export { NAME_PATTERN, NAME_MAX_LENGTH, isValidName, TAG_PATTERN, TAG_MAX_LENGTH, MAX_TAGS, validateTags, validateCapabilities } from "./validation.js";
+export { NAME_PATTERN, NAME_MAX_LENGTH, isValidName, isValidAddress, TAG_PATTERN, TAG_MAX_LENGTH, MAX_TAGS, validateTags, validateCapabilities, parsePort } from "./validation.js";
 export {
   MECHA_DIR,
   TOOLS_DIR,
@@ -38,6 +38,8 @@ export {
   AclDeniedError,
   IdentityNotFoundError,
   InvalidCapabilityError,
+  NodeNotFoundError,
+  DuplicateNodeError,
 } from "./errors.js";
 export {
   CasaSpawnInput,
@@ -47,8 +49,6 @@ export {
   PermissionMode,
 } from "./schemas.js";
 export {
-  toHttpStatus,
-  toExitCode,
   toUserMessage,
   toSafeMessage,
 } from "./mapping.js";
@@ -91,3 +91,7 @@ export type {
   CreateAclEngineOpts,
   AclData,
 } from "./acl/index.js";
+
+// Node Registry (Phase 4)
+export { readNodes, writeNodes, addNode, removeNode, getNode } from "./node-registry.js";
+export type { NodeEntry } from "./node-registry.js";

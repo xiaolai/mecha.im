@@ -169,3 +169,16 @@ export const InvalidCapabilityError = defError<[string]>(
   { code: "INVALID_CAPABILITY", statusCode: 400, exitCode: 2 },
   (cap) => `Invalid capability: "${cap}"`,
 );
+
+// --- Node errors (Phase 4) ---
+export const NodeNotFoundError = defError<[string]>(
+  "NodeNotFoundError",
+  { code: "NODE_NOT_FOUND", statusCode: 404, exitCode: 1 },
+  (name) => `Node "${name}" not found`,
+);
+
+export const DuplicateNodeError = defError<[string]>(
+  "DuplicateNodeError",
+  { code: "DUPLICATE_NODE", statusCode: 409, exitCode: 1 },
+  (name) => `Node "${name}" already registered`,
+);

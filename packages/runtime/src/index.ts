@@ -15,5 +15,6 @@ export { registerSessionRoutes } from "./routes/sessions.js";
 export { registerChatRoutes } from "./routes/chat.js";
 export { registerMcpRoutes } from "./mcp/server.js";
 export type { McpRouteOpts } from "./mcp/server.js";
+export type { MeshRouter } from "./mcp/mesh-tools.js";
 export { createServer } from "./server.js";
 export type { CreateServerOpts } from "./server.js";

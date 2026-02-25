@@ -1,5 +1,5 @@
 import { spawn as cpSpawn, type ChildProcess } from "node:child_process";
-import { createReadStream, existsSync } from "node:fs";
+import { createReadStream, existsSync, openSync, closeSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { randomBytes } from "node:crypto";
 import { Readable } from "node:stream";
@@ -107,6 +107,11 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
       throw new ProcessSpawnError("No runtimeEntrypoint configured and no runtimeBin provided");
     }
 
+    // Open log files as FDs — the OS writes directly so Node has no stream references
+    // that would keep the event loop alive after child.unref().
+    const stdoutFd = openSync(join(logsDir, "stdout.log"), "a");
+    const stderrFd = openSync(join(logsDir, "stderr.log"), "a");
+
     // Spawn child process
     let child: ChildProcess;
     try {
@@ -114,25 +119,22 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
         env: childEnv,
         cwd: workspacePath,
         detached: true,
-        stdio: ["ignore", "pipe", "pipe"],
+        stdio: ["ignore", stdoutFd, stderrFd],
       });
     } catch (err) {
+      closeSync(stdoutFd);
+      closeSync(stderrFd);
       throw new ProcessSpawnError(
         err instanceof Error ? err.message : String(err),
       );
     }
 
+    // Close FDs in parent — child has its own copies
+    closeSync(stdoutFd);
+    closeSync(stderrFd);
+
     if (!child.pid) {
       throw new ProcessSpawnError("Failed to get child PID");
-    }
-
-    // Pipe stdout/stderr to log files
-    const { createWriteStream } = await import("node:fs");
-    if (child.stdout) {
-      child.stdout.pipe(createWriteStream(join(logsDir, "stdout.log"), { flags: "a" }));
-    }
-    if (child.stderr) {
-      child.stderr.pipe(createWriteStream(join(logsDir, "stderr.log"), { flags: "a" }));
     }
 
     // Detach so CLI can exit without killing child

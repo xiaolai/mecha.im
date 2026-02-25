@@ -1,5 +1,4 @@
 // @mecha/service — business logic layer
-// Phase 1: lifecycle, read-only sessions, init, doctor, tools, auth (chat via Agent SDK)
 
 export { resolveCasaEndpoint, runtimeFetch } from "./helpers.js";
 export type { RuntimeFetchOpts, RuntimeFetchResult } from "./helpers.js";
@@ -34,3 +33,9 @@ export { buildHierarchy, flattenHierarchy } from "./hierarchy.js";
 export type { HierarchyNode } from "./hierarchy.js";
 export { createCasaRouter } from "./router.js";
 export type { CasaRouter, CreateRouterOpts } from "./router.js";
+export { nodeInit, readNodeName } from "./node-init.js";
+export type { NodeInitResult } from "./node-init.js";
+export { agentFetch } from "./agent-fetch.js";
+export type { AgentFetchOpts } from "./agent-fetch.js";
+export { createLocator } from "./locator.js";
+export type { MechaLocator, LocateResult, CreateLocatorOpts } from "./locator.js";

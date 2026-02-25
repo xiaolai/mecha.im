@@ -1,8 +1,8 @@
 import type { AclRule, AclResult, Capability } from "./types.js";
 import { loadAcl, saveAcl } from "./persistence.js";
 import { readCasaConfig } from "../casa-config.js";
-import { isValidName } from "../validation.js";
-import { InvalidNameError } from "../errors.js";
+import { isValidAddress } from "../validation.js";
+import { InvalidAddressError } from "../errors.js";
 import { join } from "node:path";
 
 export interface AclEngine {
@@ -41,7 +41,9 @@ export function createAclEngine(opts: CreateAclEngineOpts): AclEngine {
 
   /* v8 ignore start -- default getExpose always overridden in tests */
   const getExpose = opts.getExpose ?? ((name: string): Capability[] => {
-    const config = readCasaConfig(join(mechaDir, name));
+    // Extract CASA name from address (strip @node suffix)
+    const casaPart = name.includes("@") ? name.slice(0, name.indexOf("@")) : name;
+    const config = readCasaConfig(join(mechaDir, casaPart));
     return (config?.expose as Capability[]) ?? [];
   });
   /* v8 ignore stop */
@@ -51,8 +53,8 @@ export function createAclEngine(opts: CreateAclEngineOpts): AclEngine {
   }
 
   function validateNames(source: string, target: string): void {
-    if (!isValidName(source)) throw new InvalidNameError(source);
-    if (!isValidName(target)) throw new InvalidNameError(target);
+    if (!isValidAddress(source)) throw new InvalidAddressError(source);
+    if (!isValidAddress(target)) throw new InvalidAddressError(target);
   }
 
   const engine: AclEngine = {

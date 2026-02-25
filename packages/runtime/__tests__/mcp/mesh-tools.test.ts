@@ -2,7 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { handleMeshTool, type MeshOpts } from "../../src/mcp/mesh-tools.js";
+import { handleMeshTool, type MeshOpts, type MeshRouter } from "../../src/mcp/mesh-tools.js";
+import { AclDeniedError, CasaNotFoundError } from "@mecha/core";
 
 describe("mesh_discover", () => {
   let mechaDir: string;
@@ -84,107 +85,31 @@ describe("mesh_discover", () => {
 
 describe("mesh_query", () => {
   let mechaDir: string;
+  let mockRouter: MeshRouter;
 
   beforeEach(() => {
     mechaDir = mkdtempSync(join(tmpdir(), "mesh-test-"));
+    mockRouter = {
+      routeQuery: vi.fn().mockResolvedValue({ text: "response", sessionId: undefined }),
+    };
   });
   afterEach(() => { rmSync(mechaDir, { recursive: true, force: true }); vi.restoreAllMocks(); });
 
-  function writeCasa(name: string, cfg: Record<string, unknown>): void {
-    const dir = join(mechaDir, name);
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, "config.json"), JSON.stringify(cfg));
-  }
+  it("delegates to router on success", async () => {
+    vi.mocked(mockRouter.routeQuery).mockResolvedValue({ text: "Found papers", sessionId: undefined });
 
-  function writeAcl(rules: Array<{ source: string; target: string; capabilities: string[] }>): void {
-    writeFileSync(join(mechaDir, "acl.json"), JSON.stringify({ version: 1, rules }));
-  }
-
-  it("returns error when ACL denies", async () => {
-    writeCasa("researcher", { port: 7700, token: "t", workspace: "/ws", expose: ["query"] });
-    // No ACL grant
-
-    const opts: MeshOpts = { mechaDir, casaName: "coder" };
-    const result = await handleMeshTool(opts, "mesh_query", { target: "researcher", message: "hello" });
-
-    expect(result.content[0].text).toContain("Access denied");
-    expect(result.isError).toBe(true);
-  });
-
-  it("returns not_exposed when target does not expose query", async () => {
-    writeCasa("researcher", { port: 7700, token: "t", workspace: "/ws", expose: ["read_workspace"] });
-    writeAcl([{ source: "coder", target: "researcher", capabilities: ["query"] }]);
-
-    const opts: MeshOpts = { mechaDir, casaName: "coder" };
-    const result = await handleMeshTool(opts, "mesh_query", { target: "researcher", message: "hello" });
-
-    expect(result.content[0].text).toContain("does not expose");
-    expect(result.isError).toBe(true);
-  });
-
-  it("returns error when target has no config", async () => {
-    writeAcl([{ source: "coder", target: "ghost", capabilities: ["query"] }]);
-    // ghost has no config.json — config-first read fails before ACL check
-
-    const opts: MeshOpts = { mechaDir, casaName: "coder" };
-    const result = await handleMeshTool(opts, "mesh_query", { target: "ghost", message: "hello" });
-
-    expect(result.content[0].text).toContain("CASA not found");
-    expect(result.isError).toBe(true);
-  });
-
-  it("returns error when target config removed", async () => {
-    writeCasa("vanished", { port: 9999, token: "t", workspace: "/ws", expose: ["query"] });
-    writeAcl([{ source: "coder", target: "vanished", capabilities: ["query"] }]);
-    // Remove config after creating it
-    const { rmSync: rm } = await import("node:fs");
-    rm(join(mechaDir, "vanished", "config.json"));
-
-    const opts: MeshOpts = { mechaDir, casaName: "coder" };
-    const result = await handleMeshTool(opts, "mesh_query", { target: "vanished", message: "hello" });
-
-    // Config-first read fails
-    expect(result.content[0].text).toContain("CASA not found");
-    expect(result.isError).toBe(true);
-  });
-
-  it("forwards to target on success", async () => {
-    writeCasa("researcher", { port: 7700, token: "tok", workspace: "/ws", expose: ["query"] });
-    writeAcl([{ source: "coder", target: "researcher", capabilities: ["query"] }]);
-
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ response: "Found papers" }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      }),
-    );
-
-    const opts: MeshOpts = { mechaDir, casaName: "coder" };
+    const opts: MeshOpts = { mechaDir, casaName: "coder", router: mockRouter };
     const result = await handleMeshTool(opts, "mesh_query", { target: "researcher", message: "find papers" });
 
     expect(result.content[0].text).toBe("Found papers");
     expect(result.isError).toBeUndefined();
-    expect(fetch).toHaveBeenCalledWith(
-      "http://127.0.0.1:7700/api/chat",
-      expect.objectContaining({
-        method: "POST",
-        headers: expect.objectContaining({ authorization: "Bearer tok" }),
-      }),
-    );
+    expect(mockRouter.routeQuery).toHaveBeenCalledWith("coder", "researcher", "find papers", undefined);
   });
 
   it("threads sessionId through and returns it as _meta", async () => {
-    writeCasa("researcher", { port: 7700, token: "tok", workspace: "/ws", expose: ["query"] });
-    writeAcl([{ source: "coder", target: "researcher", capabilities: ["query"] }]);
+    vi.mocked(mockRouter.routeQuery).mockResolvedValue({ text: "Continued", sessionId: "sess-123" });
 
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ response: "Continued", sessionId: "sess-123" }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      }),
-    );
-
-    const opts: MeshOpts = { mechaDir, casaName: "coder" };
+    const opts: MeshOpts = { mechaDir, casaName: "coder", router: mockRouter };
     const result = await handleMeshTool(opts, "mesh_query", {
       target: "researcher", message: "continue", sessionId: "sess-123",
     });
@@ -192,55 +117,79 @@ describe("mesh_query", () => {
     expect(result.content[0].text).toBe("Continued");
     expect(result._meta).toEqual({ sessionId: "sess-123" });
     expect(result.isError).toBeUndefined();
-
-    const call = vi.mocked(fetch).mock.calls[0];
-    const body = JSON.parse(call[1]!.body as string);
-    expect(body.sessionId).toBe("sess-123");
+    expect(mockRouter.routeQuery).toHaveBeenCalledWith("coder", "researcher", "continue", "sess-123");
   });
 
   it("does not include _meta when sessionId not returned", async () => {
-    writeCasa("researcher", { port: 7700, token: "tok", workspace: "/ws", expose: ["query"] });
-    writeAcl([{ source: "coder", target: "researcher", capabilities: ["query"] }]);
+    vi.mocked(mockRouter.routeQuery).mockResolvedValue({ text: "One-shot answer", sessionId: undefined });
 
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ response: "One-shot answer" }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      }),
-    );
-
-    const opts: MeshOpts = { mechaDir, casaName: "coder" };
+    const opts: MeshOpts = { mechaDir, casaName: "coder", router: mockRouter };
     const result = await handleMeshTool(opts, "mesh_query", { target: "researcher", message: "hello" });
 
     expect(result.content[0].text).toBe("One-shot answer");
     expect(result._meta).toBeUndefined();
   });
 
-  it("returns error on HTTP failure", async () => {
-    writeCasa("researcher", { port: 7700, token: "tok", workspace: "/ws", expose: ["query"] });
-    writeAcl([{ source: "coder", target: "researcher", capabilities: ["query"] }]);
-
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("error", { status: 500 }),
+  it("returns Access denied on AclDeniedError", async () => {
+    vi.mocked(mockRouter.routeQuery).mockRejectedValue(
+      new AclDeniedError("coder", "query", "researcher"),
     );
 
-    const opts: MeshOpts = { mechaDir, casaName: "coder" };
+    const opts: MeshOpts = { mechaDir, casaName: "coder", router: mockRouter };
     const result = await handleMeshTool(opts, "mesh_query", { target: "researcher", message: "hello" });
 
-    expect(result.content[0].text).toContain("HTTP 500");
+    expect(result.content[0].text).toContain("Access denied");
+    expect(result.isError).toBe(true);
+  });
+
+  it("returns CASA not found on CasaNotFoundError", async () => {
+    vi.mocked(mockRouter.routeQuery).mockRejectedValue(
+      new CasaNotFoundError("ghost"),
+    );
+
+    const opts: MeshOpts = { mechaDir, casaName: "coder", router: mockRouter };
+    const result = await handleMeshTool(opts, "mesh_query", { target: "ghost", message: "hello" });
+
+    expect(result.content[0].text).toContain("CASA not found");
+    expect(result.isError).toBe(true);
+  });
+
+  it("returns error on generic failure", async () => {
+    vi.mocked(mockRouter.routeQuery).mockRejectedValue(new Error("HTTP 500"));
+
+    const opts: MeshOpts = { mechaDir, casaName: "coder", router: mockRouter };
+    const result = await handleMeshTool(opts, "mesh_query", { target: "researcher", message: "hello" });
+
+    expect(result.content[0].text).toBe("Mesh query failed");
     expect(result.isError).toBe(true);
   });
 
   it("returns error when missing required fields", async () => {
-    const opts: MeshOpts = { mechaDir, casaName: "coder" };
+    const opts: MeshOpts = { mechaDir, casaName: "coder", router: mockRouter };
     const result = await handleMeshTool(opts, "mesh_query", {});
 
     expect(result.content[0].text).toContain("Missing required");
     expect(result.isError).toBe(true);
   });
 
+  it("returns error when target is empty string", async () => {
+    const opts: MeshOpts = { mechaDir, casaName: "coder", router: mockRouter };
+    const result = await handleMeshTool(opts, "mesh_query", { target: "", message: "hello" });
+
+    expect(result.content[0].text).toContain("Missing required: target");
+    expect(result.isError).toBe(true);
+  });
+
+  it("returns error when message is empty string", async () => {
+    const opts: MeshOpts = { mechaDir, casaName: "coder", router: mockRouter };
+    const result = await handleMeshTool(opts, "mesh_query", { target: "researcher", message: "" });
+
+    expect(result.content[0].text).toContain("Missing required: message");
+    expect(result.isError).toBe(true);
+  });
+
   it("returns error when sessionId is not a string", async () => {
-    const opts: MeshOpts = { mechaDir, casaName: "coder" };
+    const opts: MeshOpts = { mechaDir, casaName: "coder", router: mockRouter };
     const result = await handleMeshTool(opts, "mesh_query", {
       target: "researcher", message: "hello", sessionId: 123,
     });
@@ -249,40 +198,12 @@ describe("mesh_query", () => {
     expect(result.isError).toBe(true);
   });
 
-  it("returns plain text when response is not JSON", async () => {
-    writeCasa("researcher", { port: 7700, token: "tok", workspace: "/ws", expose: ["query"] });
-    writeAcl([{ source: "coder", target: "researcher", capabilities: ["query"] }]);
-
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("plain text answer", { status: 200, headers: { "content-type": "text/plain" } }),
-    );
-
+  it("returns error when router not available", async () => {
     const opts: MeshOpts = { mechaDir, casaName: "coder" };
     const result = await handleMeshTool(opts, "mesh_query", { target: "researcher", message: "hello" });
 
-    expect(result.content[0].text).toBe("plain text answer");
-    expect(result.isError).toBeUndefined();
-  });
-
-  it("returns JSON stringified when response.response is not a string", async () => {
-    writeCasa("researcher", { port: 7700, token: "tok", workspace: "/ws", expose: ["query"] });
-    writeAcl([{ source: "coder", target: "researcher", capabilities: ["query"] }]);
-
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ data: [1, 2, 3] }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      }),
-    );
-
-    const opts: MeshOpts = { mechaDir, casaName: "coder" };
-    const result = await handleMeshTool(opts, "mesh_query", { target: "researcher", message: "hello" });
-
-    expect(result.content[0].text).toContain('"data"');
-    expect(result.isError).toBeUndefined();
-
-
-
+    expect(result.content[0].text).toBe("Mesh routing not available");
+    expect(result.isError).toBe(true);
   });
 });
 

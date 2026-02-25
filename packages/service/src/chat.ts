@@ -39,10 +39,11 @@ export async function casaChat(
     throw new Error((body as { error?: string }).error ?? `Chat request failed: ${response.status}`);
   }
 
-  /* v8 ignore next 3 -- response.body is always present with real fetch */
+  /* v8 ignore start -- response.body is always present with real fetch */
   if (!response.body) {
     throw new Error("No response body");
   }
+  /* v8 ignore stop */
 
   return parseSSEStream(response.body);
 }

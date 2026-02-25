@@ -12,6 +12,18 @@ export function isValidName(input: string): boolean {
   return NAME_PATTERN.test(input);
 }
 
+/** Test if a string is a valid address: bare name ("coder") or name@node ("coder@alice") */
+export function isValidAddress(input: string): boolean {
+  if (!input) return false;
+  const atIndex = input.indexOf("@");
+  if (atIndex === -1) return isValidName(input);
+  // Must have exactly one @
+  if (input.indexOf("@", atIndex + 1) !== -1) return false;
+  const casa = input.slice(0, atIndex);
+  const node = input.slice(atIndex + 1);
+  return isValidName(casa) && isValidName(node);
+}
+
 /** Valid tag pattern: lowercase alphanumeric + hyphens, 1-32 chars */
 export const TAG_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 
@@ -42,6 +54,13 @@ export function validateTags(tags: string[]): { ok: true; tags: string[] } | { o
     }
   }
   return { ok: true, tags: result };
+}
+
+/** Parse a port string. Returns a valid port number (1-65535) or undefined. */
+export function parsePort(raw: string): number | undefined {
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1 || n > 65535) return undefined;
+  return n;
 }
 
 /** Validate a list of capability strings. Returns validated capabilities or an error message. */

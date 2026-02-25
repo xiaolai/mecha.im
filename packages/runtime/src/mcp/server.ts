@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync, statSync, realpathSync, promises as fsp } from "node:fs";
 import { join, relative, resolve, isAbsolute } from "node:path";
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { MESH_TOOLS, handleMeshTool, type MeshOpts } from "./mesh-tools.js";
+import { MESH_TOOLS, handleMeshTool, type MeshOpts, type MeshRouter } from "./mesh-tools.js";
 
 interface JsonRpcRequest {
   jsonrpc: "2.0";
@@ -137,8 +137,10 @@ function handleToolCall(
   }
 }
 
+const MESH_TOOL_NAMES = new Set(MESH_TOOLS.map((t) => t.name));
+
 function isMeshTool(name: string): boolean {
-  return name === "mesh_query" || name === "mesh_discover";
+  return MESH_TOOL_NAMES.has(name);
 }
 
 async function handleRequest(
@@ -214,12 +216,13 @@ export interface McpRouteOpts {
   workspacePath: string;
   mechaDir?: string;
   casaName?: string;
+  router?: MeshRouter;
 }
 
 export function registerMcpRoutes(app: FastifyInstance, opts: McpRouteOpts): void {
   const meshOpts: MeshOpts | undefined =
     opts.mechaDir && opts.casaName
-      ? { mechaDir: opts.mechaDir, casaName: opts.casaName }
+      ? { mechaDir: opts.mechaDir, casaName: opts.casaName, router: opts.router }
       : undefined;
 
   app.post("/mcp", async (request: FastifyRequest, reply: FastifyReply) => {
