@@ -70,6 +70,8 @@ describe("createProgram", () => {
     expect(commandNames).toContain("sessions");
     expect(commandNames).toContain("tools");
     expect(commandNames).toContain("auth");
+    expect(commandNames).toContain("find");
+    expect(commandNames).toContain("configure");
   });
 
   it("parses --version without error", async () => {

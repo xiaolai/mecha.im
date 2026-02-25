@@ -67,7 +67,7 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
   }
 
   async function spawnCasa(spawnOpts: SpawnOpts): Promise<ProcessInfo> {
-    const { name, model, permissionMode, auth } = spawnOpts;
+    const { name, model, permissionMode, auth, tags } = spawnOpts;
     // Resolve to absolute path for consistent sandbox matching
     const workspacePath = resolve(spawnOpts.workspacePath);
     const casaDir = _casaDir(name);
@@ -89,7 +89,7 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
 
     // Prepare filesystem and environment
     const { logsDir, childEnv } = prepareCasaFilesystem({
-      casaDir, workspacePath, port, token, name, model, permissionMode, auth,
+      casaDir, workspacePath, port, token, name, model, permissionMode, auth, tags,
       userEnv: spawnOpts.env,
     });
 

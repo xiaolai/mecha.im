@@ -11,6 +11,8 @@ import { registerChatCommand } from "./commands/chat.js";
 import { registerSessionsCommand } from "./commands/sessions.js";
 import { registerToolsCommand } from "./commands/tools.js";
 import { registerAuthCommand } from "./commands/auth.js";
+import { registerFindCommand } from "./commands/find.js";
+import { registerConfigureCommand } from "./commands/configure.js";
 
 /** Create the root mecha CLI program with global flags */
 export function createProgram(deps: CommandDeps): Command {
@@ -36,6 +38,8 @@ export function createProgram(deps: CommandDeps): Command {
   registerSessionsCommand(program, deps);
   registerToolsCommand(program, deps);
   registerAuthCommand(program, deps);
+  registerFindCommand(program, deps);
+  registerConfigureCommand(program, deps);
 
   return program;
 }

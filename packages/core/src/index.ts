@@ -53,3 +53,5 @@ export {
   toUserMessage,
   toSafeMessage,
 } from "./mapping.js";
+export { readCasaConfig, updateCasaConfig } from "./casa-config.js";
+export type { CasaConfig } from "./casa-config.js";

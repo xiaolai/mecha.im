@@ -10,6 +10,7 @@ export interface CasaFilesystemOpts {
   model?: string;
   permissionMode?: string;
   auth?: string;
+  tags?: string[];
   userEnv?: Record<string, string>;
 }
 
@@ -30,7 +31,7 @@ export function encodeProjectPath(workspacePath: string): string {
 }
 
 export function prepareCasaFilesystem(opts: CasaFilesystemOpts): CasaFilesystemResult {
-  const { casaDir, workspacePath, port, token, name, model, permissionMode, auth, userEnv } = opts;
+  const { casaDir, workspacePath, port, token, name, model, permissionMode, auth, tags, userEnv } = opts;
 
   // Create directory structure mirroring real Claude Code
   const homeDir = join(casaDir, "home");
@@ -48,7 +49,7 @@ export function prepareCasaFilesystem(opts: CasaFilesystemOpts): CasaFilesystemR
   mkdirSync(logsDir, { recursive: true, mode: 0o700 });
 
   // Write config
-  const config = { port, token, workspace: workspacePath, model, permissionMode, auth };
+  const config = { port, token, workspace: workspacePath, model, permissionMode, auth, tags };
   writeFileSync(join(casaDir, "config.json"), JSON.stringify(config, null, 2) + "\n", { mode: 0o600 });
 
   // Write sandbox hooks (settings.json)
