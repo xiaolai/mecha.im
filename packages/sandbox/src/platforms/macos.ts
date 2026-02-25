@@ -16,10 +16,19 @@ export function generateSbpl(profile: SandboxProfile): string {
   const lines: string[] = [
     "(version 1)",
     "(deny default)",
-    // Allow sysctl for basic system info
+    // System info and IPC
     "(allow sysctl-read)",
-    // Allow mach lookups for system services
     "(allow mach-lookup)",
+    // Node.js requires fork (worker threads, libuv) and signal handling
+    "(allow process-fork)",
+    "(allow signal)",
+    // Read metadata for stat/lstat calls during module resolution
+    "(allow file-read-metadata)",
+    // System paths required by the dynamic linker and Node.js runtime
+    '(allow file-read* (literal "/"))',
+    '(allow file-read* (subpath "/usr/lib"))',
+    '(allow file-read* (subpath "/System"))',
+    '(allow file-read* (subpath "/dev"))',
   ];
 
   if (profile.allowNetwork) {

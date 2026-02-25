@@ -1,6 +1,24 @@
+import { dirname } from "node:path";
 import { describe, it, expect } from "vitest";
-import { profileFromConfig } from "../src/profile.js";
+import { profileFromConfig, nodePrefix, findProjectRoot } from "../src/profile.js";
 import type { CasaConfig } from "@mecha/core";
+
+describe("nodePrefix", () => {
+  it("returns grandparent of process.execPath", () => {
+    const expected = dirname(dirname(process.execPath));
+    expect(nodePrefix()).toBe(expected);
+  });
+});
+
+describe("findProjectRoot", () => {
+  it("finds the nearest ancestor with node_modules", () => {
+    // The test file itself is inside the monorepo which has node_modules
+    const root = findProjectRoot(__filename);
+    expect(root).toBeTruthy();
+    // The root should be an ancestor of this file
+    expect(__filename.startsWith(root)).toBe(true);
+  });
+});
 
 describe("profileFromConfig", () => {
   const baseConfig: CasaConfig = {
@@ -9,14 +27,14 @@ describe("profileFromConfig", () => {
     workspace: "/home/user/project",
   };
 
-  it("includes node binary in read paths and allowed processes", () => {
+  it("includes node prefix in read paths and binary in allowed processes", () => {
     const profile = profileFromConfig({
       config: baseConfig,
       casaDir: "/mecha/alice",
       mechaDir: "/mecha",
     });
 
-    expect(profile.readPaths).toContain(process.execPath);
+    expect(profile.readPaths).toContain(nodePrefix());
     expect(profile.allowedProcesses).toContain(process.execPath);
   });
 
@@ -30,15 +48,17 @@ describe("profileFromConfig", () => {
     expect(profile.readPaths).toContain("/mecha/discovery.json");
   });
 
-  it("includes runtime entrypoint in read paths when provided", () => {
+  it("includes project root in read paths when runtimeEntrypoint provided", () => {
+    // Use a real path so findProjectRoot can locate node_modules
     const profile = profileFromConfig({
       config: baseConfig,
       casaDir: "/mecha/alice",
       mechaDir: "/mecha",
-      runtimeEntrypoint: "/mecha/runtime/dist/main.js",
+      runtimeEntrypoint: __filename,
     });
 
-    expect(profile.readPaths).toContain("/mecha/runtime/dist/main.js");
+    const projRoot = findProjectRoot(__filename);
+    expect(profile.readPaths).toContain(projRoot);
   });
 
   it("includes casaDir and workspace in read paths", () => {
@@ -99,14 +119,14 @@ describe("profileFromConfig", () => {
     expect(profile.writePaths.length).toBe(unique.size);
   });
 
-  it("omits runtime entrypoint from read paths when not provided", () => {
+  it("omits project root from read paths when runtimeEntrypoint not provided", () => {
     const profile = profileFromConfig({
       config: baseConfig,
       casaDir: "/mecha/alice",
       mechaDir: "/mecha",
     });
 
-    // Only: execPath, discovery.json, casaDir, workspace
+    // Only: nodePrefix, discovery.json, casaDir, workspace
     expect(profile.readPaths).toHaveLength(4);
   });
 });

@@ -1,7 +1,7 @@
 import type { SandboxProfile, SandboxWrapResult } from "../types.js";
 
 /** Essential system paths to bind read-only if they exist. */
-const SYSTEM_RO_BINDS = ["/usr", "/lib", "/lib64", "/etc/resolv.conf"];
+const SYSTEM_RO_BINDS = ["/usr", "/lib", "/lib64", "/etc"];
 
 /**
  * Generate bwrap (bubblewrap) arguments from a SandboxProfile.
@@ -37,7 +37,8 @@ export function wrapLinux(
     }
   }
 
-  // Proc filesystem (needed for Node.js)
+  // Device and proc filesystems (needed for Node.js)
+  args.push("--dev", "/dev");
   args.push("--proc", "/proc");
 
   // Tmpfs for /tmp (separate from CASA tmp)

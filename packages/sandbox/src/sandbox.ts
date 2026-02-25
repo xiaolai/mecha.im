@@ -1,4 +1,5 @@
 import { platform as osPlatform } from "node:os";
+import { existsSync } from "node:fs";
 import { execFileSync, execSync } from "node:child_process";
 import type { Sandbox, SandboxPlatform, SandboxProfile, SandboxWrapResult } from "./types.js";
 import { generateSbpl, wrapMacos, writeProfileMacos } from "./platforms/macos.js";
@@ -91,7 +92,7 @@ export function createSandbox(platformOverride?: SandboxPlatform): Sandbox {
     /* v8 ignore start -- linux/fallback wrap not fully testable on macOS */
     if (plat === "linux") {
       const bwrapBin = resolveCommand("bwrap") ?? "bwrap";
-      return wrapLinux(profile, runtimeBin, runtimeArgs, undefined, bwrapBin);
+      return wrapLinux(profile, runtimeBin, runtimeArgs, existsSync, bwrapBin);
     }
     return wrapFallback(profile, runtimeBin, runtimeArgs);
     /* v8 ignore stop */

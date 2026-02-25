@@ -53,6 +53,8 @@ describe("wrapLinux", () => {
     const result = wrapLinux(profile, "/usr/bin/node", ["app.js"]);
     expect(result.args).toContain("/usr");
     expect(result.args).toContain("/lib");
+    expect(result.args).toContain("/etc");
+    expect(result.args).toContain("/dev");
     expect(result.args).toContain("/proc");
   });
 
@@ -85,6 +87,6 @@ describe("wrapLinux", () => {
     expect(result.args).not.toContain("/usr");
     expect(result.args).not.toContain("/lib");
     expect(result.args).not.toContain("/lib64");
-    expect(result.args).not.toContain("/etc/resolv.conf");
+    expect(result.args).not.toContain("/etc");
   });
 });

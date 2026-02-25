@@ -86,7 +86,7 @@ describe("createSandbox", () => {
   it("wrap() with linux returns bwrap command", async () => {
     const sandbox = createSandbox("linux");
     const result = await sandbox.wrap(profile, "/usr/bin/node", ["app.js"], "/tmp/casa");
-    expect(result.bin).toBe("bwrap");
+    expect(result.bin).toMatch(/(?:^|\/)?bwrap$/);
     expect(result.args).toContain("--share-net");
   });
 });

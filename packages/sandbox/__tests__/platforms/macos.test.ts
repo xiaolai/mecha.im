@@ -13,10 +13,17 @@ describe("generateSbpl", () => {
     allowNetwork: true,
   };
 
-  it("generates valid SBPL with deny default", () => {
+  it("generates valid SBPL with deny default and system permissions", () => {
     const sbpl = generateSbpl(profile);
     expect(sbpl).toContain("(version 1)");
     expect(sbpl).toContain("(deny default)");
+    expect(sbpl).toContain("(allow process-fork)");
+    expect(sbpl).toContain("(allow signal)");
+    expect(sbpl).toContain("(allow file-read-metadata)");
+    expect(sbpl).toContain('(allow file-read* (literal "/"))');
+    expect(sbpl).toContain('(allow file-read* (subpath "/usr/lib"))');
+    expect(sbpl).toContain('(allow file-read* (subpath "/System"))');
+    expect(sbpl).toContain('(allow file-read* (subpath "/dev"))');
   });
 
   it("includes read path rules", () => {
