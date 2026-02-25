@@ -39,7 +39,7 @@ function makePm(list: ProcessInfo[] = []): ProcessManager {
 
 describe("createCasaRouter", () => {
   let mechaDir: string;
-  afterEach(() => { if (mechaDir) rmSync(mechaDir, { recursive: true, force: true }); });
+  afterEach(() => { if (mechaDir) rmSync(mechaDir, { recursive: true, force: true }); vi.restoreAllMocks(); });
 
   describe("routeQuery", () => {
     it("throws AclDeniedError when ACL denies", async () => {
@@ -67,8 +67,7 @@ describe("createCasaRouter", () => {
       writeCasaConfig(mechaDir, "researcher", { port: 7700, token: "tok123", workspace: "/ws" });
       const acl = makeAcl();
 
-      // Mock global fetch
-      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
         new Response(JSON.stringify({ response: "I found 3 papers" }), {
           status: 200,
           headers: { "content-type": "application/json" },
@@ -78,8 +77,8 @@ describe("createCasaRouter", () => {
       const router = createCasaRouter({ mechaDir, acl, pm: makePm() });
       const result = await router.routeQuery("coder" as CasaName, "researcher" as CasaName, "find papers");
 
-      expect(result).toBe("I found 3 papers");
-      expect(fetchSpy).toHaveBeenCalledWith(
+      expect(result).toEqual({ text: "I found 3 papers", sessionId: undefined });
+      expect(fetch).toHaveBeenCalledWith(
         "http://127.0.0.1:7700/api/chat",
         expect.objectContaining({
           method: "POST",
@@ -88,8 +87,6 @@ describe("createCasaRouter", () => {
           }),
         }),
       );
-
-      fetchSpy.mockRestore();
     });
 
     it("throws when target returns non-OK", async () => {
@@ -97,7 +94,7 @@ describe("createCasaRouter", () => {
       writeCasaConfig(mechaDir, "researcher", { port: 7700, token: "tok", workspace: "/ws" });
       const acl = makeAcl();
 
-      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
         new Response("error", { status: 500 }),
       );
 
@@ -105,8 +102,6 @@ describe("createCasaRouter", () => {
       await expect(
         router.routeQuery("coder" as CasaName, "researcher" as CasaName, "hello"),
       ).rejects.toThrow(/returned HTTP 500/);
-
-      fetchSpy.mockRestore();
     });
 
     it("returns JSON stringified when response.response is not a string", async () => {
@@ -114,7 +109,7 @@ describe("createCasaRouter", () => {
       writeCasaConfig(mechaDir, "researcher", { port: 7700, token: "tok", workspace: "/ws" });
       const acl = makeAcl();
 
-      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
         new Response(JSON.stringify({ data: [1, 2, 3] }), {
           status: 200,
           headers: { "content-type": "application/json" },
@@ -123,9 +118,7 @@ describe("createCasaRouter", () => {
 
       const router = createCasaRouter({ mechaDir, acl, pm: makePm() });
       const result = await router.routeQuery("coder" as CasaName, "researcher" as CasaName, "hello");
-      expect(result).toContain('"data"');
-
-      fetchSpy.mockRestore();
+      expect(result.text).toContain('"data"');
     });
 
     it("returns text when response is not JSON", async () => {
@@ -133,15 +126,36 @@ describe("createCasaRouter", () => {
       writeCasaConfig(mechaDir, "researcher", { port: 7700, token: "tok", workspace: "/ws" });
       const acl = makeAcl();
 
-      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
         new Response("plain text response", { status: 200, headers: { "content-type": "text/plain" } }),
       );
 
       const router = createCasaRouter({ mechaDir, acl, pm: makePm() });
       const result = await router.routeQuery("coder" as CasaName, "researcher" as CasaName, "hello");
-      expect(result).toBe("plain text response");
+      expect(result.text).toBe("plain text response");
+    });
 
-      fetchSpy.mockRestore();
+    it("passes sessionId through to forwardQueryToCasa", async () => {
+      mechaDir = mkdtempSync(join(tmpdir(), "router-"));
+      writeCasaConfig(mechaDir, "researcher", { port: 7700, token: "tok", workspace: "/ws" });
+      const acl = makeAcl();
+
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response(JSON.stringify({ response: "continued", sessionId: "sess-xyz" }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+
+      const router = createCasaRouter({ mechaDir, acl, pm: makePm() });
+      const result = await router.routeQuery(
+        "coder" as CasaName, "researcher" as CasaName, "continue", "sess-xyz",
+      );
+      expect(result).toEqual({ text: "continued", sessionId: "sess-xyz" });
+
+      const call = vi.mocked(fetch).mock.calls[0];
+      const body = JSON.parse(call[1]!.body as string);
+      expect(body.sessionId).toBe("sess-xyz");
     });
   });
 

@@ -104,27 +104,56 @@ describe("updateCasaConfig", () => {
 });
 
 describe("forwardQueryToCasa", () => {
-  it("returns response text on success", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  it("returns ForwardResult on success", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ response: "hello" }), {
         status: 200,
         headers: { "content-type": "application/json" },
       }),
     );
     const result = await forwardQueryToCasa(7700, "tok", "hi");
-    expect(result).toBe("hello");
-    expect(fetchSpy).toHaveBeenCalledWith(
+    expect(result).toEqual({ text: "hello", sessionId: undefined });
+    expect(fetch).toHaveBeenCalledWith(
       "http://127.0.0.1:7700/api/chat",
       expect.objectContaining({ method: "POST" }),
     );
-    fetchSpy.mockRestore();
   });
 
   it("throws on non-OK response", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response("error", { status: 500 }),
     );
     await expect(forwardQueryToCasa(7700, "tok", "hi")).rejects.toThrow("returned HTTP 500");
-    fetchSpy.mockRestore();
+  });
+
+  it("sends sessionId when provided", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ response: "continued", sessionId: "sess-abc" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    const result = await forwardQueryToCasa(7700, "tok", "hi", "sess-abc");
+    expect(result).toEqual({ text: "continued", sessionId: "sess-abc" });
+
+    const call = vi.mocked(fetch).mock.calls[0];
+    const body = JSON.parse(call[1]!.body as string);
+    expect(body.sessionId).toBe("sess-abc");
+  });
+
+  it("omits sessionId from body when not provided", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ response: "ok" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    await forwardQueryToCasa(7700, "tok", "hi");
+
+    const call = vi.mocked(fetch).mock.calls[0];
+    const body = JSON.parse(call[1]!.body as string);
+    expect(body.sessionId).toBeUndefined();
   });
 });
