@@ -19,5 +19,7 @@ export type { MeshRouter } from "./mcp/mesh-tools.js";
 export { createServer } from "./server.js";
 export type { CreateServerOpts, ServerResult } from "./server.js";
 export { createScheduleEngine } from "./scheduler.js";
-export type { ScheduleEngine, ChatFn, CreateScheduleEngineOpts } from "./scheduler.js";
+export type { ScheduleEngine, ChatFn, CreateScheduleEngineOpts, ScheduleLog } from "./scheduler.js";
+export { executeRun } from "./schedule-runner.js";
+export type { RunDeps } from "./schedule-runner.js";
 export { registerScheduleRoutes } from "./routes/schedule.js";

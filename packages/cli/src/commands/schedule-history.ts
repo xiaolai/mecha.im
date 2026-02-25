@@ -1,7 +1,8 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
-import { casaName, MechaError } from "@mecha/core";
+import { casaName } from "@mecha/core";
 import { casaScheduleHistory } from "@mecha/service";
+import { withErrorHandler } from "../error-handler.js";
 
 export function registerScheduleHistoryCommand(parent: Command, deps: CommandDeps): void {
   parent
@@ -10,8 +11,8 @@ export function registerScheduleHistoryCommand(parent: Command, deps: CommandDep
     .argument("<casa>", "CASA name")
     .argument("<schedule-id>", "Schedule ID")
     .option("--limit <n>", "Maximum number of entries", "20")
-    .action(async (casa: string, scheduleId: string, opts: { limit: string }) => {
-      try {
+    .action((casa: string, scheduleId: string, opts: { limit: string }) =>
+      withErrorHandler(deps, async () => {
         const name = casaName(casa);
         const limit = Number(opts.limit);
         const history = await casaScheduleHistory(deps.processManager, name, scheduleId, limit);
@@ -30,15 +31,6 @@ export function registerScheduleHistoryCommand(parent: Command, deps: CommandDep
             r.error ?? "",
           ]),
         );
-      /* v8 ignore start -- MechaError forwarding */
-      } catch (err) {
-        if (err instanceof MechaError) {
-          deps.formatter.error(err.message);
-          process.exitCode = err.exitCode;
-        } else {
-          throw err;
-        }
-      }
-      /* v8 ignore stop */
-    });
+      }),
+    );
 }

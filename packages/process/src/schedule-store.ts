@@ -14,6 +14,7 @@ import {
   type ScheduleState,
   type ScheduleRunResult,
   ScheduleConfigSchema,
+  ScheduleStateSchema,
 } from "@mecha/core";
 
 // --- Atomic write helper ---
@@ -56,7 +57,7 @@ export function writeScheduleConfig(casaDir: string, config: ScheduleConfig): vo
 const SAFE_ID_RE = /^[a-z0-9][a-z0-9-]*$/;
 
 function scheduleDir(casaDir: string, scheduleId: string): string {
-  if (!SAFE_ID_RE.test(scheduleId) || scheduleId.includes("..")) {
+  if (!SAFE_ID_RE.test(scheduleId)) {
     throw new Error(`Invalid schedule ID: "${scheduleId}"`);
   }
   return join(casaDir, "schedules", scheduleId);
@@ -67,7 +68,11 @@ export function readScheduleState(casaDir: string, scheduleId: string): Schedule
   if (!existsSync(statePath)) return undefined;
   try {
     const raw = readFileSync(statePath, "utf-8");
-    return JSON.parse(raw) as ScheduleState;
+    const parsed = ScheduleStateSchema.safeParse(JSON.parse(raw));
+    /* v8 ignore start -- corrupt/invalid state fallback */
+    if (!parsed.success) return undefined;
+    /* v8 ignore stop */
+    return parsed.data;
   /* v8 ignore start -- corrupt file fallback */
   } catch {
     return undefined;

@@ -265,8 +265,3 @@ export const InvalidIntervalError = defError<[string]>(
   (interval) => `Invalid interval: "${interval}" (use format like "30s", "5m", "1h"; min 10s, max 24h)`,
 );
 
-export const ScheduleBudgetExceededError = defError<[number]>(
-  "ScheduleBudgetExceededError",
-  { code: "SCHEDULE_BUDGET_EXCEEDED", statusCode: 429, exitCode: 1 },
-  (limit) => `Daily run budget exceeded (max ${limit} runs/day)`,
-);

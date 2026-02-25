@@ -35,7 +35,6 @@ import {
   ScheduleNotFoundError,
   DuplicateScheduleError,
   InvalidIntervalError,
-  ScheduleBudgetExceededError,
 } from "../src/errors.js";
 
 describe("MechaError base", () => {
@@ -343,14 +342,6 @@ describe("error classes", () => {
       expectedExit: 1,
       expectedCode: "INVALID_INTERVAL",
       messageContains: "2s",
-    },
-    {
-      name: "ScheduleBudgetExceededError",
-      error: new ScheduleBudgetExceededError(50),
-      expectedStatus: 429,
-      expectedExit: 1,
-      expectedCode: "SCHEDULE_BUDGET_EXCEEDED",
-      messageContains: "50",
     },
   ];
 

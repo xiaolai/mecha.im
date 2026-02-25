@@ -1,23 +1,24 @@
 import {
   type ScheduleEntry,
   type ScheduleRunResult,
-  type ScheduleState,
-  type ScheduleConfig,
   SCHEDULE_DEFAULTS,
   ScheduleNotFoundError,
   DuplicateScheduleError,
   InvalidIntervalError,
   parseInterval,
 } from "@mecha/core";
+import { readRunHistory, removeScheduleData } from "@mecha/process";
 import {
-  readScheduleConfig,
-  writeScheduleConfig,
-  readScheduleState,
-  writeScheduleState,
-  appendRunHistory,
-  readRunHistory,
-  removeScheduleData,
-} from "@mecha/process";
+  executeRun,
+  getConfig,
+  saveConfig,
+  getState,
+  saveState,
+  type ScheduleLog,
+  type RunDeps,
+} from "./schedule-runner.js";
+
+export type { ScheduleLog };
 
 export interface ScheduleEngine {
   start(): void;
@@ -37,45 +38,32 @@ export interface ChatFn {
 
 export interface CreateScheduleEngineOpts {
   casaDir: string;
-  casaName: string; // reserved for logging/metrics in future milestones
+  casaName: string;
   chatFn: ChatFn;
   now?: () => number;
+  log?: ScheduleLog;
 }
+
+/* v8 ignore start -- default no-op logger */
+const noopLog: ScheduleLog = () => {};
+/* v8 ignore stop */
 
 export function createScheduleEngine(opts: CreateScheduleEngineOpts): ScheduleEngine {
   const { casaDir, chatFn } = opts;
   const now = opts.now ?? Date.now;
+  const log = opts.log ?? noopLog;
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
   let running = false;
   let activeRun: string | undefined;
 
-  function todayStr(): string {
-    return new Date(now()).toISOString().slice(0, 10);
-  }
-
-  function getConfig(): ScheduleConfig {
-    return readScheduleConfig(casaDir);
-  }
-
-  function saveConfig(config: ScheduleConfig): void {
-    writeScheduleConfig(casaDir, config);
-  }
-
-  function getState(scheduleId: string): ScheduleState {
-    const existing = readScheduleState(casaDir, scheduleId);
-    const today = todayStr();
-    if (!existing) {
-      return { runCount: 0, todayDate: today, runsToday: 0 };
-    }
-    if (existing.todayDate !== today) {
-      return { ...existing, todayDate: today, runsToday: 0 };
-    }
-    return existing;
-  }
-
-  function saveState(scheduleId: string, state: ScheduleState): void {
-    writeScheduleState(casaDir, scheduleId, state);
-  }
+  const runDeps: RunDeps = {
+    casaDir,
+    chatFn,
+    now,
+    log,
+    getActiveRun: () => activeRun,
+    setActiveRun: (id) => { activeRun = id; },
+  };
 
   function clearTimer(scheduleId: string): void {
     const timer = timers.get(scheduleId);
@@ -87,132 +75,13 @@ export function createScheduleEngine(opts: CreateScheduleEngineOpts): ScheduleEn
     /* v8 ignore stop */
   }
 
-  async function executeRun(entry: ScheduleEntry): Promise<ScheduleRunResult> {
-    const config = getConfig();
-    const maxPerDay = config.maxRunsPerDay ?? SCHEDULE_DEFAULTS.MAX_RUNS_PER_DAY;
-
-    const state = getState(entry.id);
-
-    // Budget check — aggregate across all schedules for this CASA
-    // NOTE: O(n) disk reads per run; acceptable for MVP (few schedules); cache in future milestone
-    const totalToday = config.schedules.reduce((sum, s) => {
-      const st = getState(s.id);
-      return sum + st.runsToday;
-    }, 0);
-
-    if (totalToday >= maxPerDay) {
-      const result: ScheduleRunResult = {
-        scheduleId: entry.id,
-        startedAt: new Date(now()).toISOString(),
-        completedAt: new Date(now()).toISOString(),
-        durationMs: 0,
-        outcome: "skipped",
-        error: `Daily budget exceeded (${maxPerDay} runs/day)`,
-      };
-      appendRunHistory(casaDir, entry.id, result);
-      return result;
-    }
-
-    // Concurrency guard
-    const maxConcurrent = config.maxConcurrent ?? SCHEDULE_DEFAULTS.MAX_CONCURRENT;
-    if (activeRun && maxConcurrent <= 1) {
-      const result: ScheduleRunResult = {
-        scheduleId: entry.id,
-        startedAt: new Date(now()).toISOString(),
-        completedAt: new Date(now()).toISOString(),
-        durationMs: 0,
-        outcome: "skipped",
-        error: "Another schedule is already running",
-      };
-      appendRunHistory(casaDir, entry.id, result);
-      return result;
-    }
-
-    const startedAt = new Date(now()).toISOString();
-    activeRun = entry.id;
-
-    let result: ScheduleRunResult;
-    try {
-      const chatResult = await chatFn(entry.prompt);
-      const completedAt = new Date(now()).toISOString();
-
-      if (chatResult.error) {
-        result = {
-          scheduleId: entry.id,
-          startedAt,
-          completedAt,
-          durationMs: chatResult.durationMs,
-          outcome: "error",
-          error: chatResult.error,
-        };
-      } else {
-        result = {
-          scheduleId: entry.id,
-          startedAt,
-          completedAt,
-          durationMs: chatResult.durationMs,
-          outcome: "success",
-        };
-      }
-    } catch (err) {
-      const completedAt = new Date(now()).toISOString();
-      result = {
-        scheduleId: entry.id,
-        startedAt,
-        completedAt,
-        durationMs: now() - new Date(startedAt).getTime(),
-        outcome: "error",
-        error: err instanceof Error ? err.message : String(err),
-      };
-    } finally {
-      activeRun = undefined;
-    }
-
-    // Guard: schedule may have been removed while run was in-flight
-    const postRunConfig = getConfig();
-    /* v8 ignore start -- race guard: schedule removed during in-flight run */
-    if (!postRunConfig.schedules.some((s) => s.id === entry.id)) {
-      return result;
-    }
-    /* v8 ignore stop */
-
-    // Update state
-    const consecutiveErrors = state.consecutiveErrors ?? 0;
-    const newConsecutiveErrors = result.outcome === "error" ? consecutiveErrors + 1 : 0;
-
-    saveState(entry.id, {
-      lastRunAt: result.completedAt,
-      runCount: state.runCount + 1,
-      todayDate: todayStr(),
-      runsToday: state.runsToday + 1,
-      consecutiveErrors: newConsecutiveErrors,
-    });
-    appendRunHistory(casaDir, entry.id, result);
-
-    // Auto-pause after too many consecutive errors
-    if (newConsecutiveErrors >= SCHEDULE_DEFAULTS.MAX_CONSECUTIVE_ERRORS) {
-      const cfg = getConfig();
-      const idx = cfg.schedules.findIndex((s) => s.id === entry.id);
-      /* v8 ignore start -- race guard: schedule removed between check and auto-pause */
-      const target = idx !== -1 ? cfg.schedules[idx] : undefined;
-      if (target) {
-        target.paused = true;
-        saveConfig(cfg);
-        clearTimer(entry.id);
-      }
-      /* v8 ignore stop */
-    }
-
-    return result;
-  }
-
   function armTimer(entry: ScheduleEntry): void {
     clearTimer(entry.id);
     /* v8 ignore start -- callers already check paused/running before calling armTimer */
     if (entry.paused || !running) return;
     /* v8 ignore stop */
 
-    const state = getState(entry.id);
+    const state = getState(casaDir, entry.id, now);
     const delayMs = entry.trigger.intervalMs;
 
     let nextDelay: number;
@@ -230,7 +99,9 @@ export function createScheduleEngine(opts: CreateScheduleEngineOpts): ScheduleEn
     }
 
     const nextRunAt = new Date(now() + nextDelay).toISOString();
-    saveState(entry.id, { ...state, nextRunAt });
+    saveState(casaDir, entry.id, { ...state, nextRunAt });
+
+    log("info", `Arming timer for "${entry.id}"`, { nextRunAt, delayMs: nextDelay });
 
     const timer = setTimeout(async () => {
       timers.delete(entry.id);
@@ -239,18 +110,18 @@ export function createScheduleEngine(opts: CreateScheduleEngineOpts): ScheduleEn
       /* v8 ignore stop */
 
       // Re-read config in case it was modified
-      const currentConfig = getConfig();
+      const currentConfig = getConfig(casaDir);
       const currentEntry = currentConfig.schedules.find((s) => s.id === entry.id);
       /* v8 ignore start -- race guard: schedule removed/paused between arm and fire */
       if (!currentEntry || currentEntry.paused) return;
       /* v8 ignore stop */
 
-      await executeRun(currentEntry);
+      await executeRun(currentEntry, runDeps);
 
       // Schedule next (chained setTimeout, not setInterval — prevents overlap)
       /* v8 ignore start -- re-arm guard: check running + schedule still exists */
       if (running) {
-        const freshConfig = getConfig();
+        const freshConfig = getConfig(casaDir);
         const freshEntry = freshConfig.schedules.find((s) => s.id === entry.id);
         if (freshEntry && !freshEntry.paused) {
           armTimer(freshEntry);
@@ -265,7 +136,8 @@ export function createScheduleEngine(opts: CreateScheduleEngineOpts): ScheduleEn
   return {
     start() {
       running = true;
-      const config = getConfig();
+      const config = getConfig(casaDir);
+      log("info", `Starting scheduler: ${config.schedules.length} schedule(s)`);
       for (const entry of config.schedules) {
         if (!entry.paused) {
           armTimer(entry);
@@ -275,13 +147,14 @@ export function createScheduleEngine(opts: CreateScheduleEngineOpts): ScheduleEn
 
     stop() {
       running = false;
+      log("info", "Stopping scheduler");
       for (const [id] of timers) {
         clearTimer(id);
       }
     },
 
     addSchedule(entry: ScheduleEntry) {
-      const config = getConfig();
+      const config = getConfig(casaDir);
       if (config.schedules.some((s) => s.id === entry.id)) {
         throw new DuplicateScheduleError(entry.id);
       }
@@ -293,7 +166,7 @@ export function createScheduleEngine(opts: CreateScheduleEngineOpts): ScheduleEn
       }
 
       config.schedules.push(entry);
-      saveConfig(config);
+      saveConfig(casaDir, config);
 
       if (running && !entry.paused) {
         armTimer(entry);
@@ -301,18 +174,18 @@ export function createScheduleEngine(opts: CreateScheduleEngineOpts): ScheduleEn
     },
 
     removeSchedule(scheduleId: string) {
-      const config = getConfig();
+      const config = getConfig(casaDir);
       const idx = config.schedules.findIndex((s) => s.id === scheduleId);
       if (idx === -1) throw new ScheduleNotFoundError(scheduleId);
 
       config.schedules.splice(idx, 1);
-      saveConfig(config);
+      saveConfig(casaDir, config);
       clearTimer(scheduleId);
       removeScheduleData(casaDir, scheduleId);
     },
 
     pauseSchedule(scheduleId?: string) {
-      const config = getConfig();
+      const config = getConfig(casaDir);
       if (scheduleId) {
         const entry = config.schedules.find((s) => s.id === scheduleId);
         if (!entry) throw new ScheduleNotFoundError(scheduleId);
@@ -324,11 +197,11 @@ export function createScheduleEngine(opts: CreateScheduleEngineOpts): ScheduleEn
           clearTimer(entry.id);
         }
       }
-      saveConfig(config);
+      saveConfig(casaDir, config);
     },
 
     resumeSchedule(scheduleId?: string) {
-      const config = getConfig();
+      const config = getConfig(casaDir);
       if (scheduleId) {
         const entry = config.schedules.find((s) => s.id === scheduleId);
         if (!entry) throw new ScheduleNotFoundError(scheduleId);
@@ -342,15 +215,15 @@ export function createScheduleEngine(opts: CreateScheduleEngineOpts): ScheduleEn
           /* v8 ignore stop */
         }
       }
-      saveConfig(config);
+      saveConfig(casaDir, config);
     },
 
     listSchedules() {
-      return getConfig().schedules;
+      return getConfig(casaDir).schedules;
     },
 
     getHistory(scheduleId: string, limit?: number) {
-      const config = getConfig();
+      const config = getConfig(casaDir);
       if (!config.schedules.some((s) => s.id === scheduleId)) {
         throw new ScheduleNotFoundError(scheduleId);
       }
@@ -358,10 +231,10 @@ export function createScheduleEngine(opts: CreateScheduleEngineOpts): ScheduleEn
     },
 
     async triggerNow(scheduleId: string) {
-      const config = getConfig();
+      const config = getConfig(casaDir);
       const entry = config.schedules.find((s) => s.id === scheduleId);
       if (!entry) throw new ScheduleNotFoundError(scheduleId);
-      return executeRun(entry);
+      return executeRun(entry, runDeps);
     },
   };
 }

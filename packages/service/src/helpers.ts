@@ -1,4 +1,4 @@
-import { type CasaName, CasaNotFoundError, CasaNotRunningError, DEFAULTS } from "@mecha/core";
+import { type CasaName, CasaNotFoundError, CasaNotRunningError, MechaError, DEFAULTS } from "@mecha/core";
 import type { ProcessManager } from "@mecha/process";
 
 /**
@@ -27,6 +27,22 @@ export interface RuntimeFetchResult {
   status: number;
   body: unknown;
   raw: Response;
+}
+
+/**
+ * Throws MechaError if the runtime response indicates failure (status >= 400).
+ * Extracts error message from JSON body or falls back to a generic message.
+ */
+export function assertOk(result: RuntimeFetchResult, code: string): void {
+  if (result.status >= 400) {
+    const body = result.body as { error?: string };
+    throw new MechaError(
+      /* v8 ignore start -- fallback when error field missing */
+      body?.error ?? `Request failed: ${result.status}`,
+      /* v8 ignore stop */
+      { code, statusCode: result.status, exitCode: 1 },
+    );
+  }
 }
 
 /**

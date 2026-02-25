@@ -52,7 +52,6 @@ export {
   ScheduleNotFoundError,
   DuplicateScheduleError,
   InvalidIntervalError,
-  ScheduleBudgetExceededError,
 } from "./errors.js";
 export {
   CasaSpawnInput,

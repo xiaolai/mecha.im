@@ -1,6 +1,6 @@
 // @mecha/service — business logic layer
 
-export { resolveCasaEndpoint, runtimeFetch } from "./helpers.js";
+export { resolveCasaEndpoint, runtimeFetch, assertOk } from "./helpers.js";
 export type { RuntimeFetchOpts, RuntimeFetchResult } from "./helpers.js";
 export { casaStatus, casaFind, casaConfigure } from "./casa.js";
 export type { FindResult } from "./casa.js";

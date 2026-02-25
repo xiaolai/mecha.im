@@ -1,7 +1,8 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
-import { casaName, MechaError } from "@mecha/core";
+import { casaName } from "@mecha/core";
 import { casaScheduleAdd } from "@mecha/service";
+import { withErrorHandler } from "../error-handler.js";
 
 export function registerScheduleAddCommand(parent: Command, deps: CommandDeps): void {
   parent
@@ -11,8 +12,8 @@ export function registerScheduleAddCommand(parent: Command, deps: CommandDeps): 
     .requiredOption("--id <id>", "Schedule ID (lowercase, alphanumeric, hyphens)")
     .requiredOption("--every <interval>", 'Interval (e.g. "30s", "5m", "1h")')
     .requiredOption("--prompt <prompt>", "Prompt to send on each run")
-    .action(async (casa: string, opts: { id: string; every: string; prompt: string }) => {
-      try {
+    .action((casa: string, opts: { id: string; every: string; prompt: string }) =>
+      withErrorHandler(deps, async () => {
         const name = casaName(casa);
         await casaScheduleAdd(deps.processManager, name, {
           id: opts.id,
@@ -20,15 +21,6 @@ export function registerScheduleAddCommand(parent: Command, deps: CommandDeps): 
           prompt: opts.prompt,
         });
         deps.formatter.success(`Schedule "${opts.id}" added to ${casa} (every ${opts.every})`);
-      /* v8 ignore start -- MechaError forwarding */
-      } catch (err) {
-        if (err instanceof MechaError) {
-          deps.formatter.error(err.message);
-          process.exitCode = err.exitCode;
-        } else {
-          throw err;
-        }
-      }
-      /* v8 ignore stop */
-    });
+      }),
+    );
 }

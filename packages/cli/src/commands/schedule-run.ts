@@ -1,7 +1,8 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
-import { casaName, MechaError } from "@mecha/core";
+import { casaName } from "@mecha/core";
 import { casaScheduleRun } from "@mecha/service";
+import { withErrorHandler } from "../error-handler.js";
 
 export function registerScheduleRunCommand(parent: Command, deps: CommandDeps): void {
   parent
@@ -9,8 +10,8 @@ export function registerScheduleRunCommand(parent: Command, deps: CommandDeps): 
     .description("Trigger a schedule immediately")
     .argument("<casa>", "CASA name")
     .argument("<schedule-id>", "Schedule ID to trigger")
-    .action(async (casa: string, scheduleId: string) => {
-      try {
+    .action((casa: string, scheduleId: string) =>
+      withErrorHandler(deps, async () => {
         const name = casaName(casa);
         const result = await casaScheduleRun(deps.processManager, name, scheduleId);
         if (result.outcome === "success") {
@@ -21,15 +22,6 @@ export function registerScheduleRunCommand(parent: Command, deps: CommandDeps): 
           deps.formatter.error(`Run failed: ${result.error}`);
           process.exitCode = 1;
         }
-      /* v8 ignore start -- MechaError forwarding */
-      } catch (err) {
-        if (err instanceof MechaError) {
-          deps.formatter.error(err.message);
-          process.exitCode = err.exitCode;
-        } else {
-          throw err;
-        }
-      }
-      /* v8 ignore stop */
-    });
+      }),
+    );
 }

@@ -1,7 +1,8 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
-import { casaName, MechaError } from "@mecha/core";
+import { casaName } from "@mecha/core";
 import { casaScheduleList } from "@mecha/service";
+import { withErrorHandler } from "../error-handler.js";
 
 export function registerScheduleListCommand(parent: Command, deps: CommandDeps): void {
   parent
@@ -9,8 +10,8 @@ export function registerScheduleListCommand(parent: Command, deps: CommandDeps):
     .alias("ls")
     .description("List schedules for a CASA")
     .argument("<casa>", "CASA name")
-    .action(async (casa: string) => {
-      try {
+    .action((casa: string) =>
+      withErrorHandler(deps, async () => {
         const name = casaName(casa);
         const schedules = await casaScheduleList(deps.processManager, name);
 
@@ -28,15 +29,6 @@ export function registerScheduleListCommand(parent: Command, deps: CommandDeps):
             s.paused ? "yes" : "no",
           ]),
         );
-      /* v8 ignore start -- MechaError forwarding */
-      } catch (err) {
-        if (err instanceof MechaError) {
-          deps.formatter.error(err.message);
-          process.exitCode = err.exitCode;
-        } else {
-          throw err;
-        }
-      }
-      /* v8 ignore stop */
-    });
+      }),
+    );
 }
