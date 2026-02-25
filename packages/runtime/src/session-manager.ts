@@ -68,6 +68,7 @@ export function createSessionManager(
     try {
       return JSON.parse(readFileSync(path, "utf-8")) as StoredMeta;
     } catch {
+      console.error(`[mecha] Corrupt session metadata: ${path}`);
       return undefined;
     }
   }
@@ -76,9 +77,12 @@ export function createSessionManager(
     let files: string[];
     try {
       files = readdirSync(projectsDir);
-    } catch {
+    /* v8 ignore start -- directory read failure fallback */
+    } catch (err) {
+      console.error(`[mecha] Failed to read sessions directory: ${err instanceof Error ? err.message : String(err)}`);
       return [];
     }
+    /* v8 ignore stop */
 
     const metas: SessionMeta[] = [];
     for (const file of files) {
@@ -128,13 +132,18 @@ export function createSessionManager(
     const path = _transcriptPath(id);
 
     // Guard: reject missing or excessively large transcripts.
-    // Using sync read eliminates the TOCTOU gap between stat and read.
+    // stat + read are separate syscalls (small TOCTOU window), but acceptable for local-first use.
     let content: string;
     try {
       const st = statSync(path);
       if (st.size > DEFAULTS.MAX_TRANSCRIPT_BYTES) return [];
       content = readFileSync(path, "utf-8").trim();
-    } catch { return []; }
+    /* v8 ignore start -- IO error reading transcript file */
+    } catch (err) {
+      console.error(`[mecha] Failed to read transcript: ${err instanceof Error ? err.message : String(err)}`);
+      return [];
+    }
+    /* v8 ignore stop */
     if (!content) return [];
 
     const events: TranscriptEvent[] = [];

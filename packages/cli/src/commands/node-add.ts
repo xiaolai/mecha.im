@@ -14,6 +14,7 @@ export function registerNodeAddCommand(parent: Command, deps: CommandDeps): void
       const port = parsePort(opts.port);
       if (port === undefined) {
         deps.formatter.error(`Invalid port: ${opts.port}`);
+        process.exitCode = 1;
         return;
       }
       addNode(deps.mechaDir, {

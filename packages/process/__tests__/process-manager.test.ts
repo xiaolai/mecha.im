@@ -399,7 +399,7 @@ describe("createProcessManager", () => {
   });
 
   it("getPortAndToken recovers port+token from config.json when CASA is alive but not in live Map", () => {
-    const { writeFileSync: wf } = require("node:fs");
+
     const casaDir = join(tempDir, "recover-me");
 
     // Write state showing running with current process PID (alive)
@@ -413,7 +413,7 @@ describe("createProcessManager", () => {
     });
 
     // Write config.json with port+token
-    wf(join(casaDir, "config.json"), JSON.stringify({
+    writeFileSync(join(casaDir, "config.json"), JSON.stringify({
       port: 7777,
       token: "mecha_recovered_token",
       workspace: "/tmp",
@@ -429,7 +429,7 @@ describe("createProcessManager", () => {
   });
 
   it("getPortAndToken returns undefined when CASA state is running but PID is dead", () => {
-    const { writeFileSync: wf } = require("node:fs");
+
     const casaDir = join(tempDir, "dead-recover");
 
     writeState(casaDir, {
@@ -441,7 +441,7 @@ describe("createProcessManager", () => {
       startedAt: "2026-01-01T00:00:00Z",
     });
 
-    wf(join(casaDir, "config.json"), JSON.stringify({
+    writeFileSync(join(casaDir, "config.json"), JSON.stringify({
       port: 7778,
       token: "mecha_dead_token",
       workspace: "/tmp",
@@ -470,7 +470,7 @@ describe("createProcessManager", () => {
   });
 
   it("getPortAndToken returns undefined when config.json is malformed", () => {
-    const { writeFileSync: wf } = require("node:fs");
+
     const casaDir = join(tempDir, "bad-config");
 
     writeState(casaDir, {
@@ -482,7 +482,7 @@ describe("createProcessManager", () => {
       startedAt: "2026-01-01T00:00:00Z",
     });
 
-    wf(join(casaDir, "config.json"), "not-valid-json{{{");
+    writeFileSync(join(casaDir, "config.json"), "not-valid-json{{{");
 
     const pm = createProcessManager({ mechaDir: tempDir });
     expect(pm.getPortAndToken("bad-config" as CasaName)).toBeUndefined();
@@ -1023,8 +1023,7 @@ describe("createProcessManager", () => {
     // Create a CASA with a log file that has content
     const casaDir = join(tempDir, "with-logs");
     mkdirSync(join(casaDir, "logs"), { recursive: true });
-    const { writeFileSync: wf } = await import("node:fs");
-    wf(join(casaDir, "logs", "stdout.log"), "line 1\nline 2\n");
+    writeFileSync(join(casaDir, "logs", "stdout.log"), "line 1\nline 2\n");
     writeState(casaDir, {
       name: "with-logs",
       state: "stopped",

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { mkdtempSync, existsSync } from "node:fs";
+import { mkdtempSync, existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { loadAcl, saveAcl } from "../../src/acl/persistence.js";
@@ -44,24 +44,21 @@ describe("saveAcl + loadAcl round-trip", () => {
   });
 
   it("returns empty for corrupt JSON", () => {
-    const { writeFileSync } = require("node:fs");
-    const { join } = require("node:path");
+
     writeFileSync(join(mechaDir, "acl.json"), "not-json{{{");
     const loaded = loadAcl(mechaDir);
     expect(loaded).toEqual({ version: 1, rules: [] });
   });
 
   it("returns empty for valid JSON with invalid schema", () => {
-    const { writeFileSync } = require("node:fs");
-    const { join } = require("node:path");
+
     writeFileSync(join(mechaDir, "acl.json"), JSON.stringify({ version: "bad", rules: [] }));
     const loaded = loadAcl(mechaDir);
     expect(loaded).toEqual({ version: 1, rules: [] });
   });
 
   it("returns empty when rules contain invalid capabilities", () => {
-    const { writeFileSync } = require("node:fs");
-    const { join } = require("node:path");
+
     writeFileSync(join(mechaDir, "acl.json"), JSON.stringify({
       version: 1,
       rules: [{ source: "a", target: "b", capabilities: ["bogus_cap"] }],
@@ -71,8 +68,7 @@ describe("saveAcl + loadAcl round-trip", () => {
   });
 
   it("returns empty when rule missing source", () => {
-    const { writeFileSync } = require("node:fs");
-    const { join } = require("node:path");
+
     writeFileSync(join(mechaDir, "acl.json"), JSON.stringify({
       version: 1,
       rules: [{ target: "b", capabilities: ["query"] }],
@@ -82,16 +78,14 @@ describe("saveAcl + loadAcl round-trip", () => {
   });
 
   it("returns empty when rules field is not an array", () => {
-    const { writeFileSync } = require("node:fs");
-    const { join } = require("node:path");
+
     writeFileSync(join(mechaDir, "acl.json"), JSON.stringify({ version: 1, rules: "not-array" }));
     const loaded = loadAcl(mechaDir);
     expect(loaded).toEqual({ version: 1, rules: [] });
   });
 
   it("returns empty when rule capabilities is not an array", () => {
-    const { writeFileSync } = require("node:fs");
-    const { join } = require("node:path");
+
     writeFileSync(join(mechaDir, "acl.json"), JSON.stringify({
       version: 1,
       rules: [{ source: "a", target: "b", capabilities: "query" }],
@@ -101,8 +95,7 @@ describe("saveAcl + loadAcl round-trip", () => {
   });
 
   it("returns empty when rule is null", () => {
-    const { writeFileSync } = require("node:fs");
-    const { join } = require("node:path");
+
     writeFileSync(join(mechaDir, "acl.json"), JSON.stringify({
       version: 1,
       rules: [null],
@@ -112,8 +105,7 @@ describe("saveAcl + loadAcl round-trip", () => {
   });
 
   it("returns empty when data is null JSON", () => {
-    const { writeFileSync } = require("node:fs");
-    const { join } = require("node:path");
+
     writeFileSync(join(mechaDir, "acl.json"), "null");
     const loaded = loadAcl(mechaDir);
     expect(loaded).toEqual({ version: 1, rules: [] });

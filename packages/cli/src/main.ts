@@ -24,7 +24,8 @@ const sandbox = createSandbox();
 const processManager = createProcessManager({ mechaDir, runtimeEntrypoint, sandbox });
 
 const acl = createAclEngine({ mechaDir });
-const deps: CommandDeps = { formatter, processManager, mechaDir, acl, sandbox };
+const shutdownHooks: Array<() => Promise<void>> = [];
+const deps: CommandDeps = { formatter, processManager, mechaDir, acl, sandbox, registerShutdownHook: (fn) => { shutdownHooks.push(fn); } };
 const program = createProgram(deps);
 
 // Graceful shutdown: only stop CASAs that this CLI process spawned (in-memory live map).
@@ -33,15 +34,33 @@ let shuttingDown = false;
 function shutdown() {
   if (shuttingDown) return;
   shuttingDown = true;
-  // Only stop CASAs with a live child process handle (spawned by this CLI invocation)
-  const live = processManager.list().filter((p) => p.state === "running" && p.token);
-  if (live.length > 0) {
-    Promise.allSettled(live.map((p) => processManager.stop(p.name)))
-      .then(() => { process.exit(0); })
-      .catch(() => { process.exit(1); });
-  } else {
-    process.exit(0);
-  }
+  // Run registered shutdown hooks first (e.g., agent server close)
+  // Wrap each via Promise.resolve().then() to catch sync throws
+  Promise.allSettled(shutdownHooks.map((fn) => Promise.resolve().then(fn))).then((hookResults) => {
+    for (const r of hookResults) {
+      if (r.status === "rejected") {
+        console.error("Shutdown hook error:", r.reason instanceof Error ? r.reason.message : String(r.reason));
+      }
+    }
+    // Only stop CASAs with a live child process handle (spawned by this CLI invocation)
+    const live = processManager.list().filter((p) => p.state === "running" && p.token);
+    if (live.length > 0) {
+      Promise.allSettled(live.map((p) => processManager.stop(p.name)))
+        .then((results) => {
+          const failed = results.some((r) => r.status === "rejected");
+          if (failed) {
+            for (const r of results) {
+              if (r.status === "rejected") {
+                console.error("Shutdown error:", r.reason instanceof Error ? r.reason.message : String(r.reason));
+              }
+            }
+          }
+          process.exit(failed ? 1 : 0);
+        });
+    } else {
+      process.exit(0);
+    }
+  });
 }
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);

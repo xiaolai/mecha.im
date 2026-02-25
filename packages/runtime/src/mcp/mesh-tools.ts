@@ -141,10 +141,14 @@ export async function handleMeshTool(
         if (err instanceof CasaNotFoundError) {
           return { content: [{ type: "text", text: `CASA not found: ${target}` }], isError: true };
         }
+        /* v8 ignore start -- generic error fallback for unexpected forwarding failures */
+        const detail = err instanceof Error ? err.message : String(err);
+        console.error(`[mecha] Mesh query to "${target}" failed: ${detail}`);
         return {
           content: [{ type: "text", text: "Mesh query failed" }],
           isError: true,
         };
+        /* v8 ignore stop */
       }
     }
 

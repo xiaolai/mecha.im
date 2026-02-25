@@ -1,8 +1,9 @@
-import { existsSync, readFileSync, writeFileSync, renameSync } from "node:fs";
+import { writeFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 import type { AclRule, Capability } from "./types.js";
 import { isCapability } from "./types.js";
+import { safeReadJson } from "../safe-read.js";
 
 export interface AclData {
   version: number;
@@ -28,16 +29,18 @@ function isAclData(v: unknown): v is AclData {
 /** Load ACL rules from mechaDir/acl.json. Returns empty if missing. */
 export function loadAcl(mechaDir: string): AclData {
   const aclPath = join(mechaDir, "acl.json");
-  if (!existsSync(aclPath)) return { version: 1, rules: [] };
-  try {
-    const parsed: unknown = JSON.parse(readFileSync(aclPath, "utf-8"));
-    if (!isAclData(parsed)) return { version: 1, rules: [] };
-    return parsed;
-  /* v8 ignore start -- corrupt file fallback */
-  } catch {
+  const result = safeReadJson<unknown>(aclPath, "ACL rules");
+  if (!result.ok) {
+    if (result.reason !== "missing") {
+      console.error(`[mecha] ${result.detail}`);
+    }
     return { version: 1, rules: [] };
   }
-  /* v8 ignore stop */
+  if (!isAclData(result.data)) {
+    console.error(`[mecha] ACL rules: schema validation failed`);
+    return { version: 1, rules: [] };
+  }
+  return result.data;
 }
 
 /** Save ACL rules to mechaDir/acl.json (atomic write). */

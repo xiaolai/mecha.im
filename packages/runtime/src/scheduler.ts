@@ -116,7 +116,13 @@ export function createScheduleEngine(opts: CreateScheduleEngineOpts): ScheduleEn
       if (!currentEntry || currentEntry.paused) return;
       /* v8 ignore stop */
 
-      await executeRun(currentEntry, runDeps);
+      try {
+        await executeRun(currentEntry, runDeps);
+      /* v8 ignore start -- defensive: prevents unhandled rejection crash (e.g. ENOSPC) */
+      } catch (err) {
+        log("error", `Schedule "${entry.id}" unhandled error`, { error: err instanceof Error ? err.message : String(err) });
+      }
+      /* v8 ignore stop */
 
       // Schedule next (chained setTimeout, not setInterval — prevents overlap)
       /* v8 ignore start -- re-arm guard: check running + schedule still exists */

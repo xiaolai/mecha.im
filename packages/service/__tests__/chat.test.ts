@@ -60,6 +60,19 @@ describe("casaChat", () => {
     expect(doneEvents).toHaveLength(1);
   });
 
+  it("streams chat events with external AbortSignal", async () => {
+    const ac = new AbortController();
+    const stream = await casaChat(pm, CASA, { message: "Hello world" }, ac.signal);
+    const events: Array<{ type: string }> = [];
+
+    for await (const event of stream) {
+      events.push(event);
+    }
+
+    expect(events.length).toBeGreaterThan(0);
+    expect(events.filter((e) => e.type === "done")).toHaveLength(1);
+  });
+
   it("throws CasaNotFoundError for unknown CASA", async () => {
     const badPm = {
       ...pm,

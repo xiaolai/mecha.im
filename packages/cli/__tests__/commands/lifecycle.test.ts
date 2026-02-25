@@ -8,6 +8,8 @@ import { makeDeps } from "../test-utils.js";
 import type { ProcessManager, ProcessInfo } from "@mecha/process";
 import type { CasaName } from "@mecha/core";
 
+afterEach(() => { process.exitCode = undefined as unknown as number; });
+
 const RUNNING_INFO: ProcessInfo = {
   name: "test" as CasaName,
   state: "running",
@@ -62,7 +64,7 @@ describe("spawn command", () => {
     await program.parseAsync(["node", "mecha", "spawn", "test", "/ws", "--port", "abc"]);
     expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("Port must be"));
     expect(process.exitCode).toBe(1);
-    process.exitCode = undefined as unknown as number;
+
   });
 
   it("spawns with tags option", async () => {
@@ -84,7 +86,7 @@ describe("spawn command", () => {
     await program.parseAsync(["node", "mecha", "spawn", "test", "/ws", "--tags", "has space,ok"]);
     expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("invalid characters"));
     expect(process.exitCode).toBe(1);
-    process.exitCode = undefined as unknown as number;
+
   });
 
   it("spawns with auth option", async () => {
@@ -117,7 +119,7 @@ describe("spawn command", () => {
     await program.parseAsync(["node", "mecha", "spawn", "test", "/ws", "--expose", "bogus"]);
     expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("Invalid capability"));
     expect(process.exitCode).toBe(1);
-    process.exitCode = undefined as unknown as number;
+
   });
 
   it("spawns with sandbox mode option", async () => {
@@ -139,7 +141,7 @@ describe("spawn command", () => {
     await program.parseAsync(["node", "mecha", "spawn", "test", "/ws", "--sandbox", "bogus"]);
     expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("Sandbox mode must be"));
     expect(process.exitCode).toBe(1);
-    process.exitCode = undefined as unknown as number;
+
   });
 
   it("subscribes to warning events during spawn", async () => {
@@ -149,7 +151,8 @@ describe("spawn command", () => {
     program.exitOverride();
 
     await program.parseAsync(["node", "mecha", "spawn", "test", "/ws"]);
-    expect(onEventMock).toHaveBeenCalled();
+    expect(onEventMock).toHaveBeenCalledWith(expect.any(Function));
+    expect(deps.formatter.success).toHaveBeenCalledWith(expect.stringContaining("Spawned"));
   });
 });
 
@@ -530,7 +533,7 @@ describe("logs command", () => {
     await program.parseAsync(["node", "mecha", "logs", "test", "-n", "abc"]);
     expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("Tail must be"));
     expect(process.exitCode).toBe(1);
-    process.exitCode = undefined as unknown as number;
+
   });
 
   it("passes follow and tail options", async () => {

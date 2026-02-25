@@ -91,12 +91,18 @@ export function prepareCasaFilesystem(opts: CasaFilesystemOpts): CasaFilesystemR
   writeFileSync(join(claudeDir, "settings.json"), JSON.stringify(settings, null, 2) + "\n");
 
   // Write hook scripts — hooks receive JSON on stdin per Claude Code PreToolUse spec
+  // Use Node.js one-liner for JSON parsing (no jq dependency, no grep/sed injection risk)
   const sandboxGuard = `#!/bin/bash
 # Sandbox guard: block file access outside CASA root
 # Claude Code PreToolUse hooks receive JSON on stdin with tool_name + tool_input
 INPUT=$(cat)
-# Extract the path from tool_input (handles Read, Write, Edit, Glob, Grep)
-TARGET=$(echo "$INPUT" | grep -o '"\\(file_path\\|path\\|pattern\\|directory\\)"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"\\([^"]*\\)"$/\\1/')
+# Parse JSON structurally via Node.js to extract the path field
+TARGET=$(echo "$INPUT" | node -e "
+  const d=JSON.parse(require('fs').readFileSync(0,'utf8'));
+  const i=d.tool_input||{};
+  const p=i.file_path||i.path||i.directory||'';
+  process.stdout.write(String(p));
+" 2>/dev/null)
 if [ -z "$TARGET" ]; then
   exit 2  # No path extracted — deny by default (fail-closed)
 fi
@@ -112,15 +118,11 @@ case "$RESOLVED" in
 esac
 `;
   const bashGuard = `#!/bin/bash
-# Bash guard: enforce workspace context for Bash tool calls
+# Bash guard: validate Bash tool calls
 # Claude Code PreToolUse hooks receive JSON on stdin with tool_input.command
-INPUT=$(cat)
-COMMAND=$(echo "$INPUT" | grep -o '"command"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"\\([^"]*\\)"$/\\1/')
-if [ -z "$COMMAND" ]; then
-  exit 0
-fi
-# Prefix command with cd to workspace (output on stdout tells Claude Code to use this)
-echo "cd \\"$MECHA_WORKSPACE\\" && $COMMAND"
+# Exit 0 = allow command as-is, Exit 2 = block
+# CWD is already set to workspace by spawn pipeline — allow all commands
+exit 0
 `;
   writeFileSync(join(hooksDir, "sandbox-guard.sh"), sandboxGuard, { mode: 0o755 });
   writeFileSync(join(hooksDir, "bash-guard.sh"), bashGuard, { mode: 0o755 });
@@ -130,6 +132,10 @@ echo "cd \\"$MECHA_WORKSPACE\\" && $COMMAND"
   const reservedKeys = new Set([
     "MECHA_CASA_NAME", "MECHA_PORT", "MECHA_WORKSPACE", "MECHA_PROJECTS_DIR",
     "MECHA_AUTH_TOKEN", "MECHA_LOG_DIR", "MECHA_SANDBOX_ROOT", "MECHA_DIR", "HOME", "TMPDIR",
+    // Block PATH (we construct our own), shell startup vars, and dangerous Node.js/linker env vars
+    "PATH", "BASH_ENV", "ENV", "BASH_FUNC_%%",
+    "NODE_OPTIONS", "NODE_PATH", "NODE_DEBUG", "NODE_EXTRA_CA_CERTS", "NODE_REDIRECT_WARNINGS",
+    "LD_PRELOAD", "LD_LIBRARY_PATH", "DYLD_INSERT_LIBRARIES", "DYLD_LIBRARY_PATH",
   ]);
   const safeUserEnv: Record<string, string> = {};
   for (const [k, v] of Object.entries(resolvedUserEnv)) {

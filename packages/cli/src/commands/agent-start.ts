@@ -12,9 +12,15 @@ export function registerAgentStartCommand(parent: Command, deps: CommandDeps): v
       const port = parsePort(opts.port);
       if (port === undefined) {
         deps.formatter.error(`Invalid port: ${opts.port}`);
+        process.exitCode = 1;
         return;
       }
-      const apiKey = opts.apiKey;
+      const apiKey = opts.apiKey.trim();
+      if (!apiKey) {
+        deps.formatter.error("API key must not be empty");
+        process.exitCode = 1;
+        return;
+      }
 
       // Lazy import to avoid pulling in fastify when not needed
       const { createAgentServer } = await import("@mecha/agent");
@@ -30,11 +36,9 @@ export function registerAgentStartCommand(parent: Command, deps: CommandDeps): v
         nodeName,
       });
 
-      /* v8 ignore start -- signal handlers only fire in real process */
-      const shutdown = async () => { await server.close(); };
+      /* v8 ignore start -- shutdown hook only fires on process signal */
+      deps.registerShutdownHook?.(() => server.close());
       /* v8 ignore stop */
-      process.once("SIGTERM", shutdown);
-      process.once("SIGINT", shutdown);
 
       await server.listen({ port, host: "0.0.0.0" });
       deps.formatter.success(`Agent server started on port ${port} (node: ${nodeName})`);

@@ -38,12 +38,7 @@ export function createLocator(opts: CreateLocatorOpts): MechaLocator {
           return { location: "local", port: config.port, token: config.token };
         }
 
-        // Not running locally — check if config exists (stopped CASA)
-        const config = readCasaConfig(join(mechaDir, target.casa));
-        if (config) {
-          return { location: "local", port: config.port, token: config.token };
-        }
-
+        // CASA exists but is not running — don't return stale port/token
         return { location: "not_found" };
       }
 

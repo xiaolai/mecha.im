@@ -10,6 +10,7 @@ describe("auth commands", () => {
 
   afterEach(() => {
     if (tempDir) rmSync(tempDir, { recursive: true, force: true });
+    process.exitCode = undefined as unknown as number;
   });
 
   function setup(): { mechaDir: string; deps: CommandDeps } {
@@ -28,7 +29,7 @@ describe("auth commands", () => {
     await program.parseAsync(["node", "mecha", "auth", "add", "bad", "--oauth", "--api-key", "--token", "tok"]);
     expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("Cannot use both"));
     expect(process.exitCode).toBe(1);
-    process.exitCode = undefined as unknown as number;
+
   });
 
   it("adds an auth profile", async () => {
@@ -67,7 +68,7 @@ describe("auth commands", () => {
     await program.parseAsync(["node", "mecha", "auth", "add", "empty-tok", "--oauth"]);
     expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("Token is required"));
     expect(process.exitCode).toBe(1);
-    process.exitCode = undefined as unknown as number;
+
   });
 
   it("lists profiles with default and non-default", async () => {
@@ -145,7 +146,7 @@ describe("auth commands", () => {
     await program.parseAsync(["node", "mecha", "auth", "add", "empty", "--oauth", "--token", ""]);
     expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("Token is required"));
     expect(process.exitCode).toBe(1);
-    process.exitCode = undefined as unknown as number;
+
   });
 
   it("reports invalid profile via auth test", async () => {
@@ -159,7 +160,7 @@ describe("auth commands", () => {
     await program.parseAsync(["node", "mecha", "auth", "test", "empty"]);
     expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("invalid"));
     expect(process.exitCode).toBe(1);
-    process.exitCode = undefined as unknown as number;
+
   });
 
   it("renews a token", async () => {

@@ -8,6 +8,8 @@
   "references": [
     { "path": "../core" },
     { "path": "../agent" },
-    { "path": "../sandbox" }
+    { "path": "../sandbox" },
+    { "path": "../service" },
+    { "path": "../process" }
   ]
 }

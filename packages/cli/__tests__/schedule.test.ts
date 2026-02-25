@@ -105,9 +105,9 @@ describe("schedule commands", () => {
       },
     ]);
     await run(["schedule", "list", "alice"]);
-    expect(casaScheduleList).toHaveBeenCalled();
-    expect(deps.formatter.table).toHaveBeenCalled();
+    expect(casaScheduleList).toHaveBeenCalledWith(deps.processManager, "alice");
     const tableCall = (deps.formatter.table as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(tableCall[0]).toEqual(expect.arrayContaining(["ID"]));
     const rows = tableCall[1] as string[][];
     expect(rows[0]![2]).toContain("...");
     expect(rows[0]![3]).toBe("yes");
@@ -123,12 +123,13 @@ describe("schedule commands", () => {
   it("schedule remove calls casaScheduleRemove", async () => {
     await run(["schedule", "remove", "alice", "test-sched"]);
     expect(casaScheduleRemove).toHaveBeenCalledWith(deps.processManager, "alice", "test-sched");
-    expect(deps.formatter.success).toHaveBeenCalled();
+    expect(deps.formatter.success).toHaveBeenCalledWith(expect.stringContaining("test-sched"));
   });
 
   it("schedule pause calls casaSchedulePause", async () => {
     await run(["schedule", "pause", "alice", "test-sched"]);
     expect(casaSchedulePause).toHaveBeenCalledWith(deps.processManager, "alice", "test-sched");
+    expect(deps.formatter.success).toHaveBeenCalledWith(expect.stringContaining("test-sched"));
   });
 
   it("schedule pause all calls casaSchedulePause without id", async () => {
@@ -179,7 +180,11 @@ describe("schedule commands", () => {
     ]);
     await run(["schedule", "history", "alice", "test-sched"]);
     expect(casaScheduleHistory).toHaveBeenCalledWith(deps.processManager, "alice", "test-sched", 20);
-    expect(deps.formatter.table).toHaveBeenCalled();
+    const tableCall = (deps.formatter.table as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(tableCall[0]).toEqual(expect.arrayContaining(["Outcome"]));
+    const rows = tableCall[1] as string[][];
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toEqual(expect.arrayContaining(["success"]));
   });
 
   it("schedule history shows info when empty", async () => {
@@ -190,5 +195,27 @@ describe("schedule commands", () => {
   it("schedule history respects --limit", async () => {
     await run(["schedule", "history", "alice", "test-sched", "--limit", "5"]);
     expect(casaScheduleHistory).toHaveBeenCalledWith(deps.processManager, "alice", "test-sched", 5);
+  });
+
+  it("schedule history rejects invalid --limit", async () => {
+    await run(["schedule", "history", "alice", "test-sched", "--limit", "abc"]);
+    expect(deps.formatter.error).toHaveBeenCalledWith(
+      expect.stringContaining("Invalid limit"),
+    );
+    expect(casaScheduleHistory).not.toHaveBeenCalled();
+  });
+
+  it("schedule history rejects zero --limit", async () => {
+    await run(["schedule", "history", "alice", "test-sched", "--limit", "0"]);
+    expect(deps.formatter.error).toHaveBeenCalledWith(
+      expect.stringContaining("Invalid limit"),
+    );
+  });
+
+  it("schedule history rejects negative --limit", async () => {
+    await run(["schedule", "history", "alice", "test-sched", "--limit", "-3"]);
+    expect(deps.formatter.error).toHaveBeenCalledWith(
+      expect.stringContaining("Invalid limit"),
+    );
   });
 });

@@ -77,6 +77,16 @@ describe("readCasaConfig", () => {
     expect(cfg!.sandboxMode).toBeUndefined();
   });
 
+  it("filters non-string entries from expose array", () => {
+    tempDir = mkdtempSync(join(tmpdir(), "mecha-cfg-"));
+    writeFileSync(join(tempDir, "config.json"), JSON.stringify({
+      port: 7700, token: "tok", workspace: "/ws", expose: ["query", 42, null, "execute"],
+    }));
+    const cfg = readCasaConfig(tempDir);
+    expect(cfg).toBeDefined();
+    expect(cfg!.expose).toEqual(["query", "execute"]);
+  });
+
   it("normalizes non-array tags to undefined", () => {
     tempDir = mkdtempSync(join(tmpdir(), "mecha-cfg-"));
     writeFileSync(join(tempDir, "config.json"), JSON.stringify({

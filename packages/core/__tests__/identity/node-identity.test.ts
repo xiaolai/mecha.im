@@ -55,11 +55,11 @@ describe("loadNodeIdentity", () => {
     expect(loaded).toEqual(created);
   });
 
-  it("returns undefined for invalid node.json", () => {
+  it("throws for invalid node.json", () => {
     const mechaDir = mkdtempSync(join(tmpdir(), "mecha-bad-node-"));
     mkdirSync(join(mechaDir, "identity"), { recursive: true });
     writeFileSync(join(mechaDir, "identity", "node.json"), JSON.stringify({ id: "x" }));
-    expect(loadNodeIdentity(mechaDir)).toBeUndefined();
+    expect(() => loadNodeIdentity(mechaDir)).toThrow("schema validation failed");
   });
 });
 

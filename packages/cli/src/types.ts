@@ -19,6 +19,7 @@ export interface CommandDeps {
   mechaDir: string;
   acl: AclEngine;
   sandbox: Sandbox;
+  registerShutdownHook?: (fn: () => Promise<void>) => void;
 }
 
 /** Options controlling formatter behavior */

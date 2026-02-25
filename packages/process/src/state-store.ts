@@ -1,5 +1,4 @@
 import {
-  readFileSync,
   writeFileSync,
   renameSync,
   mkdirSync,
@@ -8,7 +7,9 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
+import { z } from "zod";
 import type { SandboxMode } from "@mecha/core";
+import { safeReadJson } from "@mecha/core";
 import type { SandboxPlatform } from "@mecha/sandbox";
 
 /** Current state schema version — bump when shape changes */
@@ -30,17 +31,31 @@ export interface CasaState {
   sandboxMode?: SandboxMode;
 }
 
+const CasaStateSchema: z.ZodType<CasaState> = z.object({
+  stateVersion: z.number().optional(),
+  name: z.string(),
+  state: z.enum(["running", "stopped", "error"]),
+  pid: z.number().optional(),
+  port: z.number().optional(),
+  workspacePath: z.string(),
+  startedAt: z.string().optional(),
+  stoppedAt: z.string().optional(),
+  exitCode: z.number().optional(),
+  sandboxPlatform: z.enum(["macos", "linux", "fallback"]).optional(),
+  sandboxMode: z.enum(["auto", "off", "require"]).optional(),
+});
+
 /** Read state.json from a CASA directory. Returns undefined if missing. */
 export function readState(casaDir: string): CasaState | undefined {
   const statePath = join(casaDir, "state.json");
-  if (!existsSync(statePath)) return undefined;
-  try {
-    const raw = readFileSync(statePath, "utf-8");
-    return JSON.parse(raw) as CasaState;
-  } catch {
-    // Corrupted state file — treat as missing
+  const result = safeReadJson(statePath, "CASA state", CasaStateSchema);
+  if (!result.ok) {
+    if (result.reason !== "missing") {
+      console.error(`[mecha] ${result.detail}`);
+    }
     return undefined;
   }
+  return result.data;
 }
 
 /** Write state.json atomically (write to temp, rename). Stamps stateVersion. */

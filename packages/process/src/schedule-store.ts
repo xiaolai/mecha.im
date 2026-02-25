@@ -15,6 +15,7 @@ import {
   type ScheduleRunResult,
   ScheduleConfigSchema,
   ScheduleStateSchema,
+  safeReadJson,
 } from "@mecha/core";
 
 // --- Atomic write helper ---
@@ -33,19 +34,16 @@ const EMPTY_CONFIG: ScheduleConfig = { schedules: [] };
 
 export function readScheduleConfig(casaDir: string): ScheduleConfig {
   const configPath = join(casaDir, "schedule.json");
-  if (!existsSync(configPath)) return { ...EMPTY_CONFIG, schedules: [] };
-  try {
-    const raw = readFileSync(configPath, "utf-8");
-    const parsed = ScheduleConfigSchema.safeParse(JSON.parse(raw));
-    /* v8 ignore start -- corrupt/invalid config fallback */
-    if (!parsed.success) return { ...EMPTY_CONFIG, schedules: [] };
+  const result = safeReadJson(configPath, "schedule config", ScheduleConfigSchema);
+  if (!result.ok) {
+    /* v8 ignore start -- corrupt/unreadable config fallback */
+    if (result.reason !== "missing") {
+      console.error(`[mecha] ${result.detail}`);
+    }
     /* v8 ignore stop */
-    return parsed.data;
-  /* v8 ignore start -- corrupt file fallback */
-  } catch {
     return { ...EMPTY_CONFIG, schedules: [] };
   }
-  /* v8 ignore stop */
+  return result.data;
 }
 
 export function writeScheduleConfig(casaDir: string, config: ScheduleConfig): void {
@@ -65,19 +63,16 @@ function scheduleDir(casaDir: string, scheduleId: string): string {
 
 export function readScheduleState(casaDir: string, scheduleId: string): ScheduleState | undefined {
   const statePath = join(scheduleDir(casaDir, scheduleId), "state.json");
-  if (!existsSync(statePath)) return undefined;
-  try {
-    const raw = readFileSync(statePath, "utf-8");
-    const parsed = ScheduleStateSchema.safeParse(JSON.parse(raw));
-    /* v8 ignore start -- corrupt/invalid state fallback */
-    if (!parsed.success) return undefined;
+  const result = safeReadJson(statePath, `schedule "${scheduleId}" state`, ScheduleStateSchema);
+  if (!result.ok) {
+    /* v8 ignore start -- corrupt/unreadable state fallback */
+    if (result.reason !== "missing") {
+      console.error(`[mecha] ${result.detail}`);
+    }
     /* v8 ignore stop */
-    return parsed.data;
-  /* v8 ignore start -- corrupt file fallback */
-  } catch {
     return undefined;
   }
-  /* v8 ignore stop */
+  return result.data;
 }
 
 export function writeScheduleState(casaDir: string, scheduleId: string, state: ScheduleState): void {
@@ -113,7 +108,8 @@ export function readRunHistory(casaDir: string, scheduleId: string, limit?: numb
     }
     return results;
   /* v8 ignore start -- corrupt file fallback */
-  } catch {
+  } catch (err) {
+    console.error(`[mecha] schedule "${scheduleId}" history: ${err instanceof Error ? err.message : String(err)}`);
     return [];
   }
   /* v8 ignore stop */

@@ -12,7 +12,8 @@
     { "path": "packages/process" },
     { "path": "packages/sandbox" },
     { "path": "packages/runtime" },
-    { "path": "packages/service" }
+    { "path": "packages/service" },
+    { "path": "packages/agent" }
   ],
   "include": [],
   "exclude": ["node_modules", "dist", "coverage"]

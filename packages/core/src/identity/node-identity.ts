@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { randomBytes, randomUUID } from "node:crypto";
 import { IDENTITY_DIR } from "../constants.js";
 import { generateKeyPair, fingerprint } from "./keys.js";
+import { safeReadJson } from "../safe-read.js";
 
 export interface NodeIdentity {
   readonly id: string;
@@ -73,16 +74,21 @@ export function createNodeIdentity(mechaDir: string): NodeIdentity {
 /** Load existing node identity from mechaDir/identity/. Returns undefined if missing. */
 export function loadNodeIdentity(mechaDir: string): NodeIdentity | undefined {
   const nodePath = join(mechaDir, IDENTITY_DIR, "node.json");
-  if (!existsSync(nodePath)) return undefined;
-  try {
-    const parsed: unknown = JSON.parse(readFileSync(nodePath, "utf-8"));
-    if (!isNodeIdentity(parsed)) return undefined;
-    return parsed;
-  /* v8 ignore start -- corrupt file fallback */
-  } catch {
+  const result = safeReadJson<unknown>(nodePath, "node identity");
+  if (!result.ok) {
+    /* v8 ignore start -- corrupt/unreadable identity fallback */
+    if (result.reason !== "missing") {
+      console.error(`[mecha] ${result.detail}`);
+    }
+    /* v8 ignore stop */
     return undefined;
   }
+  /* v8 ignore start -- corrupt identity: throw to prevent silent key rotation */
+  if (!isNodeIdentity(result.data)) {
+    throw new Error("[mecha] node identity: schema validation failed — manual repair required");
+  }
   /* v8 ignore stop */
+  return result.data;
 }
 
 /** Load node private key PEM. Returns undefined if missing. */

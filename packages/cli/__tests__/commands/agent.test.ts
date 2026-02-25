@@ -49,6 +49,17 @@ describe("agent commands", () => {
       ).rejects.toThrow();
     });
 
+    it("errors when api key is empty/whitespace", async () => {
+      const deps = makeDeps();
+      const program = createProgram(deps);
+      program.exitOverride();
+
+      await program.parseAsync(["node", "mecha", "agent", "start", "--api-key", "   "]);
+      expect(deps.formatter.error).toHaveBeenCalledWith(
+        expect.stringContaining("API key must not be empty"),
+      );
+    });
+
     it("reports invalid port", async () => {
       const deps = makeDeps();
       const program = createProgram(deps);

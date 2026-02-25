@@ -24,7 +24,7 @@ describe("createLocator", () => {
       expect(result).toEqual({ location: "local", port: 7700, token: "tok" });
     });
 
-    it("finds stopped local CASA with config", () => {
+    it("returns not_found for stopped local CASA (stale port/token)", () => {
       mechaDir = mkdtempSync(join(tmpdir(), "locator-"));
       writeCasaConfig(mechaDir, "alice", { port: 7700, token: "tok", workspace: "/ws" });
 
@@ -32,7 +32,7 @@ describe("createLocator", () => {
       const locator = createLocator({ mechaDir, pm, getNodes: () => [] });
 
       const result = locator.locate({ casa: "alice" as CasaName, node: "local" as NodeName });
-      expect(result).toEqual({ location: "local", port: 7700, token: "tok" });
+      expect(result).toEqual({ location: "not_found" });
     });
 
     it("returns not_found when no config", () => {

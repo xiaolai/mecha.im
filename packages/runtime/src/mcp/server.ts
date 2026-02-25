@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync, realpathSync, promises as fsp } from "node:fs";
+import { readdirSync, readFileSync, statSync, realpathSync } from "node:fs";
 import { join, relative, resolve, isAbsolute } from "node:path";
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { MESH_TOOLS, handleMeshTool, type MeshOpts, type MeshRouter } from "./mesh-tools.js";
@@ -47,74 +47,74 @@ const TOOLS: McpToolDef[] = [
   },
 ];
 
-/** Check that a resolved path stays inside the workspace boundary, following symlinks. */
-/* v8 ignore start -- symlink resolution fallbacks: workspace + target realpath catch */
-function assertInsideWorkspace(resolved: string, workspacePath: string): void {
+/**
+ * Resolve a path inside the workspace boundary, following symlinks.
+ * Returns the canonical (real) path. Throws on traversal or missing paths.
+ */
+function resolveInsideWorkspace(resolved: string, workspacePath: string): string {
   let realWorkspace: string;
   try {
     realWorkspace = realpathSync(workspacePath);
   } catch {
-    realWorkspace = resolve(workspacePath);
+    throw new Error("Workspace path is invalid");
   }
   let real: string;
   try {
     real = realpathSync(resolved);
+  /* v8 ignore start -- resolved path doesn't exist on disk */
   } catch {
-    const rel = relative(resolve(workspacePath), resolve(resolved));
-    real = join(realWorkspace, rel);
+    throw new Error("File not found");
   }
-/* v8 ignore stop */
+  /* v8 ignore stop */
   const rel = relative(realWorkspace, real);
   if (rel.startsWith("..") || isAbsolute(rel)) {
     throw new Error("Path traversal not allowed");
   }
+  return real;
 }
 
 function listFiles(workspacePath: string, subpath: string): string[] {
   const target = subpath ? join(workspacePath, subpath) : workspacePath;
-
-  assertInsideWorkspace(target, workspacePath);
+  const canonicalTarget = resolveInsideWorkspace(target, workspacePath);
 
   try {
-    const entries = readdirSync(target, { withFileTypes: true });
+    const entries = readdirSync(canonicalTarget, { withFileTypes: true });
     return entries.map((e) => {
       const rel = relative(workspacePath, join(target, e.name));
       return e.isDirectory() ? `${rel}/` : rel;
     });
+  /* v8 ignore start -- directory vanished between resolveInsideWorkspace and readdir */
   } catch {
     throw new Error(`Directory not found: ${subpath || "/"}`);
   }
+  /* v8 ignore stop */
 }
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
 function readFile(workspacePath: string, filePath: string): string {
   const resolved = join(workspacePath, filePath);
-
-  assertInsideWorkspace(resolved, workspacePath);
+  const canonicalPath = resolveInsideWorkspace(resolved, workspacePath);
 
   try {
-    const stat = statSync(resolved);
+    const stat = statSync(canonicalPath);
     if (stat.isDirectory()) {
       throw new Error(`Path is a directory: ${filePath}`);
     }
     if (stat.size > MAX_FILE_SIZE) {
       throw new Error(`File too large: ${filePath} (${stat.size} bytes, max ${MAX_FILE_SIZE})`);
     }
-    return readFileSync(resolved, "utf-8");
+    return readFileSync(canonicalPath, "utf-8");
   } catch (err) {
     if (err instanceof Error && err.message.startsWith("Path is a directory")) {
       throw err;
     }
+    /* v8 ignore start -- re-throw known errors; generic fallback for race (file vanishes between check and read) */
     if (err instanceof Error && err.message.startsWith("File too large")) {
       throw err;
     }
-    /* v8 ignore start -- traversal caught by assertInsideWorkspace before stat */
-    if (err instanceof Error && err.message === "Path traversal not allowed") {
-      throw err;
-    }
-    /* v8 ignore stop */
     throw new Error(`File not found: ${filePath}`);
+    /* v8 ignore stop */
   }
 }
 
@@ -183,6 +183,7 @@ async function handleRequest(
         // Only expose safe error messages; hide filesystem details
         /* v8 ignore start -- ternary chain: each branch tested individually; v8 marks false-paths as null */
         const safeMsg = msg === "Path traversal not allowed" ? msg
+          : msg === "Workspace path is invalid" ? msg
           : msg.startsWith("Path is a directory") ? msg
           : msg.startsWith("File too large") ? msg
           : msg.startsWith("Unknown tool") ? msg

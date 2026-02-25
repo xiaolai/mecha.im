@@ -16,7 +16,8 @@
   },
   "dependencies": {
     "@mecha/core": "workspace:*",
-    "@mecha/process": "workspace:*"
+    "@mecha/process": "workspace:*",
+    "zod": "^3.24.4"
   },
   "devDependencies": {
     "@mecha/agent": "workspace:*",

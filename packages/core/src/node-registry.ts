@@ -1,9 +1,10 @@
-import { readFileSync, writeFileSync, existsSync, renameSync } from "node:fs";
+import { writeFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { isValidName } from "./validation.js";
-import { InvalidNameError, DuplicateNodeError } from "./errors.js";
+import { InvalidNameError, DuplicateNodeError, CorruptConfigError } from "./errors.js";
+import { safeReadJson } from "./safe-read.js";
 
 const NODES_FILE = "nodes.json";
 
@@ -24,12 +25,17 @@ function nodesPath(mechaDir: string): string {
   return join(mechaDir, NODES_FILE);
 }
 
-/** Read all registered peer nodes. Returns empty array if file doesn't exist. */
+/** Read all registered peer nodes. Returns empty array if file doesn't exist. Throws on corrupt data. */
 export function readNodes(mechaDir: string): NodeEntry[] {
   const path = nodesPath(mechaDir);
-  if (!existsSync(path)) return [];
-  const raw = readFileSync(path, "utf-8");
-  return NodesArraySchema.parse(JSON.parse(raw));
+  const result = safeReadJson(path, "node registry", NodesArraySchema);
+  /* v8 ignore start -- corrupt/unreadable registry fallback */
+  if (!result.ok) {
+    if (result.reason === "missing") return [];
+    throw new CorruptConfigError(`node registry: ${result.detail}`);
+  }
+  /* v8 ignore stop */
+  return result.data;
 }
 
 /** Write nodes array to disk (atomic: temp file + rename). */

@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -50,6 +50,10 @@ describe("tools commands", () => {
 
     await program.parseAsync(["node", "mecha", "tools", "install", "tool-a"]);
     await program.parseAsync(["node", "mecha", "tools", "ls"]);
-    expect(deps.formatter.table).toHaveBeenCalled();
+    const tableCall = (deps.formatter.table as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(tableCall[0]).toEqual(expect.arrayContaining(["Name"]));
+    const rows = tableCall[1] as string[][];
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toEqual(expect.arrayContaining(["tool-a"]));
   });
 });
