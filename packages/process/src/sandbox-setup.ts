@@ -152,5 +152,13 @@ echo "cd \\"$MECHA_WORKSPACE\\" && $COMMAND"
     MECHA_DIR: opts.mechaDir,
   };
 
+  // Forward SDK auth keys from parent env when not already set
+  const sdkKeys = ["ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"] as const;
+  for (const key of sdkKeys) {
+    if (process.env[key] && !childEnv[key]) {
+      childEnv[key] = process.env[key]!;
+    }
+  }
+
   return { homeDir, tmpDir, logsDir, projectsDir, childEnv };
 }
