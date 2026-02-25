@@ -1,5 +1,5 @@
 import { join, resolve, dirname } from "node:path";
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import type { CasaConfig } from "@mecha/core";
 import type { SandboxProfile } from "./types.js";
 
@@ -10,9 +10,11 @@ export interface ProfileFromConfigOpts {
   runtimeEntrypoint?: string;
 }
 
-/** Deduplicate an array of resolved paths. */
+/** Resolve symlinks and deduplicate paths. */
 function dedup(paths: string[]): string[] {
-  return [...new Set(paths)];
+  return [...new Set(paths.map((p) => {
+    try { return realpathSync(p); } catch { return resolve(p); }
+  }))];
 }
 
 /** Get the Node.js installation prefix (e.g. /usr/local or ~/.nvm/versions/node/vX). */
@@ -75,6 +77,7 @@ export function profileFromConfig(opts: ProfileFromConfigOpts): SandboxProfile {
   readPaths.push(resolve(config.workspace));
 
   const writePaths: string[] = [
+    resolve(casaDir),
     resolve(join(casaDir, "home")),
     resolve(join(casaDir, "logs")),
     resolve(join(casaDir, "tmp")),
@@ -89,6 +92,6 @@ export function profileFromConfig(opts: ProfileFromConfigOpts): SandboxProfile {
     readPaths: dedup(readPaths),
     writePaths: dedup(writePaths),
     allowedProcesses: dedup(allowedProcesses),
-    allowNetwork: config.allowNetwork === true,
+    allowNetwork: config.allowNetwork !== false,
   };
 }

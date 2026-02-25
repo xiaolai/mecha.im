@@ -80,6 +80,7 @@ describe("profileFromConfig", () => {
     });
 
     expect(profile.writePaths).toEqual([
+      "/mecha/alice",
       "/mecha/alice/home",
       "/mecha/alice/logs",
       "/mecha/alice/tmp",
@@ -87,14 +88,14 @@ describe("profileFromConfig", () => {
     ]);
   });
 
-  it("denies network access by default", () => {
+  it("allows network access by default", () => {
     const profile = profileFromConfig({
       config: baseConfig,
       casaDir: "/mecha/alice",
       mechaDir: "/mecha",
     });
 
-    expect(profile.allowNetwork).toBe(false);
+    expect(profile.allowNetwork).toBe(true);
   });
 
   it("disables network when config.allowNetwork is false", () => {
