@@ -256,10 +256,10 @@ core → runtime (independent, runs inside container)
 **Q1: Agree with issues? Others missed?**
 Yes on most, but Issue 3 (TOTP placement) and Issue 10 (SQLite) are overstated. Missed issues: lack of rollback in dashboard reconfigure path (`dashboard/src/app/api/mechas/[id]/route.ts:124`), in-memory auth sessions not multi-instance safe (`dashboard/src/lib/auth.ts`), and token/secrets lifecycle concerns.
 
-**Q2: ****`@mecha/service`**** or keep logic in ****`@mecha/docker`****?**
+**Q2: ********`@mecha/service`******** or keep logic in ********`@mecha/docker`********?**
 `@mecha/service` is the right abstraction. Keep `@mecha/docker` as a low-level adapter only.
 
-**Q3: Docker-native port (****`HostPort: "0"`****) or custom allocator?**
+**Q3: Docker-native port (********`HostPort: "0"`********) or custom allocator?**
 Prefer Docker-native by default for correctness and race elimination. Keep explicit `--port` override. Only build custom allocator if you need a constrained fixed range with shared locking.
 
 **Q4: Event bus now, or polling?**
@@ -325,11 +325,11 @@ After reviewing Codex's feedback, here's where I agree, disagree, and what the r
 | 1  | **Define service contracts** — Zod schemas, error types, error mapping table for all operations              | Foundation for everything else   |
 | 2  | **Fix transactional lifecycle safety** — rollback on create+start failure, rollback on dashboard reconfigure | Small, high-impact bug fixes     |
 | 3  | **Add integration tests** (gated behind `INTEGRATION=true`)                                                  | Behavior-locking before refactor |
-| 4  | **Extract ****`@mecha/service`** with schemas from step 1                                               | The big refactor, now safe       |
+| 4  | \*\*Extract \*\***`@mecha/service`** with schemas from step 1                                                | The big refactor, now safe       |
 | 5  | **Port assignment: Docker-native default** + `--port` override + post-start inspect                          | Eliminates mutex hack and race   |
 | 6  | **Fix process.env mutation** — pure env resolution in service layer                                          | Clean side-effect removal        |
-| 7  | **Delete ****`packages/ui/`**** and ****`packages/hub/`** after reference check               | Cleanup                          |
-| 8  | **Keep TOTP in ****`@mecha/core`**, extract auth middleware only                                        | Correct boundary                 |
+| 7  | \*\*Delete ****`packages/ui/`**** and \*\***`packages/hub/`** after reference check                          | Cleanup                          |
+| 8  | **Keep TOTP in \*\*\*\*****`@mecha/core`**, extract auth middleware only                                     | Correct boundary                 |
 | 9  | **SQLite: wire lifecycle, add migration versioning**                                                         | When runtime matures             |
 | 10 | **Event bus** — only when polling proves insufficient                                                        | Deferred                         |
 
