@@ -30,6 +30,18 @@ importers:
         specifier: ^4.0.18
         version: 4.0.18(@types/node@25.3.0)(jiti@2.6.1)(lightningcss@1.31.1)
 
+  packages/agent:
+    dependencies:
+      '@mecha/core':
+        specifier: workspace:*
+        version: link:../core
+      '@mecha/process':
+        specifier: workspace:*
+        version: link:../process
+      fastify:
+        specifier: ^5.3.3
+        version: 5.7.4
+
   packages/cli:
     dependencies:
       '@mecha/core':
