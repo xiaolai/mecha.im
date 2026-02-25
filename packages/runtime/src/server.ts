@@ -16,7 +16,7 @@ export interface CreateServerOpts {
 }
 
 export function createServer(opts: CreateServerOpts): FastifyInstance {
-  const app = Fastify();
+  const app = Fastify({ logger: true });
 
   // Auth middleware
   app.addHook("onRequest", createAuthHook(opts.authToken));

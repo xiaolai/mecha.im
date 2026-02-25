@@ -1,5 +1,6 @@
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, renameSync } from "node:fs";
 import { join } from "node:path";
+import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { isValidName } from "./validation.js";
 import { InvalidNameError, DuplicateNodeError } from "./errors.js";
@@ -31,9 +32,12 @@ export function readNodes(mechaDir: string): NodeEntry[] {
   return NodesArraySchema.parse(JSON.parse(raw));
 }
 
-/** Write nodes array to disk (atomic overwrite). */
+/** Write nodes array to disk (atomic: temp file + rename). */
 export function writeNodes(mechaDir: string, nodes: NodeEntry[]): void {
-  writeFileSync(nodesPath(mechaDir), JSON.stringify(nodes, null, 2) + "\n", { mode: 0o600 });
+  const path = nodesPath(mechaDir);
+  const tmp = path + `.${randomBytes(4).toString("hex")}.tmp`;
+  writeFileSync(tmp, JSON.stringify(nodes, null, 2) + "\n", { mode: 0o600 });
+  renameSync(tmp, path);
 }
 
 /** Add a peer node. Throws DuplicateNodeError if name already registered. */

@@ -17,7 +17,7 @@ export interface AgentServerOpts {
 }
 
 export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
-  const app = Fastify();
+  const app = Fastify({ logger: true });
 
   app.addHook("onRequest", createAuthHook({ apiKey: opts.apiKey }));
 
