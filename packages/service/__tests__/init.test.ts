@@ -11,7 +11,7 @@ describe("mechaInit", () => {
     if (tempDir) rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it("creates directory structure", () => {
+  it("creates directory structure with discovery index", () => {
     tempDir = mkdtempSync(join(tmpdir(), "mecha-init-test-"));
     const mechaDir = join(tempDir, ".mecha");
 
@@ -21,6 +21,11 @@ describe("mechaInit", () => {
     expect(existsSync(join(mechaDir, "auth"))).toBe(true);
     expect(existsSync(join(mechaDir, "tools"))).toBe(true);
     expect(existsSync(join(mechaDir, "logs"))).toBe(true);
+    // Discovery index created
+    expect(existsSync(join(mechaDir, "discovery.json"))).toBe(true);
+    const index = JSON.parse(readFileSync(join(mechaDir, "discovery.json"), "utf-8"));
+    expect(index.version).toBe(1);
+    expect(index.casas).toEqual([]);
   });
 
   it("generates node-id and keypair on first run", () => {

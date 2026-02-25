@@ -4,7 +4,8 @@ import type { CasaName } from "@mecha/core";
 export type ProcessEvent =
   | { type: "spawned"; name: CasaName; pid: number; port: number }
   | { type: "stopped"; name: CasaName; exitCode?: number }
-  | { type: "error"; name: CasaName; error: string };
+  | { type: "error"; name: CasaName; error: string }
+  | { type: "warning"; name: CasaName; message: string };
 
 export type ProcessEventHandler = (event: ProcessEvent) => void;
 

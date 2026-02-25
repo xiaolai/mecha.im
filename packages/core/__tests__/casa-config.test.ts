@@ -59,6 +59,24 @@ describe("readCasaConfig", () => {
     expect(cfg!.expose).toBeUndefined();
   });
 
+  it("reads valid sandboxMode", () => {
+    tempDir = mkdtempSync(join(tmpdir(), "mecha-cfg-"));
+    writeFileSync(join(tempDir, "config.json"), JSON.stringify({
+      port: 7700, token: "tok", workspace: "/ws", sandboxMode: "require",
+    }));
+    const cfg = readCasaConfig(tempDir);
+    expect(cfg!.sandboxMode).toBe("require");
+  });
+
+  it("normalizes invalid sandboxMode to undefined", () => {
+    tempDir = mkdtempSync(join(tmpdir(), "mecha-cfg-"));
+    writeFileSync(join(tempDir, "config.json"), JSON.stringify({
+      port: 7700, token: "tok", workspace: "/ws", sandboxMode: "invalid",
+    }));
+    const cfg = readCasaConfig(tempDir);
+    expect(cfg!.sandboxMode).toBeUndefined();
+  });
+
   it("normalizes non-array tags to undefined", () => {
     tempDir = mkdtempSync(join(tmpdir(), "mecha-cfg-"));
     writeFileSync(join(tempDir, "config.json"), JSON.stringify({

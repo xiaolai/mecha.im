@@ -6,8 +6,6 @@
   },
   "include": ["src"],
   "references": [
-    { "path": "../core" },
-    { "path": "../agent" },
-    { "path": "../sandbox" }
+    { "path": "../core" }
   ]
 }

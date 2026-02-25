@@ -8,6 +8,8 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
+import type { SandboxMode } from "@mecha/core";
+import type { SandboxPlatform } from "@mecha/sandbox";
 
 /** Persisted CASA state — written to ~/.mecha/<name>/state.json */
 export interface CasaState {
@@ -19,6 +21,8 @@ export interface CasaState {
   startedAt?: string;
   stoppedAt?: string;
   exitCode?: number;
+  sandboxPlatform?: SandboxPlatform;
+  sandboxMode?: SandboxMode;
 }
 
 /** Read state.json from a CASA directory. Returns undefined if missing. */

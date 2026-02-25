@@ -119,6 +119,38 @@ describe("spawn command", () => {
     expect(process.exitCode).toBe(1);
     process.exitCode = undefined as unknown as number;
   });
+
+  it("spawns with sandbox mode option", async () => {
+    const deps = makeDeps({ pm: defaultPm() });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "spawn", "test", "/ws", "--sandbox", "require"]);
+    expect(deps.processManager.spawn).toHaveBeenCalledWith(
+      expect.objectContaining({ sandboxMode: "require" }),
+    );
+  });
+
+  it("rejects invalid sandbox mode", async () => {
+    const deps = makeDeps({ pm: defaultPm() });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "spawn", "test", "/ws", "--sandbox", "bogus"]);
+    expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("Sandbox mode must be"));
+    expect(process.exitCode).toBe(1);
+    process.exitCode = undefined as unknown as number;
+  });
+
+  it("subscribes to warning events during spawn", async () => {
+    const onEventMock = vi.fn().mockReturnValue(() => {});
+    const deps = makeDeps({ pm: { ...defaultPm(), onEvent: onEventMock } });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "spawn", "test", "/ws"]);
+    expect(onEventMock).toHaveBeenCalled();
+  });
 });
 
 describe("kill command", () => {
@@ -424,6 +456,30 @@ describe("status command", () => {
     await program.parseAsync(["node", "mecha", "status", "child"]);
     const jsonArg = (deps.formatter.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(jsonArg).not.toHaveProperty("parent");
+  });
+
+  it("includes sandbox info from state.json when present", async () => {
+    mechaDir = mkdtempSync(join(tmpdir(), "mecha-status-"));
+    const casaDir = join(mechaDir, "test");
+    mkdirSync(casaDir, { recursive: true });
+    writeFileSync(join(casaDir, "state.json"), JSON.stringify({
+      name: "test",
+      state: "running",
+      pid: 12345,
+      port: 7700,
+      workspacePath: "/ws",
+      sandboxPlatform: "macos",
+      sandboxMode: "auto",
+    }));
+
+    const deps = makeDeps({ mechaDir, pm: defaultPm() });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "status", "test"]);
+    const jsonArg = (deps.formatter.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(jsonArg.sandboxPlatform).toBe("macos");
+    expect(jsonArg.sandboxMode).toBe("auto");
   });
 });
 

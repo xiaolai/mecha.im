@@ -13,15 +13,28 @@ describe("mesh_discover", () => {
   });
   afterEach(() => { rmSync(mechaDir, { recursive: true, force: true }); });
 
-  function writeCasa(name: string, cfg: Record<string, unknown>): void {
-    const dir = join(mechaDir, name);
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, "config.json"), JSON.stringify(cfg));
+  /** Write a discovery.json index with the given CASA entries */
+  function writeDiscoveryIndex(
+    casas: Array<{ name: string; tags?: string[]; expose?: string[]; state?: string }>,
+  ): void {
+    const index = {
+      version: 1,
+      updatedAt: new Date().toISOString(),
+      casas: casas.map((c) => ({
+        name: c.name,
+        tags: c.tags ?? [],
+        expose: c.expose ?? [],
+        state: c.state ?? "running",
+      })),
+    };
+    writeFileSync(join(mechaDir, "discovery.json"), JSON.stringify(index));
   }
 
   it("discovers other CASAs excluding self", async () => {
-    writeCasa("alice", { port: 7700, token: "t", workspace: "/a", tags: ["research"] });
-    writeCasa("bob", { port: 7701, token: "t", workspace: "/b", tags: ["code"] });
+    writeDiscoveryIndex([
+      { name: "alice", tags: ["research"] },
+      { name: "bob", tags: ["code"] },
+    ]);
 
     const opts: MeshOpts = { mechaDir, casaName: "alice" };
     const result = await handleMeshTool(opts, "mesh_discover", {});
@@ -32,8 +45,10 @@ describe("mesh_discover", () => {
   });
 
   it("filters by tag", async () => {
-    writeCasa("alice", { port: 7700, token: "t", workspace: "/a", tags: ["research"] });
-    writeCasa("bob", { port: 7701, token: "t", workspace: "/b", tags: ["code"] });
+    writeDiscoveryIndex([
+      { name: "alice", tags: ["research"] },
+      { name: "bob", tags: ["code"] },
+    ]);
 
     const opts: MeshOpts = { mechaDir, casaName: "caller" };
     const result = await handleMeshTool(opts, "mesh_discover", { tag: "research" });
@@ -43,8 +58,10 @@ describe("mesh_discover", () => {
   });
 
   it("filters by capability", async () => {
-    writeCasa("alice", { port: 7700, token: "t", workspace: "/a", expose: ["query"] });
-    writeCasa("bob", { port: 7701, token: "t", workspace: "/b", expose: ["execute"] });
+    writeDiscoveryIndex([
+      { name: "alice", expose: ["query"] },
+      { name: "bob", expose: ["execute"] },
+    ]);
 
     const opts: MeshOpts = { mechaDir, casaName: "caller" };
     const result = await handleMeshTool(opts, "mesh_discover", { capability: "query" });
@@ -68,18 +85,39 @@ describe("mesh_discover", () => {
     expect(result.isError).toBe(true);
   });
 
-  it("skips non-CASA directories", async () => {
-    mkdirSync(join(mechaDir, "identity"), { recursive: true });
-    mkdirSync(join(mechaDir, "tools"), { recursive: true });
-    mkdirSync(join(mechaDir, "auth"), { recursive: true });
-    writeCasa("alice", { port: 7700, token: "t", workspace: "/a" });
+  it("skips non-CASA directories listed in index", async () => {
+    writeDiscoveryIndex([
+      { name: "alice" },
+    ]);
 
     const opts: MeshOpts = { mechaDir, casaName: "caller" };
     const result = await handleMeshTool(opts, "mesh_discover", {});
 
     expect(result.content[0].text).toContain("alice");
-    expect(result.content[0].text).not.toContain("identity");
-    expect(result.content[0].text).not.toContain("tools");
+  });
+
+  it("filters out non-running CASAs", async () => {
+    writeDiscoveryIndex([
+      { name: "alive", tags: ["code"], state: "running" },
+      { name: "dead", tags: ["code"], state: "stopped" },
+      { name: "broken", tags: ["code"], state: "error" },
+    ]);
+
+    const opts: MeshOpts = { mechaDir, casaName: "caller" };
+    const result = await handleMeshTool(opts, "mesh_discover", {});
+
+    expect(result.content[0].text).toContain("alive");
+    expect(result.content[0].text).not.toContain("dead");
+    expect(result.content[0].text).not.toContain("broken");
+  });
+
+  it("returns empty when discovery.json is corrupt", async () => {
+    writeFileSync(join(mechaDir, "discovery.json"), "not-json{");
+
+    const opts: MeshOpts = { mechaDir, casaName: "caller" };
+    const result = await handleMeshTool(opts, "mesh_discover", {});
+
+    expect(result.content[0].text).toBe("No matching CASAs found");
   });
 });
 

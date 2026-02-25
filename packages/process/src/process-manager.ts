@@ -5,6 +5,8 @@ import { randomBytes } from "node:crypto";
 import { Readable } from "node:stream";
 import {
   type CasaName,
+  type DiscoveryIndex,
+  type DiscoveryIndexEntry,
   DEFAULTS,
   isValidName,
   InvalidNameError,
@@ -14,6 +16,10 @@ import {
   ProcessSpawnError,
   readCasaConfig,
 } from "@mecha/core";
+import type { Sandbox } from "@mecha/sandbox";
+import { writeFileSync, renameSync } from "node:fs";
+import { profileFromConfig } from "@mecha/sandbox";
+import type { PersistedSandboxProfile } from "@mecha/sandbox";
 import { allocatePort } from "./port.js";
 import { waitForHealthy } from "./health.js";
 import { readState, writeState, listCasaDirs } from "./state-store.js";
@@ -36,6 +42,7 @@ export type { SpawnOpts, ProcessInfo, LogOpts, ProcessManager, CreateProcessMana
 export function createProcessManager(opts: CreateProcessManagerOpts): ProcessManager {
   const { mechaDir, healthTimeoutMs = DEFAULTS.HEALTH_TIMEOUT_MS } = opts;
   const spawnFn = opts.spawnFn ?? cpSpawn;
+  const sandbox = opts.sandbox;
   const emitter = new ProcessEventEmitter();
   const live = new Map<string, LiveProcess>();
 
@@ -43,6 +50,7 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
   _recoverState();
 
   function _recoverState(): void {
+    let changed = false;
     for (const casaDir of listCasaDirs(mechaDir)) {
       const state = readState(casaDir);
       if (!state) continue;
@@ -51,9 +59,11 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
           state.state = "stopped";
           state.stoppedAt = new Date().toISOString();
           writeState(casaDir, state);
+          changed = true;
         }
       }
     }
+    if (changed) _updateDiscoveryIndex();
   }
 
   function _casaDir(name: string): string {
@@ -66,6 +76,33 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
 
   function _generateToken(): string {
     return "mecha_" + randomBytes(24).toString("hex");
+  }
+
+  function _updateDiscoveryIndex(): void {
+    try {
+      const casas: DiscoveryIndexEntry[] = [];
+      for (const dir of listCasaDirs(mechaDir)) {
+        const st = readState(dir);
+        /* v8 ignore start -- defensive: state always exists for listCasaDirs results */
+        if (!st) continue;
+        /* v8 ignore stop */
+        const config = readCasaConfig(dir);
+        /* v8 ignore start -- defensive: config shape validation for tags/expose */
+        const tags = Array.isArray(config?.tags) ? config.tags.filter((t): t is string => typeof t === "string") : [];
+        const expose = Array.isArray(config?.expose) ? config.expose.filter((e): e is string => typeof e === "string") : [];
+        /* v8 ignore stop */
+        casas.push({ name: st.name, tags, expose, state: st.state });
+      }
+      const index: DiscoveryIndex = { version: 1, updatedAt: new Date().toISOString(), casas };
+      const indexPath = join(mechaDir, "discovery.json");
+      const tmp = indexPath + `.${randomBytes(4).toString("hex")}.tmp`;
+      writeFileSync(tmp, JSON.stringify(index, null, 2) + "\n", { mode: 0o600 });
+      renameSync(tmp, indexPath);
+    /* v8 ignore start -- defensive: discovery index write failure should not crash lifecycle */
+    } catch (err) {
+      emitter.emit({ type: "warning", name: "" as CasaName, message: `Failed to update discovery index: ${err instanceof Error ? err.message : String(err)}` });
+    }
+    /* v8 ignore stop */
   }
 
   async function spawnCasa(spawnOpts: SpawnOpts): Promise<ProcessInfo> {
@@ -97,15 +134,50 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
     });
 
     // Determine runtime binary path
-    const runtimeBin = spawnOpts.runtimeBin ?? process.execPath;
-    let runtimeArgs: string[];
+    let spawnBin = spawnOpts.runtimeBin ?? process.execPath;
+    let spawnArgs: string[];
     if (spawnOpts.runtimeBin) {
-      runtimeArgs = [];
+      spawnArgs = [];
     } else if (opts.runtimeEntrypoint) {
-      runtimeArgs = [opts.runtimeEntrypoint];
+      spawnArgs = [opts.runtimeEntrypoint];
     } else {
       throw new ProcessSpawnError("No runtimeEntrypoint configured and no runtimeBin provided");
     }
+
+    // Sandbox wrapping — BEFORE FD open to prevent leaks on failure
+    const sandboxMode = spawnOpts.sandboxMode ?? "auto";
+    let sandboxPlatform: import("@mecha/sandbox").SandboxPlatform | undefined;
+    /* v8 ignore start -- sandbox integration tested via CLI E2E, unit tests don't inject sandbox DI */
+    if (sandboxMode !== "off" && sandbox) {
+      const available = sandbox.isAvailable();
+      if (sandboxMode === "require" && !available) {
+        throw new ProcessSpawnError(`Sandbox required but ${sandbox.describe()}`);
+      }
+      if (available) {
+        const config = readCasaConfig(casaDir);
+        if (config) {
+          const profile = profileFromConfig({
+            config, casaDir, mechaDir, runtimeEntrypoint: opts.runtimeEntrypoint,
+          });
+          const wrapped = await sandbox.wrap(profile, spawnBin, spawnArgs, casaDir);
+          spawnBin = wrapped.bin;
+          spawnArgs = wrapped.args;
+          sandboxPlatform = sandbox.platform;
+          // Persist sandbox profile for introspection
+          const persisted: PersistedSandboxProfile = {
+            platform: sandbox.platform, profile, createdAt: new Date().toISOString(),
+          };
+          writeFileSync(
+            join(casaDir, "sandbox-profile.json"),
+            JSON.stringify(persisted, null, 2) + "\n",
+            { mode: 0o600 },
+          );
+        }
+      } else if (sandboxMode === "auto") {
+        emitter.emit({ type: "warning", name, message: "Kernel sandbox not available, running without sandbox" });
+      }
+    }
+    /* v8 ignore stop */
 
     // Open log files as FDs — the OS writes directly so Node has no stream references
     // that would keep the event loop alive after child.unref().
@@ -115,7 +187,7 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
     // Spawn child process
     let child: ChildProcess;
     try {
-      child = spawnFn(runtimeBin, runtimeArgs, {
+      child = spawnFn(spawnBin, spawnArgs, {
         env: childEnv,
         cwd: workspacePath,
         detached: true,
@@ -162,6 +234,7 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
         exitCode: code ?? undefined,
       };
       writeState(_casaDir(name), state);
+      _updateDiscoveryIndex();
       emitter.emit({ type: "stopped", name, exitCode: code ?? undefined });
     });
 
@@ -190,8 +263,11 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
       port,
       workspacePath,
       startedAt,
+      sandboxPlatform,
+      sandboxMode,
     };
     writeState(casaDir, state);
+    _updateDiscoveryIndex();
 
     emitter.emit({ type: "spawned", name, pid: child.pid, port });
 
@@ -218,6 +294,7 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
       state.state = "stopped";
       state.stoppedAt = new Date().toISOString();
       writeState(casaDir, state);
+      _updateDiscoveryIndex();
     }
 
     return {
@@ -235,6 +312,7 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
 
   function listCasas(): ProcessInfo[] {
     const results: ProcessInfo[] = [];
+    let livenessChanged = false;
     for (const casaDir of listCasaDirs(mechaDir)) {
       const state = readState(casaDir);
       if (!state) continue;
@@ -246,6 +324,7 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
         state.state = "stopped";
         state.stoppedAt = new Date().toISOString();
         writeState(casaDir, state);
+        livenessChanged = true;
       }
       results.push({
         name: state.name as CasaName,
@@ -259,6 +338,7 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
         exitCode: state.exitCode,
       });
     }
+    if (livenessChanged) _updateDiscoveryIndex();
     return results;
   }
 
@@ -280,6 +360,7 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
       state.state = "stopped";
       state.stoppedAt = new Date().toISOString();
       writeState(_casaDir(name), state);
+      _updateDiscoveryIndex();
       emitter.emit({ type: "stopped", name });
       return;
     }
@@ -302,6 +383,7 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
       state.state = "stopped";
       state.stoppedAt = new Date().toISOString();
       writeState(_casaDir(name), state);
+      _updateDiscoveryIndex();
       emitter.emit({ type: "stopped", name });
       return;
     }

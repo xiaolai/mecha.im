@@ -15,6 +15,7 @@
     "typecheck": "tsc -b --noEmit"
   },
   "dependencies": {
-    "@mecha/core": "workspace:*"
+    "@mecha/core": "workspace:*",
+    "@mecha/sandbox": "workspace:*"
   }
 }

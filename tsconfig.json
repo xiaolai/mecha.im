@@ -10,6 +10,7 @@
     { "path": "packages/core" },
     { "path": "packages/cli" },
     { "path": "packages/process" },
+    { "path": "packages/sandbox" },
     { "path": "packages/runtime" },
     { "path": "packages/service" }
   ],

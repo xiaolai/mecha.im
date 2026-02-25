@@ -1,6 +1,7 @@
 import type { ChildProcess } from "node:child_process";
 import type { Readable } from "node:stream";
-import type { CasaName } from "@mecha/core";
+import type { CasaName, SandboxMode } from "@mecha/core";
+import type { Sandbox } from "@mecha/sandbox";
 import type { ProcessEvent } from "./events.js";
 
 export interface SpawnOpts {
@@ -14,6 +15,7 @@ export interface SpawnOpts {
   tags?: string[];
   expose?: string[];
   runtimeBin?: string;
+  sandboxMode?: SandboxMode;
 }
 
 export interface ProcessInfo {
@@ -57,4 +59,6 @@ export interface CreateProcessManagerOpts {
   spawnFn?: typeof import("node:child_process").spawn;
   /** Path to the @mecha/runtime entrypoint. Required for real spawning. */
   runtimeEntrypoint?: string;
+  /** Sandbox instance for kernel-level isolation (Phase 5) */
+  sandbox?: Sandbox;
 }

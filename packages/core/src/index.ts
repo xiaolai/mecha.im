@@ -53,11 +53,11 @@ export {
   toSafeMessage,
 } from "./mapping.js";
 export { readCasaConfig, updateCasaConfig } from "./casa-config.js";
-export type { CasaConfig } from "./casa-config.js";
+export type { CasaConfig, SandboxMode } from "./casa-config.js";
 export { forwardQueryToCasa } from "./forwarding.js";
 export type { ForwardResult } from "./forwarding.js";
 export { matchesDiscoveryFilter } from "./discovery.js";
-export type { DiscoverableEntry, DiscoveryFilter } from "./discovery.js";
+export type { DiscoverableEntry, DiscoveryFilter, DiscoveryIndex, DiscoveryIndexEntry } from "./discovery.js";
 
 // Identity (Phase 3)
 export {

@@ -2,8 +2,7 @@ import { promises as fsp } from "node:fs";
 import { join } from "node:path";
 import {
   type ForwardResult,
-  readCasaConfig,
-  isValidName,
+  type DiscoveryIndex,
   isCapability,
   matchesDiscoveryFilter,
   AclDeniedError,
@@ -65,54 +64,39 @@ interface MeshResult {
   _meta?: Record<string, unknown>;
 }
 
-/** Discover CASAs by scanning mechaDir (no ProcessManager needed). */
+/** Discover CASAs by reading discovery.json (fast, sandboxed-friendly). */
 async function discoverCasas(
   mechaDir: string,
   source: string,
   opts: { tag?: string; capability?: string },
 ): Promise<Array<{ name: string; tags: string[]; expose: string[]; state: string }>> {
-  let entries: string[];
+  const indexPath = join(mechaDir, "discovery.json");
+  let index: DiscoveryIndex;
   try {
-    entries = await fsp.readdir(mechaDir);
-  /* v8 ignore start -- readdir fallback */
+    const raw = await fsp.readFile(indexPath, "utf-8");
+    index = JSON.parse(raw) as DiscoveryIndex;
+  /* v8 ignore start -- missing or corrupt discovery.json */
   } catch {
     return [];
   }
   /* v8 ignore stop */
 
+  /* v8 ignore start -- defensive: malformed index shape */
+  if (!Array.isArray(index.casas)) return [];
+  /* v8 ignore stop */
+
   const results: Array<{ name: string; tags: string[]; expose: string[]; state: string }> = [];
-
-  for (const entry of entries) {
-    if (entry === "identity" || entry === "tools" || entry === "auth") continue;
-    /* v8 ignore start -- defensive: invalid names, non-dirs, missing configs */
-    if (!isValidName(entry)) continue;
-    if (entry === source) continue;
-
-    try {
-      const stat = await fsp.stat(join(mechaDir, entry));
-      if (!stat.isDirectory()) continue;
-    } catch {
-      continue;
-    }
-
-    const config = readCasaConfig(join(mechaDir, entry));
-    if (!config) continue;
+  for (const entry of index.casas) {
+    if (entry.name === source) continue;
+    /* v8 ignore start -- defensive: normalize tags/expose/state from index */
+    const tags = Array.isArray(entry.tags) ? entry.tags : [];
+    const expose = Array.isArray(entry.expose) ? entry.expose : [];
+    const state = entry.state ?? "unknown";
     /* v8 ignore stop */
-
-    const tags: string[] = [];
-    const expose: string[] = [];
-    /* v8 ignore start -- defensive Array.isArray checks for config shape */
-    if (Array.isArray(config.tags)) {
-      for (const t of config.tags) { if (typeof t === "string") tags.push(t); }
-    }
-    if (Array.isArray(config.expose)) {
-      for (const e of config.expose) { if (typeof e === "string") expose.push(e); }
-    }
-    /* v8 ignore stop */
-
+    // Only return running CASAs for discovery
+    if (state !== "running") continue;
     if (!matchesDiscoveryFilter({ tags, expose }, opts)) continue;
-
-    results.push({ name: entry, tags, expose, state: "unknown" });
+    results.push({ name: entry.name, tags, expose, state });
   }
 
   return results;

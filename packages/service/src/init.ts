@@ -21,6 +21,12 @@ export function mechaInit(mechaDir: string): InitResult {
   mkdirSync(join(mechaDir, "tools"), { recursive: true, mode: 0o700 });
   mkdirSync(join(mechaDir, "logs"), { recursive: true, mode: 0o700 });
 
+  // Create empty discovery index if missing
+  const discoveryPath = join(mechaDir, "discovery.json");
+  if (!existsSync(discoveryPath)) {
+    writeFileSync(discoveryPath, JSON.stringify({ version: 1, updatedAt: new Date().toISOString(), casas: [] }, null, 2) + "\n", { mode: 0o600 });
+  }
+
   // Generate or read node-id
   const nodeIdPath = join(mechaDir, "node-id");
   let nodeId: string;

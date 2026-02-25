@@ -27,6 +27,12 @@ export default defineWorkspace([
   },
   {
     test: {
+      name: "sandbox",
+      include: ["packages/sandbox/__tests__/**/*.test.ts"],
+    },
+  },
+  {
+    test: {
       name: "runtime",
       include: ["packages/runtime/__tests__/**/*.test.ts"],
     },

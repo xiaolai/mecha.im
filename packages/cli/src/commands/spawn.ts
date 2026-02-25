@@ -1,6 +1,10 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { casaName, validateTags, validateCapabilities, parsePort } from "@mecha/core";
+import type { SandboxMode } from "@mecha/core";
+
+const SANDBOX_MODES: readonly string[] = ["auto", "off", "require"];
+
 export function registerSpawnCommand(program: Command, deps: CommandDeps): void {
   program
     .command("spawn")
@@ -11,7 +15,8 @@ export function registerSpawnCommand(program: Command, deps: CommandDeps): void 
     .option("--auth <profile>", "Auth profile to use")
     .option("--tags <tags>", "Comma-separated tags")
     .option("--expose <caps>", "Comma-separated capabilities to expose")
-    .action(async (name: string, path: string, opts: { port?: string; auth?: string; tags?: string; expose?: string }) => {
+    .option("--sandbox <mode>", "Sandbox mode: auto, off, require", "auto")
+    .action(async (name: string, path: string, opts: { port?: string; auth?: string; tags?: string; expose?: string; sandbox?: string }) => {
       const validated = casaName(name);
       const port = opts.port ? parsePort(opts.port) : undefined;
       if (opts.port && port === undefined) {
@@ -39,14 +44,31 @@ export function registerSpawnCommand(program: Command, deps: CommandDeps): void 
         }
         expose = capResult.capabilities;
       }
-      const info = await deps.processManager.spawn({
-        name: validated,
-        workspacePath: path,
-        port,
-        auth: opts.auth,
-        tags,
-        expose,
+      const sandboxMode = opts.sandbox as SandboxMode | undefined;
+      if (sandboxMode && !SANDBOX_MODES.includes(sandboxMode)) {
+        deps.formatter.error("Sandbox mode must be one of: auto, off, require");
+        process.exitCode = 1;
+        return;
+      }
+      // Subscribe to warning events before spawn (scoped to this CASA)
+      /* v8 ignore start -- event handler callback; wiring tested via onEvent call check */
+      const unsub = deps.processManager.onEvent((event) => {
+        if (event.type === "warning" && event.name === validated) deps.formatter.warn(event.message);
       });
-      deps.formatter.success(`Spawned ${info.name} on port ${info.port}`);
+      /* v8 ignore stop */
+      try {
+        const info = await deps.processManager.spawn({
+          name: validated,
+          workspacePath: path,
+          port,
+          auth: opts.auth,
+          tags,
+          expose,
+          sandboxMode,
+        });
+        deps.formatter.success(`Spawned ${info.name} on port ${info.port}`);
+      } finally {
+        unsub();
+      }
     });
 }

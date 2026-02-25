@@ -2,6 +2,9 @@ import { existsSync, readFileSync, writeFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 
+/** Sandbox enforcement mode */
+export type SandboxMode = "auto" | "off" | "require";
+
 /** CASA configuration persisted in config.json */
 export interface CasaConfig {
   port: number;
@@ -12,6 +15,8 @@ export interface CasaConfig {
   auth?: string;
   tags?: string[];
   expose?: string[];
+  sandboxMode?: SandboxMode;
+  allowNetwork?: boolean;
 }
 
 function isCasaConfig(v: unknown): v is CasaConfig {
@@ -33,6 +38,10 @@ export function readCasaConfig(casaDir: string): CasaConfig | undefined {
     }
     if (parsed.expose !== undefined && !Array.isArray(parsed.expose)) {
       parsed.expose = undefined;
+    }
+    // Validate sandboxMode against known values
+    if (parsed.sandboxMode !== undefined && !["auto", "off", "require"].includes(parsed.sandboxMode as string)) {
+      parsed.sandboxMode = undefined;
     }
     return parsed;
   } catch {

@@ -2,6 +2,7 @@ import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { casaName, readCasaConfig, loadCasaIdentity } from "@mecha/core";
 import { casaStatus } from "@mecha/service";
+import { readState } from "@mecha/process";
 import { join } from "node:path";
 
 export function registerStatusCommand(program: Command, deps: CommandDeps): void {
@@ -45,6 +46,15 @@ export function registerStatusCommand(program: Command, deps: CommandDeps): void
       }
       if (parent) {
         enriched.parent = parent;
+      }
+
+      // Sandbox info from state.json
+      const state = readState(join(deps.mechaDir, validated));
+      if (state?.sandboxPlatform) {
+        enriched.sandboxPlatform = state.sandboxPlatform;
+      }
+      if (state?.sandboxMode) {
+        enriched.sandboxMode = state.sandboxMode;
       }
 
       deps.formatter.json(enriched);

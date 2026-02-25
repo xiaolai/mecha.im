@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -12,7 +12,7 @@ describe("doctor command", () => {
     if (tempDir) rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it("reports healthy system", async () => {
+  it("reports healthy system with sandbox check", async () => {
     tempDir = mkdtempSync(join(tmpdir(), "mecha-cli-doctor-"));
     const mechaDir = join(tempDir, ".mecha");
     mkdirSync(mechaDir, { recursive: true });
@@ -25,6 +25,10 @@ describe("doctor command", () => {
 
     await program.parseAsync(["node", "mecha", "doctor"]);
     expect(deps.formatter.success).toHaveBeenCalledWith(expect.stringContaining("healthy"));
+    // Sandbox check should appear in output (either as success or warn)
+    const allCalls = [...(deps.formatter.success as ReturnType<typeof vi.fn>).mock.calls, ...(deps.formatter.warn as ReturnType<typeof vi.fn>).mock.calls];
+    const sandboxMsg = allCalls.find((c: string[]) => c[0]?.includes("sandbox"));
+    expect(sandboxMsg).toBeDefined();
   });
 
   it("reports unhealthy system", async () => {

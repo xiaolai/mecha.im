@@ -7,6 +7,7 @@ import { createProgram } from "./program.js";
 import { createFormatter } from "./formatter.js";
 import { createProcessManager } from "@mecha/process";
 import { createAclEngine, MechaError } from "@mecha/core";
+import { createSandbox } from "@mecha/sandbox";
 import type { CommandDeps } from "./types.js";
 
 const formatter = createFormatter({
@@ -19,10 +20,11 @@ const mechaDir = process.env.MECHA_DIR ?? join(homedir(), ".mecha");
 // Resolve the @mecha/runtime entrypoint relative to this package
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const runtimeEntrypoint = join(__dirname, "..", "..", "runtime", "dist", "main.js");
-const processManager = createProcessManager({ mechaDir, runtimeEntrypoint });
+const sandbox = createSandbox();
+const processManager = createProcessManager({ mechaDir, runtimeEntrypoint, sandbox });
 
 const acl = createAclEngine({ mechaDir });
-const deps: CommandDeps = { formatter, processManager, mechaDir, acl };
+const deps: CommandDeps = { formatter, processManager, mechaDir, acl, sandbox };
 const program = createProgram(deps);
 
 // Graceful shutdown: stop all running CASAs on SIGINT/SIGTERM
@@ -35,6 +37,8 @@ function shutdown() {
     Promise.allSettled(running.map((p) => processManager.stop(p.name)))
       .then(() => { process.exit(0); })
       .catch(() => { process.exit(1); });
+  } else {
+    process.exit(0);
   }
 }
 process.on("SIGINT", shutdown);

@@ -15,6 +15,21 @@ export interface DiscoveryFilter {
   capability?: string;
 }
 
+/** Discovery index entry written to discovery.json */
+export interface DiscoveryIndexEntry {
+  name: string;
+  tags: string[];
+  expose: string[];
+  state: string;
+}
+
+/** Discovery index persisted at mechaDir/discovery.json */
+export interface DiscoveryIndex {
+  version: 1;
+  updatedAt: string;
+  casas: DiscoveryIndexEntry[];
+}
+
 /**
  * Returns true if the entry matches all provided filter criteria.
  * - `tag`: entry must have this single tag

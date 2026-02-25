@@ -8,6 +8,18 @@ export function registerDoctorCommand(program: Command, deps: CommandDeps): void
     .description("Run system health checks")
     .action(async () => {
       const result = mechaDoctor(deps.mechaDir);
+
+      // Add sandbox availability check
+      const sandbox = deps.sandbox;
+      /* v8 ignore start -- sandbox availability is platform-dependent */
+      const available = sandbox.isAvailable();
+      result.checks.push({
+        name: "sandbox",
+        status: available ? "ok" : "warn",
+        message: sandbox.describe(),
+      });
+      /* v8 ignore stop */
+
       for (const check of result.checks) {
         const icon = check.status === "ok" ? "✓" : check.status === "warn" ? "!" : "✗";
         const fn = check.status === "ok" ? "success" : check.status === "warn" ? "warn" : "error";

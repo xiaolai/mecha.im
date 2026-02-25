@@ -16,6 +16,7 @@ import { registerConfigureCommand } from "./commands/configure.js";
 import { registerAclCommand } from "./commands/acl.js";
 import { registerNodeCommand } from "./commands/node.js";
 import { registerAgentCommand } from "./commands/agent.js";
+import { registerSandboxCommand } from "./commands/sandbox.js";
 
 /** Create the root mecha CLI program with global flags */
 export function createProgram(deps: CommandDeps): Command {
@@ -46,6 +47,7 @@ export function createProgram(deps: CommandDeps): Command {
   registerAclCommand(program, deps);
   registerNodeCommand(program, deps);
   registerAgentCommand(program, deps);
+  registerSandboxCommand(program, deps);
 
   return program;
 }

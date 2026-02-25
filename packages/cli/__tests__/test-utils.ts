@@ -2,11 +2,13 @@ import { vi } from "vitest";
 import type { CommandDeps } from "../src/types.js";
 import type { ProcessManager } from "@mecha/process";
 import type { AclEngine } from "@mecha/core";
+import type { Sandbox } from "@mecha/sandbox";
 
 export function makeDeps(opts: {
   mechaDir?: string;
   pm?: Partial<ProcessManager>;
   acl?: Partial<AclEngine>;
+  sandbox?: Partial<Sandbox>;
 } = {}): CommandDeps {
   return {
     formatter: {
@@ -38,5 +40,12 @@ export function makeDeps(opts: {
       save: vi.fn(),
       ...opts.acl,
     } as unknown as AclEngine,
+    sandbox: {
+      platform: "macos",
+      isAvailable: vi.fn().mockReturnValue(true),
+      wrap: vi.fn(),
+      describe: vi.fn().mockReturnValue("macOS sandbox-exec (available)"),
+      ...opts.sandbox,
+    } as unknown as Sandbox,
   };
 }

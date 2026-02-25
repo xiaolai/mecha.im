@@ -53,6 +53,9 @@ importers:
       '@mecha/process':
         specifier: workspace:*
         version: link:../process
+      '@mecha/sandbox':
+        specifier: workspace:*
+        version: link:../sandbox
       '@mecha/service':
         specifier: workspace:*
         version: link:../service
@@ -71,6 +74,9 @@ importers:
       '@mecha/core':
         specifier: workspace:*
         version: link:../core
+      '@mecha/sandbox':
+        specifier: workspace:*
+        version: link:../sandbox
 
   packages/runtime:
     dependencies:
@@ -83,6 +89,12 @@ importers:
       zod:
         specifier: ^3.25.36
         version: 3.25.76
+
+  packages/sandbox:
+    dependencies:
+      '@mecha/core':
+        specifier: workspace:*
+        version: link:../core
 
   packages/service:
     dependencies:

@@ -1,5 +1,6 @@
 import type { ProcessManager } from "@mecha/process";
 import type { AclEngine } from "@mecha/core";
+import type { Sandbox } from "@mecha/sandbox";
 
 /** Output formatter for CLI commands */
 export interface Formatter {
@@ -17,6 +18,7 @@ export interface CommandDeps {
   processManager: ProcessManager;
   mechaDir: string;
   acl: AclEngine;
+  sandbox: Sandbox;
 }
 
 /** Options controlling formatter behavior */
