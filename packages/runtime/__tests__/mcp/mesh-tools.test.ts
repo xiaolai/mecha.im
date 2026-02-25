@@ -198,7 +198,7 @@ describe("mesh_query", () => {
     const opts: MeshOpts = { mechaDir, casaName: "coder", router: mockRouter };
     const result = await handleMeshTool(opts, "mesh_query", { target: "researcher", message: "hello" });
 
-    expect(result.content[0].text).toBe("Mesh query failed: HTTP 500");
+    expect(result.content[0].text).toBe("Mesh query failed");
     expect(result.isError).toBe(true);
   });
 

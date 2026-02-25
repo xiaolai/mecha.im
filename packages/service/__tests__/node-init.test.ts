@@ -59,4 +59,9 @@ describe("readNodeName", () => {
     nodeInit(mechaDir, { name: "alice" });
     expect(readNodeName(mechaDir)).toBe("alice");
   });
+
+  it("returns undefined when node.json has invalid name", () => {
+    writeFileSync(join(mechaDir, "node.json"), JSON.stringify({ name: "BAD NAME!", createdAt: "2026-01-01" }));
+    expect(readNodeName(mechaDir)).toBeUndefined();
+  });
 });

@@ -35,7 +35,13 @@ function shutdown() {
   if (shuttingDown) return;
   shuttingDown = true;
   // Run registered shutdown hooks first (e.g., agent server close)
-  Promise.allSettled(shutdownHooks.map((fn) => fn())).then(() => {
+  // Wrap each via Promise.resolve().then() to catch sync throws
+  Promise.allSettled(shutdownHooks.map((fn) => Promise.resolve().then(fn))).then((hookResults) => {
+    for (const r of hookResults) {
+      if (r.status === "rejected") {
+        console.error("Shutdown hook error:", r.reason instanceof Error ? r.reason.message : String(r.reason));
+      }
+    }
     // Only stop CASAs with a live child process handle (spawned by this CLI invocation)
     const live = processManager.list().filter((p) => p.state === "running" && p.token);
     if (live.length > 0) {

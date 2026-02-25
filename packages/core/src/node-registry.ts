@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { isValidName } from "./validation.js";
-import { InvalidNameError, DuplicateNodeError } from "./errors.js";
+import { InvalidNameError, DuplicateNodeError, CorruptConfigError } from "./errors.js";
 import { safeReadJson } from "./safe-read.js";
 
 const NODES_FILE = "nodes.json";
@@ -25,18 +25,16 @@ function nodesPath(mechaDir: string): string {
   return join(mechaDir, NODES_FILE);
 }
 
-/** Read all registered peer nodes. Returns empty array if file doesn't exist. */
+/** Read all registered peer nodes. Returns empty array if file doesn't exist. Throws on corrupt data. */
 export function readNodes(mechaDir: string): NodeEntry[] {
   const path = nodesPath(mechaDir);
   const result = safeReadJson(path, "node registry", NodesArraySchema);
+  /* v8 ignore start -- corrupt/unreadable registry fallback */
   if (!result.ok) {
-    /* v8 ignore start -- corrupt/unreadable registry fallback */
-    if (result.reason !== "missing") {
-      console.error(`[mecha] ${result.detail}`);
-    }
-    /* v8 ignore stop */
-    return [];
+    if (result.reason === "missing") return [];
+    throw new CorruptConfigError(`node registry: ${result.detail}`);
   }
+  /* v8 ignore stop */
   return result.data;
 }
 

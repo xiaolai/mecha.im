@@ -63,8 +63,12 @@ export function mechaToolLs(mechaDir: string): ToolInfo[] {
     if (!existsSync(manifestPath)) continue;
 
     try {
-      const manifest = JSON.parse(readFileSync(manifestPath, "utf-8")) as ToolInfo;
-      tools.push(manifest);
+      const manifest = JSON.parse(readFileSync(manifestPath, "utf-8")) as Record<string, unknown>;
+      if (typeof manifest.name !== "string" || typeof manifest.version !== "string" || typeof manifest.description !== "string") {
+        console.error(`[mecha] Skipping invalid tool manifest (missing fields): ${manifestPath}`);
+        continue;
+      }
+      tools.push({ name: manifest.name, version: manifest.version, description: manifest.description });
     } catch {
       console.error(`[mecha] Skipping malformed tool manifest: ${manifestPath}`);
     }

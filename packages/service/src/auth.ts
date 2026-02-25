@@ -1,6 +1,7 @@
-import { existsSync, mkdirSync, writeFileSync, renameSync } from "node:fs";
+import { mkdirSync, writeFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
+import { z } from "zod";
 import { AuthProfileNotFoundError, AuthProfileAlreadyExistsError, safeReadJson } from "@mecha/core";
 
 export interface AuthProfile {
@@ -16,13 +17,24 @@ interface AuthStore {
   profiles: AuthProfile[];
 }
 
+const AuthStoreSchema: z.ZodType<AuthStore> = z.object({
+  profiles: z.array(z.object({
+    name: z.string(),
+    type: z.enum(["oauth", "api-key"]),
+    token: z.string(),
+    isDefault: z.boolean(),
+    tags: z.array(z.string()),
+    createdAt: z.string(),
+  })),
+});
+
 function authStorePath(mechaDir: string): string {
   return join(mechaDir, "auth", "profiles.json");
 }
 
 function readStore(mechaDir: string): AuthStore {
   const path = authStorePath(mechaDir);
-  const result = safeReadJson<AuthStore>(path, "auth profiles");
+  const result = safeReadJson(path, "auth profiles", AuthStoreSchema);
   if (!result.ok) {
     if (result.reason !== "missing") {
       console.error(`[mecha] ${result.detail}`);

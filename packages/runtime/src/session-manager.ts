@@ -132,7 +132,7 @@ export function createSessionManager(
     const path = _transcriptPath(id);
 
     // Guard: reject missing or excessively large transcripts.
-    // Using sync read eliminates the TOCTOU gap between stat and read.
+    // stat + read are separate syscalls (small TOCTOU window), but acceptable for local-first use.
     let content: string;
     try {
       const st = statSync(path);

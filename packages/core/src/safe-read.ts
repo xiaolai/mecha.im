@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import type { ZodType } from "zod";
 
 export type SafeReadResult<T> =
@@ -18,22 +18,22 @@ export function safeReadJson<T>(
   label: string,
   schema?: ZodType<T>,
 ): SafeReadResult<T> {
-  if (!existsSync(path)) {
-    return { ok: false, reason: "missing", detail: `${label}: file not found` };
-  }
-
   let raw: string;
   try {
     raw = readFileSync(path, "utf-8");
   } catch (err) {
-    /* v8 ignore start -- non-Error throw fallback */
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === "ENOENT") {
+      return { ok: false, reason: "missing", detail: `${label}: file not found` };
+    }
+    /* v8 ignore start -- non-ENOENT read error (permissions, etc.) */
     const msg = err instanceof Error ? err.message : String(err);
-    /* v8 ignore stop */
     return {
       ok: false,
       reason: "unreadable",
       detail: `${label}: ${msg}`,
     };
+    /* v8 ignore stop */
   }
 
   let parsed: unknown;
@@ -62,5 +62,6 @@ export function safeReadJson<T>(
     return { ok: true, data: result.data };
   }
 
-  return { ok: true, data: parsed as T };
+  // Without schema, caller is responsible for validation — cast to T at call site
+  return { ok: true, data: parsed as T }; // eslint-disable-line @typescript-eslint/no-unsafe-return
 }

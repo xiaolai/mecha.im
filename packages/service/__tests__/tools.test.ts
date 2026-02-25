@@ -88,6 +88,17 @@ describe("mechaToolLs", () => {
     expect(tools[0].name).toBe("good");
   });
 
+  it("skips manifests with missing required fields", () => {
+    tempDir = mkdtempSync(join(tmpdir(), "mecha-tools-test-"));
+    mkdirSync(join(tempDir, "tools", "incomplete"), { recursive: true });
+    writeFileSync(join(tempDir, "tools", "incomplete", "manifest.json"), JSON.stringify({ name: "x" }));
+    mechaToolInstall(tempDir, { name: "good" });
+
+    const tools = mechaToolLs(tempDir);
+    expect(tools).toHaveLength(1);
+    expect(tools[0].name).toBe("good");
+  });
+
   it("skips non-directory entries in tools dir", () => {
     tempDir = mkdtempSync(join(tmpdir(), "mecha-tools-test-"));
     mkdirSync(join(tempDir, "tools"), { recursive: true });

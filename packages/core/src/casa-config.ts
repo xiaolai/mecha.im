@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync, renameSync } from "node:fs";
+import { writeFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 import { safeReadJson } from "./safe-read.js";
@@ -44,11 +44,11 @@ export function readCasaConfig(casaDir: string): CasaConfig | undefined {
   if (!isCasaConfig(result.data)) return undefined;
   const parsed = result.data;
   // Normalize tags and expose to string[] | undefined
-  if (parsed.tags !== undefined && !Array.isArray(parsed.tags)) {
-    parsed.tags = undefined;
+  if (parsed.tags !== undefined) {
+    parsed.tags = Array.isArray(parsed.tags) ? parsed.tags.filter((t: unknown): t is string => typeof t === "string") : undefined;
   }
-  if (parsed.expose !== undefined && !Array.isArray(parsed.expose)) {
-    parsed.expose = undefined;
+  if (parsed.expose !== undefined) {
+    parsed.expose = Array.isArray(parsed.expose) ? parsed.expose.filter((e: unknown): e is string => typeof e === "string") : undefined;
   }
   // Validate sandboxMode against known values
   if (parsed.sandboxMode !== undefined && !["auto", "off", "require"].includes(parsed.sandboxMode as string)) {

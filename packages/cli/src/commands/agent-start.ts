@@ -15,7 +15,12 @@ export function registerAgentStartCommand(parent: Command, deps: CommandDeps): v
         process.exitCode = 1;
         return;
       }
-      const apiKey = opts.apiKey;
+      const apiKey = opts.apiKey.trim();
+      if (!apiKey) {
+        deps.formatter.error("API key must not be empty");
+        process.exitCode = 1;
+        return;
+      }
 
       // Lazy import to avoid pulling in fastify when not needed
       const { createAgentServer } = await import("@mecha/agent");

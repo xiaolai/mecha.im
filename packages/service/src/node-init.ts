@@ -59,6 +59,7 @@ export function readNodeName(mechaDir: string): NodeName | undefined {
     /* v8 ignore stop */
     return undefined;
   }
+  if (typeof result.data.name !== "string" || !isValidName(result.data.name)) return undefined;
   return result.data.name as NodeName;
 }
 

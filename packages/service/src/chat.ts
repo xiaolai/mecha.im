@@ -88,6 +88,9 @@ async function* parseSSEStream(body: ReadableStream<Uint8Array>): AsyncGenerator
       }
     }
 
+    // Flush decoder for any final multibyte character fragment
+    buffer += decoder.decode();
+
     // Flush remaining buffer after stream ends (no trailing newline)
     if (buffer.startsWith("data: ")) {
       const data = buffer.slice(6);

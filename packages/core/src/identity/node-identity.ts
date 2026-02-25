@@ -83,7 +83,11 @@ export function loadNodeIdentity(mechaDir: string): NodeIdentity | undefined {
     /* v8 ignore stop */
     return undefined;
   }
-  if (!isNodeIdentity(result.data)) return undefined;
+  /* v8 ignore start -- corrupt identity: throw to prevent silent key rotation */
+  if (!isNodeIdentity(result.data)) {
+    throw new Error("[mecha] node identity: schema validation failed — manual repair required");
+  }
+  /* v8 ignore stop */
   return result.data;
 }
 

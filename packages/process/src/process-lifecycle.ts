@@ -7,7 +7,7 @@ export function isPidAlive(pid: number): boolean {
   } catch (err) {
     // EPERM: process exists but owned by different user
     if ((err as NodeJS.ErrnoException).code === "EPERM") return true;
-    // ESRCH or other: process does not exist
+    // ESRCH: process does not exist; any other error also treated as "gone"
     return false;
   }
 }
