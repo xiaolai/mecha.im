@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isValidName, NAME_PATTERN, NAME_MAX_LENGTH, validateTags, validateCapabilities, TAG_PATTERN, TAG_MAX_LENGTH, MAX_TAGS } from "../src/validation.js";
+import { isValidName, isValidAddress, NAME_PATTERN, NAME_MAX_LENGTH, validateTags, validateCapabilities, TAG_PATTERN, TAG_MAX_LENGTH, MAX_TAGS } from "../src/validation.js";
 
 describe("isValidName", () => {
   it("accepts simple lowercase names", () => {
@@ -64,6 +64,48 @@ describe("isValidName", () => {
 
   it("rejects underscores", () => {
     expect(isValidName("has_underscore")).toBe(false);
+  });
+});
+
+describe("isValidAddress", () => {
+  it("accepts bare names", () => {
+    expect(isValidAddress("coder")).toBe(true);
+  });
+
+  it("accepts name@node format", () => {
+    expect(isValidAddress("coder@alice")).toBe(true);
+  });
+
+  it("accepts hyphenated names with node", () => {
+    expect(isValidAddress("my-agent@node-1")).toBe(true);
+  });
+
+  it("rejects empty string", () => {
+    expect(isValidAddress("")).toBe(false);
+  });
+
+  it("rejects multiple @ signs", () => {
+    expect(isValidAddress("a@b@c")).toBe(false);
+  });
+
+  it("rejects invalid casa part", () => {
+    expect(isValidAddress("UPPER@node")).toBe(false);
+  });
+
+  it("rejects invalid node part", () => {
+    expect(isValidAddress("coder@BAD")).toBe(false);
+  });
+
+  it("rejects @ only", () => {
+    expect(isValidAddress("@")).toBe(false);
+  });
+
+  it("rejects empty casa before @", () => {
+    expect(isValidAddress("@node")).toBe(false);
+  });
+
+  it("rejects empty node after @", () => {
+    expect(isValidAddress("coder@")).toBe(false);
   });
 });
 

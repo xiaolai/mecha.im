@@ -21,6 +21,8 @@ import {
   AclDeniedError,
   IdentityNotFoundError,
   InvalidCapabilityError,
+  NodeNotFoundError,
+  DuplicateNodeError,
 } from "../src/errors.js";
 
 describe("MechaError base", () => {
@@ -208,6 +210,22 @@ describe("error classes", () => {
       expectedExit: 2,
       expectedCode: "INVALID_CAPABILITY",
       messageContains: "bad_cap",
+    },
+    {
+      name: "NodeNotFoundError",
+      error: new NodeNotFoundError("remote-1"),
+      expectedStatus: 404,
+      expectedExit: 1,
+      expectedCode: "NODE_NOT_FOUND",
+      messageContains: "remote-1",
+    },
+    {
+      name: "DuplicateNodeError",
+      error: new DuplicateNodeError("alice"),
+      expectedStatus: 409,
+      expectedExit: 1,
+      expectedCode: "DUPLICATE_NODE",
+      messageContains: "already registered",
     },
   ];
 

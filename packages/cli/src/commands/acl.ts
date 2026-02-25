@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
-import { casaName, isCapability, InvalidCapabilityError } from "@mecha/core";
+import { isValidAddress, isCapability, InvalidCapabilityError, InvalidAddressError } from "@mecha/core";
 import type { Capability } from "@mecha/core";
 
 export function registerAclCommand(program: Command, deps: CommandDeps): void {
@@ -11,35 +11,35 @@ export function registerAclCommand(program: Command, deps: CommandDeps): void {
   acl
     .command("grant")
     .description("Grant capability from source to target")
-    .argument("<source>", "Source CASA name")
+    .argument("<source>", "Source CASA name or address (name@node)")
     .argument("<cap>", "Capability to grant")
-    .argument("<target>", "Target CASA name")
+    .argument("<target>", "Target CASA name or address (name@node)")
     .action((source: string, cap: string, target: string) => {
-      const validSource = casaName(source);
-      const validTarget = casaName(target);
+      if (!isValidAddress(source)) throw new InvalidAddressError(source);
+      if (!isValidAddress(target)) throw new InvalidAddressError(target);
       if (!isCapability(cap)) {
         throw new InvalidCapabilityError(cap);
       }
-      deps.acl.grant(validSource, validTarget, [cap as Capability]);
+      deps.acl.grant(source, target, [cap as Capability]);
       deps.acl.save();
-      deps.formatter.success(`Granted ${validSource} → ${validTarget} (${cap})`);
+      deps.formatter.success(`Granted ${source} → ${target} (${cap})`);
     });
 
   acl
     .command("revoke")
     .description("Revoke capability from source to target")
-    .argument("<source>", "Source CASA name")
+    .argument("<source>", "Source CASA name or address (name@node)")
     .argument("<cap>", "Capability to revoke")
-    .argument("<target>", "Target CASA name")
+    .argument("<target>", "Target CASA name or address (name@node)")
     .action((source: string, cap: string, target: string) => {
-      const validSource = casaName(source);
-      const validTarget = casaName(target);
+      if (!isValidAddress(source)) throw new InvalidAddressError(source);
+      if (!isValidAddress(target)) throw new InvalidAddressError(target);
       if (!isCapability(cap)) {
         throw new InvalidCapabilityError(cap);
       }
-      deps.acl.revoke(validSource, validTarget, [cap as Capability]);
+      deps.acl.revoke(source, target, [cap as Capability]);
       deps.acl.save();
-      deps.formatter.success(`Revoked ${validSource} → ${validTarget} (${cap})`);
+      deps.formatter.success(`Revoked ${source} → ${target} (${cap})`);
     });
 
   acl

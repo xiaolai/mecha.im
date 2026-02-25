@@ -136,17 +136,61 @@ describe("AclEngine", () => {
   describe("name validation", () => {
     it("grant rejects invalid source name", () => {
       const acl = makeEngine();
-      expect(() => acl.grant("../bad", "researcher", ["query"])).toThrow("Invalid name");
+      expect(() => acl.grant("../bad", "researcher", ["query"])).toThrow("Invalid address");
     });
 
     it("check rejects invalid target name", () => {
       const acl = makeEngine();
-      expect(() => acl.check("coder", "../bad", "query")).toThrow("Invalid name");
+      expect(() => acl.check("coder", "../bad", "query")).toThrow("Invalid address");
     });
 
     it("revoke rejects invalid names", () => {
       const acl = makeEngine();
-      expect(() => acl.revoke("../bad", "b", ["query"])).toThrow("Invalid name");
+      expect(() => acl.revoke("../bad", "b", ["query"])).toThrow("Invalid address");
+    });
+  });
+
+  describe("address-aware ACL (@node)", () => {
+    it("grants and checks with target@node", () => {
+      exposeMap["analyst@bob"] = ["query"];
+      const acl = makeEngine();
+      acl.grant("coder", "analyst@bob", ["query"]);
+      expect(acl.check("coder", "analyst@bob", "query")).toEqual({ allowed: true });
+    });
+
+    it("grants and checks with source@node", () => {
+      exposeMap["analyst"] = ["query"];
+      const acl = makeEngine();
+      acl.grant("coder@alice", "analyst", ["query"]);
+      expect(acl.check("coder@alice", "analyst", "query")).toEqual({ allowed: true });
+    });
+
+    it("grants and checks with both source@node and target@node", () => {
+      exposeMap["analyst@bob"] = ["query"];
+      const acl = makeEngine();
+      acl.grant("coder@alice", "analyst@bob", ["query"]);
+      expect(acl.check("coder@alice", "analyst@bob", "query")).toEqual({ allowed: true });
+    });
+
+    it("rejects addresses with invalid node part", () => {
+      const acl = makeEngine();
+      expect(() => acl.grant("coder", "analyst@BAD", ["query"])).toThrow("Invalid address");
+    });
+
+    it("revokes address-based rules", () => {
+      exposeMap["analyst@bob"] = ["query"];
+      const acl = makeEngine();
+      acl.grant("coder", "analyst@bob", ["query"]);
+      acl.revoke("coder", "analyst@bob", ["query"]);
+      expect(acl.listRules()).toHaveLength(0);
+    });
+
+    it("listConnections returns address targets", () => {
+      const acl = makeEngine();
+      acl.grant("coder", "analyst@bob", ["query"]);
+      const conns = acl.listConnections("coder");
+      expect(conns).toHaveLength(1);
+      expect(conns[0].target).toBe("analyst@bob");
     });
   });
 

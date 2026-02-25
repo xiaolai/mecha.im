@@ -26,6 +26,35 @@ describe("acl command", () => {
         program.parseAsync(["node", "mecha", "acl", "grant", "coder", "fly", "researcher"]),
       ).rejects.toThrow("fly");
     });
+
+    it("accepts name@node addresses", async () => {
+      const deps = makeDeps();
+      const program = createProgram(deps);
+      program.exitOverride();
+
+      await program.parseAsync(["node", "mecha", "acl", "grant", "coder@alice", "query", "analyst@bob"]);
+      expect(deps.acl.grant).toHaveBeenCalledWith("coder@alice", "analyst@bob", ["query"]);
+    });
+
+    it("rejects invalid address", async () => {
+      const deps = makeDeps();
+      const program = createProgram(deps);
+      program.exitOverride();
+
+      await expect(
+        program.parseAsync(["node", "mecha", "acl", "grant", "../bad", "query", "analyst"]),
+      ).rejects.toThrow("Invalid address");
+    });
+
+    it("rejects invalid target address", async () => {
+      const deps = makeDeps();
+      const program = createProgram(deps);
+      program.exitOverride();
+
+      await expect(
+        program.parseAsync(["node", "mecha", "acl", "grant", "coder", "query", "BAD@NODE"]),
+      ).rejects.toThrow("Invalid address");
+    });
   });
 
   describe("revoke", () => {
@@ -50,6 +79,26 @@ describe("acl command", () => {
       await expect(
         program.parseAsync(["node", "mecha", "acl", "revoke", "a", "invalid", "b"]),
       ).rejects.toThrow("invalid");
+    });
+
+    it("rejects invalid address in revoke", async () => {
+      const deps = makeDeps();
+      const program = createProgram(deps);
+      program.exitOverride();
+
+      await expect(
+        program.parseAsync(["node", "mecha", "acl", "revoke", "../bad", "query", "researcher"]),
+      ).rejects.toThrow("Invalid address");
+    });
+
+    it("rejects invalid target address in revoke", async () => {
+      const deps = makeDeps();
+      const program = createProgram(deps);
+      program.exitOverride();
+
+      await expect(
+        program.parseAsync(["node", "mecha", "acl", "revoke", "coder", "query", "BAD"]),
+      ).rejects.toThrow("Invalid address");
     });
   });
 

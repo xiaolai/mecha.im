@@ -34,3 +34,7 @@ export { buildHierarchy, flattenHierarchy } from "./hierarchy.js";
 export type { HierarchyNode } from "./hierarchy.js";
 export { createCasaRouter } from "./router.js";
 export type { CasaRouter, CreateRouterOpts } from "./router.js";
+export { nodeInit, readNodeName } from "./node-init.js";
+export type { NodeInitResult } from "./node-init.js";
+export { agentFetch } from "./agent-fetch.js";
+export type { AgentFetchOpts } from "./agent-fetch.js";
