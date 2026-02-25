@@ -56,6 +56,13 @@ export function validateTags(tags: string[]): { ok: true; tags: string[] } | { o
   return { ok: true, tags: result };
 }
 
+/** Parse a port string. Returns a valid port number (1-65535) or undefined. */
+export function parsePort(raw: string): number | undefined {
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1 || n > 65535) return undefined;
+  return n;
+}
+
 /** Validate a list of capability strings. Returns validated capabilities or an error message. */
 export function validateCapabilities(caps: string[]): { ok: true; capabilities: Capability[] } | { ok: false; error: string } {
   const result: Capability[] = [];

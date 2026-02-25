@@ -7,7 +7,7 @@ export type {
 } from "./types.js";
 export { isCasaAddress, isGroupAddress } from "./types.js";
 export { casaName, nodeName, parseAddress, formatAddress } from "./address.js";
-export { NAME_PATTERN, NAME_MAX_LENGTH, isValidName, isValidAddress, TAG_PATTERN, TAG_MAX_LENGTH, MAX_TAGS, validateTags, validateCapabilities } from "./validation.js";
+export { NAME_PATTERN, NAME_MAX_LENGTH, isValidName, isValidAddress, TAG_PATTERN, TAG_MAX_LENGTH, MAX_TAGS, validateTags, validateCapabilities, parsePort } from "./validation.js";
 export {
   MECHA_DIR,
   TOOLS_DIR,
@@ -49,8 +49,6 @@ export {
   PermissionMode,
 } from "./schemas.js";
 export {
-  toHttpStatus,
-  toExitCode,
   toUserMessage,
   toSafeMessage,
 } from "./mapping.js";

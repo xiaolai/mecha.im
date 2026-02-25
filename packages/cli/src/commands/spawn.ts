@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
-import { casaName, validateTags, validateCapabilities } from "@mecha/core";
+import { casaName, validateTags, validateCapabilities, parsePort } from "@mecha/core";
 export function registerSpawnCommand(program: Command, deps: CommandDeps): void {
   program
     .command("spawn")
@@ -13,8 +13,8 @@ export function registerSpawnCommand(program: Command, deps: CommandDeps): void 
     .option("--expose <caps>", "Comma-separated capabilities to expose")
     .action(async (name: string, path: string, opts: { port?: string; auth?: string; tags?: string; expose?: string }) => {
       const validated = casaName(name);
-      const port = opts.port ? Number(opts.port) : undefined;
-      if (opts.port && (!Number.isInteger(port) || port! < 1 || port! > 65535)) {
+      const port = opts.port ? parsePort(opts.port) : undefined;
+      if (opts.port && port === undefined) {
         deps.formatter.error("Port must be an integer between 1 and 65535");
         process.exitCode = 1;
         return;

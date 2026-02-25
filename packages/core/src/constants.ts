@@ -36,4 +36,8 @@ export const DEFAULTS = {
   FORWARD_TIMEOUT_MS: 60_000,
   /** Max transcript file size to read (bytes) */
   MAX_TRANSCRIPT_BYTES: 10 * 1024 * 1024,
+  /** Agent status health-check timeout (ms) */
+  AGENT_STATUS_TIMEOUT_MS: 5_000,
+  /** Port availability check socket timeout (ms) */
+  PORT_CHECK_TIMEOUT_MS: 2_000,
 } as const;

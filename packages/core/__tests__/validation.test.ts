@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isValidName, isValidAddress, NAME_PATTERN, NAME_MAX_LENGTH, validateTags, validateCapabilities, TAG_PATTERN, TAG_MAX_LENGTH, MAX_TAGS } from "../src/validation.js";
+import { isValidName, isValidAddress, NAME_PATTERN, NAME_MAX_LENGTH, validateTags, validateCapabilities, TAG_PATTERN, TAG_MAX_LENGTH, MAX_TAGS, parsePort } from "../src/validation.js";
 
 describe("isValidName", () => {
   it("accepts simple lowercase names", () => {
@@ -187,6 +187,32 @@ describe("TAG_MAX_LENGTH / MAX_TAGS", () => {
   it("has expected values", () => {
     expect(TAG_MAX_LENGTH).toBe(32);
     expect(MAX_TAGS).toBe(20);
+  });
+});
+
+describe("parsePort", () => {
+  it("returns valid port numbers", () => {
+    expect(parsePort("80")).toBe(80);
+    expect(parsePort("7660")).toBe(7660);
+    expect(parsePort("65535")).toBe(65535);
+    expect(parsePort("1")).toBe(1);
+  });
+
+  it("returns undefined for non-numeric strings", () => {
+    expect(parsePort("abc")).toBeUndefined();
+    expect(parsePort("")).toBeUndefined();
+    expect(parsePort("foo123")).toBeUndefined();
+  });
+
+  it("returns undefined for out-of-range numbers", () => {
+    expect(parsePort("0")).toBeUndefined();
+    expect(parsePort("65536")).toBeUndefined();
+    expect(parsePort("-1")).toBeUndefined();
+  });
+
+  it("returns undefined for non-integer numbers", () => {
+    expect(parsePort("3.14")).toBeUndefined();
+    expect(parsePort("80.5")).toBeUndefined();
   });
 });
 

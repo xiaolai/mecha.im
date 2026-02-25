@@ -9,7 +9,7 @@ import { PortConflictError } from "@mecha/core";
 export function checkPort(port: number): Promise<boolean> {
   return new Promise((resolve) => {
     const socket = createConnection({ port, host: "127.0.0.1" });
-    socket.setTimeout(2000);
+    socket.setTimeout(DEFAULTS.PORT_CHECK_TIMEOUT_MS);
     socket.once("connect", () => {
       socket.destroy();
       resolve(false); // port is in use

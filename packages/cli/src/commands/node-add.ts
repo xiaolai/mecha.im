@@ -1,7 +1,6 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
-import { addNode } from "@mecha/core";
-import { DEFAULTS } from "@mecha/core";
+import { addNode, DEFAULTS, parsePort } from "@mecha/core";
 
 export function registerNodeAddCommand(parent: Command, deps: CommandDeps): void {
   parent
@@ -12,8 +11,8 @@ export function registerNodeAddCommand(parent: Command, deps: CommandDeps): void
     .option("--port <port>", "Agent server port", String(DEFAULTS.AGENT_PORT))
     .requiredOption("--api-key <key>", "API key for authentication (required)")
     .action((name: string, host: string, opts: { port: string; apiKey: string }) => {
-      const port = Number(opts.port);
-      if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      const port = parsePort(opts.port);
+      if (port === undefined) {
         deps.formatter.error(`Invalid port: ${opts.port}`);
         return;
       }
