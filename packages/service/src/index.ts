@@ -38,3 +38,5 @@ export { nodeInit, readNodeName } from "./node-init.js";
 export type { NodeInitResult } from "./node-init.js";
 export { agentFetch } from "./agent-fetch.js";
 export type { AgentFetchOpts } from "./agent-fetch.js";
+export { createLocator } from "./locator.js";
+export type { MechaLocator, LocateResult, CreateLocatorOpts } from "./locator.js";

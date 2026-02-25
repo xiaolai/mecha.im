@@ -14,6 +14,7 @@ import { registerAuthCommand } from "./commands/auth.js";
 import { registerFindCommand } from "./commands/find.js";
 import { registerConfigureCommand } from "./commands/configure.js";
 import { registerAclCommand } from "./commands/acl.js";
+import { registerNodeCommand } from "./commands/node.js";
 
 /** Create the root mecha CLI program with global flags */
 export function createProgram(deps: CommandDeps): Command {
@@ -42,6 +43,7 @@ export function createProgram(deps: CommandDeps): Command {
   registerFindCommand(program, deps);
   registerConfigureCommand(program, deps);
   registerAclCommand(program, deps);
+  registerNodeCommand(program, deps);
 
   return program;
 }
