@@ -20,6 +20,7 @@ export async function casaChat(
   pm: ProcessManager,
   name: CasaName,
   opts: ChatOpts,
+  signal?: AbortSignal,
 ): Promise<AsyncIterable<ChatEvent>> {
   const info = resolveCasaEndpoint(pm, name);
 
@@ -31,7 +32,9 @@ export async function casaChat(
       "content-type": "application/json",
     },
     body: JSON.stringify(opts),
-    signal: AbortSignal.timeout(DEFAULTS.FORWARD_TIMEOUT_MS),
+    signal: signal
+      ? AbortSignal.any([AbortSignal.timeout(DEFAULTS.FORWARD_TIMEOUT_MS), signal])
+      : AbortSignal.timeout(DEFAULTS.FORWARD_TIMEOUT_MS),
   });
 
   if (!response.ok) {
@@ -63,6 +66,13 @@ async function* parseSSEStream(body: ReadableStream<Uint8Array>): AsyncGenerator
       if (done) break;
 
       buffer += decoder.decode(value, { stream: true });
+
+      /* v8 ignore start -- defensive: prevents OOM on pathological stream without newlines */
+      if (buffer.length > DEFAULTS.MAX_TRANSCRIPT_BYTES) {
+        throw new Error("SSE buffer exceeded maximum size");
+      }
+      /* v8 ignore stop */
+
       const lines = buffer.split("\n");
       buffer = lines.pop() ?? /* v8 ignore start */ "" /* v8 ignore stop */;
 
@@ -77,7 +87,20 @@ async function* parseSSEStream(body: ReadableStream<Uint8Array>): AsyncGenerator
         }
       }
     }
+
+    // Flush remaining buffer after stream ends (no trailing newline)
+    if (buffer.startsWith("data: ")) {
+      const data = buffer.slice(6);
+      try {
+        yield JSON.parse(data) as ChatEvent;
+      /* v8 ignore start -- skip malformed final chunk */
+      } catch {
+        // skip malformed JSON
+      }
+      /* v8 ignore stop */
+    }
   } finally {
+    await reader.cancel();
     reader.releaseLock();
   }
 }

@@ -1,7 +1,7 @@
-import { existsSync, mkdirSync, writeFileSync, readFileSync, renameSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
-import { AuthProfileNotFoundError, AuthProfileAlreadyExistsError } from "@mecha/core";
+import { AuthProfileNotFoundError, AuthProfileAlreadyExistsError, safeReadJson } from "@mecha/core";
 
 export interface AuthProfile {
   name: string;
@@ -22,12 +22,14 @@ function authStorePath(mechaDir: string): string {
 
 function readStore(mechaDir: string): AuthStore {
   const path = authStorePath(mechaDir);
-  if (!existsSync(path)) return { profiles: [] };
-  try {
-    return JSON.parse(readFileSync(path, "utf-8")) as AuthStore;
-  } catch {
+  const result = safeReadJson<AuthStore>(path, "auth profiles");
+  if (!result.ok) {
+    if (result.reason !== "missing") {
+      console.error(`[mecha] ${result.detail}`);
+    }
     return { profiles: [] };
   }
+  return result.data;
 }
 
 function writeStore(mechaDir: string, store: AuthStore): void {

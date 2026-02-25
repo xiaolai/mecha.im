@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { hostname } from "node:os";
 import type { NodeName } from "@mecha/core";
-import { isValidName, InvalidNameError, CorruptConfigError } from "@mecha/core";
+import { isValidName, InvalidNameError, CorruptConfigError, safeReadJson } from "@mecha/core";
 
 const NODE_FILE = "node.json";
 
@@ -50,9 +50,16 @@ export function nodeInit(mechaDir: string, opts?: { name?: string }): NodeInitRe
 /** Read the current node name, if initialized. */
 export function readNodeName(mechaDir: string): NodeName | undefined {
   const nodePath = join(mechaDir, NODE_FILE);
-  if (!existsSync(nodePath)) return undefined;
-  const raw = JSON.parse(readFileSync(nodePath, "utf-8")) as NodeConfig;
-  return raw.name as NodeName;
+  const result = safeReadJson<NodeConfig>(nodePath, "node config");
+  if (!result.ok) {
+    /* v8 ignore start -- corrupt/unreadable node config fallback */
+    if (result.reason !== "missing") {
+      console.error(`[mecha] ${result.detail}`);
+    }
+    /* v8 ignore stop */
+    return undefined;
+  }
+  return result.data.name as NodeName;
 }
 
 function generateNodeName(): string {

@@ -66,7 +66,7 @@ export function mechaToolLs(mechaDir: string): ToolInfo[] {
       const manifest = JSON.parse(readFileSync(manifestPath, "utf-8")) as ToolInfo;
       tools.push(manifest);
     } catch {
-      // skip malformed manifests
+      console.error(`[mecha] Skipping malformed tool manifest: ${manifestPath}`);
     }
   }
 

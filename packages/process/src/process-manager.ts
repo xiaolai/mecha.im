@@ -17,6 +17,17 @@ import { readState, writeState, listCasaDirs } from "./state-store.js";
 import { ProcessEventEmitter } from "./events.js";
 import type { ProcessEvent } from "./events.js";
 import { isPidAlive, waitForChildExit, waitForPidExit } from "./process-lifecycle.js";
+
+/** Send a signal, ignoring ESRCH (process already gone). */
+function safePidKill(pid: number, signal: NodeJS.Signals): void {
+  try {
+    process.kill(pid, signal);
+  } catch (err) {
+    /* v8 ignore start -- only ESRCH expected; re-throw is a safety net */
+    if ((err as NodeJS.ErrnoException).code !== "ESRCH") throw err;
+    /* v8 ignore stop */
+  }
+}
 import { spawnCasa, type SpawnContext } from "./spawn-pipeline.js";
 import { readLogs } from "./log-reader.js";
 import type {
@@ -169,10 +180,10 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
       if (!state) throw new CasaNotFoundError(name);
       if (state.state !== "running") throw new CasaNotRunningError(name);
       if (state.pid && isPidAlive(state.pid)) {
-        process.kill(state.pid, "SIGTERM");
+        safePidKill(state.pid, "SIGTERM");
         await waitForPidExit(state.pid, DEFAULTS.STOP_GRACE_MS);
         if (isPidAlive(state.pid)) {
-          process.kill(state.pid, "SIGKILL");
+          safePidKill(state.pid, "SIGKILL");
         }
       }
       state.state = "stopped";
@@ -183,10 +194,11 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
       return;
     }
 
-    lp.child.kill("SIGTERM");
+    try { lp.child.kill("SIGTERM"); } catch { /* child already gone */ }
     const exited = await waitForChildExit(lp.child, DEFAULTS.STOP_GRACE_MS);
     if (!exited) {
-      lp.child.kill("SIGKILL");
+      try { lp.child.kill("SIGKILL"); } catch { /* child already gone */ }
+      await waitForChildExit(lp.child, 2000);
     }
   }
 
@@ -196,7 +208,7 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
       const state = readState(_casaDir(name));
       if (!state) throw new CasaNotFoundError(name);
       if (state.pid && isPidAlive(state.pid)) {
-        process.kill(state.pid, "SIGKILL");
+        safePidKill(state.pid, "SIGKILL");
       }
       state.state = "stopped";
       state.stoppedAt = new Date().toISOString();
@@ -206,7 +218,7 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
       return;
     }
 
-    lp.child.kill("SIGKILL");
+    try { lp.child.kill("SIGKILL"); } catch { /* child already gone */ }
     await waitForChildExit(lp.child, DEFAULTS.STOP_GRACE_MS);
   }
 

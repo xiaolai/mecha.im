@@ -19,7 +19,7 @@ describe("sessions commands", () => {
     program.exitOverride();
 
     await program.parseAsync(["node", "mecha", "sessions", "list", "researcher"]);
-    expect(deps.formatter.json).toHaveBeenCalled();
+    expect(deps.formatter.json).toHaveBeenCalledWith([{ id: "s1", title: "Test" }]);
   });
 
   it("shows a session", async () => {

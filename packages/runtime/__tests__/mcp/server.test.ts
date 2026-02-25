@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync, symlinkSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import Fastify, { type FastifyInstance } from "fastify";
@@ -89,7 +89,8 @@ describe("MCP routes", () => {
       expect(res.statusCode).toBe(200);
       const body = res.json().result;
       expect(body.isError).toBe(true);
-      expect(body.content[0].text).toContain("Directory not found");
+      // Hardened assertInsideWorkspace rejects non-existent paths with "File not found"
+      expect(body.content[0].text).toMatch(/Directory not found|File not found/);
     });
 
     it("blocks path traversal", async () => {
@@ -100,7 +101,29 @@ describe("MCP routes", () => {
       expect(res.statusCode).toBe(200);
       const body = res.json().result;
       expect(body.isError).toBe(true);
-      expect(body.content[0].text).toContain("Path traversal not allowed");
+      // Hardened assertInsideWorkspace rejects non-existent paths with "File not found"
+      // rather than falling back to relative path computation
+      expect(body.content[0].text).toMatch(/Path traversal not allowed|File not found/);
+    });
+
+    it("blocks symlink traversal outside workspace", async () => {
+      // Create a symlink inside workspace that points outside
+      const outsideDir = mkdtempSync(join(tmpdir(), "mecha-outside-"));
+      mkdirSync(join(outsideDir, "secret"), { recursive: true });
+      writeFileSync(join(outsideDir, "secret", "data.txt"), "secret");
+      symlinkSync(outsideDir, join(workDir, "escape-link"));
+      try {
+        const res = await rpc("tools/call", {
+          name: "mecha_workspace_list",
+          arguments: { path: "escape-link" },
+        });
+        expect(res.statusCode).toBe(200);
+        const body = res.json().result;
+        expect(body.isError).toBe(true);
+        expect(body.content[0].text).toMatch(/Path traversal not allowed/);
+      } finally {
+        rmSync(outsideDir, { recursive: true, force: true });
+      }
     });
 
     it("lists root when path is omitted", async () => {
@@ -164,7 +187,8 @@ describe("MCP routes", () => {
       expect(res.statusCode).toBe(200);
       const body = res.json().result;
       expect(body.isError).toBe(true);
-      expect(body.content[0].text).toContain("Path traversal not allowed");
+      // Hardened assertInsideWorkspace rejects non-existent paths with "File not found"
+      expect(body.content[0].text).toMatch(/Path traversal not allowed|File not found/);
     });
   });
 
@@ -172,8 +196,7 @@ describe("MCP routes", () => {
     it("returns error for file exceeding 10 MB", async () => {
       // Create a file just over 10 MB
       const bigPath = join(workDir, "big.bin");
-      const { writeFileSync: writeFn } = require("node:fs") as typeof import("node:fs");
-      writeFn(bigPath, Buffer.alloc(10 * 1024 * 1024 + 1));
+      writeFileSync(bigPath, Buffer.alloc(10 * 1024 * 1024 + 1));
 
       const res = await rpc("tools/call", {
         name: "mecha_workspace_read",
@@ -257,8 +280,8 @@ describe("MCP routes", () => {
   });
 
   describe("workspace_list on deleted workspace", () => {
-    it("returns error with / for empty path", async () => {
-      // Delete workspace dir to trigger catch on empty subpath
+    it("returns error when workspace is invalid", async () => {
+      // Delete workspace dir — hardened assertInsideWorkspace rejects with "Workspace path is invalid"
       rmSync(workDir, { recursive: true, force: true });
       const res = await rpc("tools/call", {
         name: "mecha_workspace_list",
@@ -267,7 +290,33 @@ describe("MCP routes", () => {
       expect(res.statusCode).toBe(200);
       const body = res.json().result;
       expect(body.isError).toBe(true);
-      expect(body.content[0].text).toContain("Directory not found: /");
+      expect(body.content[0].text).toContain("Workspace path is invalid");
+    });
+  });
+
+  describe("hardened assertInsideWorkspace", () => {
+    it("rejects when workspace path is deleted (invalid)", async () => {
+      // Delete workspace, then try to read a file
+      rmSync(workDir, { recursive: true, force: true });
+      const res = await rpc("tools/call", {
+        name: "mecha_workspace_read",
+        arguments: { path: "hello.txt" },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json().result;
+      expect(body.isError).toBe(true);
+      expect(body.content[0].text).toBe("Workspace path is invalid");
+    });
+
+    it("rejects non-existent file via realpathSync", async () => {
+      const res = await rpc("tools/call", {
+        name: "mecha_workspace_read",
+        arguments: { path: "does-not-exist.txt" },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json().result;
+      expect(body.isError).toBe(true);
+      expect(body.content[0].text).toBe("File not found");
     });
   });
 

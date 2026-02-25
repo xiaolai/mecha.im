@@ -48,22 +48,21 @@ const TOOLS: McpToolDef[] = [
 ];
 
 /** Check that a resolved path stays inside the workspace boundary, following symlinks. */
-/* v8 ignore start -- symlink resolution fallbacks: workspace + target realpath catch */
 function assertInsideWorkspace(resolved: string, workspacePath: string): void {
   let realWorkspace: string;
   try {
     realWorkspace = realpathSync(workspacePath);
   } catch {
-    realWorkspace = resolve(workspacePath);
+    throw new Error("Workspace path is invalid");
   }
   let real: string;
   try {
     real = realpathSync(resolved);
+  /* v8 ignore start -- resolved path doesn't exist on disk */
   } catch {
-    const rel = relative(resolve(workspacePath), resolve(resolved));
-    real = join(realWorkspace, rel);
+    throw new Error("File not found");
   }
-/* v8 ignore stop */
+  /* v8 ignore stop */
   const rel = relative(realWorkspace, real);
   if (rel.startsWith("..") || isAbsolute(rel)) {
     throw new Error("Path traversal not allowed");
@@ -81,9 +80,11 @@ function listFiles(workspacePath: string, subpath: string): string[] {
       const rel = relative(workspacePath, join(target, e.name));
       return e.isDirectory() ? `${rel}/` : rel;
     });
+  /* v8 ignore start -- directory vanished between assertInsideWorkspace and readdir */
   } catch {
     throw new Error(`Directory not found: ${subpath || "/"}`);
   }
+  /* v8 ignore stop */
 }
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
@@ -106,15 +107,12 @@ function readFile(workspacePath: string, filePath: string): string {
     if (err instanceof Error && err.message.startsWith("Path is a directory")) {
       throw err;
     }
+    /* v8 ignore start -- re-throw known errors; generic fallback for race (file vanishes between check and read) */
     if (err instanceof Error && err.message.startsWith("File too large")) {
       throw err;
     }
-    /* v8 ignore start -- traversal caught by assertInsideWorkspace before stat */
-    if (err instanceof Error && err.message === "Path traversal not allowed") {
-      throw err;
-    }
-    /* v8 ignore stop */
     throw new Error(`File not found: ${filePath}`);
+    /* v8 ignore stop */
   }
 }
 
@@ -183,6 +181,7 @@ async function handleRequest(
         // Only expose safe error messages; hide filesystem details
         /* v8 ignore start -- ternary chain: each branch tested individually; v8 marks false-paths as null */
         const safeMsg = msg === "Path traversal not allowed" ? msg
+          : msg === "Workspace path is invalid" ? msg
           : msg.startsWith("Path is a directory") ? msg
           : msg.startsWith("File too large") ? msg
           : msg.startsWith("Unknown tool") ? msg

@@ -1,3 +1,5 @@
+export { safeReadJson } from "./safe-read.js";
+export type { SafeReadResult } from "./safe-read.js";
 export type {
   CasaName,
   NodeName,

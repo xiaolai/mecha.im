@@ -15,6 +15,11 @@ export function registerScheduleHistoryCommand(parent: Command, deps: CommandDep
       withErrorHandler(deps, async () => {
         const name = casaName(casa);
         const limit = Number(opts.limit);
+        if (!Number.isInteger(limit) || limit < 1) {
+          deps.formatter.error(`Invalid limit: "${opts.limit}" (must be a positive integer)`);
+          process.exitCode = 1;
+          return;
+        }
         const history = await casaScheduleHistory(deps.processManager, name, scheduleId, limit);
 
         if (history.length === 0) {

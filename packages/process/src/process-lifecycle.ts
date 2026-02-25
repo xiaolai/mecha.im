@@ -4,7 +4,10 @@ export function isPidAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);
     return true;
-  } catch {
+  } catch (err) {
+    // EPERM: process exists but owned by different user
+    if ((err as NodeJS.ErrnoException).code === "EPERM") return true;
+    // ESRCH or other: process does not exist
     return false;
   }
 }
@@ -36,7 +39,17 @@ export function waitForPidExit(pid: number, timeoutMs: number): Promise<void> {
           return;
         }
         setTimeout(check, 100);
-      } catch {
+      } catch (err) {
+        // EPERM: process alive but different user — keep polling
+        if ((err as NodeJS.ErrnoException).code === "EPERM") {
+          if (Date.now() - start > timeoutMs) {
+            resolve();
+            return;
+          }
+          setTimeout(check, 100);
+          return;
+        }
+        // ESRCH or other: process gone
         resolve();
       }
     };

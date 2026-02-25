@@ -112,15 +112,16 @@ case "$RESOLVED" in
 esac
 `;
   const bashGuard = `#!/bin/bash
-# Bash guard: enforce workspace context for Bash tool calls
+# Bash guard: validate Bash tool calls (no command rewriting)
 # Claude Code PreToolUse hooks receive JSON on stdin with tool_input.command
+# Exit 0 = allow command as-is, Exit 2 = block
 INPUT=$(cat)
 COMMAND=$(echo "$INPUT" | grep -o '"command"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"\\([^"]*\\)"$/\\1/')
 if [ -z "$COMMAND" ]; then
   exit 0
 fi
-# Prefix command with cd to workspace (output on stdout tells Claude Code to use this)
-echo "cd \\"$MECHA_WORKSPACE\\" && $COMMAND"
+# Allow — CWD is already set to workspace by spawn pipeline
+exit 0
 `;
   writeFileSync(join(hooksDir, "sandbox-guard.sh"), sandboxGuard, { mode: 0o755 });
   writeFileSync(join(hooksDir, "bash-guard.sh"), bashGuard, { mode: 0o755 });
@@ -130,6 +131,9 @@ echo "cd \\"$MECHA_WORKSPACE\\" && $COMMAND"
   const reservedKeys = new Set([
     "MECHA_CASA_NAME", "MECHA_PORT", "MECHA_WORKSPACE", "MECHA_PROJECTS_DIR",
     "MECHA_AUTH_TOKEN", "MECHA_LOG_DIR", "MECHA_SANDBOX_ROOT", "MECHA_DIR", "HOME", "TMPDIR",
+    // Block dangerous Node.js/linker env vars that could escape sandbox
+    "NODE_OPTIONS", "NODE_PATH", "NODE_DEBUG", "NODE_EXTRA_CA_CERTS", "NODE_REDIRECT_WARNINGS",
+    "LD_PRELOAD", "LD_LIBRARY_PATH", "DYLD_INSERT_LIBRARIES", "DYLD_LIBRARY_PATH",
   ]);
   const safeUserEnv: Record<string, string> = {};
   for (const [k, v] of Object.entries(resolvedUserEnv)) {

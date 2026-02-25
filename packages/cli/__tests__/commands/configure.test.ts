@@ -9,7 +9,10 @@ import type { CasaName } from "@mecha/core";
 
 describe("configure command", () => {
   let mechaDir: string;
-  afterEach(() => { if (mechaDir) rmSync(mechaDir, { recursive: true, force: true }); });
+  afterEach(() => {
+    if (mechaDir) rmSync(mechaDir, { recursive: true, force: true });
+    process.exitCode = undefined as unknown as number;
+  });
 
   it("updates tags", async () => {
     mechaDir = mkdtempSync(join(tmpdir(), "mecha-cfg-"));
@@ -54,7 +57,7 @@ describe("configure command", () => {
     await program.parseAsync(["node", "mecha", "configure", "alice", "--tags", "has space"]);
     expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("invalid characters"));
     expect(process.exitCode).toBe(1);
-    process.exitCode = undefined as unknown as number;
+
   });
 
   it("writes config even when existing config is corrupt", async () => {
@@ -117,7 +120,7 @@ describe("configure command", () => {
     await program.parseAsync(["node", "mecha", "configure", "alice", "--expose", "invalid_cap"]);
     expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("Invalid capability"));
     expect(process.exitCode).toBe(1);
-    process.exitCode = undefined as unknown as number;
+
   });
 
   it("updates both tags and expose together", async () => {

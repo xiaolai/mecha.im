@@ -88,6 +88,17 @@ describe("sandbox-setup", () => {
       expect(existsSync(join(hooksDir, "bash-guard.sh"))).toBe(true);
     });
 
+    it("bash guard does not rewrite commands (no echo/stdout)", () => {
+      const result = prepareCasaFilesystem(makeOpts());
+      const bashGuard = readFileSync(join(result.homeDir, ".claude", "hooks", "bash-guard.sh"), "utf-8");
+      // Should NOT contain echo that rewrites commands
+      expect(bashGuard).not.toContain('echo "cd');
+      // Should contain exit 0 for allowing commands as-is
+      expect(bashGuard).toContain("exit 0");
+      // Should NOT prefix with cd
+      expect(bashGuard).not.toContain("cd \\");
+    });
+
     it("sets reserved env vars that cannot be overridden by userEnv", () => {
       const result = prepareCasaFilesystem(makeOpts({
         userEnv: { MECHA_CASA_NAME: "evil", CUSTOM_VAR: "hello" },
@@ -109,6 +120,36 @@ describe("sandbox-setup", () => {
       expect(result.childEnv.MECHA_PORT).toBe("7700");
       expect(result.childEnv.HOME).toBe(join(casaDir, "home"));
       expect(result.childEnv.SAFE_KEY).toBe("ok");
+    });
+
+    it("blocks dangerous Node.js and linker env vars from userEnv", () => {
+      const dangerousVars: Record<string, string> = {
+        NODE_OPTIONS: "--require /evil/payload.js",
+        NODE_PATH: "/evil/modules",
+        NODE_DEBUG: "http",
+        NODE_EXTRA_CA_CERTS: "/evil/ca.pem",
+        NODE_REDIRECT_WARNINGS: "/evil/warnings.log",
+        LD_PRELOAD: "/evil/lib.so",
+        LD_LIBRARY_PATH: "/evil/lib",
+        DYLD_INSERT_LIBRARIES: "/evil/lib.dylib",
+        DYLD_LIBRARY_PATH: "/evil/lib",
+        SAFE_KEY: "allowed",
+      };
+      const result = prepareCasaFilesystem(makeOpts({ userEnv: dangerousVars }));
+
+      // All dangerous vars should be stripped
+      expect(result.childEnv.NODE_OPTIONS).toBeUndefined();
+      expect(result.childEnv.NODE_PATH).toBeUndefined();
+      expect(result.childEnv.NODE_DEBUG).toBeUndefined();
+      expect(result.childEnv.NODE_EXTRA_CA_CERTS).toBeUndefined();
+      expect(result.childEnv.NODE_REDIRECT_WARNINGS).toBeUndefined();
+      expect(result.childEnv.LD_PRELOAD).toBeUndefined();
+      expect(result.childEnv.LD_LIBRARY_PATH).toBeUndefined();
+      expect(result.childEnv.DYLD_INSERT_LIBRARIES).toBeUndefined();
+      expect(result.childEnv.DYLD_LIBRARY_PATH).toBeUndefined();
+
+      // Safe key should pass through
+      expect(result.childEnv.SAFE_KEY).toBe("allowed");
     });
 
     describe("SDK auth key forwarding", () => {

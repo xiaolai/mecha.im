@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, writeFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
+import { safeReadJson } from "./safe-read.js";
 
 /** Sandbox enforcement mode */
 export type SandboxMode = "auto" | "off" | "require";
@@ -33,25 +34,27 @@ function isCasaConfig(v: unknown): v is CasaConfig {
 /** Read a CASA's config.json. Returns undefined if missing or malformed. */
 export function readCasaConfig(casaDir: string): CasaConfig | undefined {
   const configPath = join(casaDir, "config.json");
-  if (!existsSync(configPath)) return undefined;
-  try {
-    const parsed: unknown = JSON.parse(readFileSync(configPath, "utf-8"));
-    if (!isCasaConfig(parsed)) return undefined;
-    // Normalize tags and expose to string[] | undefined
-    if (parsed.tags !== undefined && !Array.isArray(parsed.tags)) {
-      parsed.tags = undefined;
+  const result = safeReadJson<unknown>(configPath, "casa config");
+  if (!result.ok) {
+    if (result.reason !== "missing") {
+      console.error(`[mecha] ${result.detail}`);
     }
-    if (parsed.expose !== undefined && !Array.isArray(parsed.expose)) {
-      parsed.expose = undefined;
-    }
-    // Validate sandboxMode against known values
-    if (parsed.sandboxMode !== undefined && !["auto", "off", "require"].includes(parsed.sandboxMode as string)) {
-      parsed.sandboxMode = undefined;
-    }
-    return parsed;
-  } catch {
     return undefined;
   }
+  if (!isCasaConfig(result.data)) return undefined;
+  const parsed = result.data;
+  // Normalize tags and expose to string[] | undefined
+  if (parsed.tags !== undefined && !Array.isArray(parsed.tags)) {
+    parsed.tags = undefined;
+  }
+  if (parsed.expose !== undefined && !Array.isArray(parsed.expose)) {
+    parsed.expose = undefined;
+  }
+  // Validate sandboxMode against known values
+  if (parsed.sandboxMode !== undefined && !["auto", "off", "require"].includes(parsed.sandboxMode as string)) {
+    parsed.sandboxMode = undefined;
+  }
+  return parsed;
 }
 
 /** Update fields in a CASA's config.json (read-modify-write, atomic). */
