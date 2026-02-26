@@ -399,6 +399,7 @@ describe("auth service", () => {
         "https://api.anthropic.com/v1/models",
         expect.objectContaining({
           headers: expect.objectContaining({ Authorization: "Bearer sk-ant-oat01-fake" }),
+          redirect: "error",
         }),
       );
 
@@ -419,6 +420,7 @@ describe("auth service", () => {
         "https://api.anthropic.com/v1/models",
         expect.objectContaining({
           headers: expect.objectContaining({ "x-api-key": "sk-ant-api03-fake" }),
+          redirect: "error",
         }),
       );
 

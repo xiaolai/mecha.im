@@ -137,6 +137,7 @@ exit 0
     // Block PATH (we construct our own), shell startup vars, and dangerous Node.js/linker env vars
     "PATH", "BASH_ENV", "ENV",
     "NODE_OPTIONS", "NODE_PATH", "NODE_DEBUG", "NODE_EXTRA_CA_CERTS", "NODE_REDIRECT_WARNINGS",
+    "NODE_V8_COVERAGE", "NODE_PROF",
     "LD_PRELOAD", "LD_LIBRARY_PATH", "DYLD_INSERT_LIBRARIES", "DYLD_LIBRARY_PATH",
     // Block SDK auth keys — auth resolution sets the correct one
     "ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN",
@@ -186,6 +187,7 @@ exit 0
     // If user explicitly passed --auth <name>, rethrow so spawn fails fast.
     /* v8 ignore start -- fallback for environments without auth profiles */
     if (opts.auth !== undefined) throw err;
+    console.error("[mecha] No auth profiles found, using host environment credentials");
     const sdkKeys = ["ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"] as const;
     for (const key of sdkKeys) {
       if (process.env[key] && !childEnv[key]) {

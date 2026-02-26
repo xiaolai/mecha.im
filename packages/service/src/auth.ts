@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync, renameSync } from "node:fs";
+import { mkdirSync, writeFileSync, renameSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 import {
@@ -51,7 +51,14 @@ function authDir(mechaDir: string): string {
 function atomicWrite(filePath: string, data: string, mode: number): void {
   const tmp = filePath + "." + randomBytes(4).toString("hex") + ".tmp";
   writeFileSync(tmp, data, { mode });
-  renameSync(tmp, filePath);
+  try {
+    renameSync(tmp, filePath);
+  /* v8 ignore start -- rename failure on same-device is rare; cleanup is best-effort */
+  } catch (err) {
+    try { unlinkSync(tmp); } catch { /* ignore cleanup failure */ }
+    throw err;
+  }
+  /* v8 ignore stop */
 }
 
 function writeProfiles(mechaDir: string, store: AuthProfileStore): void {
@@ -275,6 +282,7 @@ export async function mechaAuthProbe(
       method: "GET",
       headers,
       signal: controller.signal,
+      redirect: "error",
     });
     clearTimeout(timeout);
     /* v8 ignore start -- HTTP error responses depend on real API */

@@ -170,6 +170,8 @@ describe("sandbox-setup", () => {
         NODE_DEBUG: "http",
         NODE_EXTRA_CA_CERTS: "/evil/ca.pem",
         NODE_REDIRECT_WARNINGS: "/evil/warnings.log",
+        NODE_V8_COVERAGE: "/evil/coverage",
+        NODE_PROF: "1",
         LD_PRELOAD: "/evil/lib.so",
         LD_LIBRARY_PATH: "/evil/lib",
         DYLD_INSERT_LIBRARIES: "/evil/lib.dylib",
@@ -183,11 +185,26 @@ describe("sandbox-setup", () => {
       expect(result.childEnv.NODE_DEBUG).toBeUndefined();
       expect(result.childEnv.NODE_EXTRA_CA_CERTS).toBeUndefined();
       expect(result.childEnv.NODE_REDIRECT_WARNINGS).toBeUndefined();
+      expect(result.childEnv.NODE_V8_COVERAGE).toBeUndefined();
+      expect(result.childEnv.NODE_PROF).toBeUndefined();
       expect(result.childEnv.LD_PRELOAD).toBeUndefined();
       expect(result.childEnv.LD_LIBRARY_PATH).toBeUndefined();
       expect(result.childEnv.DYLD_INSERT_LIBRARIES).toBeUndefined();
       expect(result.childEnv.DYLD_LIBRARY_PATH).toBeUndefined();
       expect(result.childEnv.SAFE_KEY).toBe("allowed");
+    });
+
+    it("blocks BASH_FUNC_* export function env vars from userEnv", () => {
+      const result = prepareCasaFilesystem(makeOpts({
+        userEnv: {
+          "BASH_FUNC_evil%%": "() { /bin/evil; }",
+          "BASH_FUNC_another%%": "() { echo pwned; }",
+          SAFE_KEY: "ok",
+        },
+      }));
+      expect(result.childEnv["BASH_FUNC_evil%%"]).toBeUndefined();
+      expect(result.childEnv["BASH_FUNC_another%%"]).toBeUndefined();
+      expect(result.childEnv.SAFE_KEY).toBe("ok");
     });
 
     describe("auth profile resolution", () => {

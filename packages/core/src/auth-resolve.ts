@@ -69,7 +69,13 @@ export function readAuthProfiles(mechaDir: string): AuthProfileStore {
     if (!isAuthProfileStore(parsed)) return { default: null, profiles: {} };
     /* v8 ignore stop */
     return parsed;
-  } catch {
+  } catch (err: unknown) {
+    /* v8 ignore start -- non-ENOENT errors (EACCES, EIO, corrupt JSON) */
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code !== "ENOENT") {
+      console.error(`[mecha] Failed to read ${path}: ${(err as Error).message}`);
+    }
+    /* v8 ignore stop */
     return { default: null, profiles: {} };
   }
 }
@@ -83,7 +89,13 @@ export function readAuthCredentials(mechaDir: string): AuthCredentialStore {
     if (!isAuthCredentialStore(parsed)) return {};
     /* v8 ignore stop */
     return parsed;
-  } catch {
+  } catch (err: unknown) {
+    /* v8 ignore start -- non-ENOENT errors (EACCES, EIO, corrupt JSON) */
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code !== "ENOENT") {
+      console.error(`[mecha] Failed to read ${path}: ${(err as Error).message}`);
+    }
+    /* v8 ignore stop */
     return {};
   }
 }
