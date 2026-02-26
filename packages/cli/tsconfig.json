@@ -11,6 +11,7 @@
     { "path": "../sandbox" },
     { "path": "../service" },
     { "path": "../process" },
-    { "path": "../meter" }
+    { "path": "../meter" },
+    { "path": "../connect" }
   ]
 }

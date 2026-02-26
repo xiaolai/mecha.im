@@ -67,5 +67,19 @@ describe("createLocator", () => {
       const result = locator.locate({ casa: "analyst" as CasaName, node: "unknown" as NodeName });
       expect(result).toEqual({ location: "not_found" });
     });
+
+    it("returns remote-channel for managed node (Phase 6)", () => {
+      mechaDir = mkdtempSync(join(tmpdir(), "locator-"));
+      const managedNode: NodeEntry = {
+        name: "charlie", host: "", port: 0, apiKey: "",
+        publicKey: "pk", noisePublicKey: "npk", fingerprint: "fp",
+        addedAt: "2026-01-01T00:00:00Z", managed: true,
+      };
+      const pm = makePm();
+      const locator = createLocator({ mechaDir, pm, getNodes: () => [managedNode] });
+
+      const result = locator.locate({ casa: "coder" as CasaName, node: "charlie" as NodeName });
+      expect(result).toEqual({ location: "remote-channel", node: managedNode });
+    });
   });
 });

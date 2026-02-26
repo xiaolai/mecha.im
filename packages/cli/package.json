@@ -19,6 +19,7 @@
   "dependencies": {
     "@mecha/core": "workspace:*",
     "@mecha/agent": "workspace:*",
+    "@mecha/connect": "workspace:*",
     "@mecha/sandbox": "workspace:*",
     "@mecha/service": "workspace:*",
     "@mecha/process": "workspace:*",

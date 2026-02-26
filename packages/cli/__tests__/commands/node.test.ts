@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createProgram } from "../../src/program.js";
 import { makeDeps } from "../test-utils.js";
-import { readNodes } from "@mecha/core";
+import { readNodes, addNode } from "@mecha/core";
 
 describe("node commands", () => {
   let mechaDir: string;
@@ -122,6 +122,31 @@ describe("node commands", () => {
       expect(deps.formatter.info).toHaveBeenCalledWith("No peer nodes registered");
     });
 
+    it("shows managed nodes with dashes for host/port", async () => {
+      addNode(mechaDir, {
+        name: "charlie",
+        host: "",
+        port: 0,
+        apiKey: "",
+        publicKey: "pk",
+        fingerprint: "fp",
+        managed: true,
+        addedAt: "2026-01-01T00:00:00Z",
+      });
+
+      const deps = makeDeps({ mechaDir });
+      const program = createProgram(deps);
+      program.exitOverride();
+
+      await program.parseAsync(["node", "mecha", "node", "ls"]);
+      expect(deps.formatter.table).toHaveBeenCalledWith(
+        ["Name", "Type", "Host", "Port", "Added"],
+        expect.arrayContaining([
+          expect.arrayContaining(["charlie", "managed", "\u2014", "\u2014"]),
+        ]),
+      );
+    });
+
     it("shows table of registered nodes", async () => {
       const deps = makeDeps({ mechaDir });
       const program = createProgram(deps);
@@ -130,9 +155,9 @@ describe("node commands", () => {
       await program.parseAsync(["node", "mecha", "node", "add", "bob", "192.168.1.10", "--api-key", "k"]);
       await program.parseAsync(["node", "mecha", "node", "ls"]);
       expect(deps.formatter.table).toHaveBeenCalledWith(
-        ["Name", "Host", "Port", "Added"],
+        ["Name", "Type", "Host", "Port", "Added"],
         expect.arrayContaining([
-          expect.arrayContaining(["bob", "192.168.1.10"]),
+          expect.arrayContaining(["bob", "http", "192.168.1.10"]),
         ]),
       );
     });

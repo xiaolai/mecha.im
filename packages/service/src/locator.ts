@@ -6,6 +6,7 @@ import type { ProcessManager } from "@mecha/process";
 export type LocateResult =
   | { location: "local"; port: number; token: string }
   | { location: "remote"; node: NodeEntry }
+  | { location: "remote-channel"; node: NodeEntry }
   | { location: "not_found" };
 
 export interface MechaLocator {
@@ -46,6 +47,10 @@ export function createLocator(opts: CreateLocatorOpts): MechaLocator {
       const nodes = getNodes();
       const node = nodes.find((n) => n.name === target.node);
       if (node) {
+        // Phase 6: managed nodes use SecureChannel
+        if (node.managed) {
+          return { location: "remote-channel", node };
+        }
         return { location: "remote", node };
       }
 

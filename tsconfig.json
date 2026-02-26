@@ -14,7 +14,8 @@
     { "path": "packages/runtime" },
     { "path": "packages/service" },
     { "path": "packages/agent" },
-    { "path": "packages/meter" }
+    { "path": "packages/meter" },
+    { "path": "packages/server" }
   ],
   "include": [],
   "exclude": ["node_modules", "dist", "coverage"]

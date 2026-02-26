@@ -42,7 +42,7 @@ export const MUTATING_COMMANDS = new Set([
   // acl subcommands
   "acl grant", "acl revoke",
   // node subcommands
-  "node add", "node rm",
+  "node add", "node rm", "node invite", "node join",
   // auth subcommands (auth ls, auth test are read-only)
   "auth add", "auth rm", "auth default", "auth tag", "auth switch", "auth renew",
   // budget subcommands

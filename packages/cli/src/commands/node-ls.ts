@@ -13,8 +13,14 @@ export function registerNodeLsCommand(parent: Command, deps: CommandDeps): void 
         return;
       }
       deps.formatter.table(
-        ["Name", "Host", "Port", "Added"],
-        nodes.map((n) => [n.name, n.host, String(n.port), n.addedAt]),
+        ["Name", "Type", "Host", "Port", "Added"],
+        nodes.map((n) => [
+          n.name,
+          n.managed ? "managed" : "http",
+          n.managed ? "—" : n.host,
+          n.managed ? "—" : String(n.port),
+          n.addedAt,
+        ]),
       );
     });
 }

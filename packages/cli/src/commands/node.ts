@@ -4,6 +4,9 @@ import { registerNodeInitCommand } from "./node-init.js";
 import { registerNodeAddCommand } from "./node-add.js";
 import { registerNodeRmCommand } from "./node-rm.js";
 import { registerNodeLsCommand } from "./node-ls.js";
+import { registerNodeInviteCommand } from "./node-invite.js";
+import { registerNodeJoinCommand } from "./node-join.js";
+import { registerNodePingCommand } from "./node-ping.js";
 
 export function registerNodeCommand(program: Command, deps: CommandDeps): void {
   const node = program
@@ -14,4 +17,7 @@ export function registerNodeCommand(program: Command, deps: CommandDeps): void {
   registerNodeAddCommand(node, deps);
   registerNodeRmCommand(node, deps);
   registerNodeLsCommand(node, deps);
+  registerNodeInviteCommand(node, deps);
+  registerNodeJoinCommand(node, deps);
+  registerNodePingCommand(node, deps);
 }

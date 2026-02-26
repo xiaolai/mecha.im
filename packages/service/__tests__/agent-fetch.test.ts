@@ -95,4 +95,155 @@ describe("agentFetch", () => {
     const call = vi.mocked(fetch).mock.calls[0];
     expect(call[1]!.signal).toBeDefined();
   });
+
+  it("rejects managed node without channel (Phase 6)", async () => {
+    const managedNode: NodeEntry = {
+      ...node,
+      host: "", port: 0, apiKey: "",
+      managed: true,
+    };
+
+    await expect(agentFetch({ node: managedNode, path: "/healthz" }))
+      .rejects.toThrow("requires SecureChannel");
+  });
+
+  it("allows private hosts when allowPrivateHosts is true", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("ok"));
+    const privateNode = { ...node, host: "192.168.1.10" };
+    const res = await agentFetch({ node: privateNode, path: "/healthz", allowPrivateHosts: true });
+    expect(res).toBeInstanceOf(Response);
+  });
+
+  it("uses channel with source header", async () => {
+    const sentData: Uint8Array[] = [];
+    const messageHandlers: Array<(data: Uint8Array) => void> = [];
+
+    const channel = {
+      isOpen: true,
+      send: vi.fn((data: Uint8Array) => { sentData.push(data); }),
+      onMessage: vi.fn((handler: (data: Uint8Array) => void) => { messageHandlers.push(handler); }),
+      offMessage: vi.fn(),
+    };
+
+    const promise = agentFetch({
+      node, path: "/query", method: "POST", body: { msg: "hi" }, source: "coder@alice", channel,
+    });
+
+    await new Promise((r) => setTimeout(r, 10));
+
+    const sentStr = new TextDecoder().decode(sentData[0]!);
+    const sentReq = JSON.parse(sentStr) as { id: string; headers: Record<string, string>; body: string };
+
+    // Verify source header and body are passed
+    expect(sentReq.headers["x-mecha-source"]).toBe("coder@alice");
+    expect(sentReq.body).toBe('{"msg":"hi"}');
+
+    const response = JSON.stringify({ id: sentReq.id, status: 200, headers: {}, body: "ok" });
+    for (const h of messageHandlers) h(new TextEncoder().encode(response));
+
+    const res = await promise;
+    expect(res.status).toBe(200);
+  });
+
+  it("channel fetch times out", async () => {
+    const channel = {
+      isOpen: true,
+      send: vi.fn(),
+      onMessage: vi.fn(),
+      offMessage: vi.fn(),
+    };
+
+    const promise = agentFetch({
+      node, path: "/slow", channel, timeoutMs: 50,
+    });
+
+    await expect(promise).rejects.toThrow("timeout");
+  });
+
+  it("channel fetch returns null body when response has no body", async () => {
+    const sentData: Uint8Array[] = [];
+    const messageHandlers: Array<(data: Uint8Array) => void> = [];
+
+    const channel = {
+      isOpen: true,
+      send: vi.fn((data: Uint8Array) => { sentData.push(data); }),
+      onMessage: vi.fn((handler: (data: Uint8Array) => void) => { messageHandlers.push(handler); }),
+      offMessage: vi.fn(),
+    };
+
+    const promise = agentFetch({ node, path: "/healthz", channel });
+
+    await new Promise((r) => setTimeout(r, 10));
+
+    const sentStr = new TextDecoder().decode(sentData[0]!);
+    const sentReq = JSON.parse(sentStr) as { id: string };
+
+    // Response without body field
+    const response = JSON.stringify({ id: sentReq.id, status: 204, headers: {} });
+    for (const h of messageHandlers) h(new TextEncoder().encode(response));
+
+    const res = await promise;
+    expect(res.status).toBe(204);
+  });
+
+  it("ignores channel responses with wrong ID", async () => {
+    const sentData: Uint8Array[] = [];
+    const messageHandlers: Array<(data: Uint8Array) => void> = [];
+
+    const channel = {
+      isOpen: true,
+      send: vi.fn((data: Uint8Array) => { sentData.push(data); }),
+      onMessage: vi.fn((handler: (data: Uint8Array) => void) => { messageHandlers.push(handler); }),
+      offMessage: vi.fn(),
+    };
+
+    const promise = agentFetch({ node, path: "/healthz", channel });
+
+    await new Promise((r) => setTimeout(r, 10));
+
+    const sentStr = new TextDecoder().decode(sentData[0]!);
+    const sentReq = JSON.parse(sentStr) as { id: string };
+
+    // Wrong ID — should be ignored
+    const wrongResponse = JSON.stringify({ id: "wrong-id", status: 200, headers: {} });
+    for (const h of messageHandlers) h(new TextEncoder().encode(wrongResponse));
+
+    // Correct ID — should resolve
+    const correctResponse = JSON.stringify({ id: sentReq.id, status: 200, headers: {}, body: "ok" });
+    for (const h of messageHandlers) h(new TextEncoder().encode(correctResponse));
+
+    const res = await promise;
+    expect(res.status).toBe(200);
+  });
+
+  it("uses channel when provided (Phase 6)", async () => {
+    const sentData: Uint8Array[] = [];
+    const messageHandlers: Array<(data: Uint8Array) => void> = [];
+
+    const channel = {
+      isOpen: true,
+      send: vi.fn((data: Uint8Array) => { sentData.push(data); }),
+      onMessage: vi.fn((handler: (data: Uint8Array) => void) => { messageHandlers.push(handler); }),
+      offMessage: vi.fn(),
+    };
+
+    const promise = agentFetch({
+      node, path: "/healthz", channel,
+    });
+
+    // Wait for send
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Parse what was sent to get the request ID
+    const sentStr = new TextDecoder().decode(sentData[0]!);
+    const sentReq = JSON.parse(sentStr) as { id: string };
+
+    // Respond with matching ID
+    const response = JSON.stringify({ id: sentReq.id, status: 200, headers: {}, body: "ok" });
+    for (const h of messageHandlers) h(new TextEncoder().encode(response));
+
+    const res = await promise;
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("ok");
+  });
 });
