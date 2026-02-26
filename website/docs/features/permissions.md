@@ -11,31 +11,23 @@ Mecha uses **capability-based access control** to mediate all inter-agent commun
 | `write_workspace` | Write files to the target's workspace |
 | `execute` | Request command execution on the target |
 | `read_sessions` | View the target's chat history |
-| `manage_sessions` | Create or delete sessions on the target |
 | `lifecycle` | Start, stop, or restart the target |
-| `delegate` | Pass capabilities to a third party |
 
 ## Granting Permissions
 
 ```bash
 # Allow coder to query reviewer
-mecha acl grant coder reviewer query
+mecha acl grant coder query reviewer
 
 # Allow researcher to read coder's workspace
-mecha acl grant researcher coder read_workspace
-
-# Grant multiple capabilities
-mecha acl grant coder reviewer query read_workspace
+mecha acl grant researcher read_workspace coder
 ```
 
 ## Revoking Permissions
 
 ```bash
 # Revoke a specific capability
-mecha acl revoke coder reviewer query
-
-# Revoke all capabilities
-mecha acl revoke coder reviewer query read_workspace
+mecha acl revoke coder query reviewer
 ```
 
 ## Viewing Permissions

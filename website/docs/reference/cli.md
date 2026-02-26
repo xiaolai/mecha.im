@@ -30,16 +30,18 @@ mecha spawn <name> <path> [options]
 
 | Option | Description |
 |--------|-------------|
-| `--port <port>` | Bind to specific port (default: auto-assign 7700-7799) |
-| `--tag <tag>` | Add a tag (repeatable) |
-| `--anthropic-key <key>` | Anthropic API key |
-| `--claude-token <token>` | Claude OAuth token |
-| `--otp <secret>` | TOTP secret |
+| `--port <port>`, `-p` | Bind to specific port (default: auto-assign 7700-7799) |
+| `--tags <tags>` | Comma-separated tags |
+| `--auth <profile>` | Auth profile to use (see `mecha auth ls`) |
+| `--no-auth` | Spawn without Claude API credentials |
+| `--expose <caps>` | Comma-separated capabilities to expose |
+| `--sandbox <mode>` | Sandbox mode: `auto` (default), `off`, `require` |
+| `--model <model>` | Model to use |
 | `--permission-mode <mode>` | `default`, `plan`, or `full-auto` |
-| `--show-token` | Print auth token to stdout |
+| `--meter <mode>` | Meter mode: `on` (default), `off` |
 
 ```bash
-mecha spawn researcher ~/papers --tag research --tag ml
+mecha spawn researcher ~/papers --tags research,ml
 mecha spawn coder ~/project --permission-mode full-auto --port 7710
 ```
 
@@ -72,12 +74,8 @@ mecha ls
 Show detailed status of a CASA.
 
 ```bash
-mecha status <name> [options]
+mecha status <name>
 ```
-
-| Option | Description |
-|--------|-------------|
-| `--watch`, `-w` | Poll for updates (2-10 second intervals) |
 
 ### `mecha logs`
 
@@ -92,19 +90,6 @@ mecha logs <name> [options]
 | `--follow`, `-f` | Stream logs live |
 | `--tail <n>`, `-n <n>` | Number of lines (default: 100) |
 
-### `mecha rm`
-
-Remove a stopped CASA.
-
-```bash
-mecha rm <name> [options]
-```
-
-| Option | Description |
-|--------|-------------|
-| `--with-state` | Also remove state data |
-| `--force`, `-f` | Force remove even if running |
-
 ### `mecha configure`
 
 Update CASA configuration.
@@ -115,10 +100,9 @@ mecha configure <name> [options]
 
 | Option | Description |
 |--------|-------------|
-| `--tag <tag>` | Set tags (repeatable, replaces existing) |
-| `--anthropic-key <key>` | Update API key |
-| `--claude-token <token>` | Update OAuth token |
-| `--permission-mode <mode>` | Change permission mode |
+| `--tags <tags>` | Comma-separated tags (replaces existing) |
+| `--expose <caps>` | Comma-separated capabilities to expose |
+| `--auth <profile>` | Auth profile name to use |
 
 ---
 
@@ -175,22 +159,22 @@ mecha find --tag dev
 
 ### `mecha acl grant`
 
-Grant capabilities from source to target.
+Grant a capability from source to target.
 
 ```bash
-mecha acl grant <source> <target> <capability...>
+mecha acl grant <source> <capability> <target>
 ```
 
 ```bash
-mecha acl grant coder reviewer query read_workspace
+mecha acl grant coder query reviewer
 ```
 
 ### `mecha acl revoke`
 
-Revoke capabilities.
+Revoke a capability.
 
 ```bash
-mecha acl revoke <source> <target> <capability...>
+mecha acl revoke <source> <capability> <target>
 ```
 
 ### `mecha acl show`
@@ -210,7 +194,7 @@ mecha acl show [name]
 Generate an Ed25519 identity keypair for this node.
 
 ```bash
-mecha node init
+mecha node init [--name <name>]
 ```
 
 ### `mecha node add`
@@ -268,7 +252,17 @@ mecha agent status
 Add a recurring task.
 
 ```bash
-mecha schedule add <name> --interval <seconds> --message <prompt>
+mecha schedule add <casa> --id <id> --every <interval> --prompt <prompt>
+```
+
+| Option | Description |
+|--------|-------------|
+| `--id <id>` | Schedule ID (lowercase, alphanumeric, hyphens) |
+| `--every <interval>` | Interval (e.g. `30s`, `5m`, `1h`) |
+| `--prompt <prompt>` | Prompt to send on each run |
+
+```bash
+mecha schedule add researcher --id check-papers --every 1h --prompt "Check for new papers"
 ```
 
 ### `mecha schedule list`
@@ -282,9 +276,11 @@ mecha schedule list
 ### `mecha schedule pause / resume`
 
 ```bash
-mecha schedule pause <schedule-id>
-mecha schedule resume <schedule-id>
+mecha schedule pause <casa> [schedule-id]
+mecha schedule resume <casa> [schedule-id]
 ```
+
+Omit `schedule-id` to pause/resume all schedules on a CASA.
 
 ### `mecha schedule run`
 
@@ -322,7 +318,7 @@ mecha meter start [options]
 
 | Option | Description |
 |--------|-------------|
-| `--port <port>` | Proxy port (default: 7800) |
+| `--port <port>` | Proxy port (default: 7600) |
 | `--json` | Output connection info as JSON |
 
 ### `mecha meter status`
@@ -382,13 +378,20 @@ mecha budget rm --daily [--casa <name>]
 Add a credential profile.
 
 ```bash
-mecha auth add [options]
+mecha auth add <name> [options]
 ```
 
 | Option | Description |
 |--------|-------------|
-| `--anthropic-key <key>` | API key |
-| `--oauth-token <token>` | OAuth token |
+| `--api-key` | API key type |
+| `--oauth` | OAuth token type |
+| `--token <token>` | Token value |
+| `--tag <tags...>` | Tags for the profile |
+
+```bash
+mecha auth add mykey --api-key --token sk-ant-api03-...
+mecha auth add mytoken --oauth --token sk-ant-oat01-...
+```
 
 ### `mecha auth ls`
 
@@ -404,22 +407,27 @@ mecha auth default <name>
 
 ### `mecha auth switch`
 
-Switch active profile.
+Switch active profile (global or per-CASA).
 
 ```bash
 mecha auth switch <name>
+mecha auth switch <casa> <profile>
 ```
 
 ### `mecha auth test`
 
-Test current credentials.
+Test credentials (probes API by default).
+
+```bash
+mecha auth test <name> [--offline]
+```
 
 ### `mecha auth renew`
 
 Renew an OAuth token.
 
 ```bash
-mecha auth renew <name>
+mecha auth renew <name> <token>
 ```
 
 ### `mecha auth rm`

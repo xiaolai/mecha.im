@@ -21,7 +21,7 @@ Every API call is intercepted, forwarded to Anthropic, and the response is parse
 mecha meter start
 ```
 
-The proxy listens on port 7800 by default. All CASAs spawned after the meter starts will automatically route API calls through it.
+The proxy listens on port 7600 by default. All CASAs spawned after the meter starts will automatically route API calls through it.
 
 ```bash
 # Check status

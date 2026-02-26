@@ -82,11 +82,11 @@ export CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-...
 Or use the auth management commands:
 
 ```bash
-# Add a credential profile
-mecha auth add --anthropic-key sk-ant-api03-...
+# Add an API key profile
+mecha auth add mykey --api-key --token sk-ant-api03-...
 
 # Verify it works
-mecha auth test
+mecha auth test mykey
 ```
 
 ## System Check

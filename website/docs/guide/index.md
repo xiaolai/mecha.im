@@ -65,10 +65,10 @@ Mecha uses capability-based access control:
 
 ```bash
 # Allow coder to query reviewer
-mecha acl grant coder reviewer query
+mecha acl grant coder query reviewer
 
 # Allow researcher to read coder's workspace
-mecha acl grant researcher coder read_workspace
+mecha acl grant researcher read_workspace coder
 ```
 
 No grant = no access. Every inter-agent interaction is checked against the ACL.

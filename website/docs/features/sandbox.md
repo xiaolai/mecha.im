@@ -68,7 +68,7 @@ mecha sandbox show researcher
 ```
 
 This displays:
-- Sandbox mode (strict/auto/off)
+- Sandbox mode (require/auto/off)
 - Platform sandbox type (sandbox-exec/bwrap/none)
 - Workspace path and allowed directories
 - Network restrictions

@@ -6,13 +6,13 @@ Mecha includes a built-in scheduler for running agent tasks on a recurring basis
 
 ```bash
 # Run every hour
-mecha schedule add researcher --interval 3600 --message "Check for new papers"
+mecha schedule add researcher --id check-papers --every 1h --prompt "Check for new papers"
 
 # Run every 30 minutes
-mecha schedule add coder --interval 1800 --message "Run the test suite"
+mecha schedule add coder --id run-tests --every 30m --prompt "Run the test suite"
 ```
 
-The `--interval` is in seconds. The `--message` is the prompt sent to the agent on each run.
+The `--every` accepts human-readable intervals (`30s`, `5m`, `1h`). The `--prompt` is sent to the agent on each run. The `--id` is a unique identifier for the schedule.
 
 ## Managing Schedules
 
@@ -20,11 +20,14 @@ The `--interval` is in seconds. The `--message` is the prompt sent to the agent 
 # List all schedules
 mecha schedule list
 
-# Pause a schedule
-mecha schedule pause <schedule-id>
+# Pause a schedule on a CASA
+mecha schedule pause <casa> <schedule-id>
+
+# Pause all schedules on a CASA
+mecha schedule pause <casa>
 
 # Resume a paused schedule
-mecha schedule resume <schedule-id>
+mecha schedule resume <casa> <schedule-id>
 
 # Run immediately (outside schedule)
 mecha schedule run <schedule-id>

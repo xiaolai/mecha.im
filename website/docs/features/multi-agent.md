@@ -8,11 +8,11 @@ Mecha is designed for running many agents simultaneously. Tags, discovery, and g
 # Spawn with a name and workspace
 mecha spawn researcher ~/papers
 
-# Spawn with tags
-mecha spawn coder ~/project --tag dev --tag backend
+# Spawn with tags (comma-separated)
+mecha spawn coder ~/project --tags dev,backend
 
 # Spawn with specific port
-mecha spawn reviewer ~/project --port 7710 --tag dev
+mecha spawn reviewer ~/project --port 7710 --tags dev
 ```
 
 ## Listing Agents
@@ -42,11 +42,11 @@ Discovery is also available programmatically through the mesh — agents can dis
 Tags are labels for organizing CASAs:
 
 ```bash
-# Add tags at spawn time
-mecha spawn analyst ~/data --tag data --tag ml
+# Add tags at spawn time (comma-separated)
+mecha spawn analyst ~/data --tags data,ml
 
-# Update tags later
-mecha configure analyst --tag data --tag ml --tag reporting
+# Update tags later (replaces existing)
+mecha configure analyst --tags data,ml,reporting
 ```
 
 Tags power three features:
@@ -63,18 +63,6 @@ mecha stop researcher
 
 # Kill immediately (SIGKILL)
 mecha kill researcher
-
-# Restart (stop + start)
-mecha restart researcher
-
-# Remove a stopped CASA and its state
-mecha rm researcher --with-state
-
-# Remove even if running
-mecha rm researcher --force --with-state
-
-# Clean up all stopped CASAs
-mecha prune
 ```
 
 ## Logs
@@ -93,11 +81,8 @@ mecha logs researcher --tail 50
 ## Health Monitoring
 
 ```bash
-# One-time check
+# Detailed status
 mecha status researcher
-
-# Watch mode (polls every 2-10 seconds)
-mecha status researcher --watch
 ```
 
 The `doctor` command checks the overall system health:

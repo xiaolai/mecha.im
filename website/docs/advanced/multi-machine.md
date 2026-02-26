@@ -56,10 +56,10 @@ mecha node add alice --host 192.168.1.100 --port 7660 --api-key shared-secret-al
 
 ```bash
 # On alice
-mecha spawn coder ~/project --tag dev
+mecha spawn coder ~/project --tags dev
 
 # On bob
-mecha spawn analyst ~/data --tag data
+mecha spawn analyst ~/data --tags data
 ```
 
 ## Step 5: Set Up Permissions
@@ -68,14 +68,14 @@ On alice, allow coder to query analyst on bob:
 
 ```bash
 # On alice
-mecha acl grant coder analyst@bob query
+mecha acl grant coder query analyst@bob
 ```
 
 On bob, allow incoming queries from alice to analyst:
 
 ```bash
 # On bob
-mecha acl grant coder@alice analyst query
+mecha acl grant coder@alice query analyst
 ```
 
 Both sides must approve — double-check enforcement.
@@ -95,7 +95,7 @@ The query routes through alice's agent server to bob's agent server, which forwa
 |-----------|------|----------|---------|
 | Inbound | 7660 | HTTP | Agent server (mesh queries) |
 | Internal | 7700-7799 | HTTP | CASA runtime APIs (localhost only) |
-| Internal | 7800 | HTTP | Metering proxy (localhost only) |
+| Internal | 7600 | HTTP | Metering proxy (localhost only) |
 
 Only port 7660 needs to be accessible between machines. CASA ports and the meter proxy are localhost-only.
 

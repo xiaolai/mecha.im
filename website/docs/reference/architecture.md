@@ -4,7 +4,7 @@ Technical overview of Mecha's internal architecture.
 
 ## Package Structure
 
-Mecha is a TypeScript monorepo with 9 packages:
+Mecha is a TypeScript monorepo with 8 packages (+ dashboard planned for Phase 7):
 
 ```
 @mecha/core       ← Types, schemas, validation, ACL engine, identity (Ed25519)
@@ -23,15 +23,23 @@ Mecha is a TypeScript monorepo with 9 packages:
 ```mermaid
 graph LR
   cli --> service
+  cli --> core
+  cli --> agent
+  cli --> process
+  cli --> runtime
+  cli --> meter
   service --> process
-  service --> agent
   service --> meter
+  service --> core
   process --> core
   process --> sandbox
+  process --> meter
   sandbox --> core
   agent --> core
+  agent --> process
   meter --> core
   runtime --> core
+  runtime --> process
 ```
 
 ## Process Model
@@ -64,7 +72,7 @@ sequenceDiagram
 
   User->>CLI: mecha chat coder "refactor auth"
   CLI->>CLI: Parse args, read config.json
-  CLI->>CASA: POST /api/sessions<br/>Authorization: Bearer &lt;token&gt;
+  CLI->>CASA: POST /api/chat<br/>Authorization: Bearer &lt;token&gt;
   CASA-->>CLI: SSE stream
   Note right of CASA: progress: "Reading files..."<br/>assistant: "I'll refactor..."
   CLI-->>User: Print streamed response

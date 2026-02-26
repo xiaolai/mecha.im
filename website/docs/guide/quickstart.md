@@ -12,19 +12,19 @@ mecha init
 
 ```bash
 # Add your API key
-mecha auth add --anthropic-key sk-ant-api03-...
+mecha auth add mykey --api-key --token sk-ant-api03-...
 
 # Or use OAuth (preferred)
-mecha auth add --oauth-token sk-ant-oat01-...
+mecha auth add mytoken --oauth --token sk-ant-oat01-...
 
 # Verify
-mecha auth test
+mecha auth test mykey
 ```
 
 ## 3. Spawn an Agent
 
 ```bash
-mecha spawn researcher ~/my-research --tag research
+mecha spawn researcher ~/my-research --tags research
 ```
 
 This creates a CASA named `researcher` with `~/my-research` as its workspace. The agent starts immediately.
@@ -47,7 +47,7 @@ researcher
   port:      7700
   workspace: /Users/you/my-research
   tags:      research
-  sandbox:   strict
+  sandbox:   auto
 ```
 
 ## 5. Chat with Your Agent
@@ -61,7 +61,7 @@ The response streams to your terminal in real time.
 ## 6. Spawn a Second Agent
 
 ```bash
-mecha spawn coder ~/my-project --tag dev
+mecha spawn coder ~/my-project --tags dev
 ```
 
 ## 7. Let Them Talk
@@ -69,7 +69,7 @@ mecha spawn coder ~/my-project --tag dev
 Grant the coder permission to query the researcher:
 
 ```bash
-mecha acl grant coder researcher query
+mecha acl grant coder query researcher
 ```
 
 Now when coder needs research help, it can query researcher through the mesh:

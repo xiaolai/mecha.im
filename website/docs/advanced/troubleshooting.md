@@ -28,10 +28,10 @@ mecha spawn myagent ~/workspace --port 7710
 
 ### "CASA already exists"
 
-A CASA with that name already exists. Remove it first or choose a different name:
+A CASA with that name already exists. Stop and kill it first, then respawn:
 
 ```bash
-mecha rm myagent --with-state
+mecha kill myagent
 mecha spawn myagent ~/workspace
 ```
 
@@ -88,7 +88,7 @@ mecha acl show
 Ensure the source has the right capability granted to the target:
 
 ```bash
-mecha acl grant source target query
+mecha acl grant source query target
 ```
 
 ### "Unauthorized" on agent server

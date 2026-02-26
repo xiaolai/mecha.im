@@ -7,11 +7,11 @@ Mecha supports multiple authentication profiles for different API credentials.
 ### Adding Profiles
 
 ```bash
-# Add an API key
-mecha auth add --anthropic-key sk-ant-api03-...
+# Add an API key profile
+mecha auth add mykey --api-key --token sk-ant-api03-...
 
-# Add an OAuth token (preferred — longer lifespan)
-mecha auth add --oauth-token sk-ant-oat01-...
+# Add an OAuth token profile (preferred — longer lifespan)
+mecha auth add mytoken --oauth --token sk-ant-oat01-...
 
 # Tag a profile for organization
 mecha auth tag <profile-name> work
@@ -30,10 +30,10 @@ mecha auth default <profile-name>
 mecha auth switch <profile-name>
 
 # Test connectivity
-mecha auth test
+mecha auth test <profile-name>
 
 # Renew an OAuth token
-mecha auth renew <profile-name>
+mecha auth renew <profile-name> <new-token>
 
 # Remove a profile
 mecha auth rm <profile-name>
@@ -43,10 +43,9 @@ mecha auth rm <profile-name>
 
 When spawning a CASA, credentials are resolved in this order:
 
-1. CLI flags (`--anthropic-key`, `--claude-token`)
+1. CLI flag (`--auth <profile>`)
 2. Environment variables (`ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`)
-3. Default auth profile
-4. `.env` file in the workspace directory
+3. Default auth profile (`mecha auth default`)
 
 ## Environment Variables
 
@@ -54,7 +53,6 @@ When spawning a CASA, credentials are resolved in this order:
 |----------|-------------|
 | `ANTHROPIC_API_KEY` | Anthropic API key for agent inference |
 | `CLAUDE_CODE_OAUTH_TOKEN` | OAuth token (preferred over API key) |
-| `MECHA_OTP` | One-time password for TOTP-protected agents |
 | `MECHA_AGENT_API_KEY` | API key for the inter-node agent server |
 | `MECHA_DIR` | Override default `~/.mecha/` directory |
 
@@ -76,7 +74,7 @@ Each CASA has a `config.json`:
 Update configuration with:
 
 ```bash
-mecha configure researcher --tag research --tag ml
+mecha configure researcher --tags research,ml
 ```
 
 ## Port Assignment
@@ -93,8 +91,8 @@ Control the OS sandbox level per CASA:
 
 | Mode | Behavior |
 |------|----------|
-| `strict` | Full sandbox enforcement — fails if sandbox unavailable |
-| `auto` | Uses sandbox when available, degrades with warning |
+| `require` | Full sandbox enforcement — fails if sandbox unavailable |
+| `auto` | Uses sandbox when available, warns if unavailable (default) |
 | `off` | No OS sandbox (not recommended) |
 
 Check sandbox status:

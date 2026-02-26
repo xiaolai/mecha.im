@@ -35,7 +35,7 @@ coder
 reviewer
 ```
 
-Names must be lowercase alphanumeric with hyphens, max 64 characters.
+Names must be lowercase alphanumeric with hyphens, max 32 characters.
 
 ### Fully Qualified Addresses
 
@@ -100,13 +100,13 @@ Tags organize CASAs into logical groups:
 
 ```bash
 # Spawn with tags
-mecha spawn researcher ~/papers --tag research --tag ml
+mecha spawn researcher ~/papers --tags research,ml
 
 # Find by tag
 mecha find --tag research
 
 # Configure tags later
-mecha configure researcher --tag research --tag nlp
+mecha configure researcher --tags research,nlp
 ```
 
 Tags power:
@@ -120,15 +120,13 @@ Each CASA has a lifecycle state:
 
 ```mermaid
 stateDiagram-v2
-  [*] --> spawning
-  spawning --> running
+  [*] --> running
   running --> stopped
   running --> error
 ```
 
 | State | Meaning |
 |-------|---------|
-| `spawning` | Process is starting, health check pending |
 | `running` | Healthy and accepting requests |
 | `stopped` | Gracefully stopped via `mecha stop` |
 | `error` | Crashed or failed health check |
