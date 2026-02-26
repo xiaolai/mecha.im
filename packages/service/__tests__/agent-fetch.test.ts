@@ -7,7 +7,7 @@ describe("agentFetch", () => {
 
   const node: NodeEntry = {
     name: "bob",
-    host: "192.168.1.10",
+    host: "203.0.113.10",
     port: 7660,
     apiKey: "secret-key",
     addedAt: "2026-01-01T00:00:00Z",
@@ -20,7 +20,7 @@ describe("agentFetch", () => {
 
     expect(res).toBeInstanceOf(Response);
     expect(fetch).toHaveBeenCalledWith(
-      "http://192.168.1.10:7660/healthz",
+      "http://203.0.113.10:7660/healthz",
       expect.objectContaining({
         method: "GET",
         headers: expect.objectContaining({
@@ -28,6 +28,14 @@ describe("agentFetch", () => {
         }),
       }),
     );
+  });
+
+  it("rejects private/loopback hosts (SSRF protection)", async () => {
+    const privateNode = { ...node, host: "127.0.0.1" };
+    await expect(agentFetch({ node: privateNode, path: "/healthz" })).rejects.toThrow("private/loopback");
+
+    const localNode = { ...node, host: "192.168.1.10" };
+    await expect(agentFetch({ node: localNode, path: "/healthz" })).rejects.toThrow("private/loopback");
   });
 
   it("sends POST with JSON body", async () => {

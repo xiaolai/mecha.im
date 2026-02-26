@@ -1,7 +1,6 @@
 import {
   type ScheduleEntry,
   type ScheduleRunResult,
-  SCHEDULE_DEFAULTS,
   ScheduleNotFoundError,
   DuplicateScheduleError,
   InvalidIntervalError,

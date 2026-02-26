@@ -1,5 +1,6 @@
 export { safeReadJson } from "./safe-read.js";
 export { isPidAlive } from "./pid.js";
+export { safeCompare } from "./safe-compare.js";
 export type { SafeReadResult } from "./safe-read.js";
 export type {
   CasaName,
@@ -114,6 +115,9 @@ export type {
 // Node Registry (Phase 4)
 export { readNodes, writeNodes, addNode, removeNode, getNode } from "./node-registry.js";
 export type { NodeEntry } from "./node-registry.js";
+
+// Host validation
+export { isPrivateHost, validateRemoteHost } from "./host-validation.js";
 
 // Auth Resolution
 export {

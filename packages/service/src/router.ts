@@ -36,6 +36,8 @@ export interface CreateRouterOpts {
   locator?: MechaLocator;
   agentFetch?: typeof agentFetchType;
   sourceName?: string;
+  /** Allow private/loopback hosts for remote routing (local dev/testing). */
+  allowPrivateHosts?: boolean;
 }
 
 /**
@@ -44,6 +46,11 @@ export interface CreateRouterOpts {
  */
 export function createCasaRouter(opts: CreateRouterOpts): CasaRouter {
   const { mechaDir, acl, pm } = opts;
+  /* v8 ignore start -- dev/test-only warning */
+  if (opts.allowPrivateHosts) {
+    console.warn("[mecha:router] allowPrivateHosts is enabled — SSRF protection bypassed");
+  }
+  /* v8 ignore stop */
 
   function resolveLocal(name: CasaName): { port: number; token: string } {
     /* v8 ignore start -- belt-and-suspenders: CasaName is already validated */
@@ -90,6 +97,7 @@ export function createCasaRouter(opts: CreateRouterOpts): CasaRouter {
             method: "POST",
             body: { message, sessionId },
             source: sourceAddr,
+            allowPrivateHosts: opts.allowPrivateHosts,
           });
           if (!res.ok) {
             throw new RemoteRoutingError(located.node.name, res.status);

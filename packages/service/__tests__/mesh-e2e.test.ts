@@ -101,6 +101,7 @@ describe("mesh e2e: cross-node query", () => {
       locator,
       agentFetch,
       sourceName: "alice",
+      allowPrivateHosts: true,
     });
 
     const result = await router.routeQuery("coder", "analyst@bob", "hello analyst");
@@ -132,6 +133,7 @@ describe("mesh e2e: cross-node query", () => {
       locator,
       agentFetch,
       sourceName: "alice",
+      allowPrivateHosts: true,
     });
 
     await expect(

@@ -1,4 +1,4 @@
-import { DEFAULTS } from "@mecha/core";
+import { DEFAULTS, validateRemoteHost } from "@mecha/core";
 import type { NodeEntry } from "@mecha/core";
 
 export interface AgentFetchOpts {
@@ -9,6 +9,8 @@ export interface AgentFetchOpts {
   source?: string;
   signFn?: (data: Uint8Array) => Uint8Array;
   timeoutMs?: number;
+  /** Allow private/loopback hosts (for local dev/testing). Default: false. */
+  allowPrivateHosts?: boolean;
 }
 
 /**
@@ -16,7 +18,8 @@ export interface AgentFetchOpts {
  * Sets Bearer auth, optional X-Mecha-Source and X-Mecha-Signature headers.
  */
 export async function agentFetch(opts: AgentFetchOpts): Promise<Response> {
-  const { node, path, method = "GET", body, source, signFn, timeoutMs } = opts;
+  const { node, path, method = "GET", body, source, signFn, timeoutMs, allowPrivateHosts } = opts;
+  if (!allowPrivateHosts) validateRemoteHost(node.host);
   const url = `http://${node.host}:${node.port}${path}`;
 
   const headers: Record<string, string> = {

@@ -1,5 +1,5 @@
 import type { CasaName, NodeName, CasaAddress, Address } from "./types.js";
-import { isValidName, NAME_MAX_LENGTH } from "./validation.js";
+import { isValidName } from "./validation.js";
 import { InvalidNameError, InvalidAddressError, GroupAddressNotSupportedError } from "./errors.js";
 
 /** The default node name for unqualified addresses */

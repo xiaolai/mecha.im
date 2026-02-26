@@ -131,7 +131,32 @@ export function recordEvent(ctx: ProxyContext, event: MeterEvent): void {
   ingestEvent(ctx.counters, event);
 }
 
-/* v8 ignore start -- integration code: makes real HTTPS calls to api.anthropic.com */
+/** Max request body size (32 MB) to prevent memory DoS */
+export const MAX_BODY_BYTES = 32 * 1024 * 1024;
+
+/** Extract model name and stream flag from a request body JSON. */
+export function parseModelAndStream(body: Buffer): { model: string; stream: boolean } {
+  try {
+    const parsed = JSON.parse(body.toString()) as Record<string, unknown>;
+    return {
+      model: (typeof parsed.model === "string" ? parsed.model : ""),
+      stream: (typeof parsed.stream === "boolean" ? parsed.stream : false),
+    };
+  } catch {
+    return { model: "", stream: false };
+  }
+}
+
+/** Strip hop-by-hop headers from upstream response headers. */
+export function stripHopByHop(
+  headers: Record<string, string | string[] | undefined>,
+): Record<string, string | string[] | undefined> {
+  const out: Record<string, string | string[] | undefined> = { ...headers };
+  for (const h of HOP_BY_HOP) delete out[h];
+  return out;
+}
+
+/* v8 ignore start -- integration code: wires Node.js HTTP streams to/from api.anthropic.com */
 /** Handle a proxied request */
 export function handleProxyRequest(
   req: IncomingMessage,
@@ -155,10 +180,6 @@ export function handleProxyRequest(
     console.error(`[mecha:meter] Unregistered CASA: ${casa}`);
   }
 
-  // Budget enforcement — check before forwarding
-  // Note: budget check is sync and runs on the event loop, so concurrent
-  // requests are serialized. Overshoot is possible only between check and
-  // async upstream completion, which is acceptable for local metering.
   const budgetResult = enforceBudget(ctx, casa, casaInfo);
   for (const w of budgetResult.warnings) {
     console.error(`[mecha:meter] Budget warning: ${w}`);
@@ -169,13 +190,11 @@ export function handleProxyRequest(
     return;
   }
 
-  // Read request body (max 32MB to prevent memory DoS)
-  const MAX_BODY = 32 * 1024 * 1024;
   const bodyChunks: Buffer[] = [];
   let bodySize = 0;
   req.on("data", (chunk: Buffer) => {
     bodySize += chunk.length;
-    if (bodySize > MAX_BODY) {
+    if (bodySize > MAX_BODY_BYTES) {
       res.writeHead(413, { "content-type": "application/json" });
       res.end(JSON.stringify({ error: "Request body too large" }));
       req.destroy();
@@ -185,17 +204,7 @@ export function handleProxyRequest(
   });
   req.on("end", () => {
     const body = Buffer.concat(bodyChunks);
-
-    // Parse request to extract model and stream flag
-    let model = "";
-    let stream = false;
-    try {
-      const parsed = JSON.parse(body.toString()) as Record<string, unknown>;
-      model = (parsed.model as string) ?? "";
-      stream = (parsed.stream as boolean) ?? false;
-    } catch {
-      // Not JSON or not parseable — still forward
-    }
+    const { model, stream } = parseModelAndStream(body);
 
     const headers = buildUpstreamHeaders(
       req.headers as Record<string, string | string[] | undefined>,
@@ -219,7 +228,6 @@ export function handleProxyRequest(
     });
 
     upstreamReq.on("error", () => {
-      // Upstream unreachable
       res.writeHead(502, { "content-type": "application/json" });
       res.end(JSON.stringify({ error: "Upstream unreachable" }));
       const event = buildMeterEvent(ctx, startMs, casa, casaInfo, model, stream, 0, {
@@ -244,10 +252,7 @@ function handleStreamResponse(
   casaInfo: CasaRegistryEntry,
   model: string,
 ): void {
-  // Forward status + headers
-  const responseHeaders = { ...upstreamRes.headers };
-  for (const h of HOP_BY_HOP) delete responseHeaders[h];
-  res.writeHead(200, responseHeaders);
+  res.writeHead(200, stripHopByHop(upstreamRes.headers));
 
   const state = createSSEParseState(startMs, model);
   let clientDisconnected = false;
@@ -288,13 +293,9 @@ function handleNonStreamResponse(
   upstreamRes.on("end", () => {
     const body = Buffer.concat(chunks).toString();
 
-    // Forward response
-    const responseHeaders = { ...upstreamRes.headers };
-    for (const h of HOP_BY_HOP) delete responseHeaders[h];
-    res.writeHead(status, responseHeaders);
+    res.writeHead(status, stripHopByHop(upstreamRes.headers));
     res.end(body);
 
-    // Extract usage
     const usage = status === 200
       ? extractNonStreamUsage(body)
       : { inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0, modelActual: model, ttftMs: null };

@@ -1,5 +1,5 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
-import { timingSafeEqual } from "node:crypto";
+import { safeCompare } from "@mecha/core";
 import type { verifySignature as VerifySignatureFn } from "@mecha/core";
 
 export interface AuthOpts {
@@ -13,12 +13,6 @@ export interface AuthOpts {
   verifySignature?: typeof VerifySignatureFn;
 }
 
-/** Constant-time string comparison to prevent timing side-channel attacks. */
-function safeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(Buffer.from(a), Buffer.from(b));
-}
-
 /**
  * Fastify onRequest hook that validates Bearer token.
  */
@@ -29,7 +23,7 @@ export function createAuthHook(opts: AuthOpts) {
     if (pathname === "/healthz") return;
 
     const auth = request.headers.authorization;
-    if (!auth || !auth.startsWith("Bearer ") || !safeEqual(auth.slice(7), opts.apiKey)) {
+    if (!auth || !auth.startsWith("Bearer ") || !safeCompare(auth.slice(7), opts.apiKey)) {
       reply.code(401).send({ error: "Unauthorized" });
       return;
     }

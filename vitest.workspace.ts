@@ -9,8 +9,8 @@ export default defineWorkspace([
   },
   {
     test: {
-      name: "contracts",
-      include: ["packages/contracts/__tests__/**/*.test.ts"],
+      name: "agent",
+      include: ["packages/agent/__tests__/**/*.test.ts"],
     },
   },
   {

@@ -63,5 +63,5 @@ export function safeReadJson<T>(
   }
 
   // Without schema, caller is responsible for validation — cast to T at call site
-  return { ok: true, data: parsed as T }; // eslint-disable-line @typescript-eslint/no-unsafe-return
+  return { ok: true, data: parsed as T };
 }
