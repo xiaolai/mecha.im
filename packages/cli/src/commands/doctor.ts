@@ -1,12 +1,13 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { mechaDoctor } from "@mecha/service";
+import { withErrorHandler } from "../error-handler.js";
 
 export function registerDoctorCommand(program: Command, deps: CommandDeps): void {
   program
     .command("doctor")
     .description("Run system health checks")
-    .action(async () => {
+    .action(async () => withErrorHandler(deps, async () => {
       const result = mechaDoctor(deps.mechaDir);
 
       // Add sandbox availability check
@@ -31,5 +32,5 @@ export function registerDoctorCommand(program: Command, deps: CommandDeps): void
         deps.formatter.error("System has issues");
         process.exitCode = 1;
       }
-    });
+    }));
 }

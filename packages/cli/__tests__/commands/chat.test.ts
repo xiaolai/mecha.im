@@ -43,8 +43,9 @@ describe("chat command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "chat", "researcher"]);
-    expect(deps.formatter.error).toHaveBeenCalledWith("Message is required");
+    await expect(
+      program.parseAsync(["node", "mecha", "chat", "researcher"]),
+    ).rejects.toThrow(); // Commander throws on missing required argument <message>
   });
 
   it("handles runtime 501 error from chat endpoint", async () => {

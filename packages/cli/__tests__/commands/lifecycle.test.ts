@@ -122,6 +122,39 @@ describe("spawn command", () => {
 
   });
 
+  it("spawns with model option", async () => {
+    const deps = makeDeps({ pm: defaultPm() });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "spawn", "test", "/ws", "--model", "claude-sonnet-4-5-20250514"]);
+    expect(deps.processManager.spawn).toHaveBeenCalledWith(
+      expect.objectContaining({ model: "claude-sonnet-4-5-20250514" }),
+    );
+  });
+
+  it("spawns with permission-mode option", async () => {
+    const deps = makeDeps({ pm: defaultPm() });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "spawn", "test", "/ws", "--permission-mode", "full-auto"]);
+    expect(deps.processManager.spawn).toHaveBeenCalledWith(
+      expect.objectContaining({ permissionMode: "full-auto" }),
+    );
+  });
+
+  it("rejects invalid permission mode", async () => {
+    const deps = makeDeps({ pm: defaultPm() });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "spawn", "test", "/ws", "--permission-mode", "bogus"]);
+    expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("Permission mode must be"));
+    expect(process.exitCode).toBe(1);
+    expect(deps.processManager.spawn).not.toHaveBeenCalled();
+  });
+
   it("spawns with sandbox mode option", async () => {
     const deps = makeDeps({ pm: defaultPm() });
     const program = createProgram(deps);
@@ -165,6 +198,44 @@ describe("kill command", () => {
     await program.parseAsync(["node", "mecha", "kill", "researcher"]);
     expect(deps.processManager.kill).toHaveBeenCalledWith("researcher");
     expect(deps.formatter.success).toHaveBeenCalledWith(expect.stringContaining("Killed"));
+  });
+});
+
+describe("stop command", () => {
+  it("stops a CASA", async () => {
+    const deps = makeDeps({ pm: defaultPm() });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "stop", "researcher"]);
+    expect(deps.processManager.stop).toHaveBeenCalledWith("researcher");
+    expect(deps.formatter.success).toHaveBeenCalledWith(expect.stringContaining("Stopped"));
+  });
+
+  it("handles error for unknown CASA", async () => {
+    const { CasaNotFoundError } = await import("@mecha/core");
+    const deps = makeDeps({
+      pm: { ...defaultPm(), stop: vi.fn().mockRejectedValue(new CasaNotFoundError("ghost")) },
+    });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "stop", "ghost"]);
+    expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("not found"));
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("handles error for already-stopped CASA", async () => {
+    const { CasaNotRunningError } = await import("@mecha/core");
+    const deps = makeDeps({
+      pm: { ...defaultPm(), stop: vi.fn().mockRejectedValue(new CasaNotRunningError("test")) },
+    });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "stop", "test"]);
+    expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("not running"));
+    expect(process.exitCode).toBe(1);
   });
 });
 
@@ -282,11 +353,33 @@ describe("status command", () => {
     program.exitOverride();
 
     await program.parseAsync(["node", "mecha", "status", "test"]);
-    const jsonArg = (deps.formatter.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(jsonArg).not.toHaveProperty("token");
-    expect(jsonArg.name).toBe("test");
-    expect(jsonArg.state).toBe("running");
+    const tableCall = (deps.formatter.table as ReturnType<typeof vi.fn>).mock.calls[0];
+    const rows = tableCall[1] as string[][];
+    expect(tableCall[0]).toEqual(["Field", "Value"]);
+    // token must not appear in key-value pairs
+    expect(rows.find(([k]) => k === "token")).toBeUndefined();
+    expect(rows.find(([k]) => k === "name")?.[1]).toBe("test");
+    expect(rows.find(([k]) => k === "state")?.[1]).toBe("running");
   });
+
+  it("outputs JSON object in json mode", async () => {
+    const deps = makeDeps({ pm: defaultPm() });
+    deps.formatter.isJson = true;
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "status", "test"]);
+    const jsonArg = (deps.formatter.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(jsonArg.name).toBe("test");
+    expect(jsonArg).not.toHaveProperty("token");
+  });
+
+  function getStatusRows(deps: ReturnType<typeof makeDeps>): string[][] {
+    return (deps.formatter.table as ReturnType<typeof vi.fn>).mock.calls[0][1];
+  }
+  function findRow(rows: string[][], key: string): string | undefined {
+    return rows.find(([k]) => k === key)?.[1];
+  }
 
   it("includes fingerprint when identity exists", async () => {
     mechaDir = mkdtempSync(join(tmpdir(), "mecha-status-"));
@@ -307,8 +400,7 @@ describe("status command", () => {
     program.exitOverride();
 
     await program.parseAsync(["node", "mecha", "status", "test"]);
-    const jsonArg = (deps.formatter.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(jsonArg.fingerprint).toBe("sha256:abcdef");
+    expect(findRow(getStatusRows(deps), "fingerprint")).toBe("sha256:abcdef");
   });
 
   it("includes expose when config has it", async () => {
@@ -324,8 +416,7 @@ describe("status command", () => {
     program.exitOverride();
 
     await program.parseAsync(["node", "mecha", "status", "test"]);
-    const jsonArg = (deps.formatter.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(jsonArg.expose).toEqual(["query", "read_workspace"]);
+    expect(findRow(getStatusRows(deps), "expose")).toBe("query, read_workspace");
   });
 
   it("includes parent when workspace is nested", async () => {
@@ -355,8 +446,7 @@ describe("status command", () => {
     program.exitOverride();
 
     await program.parseAsync(["node", "mecha", "status", "child"]);
-    const jsonArg = (deps.formatter.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(jsonArg.parent).toBe("parent");
+    expect(findRow(getStatusRows(deps), "parent")).toBe("parent");
   });
 
   it("omits parent when workspace is not nested", async () => {
@@ -365,8 +455,8 @@ describe("status command", () => {
     program.exitOverride();
 
     await program.parseAsync(["node", "mecha", "status", "test"]);
-    const jsonArg = (deps.formatter.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(jsonArg).not.toHaveProperty("parent");
+    const rows = getStatusRows(deps);
+    expect(rows.find(([k]) => k === "parent")).toBeUndefined();
   });
 
   it("omits fingerprint when no identity", async () => {
@@ -376,8 +466,8 @@ describe("status command", () => {
     program.exitOverride();
 
     await program.parseAsync(["node", "mecha", "status", "test"]);
-    const jsonArg = (deps.formatter.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(jsonArg).not.toHaveProperty("fingerprint");
+    const rows = getStatusRows(deps);
+    expect(rows.find(([k]) => k === "fingerprint")).toBeUndefined();
   });
 
   it("omits expose when config has no expose", async () => {
@@ -391,8 +481,8 @@ describe("status command", () => {
     program.exitOverride();
 
     await program.parseAsync(["node", "mecha", "status", "test"]);
-    const jsonArg = (deps.formatter.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(jsonArg).not.toHaveProperty("expose");
+    const rows = getStatusRows(deps);
+    expect(rows.find(([k]) => k === "expose")).toBeUndefined();
   });
 
   it("handles CASA with no workspacePath", async () => {
@@ -414,8 +504,8 @@ describe("status command", () => {
     program.exitOverride();
 
     await program.parseAsync(["node", "mecha", "status", "nowstest"]);
-    const jsonArg = (deps.formatter.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(jsonArg).not.toHaveProperty("parent");
+    const rows = getStatusRows(deps);
+    expect(rows.find(([k]) => k === "parent")).toBeUndefined();
   });
 
   it("picks deepest parent when multiple ancestors exist", async () => {
@@ -436,8 +526,7 @@ describe("status command", () => {
     program.exitOverride();
 
     await program.parseAsync(["node", "mecha", "status", "leaf"]);
-    const jsonArg = (deps.formatter.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(jsonArg.parent).toBe("mid");
+    expect(findRow(getStatusRows(deps), "parent")).toBe("mid");
   });
 
   it("handles other CASA with no workspacePath in parent scan", async () => {
@@ -457,8 +546,8 @@ describe("status command", () => {
     program.exitOverride();
 
     await program.parseAsync(["node", "mecha", "status", "child"]);
-    const jsonArg = (deps.formatter.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(jsonArg).not.toHaveProperty("parent");
+    const rows = getStatusRows(deps);
+    expect(rows.find(([k]) => k === "parent")).toBeUndefined();
   });
 
   it("includes sandbox info from state.json when present", async () => {
@@ -480,9 +569,9 @@ describe("status command", () => {
     program.exitOverride();
 
     await program.parseAsync(["node", "mecha", "status", "test"]);
-    const jsonArg = (deps.formatter.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(jsonArg.sandboxPlatform).toBe("macos");
-    expect(jsonArg.sandboxMode).toBe("auto");
+    const rows = getStatusRows(deps);
+    expect(findRow(rows, "sandboxPlatform")).toBe("macos");
+    expect(findRow(rows, "sandboxMode")).toBe("auto");
   });
 });
 

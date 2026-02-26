@@ -42,7 +42,7 @@ describe("find command", () => {
 
     await program.parseAsync(["node", "mecha", "find", "--tag", "code"]);
     expect(deps.formatter.table).toHaveBeenCalledWith(
-      ["Name", "Tags", "Port", "State"],
+      ["Name", "State", "Port", "Tags"],
       expect.arrayContaining([
         expect.arrayContaining(["alice"]),
         expect.arrayContaining(["bob"]),
@@ -91,8 +91,8 @@ describe("find command", () => {
 
     await program.parseAsync(["node", "mecha", "find"]);
     expect(deps.formatter.table).toHaveBeenCalledWith(
-      ["Name", "Tags", "Port", "State"],
-      [["alice", "research", "7701", "running"]],
+      ["Name", "State", "Port", "Tags"],
+      [["alice", "running", "7701", "research"]],
     );
   });
 
@@ -112,8 +112,8 @@ describe("find command", () => {
 
     await program.parseAsync(["node", "mecha", "find"]);
     expect(deps.formatter.table).toHaveBeenCalledWith(
-      ["Name", "Tags", "Port", "State"],
-      [["alice", "-", "-", "stopped"]],
+      ["Name", "State", "Port", "Tags"],
+      [["alice", "stopped", "-", "-"]],
     );
   });
 
@@ -131,8 +131,8 @@ describe("find command", () => {
 
     await program.parseAsync(["node", "mecha", "find", "--tag", "code", "--tag", "review"]);
     expect(deps.formatter.table).toHaveBeenCalledWith(
-      ["Name", "Tags", "Port", "State"],
-      [["bob", "code, review", "7702", "running"]],
+      ["Name", "State", "Port", "Tags"],
+      [["bob", "running", "7702", "code, review"]],
     );
   });
 });

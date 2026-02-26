@@ -80,15 +80,15 @@ describe("configure command", () => {
     expect(cfg.tags).toEqual(["new-tag"]);
   });
 
-  it("handles CasaNotFoundError", async () => {
+  it("handles CasaNotFoundError via withErrorHandler", async () => {
     mechaDir = mkdtempSync(join(tmpdir(), "mecha-cfg-"));
     const deps = makeDeps({ mechaDir });
     const program = createProgram(deps);
     program.exitOverride();
 
-    await expect(
-      program.parseAsync(["node", "mecha", "configure", "unknown", "--tags", "foo"]),
-    ).rejects.toThrow();
+    await program.parseAsync(["node", "mecha", "configure", "unknown", "--tags", "foo"]);
+    expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("not found"));
+    expect(process.exitCode).toBe(1);
   });
 
   it("updates expose capabilities", async () => {

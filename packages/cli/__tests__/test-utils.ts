@@ -18,6 +18,7 @@ export function makeDeps(opts: {
       info: vi.fn(),
       json: vi.fn(),
       table: vi.fn(),
+      isJson: false,
     },
     processManager: {
       spawn: vi.fn(),

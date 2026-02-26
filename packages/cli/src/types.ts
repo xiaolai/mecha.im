@@ -10,6 +10,8 @@ export interface Formatter {
   info(msg: string): void;
   json(data: unknown): void;
   table(headers: string[], rows: string[][]): void;
+  /** True when --json flag is active */
+  readonly isJson: boolean;
 }
 
 /** Dependency injection container for CLI commands */

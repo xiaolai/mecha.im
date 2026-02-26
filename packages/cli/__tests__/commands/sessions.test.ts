@@ -1,6 +1,8 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { createProgram } from "../../src/program.js";
 import { makeDeps } from "../test-utils.js";
+
+afterEach(() => { process.exitCode = undefined as unknown as number; });
 
 // Mock @mecha/service session functions
 vi.mock("@mecha/service", async (importOriginal) => {
@@ -13,13 +15,28 @@ vi.mock("@mecha/service", async (importOriginal) => {
 });
 
 describe("sessions commands", () => {
-  it("lists sessions", async () => {
+  it("lists sessions in table", async () => {
     const deps = makeDeps();
     const program = createProgram(deps);
     program.exitOverride();
 
     await program.parseAsync(["node", "mecha", "sessions", "list", "researcher"]);
-    expect(deps.formatter.json).toHaveBeenCalledWith([{ id: "s1", title: "Test" }]);
+    expect(deps.formatter.table).toHaveBeenCalledWith(
+      ["Session ID", "Title", "Created", "Updated"],
+      [["s1", "Test", "-", "-"]],
+    );
+  });
+
+  it("shows message when no sessions", async () => {
+    const { casaSessionList } = await import("@mecha/service");
+    vi.mocked(casaSessionList).mockResolvedValueOnce([]);
+
+    const deps = makeDeps();
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "sessions", "list", "researcher"]);
+    expect(deps.formatter.info).toHaveBeenCalledWith("No sessions");
   });
 
   it("shows a session", async () => {
@@ -29,6 +46,59 @@ describe("sessions commands", () => {
 
     await program.parseAsync(["node", "mecha", "sessions", "show", "researcher", "s1"]);
     expect(deps.formatter.json).toHaveBeenCalledWith(expect.objectContaining({ id: "s1" }));
+  });
+
+  it("outputs raw JSON in json mode", async () => {
+    const deps = makeDeps();
+    deps.formatter.isJson = true;
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "sessions", "list", "researcher"]);
+    expect(deps.formatter.json).toHaveBeenCalledWith([{ id: "s1", title: "Test" }]);
+    expect(deps.formatter.table).not.toHaveBeenCalled();
+  });
+
+  it("supports ls alias", async () => {
+    const deps = makeDeps();
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "sessions", "ls", "researcher"]);
+    expect(deps.formatter.table).toHaveBeenCalledWith(
+      ["Session ID", "Title", "Created", "Updated"],
+      expect.any(Array),
+    );
+  });
+
+  it("shows dash for missing session fields", async () => {
+    const { casaSessionList } = await import("@mecha/service");
+    vi.mocked(casaSessionList).mockResolvedValueOnce([{ weird: true }]);
+
+    const deps = makeDeps();
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "sessions", "list", "researcher"]);
+    expect(deps.formatter.table).toHaveBeenCalledWith(
+      ["Session ID", "Title", "Created", "Updated"],
+      [["-", "-", "-", "-"]],
+    );
+  });
+
+  it("handles null/primitive entries gracefully", async () => {
+    const { casaSessionList } = await import("@mecha/service");
+    vi.mocked(casaSessionList).mockResolvedValueOnce([null, "string", 42]);
+
+    const deps = makeDeps();
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "sessions", "list", "researcher"]);
+    expect(deps.formatter.table).toHaveBeenCalledWith(
+      ["Session ID", "Title", "Created", "Updated"],
+      [["-", "-", "-", "-"], ["-", "-", "-", "-"], ["-", "-", "-", "-"]],
+    );
   });
 
   it("shows not found for missing session", async () => {

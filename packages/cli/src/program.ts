@@ -4,6 +4,7 @@ import { registerInitCommand } from "./commands/init.js";
 import { registerDoctorCommand } from "./commands/doctor.js";
 import { registerSpawnCommand } from "./commands/spawn.js";
 import { registerKillCommand } from "./commands/kill.js";
+import { registerStopCommand } from "./commands/stop.js";
 import { registerLsCommand } from "./commands/ls.js";
 import { registerStatusCommand } from "./commands/status.js";
 import { registerLogsCommand } from "./commands/logs.js";
@@ -36,6 +37,7 @@ export function createProgram(deps: CommandDeps): Command {
   registerDoctorCommand(program, deps);
   registerSpawnCommand(program, deps);
   registerKillCommand(program, deps);
+  registerStopCommand(program, deps);
   registerLsCommand(program, deps);
   registerStatusCommand(program, deps);
   registerLogsCommand(program, deps);

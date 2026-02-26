@@ -1,6 +1,8 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { createProgram } from "../../src/program.js";
 import { makeDeps } from "../test-utils.js";
+
+afterEach(() => { process.exitCode = undefined as unknown as number; });
 
 describe("acl command", () => {
   describe("grant", () => {
@@ -22,9 +24,9 @@ describe("acl command", () => {
       const program = createProgram(deps);
       program.exitOverride();
 
-      await expect(
-        program.parseAsync(["node", "mecha", "acl", "grant", "coder", "fly", "researcher"]),
-      ).rejects.toThrow("fly");
+      await program.parseAsync(["node", "mecha", "acl", "grant", "coder", "fly", "researcher"]);
+      expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("fly"));
+      expect(process.exitCode).toBe(2);
     });
 
     it("accepts name@node addresses", async () => {
@@ -41,9 +43,9 @@ describe("acl command", () => {
       const program = createProgram(deps);
       program.exitOverride();
 
-      await expect(
-        program.parseAsync(["node", "mecha", "acl", "grant", "../bad", "query", "analyst"]),
-      ).rejects.toThrow("Invalid address");
+      await program.parseAsync(["node", "mecha", "acl", "grant", "../bad", "query", "analyst"]);
+      expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("Invalid address"));
+      expect(process.exitCode).toBe(1);
     });
 
     it("rejects invalid target address", async () => {
@@ -51,9 +53,9 @@ describe("acl command", () => {
       const program = createProgram(deps);
       program.exitOverride();
 
-      await expect(
-        program.parseAsync(["node", "mecha", "acl", "grant", "coder", "query", "BAD@NODE"]),
-      ).rejects.toThrow("Invalid address");
+      await program.parseAsync(["node", "mecha", "acl", "grant", "coder", "query", "BAD@NODE"]);
+      expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("Invalid address"));
+      expect(process.exitCode).toBe(1);
     });
   });
 
@@ -76,9 +78,9 @@ describe("acl command", () => {
       const program = createProgram(deps);
       program.exitOverride();
 
-      await expect(
-        program.parseAsync(["node", "mecha", "acl", "revoke", "a", "invalid", "b"]),
-      ).rejects.toThrow("invalid");
+      await program.parseAsync(["node", "mecha", "acl", "revoke", "a", "invalid", "b"]);
+      expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("invalid"));
+      expect(process.exitCode).toBe(2);
     });
 
     it("rejects invalid address in revoke", async () => {
@@ -86,9 +88,9 @@ describe("acl command", () => {
       const program = createProgram(deps);
       program.exitOverride();
 
-      await expect(
-        program.parseAsync(["node", "mecha", "acl", "revoke", "../bad", "query", "researcher"]),
-      ).rejects.toThrow("Invalid address");
+      await program.parseAsync(["node", "mecha", "acl", "revoke", "../bad", "query", "researcher"]);
+      expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("Invalid address"));
+      expect(process.exitCode).toBe(1);
     });
 
     it("rejects invalid target address in revoke", async () => {
@@ -96,9 +98,9 @@ describe("acl command", () => {
       const program = createProgram(deps);
       program.exitOverride();
 
-      await expect(
-        program.parseAsync(["node", "mecha", "acl", "revoke", "coder", "query", "BAD"]),
-      ).rejects.toThrow("Invalid address");
+      await program.parseAsync(["node", "mecha", "acl", "revoke", "coder", "query", "BAD"]);
+      expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("Invalid address"));
+      expect(process.exitCode).toBe(1);
     });
   });
 

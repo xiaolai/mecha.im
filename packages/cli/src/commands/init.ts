@@ -1,12 +1,13 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { mechaInit } from "@mecha/service";
+import { withErrorHandler } from "../error-handler.js";
 
 export function registerInitCommand(program: Command, deps: CommandDeps): void {
   program
     .command("init")
     .description("Initialize mecha directory structure")
-    .action(async () => {
+    .action(async () => withErrorHandler(deps, async () => {
       const result = mechaInit(deps.mechaDir);
       if (result.created) {
         deps.formatter.success(`Initialized ${result.mechaDir}`);
@@ -19,5 +20,5 @@ export function registerInitCommand(program: Command, deps: CommandDeps): void {
         deps.formatter.info(`Node key: ${result.fingerprint}`);
       }
       /* v8 ignore stop */
-    });
+    }));
 }

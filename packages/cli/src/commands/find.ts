@@ -1,13 +1,14 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { casaFind } from "@mecha/service";
+import { withErrorHandler } from "../error-handler.js";
 
 export function registerFindCommand(program: Command, deps: CommandDeps): void {
   program
     .command("find")
-    .description("Find CASAs by tag")
+    .description("Find CASAs (all, or filtered by tag)")
     .option("--tag <tag>", "Filter by tag (repeatable, AND logic)", collect, [])
-    .action((opts: { tag: string[] }) => {
+    .action(async (opts: { tag: string[] }) => withErrorHandler(deps, async () => {
       const results = casaFind(deps.mechaDir, deps.processManager, {
         tags: opts.tag.length > 0 ? opts.tag : undefined,
       });
@@ -19,15 +20,15 @@ export function registerFindCommand(program: Command, deps: CommandDeps): void {
       }
 
       deps.formatter.table(
-        ["Name", "Tags", "Port", "State"],
+        ["Name", "State", "Port", "Tags"],
         results.map((r) => [
           r.name,
-          r.tags.join(", ") || "-",
-          r.port != null ? String(r.port) : "-",
           r.state,
+          r.port != null ? String(r.port) : "-",
+          r.tags.join(", ") || "-",
         ]),
       );
-    });
+    }));
 }
 
 function collect(value: string, previous: string[]): string[] {

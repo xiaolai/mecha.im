@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { mechaToolInstall, mechaToolLs } from "@mecha/service";
+import { withErrorHandler } from "../error-handler.js";
 
 export function registerToolsCommand(program: Command, deps: CommandDeps): void {
   const tools = program
@@ -13,19 +14,19 @@ export function registerToolsCommand(program: Command, deps: CommandDeps): void 
     .argument("<name>", "Tool name")
     .option("-v, --version <version>", "Tool version")
     .option("-d, --description <desc>", "Tool description")
-    .action(async (name: string, opts: { version?: string; description?: string }) => {
+    .action(async (name: string, opts: { version?: string; description?: string }) => withErrorHandler(deps, async () => {
       const info = mechaToolInstall(deps.mechaDir, {
         name,
         version: opts.version,
         description: opts.description,
       });
       deps.formatter.success(`Installed ${info.name}@${info.version}`);
-    });
+    }));
 
   tools
     .command("ls")
     .description("List installed tools")
-    .action(async () => {
+    .action(async () => withErrorHandler(deps, async () => {
       const list = mechaToolLs(deps.mechaDir);
       if (list.length === 0) {
         deps.formatter.info("No tools installed");
@@ -35,5 +36,5 @@ export function registerToolsCommand(program: Command, deps: CommandDeps): void 
         ["Name", "Version", "Description"],
         list.map((t) => [t.name, t.version, t.description]),
       );
-    });
+    }));
 }

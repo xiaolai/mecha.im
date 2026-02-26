@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { DEFAULTS, parsePort } from "@mecha/core";
+import { withErrorHandler } from "../error-handler.js";
 
 export function registerAgentStartCommand(parent: Command, deps: CommandDeps): void {
   parent
@@ -8,7 +9,7 @@ export function registerAgentStartCommand(parent: Command, deps: CommandDeps): v
     .description("Start the agent server for cross-node communication")
     .option("--port <port>", "Agent server port", String(DEFAULTS.AGENT_PORT))
     .requiredOption("--api-key <key>", "API key for authentication (required)")
-    .action(async (opts: { port: string; apiKey: string }) => {
+    .action(async (opts: { port: string; apiKey: string }) => withErrorHandler(deps, async () => {
       const port = parsePort(opts.port);
       if (port === undefined) {
         deps.formatter.error(`Invalid port: ${opts.port}`);
@@ -42,5 +43,5 @@ export function registerAgentStartCommand(parent: Command, deps: CommandDeps): v
 
       await server.listen({ port, host: "0.0.0.0" });
       deps.formatter.success(`Agent server started on port ${port} (node: ${nodeName})`);
-    });
+    }));
 }
