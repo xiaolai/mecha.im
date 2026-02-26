@@ -598,6 +598,18 @@ describe("relay", () => {
     ws1.close();
   });
 
+  it("first peer disconnect after pairing closes second peer", async () => {
+    const token = "disconnect-first";
+    const ws1 = await connectWs(`/relay?token=${token}`);
+    const ws2 = await connectWs(`/relay?token=${token}`);
+
+    const ws2Closed = new Promise<void>((resolve) => { ws2.on("close", () => resolve()); });
+    ws1.close();
+    await ws2Closed;
+
+    expect(relayPairs.size).toBe(0);
+  });
+
   it("second peer disconnect closes first peer", async () => {
     const token = "disconnect-test";
     const ws1 = await connectWs(`/relay?token=${token}`);
