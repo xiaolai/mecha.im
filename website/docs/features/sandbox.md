@@ -1,0 +1,183 @@
+# Sandbox & Security
+
+Mecha enforces **defense in depth** — five layers of isolation ensure that each agent can only access what it's explicitly allowed to.
+
+## The 5 Layers
+
+### Layer 1: Filesystem
+
+Each CASA can only read and write its own workspace directory. Path traversal attacks are blocked by resolving symlinks and checking canonical paths.
+
+```
+researcher's workspace: ~/papers/
+  ✅ ~/papers/notes.md          (inside workspace)
+  ❌ ~/papers/../secrets.txt    (traversal blocked)
+  ❌ /etc/passwd                (outside workspace)
+```
+
+### Layer 2: Network
+
+By default, CASAs can only communicate via localhost. The OS sandbox blocks raw outbound network access. API calls go through the metering proxy, which controls and tracks all Anthropic API usage.
+
+### Layer 3: Process Permissions
+
+Each CASA runs with restricted process capabilities. The Claude Agent SDK's permission mode controls what tools the agent can use:
+
+| Mode | Description |
+|------|-------------|
+| `default` | Ask before dangerous operations |
+| `plan` | Plan-only mode (read, no write) |
+| `full-auto` | Autonomous execution (use with caution) |
+
+### Layer 4: OS Sandbox
+
+The OS-level sandbox provides the strongest isolation:
+
+**macOS** — Uses `sandbox-exec` with a custom profile:
+- Filesystem access restricted to CASA directory + workspace
+- Network restricted to localhost
+- No process spawning outside allowed paths
+
+**Linux** — Uses `bwrap` (bubblewrap):
+- Mount namespace isolation
+- Read-only root filesystem
+- Bind-mount only CASA directory and workspace
+
+**Fallback** — When no sandbox runtime is available:
+- Process-level restrictions only
+- Warning logged at startup
+
+### Layer 5: ACL
+
+The access control layer mediates all inter-agent communication. Even if two CASAs are on the same machine, they cannot interact without explicit permission grants.
+
+## CASA Home Directory Isolation
+
+Each CASA gets its own isolated Claude Code home directory. The host's real `~/.claude/` is never exposed.
+
+### How It Works
+
+When Mecha spawns a CASA, it creates a complete `home/.claude/` mirror inside the CASA directory:
+
+```
+~/.mecha/researcher/
+├── home/
+│   └── .claude/
+│       ├── settings.json           ← auto-generated hook config
+│       ├── hooks/
+│       │   ├── sandbox-guard.sh    ← file access validator
+│       │   └── bash-guard.sh       ← shell command filter
+│       └── projects/
+│           └── -home-alice-papers/    ← workspace-encoded sessions
+│               ├── abc123.meta.json
+│               └── abc123.jsonl
+├── tmp/                            ← isolated TMPDIR
+├── logs/
+└── config.json
+```
+
+The `HOME` environment variable is redirected to `~/.mecha/researcher/home/`, so Claude Code reads settings from the CASA's own directory — not the host's.
+
+### Settings Are Generated, Not Inherited
+
+The CASA's `settings.json` is generated fresh by Mecha at spawn time with sandbox hooks pre-configured:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Read|Write|Edit|Glob|Grep",
+        "hooks": [{
+          "type": "command",
+          "command": "$HOME/.claude/hooks/sandbox-guard.sh",
+          "timeout": 5
+        }]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [{
+          "type": "command",
+          "command": "$HOME/.claude/hooks/bash-guard.sh",
+          "timeout": 5
+        }]
+      }
+    ]
+  }
+}
+```
+
+::: warning
+CASAs do **not** inherit settings, rules, or hooks from:
+- The host's `~/.claude/` directory
+- The workspace's `.claude/` directory
+- Any parent directory's `.claude/` configuration
+
+This is intentional — each CASA is a clean, isolated environment.
+:::
+
+### Hook Scripts
+
+Hook scripts are hardcoded by Mecha during spawn — they are not copied from the workspace or host. This prevents a compromised workspace from tampering with sandbox enforcement.
+
+- **sandbox-guard.sh** — Receives tool input as JSON on stdin, extracts the `path` field, resolves symlinks via `realpath`, and verifies the resolved path is within the CASA's sandbox root or workspace. Exits 0 (allow) or 2 (block).
+- **bash-guard.sh** — Filters shell commands for safety.
+
+These hooks run as `PreToolUse` handlers before every file access and shell command.
+
+### Environment Isolation
+
+The CASA's child process receives a locked-down environment:
+
+| Variable | Value | Purpose |
+|----------|-------|---------|
+| `HOME` | `casaDir/home` | Redirects Claude Code settings |
+| `TMPDIR` | `casaDir/tmp` | Isolated temp directory |
+| `MECHA_WORKSPACE` | Workspace path | The directory the agent can access |
+| `MECHA_SANDBOX_ROOT` | CASA root directory | Bounds check for sandbox hooks |
+| `MECHA_PROJECTS_DIR` | `casaDir/home/.claude/projects/<encoded>` | Session storage path |
+| `PATH` | Minimal (node, /usr/bin, /bin) | No access to host tools |
+
+Dangerous environment variables are blocked from propagating to the CASA:
+
+- All `MECHA_*` variables (prevents override)
+- `BASH_ENV`, `ENV` (prevents shell injection)
+- `NODE_*`, `LD_*`, `DYLD_*` (prevents library injection)
+- `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN` (replaced with resolved auth)
+
+### Workspace `.claude/` Files
+
+Since `HOME` is redirected, Claude Code inside a CASA does **not** walk up the filesystem to discover `.claude/` directories. This means:
+
+- **`CLAUDE.md`** in the workspace root is still read by the Agent SDK (it reads relative to the working directory, not `HOME`)
+- **`.claude/rules/`** in the workspace are still loaded (same reason — relative to workspace)
+- **Host-level `~/.claude/settings.json`** is NOT read (the CASA has its own)
+- **Host-level plugins, hooks, MCP servers** are NOT available to the CASA
+
+## Inspecting Sandbox Status
+
+```bash
+# Show sandbox details for a CASA
+mecha sandbox show researcher
+```
+
+This displays:
+- Sandbox mode (require/auto/off)
+- Platform sandbox type (sandbox-exec/bwrap/none)
+- Workspace path and allowed directories
+- Network restrictions
+
+## Security Boundaries
+
+### What Agents Can Do
+- Read/write files in their workspace
+- Make API calls through the metering proxy
+- Query other agents (if ACL allows)
+- Access MCP tools registered to their instance
+
+### What Agents Cannot Do
+- Access files outside their workspace
+- Make arbitrary network connections
+- Spawn unrestricted child processes
+- Read other agents' sessions or configuration
+- Bypass the metering proxy for API calls

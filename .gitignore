@@ -6,6 +6,7 @@ __pycache__/
 !.gemini/commands/
 !.gemini/skills/
 .claude/*.local.*
+.claude/.docs-sync-enabled
 .claude/CLAUDE.local.md
 .claude/settings.local.json
 .codex/*

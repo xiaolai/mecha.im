@@ -4,26 +4,32 @@ layout: home
 hero:
   name: Mecha
   text: Local-First Multi-Agent Runtime
-  tagline: Each Mecha is a sandboxed Claude agent — orchestrated from your terminal.
+  tagline: Run multiple Claude agents as sandboxed processes — orchestrated from your terminal, no Docker required.
   actions:
     - theme: brand
       text: Get Started
-      link: /guide/
+      link: /guide/quickstart
     - theme: alt
-      text: View on GitHub
-      link: https://github.com/xiaolai/myprojects/tree/main/mecha.im
+      text: Why Mecha?
+      link: /guide/
 
 features:
   - icon: ⚡
-    title: CLI-First
-    details: Full control from your terminal. Create, inspect, stop, and manage agents without leaving the command line.
+    title: Zero Dependencies
+    details: No Docker, no VMs. Each agent is a native process that starts in under a second. Just download the binary and go.
   - icon: 🔒
-    title: Secure by Default
-    details: Sandboxed processes with workspace-scoped access keep your system safe.
-  - icon: 🧩
-    title: Extensible
-    details: Built on the Claude Agent SDK. Bring your own tools, MCP servers, and permission policies.
-  - icon: 🌐
-    title: Mesh Networking
-    details: Connect agents across machines via Tailscale. Query, monitor, and orchestrate your fleet from anywhere.
+    title: 5-Layer Security
+    details: OS sandbox, filesystem isolation, network restrictions, process permissions, and fine-grained ACL — defense in depth by default.
+  - icon: 🤖
+    title: Multi-Agent Mesh
+    details: Agents talk to each other via MCP. Route queries across machines with cryptographic identity and per-capability permissions.
+  - icon: 📊
+    title: Built-in Metering
+    details: Track API costs per agent in real time. Set daily budgets, get warnings, and auto-pause agents that overspend.
+  - icon: 🏷️
+    title: Tags & Discovery
+    details: Organize agents with tags. Discover agents by capability. Broadcast to groups. Build teams of specialized agents.
+  - icon: 💻
+    title: CLI-First
+    details: Every feature works from the terminal. Script it, pipe it, cron it. The dashboard is a convenience, not a requirement.
 ---

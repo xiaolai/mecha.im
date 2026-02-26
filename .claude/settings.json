@@ -14,6 +14,22 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/scripts/docs-sync-check.sh"
+          }
+        ]
+      }
     ]
+  },
+  "enabledPlugins": {
+    "grill@xiaolai": true,
+    "loc-guardian@xiaolai": true,
+    "tdd-guardian@xiaolai": true,
+    "codex-toolkit@xiaolai": true
   }
 }

@@ -53,7 +53,7 @@ mecha.im/
 ## Known Limitations
 
 ### Security Trust Boundary
-Secrets (ANTHROPIC_API_KEY, MECHA_OTP) are passed as process environment variables.
+Secrets (ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN) are passed as process environment variables.
 Anyone with access to `/proc/<pid>/environ` (root) can read them. This is acceptable for local-first usage.
 
 ### Port Assignment
