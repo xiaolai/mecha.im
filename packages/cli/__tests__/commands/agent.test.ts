@@ -17,6 +17,7 @@ describe("agent commands", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     process.exitCode = undefined as unknown as number;
+    delete process.env.MECHA_AGENT_API_KEY;
   });
 
   describe("agent start", () => {
@@ -27,7 +28,7 @@ describe("agent commands", () => {
 
       await program.parseAsync(["node", "mecha", "agent", "start", "--api-key", "test-key"]);
       expect(deps.formatter.success).toHaveBeenCalledWith(
-        expect.stringContaining("Agent server started on port"),
+        expect.stringContaining("Agent server started on 127.0.0.1:"),
       );
     });
 
@@ -38,18 +39,32 @@ describe("agent commands", () => {
 
       await program.parseAsync(["node", "mecha", "agent", "start", "--port", "9999", "--api-key", "k"]);
       expect(deps.formatter.success).toHaveBeenCalledWith(
-        expect.stringContaining("port 9999"),
+        expect.stringContaining("127.0.0.1:9999"),
       );
     });
 
-    it("errors when api key not provided", async () => {
+    it("reads api key from MECHA_AGENT_API_KEY env var", async () => {
+      process.env.MECHA_AGENT_API_KEY = "env-key";
       const deps = makeDeps();
       const program = createProgram(deps);
       program.exitOverride();
 
-      await expect(
-        program.parseAsync(["node", "mecha", "agent", "start"]),
-      ).rejects.toThrow(); // Commander throws on missing required option --api-key
+      await program.parseAsync(["node", "mecha", "agent", "start"]);
+      expect(deps.formatter.success).toHaveBeenCalledWith(
+        expect.stringContaining("Agent server started"),
+      );
+    });
+
+    it("errors when api key not provided and env not set", async () => {
+      const deps = makeDeps();
+      const program = createProgram(deps);
+      program.exitOverride();
+
+      await program.parseAsync(["node", "mecha", "agent", "start"]);
+      expect(deps.formatter.error).toHaveBeenCalledWith(
+        expect.stringContaining("API key required"),
+      );
+      expect(process.exitCode).toBe(1);
     });
 
     it("errors when api key is empty/whitespace", async () => {
@@ -59,7 +74,7 @@ describe("agent commands", () => {
 
       await program.parseAsync(["node", "mecha", "agent", "start", "--api-key", "   "]);
       expect(deps.formatter.error).toHaveBeenCalledWith(
-        expect.stringContaining("API key must not be empty"),
+        expect.stringContaining("API key required"),
       );
     });
 

@@ -36,6 +36,8 @@ export interface CreateRouterOpts {
   locator?: MechaLocator;
   agentFetch?: typeof agentFetchType;
   sourceName?: string;
+  /** Allow private/loopback hosts for remote routing (local dev/testing). */
+  allowPrivateHosts?: boolean;
 }
 
 /**
@@ -90,6 +92,7 @@ export function createCasaRouter(opts: CreateRouterOpts): CasaRouter {
             method: "POST",
             body: { message, sessionId },
             source: sourceAddr,
+            allowPrivateHosts: opts.allowPrivateHosts,
           });
           if (!res.ok) {
             throw new RemoteRoutingError(located.node.name, res.status);

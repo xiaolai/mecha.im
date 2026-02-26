@@ -116,6 +116,9 @@ export type {
 export { readNodes, writeNodes, addNode, removeNode, getNode } from "./node-registry.js";
 export type { NodeEntry } from "./node-registry.js";
 
+// Host validation
+export { isPrivateHost, validateRemoteHost } from "./host-validation.js";
+
 // Auth Resolution
 export {
   resolveAuth,
