@@ -162,3 +162,7 @@ All Mecha state lives under `~/.mecha/`:
 ```
 
 No SQLite, no databases. Everything is plain JSON files that you can inspect, back up, and version control.
+
+## Parent-Child Workspaces
+
+When one CASA's workspace is a subdirectory of another's, Mecha automatically detects the relationship. For example, if `coder` owns `~/project` and `reviewer` owns `~/project/reviews`, then `mecha status reviewer` will show `coder` as the parent. This is purely informational — no permissions are implied.

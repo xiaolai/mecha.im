@@ -116,3 +116,20 @@ Model pricing is stored in `~/.mecha/meter/pricing.json` and can be updated:
 ```
 
 The proxy uses the `model` field from each API request to look up per-token costs.
+
+## Internals
+
+The metering proxy uses several background processes to maintain accuracy and performance:
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| Snapshot interval | 10s | Hot counters flushed to `snapshot.json` |
+| Rollup interval | 60s | Aggregate counters rolled up |
+| Registry rescan | 30s | Re-scan CASAs for new/removed agents |
+| Event buffer max | 100 events | Force flush when buffer is full |
+| Event buffer interval | 5s | Force flush after this delay |
+| Retention | 90 days | Event files older than this are pruned |
+
+Special HTTP status codes in event records:
+- `status: -1` — Client disconnected mid-stream (partial usage still recorded)
+- `status: 0` — Upstream API unreachable

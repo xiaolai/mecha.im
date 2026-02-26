@@ -110,6 +110,16 @@ The agent fetch layer validates remote hosts before connecting:
 
 Nodes have Ed25519 keypairs for message signing. Signature verification is available on routing endpoints — when a node's public key is configured, requests must include a valid `X-Mecha-Signature` header.
 
+## Multi-Turn Mesh Conversations
+
+The `mesh_query` MCP tool supports an optional `sessionId` parameter for multi-turn conversations across the mesh:
+
+```
+mesh_query({ target: "analyst@bob", message: "Analyze the data", sessionId: "abc123" })
+```
+
+When a mesh query creates a new session on the target, the response includes `_meta.sessionId`. Passing this ID in subsequent queries continues the same conversation on the remote CASA — the target retains full context from prior turns.
+
 ## Addressing
 
 | Format | Meaning |

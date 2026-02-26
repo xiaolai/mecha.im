@@ -62,14 +62,33 @@ Each CASA has a `config.json`:
 
 ```json
 {
+  "configVersion": 1,
   "port": 7700,
   "token": "random-bearer-token",
   "workspace": "/Users/you/my-project",
+  "model": "claude-sonnet-4-20250514",
+  "permissionMode": "default",
+  "auth": "mykey",
   "tags": ["dev", "backend"],
   "expose": ["query"],
-  "version": 1
+  "sandboxMode": "auto",
+  "allowNetwork": false
 }
 ```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `configVersion` | number | Schema version (currently `1`) |
+| `port` | number | HTTP port for the runtime API |
+| `token` | string | Random Bearer token for API auth |
+| `workspace` | string | Absolute path to the workspace directory |
+| `model` | string? | Model override for this CASA |
+| `permissionMode` | string? | `default`, `plan`, or `full-auto` |
+| `auth` | string? | Auth profile name |
+| `tags` | string[]? | Tags for organization and discovery |
+| `expose` | string[]? | Capabilities exposed to the mesh |
+| `sandboxMode` | string? | `auto`, `off`, or `require` |
+| `allowNetwork` | boolean? | Allow outbound network access (reserved) |
 
 Update configuration with:
 

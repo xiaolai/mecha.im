@@ -140,6 +140,19 @@ All state is plain files — no databases:
 
 All file writes use atomic tmp+rename to prevent corruption on crash.
 
+## Process Events
+
+The ProcessManager emits lifecycle events that CLI commands and integrations can subscribe to:
+
+| Event | Fields | Description |
+|-------|--------|-------------|
+| `spawned` | `name`, `pid`, `port` | CASA process started successfully |
+| `stopped` | `name`, `exitCode?` | CASA process exited |
+| `error` | `name`, `error` | CASA encountered an error |
+| `warning` | `name`, `message` | Non-fatal warning (e.g., sandbox degradation) |
+
+Subscribe via `processManager.onEvent(handler)`, which returns an unsubscribe function. Handlers are isolated — one failing handler does not affect others.
+
 ## Quality Gates
 
 Every change must pass before merge:
