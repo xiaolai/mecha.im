@@ -65,10 +65,16 @@ export async function spawnCasa(ctx: SpawnContext, spawnOpts: SpawnOpts): Promis
   });
 
   // Determine runtime binary path
-  let spawnBin = spawnOpts.runtimeBin ?? process.execPath;
+  // Priority: per-spawn runtimeBin > constructor runtimeBin > constructor runtimeEntrypoint
+  const effectiveBin = spawnOpts.runtimeBin ?? ctx.opts.runtimeBin;
+  let spawnBin = effectiveBin ?? process.execPath;
   let spawnArgs: string[];
   if (spawnOpts.runtimeBin) {
+    // Per-spawn override: standalone binary, no extra args
     spawnArgs = [];
+  } else if (ctx.opts.runtimeBin) {
+    // Constructor-level binary: apply constructor runtimeArgs (e.g. ["__runtime"])
+    spawnArgs = [...(ctx.opts.runtimeArgs ?? [])];
   } else if (ctx.opts.runtimeEntrypoint) {
     spawnArgs = [ctx.opts.runtimeEntrypoint];
   } else {

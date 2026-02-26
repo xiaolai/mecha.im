@@ -58,8 +58,12 @@ export interface CreateProcessManagerOpts {
   mechaDir: string;
   healthTimeoutMs?: number;
   spawnFn?: typeof import("node:child_process").spawn;
-  /** Path to the @mecha/runtime entrypoint. Required for real spawning. */
+  /** Path to the @mecha/runtime entrypoint (used with node). */
   runtimeEntrypoint?: string;
+  /** Path to a standalone runtime binary (takes precedence over runtimeEntrypoint). */
+  runtimeBin?: string;
+  /** Extra args passed before any spawn args when using runtimeBin (e.g. ["__runtime"]). */
+  runtimeArgs?: string[];
   /** Sandbox instance for kernel-level isolation (Phase 5) */
   sandbox?: Sandbox;
 }

@@ -8,7 +8,9 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage --config vitest.config.ts",
     "typecheck": "tsc -b",
-    "clean": "rm -rf packages/*/dist packages/*/tsconfig.tsbuildinfo",
+    "build:bin": "bash scripts/build-binaries.sh",
+    "build:bin:all": "bash scripts/build-binaries.sh all",
+    "clean": "rm -rf packages/*/dist packages/*/tsconfig.tsbuildinfo dist/bin",
     "lint": "eslint packages/*/src/",
     "docs:dev": "pnpm --filter @mecha/website dev",
     "docs:build": "pnpm --filter @mecha/website build"

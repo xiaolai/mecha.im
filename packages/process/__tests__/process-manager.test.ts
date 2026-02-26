@@ -1109,6 +1109,76 @@ describe("createProcessManager", () => {
     expect(spawnCall[1]).toEqual([]); // no args when runtimeBin is provided
   });
 
+  it("uses constructor runtimeBin with runtimeArgs", async () => {
+    const mockChild = createMockChild();
+    const mockSpawn = createMockSpawn(mockChild);
+
+    const pm = createProcessManager({
+      mechaDir: tempDir,
+      healthTimeoutMs: 3000,
+      spawnFn: mockSpawn as any,
+      runtimeBin: "/usr/local/bin/mecha",
+      runtimeArgs: ["__runtime"],
+    });
+
+    await pm.spawn({
+      name: testName,
+      workspacePath: tempDir,
+      port: healthPort,
+    });
+
+    const spawnCall = mockSpawn.mock.calls[0]!;
+    expect(spawnCall[0]).toBe("/usr/local/bin/mecha");
+    expect(spawnCall[1]).toEqual(["__runtime"]);
+  });
+
+  it("uses constructor runtimeBin without runtimeArgs", async () => {
+    const mockChild = createMockChild();
+    const mockSpawn = createMockSpawn(mockChild);
+
+    const pm = createProcessManager({
+      mechaDir: tempDir,
+      healthTimeoutMs: 3000,
+      spawnFn: mockSpawn as any,
+      runtimeBin: "/usr/local/bin/mecha",
+      // no runtimeArgs — tests the ?? [] fallback
+    });
+
+    await pm.spawn({
+      name: testName,
+      workspacePath: tempDir,
+      port: healthPort,
+    });
+
+    const spawnCall = mockSpawn.mock.calls[0]!;
+    expect(spawnCall[0]).toBe("/usr/local/bin/mecha");
+    expect(spawnCall[1]).toEqual([]);
+  });
+
+  it("per-spawn runtimeBin overrides constructor runtimeBin", async () => {
+    const mockChild = createMockChild();
+    const mockSpawn = createMockSpawn(mockChild);
+
+    const pm = createProcessManager({
+      mechaDir: tempDir,
+      healthTimeoutMs: 3000,
+      spawnFn: mockSpawn as any,
+      runtimeBin: "/usr/local/bin/mecha",
+      runtimeArgs: ["__runtime"],
+    });
+
+    await pm.spawn({
+      name: testName,
+      workspacePath: tempDir,
+      port: healthPort,
+      runtimeBin: "/custom/runtime",
+    });
+
+    const spawnCall = mockSpawn.mock.calls[0]!;
+    expect(spawnCall[0]).toBe("/custom/runtime");
+    expect(spawnCall[1]).toEqual([]); // per-spawn gets empty args, not constructor args
+  });
+
   it("get detects dead PID for state written after init", () => {
     const pm = createProcessManager({ mechaDir: tempDir });
 
