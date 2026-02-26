@@ -39,6 +39,11 @@ import {
   MeterProxyAlreadyRunningError,
   MeterProxyNotRunningError,
   MeterProxyRequiredError,
+  ConnectError,
+  InvalidInviteError,
+  HandshakeError,
+  PeerOfflineError,
+  RendezvousError,
 } from "../src/errors.js";
 
 describe("MechaError base", () => {
@@ -380,6 +385,47 @@ describe("error classes", () => {
       expectedExit: 2,
       expectedCode: "METER_PROXY_REQUIRED",
       messageContains: "mecha meter start",
+    },
+    // Phase 6 — Connectivity errors
+    {
+      name: "ConnectError",
+      error: new ConnectError("timeout"),
+      expectedStatus: 503,
+      expectedExit: 1,
+      expectedCode: "CONNECT_ERROR",
+      messageContains: "timeout",
+    },
+    {
+      name: "InvalidInviteError",
+      error: new InvalidInviteError("Invite expired"),
+      expectedStatus: 400,
+      expectedExit: 1,
+      expectedCode: "INVALID_INVITE",
+      messageContains: "Invite expired",
+    },
+    {
+      name: "HandshakeError",
+      error: new HandshakeError("key mismatch"),
+      expectedStatus: 502,
+      expectedExit: 1,
+      expectedCode: "HANDSHAKE_ERROR",
+      messageContains: "key mismatch",
+    },
+    {
+      name: "PeerOfflineError",
+      error: new PeerOfflineError("bob"),
+      expectedStatus: 503,
+      expectedExit: 1,
+      expectedCode: "PEER_OFFLINE",
+      messageContains: "bob",
+    },
+    {
+      name: "RendezvousError",
+      error: new RendezvousError("connection refused"),
+      expectedStatus: 502,
+      expectedExit: 1,
+      expectedCode: "RENDEZVOUS_ERROR",
+      messageContains: "connection refused",
     },
   ];
 

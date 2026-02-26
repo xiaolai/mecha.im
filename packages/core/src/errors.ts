@@ -281,6 +281,37 @@ export const CliAlreadyRunningError = defError<[number]>(
   (pid) => `Another mecha CLI is already running (pid ${pid})`,
 );
 
+// --- Connectivity errors (Phase 6) ---
+export const ConnectError = defError<[string]>(
+  "ConnectError",
+  { code: "CONNECT_ERROR", statusCode: 503, exitCode: 1 },
+  (reason) => `Connection failed: ${reason}`,
+);
+
+export const InvalidInviteError = defError<[string]>(
+  "InvalidInviteError",
+  { code: "INVALID_INVITE", statusCode: 400, exitCode: 1 },
+  (reason) => `Invalid invite: ${reason}`,
+);
+
+export const HandshakeError = defError<[string]>(
+  "HandshakeError",
+  { code: "HANDSHAKE_ERROR", statusCode: 502, exitCode: 1 },
+  (reason) => `Handshake failed: ${reason}`,
+);
+
+export const PeerOfflineError = defError<[string]>(
+  "PeerOfflineError",
+  { code: "PEER_OFFLINE", statusCode: 503, exitCode: 1 },
+  (name) => `Peer "${name}" is offline`,
+);
+
+export const RendezvousError = defError<[string]>(
+  "RendezvousError",
+  { code: "RENDEZVOUS_ERROR", statusCode: 502, exitCode: 1 },
+  (reason) => `Rendezvous server error: ${reason}`,
+);
+
 // --- Meter errors ---
 export const MeterProxyAlreadyRunningError = defError<[number]>(
   "MeterProxyAlreadyRunningError",

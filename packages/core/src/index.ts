@@ -60,6 +60,11 @@ export {
   MeterProxyAlreadyRunningError,
   MeterProxyNotRunningError,
   MeterProxyRequiredError,
+  ConnectError,
+  InvalidInviteError,
+  HandshakeError,
+  PeerOfflineError,
+  RendezvousError,
 } from "./errors.js";
 export {
   CasaSpawnInput,

@@ -56,4 +56,33 @@ export const DEFAULTS = {
   METER_EVENT_BUFFER_INTERVAL_MS: 5_000,
   /** Default event retention (days) */
   METER_RETENTION_DAYS: 90,
+  // --- Connectivity (Phase 6) ---
+  /** Rendezvous server URL */
+  RENDEZVOUS_URL: "wss://rendezvous.mecha.im",
+  /** Relay server URL */
+  RELAY_URL: "wss://relay.mecha.im",
+  /** Default STUN servers */
+  STUN_SERVERS: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] as readonly string[],
+  /** STUN discovery timeout (ms) */
+  STUN_TIMEOUT_MS: 3_000,
+  /** Hole-punch attempt timeout (ms) */
+  HOLE_PUNCH_TIMEOUT_MS: 5_000,
+  /** Noise handshake timeout (ms) */
+  NOISE_HANDSHAKE_TIMEOUT_MS: 10_000,
+  /** Relay pairing timeout (ms) — server-side */
+  RELAY_PAIR_TIMEOUT_MS: 30_000,
+  /** Relay session max duration (ms) */
+  RELAY_MAX_SESSION_MS: 3_600_000,
+  /** Relay max message size (bytes) */
+  RELAY_MAX_MESSAGE_BYTES: 65_536,
+  /** Reconnect backoff base (ms) */
+  RECONNECT_BASE_MS: 1_000,
+  /** Reconnect backoff max (ms) */
+  RECONNECT_MAX_MS: 30_000,
+  /** Max reconnect attempts */
+  RECONNECT_MAX_ATTEMPTS: 10,
+  /** Invite default expiry (seconds) */
+  INVITE_EXPIRY_S: 86_400,
+  /** Channel keepalive ping interval (ms) */
+  CHANNEL_KEEPALIVE_MS: 30_000,
 } as const;

@@ -95,4 +95,46 @@ describe("node-registry", () => {
       expect(nodes[0].name).toBe("bob");
     });
   });
+
+  describe("managed node entries (Phase 6)", () => {
+    function makeManagedEntry(name: string): NodeEntry {
+      return {
+        name,
+        host: "",
+        port: 0,
+        apiKey: "",
+        publicKey: "-----BEGIN PUBLIC KEY-----\nMC...\n-----END PUBLIC KEY-----",
+        noisePublicKey: "base64-x25519-pubkey",
+        fingerprint: "abcdef1234567890",
+        addedAt: new Date().toISOString(),
+        managed: true,
+      };
+    }
+
+    it("adds and reads a managed node", () => {
+      const entry = makeManagedEntry("bob");
+      addNode(mechaDir, entry);
+      const nodes = readNodes(mechaDir);
+      expect(nodes).toHaveLength(1);
+      expect(nodes[0]!.managed).toBe(true);
+      expect(nodes[0]!.noisePublicKey).toBe("base64-x25519-pubkey");
+      expect(nodes[0]!.fingerprint).toBe("abcdef1234567890");
+    });
+
+    it("coexists with http-mode nodes", () => {
+      addNode(mechaDir, makeEntry("alice"));
+      addNode(mechaDir, makeManagedEntry("bob"));
+      const nodes = readNodes(mechaDir);
+      expect(nodes).toHaveLength(2);
+      expect(nodes[0]!.managed).toBeUndefined();
+      expect(nodes[1]!.managed).toBe(true);
+    });
+
+    it("retrieves managed node by name", () => {
+      addNode(mechaDir, makeManagedEntry("bob"));
+      const node = getNode(mechaDir, "bob");
+      expect(node).toBeDefined();
+      expect(node!.managed).toBe(true);
+    });
+  });
 });

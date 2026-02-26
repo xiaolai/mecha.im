@@ -1,0 +1,23 @@
+{
+  "name": "@mecha/connect",
+  "version": "0.2.0",
+  "description": "P2P connectivity library for mecha.im — rendezvous, STUN, hole-punch, relay, Noise encryption",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "dependencies": {
+    "@mecha/core": "workspace:*"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "license": "ISC"
+}

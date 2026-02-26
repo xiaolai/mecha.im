@@ -11,11 +11,17 @@ const NODES_FILE = "nodes.json";
 const NodeEntrySchema = z.object({
   name: z.string(),
   host: z.string(),
-  port: z.number().int().positive(),
+  port: z.number().int().nonnegative(),
   apiKey: z.string(),
   publicKey: z.string().optional(),
+  noisePublicKey: z.string().optional(),
+  fingerprint: z.string().optional(),
   addedAt: z.string(),
-});
+  managed: z.boolean().optional(),
+}).refine(
+  (n) => !n.managed || (n.fingerprint && n.publicKey),
+  { message: "Managed nodes require publicKey and fingerprint" },
+);
 
 export type NodeEntry = z.infer<typeof NodeEntrySchema>;
 
