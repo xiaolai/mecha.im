@@ -12,7 +12,8 @@
   "files": ["dist"],
   "scripts": {
     "build": "tsc -b",
-    "typecheck": "tsc -b --noEmit"
+    "typecheck": "tsc -b --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@mecha/core": "workspace:*",

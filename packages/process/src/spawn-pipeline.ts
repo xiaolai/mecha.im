@@ -3,8 +3,6 @@ import { openSync, closeSync, chmodSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { randomBytes } from "node:crypto";
 import {
-  type CasaName,
-  DEFAULTS,
   CasaAlreadyExistsError,
   ProcessSpawnError,
   readCasaConfig,
@@ -18,7 +16,7 @@ import { waitForHealthy } from "./health.js";
 import { readState, writeState } from "./state-store.js";
 import type { CasaState } from "./state-store.js";
 import type { ProcessEventEmitter } from "./events.js";
-import { isPidAlive, waitForChildExit } from "./process-lifecycle.js";
+import { isPidAlive } from "./process-lifecycle.js";
 import { prepareCasaFilesystem } from "./sandbox-setup.js";
 import type { SpawnOpts, ProcessInfo, LiveProcess, CreateProcessManagerOpts } from "./types.js";
 

@@ -1,5 +1,6 @@
 export { safeReadJson } from "./safe-read.js";
 export { isPidAlive } from "./pid.js";
+export { safeCompare } from "./safe-compare.js";
 export type { SafeReadResult } from "./safe-read.js";
 export type {
   CasaName,

@@ -1,10 +1,5 @@
-import { timingSafeEqual } from "node:crypto";
 import type { FastifyRequest, FastifyReply } from "fastify";
-
-function safeCompare(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(Buffer.from(a), Buffer.from(b));
-}
+import { safeCompare } from "@mecha/core";
 
 export function createAuthHook(token: string) {
   return async function authHook(

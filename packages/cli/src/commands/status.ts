@@ -14,7 +14,7 @@ export function registerStatusCommand(program: Command, deps: CommandDeps): void
     .action(async (name: string) => withErrorHandler(deps, async () => {
       const validated = casaName(name);
       const info = casaStatus(deps.processManager, validated);
-      const { token: _token, ...safeInfo } = info;
+      const { token: _, ...safeInfo } = info;
 
       // Enrich with identity and config info
       const identity = loadCasaIdentity(deps.mechaDir, validated);

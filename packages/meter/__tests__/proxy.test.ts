@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import {
   parseCasaPath, buildUpstreamHeaders,
   buildMeterEvent, enforceBudget, reloadBudgets, recordEvent,
+  parseModelAndStream, stripHopByHop, MAX_BODY_BYTES,
 } from "../src/proxy.js";
 import type { ProxyContext } from "../src/proxy.js";
 import { loadPricing, initPricing } from "../src/pricing.js";
@@ -292,6 +293,67 @@ describe("proxy", () => {
       expect(ctx.counters.global.today.requests).toBe(1);
       // Error was logged
       expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("Failed to write event"), event.id);
+    });
+  });
+
+  describe("parseModelAndStream", () => {
+    it("extracts model and stream from valid JSON", () => {
+      const body = Buffer.from(JSON.stringify({ model: "claude-sonnet-4-20250514", stream: true }));
+      expect(parseModelAndStream(body)).toEqual({ model: "claude-sonnet-4-20250514", stream: true });
+    });
+
+    it("returns defaults for non-stream request", () => {
+      const body = Buffer.from(JSON.stringify({ model: "claude-sonnet-4-20250514" }));
+      expect(parseModelAndStream(body)).toEqual({ model: "claude-sonnet-4-20250514", stream: false });
+    });
+
+    it("returns defaults for invalid JSON", () => {
+      const body = Buffer.from("not json");
+      expect(parseModelAndStream(body)).toEqual({ model: "", stream: false });
+    });
+
+    it("returns defaults for empty body", () => {
+      const body = Buffer.from("");
+      expect(parseModelAndStream(body)).toEqual({ model: "", stream: false });
+    });
+
+    it("handles non-string model field", () => {
+      const body = Buffer.from(JSON.stringify({ model: 42, stream: true }));
+      expect(parseModelAndStream(body)).toEqual({ model: "", stream: true });
+    });
+
+    it("handles non-boolean stream field", () => {
+      const body = Buffer.from(JSON.stringify({ model: "m", stream: "yes" }));
+      expect(parseModelAndStream(body)).toEqual({ model: "m", stream: false });
+    });
+  });
+
+  describe("stripHopByHop", () => {
+    it("removes hop-by-hop headers", () => {
+      const headers = stripHopByHop({
+        "connection": "keep-alive",
+        "keep-alive": "timeout=5",
+        "transfer-encoding": "chunked",
+        "content-type": "application/json",
+        "x-custom": "value",
+      });
+      expect(headers["connection"]).toBeUndefined();
+      expect(headers["keep-alive"]).toBeUndefined();
+      expect(headers["transfer-encoding"]).toBeUndefined();
+      expect(headers["content-type"]).toBe("application/json");
+      expect(headers["x-custom"]).toBe("value");
+    });
+
+    it("does not mutate original headers", () => {
+      const original = { "connection": "close", "x-test": "ok" };
+      stripHopByHop(original);
+      expect(original["connection"]).toBe("close");
+    });
+  });
+
+  describe("MAX_BODY_BYTES", () => {
+    it("is 32MB", () => {
+      expect(MAX_BODY_BYTES).toBe(32 * 1024 * 1024);
     });
   });
 });

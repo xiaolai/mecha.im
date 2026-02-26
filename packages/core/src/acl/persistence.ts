@@ -1,7 +1,7 @@
 import { writeFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
-import type { AclRule, Capability } from "./types.js";
+import type { AclRule } from "./types.js";
 import { isCapability } from "./types.js";
 import { safeReadJson } from "../safe-read.js";
 

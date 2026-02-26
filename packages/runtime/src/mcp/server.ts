@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync, statSync, realpathSync } from "node:fs";
-import { join, relative, resolve, isAbsolute } from "node:path";
+import { join, relative, isAbsolute } from "node:path";
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { MESH_TOOLS, handleMeshTool, type MeshOpts, type MeshRouter } from "./mesh-tools.js";
 
