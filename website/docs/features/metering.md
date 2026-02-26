@@ -35,10 +35,10 @@ mecha meter stop
 
 ```bash
 # Show current day's costs
-mecha cost show
+mecha cost
 
 # JSON output for scripting
-mecha cost show --json
+mecha cost --json
 ```
 
 The cost report shows per-CASA and total spending:

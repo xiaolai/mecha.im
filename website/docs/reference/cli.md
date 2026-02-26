@@ -101,7 +101,7 @@ mecha logs <name> [options]
 | Option | Description |
 |--------|-------------|
 | `--follow`, `-f` | Stream logs live |
-| `--tail <n>`, `-n <n>` | Number of lines (default: 100) |
+| `--tail <n>`, `-n <n>` | Number of lines (default: all) |
 
 ### `mecha configure`
 
@@ -363,12 +363,12 @@ Stop the metering proxy.
 mecha meter stop
 ```
 
-### `mecha cost show`
+### `mecha cost`
 
 Show current spending.
 
 ```bash
-mecha cost show [casa]
+mecha cost [casa]
 ```
 
 Optionally pass a CASA name to show costs for a single agent.
@@ -526,3 +526,64 @@ mecha tools install <name> [options]
 |--------|-------------|
 | `--version <version>`, `-v` | Tool version |
 | `--description <desc>`, `-d` | Tool description |
+
+---
+
+## Plugins
+
+### `mecha plugin add`
+
+Register a new MCP server plugin.
+
+```bash
+mecha plugin add <name> [options]
+```
+
+| Option | Description |
+|--------|-------------|
+| `--url <url>` | MCP endpoint URL (implies type `http`) |
+| `--type <type>` | Transport type: `stdio`, `http`, `sse` |
+| `--command <cmd>` | Executable command (implies type `stdio`) |
+| `--args <args>` | Comma-separated arguments |
+| `--env <KEY=VALUE>` | Environment variable (repeatable) |
+| `--header <KEY=VALUE>` | HTTP header (repeatable) |
+| `-d, --description <text>` | Human-readable description |
+| `--force` | Overwrite if plugin already exists |
+
+```bash
+mecha plugin add chrome-bridge --url http://127.0.0.1:7890/mcp
+mecha plugin add filesystem --command npx --args "-y,@anthropic/mcp-fs,~/docs"
+mecha plugin add github --command npx --args "-y,mcp-github" --env "GITHUB_TOKEN=ghp_abc"
+```
+
+### `mecha plugin rm`
+
+Remove a plugin from the registry.
+
+```bash
+mecha plugin rm <name>
+```
+
+### `mecha plugin ls`
+
+List all registered plugins.
+
+```bash
+mecha plugin ls
+```
+
+### `mecha plugin status`
+
+Check if a plugin is reachable.
+
+```bash
+mecha plugin status <name>
+```
+
+### `mecha plugin test`
+
+Test plugin connectivity (HTTP) or validate config (stdio).
+
+```bash
+mecha plugin test <name>
+```
