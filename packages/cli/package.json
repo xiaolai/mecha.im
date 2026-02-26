@@ -1,7 +1,7 @@
 {
   "name": "@mecha/cli",
   "version": "0.2.0",
-  "private": true,
+  "description": "CLI for mecha.im — local-first multi-agent runtime",
   "type": "module",
   "bin": {
     "mecha": "./dist/main.js"
@@ -23,6 +23,19 @@
     "@mecha/sandbox": "workspace:*",
     "@mecha/service": "workspace:*",
     "@mecha/process": "workspace:*",
+    "@mecha/runtime": "workspace:*",
     "commander": "^14.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xiaolai/mecha.im",
+    "directory": "packages/cli"
   }
 }

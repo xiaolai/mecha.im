@@ -13,8 +13,8 @@
     "docs:dev": "pnpm --filter @mecha/website dev",
     "docs:build": "pnpm --filter @mecha/website build"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": ["ai", "agent", "claude", "multi-agent", "runtime", "local-first"],
+  "author": "xiaolai",
   "license": "ISC",
   "packageManager": "pnpm@10.26.1",
   "devDependencies": {

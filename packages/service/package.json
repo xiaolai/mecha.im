@@ -1,7 +1,7 @@
 {
   "name": "@mecha/service",
   "version": "0.2.0",
-  "private": true,
+  "description": "High-level service layer for mecha.im CLI and dashboard",
   "type": "module",
   "exports": {
     ".": {
@@ -17,7 +17,7 @@
   "dependencies": {
     "@mecha/core": "workspace:*",
     "@mecha/process": "workspace:*",
-    "zod": "^3.24.4"
+    "zod": "^3.25.36"
   },
   "devDependencies": {
     "@mecha/agent": "workspace:*",
@@ -25,5 +25,17 @@
     "fastify": "^5.3.3",
     "better-sqlite3": "^11.10.0",
     "@types/better-sqlite3": "^7.6.13"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xiaolai/mecha.im",
+    "directory": "packages/service"
   }
 }

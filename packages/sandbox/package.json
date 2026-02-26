@@ -1,7 +1,7 @@
 {
   "name": "@mecha/sandbox",
   "version": "0.2.0",
-  "private": true,
+  "description": "Platform sandbox integration for mecha.im CASAs",
   "type": "module",
   "exports": {
     ".": {
@@ -16,5 +16,17 @@
   },
   "dependencies": {
     "@mecha/core": "workspace:*"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xiaolai/mecha.im",
+    "directory": "packages/sandbox"
   }
 }

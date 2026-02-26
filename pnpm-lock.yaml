@@ -53,6 +53,9 @@ importers:
       '@mecha/process':
         specifier: workspace:*
         version: link:../process
+      '@mecha/runtime':
+        specifier: workspace:*
+        version: link:../runtime
       '@mecha/sandbox':
         specifier: workspace:*
         version: link:../sandbox
@@ -78,7 +81,7 @@ importers:
         specifier: workspace:*
         version: link:../sandbox
       zod:
-        specifier: ^3.24.4
+        specifier: ^3.25.36
         version: 3.25.76
 
   packages/runtime:
@@ -111,7 +114,7 @@ importers:
         specifier: workspace:*
         version: link:../process
       zod:
-        specifier: ^3.24.4
+        specifier: ^3.25.36
         version: 3.25.76
     devDependencies:
       '@mecha/agent':
