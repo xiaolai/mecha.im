@@ -36,3 +36,8 @@ export {
   updateHourlyRollup, updateDailyRollup, updateCasaRollup,
   flushRollups,
 } from "./rollups.js";
+export {
+  readBudgets, writeBudgets, budgetsPath,
+  checkBudgets, setBudget, removeBudget,
+} from "./budgets.js";
+export type { BudgetCheckResult } from "./budgets.js";
