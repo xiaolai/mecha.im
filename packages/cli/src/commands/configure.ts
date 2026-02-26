@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
-import { casaName, validateTags, validateCapabilities } from "@mecha/core";
+import { casaName, validateTags, validateCapabilities, readAuthProfiles, AuthProfileNotFoundError } from "@mecha/core";
 import { casaConfigure } from "@mecha/service";
 import { withErrorHandler } from "../error-handler.js";
 
@@ -11,9 +11,10 @@ export function registerConfigureCommand(program: Command, deps: CommandDeps): v
     .argument("<name>", "CASA name")
     .option("--tags <tags>", "Comma-separated tags")
     .option("--expose <caps>", "Comma-separated capabilities to expose")
-    .action(async (name: string, opts: { tags?: string; expose?: string }) => withErrorHandler(deps, async () => {
+    .option("--auth <profile>", "Auth profile name to use")
+    .action(async (name: string, opts: { tags?: string; expose?: string; auth?: string }) => withErrorHandler(deps, async () => {
       const validated = casaName(name);
-      const updates: { tags?: string[]; expose?: string[] } = {};
+      const updates: { tags?: string[]; expose?: string[]; auth?: string } = {};
       if (opts.tags) {
         const result = validateTags(opts.tags.split(",").map((t) => t.trim()).filter(Boolean));
         if (!result.ok) {
@@ -31,6 +32,13 @@ export function registerConfigureCommand(program: Command, deps: CommandDeps): v
           return;
         }
         updates.expose = capResult.capabilities;
+      }
+      if (opts.auth) {
+        const store = readAuthProfiles(deps.mechaDir);
+        if (!store.profiles[opts.auth]) {
+          throw new AuthProfileNotFoundError(opts.auth);
+        }
+        updates.auth = opts.auth;
       }
       if (Object.keys(updates).length === 0) {
         deps.formatter.info("Nothing to update");

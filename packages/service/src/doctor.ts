@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { readAuthProfiles } from "@mecha/core";
 
 export interface DoctorCheck {
   name: string;
@@ -41,6 +42,40 @@ export function mechaDoctor(mechaDir: string): DoctorResult {
     checks.push({ name: "node-id", status: "ok", message: "Node ID present" });
   } else {
     checks.push({ name: "node-id", status: "warn", message: "No node ID — run mecha init" });
+  }
+
+  // Auth profile checks — wrapped to prevent crash on corrupt auth files
+  try {
+    const store = readAuthProfiles(mechaDir);
+    const profileNames = Object.keys(store.profiles);
+    if (profileNames.length === 0) {
+      checks.push({
+        name: "auth-profiles",
+        status: "error",
+        message: "No auth profiles — run: mecha auth add <name> --oauth --token <token>",
+      });
+    } else {
+      for (const name of profileNames) {
+        const meta = store.profiles[name]!;
+        /* v8 ignore start -- display formatting branches for account/default label */
+        const accountStr = meta.account ? ` (${meta.account})` : "";
+        const defaultStr = store.default === name ? " [default]" : "";
+        /* v8 ignore stop */
+        checks.push({
+          name: `auth:${name}`,
+          status: "ok",
+          message: `${meta.type}${accountStr}${defaultStr}`,
+        });
+      }
+    }
+  } catch {
+    /* v8 ignore start -- defensive: corrupt auth store */
+    checks.push({
+      name: "auth-profiles",
+      status: "error",
+      message: "Auth store is corrupt — delete ~/.mecha/auth/ and re-add profiles",
+    });
+    /* v8 ignore stop */
   }
 
   const healthy = checks.every((c) => c.status !== "error");

@@ -1,7 +1,8 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { CasaName } from "@mecha/core";
-import { loadNodeIdentity, loadNodePrivateKey, createCasaIdentity, CASA_CONFIG_VERSION } from "@mecha/core";
+import { loadNodeIdentity, loadNodePrivateKey, createCasaIdentity, CASA_CONFIG_VERSION, resolveAuth } from "@mecha/core";
+import type { ResolvedAuth } from "@mecha/core";
 
 export interface CasaFilesystemOpts {
   casaDir: string;
@@ -12,7 +13,7 @@ export interface CasaFilesystemOpts {
   mechaDir: string;
   model?: string;
   permissionMode?: string;
-  auth?: string;
+  auth?: string | null;
   tags?: string[];
   expose?: string[];
   userEnv?: Record<string, string>;
@@ -134,13 +135,17 @@ exit 0
     "MECHA_CASA_NAME", "MECHA_PORT", "MECHA_WORKSPACE", "MECHA_PROJECTS_DIR",
     "MECHA_AUTH_TOKEN", "MECHA_LOG_DIR", "MECHA_SANDBOX_ROOT", "MECHA_DIR", "HOME", "TMPDIR",
     // Block PATH (we construct our own), shell startup vars, and dangerous Node.js/linker env vars
-    "PATH", "BASH_ENV", "ENV", "BASH_FUNC_%%",
+    "PATH", "BASH_ENV", "ENV",
     "NODE_OPTIONS", "NODE_PATH", "NODE_DEBUG", "NODE_EXTRA_CA_CERTS", "NODE_REDIRECT_WARNINGS",
     "LD_PRELOAD", "LD_LIBRARY_PATH", "DYLD_INSERT_LIBRARIES", "DYLD_LIBRARY_PATH",
+    // Block SDK auth keys — auth resolution sets the correct one
+    "ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN",
   ]);
   const safeUserEnv: Record<string, string> = {};
   for (const [k, v] of Object.entries(resolvedUserEnv)) {
-    if (!reservedKeys.has(k)) safeUserEnv[k] = v;
+    // Block reserved keys and bash function exports (BASH_FUNC_*%%)
+    if (reservedKeys.has(k) || /^BASH_FUNC_.*%%$/.test(k)) continue;
+    safeUserEnv[k] = v;
   }
   const childEnv: Record<string, string> = {
     /* v8 ignore start -- construct minimal PATH: node binary dir + standard system paths */
@@ -172,12 +177,25 @@ exit 0
     MECHA_DIR: opts.mechaDir,
   };
 
-  // Forward SDK auth keys from parent env when not already set
-  const sdkKeys = ["ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"] as const;
-  for (const key of sdkKeys) {
-    if (process.env[key] && !childEnv[key]) {
-      childEnv[key] = process.env[key]!;
+  // Resolve auth profile → inject correct SDK env var
+  let resolved: ResolvedAuth | null = null;
+  try {
+    resolved = resolveAuth(opts.mechaDir, opts.auth);
+  } catch (err) {
+    // Only fall back to host env when no profiles exist (implicit auth).
+    // If user explicitly passed --auth <name>, rethrow so spawn fails fast.
+    /* v8 ignore start -- fallback for environments without auth profiles */
+    if (opts.auth !== undefined) throw err;
+    const sdkKeys = ["ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"] as const;
+    for (const key of sdkKeys) {
+      if (process.env[key] && !childEnv[key]) {
+        childEnv[key] = process.env[key]!;
+      }
     }
+    /* v8 ignore stop */
+  }
+  if (resolved) {
+    childEnv[resolved.envVar] = resolved.token;
   }
 
   return { homeDir, tmpDir, logsDir, projectsDir, childEnv };

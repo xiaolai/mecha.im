@@ -19,6 +19,17 @@ describe("doctor command", () => {
     for (const sub of ["auth", "tools", "logs"]) mkdirSync(join(mechaDir, sub));
     writeFileSync(join(mechaDir, "node-id"), "test-id\n");
 
+    // Add an auth profile so the auth-profiles check passes
+    writeFileSync(join(mechaDir, "auth", "profiles.json"), JSON.stringify({
+      default: "test",
+      profiles: {
+        test: { type: "api-key", account: null, label: "", tags: [], expiresAt: null, createdAt: "2026-01-01T00:00:00Z" },
+      },
+    }));
+    writeFileSync(join(mechaDir, "auth", "credentials.json"), JSON.stringify({
+      test: { token: "sk-ant-api03-test" },
+    }));
+
     const deps = makeDeps({ mechaDir });
     const program = createProgram(deps);
     program.exitOverride();

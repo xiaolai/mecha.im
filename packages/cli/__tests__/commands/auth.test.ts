@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { mkdtempSync, rmSync, mkdirSync } from "node:fs";
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createProgram } from "../../src/program.js";
 import { makeDeps } from "../test-utils.js";
+import type { ProcessInfo } from "@mecha/process";
+import type { CasaName } from "@mecha/core";
 
 describe("auth commands", () => {
   let tempDir: string;
@@ -80,7 +82,7 @@ describe("auth commands", () => {
     await program.parseAsync(["node", "mecha", "auth", "add", "b", "--api-key", "--token", "sk"]);
     await program.parseAsync(["node", "mecha", "auth", "ls"]);
     const rows = vi.mocked(deps.formatter.table).mock.calls[0]![1] as string[][];
-    const defaults = rows.map((r) => r[2]);
+    const defaults = rows.map((r) => r[3]);
     expect(defaults).toContain("✓");
     expect(defaults).toContain("");
   });
@@ -116,7 +118,7 @@ describe("auth commands", () => {
     expect(deps.formatter.success).toHaveBeenCalledWith(expect.stringContaining("Tags"));
   });
 
-  it("switches profile", async () => {
+  it("switches profile globally", async () => {
     const { deps } = setup();
     const program = createProgram(deps);
     program.exitOverride();
@@ -127,14 +129,56 @@ describe("auth commands", () => {
     expect(deps.formatter.success).toHaveBeenCalledWith(expect.stringContaining("Switched"));
   });
 
-  it("tests a profile", async () => {
+  it("switches profile per-CASA", async () => {
+    const { mechaDir, deps } = setup();
+
+    // Create CASA dir with config
+    const casaDir = join(mechaDir, "alice");
+    mkdirSync(casaDir, { recursive: true });
+    writeFileSync(join(casaDir, "config.json"), JSON.stringify({ port: 7700, token: "t", workspace: "/ws" }));
+
+    const info: ProcessInfo = { name: "alice" as CasaName, state: "running", workspacePath: "/ws", port: 7700 };
+    const pmDeps = makeDeps({
+      mechaDir,
+      pm: { get: vi.fn().mockReturnValue(info) },
+    });
+    const program = createProgram(pmDeps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "auth", "add", "personal", "--oauth", "--token", "t1"]);
+    await program.parseAsync(["node", "mecha", "auth", "switch", "alice", "personal"]);
+    expect(pmDeps.formatter.success).toHaveBeenCalledWith(expect.stringContaining("alice now uses"));
+    expect(pmDeps.formatter.success).toHaveBeenCalledWith(expect.stringContaining("Restart"));
+
+    const cfg = JSON.parse(readFileSync(join(casaDir, "config.json"), "utf-8"));
+    expect(cfg.auth).toBe("personal");
+  });
+
+  it("tests a profile offline", async () => {
     const { deps } = setup();
     const program = createProgram(deps);
     program.exitOverride();
 
     await program.parseAsync(["node", "mecha", "auth", "add", "valid", "--oauth", "--token", "tok-123"]);
-    await program.parseAsync(["node", "mecha", "auth", "test", "valid"]);
+    await program.parseAsync(["node", "mecha", "auth", "test", "valid", "--offline"]);
     expect(deps.formatter.success).toHaveBeenCalledWith(expect.stringContaining("valid"));
+    expect(deps.formatter.success).toHaveBeenCalledWith(expect.stringContaining("offline"));
+  });
+
+  it("tests a profile with API probe", async () => {
+    const { deps } = setup();
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify({ data: [] }), { status: 200 }),
+    );
+
+    await program.parseAsync(["node", "mecha", "auth", "add", "valid", "--oauth", "--token", "tok-123"]);
+    await program.parseAsync(["node", "mecha", "auth", "test", "valid"]);
+    expect(deps.formatter.success).toHaveBeenCalledWith(expect.stringContaining("API verified"));
+
+    fetchSpy.mockRestore();
   });
 
   it("rejects empty token via --token ''", async () => {
@@ -149,7 +193,7 @@ describe("auth commands", () => {
 
   });
 
-  it("reports invalid profile via auth test", async () => {
+  it("reports invalid profile via auth test (online)", async () => {
     const { mechaDir, deps } = setup();
     // Bypass CLI to create profile with empty token directly
     const { mechaAuthAdd } = await import("@mecha/service");
@@ -158,9 +202,52 @@ describe("auth commands", () => {
     program.exitOverride();
 
     await program.parseAsync(["node", "mecha", "auth", "test", "empty"]);
-    expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("invalid"));
+    expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("failed"));
     expect(process.exitCode).toBe(1);
 
+  });
+
+  it("reports invalid profile via auth test --offline", async () => {
+    const { mechaDir, deps } = setup();
+    const { mechaAuthAdd } = await import("@mecha/service");
+    mechaAuthAdd(mechaDir, "empty", "oauth", "");
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "auth", "test", "empty", "--offline"]);
+    expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("invalid token"));
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("rejects auth add without --oauth or --api-key", async () => {
+    const { deps } = setup();
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "auth", "add", "bad", "--token", "tok"]);
+    expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("Specify --oauth or --api-key"));
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("rejects invalid tags on auth add", async () => {
+    const { deps } = setup();
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "auth", "add", "bad", "--oauth", "--token", "tok", "--tag", "INVALID TAG!"]);
+    expect(deps.formatter.error).toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("rejects invalid tags on auth tag", async () => {
+    const { deps } = setup();
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "auth", "add", "tagged", "--oauth", "--token", "tok"]);
+    await program.parseAsync(["node", "mecha", "auth", "tag", "tagged", "INVALID TAG!"]);
+    expect(deps.formatter.error).toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
   });
 
   it("renews a token", async () => {

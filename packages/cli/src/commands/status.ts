@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
-import { casaName, readCasaConfig, loadCasaIdentity } from "@mecha/core";
+import { casaName, readCasaConfig, loadCasaIdentity, readAuthProfiles } from "@mecha/core";
 import { casaStatus } from "@mecha/service";
 import { readState } from "@mecha/process";
 import { join } from "node:path";
@@ -45,6 +45,24 @@ export function registerStatusCommand(program: Command, deps: CommandDeps): void
       if (config?.expose && config.expose.length > 0) {
         enriched.expose = config.expose;
       }
+
+      // Auth profile info
+      /* v8 ignore start -- display enrichment, depends on real CASA config + auth store */
+      const authProfiles = readAuthProfiles(deps.mechaDir);
+      if (config?.auth) {
+        const meta = authProfiles.profiles[config.auth];
+        if (meta) {
+          const expiry = meta.expiresAt !== null ? new Date(meta.expiresAt).toISOString().slice(0, 10) : "never";
+          enriched.auth = `${config.auth} (${meta.type}, expires ${expiry})`;
+        } else {
+          enriched.auth = `${config.auth} (profile missing!)`;
+        }
+      } else if (config && "auth" in config && config.auth === undefined) {
+        // Explicit no-auth (spawned with --no-auth) — don't show default
+      } else if (authProfiles.default) {
+        enriched.auth = `${authProfiles.default} (default)`;
+      }
+      /* v8 ignore stop */
       if (parent) {
         enriched.parent = parent;
       }

@@ -100,6 +100,17 @@ describe("spawn command", () => {
     );
   });
 
+  it("spawns with --no-auth (null auth)", async () => {
+    const deps = makeDeps({ pm: defaultPm() });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "spawn", "test", "/ws", "--no-auth"]);
+    expect(deps.processManager.spawn).toHaveBeenCalledWith(
+      expect.objectContaining({ auth: null }),
+    );
+  });
+
   it("spawns with expose option", async () => {
     const deps = makeDeps({ pm: defaultPm() });
     const program = createProgram(deps);

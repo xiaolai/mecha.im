@@ -18,6 +18,7 @@ export { mechaToolInstall, mechaToolLs } from "./tools.js";
 export type { ToolInfo, ToolInstallOpts } from "./tools.js";
 export {
   mechaAuthAdd,
+  mechaAuthAddFull,
   mechaAuthLs,
   mechaAuthDefault,
   mechaAuthRm,
@@ -27,8 +28,10 @@ export {
   mechaAuthRenew,
   mechaAuthGet,
   mechaAuthGetDefault,
+  mechaAuthSwitchCasa,
+  mechaAuthProbe,
 } from "./auth.js";
-export type { AuthProfile } from "./auth.js";
+export type { AuthProfile, AuthAddOpts } from "./auth.js";
 export { buildHierarchy, flattenHierarchy } from "./hierarchy.js";
 export type { HierarchyNode } from "./hierarchy.js";
 export { createCasaRouter } from "./router.js";

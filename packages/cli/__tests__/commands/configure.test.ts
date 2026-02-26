@@ -143,4 +143,45 @@ describe("configure command", () => {
     expect(cfg.tags).toEqual(["dev"]);
     expect(cfg.expose).toEqual(["query"]);
   });
+
+  it("sets auth profile on CASA", async () => {
+    mechaDir = mkdtempSync(join(tmpdir(), "mecha-cfg-"));
+    // Create auth profile first
+    const authDir = join(mechaDir, "auth");
+    mkdirSync(authDir, { recursive: true });
+    writeFileSync(join(authDir, "profiles.json"), JSON.stringify({
+      default: "personal",
+      profiles: { personal: { type: "oauth", account: null, label: "", tags: [], expiresAt: null, createdAt: "2025-01-01T00:00:00Z" } },
+    }));
+    writeFileSync(join(authDir, "credentials.json"), JSON.stringify({ personal: { token: "tok" } }));
+
+    const casaDir = join(mechaDir, "alice");
+    mkdirSync(casaDir, { recursive: true });
+    writeFileSync(join(casaDir, "config.json"), JSON.stringify({ port: 7700, token: "t", workspace: "/ws" }));
+
+    const info: ProcessInfo = { name: "alice" as CasaName, state: "running", workspacePath: "/ws", port: 7700 };
+    const deps = makeDeps({
+      mechaDir,
+      pm: { get: vi.fn().mockReturnValue(info) },
+    });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "configure", "alice", "--auth", "personal"]);
+    expect(deps.formatter.success).toHaveBeenCalledWith("alice updated");
+    const cfg = JSON.parse(readFileSync(join(casaDir, "config.json"), "utf-8"));
+    expect(cfg.auth).toBe("personal");
+  });
+
+  it("rejects unknown auth profile", async () => {
+    mechaDir = mkdtempSync(join(tmpdir(), "mecha-cfg-"));
+    mkdirSync(join(mechaDir, "auth"), { recursive: true });
+    const deps = makeDeps({ mechaDir });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "configure", "alice", "--auth", "nonexistent"]);
+    expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("not found"));
+    expect(process.exitCode).toBe(1);
+  });
 });

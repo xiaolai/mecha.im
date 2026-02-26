@@ -110,6 +110,23 @@ export type {
 export { readNodes, writeNodes, addNode, removeNode, getNode } from "./node-registry.js";
 export type { NodeEntry } from "./node-registry.js";
 
+// Auth Resolution
+export {
+  resolveAuth,
+  readAuthProfiles,
+  readAuthCredentials,
+  authEnvVar,
+  listAuthProfiles,
+  getDefaultProfileName,
+  isValidProfileName,
+} from "./auth-resolve.js";
+export type {
+  AuthProfileMeta,
+  AuthProfileStore,
+  AuthCredentialStore,
+  ResolvedAuth,
+} from "./auth-resolve.js";
+
 // Schedule Engine
 export {
   parseInterval,

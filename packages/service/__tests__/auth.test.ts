@@ -1,5 +1,5 @@
-import { describe, it, expect, afterEach } from "vitest";
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
@@ -13,8 +13,12 @@ import {
   mechaAuthRenew,
   mechaAuthGet,
   mechaAuthGetDefault,
+  mechaAuthSwitchCasa,
+  mechaAuthProbe,
 } from "../src/auth.js";
-import { AuthProfileNotFoundError } from "@mecha/core";
+import { AuthProfileNotFoundError, CasaNotFoundError, InvalidNameError, readAuthCredentials } from "@mecha/core";
+import type { CasaName } from "@mecha/core";
+import type { ProcessManager, ProcessInfo } from "@mecha/process";
 
 describe("auth service", () => {
   let tempDir: string;
@@ -39,6 +43,13 @@ describe("auth service", () => {
       expect(profile.tags).toEqual([]);
     });
 
+    it("stores token in credentials.json separately", () => {
+      const dir = setup();
+      mechaAuthAdd(dir, "personal", "oauth", "tok-123");
+      const creds = readAuthCredentials(dir);
+      expect(creds.personal.token).toBe("tok-123");
+    });
+
     it("adds subsequent profiles as non-default", () => {
       const dir = setup();
       mechaAuthAdd(dir, "personal", "oauth", "tok-123");
@@ -52,10 +63,36 @@ describe("auth service", () => {
       expect(profile.tags).toEqual(["research", "coding"]);
     });
 
+    it("throws InvalidNameError for reserved name", () => {
+      const dir = setup();
+      expect(() => mechaAuthAdd(dir, "__proto__", "oauth", "tok")).toThrow(InvalidNameError);
+    });
+
+    it("throws InvalidNameError for invalid format", () => {
+      const dir = setup();
+      expect(() => mechaAuthAdd(dir, "UPPERCASE", "oauth", "tok")).toThrow(InvalidNameError);
+    });
+
     it("throws on duplicate name", () => {
       const dir = setup();
       mechaAuthAdd(dir, "dup", "oauth", "tok");
       expect(() => mechaAuthAdd(dir, "dup", "oauth", "tok2")).toThrow("already exists");
+    });
+
+    it("sets account and label via mechaAuthAddFull", async () => {
+      const dir = setup();
+      const { mechaAuthAddFull } = await import("../src/auth.js");
+      const profile = mechaAuthAddFull(dir, {
+        name: "full",
+        type: "oauth",
+        token: "tok",
+        account: "user@example.com",
+        label: "My Account",
+        expiresAt: 1771891200000,
+      });
+      expect(profile.account).toBe("user@example.com");
+      expect(profile.label).toBe("My Account");
+      expect(profile.expiresAt).toBe(1771891200000);
     });
   });
 
@@ -70,6 +107,14 @@ describe("auth service", () => {
       mechaAuthAdd(dir, "a", "oauth", "tok1");
       mechaAuthAdd(dir, "b", "api-key", "tok2");
       expect(mechaAuthLs(dir)).toHaveLength(2);
+    });
+
+    it("includes account and expiresAt fields", () => {
+      const dir = setup();
+      mechaAuthAdd(dir, "a", "oauth", "tok1");
+      const profiles = mechaAuthLs(dir);
+      expect(profiles[0]).toHaveProperty("account");
+      expect(profiles[0]).toHaveProperty("expiresAt");
     });
   });
 
@@ -97,6 +142,14 @@ describe("auth service", () => {
       mechaAuthAdd(dir, "rm-me", "oauth", "tok");
       mechaAuthRm(dir, "rm-me");
       expect(mechaAuthLs(dir)).toEqual([]);
+    });
+
+    it("removes credentials too", () => {
+      const dir = setup();
+      mechaAuthAdd(dir, "rm-me", "oauth", "tok");
+      mechaAuthRm(dir, "rm-me");
+      const creds = readAuthCredentials(dir);
+      expect(creds["rm-me"]).toBeUndefined();
     });
 
     it("promotes next profile to default when removing default", () => {
@@ -178,12 +231,19 @@ describe("auth service", () => {
   });
 
   describe("mechaAuthRenew", () => {
-    it("updates token", () => {
+    it("updates token in credentials", () => {
+      const dir = setup();
+      mechaAuthAdd(dir, "renew-me", "oauth", "old-tok");
+      mechaAuthRenew(dir, "renew-me", "new-tok");
+      const creds = readAuthCredentials(dir);
+      expect(creds["renew-me"].token).toBe("new-tok");
+    });
+
+    it("returns profile with correct name", () => {
       const dir = setup();
       mechaAuthAdd(dir, "renew-me", "oauth", "old-tok");
       const result = mechaAuthRenew(dir, "renew-me", "new-tok");
-      expect(result.token).toBe("new-tok");
-      expect(mechaAuthGet(dir, "renew-me")!.token).toBe("new-tok");
+      expect(result.name).toBe("renew-me");
     });
 
     it("throws AuthProfileNotFoundError for unknown profile", () => {
@@ -245,6 +305,124 @@ describe("auth service", () => {
       mkdirSync(join(tempDir, "auth"), { recursive: true });
       writeFileSync(join(tempDir, "auth", "profiles.json"), "not-json{{{");
       expect(mechaAuthLs(tempDir)).toEqual([]);
+    });
+  });
+
+  describe("mechaAuthSwitchCasa", () => {
+    function createMockPM(overrides: Partial<ProcessManager> = {}): ProcessManager {
+      return {
+        spawn: vi.fn(),
+        get: vi.fn().mockReturnValue(undefined),
+        list: vi.fn().mockReturnValue([]),
+        stop: vi.fn(),
+        kill: vi.fn(),
+        logs: vi.fn(),
+        getPortAndToken: vi.fn(),
+        onEvent: vi.fn().mockReturnValue(() => {}),
+        ...overrides,
+      } as ProcessManager;
+    }
+
+    it("updates CASA config with auth profile", () => {
+      const dir = setup();
+      mechaAuthAdd(dir, "personal", "oauth", "tok-123");
+
+      // Create CASA dir with config
+      const casaDir = join(dir, "alice");
+      mkdirSync(casaDir, { recursive: true });
+      writeFileSync(join(casaDir, "config.json"), JSON.stringify({ port: 7700, token: "t", workspace: "/ws" }));
+
+      const info: ProcessInfo = { name: "alice" as CasaName, state: "running", workspacePath: "/ws", port: 7700 };
+      const pm = createMockPM({ get: vi.fn().mockReturnValue(info) });
+
+      const result = mechaAuthSwitchCasa(dir, pm, "alice" as CasaName, "personal");
+      expect(result.name).toBe("personal");
+
+      const cfg = JSON.parse(readFileSync(join(casaDir, "config.json"), "utf-8"));
+      expect(cfg.auth).toBe("personal");
+    });
+
+    it("throws AuthProfileNotFoundError for unknown profile", () => {
+      const dir = setup();
+      const pm = createMockPM();
+      expect(() => mechaAuthSwitchCasa(dir, pm, "alice" as CasaName, "nope")).toThrow(AuthProfileNotFoundError);
+    });
+
+    it("throws CasaNotFoundError for unknown CASA", () => {
+      const dir = setup();
+      mechaAuthAdd(dir, "personal", "oauth", "tok-123");
+      const pm = createMockPM();
+      expect(() => mechaAuthSwitchCasa(dir, pm, "unknown" as CasaName, "personal")).toThrow(CasaNotFoundError);
+    });
+  });
+
+  describe("mechaAuthProbe", () => {
+    it("returns invalid for empty token", async () => {
+      const dir = setup();
+      mechaAuthAdd(dir, "empty", "oauth", "tok");
+      mechaAuthRenew(dir, "empty", "");
+      const result = await mechaAuthProbe(dir, "empty");
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe("missing credentials");
+    });
+
+    it("returns invalid when credential entry is missing", async () => {
+      const dir = setup();
+      mechaAuthAdd(dir, "orphan", "oauth", "tok");
+      // Remove credential entry directly, leaving profile intact
+      const credPath = join(dir, "auth", "credentials.json");
+      const creds = JSON.parse(readFileSync(credPath, "utf-8"));
+      delete creds.orphan;
+      writeFileSync(credPath, JSON.stringify(creds));
+
+      const result = await mechaAuthProbe(dir, "orphan");
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe("missing credentials");
+    });
+
+    it("throws AuthProfileNotFoundError for unknown profile", async () => {
+      const dir = setup();
+      await expect(mechaAuthProbe(dir, "nope")).rejects.toThrow(AuthProfileNotFoundError);
+    });
+
+    it("probes API with oauth token", async () => {
+      const dir = setup();
+      mechaAuthAdd(dir, "valid", "oauth", "sk-ant-oat01-fake");
+
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        new Response(JSON.stringify({ data: [] }), { status: 200 }),
+      );
+
+      const result = await mechaAuthProbe(dir, "valid");
+      expect(result.valid).toBe(true);
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "https://api.anthropic.com/v1/models",
+        expect.objectContaining({
+          headers: expect.objectContaining({ Authorization: "Bearer sk-ant-oat01-fake" }),
+        }),
+      );
+
+      fetchSpy.mockRestore();
+    });
+
+    it("probes API with api-key", async () => {
+      const dir = setup();
+      mechaAuthAdd(dir, "api", "api-key", "sk-ant-api03-fake");
+
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        new Response(JSON.stringify({ data: [] }), { status: 200 }),
+      );
+
+      const result = await mechaAuthProbe(dir, "api");
+      expect(result.valid).toBe(true);
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "https://api.anthropic.com/v1/models",
+        expect.objectContaining({
+          headers: expect.objectContaining({ "x-api-key": "sk-ant-api03-fake" }),
+        }),
+      );
+
+      fetchSpy.mockRestore();
     });
   });
 });

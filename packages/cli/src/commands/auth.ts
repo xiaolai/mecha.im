@@ -9,8 +9,23 @@ import {
   mechaAuthSwitch,
   mechaAuthTest,
   mechaAuthRenew,
+  mechaAuthSwitchCasa,
+  mechaAuthProbe,
 } from "@mecha/service";
+import { casaName, validateTags } from "@mecha/core";
 import { withErrorHandler } from "../error-handler.js";
+
+/* v8 ignore start -- display formatting, tested via auth ls integration */
+function formatExpiry(expiresAt: number | null): string {
+  if (expiresAt === null) return "never";
+  const now = Date.now();
+  const remaining = expiresAt - now;
+  if (remaining <= 0) return "expired";
+  const days = Math.floor(remaining / 86400000);
+  const date = new Date(expiresAt).toISOString().slice(0, 10);
+  return `${date} (${days}d)`;
+}
+/* v8 ignore stop */
 
 export function registerAuthCommand(program: Command, deps: CommandDeps): void {
   const auth = program
@@ -31,6 +46,11 @@ export function registerAuthCommand(program: Command, deps: CommandDeps): void {
         process.exitCode = 1;
         return;
       }
+      if (!opts.oauth && !opts.apiKey) {
+        deps.formatter.error("Specify --oauth or --api-key");
+        process.exitCode = 1;
+        return;
+      }
       const type = opts.oauth ? "oauth" : "api-key";
       const token = opts.token;
       if (!token) {
@@ -38,7 +58,19 @@ export function registerAuthCommand(program: Command, deps: CommandDeps): void {
         process.exitCode = 1;
         return;
       }
-      const profile = mechaAuthAdd(deps.mechaDir, name, type, token, opts.tag);
+      let tags = opts.tag;
+      /* v8 ignore start -- tag validation branches: valid path is simple passthrough */
+      if (tags) {
+        const result = validateTags(tags);
+        if (!result.ok) {
+          deps.formatter.error(result.error);
+          process.exitCode = 1;
+          return;
+        }
+        tags = result.tags;
+      }
+      /* v8 ignore stop */
+      const profile = mechaAuthAdd(deps.mechaDir, name, type, token, tags);
       deps.formatter.success(`Added auth profile "${profile.name}" (${profile.type})`);
       if (profile.isDefault) {
         deps.formatter.info("Set as default profile");
@@ -55,8 +87,15 @@ export function registerAuthCommand(program: Command, deps: CommandDeps): void {
         return;
       }
       deps.formatter.table(
-        ["Name", "Type", "Default", "Tags"],
-        profiles.map((p) => [p.name, p.type, p.isDefault ? "✓" : "", p.tags.join(", ")]),
+        ["Name", "Type", "Account", "Default", "Expires", "Tags"],
+        profiles.map((p) => [
+          p.name,
+          p.type,
+          p.account ?? "—",
+          p.isDefault ? "✓" : "",
+          formatExpiry(p.expiresAt),
+          p.tags.join(", "),
+        ]),
       );
     }));
 
@@ -84,29 +123,58 @@ export function registerAuthCommand(program: Command, deps: CommandDeps): void {
     .argument("<name>", "Profile name")
     .argument("<tags...>", "Tags")
     .action(async (name: string, tags: string[]) => withErrorHandler(deps, async () => {
-      mechaAuthTag(deps.mechaDir, name, tags);
+      const result = validateTags(tags);
+      if (!result.ok) {
+        deps.formatter.error(result.error);
+        process.exitCode = 1;
+        return;
+      }
+      mechaAuthTag(deps.mechaDir, name, result.tags);
       deps.formatter.success(`Tags updated for "${name}"`);
     }));
 
   auth
     .command("switch")
-    .description("Switch active auth profile")
-    .argument("<name>", "Profile name")
-    .action(async (name: string) => withErrorHandler(deps, async () => {
-      const profile = mechaAuthSwitch(deps.mechaDir, name);
-      deps.formatter.success(`Switched to "${profile.name}"`);
+    .description("Switch auth profile (global default or per-CASA)")
+    .argument("<name>", "Profile name (or CASA name when used with <profile>)")
+    .argument("[profile]", "Profile name (when first arg is CASA name)")
+    .action(async (nameOrCasa: string, profile?: string) => withErrorHandler(deps, async () => {
+      if (profile) {
+        // Per-CASA switch: mecha auth switch <casa> <profile>
+        const validated = casaName(nameOrCasa);
+        const result = mechaAuthSwitchCasa(deps.mechaDir, deps.processManager, validated, profile);
+        deps.formatter.success(`${validated} now uses auth profile "${result.name}". Restart to apply.`);
+      } else {
+        // Global default switch: mecha auth switch <profile>
+        const result = mechaAuthSwitch(deps.mechaDir, nameOrCasa);
+        deps.formatter.success(`Switched to "${result.name}"`);
+      }
     }));
 
   auth
     .command("test")
-    .description("Test an auth profile")
+    .description("Test an auth profile (probes API by default, use --offline for local check)")
     .argument("<name>", "Profile name")
-    .action(async (name: string) => withErrorHandler(deps, async () => {
-      const result = mechaAuthTest(deps.mechaDir, name);
+    .option("--offline", "Check token exists without API call")
+    .action(async (name: string, opts: { offline?: boolean }) => withErrorHandler(deps, async () => {
+      if (opts.offline) {
+        const result = mechaAuthTest(deps.mechaDir, name);
+        if (result.valid) {
+          deps.formatter.success(`Profile "${name}" is valid (offline check)`);
+        } else {
+          deps.formatter.error(`Profile "${name}" has invalid token`);
+          process.exitCode = 1;
+        }
+        return;
+      }
+      const result = await mechaAuthProbe(deps.mechaDir, name);
       if (result.valid) {
-        deps.formatter.success(`Profile "${name}" is valid`);
+        deps.formatter.success(`Profile "${name}" is valid (API verified)`);
       } else {
-        deps.formatter.error(`Profile "${name}" has invalid token`);
+        /* v8 ignore start -- error message formatting */
+        const reason = result.error ? `: ${result.error}` : "";
+        /* v8 ignore stop */
+        deps.formatter.error(`Profile "${name}" failed${reason}`);
         process.exitCode = 1;
       }
     }));

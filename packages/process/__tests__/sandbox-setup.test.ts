@@ -1,14 +1,18 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
+import { mkdtempSync, rmSync, existsSync, readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-vi.mock("@mecha/core", () => ({
-  loadNodeIdentity: vi.fn().mockReturnValue(null),
-  loadNodePrivateKey: vi.fn().mockReturnValue(null),
-  createCasaIdentity: vi.fn(),
-  CASA_CONFIG_VERSION: 1,
-}));
+vi.mock("@mecha/core", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@mecha/core")>();
+  return {
+    ...actual,
+    loadNodeIdentity: vi.fn().mockReturnValue(null),
+    loadNodePrivateKey: vi.fn().mockReturnValue(null),
+    createCasaIdentity: vi.fn(),
+    CASA_CONFIG_VERSION: 1,
+  };
+});
 
 import { prepareCasaFilesystem, encodeProjectPath, type CasaFilesystemOpts } from "../src/sandbox-setup.js";
 
@@ -29,15 +33,47 @@ describe("sandbox-setup", () => {
     };
   }
 
+  /** Set up mechaDir with auth profile store (split format). */
+  function setupAuthProfiles(profiles: Record<string, { type: "oauth" | "api-key"; token: string }>): void {
+    const authDir = join(mechaDir, "auth");
+    mkdirSync(authDir, { recursive: true });
+
+    const profileStore: Record<string, unknown> = {};
+    const credStore: Record<string, { token: string }> = {};
+    let defaultName: string | null = null;
+
+    for (const [name, { type, token }] of Object.entries(profiles)) {
+      if (!defaultName) defaultName = name;
+      profileStore[name] = {
+        type,
+        account: null,
+        label: "",
+        tags: [],
+        expiresAt: null,
+        createdAt: "2026-02-26T00:00:00Z",
+      };
+      credStore[name] = { token };
+    }
+
+    writeFileSync(
+      join(authDir, "profiles.json"),
+      JSON.stringify({ default: defaultName, profiles: profileStore }),
+    );
+    writeFileSync(
+      join(authDir, "credentials.json"),
+      JSON.stringify(credStore),
+    );
+  }
+
   beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), "mecha-sandbox-test-"));
     casaDir = join(tempDir, "casa");
     mechaDir = join(tempDir, "mecha");
+    mkdirSync(mechaDir, { recursive: true });
   });
 
   afterEach(() => {
     rmSync(tempDir, { recursive: true, force: true });
-    // Clean up env vars that tests may set
     delete process.env.ANTHROPIC_API_KEY;
     delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
   });
@@ -99,11 +135,8 @@ describe("sandbox-setup", () => {
     it("bash guard does not rewrite commands (no echo/stdout)", () => {
       const result = prepareCasaFilesystem(makeOpts());
       const bashGuard = readFileSync(join(result.homeDir, ".claude", "hooks", "bash-guard.sh"), "utf-8");
-      // Should NOT contain echo that rewrites commands
       expect(bashGuard).not.toContain('echo "cd');
-      // Should contain exit 0 for allowing commands as-is
       expect(bashGuard).toContain("exit 0");
-      // Should NOT prefix with cd
       expect(bashGuard).not.toContain("cd \\");
     });
 
@@ -145,7 +178,6 @@ describe("sandbox-setup", () => {
       };
       const result = prepareCasaFilesystem(makeOpts({ userEnv: dangerousVars }));
 
-      // All dangerous vars should be stripped
       expect(result.childEnv.NODE_OPTIONS).toBeUndefined();
       expect(result.childEnv.NODE_PATH).toBeUndefined();
       expect(result.childEnv.NODE_DEBUG).toBeUndefined();
@@ -155,36 +187,41 @@ describe("sandbox-setup", () => {
       expect(result.childEnv.LD_LIBRARY_PATH).toBeUndefined();
       expect(result.childEnv.DYLD_INSERT_LIBRARIES).toBeUndefined();
       expect(result.childEnv.DYLD_LIBRARY_PATH).toBeUndefined();
-
-      // Safe key should pass through
       expect(result.childEnv.SAFE_KEY).toBe("allowed");
     });
 
-    describe("SDK auth key forwarding", () => {
-      it("forwards ANTHROPIC_API_KEY from parent env", () => {
-        process.env.ANTHROPIC_API_KEY = "sk-ant-test-key";
+    describe("auth profile resolution", () => {
+      it("resolves OAuth profile to CLAUDE_CODE_OAUTH_TOKEN", () => {
+        setupAuthProfiles({ personal: { type: "oauth", token: "sk-ant-oat01-aaa" } });
+        const result = prepareCasaFilesystem(makeOpts({ auth: "personal" }));
+        expect(result.childEnv.CLAUDE_CODE_OAUTH_TOKEN).toBe("sk-ant-oat01-aaa");
+        expect(result.childEnv.ANTHROPIC_API_KEY).toBeUndefined();
+      });
+
+      it("resolves API key profile to ANTHROPIC_API_KEY", () => {
+        setupAuthProfiles({ team: { type: "api-key", token: "sk-ant-api03-xxx" } });
+        const result = prepareCasaFilesystem(makeOpts({ auth: "team" }));
+        expect(result.childEnv.ANTHROPIC_API_KEY).toBe("sk-ant-api03-xxx");
+        expect(result.childEnv.CLAUDE_CODE_OAUTH_TOKEN).toBeUndefined();
+      });
+
+      it("uses default profile when --auth not specified", () => {
+        setupAuthProfiles({ personal: { type: "oauth", token: "default-tok" } });
         const result = prepareCasaFilesystem(makeOpts());
-        expect(result.childEnv.ANTHROPIC_API_KEY).toBe("sk-ant-test-key");
+        expect(result.childEnv.CLAUDE_CODE_OAUTH_TOKEN).toBe("default-tok");
       });
 
-      it("forwards CLAUDE_CODE_OAUTH_TOKEN from parent env", () => {
-        process.env.CLAUDE_CODE_OAUTH_TOKEN = "oauth-test-token";
+      it("falls back to host env when no profiles exist", () => {
+        // No auth profiles set up, but host env has a key
+        process.env.ANTHROPIC_API_KEY = "sk-ant-host-key";
         const result = prepareCasaFilesystem(makeOpts());
-        expect(result.childEnv.CLAUDE_CODE_OAUTH_TOKEN).toBe("oauth-test-token");
+        expect(result.childEnv.ANTHROPIC_API_KEY).toBe("sk-ant-host-key");
       });
 
-      it("allows userEnv to override SDK keys", () => {
-        process.env.ANTHROPIC_API_KEY = "parent-key";
-        const result = prepareCasaFilesystem(makeOpts({
-          userEnv: { ANTHROPIC_API_KEY: "user-key" },
-        }));
-        expect(result.childEnv.ANTHROPIC_API_KEY).toBe("user-key");
-      });
-
-      it("does not set SDK keys when absent from parent env", () => {
+      it("sets no SDK keys when --no-auth (null) and no host env", () => {
         delete process.env.ANTHROPIC_API_KEY;
         delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
-        const result = prepareCasaFilesystem(makeOpts());
+        const result = prepareCasaFilesystem(makeOpts({ auth: null }));
         expect(result.childEnv.ANTHROPIC_API_KEY).toBeUndefined();
         expect(result.childEnv.CLAUDE_CODE_OAUTH_TOKEN).toBeUndefined();
       });

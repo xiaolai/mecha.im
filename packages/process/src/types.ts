@@ -11,7 +11,7 @@ export interface SpawnOpts {
   env?: Record<string, string>;
   model?: string;
   permissionMode?: string;
-  auth?: string;
+  auth?: string | null;
   tags?: string[];
   expose?: string[];
   runtimeBin?: string;

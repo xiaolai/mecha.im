@@ -15,12 +15,13 @@ export function registerSpawnCommand(program: Command, deps: CommandDeps): void 
     .argument("<path>", "Workspace path")
     .option("-p, --port <number>", "Port to listen on")
     .option("--auth <profile>", "Auth profile to use (see: mecha auth ls)")
+    .option("--no-auth", "Spawn without Claude API credentials")
     .option("--tags <tags>", "Comma-separated tags")
     .option("--expose <caps>", "Comma-separated capabilities to expose (query, read_workspace, write_workspace, execute, read_sessions, lifecycle)")
     .option("--sandbox <mode>", "Sandbox mode: auto, off, require", "auto")
     .option("--model <model>", "Model to use")
     .option("--permission-mode <mode>", "Permission mode (default, plan, full-auto)")
-    .action(async (name: string, path: string, opts: { port?: string; auth?: string; tags?: string; expose?: string; sandbox?: string; model?: string; permissionMode?: string }) => withErrorHandler(deps, async () => {
+    .action(async (name: string, path: string, opts: { port?: string; auth?: string | boolean; tags?: string; expose?: string; sandbox?: string; model?: string; permissionMode?: string }) => withErrorHandler(deps, async () => {
       const validated = casaName(name);
       const port = opts.port ? parsePort(opts.port) : undefined;
       if (opts.port && port === undefined) {
@@ -70,7 +71,7 @@ export function registerSpawnCommand(program: Command, deps: CommandDeps): void 
           name: validated,
           workspacePath: path,
           port,
-          auth: opts.auth,
+          auth: opts.auth === false ? null : (opts.auth as string | undefined),
           tags,
           expose,
           sandboxMode,
