@@ -1,16 +1,7 @@
 import type { ChildProcess } from "node:child_process";
 
-export function isPidAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (err) {
-    // EPERM: process exists but owned by different user
-    if ((err as NodeJS.ErrnoException).code === "EPERM") return true;
-    // ESRCH: process does not exist; any other error also treated as "gone"
-    return false;
-  }
-}
+// Re-export from canonical source in @mecha/core
+export { isPidAlive } from "@mecha/core";
 
 export function waitForChildExit(child: ChildProcess, timeoutMs: number): Promise<boolean> {
   return new Promise((resolve) => {

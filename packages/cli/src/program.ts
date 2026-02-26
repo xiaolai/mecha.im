@@ -23,6 +23,49 @@ import { registerMeterCommand } from "./commands/meter.js";
 import { registerCostCommand } from "./commands/cost.js";
 import { registerBudgetCommand } from "./commands/budget.js";
 
+/**
+ * Commands that mutate state and need the CLI singleton lock.
+ * Maintained here alongside command registration as single source of truth.
+ * Top-level commands (e.g. "spawn") and "parent subcommand" pairs (e.g. "meter start").
+ * Read-only commands NOT listed here run without the lock.
+ */
+export const MUTATING_COMMANDS = new Set([
+  // Top-level mutating commands
+  "spawn", "stop", "kill", "init", "configure",
+  // agent subcommands (agent status is read-only)
+  "agent start",
+  // meter subcommands
+  "meter start", "meter stop",
+  // schedule subcommands
+  "schedule add", "schedule remove", "schedule pause", "schedule resume", "schedule run",
+  // acl subcommands
+  "acl grant", "acl revoke",
+  // node subcommands
+  "node add", "node rm",
+  // auth subcommands (auth ls, auth test are read-only)
+  "auth add", "auth rm", "auth default", "auth tag", "auth switch", "auth renew",
+  // budget subcommands
+  "budget set", "budget rm",
+]);
+
+/**
+ * Check if the current argv requires the singleton lock.
+ * Returns true for mutating commands, false for read-only ones.
+ */
+export function needsLock(argv: string[]): boolean {
+  const args = argv.slice(2).filter((a) => !a.startsWith("-"));
+  if (args.length === 0) return false; // --help, --version
+
+  const cmd = args[0]!;
+  if (MUTATING_COMMANDS.has(cmd)) return true;
+
+  if (args.length >= 2) {
+    if (MUTATING_COMMANDS.has(`${cmd} ${args[1]}`)) return true;
+  }
+
+  return false;
+}
+
 /** Create the root mecha CLI program with global flags */
 export function createProgram(deps: CommandDeps): Command {
   const program = new Command();

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, rmSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { acquireCliLock, releaseCliLock, readCliLock, needsLock } from "../src/cli-lock.js";
@@ -29,6 +29,24 @@ describe("cli-lock", () => {
     it("returns null for JSON missing required fields", () => {
       mkdirSync(tempDir, { recursive: true });
       writeFileSync(join(tempDir, "cli.lock"), JSON.stringify({ pid: "not-a-number" }));
+      expect(readCliLock(tempDir)).toBeNull();
+    });
+
+    it("returns null for pid=0", () => {
+      mkdirSync(tempDir, { recursive: true });
+      writeFileSync(join(tempDir, "cli.lock"), JSON.stringify({ pid: 0, startedAt: "2026-01-01T00:00:00Z" }));
+      expect(readCliLock(tempDir)).toBeNull();
+    });
+
+    it("returns null for negative pid", () => {
+      mkdirSync(tempDir, { recursive: true });
+      writeFileSync(join(tempDir, "cli.lock"), JSON.stringify({ pid: -1, startedAt: "2026-01-01T00:00:00Z" }));
+      expect(readCliLock(tempDir)).toBeNull();
+    });
+
+    it("returns null for non-integer pid", () => {
+      mkdirSync(tempDir, { recursive: true });
+      writeFileSync(join(tempDir, "cli.lock"), JSON.stringify({ pid: 1.5, startedAt: "2026-01-01T00:00:00Z" }));
       expect(readCliLock(tempDir)).toBeNull();
     });
 
@@ -94,7 +112,6 @@ describe("cli-lock", () => {
 
     it("sets lock file permissions to 0o600", () => {
       acquireCliLock(tempDir);
-      const { statSync } = require("node:fs");
       const stat = statSync(join(tempDir, "cli.lock"));
       expect(stat.mode & 0o777).toBe(0o600);
     });
@@ -133,7 +150,7 @@ describe("cli-lock", () => {
       ["kill", ["node", "mecha", "kill", "alice"]],
       ["init", ["node", "mecha", "init"]],
       ["configure", ["node", "mecha", "configure"]],
-      ["agent", ["node", "mecha", "agent", "start"]],
+      ["agent start", ["node", "mecha", "agent", "start"]],
       ["meter start", ["node", "mecha", "meter", "start"]],
       ["meter stop", ["node", "mecha", "meter", "stop"]],
       ["schedule add", ["node", "mecha", "schedule", "add"]],
@@ -147,7 +164,10 @@ describe("cli-lock", () => {
       ["node rm", ["node", "mecha", "node", "rm"]],
       ["auth add", ["node", "mecha", "auth", "add"]],
       ["auth rm", ["node", "mecha", "auth", "rm"]],
-      ["auth set-default", ["node", "mecha", "auth", "set-default"]],
+      ["auth default", ["node", "mecha", "auth", "default"]],
+      ["auth tag", ["node", "mecha", "auth", "tag"]],
+      ["auth switch", ["node", "mecha", "auth", "switch"]],
+      ["auth renew", ["node", "mecha", "auth", "renew"]],
       ["budget set", ["node", "mecha", "budget", "set"]],
       ["budget rm", ["node", "mecha", "budget", "rm"]],
     ])("returns true for %s", (_label, argv) => {
@@ -170,8 +190,10 @@ describe("cli-lock", () => {
       ["acl show", ["node", "mecha", "acl", "show"]],
       ["node ls", ["node", "mecha", "node", "ls"]],
       ["auth ls", ["node", "mecha", "auth", "ls"]],
+      ["auth test", ["node", "mecha", "auth", "test"]],
       ["budget ls", ["node", "mecha", "budget", "ls"]],
       ["sandbox show", ["node", "mecha", "sandbox", "show"]],
+      ["agent status", ["node", "mecha", "agent", "status"]],
     ])("returns false for %s", (_label, argv) => {
       expect(needsLock(argv)).toBe(false);
     });

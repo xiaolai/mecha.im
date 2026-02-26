@@ -34,7 +34,10 @@ export function bootstrap(opts: BootstrapOpts): void {
   if (locked && !acquireCliLock(mechaDir)) {
     const existing = readCliLock(mechaDir);
     const pid = existing?.pid ?? 0;
-    throw new CliAlreadyRunningError(pid);
+    const err = new CliAlreadyRunningError(pid);
+    formatter.error(err.message);
+    process.exitCode = err.exitCode;
+    return;
   }
 
   const sandbox = createSandbox();
@@ -85,9 +88,11 @@ export function bootstrap(opts: BootstrapOpts): void {
       }
     });
   }
-  process.on("SIGINT", shutdown);
-  process.on("SIGTERM", shutdown);
-  if (locked) process.on("exit", () => releaseCliLock(mechaDir));
+  if (locked) {
+    process.on("SIGINT", shutdown);
+    process.on("SIGTERM", shutdown);
+    process.on("exit", () => releaseCliLock(mechaDir));
+  }
 
   program.parseAsync(process.argv).catch((err: unknown) => {
     formatter.error(err instanceof Error ? err.message : String(err));

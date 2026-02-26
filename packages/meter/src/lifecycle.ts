@@ -1,6 +1,10 @@
 import { readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { isPidAlive } from "@mecha/core";
 import type { ProxyInfo } from "./types.js";
+
+// Re-export from canonical source in @mecha/core
+export { isPidAlive } from "@mecha/core";
 
 const PROXY_JSON = "proxy.json";
 
@@ -15,16 +19,6 @@ export function readProxyInfo(meterDir: string): ProxyInfo | null {
     return info;
   } catch {
     return null;
-  }
-}
-
-/** Check if a pid is alive using kill -0 */
-export function isPidAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
   }
 }
 
