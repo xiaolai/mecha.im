@@ -27,3 +27,12 @@ export type { CostQueryResult } from "./query.js";
 export { parseCasaPath, buildUpstreamHeaders, handleProxyRequest } from "./proxy.js";
 export type { ProxyContext } from "./proxy.js";
 export { scanCasaRegistry, lookupCasa } from "./registry.js";
+export { createHotCounters, ingestEvent, resetToday, toSnapshot, fromSnapshot } from "./hot-counters.js";
+export type { HotCounters } from "./hot-counters.js";
+export { readSnapshot, writeSnapshot, snapshotPath } from "./snapshot.js";
+export {
+  readHourlyRollup, readDailyRollup, readCasaRollup,
+  writeHourlyRollup, writeDailyRollup, writeCasaRollup,
+  updateHourlyRollup, updateDailyRollup, updateCasaRollup,
+  flushRollups,
+} from "./rollups.js";
