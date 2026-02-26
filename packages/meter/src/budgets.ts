@@ -10,8 +10,17 @@ export function budgetsPath(meterDir: string): string {
 /** Read budgets from disk. Returns empty config if missing or corrupt. */
 export function readBudgets(meterDir: string): BudgetConfig {
   try {
-    return JSON.parse(readFileSync(budgetsPath(meterDir), "utf-8")) as BudgetConfig;
+    const raw = JSON.parse(readFileSync(budgetsPath(meterDir), "utf-8")) as Partial<BudgetConfig>;
+    return {
+      global: raw.global ?? {},
+      byCasa: raw.byCasa ?? {},
+      byAuthProfile: raw.byAuthProfile ?? {},
+      byTag: raw.byTag ?? {},
+    };
   } catch {
+    /* v8 ignore start -- missing or corrupt budgets.json */
+    console.error("[mecha:meter] Failed to read budgets.json, using empty config");
+    /* v8 ignore stop */
     return { global: {}, byCasa: {}, byAuthProfile: {}, byTag: {} };
   }
 }
@@ -31,52 +40,50 @@ export interface BudgetCheckResult {
   exceeded: string | null;
 }
 
+export interface BudgetCheckInput {
+  config: BudgetConfig;
+  casa: string;
+  authProfile: string;
+  tags: string[];
+  global: { today: CostSummary; month: CostSummary };
+  perCasa?: { today: CostSummary; month: CostSummary };
+  perAuth?: { today: CostSummary; month: CostSummary };
+  perTag: Record<string, CostSummary>;
+}
+
 /** Check all applicable budgets for a request */
-export function checkBudgets(
-  config: BudgetConfig,
-  casa: string,
-  authProfile: string,
-  tags: string[],
-  todayGlobal: CostSummary,
-  monthGlobal: CostSummary,
-  todayCasa: CostSummary | undefined,
-  monthCasa: CostSummary | undefined,
-  todayAuth: CostSummary | undefined,
-  monthAuth: CostSummary | undefined,
-  todayByTag: Record<string, CostSummary>,
-): BudgetCheckResult {
+export function checkBudgets(input: BudgetCheckInput): BudgetCheckResult {
+  const { config, casa, authProfile, tags } = input;
   const warnings: string[] = [];
   let exceeded: string | null = null;
 
   // Check global limits
-  if (config.global) {
-    const r = checkLimit(config.global, "global", todayGlobal, monthGlobal);
+  if (config.global.dailyUsd !== undefined || config.global.monthlyUsd !== undefined) {
+    const r = checkLimit(config.global, "global", input.global.today, input.global.month);
     if (r.exceeded) exceeded = r.exceeded;
     warnings.push(...r.warnings);
   }
 
   // Check per-CASA limits
-  /* v8 ignore start -- byCasa/byAuthProfile/byTag always initialized by readBudgets */
-  const casaBudget = config.byCasa?.[casa];
-  /* v8 ignore stop */
-  if (casaBudget && todayCasa) {
-    const r = checkLimit(casaBudget, `CASA ${casa}`, todayCasa, monthCasa ?? todayCasa);
+  const casaBudget = config.byCasa[casa];
+  if (casaBudget && input.perCasa) {
+    const r = checkLimit(casaBudget, `CASA ${casa}`, input.perCasa.today, input.perCasa.month);
     if (r.exceeded) exceeded = r.exceeded;
     warnings.push(...r.warnings);
   }
 
   // Check per-auth limits
-  const authBudget = config.byAuthProfile?.[authProfile];
-  if (authBudget && todayAuth) {
-    const r = checkLimit(authBudget, `auth ${authProfile}`, todayAuth, monthAuth ?? todayAuth);
+  const authBudget = config.byAuthProfile[authProfile];
+  if (authBudget && input.perAuth) {
+    const r = checkLimit(authBudget, `auth ${authProfile}`, input.perAuth.today, input.perAuth.month);
     if (r.exceeded) exceeded = r.exceeded;
     warnings.push(...r.warnings);
   }
 
   // Check per-tag limits
   for (const tag of tags) {
-    const tagBudget = config.byTag?.[tag];
-    const todayTag = todayByTag[tag];
+    const tagBudget = config.byTag[tag];
+    const todayTag = input.perTag[tag];
     if (tagBudget && todayTag) {
       const r = checkLimit(tagBudget, `tag ${tag}`, todayTag, todayTag);
       if (r.exceeded) exceeded = r.exceeded;
@@ -117,10 +124,16 @@ function checkLimit(
   return { warnings, exceeded };
 }
 
-/** Set a budget for a CASA */
+type BudgetTarget =
+  | { type: "global" }
+  | { type: "casa"; name: string }
+  | { type: "auth"; name: string }
+  | { type: "tag"; name: string };
+
+/** Set a budget for a target */
 export function setBudget(
   config: BudgetConfig,
-  target: { type: "global" } | { type: "casa"; name: string } | { type: "auth"; name: string } | { type: "tag"; name: string },
+  target: BudgetTarget,
   daily?: number,
   monthly?: number,
 ): void {
@@ -131,13 +144,10 @@ export function setBudget(
   if (target.type === "global") {
     config.global = { ...config.global, ...limit };
   } else if (target.type === "casa") {
-    if (!config.byCasa) config.byCasa = {};
     config.byCasa[target.name] = { ...config.byCasa[target.name], ...limit };
   } else if (target.type === "auth") {
-    if (!config.byAuthProfile) config.byAuthProfile = {};
     config.byAuthProfile[target.name] = { ...config.byAuthProfile[target.name], ...limit };
   } else {
-    if (!config.byTag) config.byTag = {};
     config.byTag[target.name] = { ...config.byTag[target.name], ...limit };
   }
 }
@@ -145,7 +155,7 @@ export function setBudget(
 /** Remove a budget limit */
 export function removeBudget(
   config: BudgetConfig,
-  target: { type: "global" } | { type: "casa"; name: string } | { type: "auth"; name: string } | { type: "tag"; name: string },
+  target: BudgetTarget,
   field: "daily" | "monthly",
 ): boolean {
   const key = field === "daily" ? "dailyUsd" : "monthlyUsd";
@@ -154,11 +164,11 @@ export function removeBudget(
   if (target.type === "global") {
     bucket = config.global;
   } else if (target.type === "casa") {
-    bucket = config.byCasa?.[target.name];
+    bucket = config.byCasa[target.name];
   } else if (target.type === "auth") {
-    bucket = config.byAuthProfile?.[target.name];
+    bucket = config.byAuthProfile[target.name];
   } else {
-    bucket = config.byTag?.[target.name];
+    bucket = config.byTag[target.name];
   }
 
   if (!bucket || bucket[key] === undefined) return false;

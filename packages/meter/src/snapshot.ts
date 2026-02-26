@@ -16,6 +16,7 @@ export function readSnapshot(meterDir: string): HotSnapshot | null {
     return data;
   } catch {
     /* v8 ignore start -- missing file or corrupt JSON */
+    console.error("[mecha:meter] Failed to read snapshot.json, starting fresh");
     return null;
     /* v8 ignore stop */
   }

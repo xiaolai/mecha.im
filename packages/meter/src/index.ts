@@ -2,6 +2,7 @@ export type {
   MeterEvent,
   CostSummary,
   HotSnapshot,
+  HotCounterBuckets,
   ModelPricing,
   PricingTable,
   ProxyInfo,
@@ -24,7 +25,7 @@ export type { ExtractedUsage, SSEParseState } from "./stream.js";
 export { appendEvent, readEventsForDate, listEventDates, utcDate, eventsDir } from "./events.js";
 export { queryCostToday, queryCostForCasa, aggregateEvents, emptySummary, accumulateEvent, todayUTC } from "./query.js";
 export type { CostQueryResult } from "./query.js";
-export { parseCasaPath, buildUpstreamHeaders, handleProxyRequest } from "./proxy.js";
+export { parseCasaPath, buildUpstreamHeaders, buildMeterEvent, enforceBudget, reloadBudgets, recordEvent, handleProxyRequest } from "./proxy.js";
 export type { ProxyContext } from "./proxy.js";
 export { scanCasaRegistry, lookupCasa } from "./registry.js";
 export { createHotCounters, ingestEvent, resetToday, toSnapshot, fromSnapshot } from "./hot-counters.js";
@@ -40,4 +41,4 @@ export {
   readBudgets, writeBudgets, budgetsPath,
   checkBudgets, setBudget, removeBudget,
 } from "./budgets.js";
-export type { BudgetCheckResult } from "./budgets.js";
+export type { BudgetCheckResult, BudgetCheckInput } from "./budgets.js";

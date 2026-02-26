@@ -5,8 +5,13 @@ import {
   readProxyInfo, isPidAlive, writeProxyInfo, deleteProxyInfo,
 } from "./lifecycle.js";
 import { initPricing, loadPricing } from "./pricing.js";
-import { handleProxyRequest, type ProxyContext } from "./proxy.js";
+import { handleProxyRequest, reloadBudgets, type ProxyContext } from "./proxy.js";
 import { scanCasaRegistry } from "./registry.js";
+import { readBudgets } from "./budgets.js";
+import { createHotCounters, fromSnapshot } from "./hot-counters.js";
+import { readSnapshot, writeSnapshot } from "./snapshot.js";
+import { toSnapshot } from "./hot-counters.js";
+import { todayUTC } from "./query.js";
 import type { ProxyInfo } from "./types.js";
 
 export interface DaemonOpts {
@@ -46,17 +51,43 @@ export async function startDaemon(opts: DaemonOpts): Promise<DaemonHandle> {
     startedAt: new Date().toISOString(),
   };
 
-  // Build proxy context
+  // Build proxy context with hot counters and budgets
   const mechaParent = opts.mechaDir ?? meterDir.replace(/\/meter$/, "");
+  const date = todayUTC();
+  const snapshot = readSnapshot(meterDir);
+  const counters = snapshot && snapshot.date === date ? fromSnapshot(snapshot) : createHotCounters(date);
+
   const ctx: ProxyContext = {
     meterDir,
     pricing: loadPricing(meterDir),
     registry: scanCasaRegistry(mechaParent),
+    counters,
+    budgets: readBudgets(meterDir),
   };
 
   const server = createServer((req: IncomingMessage, res: ServerResponse) => {
     handleProxyRequest(req, res, ctx);
   });
+
+  // Periodic snapshot flush (every 5 seconds)
+  const snapshotTimer = setInterval(() => {
+    try { writeSnapshot(meterDir, toSnapshot(ctx.counters)); } catch { /* best-effort */ }
+  }, 5_000);
+  snapshotTimer.unref();
+
+  // Periodic registry rescan (every 30 seconds)
+  const registryTimer = setInterval(() => {
+    ctx.registry = scanCasaRegistry(mechaParent);
+  }, 30_000);
+  registryTimer.unref();
+
+  // SIGHUP: reload budgets + pricing
+  const sighupHandler = () => {
+    reloadBudgets(ctx);
+    ctx.pricing = loadPricing(meterDir);
+    ctx.registry = scanCasaRegistry(mechaParent);
+  };
+  process.on("SIGHUP", sighupHandler);
 
   return new Promise<DaemonHandle>((resolve, reject) => {
     server.on("error", (err: NodeJS.ErrnoException) => {
@@ -80,6 +111,11 @@ export async function startDaemon(opts: DaemonOpts): Promise<DaemonHandle> {
       writeProxyInfo(meterDir, info);
 
       const close = async (): Promise<void> => {
+        clearInterval(snapshotTimer);
+        clearInterval(registryTimer);
+        process.removeListener("SIGHUP", sighupHandler);
+        // Flush final snapshot before shutdown
+        try { writeSnapshot(meterDir, toSnapshot(ctx.counters)); } catch { /* best-effort */ }
         return new Promise<void>((res) => {
           server.close(() => {
             deleteProxyInfo(meterDir);

@@ -1,7 +1,47 @@
-import { describe, it, expect } from "vitest";
-import { parseCasaPath, buildUpstreamHeaders } from "../src/proxy.js";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import {
+  parseCasaPath, buildUpstreamHeaders,
+  buildMeterEvent, enforceBudget, reloadBudgets, recordEvent,
+} from "../src/proxy.js";
+import type { ProxyContext } from "../src/proxy.js";
+import { loadPricing, initPricing } from "../src/pricing.js";
+import { createHotCounters } from "../src/hot-counters.js";
+import { emptySummary, todayUTC } from "../src/query.js";
+import { readEventsForDate, utcDate } from "../src/events.js";
+import { writeBudgets } from "../src/budgets.js";
+import type { CasaRegistryEntry, BudgetConfig } from "../src/types.js";
+
+function emptyBudgets(): BudgetConfig {
+  return { global: {}, byCasa: {}, byAuthProfile: {}, byTag: {} };
+}
+
+function makeCasaInfo(overrides: Partial<CasaRegistryEntry> = {}): CasaRegistryEntry {
+  return { name: "researcher", authProfile: "default", workspace: "/tmp/ws", tags: [], ...overrides };
+}
+
+function makeCtx(meterDir: string, overrides: Partial<ProxyContext> = {}): ProxyContext {
+  initPricing(meterDir);
+  return {
+    meterDir,
+    pricing: loadPricing(meterDir),
+    registry: new Map(),
+    counters: createHotCounters("2026-02-26"),
+    budgets: emptyBudgets(),
+    ...overrides,
+  };
+}
 
 describe("proxy", () => {
+  let tempDir: string;
+
+  afterEach(() => {
+    if (tempDir) rmSync(tempDir, { recursive: true, force: true });
+    vi.restoreAllMocks();
+  });
+
   describe("parseCasaPath", () => {
     it("parses /casa/{name}/v1/messages", () => {
       const result = parseCasaPath("/casa/researcher/v1/messages");
@@ -65,6 +105,193 @@ describe("proxy", () => {
     it("skips undefined values", () => {
       const headers = buildUpstreamHeaders({ "x-custom": undefined });
       expect(headers["x-custom"]).toBeUndefined();
+    });
+  });
+
+  describe("buildMeterEvent", () => {
+    it("builds event with computed cost for 200 status", () => {
+      tempDir = mkdtempSync(join(tmpdir(), "meter-proxy-"));
+      const ctx = makeCtx(tempDir);
+      const casaInfo = makeCasaInfo({ tags: ["exp"] });
+      const startMs = Date.now() - 100;
+
+      const event = buildMeterEvent(ctx, startMs, "researcher", casaInfo, "claude-sonnet-4-20250514", false, 200, {
+        inputTokens: 100, outputTokens: 50,
+        cacheCreationTokens: 0, cacheReadTokens: 0,
+        modelActual: "claude-sonnet-4-20250514", ttftMs: 42,
+      });
+
+      expect(event.id).toBeTruthy();
+      expect(event.casa).toBe("researcher");
+      expect(event.authProfile).toBe("default");
+      expect(event.tags).toEqual(["exp"]);
+      expect(event.model).toBe("claude-sonnet-4-20250514");
+      expect(event.status).toBe(200);
+      expect(event.inputTokens).toBe(100);
+      expect(event.outputTokens).toBe(50);
+      expect(event.costUsd).toBeGreaterThan(0);
+      expect(event.ttftMs).toBe(42);
+      expect(event.latencyMs).toBeGreaterThanOrEqual(0);
+    });
+
+    it("sets costUsd to 0 for non-200 status", () => {
+      tempDir = mkdtempSync(join(tmpdir(), "meter-proxy-"));
+      const ctx = makeCtx(tempDir);
+      const casaInfo = makeCasaInfo();
+
+      const event = buildMeterEvent(ctx, Date.now(), "researcher", casaInfo, "claude-sonnet-4-20250514", false, 500, {
+        inputTokens: 100, outputTokens: 50,
+        cacheCreationTokens: 0, cacheReadTokens: 0,
+        modelActual: "claude-sonnet-4-20250514", ttftMs: null,
+      });
+
+      expect(event.costUsd).toBe(0);
+      expect(event.status).toBe(500);
+    });
+
+    it("falls back to model when modelActual is empty", () => {
+      tempDir = mkdtempSync(join(tmpdir(), "meter-proxy-"));
+      const ctx = makeCtx(tempDir);
+      const casaInfo = makeCasaInfo();
+
+      const event = buildMeterEvent(ctx, Date.now(), "researcher", casaInfo, "claude-sonnet-4-20250514", true, 200, {
+        inputTokens: 10, outputTokens: 5,
+        cacheCreationTokens: 0, cacheReadTokens: 0,
+        modelActual: "", ttftMs: null,
+      });
+
+      expect(event.modelActual).toBe("claude-sonnet-4-20250514");
+    });
+  });
+
+  describe("enforceBudget", () => {
+    it("allows when no budgets set", () => {
+      tempDir = mkdtempSync(join(tmpdir(), "meter-proxy-"));
+      const ctx = makeCtx(tempDir);
+      const result = enforceBudget(ctx, "researcher", makeCasaInfo());
+      expect(result.allowed).toBe(true);
+      expect(result.warnings).toEqual([]);
+    });
+
+    it("blocks when global budget exceeded", () => {
+      tempDir = mkdtempSync(join(tmpdir(), "meter-proxy-"));
+      const ctx = makeCtx(tempDir, {
+        budgets: { global: { dailyUsd: 1 }, byCasa: {}, byAuthProfile: {}, byTag: {} },
+      });
+      // Simulate accumulated cost
+      ctx.counters.global.today.costUsd = 1.50;
+
+      const result = enforceBudget(ctx, "researcher", makeCasaInfo());
+      expect(result.allowed).toBe(false);
+      expect(result.exceeded).toContain("exceeded daily limit");
+    });
+
+    it("uses perCasa bucket when present", () => {
+      tempDir = mkdtempSync(join(tmpdir(), "meter-proxy-"));
+      const ctx = makeCtx(tempDir, {
+        budgets: { global: {}, byCasa: { researcher: { dailyUsd: 2 } }, byAuthProfile: {}, byTag: {} },
+      });
+      // Add a CASA bucket
+      ctx.counters.byCasa["researcher"] = { today: { ...emptySummary(), costUsd: 3 }, thisMonth: emptySummary() };
+
+      const result = enforceBudget(ctx, "researcher", makeCasaInfo());
+      expect(result.allowed).toBe(false);
+      expect(result.exceeded).toContain("CASA researcher");
+    });
+
+    it("uses perAuth bucket when present", () => {
+      tempDir = mkdtempSync(join(tmpdir(), "meter-proxy-"));
+      const ctx = makeCtx(tempDir, {
+        budgets: { global: {}, byCasa: {}, byAuthProfile: { work: { dailyUsd: 5 } }, byTag: {} },
+      });
+      ctx.counters.byAuth["work"] = { today: { ...emptySummary(), costUsd: 6 }, thisMonth: emptySummary() };
+
+      const result = enforceBudget(ctx, "r", makeCasaInfo({ authProfile: "work" }));
+      expect(result.allowed).toBe(false);
+      expect(result.exceeded).toContain("auth work");
+    });
+
+    it("collects tag summaries and enforces tag budgets", () => {
+      tempDir = mkdtempSync(join(tmpdir(), "meter-proxy-"));
+      const ctx = makeCtx(tempDir, {
+        budgets: { global: {}, byCasa: {}, byAuthProfile: {}, byTag: { exp: { dailyUsd: 1 } } },
+      });
+      ctx.counters.byTag["exp"] = { today: { ...emptySummary(), costUsd: 2 }, thisMonth: emptySummary() };
+
+      const result = enforceBudget(ctx, "r", makeCasaInfo({ tags: ["exp"] }));
+      expect(result.allowed).toBe(false);
+      expect(result.exceeded).toContain("tag exp");
+    });
+
+    it("skips tags with no counter bucket", () => {
+      tempDir = mkdtempSync(join(tmpdir(), "meter-proxy-"));
+      const ctx = makeCtx(tempDir, {
+        budgets: { global: {}, byCasa: {}, byAuthProfile: {}, byTag: { exp: { dailyUsd: 1 } } },
+      });
+      // No tag bucket exists
+
+      const result = enforceBudget(ctx, "r", makeCasaInfo({ tags: ["exp"] }));
+      expect(result.allowed).toBe(true);
+    });
+  });
+
+  describe("reloadBudgets", () => {
+    it("reads budgets from disk", () => {
+      tempDir = mkdtempSync(join(tmpdir(), "meter-proxy-"));
+      const ctx = makeCtx(tempDir);
+      expect(ctx.budgets.global).toEqual({});
+
+      // Write budgets to disk then reload
+      writeBudgets(tempDir, { global: { dailyUsd: 42 }, byCasa: {}, byAuthProfile: {}, byTag: {} });
+
+      reloadBudgets(ctx);
+      expect(ctx.budgets.global.dailyUsd).toBe(42);
+    });
+  });
+
+  describe("recordEvent", () => {
+    it("appends event to disk and ingests into hot counters", () => {
+      tempDir = mkdtempSync(join(tmpdir(), "meter-proxy-"));
+      const ctx = makeCtx(tempDir);
+
+      const event = buildMeterEvent(ctx, Date.now(), "researcher", makeCasaInfo(), "claude-sonnet-4-20250514", false, 200, {
+        inputTokens: 100, outputTokens: 50,
+        cacheCreationTokens: 0, cacheReadTokens: 0,
+        modelActual: "claude-sonnet-4-20250514", ttftMs: 10,
+      });
+
+      recordEvent(ctx, event);
+
+      // Hot counters updated
+      expect(ctx.counters.global.today.requests).toBe(1);
+      expect(ctx.counters.global.today.inputTokens).toBe(100);
+
+      // Event written to disk
+      const events = readEventsForDate(tempDir, utcDate(new Date().toISOString()));
+      expect(events).toHaveLength(1);
+      expect(events[0].id).toBe(event.id);
+    });
+
+    it("logs error but still ingests when disk write fails", () => {
+      tempDir = mkdtempSync(join(tmpdir(), "meter-proxy-"));
+      const ctx = makeCtx(tempDir);
+      // Point to non-existent read-only dir to cause write failure
+      ctx.meterDir = "/nonexistent/path/meter";
+
+      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const event = buildMeterEvent(ctx, Date.now(), "r", makeCasaInfo(), "m", false, 200, {
+        inputTokens: 1, outputTokens: 1,
+        cacheCreationTokens: 0, cacheReadTokens: 0,
+        modelActual: "m", ttftMs: null,
+      });
+
+      recordEvent(ctx, event);
+
+      // Ingestion still happened
+      expect(ctx.counters.global.today.requests).toBe(1);
+      // Error was logged
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("Failed to write event"), event.id);
     });
   });
 });

@@ -32,6 +32,7 @@ export function readEventsForDate(meterDir: string, date: string): MeterEvent[] 
         events.push(JSON.parse(line) as MeterEvent);
       } catch {
         /* v8 ignore start -- malformed line in JSONL */
+        console.error(`[mecha:meter] Skipping malformed line in ${date}.jsonl`);
         continue;
         /* v8 ignore stop */
       }

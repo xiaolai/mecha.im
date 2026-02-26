@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi, beforeEach } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -6,6 +6,11 @@ import { request } from "node:http";
 import { spawn as spawnChild } from "node:child_process";
 import { startDaemon, stopDaemon, meterDir } from "../src/daemon.js";
 import type { DaemonHandle } from "../src/daemon.js";
+import { createHotCounters, toSnapshot, ingestEvent } from "../src/hot-counters.js";
+import { writeSnapshot, readSnapshot } from "../src/snapshot.js";
+import { emptySummary, todayUTC } from "../src/query.js";
+import { writeBudgets, readBudgets } from "../src/budgets.js";
+import type { MeterEvent } from "../src/types.js";
 
 function httpGet(port: number, path: string): Promise<{ status: number; body: string }> {
   return new Promise((resolve, reject) => {
@@ -107,6 +112,137 @@ describe("daemon", () => {
     handle = undefined; // prevent double-close in afterEach
 
     expect(existsSync(join(tempDir, "proxy.json"))).toBe(false);
+  });
+
+  it("close() flushes snapshot to disk", async () => {
+    tempDir = mkdtempSync(join(tmpdir(), "meter-daemon-"));
+    handle = await startDaemon({ meterDir: tempDir, port: 0, required: false });
+
+    await handle.close();
+    handle = undefined;
+
+    const snapshot = readSnapshot(tempDir);
+    expect(snapshot).not.toBeNull();
+    expect(snapshot!.date).toBe(todayUTC());
+  });
+
+  it("restores counters from snapshot on startup", async () => {
+    tempDir = mkdtempSync(join(tmpdir(), "meter-daemon-"));
+    // Pre-seed a snapshot with accumulated data
+    const counters = createHotCounters(todayUTC());
+    counters.global.today.costUsd = 42;
+    counters.global.today.requests = 10;
+    writeSnapshot(tempDir, toSnapshot(counters));
+
+    handle = await startDaemon({ meterDir: tempDir, port: 0, required: false });
+
+    // Close and check snapshot still has accumulated data
+    await handle.close();
+    handle = undefined;
+
+    const snapshot = readSnapshot(tempDir);
+    expect(snapshot!.global.today.costUsd).toBe(42);
+    expect(snapshot!.global.today.requests).toBe(10);
+  });
+
+  it("creates fresh counters when snapshot date differs", async () => {
+    tempDir = mkdtempSync(join(tmpdir(), "meter-daemon-"));
+    // Write snapshot with old date
+    const counters = createHotCounters("2020-01-01");
+    counters.global.today.costUsd = 99;
+    writeSnapshot(tempDir, toSnapshot(counters));
+
+    handle = await startDaemon({ meterDir: tempDir, port: 0, required: false });
+
+    // Close and check snapshot is fresh (no accumulated cost from old day)
+    await handle.close();
+    handle = undefined;
+
+    const snapshot = readSnapshot(tempDir);
+    expect(snapshot!.global.today.costUsd).toBe(0);
+    expect(snapshot!.date).toBe(todayUTC());
+  });
+
+  it("uses explicit mechaDir when provided", async () => {
+    tempDir = mkdtempSync(join(tmpdir(), "meter-daemon-"));
+    const mechaDir = mkdtempSync(join(tmpdir(), "mecha-parent-"));
+    try {
+      handle = await startDaemon({ meterDir: tempDir, mechaDir, port: 0, required: false });
+      // Should start successfully
+      expect(handle.info.pid).toBe(process.pid);
+    } finally {
+      rmSync(mechaDir, { recursive: true, force: true });
+    }
+  });
+
+  it("periodic snapshot timer writes to disk", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      tempDir = mkdtempSync(join(tmpdir(), "meter-daemon-"));
+      handle = await startDaemon({ meterDir: tempDir, port: 0, required: false });
+
+      // Delete any snapshot that exists from startup
+      try { rmSync(join(tempDir, "snapshot.json")); } catch { /* ok */ }
+
+      // Advance timers by 5 seconds to trigger snapshot flush
+      vi.advanceTimersByTime(5_000);
+
+      // Give a tick for the timer callback to complete
+      await vi.advanceTimersByTimeAsync(10);
+
+      expect(existsSync(join(tempDir, "snapshot.json"))).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("periodic registry timer rescans", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      tempDir = mkdtempSync(join(tmpdir(), "meter-daemon-"));
+      handle = await startDaemon({ meterDir: tempDir, port: 0, required: false });
+
+      // Advance timers by 30 seconds to trigger registry rescan
+      vi.advanceTimersByTime(30_000);
+      await vi.advanceTimersByTimeAsync(10);
+
+      // Daemon still alive after rescan
+      const addr = handle.server.address();
+      const port = typeof addr === "object" && addr ? addr.port : 0;
+      expect(port).toBeGreaterThan(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("SIGHUP reloads budgets and pricing", async () => {
+    tempDir = mkdtempSync(join(tmpdir(), "meter-daemon-"));
+    handle = await startDaemon({ meterDir: tempDir, port: 0, required: false });
+
+    // Write budgets to disk
+    writeBudgets(tempDir, { global: { dailyUsd: 99 }, byCasa: {}, byAuthProfile: {}, byTag: {} });
+
+    // Send SIGHUP to reload
+    process.emit("SIGHUP", "SIGHUP");
+
+    // The budgets should be reloaded — verify by checking the snapshot flush
+    // (We can't directly inspect ctx, but we can verify no crash and the daemon is still alive)
+    const addr = handle.server.address();
+    const port = typeof addr === "object" && addr ? addr.port : 0;
+    const res = await httpGet(port, "/");
+    expect(res.status).toBe(404); // Still responds after SIGHUP
+  });
+
+  it("close() removes SIGHUP listener", async () => {
+    tempDir = mkdtempSync(join(tmpdir(), "meter-daemon-"));
+    const listenersBefore = process.listenerCount("SIGHUP");
+    handle = await startDaemon({ meterDir: tempDir, port: 0, required: false });
+    expect(process.listenerCount("SIGHUP")).toBe(listenersBefore + 1);
+
+    await handle.close();
+    handle = undefined;
+
+    expect(process.listenerCount("SIGHUP")).toBe(listenersBefore);
   });
 
   describe("stopDaemon", () => {

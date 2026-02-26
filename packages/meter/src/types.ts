@@ -44,13 +44,16 @@ export interface CostSummary {
   avgLatencyMs: number;
 }
 
-export interface HotSnapshot {
-  ts: string;
+export interface HotCounterBuckets {
   date: string;
   global: { today: CostSummary; thisMonth: CostSummary };
   byCasa: Record<string, { today: CostSummary; thisMonth: CostSummary }>;
   byAuth: Record<string, { today: CostSummary; thisMonth: CostSummary }>;
   byTag: Record<string, { today: CostSummary; thisMonth: CostSummary }>;
+}
+
+export interface HotSnapshot extends HotCounterBuckets {
+  ts: string;
 }
 
 export interface ModelPricing {
@@ -79,10 +82,10 @@ export interface BudgetLimit {
 }
 
 export interface BudgetConfig {
-  global?: BudgetLimit;
-  byCasa?: Record<string, BudgetLimit>;
-  byAuthProfile?: Record<string, BudgetLimit>;
-  byTag?: Record<string, BudgetLimit>;
+  global: BudgetLimit;
+  byCasa: Record<string, BudgetLimit>;
+  byAuthProfile: Record<string, BudgetLimit>;
+  byTag: Record<string, BudgetLimit>;
 }
 
 export interface HourlyRollup {

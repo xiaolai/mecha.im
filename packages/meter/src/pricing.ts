@@ -40,6 +40,7 @@ export function loadPricing(meterDir: string): PricingTable {
     return parsed;
   } catch {
     /* v8 ignore start -- corrupt/missing file fallback */
+    console.error("[mecha:meter] Failed to load pricing.json, using default pricing");
     return DEFAULT_PRICING;
     /* v8 ignore stop */
   }

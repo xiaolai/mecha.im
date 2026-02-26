@@ -117,7 +117,7 @@ export function registerBudgetCommand(program: Command, deps: CommandDeps): void
 
         let found = false;
 
-        if (config.global && (config.global.dailyUsd !== undefined || config.global.monthlyUsd !== undefined)) {
+        if (config.global.dailyUsd !== undefined || config.global.monthlyUsd !== undefined) {
           found = true;
           const parts = [];
           if (config.global.dailyUsd !== undefined) parts.push(`daily: $${config.global.dailyUsd.toFixed(2)}`);
@@ -130,11 +130,8 @@ export function registerBudgetCommand(program: Command, deps: CommandDeps): void
           ["auth", config.byAuthProfile],
           ["tag", config.byTag],
         ] as const) {
-          /* v8 ignore start -- readBudgets always initializes maps */
-          if (!map) continue;
-          /* v8 ignore stop */
           for (const [name, limit] of Object.entries(map)) {
-            /* v8 ignore start -- Object.entries won't yield undefined */
+            /* v8 ignore start -- defensive: Object.entries always yields defined values for our config */
             if (!limit) continue;
             /* v8 ignore stop */
             found = true;

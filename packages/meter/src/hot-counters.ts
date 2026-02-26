@@ -1,13 +1,7 @@
-import type { CostSummary, MeterEvent, HotSnapshot } from "./types.js";
+import type { CostSummary, MeterEvent, HotSnapshot, HotCounterBuckets } from "./types.js";
 import { emptySummary, accumulateEvent } from "./query.js";
 
-export interface HotCounters {
-  date: string;
-  global: { today: CostSummary; thisMonth: CostSummary };
-  byCasa: Record<string, { today: CostSummary; thisMonth: CostSummary }>;
-  byAuth: Record<string, { today: CostSummary; thisMonth: CostSummary }>;
-  byTag: Record<string, { today: CostSummary; thisMonth: CostSummary }>;
-}
+export type HotCounters = HotCounterBuckets;
 
 /** Create empty hot counters for a given UTC date */
 export function createHotCounters(date: string): HotCounters {
@@ -54,27 +48,16 @@ export function ingestEvent(counters: HotCounters, event: MeterEvent): void {
 export function resetToday(counters: HotCounters, newDate: string): void {
   counters.date = newDate;
   counters.global.today = emptySummary();
-  for (const bucket of Object.values(counters.byCasa)) {
-    bucket.today = emptySummary();
-  }
-  for (const bucket of Object.values(counters.byAuth)) {
-    bucket.today = emptySummary();
-  }
-  for (const bucket of Object.values(counters.byTag)) {
-    bucket.today = emptySummary();
+  for (const map of [counters.byCasa, counters.byAuth, counters.byTag]) {
+    for (const bucket of Object.values(map)) {
+      bucket.today = emptySummary();
+    }
   }
 }
 
 /** Convert hot counters to snapshot format */
 export function toSnapshot(counters: HotCounters): HotSnapshot {
-  return {
-    ts: new Date().toISOString(),
-    date: counters.date,
-    global: counters.global,
-    byCasa: counters.byCasa,
-    byAuth: counters.byAuth,
-    byTag: counters.byTag,
-  };
+  return { ts: new Date().toISOString(), ...counters };
 }
 
 /** Restore hot counters from a snapshot */

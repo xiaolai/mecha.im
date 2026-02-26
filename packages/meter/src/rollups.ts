@@ -17,44 +17,39 @@ export function casaRollupPath(meterDir: string, casa: string): string {
   return join(meterDir, "rollups", "casa", `${casa}.json`);
 }
 
-// ── Read helpers ──────────────────────────────────────────────────
+// ── Generic read/write ───────────────────────────────────────────
 
-export function readHourlyRollup(meterDir: string, date: string): HourlyRollup {
+function readJson<T>(path: string, fallback: T): T {
   try {
-    return JSON.parse(readFileSync(hourlyRollupPath(meterDir, date), "utf-8")) as HourlyRollup;
+    return JSON.parse(readFileSync(path, "utf-8")) as T;
   } catch {
-    /* v8 ignore start -- missing or corrupt */
-    return { date, hours: [] };
+    /* v8 ignore start -- missing or corrupt rollup file */
+    console.error(`[mecha:meter] Failed to read ${path}, using empty rollup`);
+    return fallback;
     /* v8 ignore stop */
   }
 }
-
-export function readDailyRollup(meterDir: string, month: string): DailyRollup {
-  try {
-    return JSON.parse(readFileSync(dailyRollupPath(meterDir, month), "utf-8")) as DailyRollup;
-  } catch {
-    /* v8 ignore start -- missing or corrupt */
-    return { month, days: [] };
-    /* v8 ignore stop */
-  }
-}
-
-export function readCasaRollup(meterDir: string, casa: string): CasaRollup {
-  try {
-    return JSON.parse(readFileSync(casaRollupPath(meterDir, casa), "utf-8")) as CasaRollup;
-  } catch {
-    /* v8 ignore start -- missing or corrupt */
-    return { casa, allTime: emptySummary(), byModel: {}, byDay: [] };
-    /* v8 ignore stop */
-  }
-}
-
-// ── Write helpers ─────────────────────────────────────────────────
 
 function writeJson(path: string, data: unknown): void {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, JSON.stringify(data, null, 2) + "\n");
 }
+
+// ── Read helpers ──────────────────────────────────────────────────
+
+export function readHourlyRollup(meterDir: string, date: string): HourlyRollup {
+  return readJson(hourlyRollupPath(meterDir, date), { date, hours: [] });
+}
+
+export function readDailyRollup(meterDir: string, month: string): DailyRollup {
+  return readJson(dailyRollupPath(meterDir, month), { month, days: [] });
+}
+
+export function readCasaRollup(meterDir: string, casa: string): CasaRollup {
+  return readJson(casaRollupPath(meterDir, casa), { casa, allTime: emptySummary(), byModel: {}, byDay: [] });
+}
+
+// ── Write helpers ─────────────────────────────────────────────────
 
 export function writeHourlyRollup(meterDir: string, rollup: HourlyRollup): void {
   writeJson(hourlyRollupPath(meterDir, rollup.date), rollup);
