@@ -274,3 +274,22 @@ export const InvalidIntervalError = defError<[string]>(
   (interval) => `Invalid interval: "${interval}" (use format like "30s", "5m", "1h"; min 10s, max 24h)`,
 );
 
+// --- Meter errors ---
+export const MeterProxyAlreadyRunningError = defError<[number]>(
+  "MeterProxyAlreadyRunningError",
+  { code: "METER_PROXY_ALREADY_RUNNING", statusCode: 409, exitCode: 1 },
+  (pid) => `Metering proxy already running (pid ${pid})`,
+);
+
+export const MeterProxyNotRunningError = defError<[]>(
+  "MeterProxyNotRunningError",
+  { code: "METER_PROXY_NOT_RUNNING", statusCode: 409, exitCode: 1 },
+  () => "Metering proxy is not running",
+);
+
+export const MeterProxyRequiredError = defError<[]>(
+  "MeterProxyRequiredError",
+  { code: "METER_PROXY_REQUIRED", statusCode: 503, exitCode: 2 },
+  () => "Metering proxy required but not running. Start with: mecha meter start",
+);
+

@@ -40,4 +40,20 @@ export const DEFAULTS = {
   AGENT_STATUS_TIMEOUT_MS: 5_000,
   /** Port availability check socket timeout (ms) */
   PORT_CHECK_TIMEOUT_MS: 2_000,
+  /** Default metering proxy port */
+  METER_PORT: 7600,
+  /** Metering proxy shutdown grace period (ms) */
+  METER_STOP_GRACE_MS: 30_000,
+  /** Hot counter snapshot interval (ms) */
+  METER_SNAPSHOT_INTERVAL_MS: 10_000,
+  /** Rollup flush interval (ms) */
+  METER_ROLLUP_INTERVAL_MS: 60_000,
+  /** CASA registry rescan interval (ms) */
+  METER_REGISTRY_INTERVAL_MS: 30_000,
+  /** Event buffer flush: max events before forced flush */
+  METER_EVENT_BUFFER_MAX: 100,
+  /** Event buffer flush: max seconds before forced flush */
+  METER_EVENT_BUFFER_INTERVAL_MS: 5_000,
+  /** Default event retention (days) */
+  METER_RETENTION_DAYS: 90,
 } as const;

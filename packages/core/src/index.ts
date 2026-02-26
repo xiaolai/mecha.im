@@ -54,6 +54,9 @@ export {
   ScheduleNotFoundError,
   DuplicateScheduleError,
   InvalidIntervalError,
+  MeterProxyAlreadyRunningError,
+  MeterProxyNotRunningError,
+  MeterProxyRequiredError,
 } from "./errors.js";
 export {
   CasaSpawnInput,

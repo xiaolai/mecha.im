@@ -35,6 +35,9 @@ import {
   ScheduleNotFoundError,
   DuplicateScheduleError,
   InvalidIntervalError,
+  MeterProxyAlreadyRunningError,
+  MeterProxyNotRunningError,
+  MeterProxyRequiredError,
 } from "../src/errors.js";
 
 describe("MechaError base", () => {
@@ -344,6 +347,30 @@ describe("error classes", () => {
       expectedExit: 1,
       expectedCode: "INVALID_INTERVAL",
       messageContains: "2s",
+    },
+    {
+      name: "MeterProxyAlreadyRunningError",
+      error: new MeterProxyAlreadyRunningError(12345),
+      expectedStatus: 409,
+      expectedExit: 1,
+      expectedCode: "METER_PROXY_ALREADY_RUNNING",
+      messageContains: "12345",
+    },
+    {
+      name: "MeterProxyNotRunningError",
+      error: new MeterProxyNotRunningError(),
+      expectedStatus: 409,
+      expectedExit: 1,
+      expectedCode: "METER_PROXY_NOT_RUNNING",
+      messageContains: "not running",
+    },
+    {
+      name: "MeterProxyRequiredError",
+      error: new MeterProxyRequiredError(),
+      expectedStatus: 503,
+      expectedExit: 2,
+      expectedCode: "METER_PROXY_REQUIRED",
+      messageContains: "mecha meter start",
     },
   ];
 

@@ -9,6 +9,7 @@ export function makeDeps(opts: {
   pm?: Partial<ProcessManager>;
   acl?: Partial<AclEngine>;
   sandbox?: Partial<Sandbox>;
+  registerShutdownHook?: (fn: () => Promise<void>) => void;
 } = {}): CommandDeps {
   return {
     formatter: {
@@ -48,5 +49,6 @@ export function makeDeps(opts: {
       describe: vi.fn().mockReturnValue("macOS sandbox-exec (available)"),
       ...opts.sandbox,
     } as unknown as Sandbox,
+    registerShutdownHook: opts.registerShutdownHook,
   };
 }

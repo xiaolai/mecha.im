@@ -10,6 +10,7 @@
     { "path": "../agent" },
     { "path": "../sandbox" },
     { "path": "../service" },
-    { "path": "../process" }
+    { "path": "../process" },
+    { "path": "../meter" }
   ]
 }
