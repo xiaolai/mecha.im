@@ -110,6 +110,8 @@ Each CASA exposes these HTTP endpoints (localhost only):
 | `GET` | `/api/sessions` | List all sessions |
 | `GET` | `/api/sessions/:id` | Get session transcript |
 | `GET` | `/api/schedules` | List schedules |
+| `POST` | `/api/schedules` | Create a schedule |
+| `DELETE` | `/api/schedules/:id` | Remove a schedule |
 | `POST` | `/api/schedules/:id/pause` | Pause a schedule |
 | `POST` | `/api/schedules/:id/resume` | Resume a schedule |
 | `POST` | `/api/schedules/:id/run` | Trigger a schedule immediately |
@@ -137,6 +139,7 @@ All state is plain files — no databases:
 | Meter events | JSONL | `~/.mecha/meter/events/` |
 | Meter snapshot | JSON | `~/.mecha/meter/snapshot.json` |
 | Budgets | JSON | `~/.mecha/meter/budgets.json` |
+| Plugin registry | JSON | `~/.mecha/plugins.json` |
 
 All file writes use atomic tmp+rename to prevent corruption on crash.
 

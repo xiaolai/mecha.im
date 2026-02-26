@@ -89,7 +89,7 @@ mecha meter start
 Check spending:
 
 ```bash
-mecha cost show
+mecha cost
 ```
 
 Set a daily budget:
