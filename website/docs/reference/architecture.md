@@ -98,6 +98,28 @@ sequenceDiagram
   router-->>coder: MCP tool result
 ```
 
+## Runtime API
+
+Each CASA exposes these HTTP endpoints (localhost only):
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/healthz` | Health check |
+| `GET` | `/info` | Runtime info (name, port, uptime, memory) |
+| `POST` | `/api/chat` | Send a message (SSE response) |
+| `GET` | `/api/sessions` | List all sessions |
+| `GET` | `/api/sessions/:id` | Get session transcript |
+| `GET` | `/api/schedules` | List schedules |
+| `POST` | `/api/schedules/:id/pause` | Pause a schedule |
+| `POST` | `/api/schedules/:id/resume` | Resume a schedule |
+| `POST` | `/api/schedules/:id/run` | Trigger a schedule immediately |
+| `POST` | `/api/schedules/pause-all` | Pause all schedules |
+| `POST` | `/api/schedules/resume-all` | Resume all schedules |
+| `GET` | `/api/schedules/:id/history` | Schedule run history |
+| `POST` | `/mcp` | JSON-RPC MCP endpoint |
+
+All routes require `Authorization: Bearer <token>` (the token from `config.json`).
+
 ## Data Storage
 
 All state is plain files — no databases:

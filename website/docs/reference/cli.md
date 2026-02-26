@@ -2,6 +2,19 @@
 
 Complete reference for the `mecha` command-line interface.
 
+## Global Options
+
+These flags work with any command:
+
+| Option | Description |
+|--------|-------------|
+| `--json` | Output JSON instead of human-readable format |
+| `--quiet` | Minimal output (errors only) |
+| `--verbose` | Detailed output |
+| `--no-color` | Disable colored output |
+
+---
+
 ## Lifecycle
 
 ### `mecha init`
@@ -113,11 +126,16 @@ mecha configure <name> [options]
 Send a message and stream the response.
 
 ```bash
-mecha chat <name> <message>
+mecha chat <name> <message> [options]
 ```
+
+| Option | Description |
+|--------|-------------|
+| `--session <id>`, `-s` | Resume a specific session |
 
 ```bash
 mecha chat researcher "What files are in my workspace?"
+mecha chat researcher "Continue where we left off" --session abc123
 ```
 
 ### `mecha sessions list`
@@ -319,7 +337,7 @@ mecha meter start [options]
 | Option | Description |
 |--------|-------------|
 | `--port <port>` | Proxy port (default: 7600) |
-| `--json` | Output connection info as JSON |
+| `--required` | Fail-closed mode — spawning without metering will fail |
 
 ### `mecha meter status`
 
@@ -342,16 +360,27 @@ mecha meter stop
 Show current spending.
 
 ```bash
-mecha cost show [options]
+mecha cost show [casa]
 ```
+
+Optionally pass a CASA name to show costs for a single agent.
 
 ### `mecha budget set`
 
 Set a spending limit.
 
 ```bash
-mecha budget set --daily <amount> [--casa <name>]
+mecha budget set --daily <amount> [--monthly <amount>] [options]
 ```
+
+| Option | Description |
+|--------|-------------|
+| `--daily <amount>` | Daily spending limit |
+| `--monthly <amount>` | Monthly spending limit |
+| `--global` | Set as a global budget |
+| `--casa <name>` | Set budget for a specific CASA |
+| `--auth <profile>` | Set budget for an auth profile |
+| `--tag <tag>` | Set budget for a tag group |
 
 ### `mecha budget ls`
 
@@ -366,8 +395,17 @@ mecha budget ls
 Remove a budget.
 
 ```bash
-mecha budget rm --daily [--casa <name>]
+mecha budget rm --daily [--monthly] [options]
 ```
+
+| Option | Description |
+|--------|-------------|
+| `--daily` | Remove daily limit |
+| `--monthly` | Remove monthly limit |
+| `--global` | Remove global budget |
+| `--casa <name>` | Remove budget for a specific CASA |
+| `--auth <profile>` | Remove budget for an auth profile |
+| `--tag <tag>` | Remove budget for a tag group |
 
 ---
 
@@ -393,9 +431,17 @@ mecha auth add mykey --api-key --token sk-ant-api03-...
 mecha auth add mytoken --oauth --token sk-ant-oat01-...
 ```
 
+### `mecha auth tag`
+
+Set tags on a profile.
+
+```bash
+mecha auth tag <name> <tags...>
+```
+
 ### `mecha auth ls`
 
-List profiles.
+List profiles (shows name, type, account, default, expiry, tags).
 
 ### `mecha auth default`
 
@@ -467,5 +513,10 @@ mecha tools ls
 Install an MCP tool.
 
 ```bash
-mecha tools install <name>
+mecha tools install <name> [options]
 ```
+
+| Option | Description |
+|--------|-------------|
+| `--version <version>`, `-v` | Tool version |
+| `--description <desc>`, `-d` | Tool description |

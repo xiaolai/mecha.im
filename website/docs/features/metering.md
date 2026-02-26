@@ -8,7 +8,7 @@ The metering proxy sits between your agents and the Anthropic API:
 
 ```mermaid
 graph LR
-  CASA --> proxy["metering proxy (:7800)"]
+  CASA --> proxy["metering proxy (:7600)"]
   proxy --> api["api.anthropic.com"]
   proxy -. "records tokens,<br/>cost, model" .-> events["events log"]
 ```
@@ -59,16 +59,25 @@ Set spending limits to prevent runaway costs:
 
 ```bash
 # Set a global daily budget ($10/day)
-mecha budget set --daily 10.00
+mecha budget set --global --daily 10.00
+
+# Set a global monthly budget
+mecha budget set --global --monthly 100.00
 
 # Set a per-CASA budget
 mecha budget set --casa researcher --daily 2.00
+
+# Set a per-auth-profile budget
+mecha budget set --auth mykey --daily 5.00
+
+# Set a per-tag budget (applies to all CASAs with that tag)
+mecha budget set --tag dev --daily 8.00
 
 # List all budgets
 mecha budget ls
 
 # Remove a budget
-mecha budget rm --daily
+mecha budget rm --global --daily
 mecha budget rm --casa researcher --daily
 ```
 
@@ -79,7 +88,7 @@ When a CASA approaches its budget:
 1. **80% threshold** — warning logged
 2. **100% threshold** — API requests blocked with 429 response
 
-The CASA receives an error message explaining the budget limit. Budgets reset daily at midnight.
+The CASA receives an error message explaining the budget limit. Daily budgets reset at midnight UTC. Monthly budgets reset on the first of each month.
 
 ## Event Tracking
 
@@ -90,8 +99,10 @@ Every API call is recorded as a meter event:
 - Model used
 - Input/output/cache tokens
 - Estimated cost
+- Cache creation and cache read tokens
 - Latency (time to first token)
 - Stream vs non-stream
+- Actual model returned by API (may differ from requested)
 
 Events are stored in `~/.mecha/meter/events/` as daily JSONL files, enabling historical cost analysis.
 
