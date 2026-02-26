@@ -25,5 +25,11 @@
         ]
       }
     ]
+  },
+  "enabledPlugins": {
+    "grill@xiaolai": true,
+    "loc-guardian@xiaolai": true,
+    "tdd-guardian@xiaolai": true,
+    "codex-toolkit@xiaolai": true
   }
 }
