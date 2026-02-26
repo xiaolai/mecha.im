@@ -41,8 +41,8 @@ describe("daemon", () => {
     expect(port).toBeGreaterThan(0);
 
     const res = await httpGet(port, "/");
-    expect(res.status).toBe(501);
-    expect(JSON.parse(res.body).error).toContain("not yet implemented");
+    expect(res.status).toBe(404);
+    expect(JSON.parse(res.body).error).toContain("Invalid path");
   });
 
   it("writes proxy.json on start", async () => {

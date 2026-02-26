@@ -4,11 +4,14 @@ import { MeterProxyAlreadyRunningError, PortConflictError } from "@mecha/core";
 import {
   readProxyInfo, isPidAlive, writeProxyInfo, deleteProxyInfo,
 } from "./lifecycle.js";
-import { initPricing } from "./pricing.js";
+import { initPricing, loadPricing } from "./pricing.js";
+import { handleProxyRequest, type ProxyContext } from "./proxy.js";
+import { scanCasaRegistry } from "./registry.js";
 import type { ProxyInfo } from "./types.js";
 
 export interface DaemonOpts {
   meterDir: string;
+  mechaDir?: string;
   port: number;
   required: boolean;
 }
@@ -43,9 +46,16 @@ export async function startDaemon(opts: DaemonOpts): Promise<DaemonHandle> {
     startedAt: new Date().toISOString(),
   };
 
-  const server = createServer((_req: IncomingMessage, res: ServerResponse) => {
-    res.writeHead(501, { "content-type": "application/json" });
-    res.end(JSON.stringify({ error: "Proxy forwarding not yet implemented" }));
+  // Build proxy context
+  const mechaParent = opts.mechaDir ?? meterDir.replace(/\/meter$/, "");
+  const ctx: ProxyContext = {
+    meterDir,
+    pricing: loadPricing(meterDir),
+    registry: scanCasaRegistry(mechaParent),
+  };
+
+  const server = createServer((req: IncomingMessage, res: ServerResponse) => {
+    handleProxyRequest(req, res, ctx);
   });
 
   return new Promise<DaemonHandle>((resolve, reject) => {
