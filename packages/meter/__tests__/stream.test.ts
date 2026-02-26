@@ -79,6 +79,16 @@ describe("stream", () => {
       expect(state.inputTokens).toBe(0);
     });
 
+    it("buffers partial lines across chunks", () => {
+      const state = createSSEParseState(Date.now(), "model");
+      // Split a data line across two chunks
+      parseSSEChunk('data: {"type":"message_start","message":{"model":"m","usage":{"input_tok', state);
+      expect(state.inputTokens).toBe(0); // Not parsed yet — incomplete line
+      parseSSEChunk('ens":42}}}\n', state);
+      expect(state.inputTokens).toBe(42); // Now parsed
+      expect(state.modelActual).toBe("m");
+    });
+
     it("records ttft only on first content_block_delta", () => {
       const state = createSSEParseState(Date.now() - 50, "model");
       const chunk = [

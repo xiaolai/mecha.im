@@ -3,18 +3,29 @@ import { join, dirname } from "node:path";
 import type { MeterEvent, CostSummary, HourlyRollup, DailyRollup, CasaRollup } from "./types.js";
 import { emptySummary, accumulateEvent } from "./query.js";
 
+// ── Path safety ─────────────────────────────────────────────────────
+
+const SAFE_SEGMENT = /^[a-z0-9-]+$/;
+const DATE_SEGMENT = /^\d{4}-\d{2}-\d{2}$/;
+const MONTH_SEGMENT = /^\d{4}-\d{2}$/;
+
+function safePath(seg: string, pattern: RegExp): string {
+  if (!pattern.test(seg)) throw new Error(`Invalid path segment: ${seg}`);
+  return seg;
+}
+
 // ── Paths ──────────────────────────────────────────────────────────
 
 export function hourlyRollupPath(meterDir: string, date: string): string {
-  return join(meterDir, "rollups", "hourly", `${date}.json`);
+  return join(meterDir, "rollups", "hourly", `${safePath(date, DATE_SEGMENT)}.json`);
 }
 
 export function dailyRollupPath(meterDir: string, month: string): string {
-  return join(meterDir, "rollups", "daily", `${month}.json`);
+  return join(meterDir, "rollups", "daily", `${safePath(month, MONTH_SEGMENT)}.json`);
 }
 
 export function casaRollupPath(meterDir: string, casa: string): string {
-  return join(meterDir, "rollups", "casa", `${casa}.json`);
+  return join(meterDir, "rollups", "casa", `${safePath(casa, SAFE_SEGMENT)}.json`);
 }
 
 // ── Generic read/write ───────────────────────────────────────────

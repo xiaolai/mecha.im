@@ -78,6 +78,39 @@ describe("budget command", () => {
       await program.parseAsync(["node", "mecha", "budget", "set", "--daily", "10"]);
       expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("CASA name"));
     });
+
+    it("errors on non-numeric daily amount", async () => {
+      tempDir = mkdtempSync(join(tmpdir(), "mecha-cli-budget-"));
+      const deps = makeDeps({ mechaDir: tempDir });
+      const program = createProgram(deps);
+      program.exitOverride();
+
+      await program.parseAsync(["node", "mecha", "budget", "set", "--global", "--daily", "abc"]);
+      expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("positive numbers"));
+      expect(process.exitCode).toBe(1);
+    });
+
+    it("errors on negative monthly amount", async () => {
+      tempDir = mkdtempSync(join(tmpdir(), "mecha-cli-budget-"));
+      const deps = makeDeps({ mechaDir: tempDir });
+      const program = createProgram(deps);
+      program.exitOverride();
+
+      await program.parseAsync(["node", "mecha", "budget", "set", "--global", "--monthly", "-5"]);
+      expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("positive numbers"));
+      expect(process.exitCode).toBe(1);
+    });
+
+    it("errors on zero daily amount", async () => {
+      tempDir = mkdtempSync(join(tmpdir(), "mecha-cli-budget-"));
+      const deps = makeDeps({ mechaDir: tempDir });
+      const program = createProgram(deps);
+      program.exitOverride();
+
+      await program.parseAsync(["node", "mecha", "budget", "set", "--global", "--daily", "0"]);
+      expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("positive numbers"));
+      expect(process.exitCode).toBe(1);
+    });
   });
 
   describe("budget rm", () => {

@@ -83,6 +83,19 @@ describe("events", () => {
     });
   });
 
+  describe("validateDate (via appendEvent / readEventsForDate)", () => {
+    it("rejects path-traversal date in appendEvent", () => {
+      tempDir = mkdtempSync(join(tmpdir(), "meter-events-"));
+      const event = makeEvent({ ts: "../../etc/passwd" });
+      expect(() => appendEvent(tempDir, event)).toThrow("Invalid date format");
+    });
+
+    it("rejects path-traversal date in readEventsForDate", () => {
+      tempDir = mkdtempSync(join(tmpdir(), "meter-events-"));
+      expect(() => readEventsForDate(tempDir, "../etc/passwd")).toThrow("Invalid date format");
+    });
+  });
+
   describe("readEventsForDate", () => {
     it("returns empty array for non-existent date", () => {
       tempDir = mkdtempSync(join(tmpdir(), "meter-events-"));

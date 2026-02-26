@@ -143,6 +143,8 @@ exit 0
     "LD_PRELOAD", "LD_LIBRARY_PATH", "DYLD_INSERT_LIBRARIES", "DYLD_LIBRARY_PATH",
     // Block SDK auth keys — auth resolution sets the correct one
     "ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN",
+    // Block metering URL — set by meter proxy integration
+    "ANTHROPIC_BASE_URL",
   ]);
   const safeUserEnv: Record<string, string> = {};
   for (const [k, v] of Object.entries(resolvedUserEnv)) {

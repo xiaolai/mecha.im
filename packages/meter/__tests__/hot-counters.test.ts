@@ -65,6 +65,14 @@ describe("hot-counters", () => {
     });
   });
 
+  describe("ingestEvent — dedup tags", () => {
+    it("deduplicates tags via Set", () => {
+      const c = createHotCounters("2026-02-26");
+      ingestEvent(c, makeEvent({ tags: ["dup", "dup", "dup"] }));
+      expect(c.byTag["dup"]!.today.requests).toBe(1);
+    });
+  });
+
   describe("resetToday", () => {
     it("resets today counters but keeps thisMonth", () => {
       const c = createHotCounters("2026-02-26");
@@ -76,6 +84,16 @@ describe("hot-counters", () => {
       expect(c.global.thisMonth.costUsd).toBe(0.10);
       expect(c.byCasa["researcher"]!.today.requests).toBe(0);
       expect(c.byCasa["researcher"]!.thisMonth.requests).toBe(1);
+    });
+
+    it("prunes buckets with zero monthly activity", () => {
+      const c = createHotCounters("2026-02-26");
+      // Manually create a CASA bucket with zero monthly activity
+      c.byCasa["stale"] = { today: { ...c.global.today }, thisMonth: { ...c.global.thisMonth } };
+      c.byCasa["stale"]!.thisMonth.requests = 0;
+
+      resetToday(c, "2026-02-27");
+      expect(c.byCasa["stale"]).toBeUndefined();
     });
   });
 

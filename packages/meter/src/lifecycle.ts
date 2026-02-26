@@ -41,8 +41,12 @@ export function writeProxyInfo(meterDir: string, info: ProxyInfo): void {
 export function deleteProxyInfo(meterDir: string): void {
   try {
     unlinkSync(join(meterDir, PROXY_JSON));
-  } catch {
-    // Already gone — fine
+  } catch (err: unknown) {
+    /* v8 ignore start -- only ENOENT expected */
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+      console.error("[mecha:meter] Failed to delete proxy.json:", (err as Error).message);
+    }
+    /* v8 ignore stop */
   }
 }
 

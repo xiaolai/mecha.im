@@ -12,7 +12,7 @@ export function readSnapshot(meterDir: string): HotSnapshot | null {
   try {
     const raw = readFileSync(snapshotPath(meterDir), "utf-8");
     const data = JSON.parse(raw) as HotSnapshot;
-    if (!data.ts || !data.date || !data.global) return null;
+    if (!data.ts || !data.date || !data.global?.today || !data.global?.thisMonth) return null;
     return data;
   } catch {
     /* v8 ignore start -- missing file or corrupt JSON */

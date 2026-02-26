@@ -7,6 +7,7 @@ import {
   writeHourlyRollup, writeDailyRollup, writeCasaRollup,
   updateHourlyRollup, updateDailyRollup, updateCasaRollup,
   flushRollups,
+  hourlyRollupPath, dailyRollupPath, casaRollupPath,
 } from "../src/rollups.js";
 import { emptySummary } from "../src/query.js";
 import type { MeterEvent, HourlyRollup, DailyRollup, CasaRollup } from "../src/types.js";
@@ -151,6 +152,20 @@ describe("rollups", () => {
 
       const read = readCasaRollup(tempDir, "researcher");
       expect(read.allTime.requests).toBe(1);
+    });
+  });
+
+  describe("safePath validation", () => {
+    it("rejects invalid date segment in hourlyRollupPath", () => {
+      expect(() => hourlyRollupPath("/tmp", "../etc")).toThrow("Invalid path segment");
+    });
+
+    it("rejects invalid month segment in dailyRollupPath", () => {
+      expect(() => dailyRollupPath("/tmp", "../../x")).toThrow("Invalid path segment");
+    });
+
+    it("rejects invalid casa segment in casaRollupPath", () => {
+      expect(() => casaRollupPath("/tmp", "../../etc")).toThrow("Invalid path segment");
     });
   });
 

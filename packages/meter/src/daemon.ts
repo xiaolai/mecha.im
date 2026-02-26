@@ -8,7 +8,7 @@ import { initPricing, loadPricing } from "./pricing.js";
 import { handleProxyRequest, reloadBudgets, type ProxyContext } from "./proxy.js";
 import { scanCasaRegistry } from "./registry.js";
 import { readBudgets } from "./budgets.js";
-import { createHotCounters, fromSnapshot } from "./hot-counters.js";
+import { createHotCounters, fromSnapshot, resetToday } from "./hot-counters.js";
 import { readSnapshot, writeSnapshot } from "./snapshot.js";
 import { toSnapshot } from "./hot-counters.js";
 import { todayUTC } from "./query.js";
@@ -69,9 +69,17 @@ export async function startDaemon(opts: DaemonOpts): Promise<DaemonHandle> {
     handleProxyRequest(req, res, ctx);
   });
 
-  // Periodic snapshot flush (every 5 seconds)
+  // Periodic snapshot flush + day rollover check (every 5 seconds)
   const snapshotTimer = setInterval(() => {
-    try { writeSnapshot(meterDir, toSnapshot(ctx.counters)); } catch { /* best-effort */ }
+    try {
+      const now = todayUTC();
+      /* v8 ignore start -- day rollover: resetToday is tested in hot-counters.test.ts; timer tested via snapshot flush */
+      if (now !== ctx.counters.date) {
+        resetToday(ctx.counters, now);
+      }
+      /* v8 ignore stop */
+      writeSnapshot(meterDir, toSnapshot(ctx.counters));
+    } catch { /* best-effort */ }
   }, 5_000);
   snapshotTimer.unref();
 

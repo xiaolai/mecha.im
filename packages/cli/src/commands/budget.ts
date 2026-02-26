@@ -31,6 +31,13 @@ export function registerBudgetCommand(program: Command, deps: CommandDeps): void
           return;
         }
 
+        if ((daily !== undefined && (!Number.isFinite(daily) || daily <= 0)) ||
+            (monthly !== undefined && (!Number.isFinite(monthly) || monthly <= 0))) {
+          deps.formatter.error("Budget amounts must be positive numbers");
+          process.exitCode = 1;
+          return;
+        }
+
         let target: { type: "global" } | { type: "casa"; name: string } | { type: "auth"; name: string } | { type: "tag"; name: string };
         if (o.global) {
           target = { type: "global" };

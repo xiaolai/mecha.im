@@ -17,7 +17,12 @@ export function parseSSEChunk(
   chunk: string,
   state: SSEParseState,
 ): void {
-  const lines = chunk.split("\n");
+  const raw = state._lineBuffer + chunk;
+  const lines = raw.split("\n");
+  // Last element may be incomplete — save for next chunk
+  /* v8 ignore start -- lines.pop() on split result is always defined */
+  state._lineBuffer = lines.pop() ?? "";
+  /* v8 ignore stop */
   for (const line of lines) {
     if (!line.startsWith("data: ")) continue;
     const json = line.slice(6);
@@ -62,6 +67,8 @@ export interface SSEParseState {
   modelActual: string;
   ttftMs: number | null;
   requestStartMs: number;
+  /** @internal partial line buffer for cross-chunk accumulation */
+  _lineBuffer: string;
 }
 
 export function createSSEParseState(requestStartMs: number, model: string): SSEParseState {
@@ -73,6 +80,7 @@ export function createSSEParseState(requestStartMs: number, model: string): SSEP
     modelActual: model,
     ttftMs: null,
     requestStartMs,
+    _lineBuffer: "",
   };
 }
 

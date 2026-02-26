@@ -48,7 +48,7 @@ export interface BudgetCheckInput {
   global: { today: CostSummary; month: CostSummary };
   perCasa?: { today: CostSummary; month: CostSummary };
   perAuth?: { today: CostSummary; month: CostSummary };
-  perTag: Record<string, CostSummary>;
+  perTag: Record<string, { today: CostSummary; month: CostSummary }>;
 }
 
 /** Check all applicable budgets for a request */
@@ -83,9 +83,9 @@ export function checkBudgets(input: BudgetCheckInput): BudgetCheckResult {
   // Check per-tag limits
   for (const tag of tags) {
     const tagBudget = config.byTag[tag];
-    const todayTag = input.perTag[tag];
-    if (tagBudget && todayTag) {
-      const r = checkLimit(tagBudget, `tag ${tag}`, todayTag, todayTag);
+    const tagData = input.perTag[tag];
+    if (tagBudget && tagData) {
+      const r = checkLimit(tagBudget, `tag ${tag}`, tagData.today, tagData.month);
       if (r.exceeded) exceeded = r.exceeded;
       warnings.push(...r.warnings);
     }

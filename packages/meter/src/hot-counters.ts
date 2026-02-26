@@ -37,20 +37,24 @@ export function ingestEvent(counters: HotCounters, event: MeterEvent): void {
   accumulateEvent(auth.today, event);
   accumulateEvent(auth.thisMonth, event);
 
-  for (const tag of event.tags) {
+  for (const tag of new Set(event.tags)) {
     const tagBucket = ensureBucket(counters.byTag, tag);
     accumulateEvent(tagBucket.today, event);
     accumulateEvent(tagBucket.thisMonth, event);
   }
 }
 
-/** Reset today counters to zero (UTC midnight) */
+/** Reset today counters to zero (UTC midnight). Prunes inactive buckets. */
 export function resetToday(counters: HotCounters, newDate: string): void {
   counters.date = newDate;
   counters.global.today = emptySummary();
   for (const map of [counters.byCasa, counters.byAuth, counters.byTag]) {
-    for (const bucket of Object.values(map)) {
+    for (const [key, bucket] of Object.entries(map)) {
       bucket.today = emptySummary();
+      // Prune buckets with no monthly activity to prevent unbounded growth
+      if (bucket.thisMonth.requests === 0) {
+        delete map[key];
+      }
     }
   }
 }

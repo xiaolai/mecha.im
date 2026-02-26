@@ -148,7 +148,7 @@ describe("budgets", () => {
         config: { ...emptyConfig(), byTag: { experiment: { dailyUsd: 3 } } },
         casa: "researcher", authProfile: "default", tags: ["experiment"],
         global: { today: makeSummary(), month: makeSummary() },
-        perTag: { experiment: makeSummary({ costUsd: 3.50 }) },
+        perTag: { experiment: { today: makeSummary({ costUsd: 3.50 }), month: makeSummary({ costUsd: 3.50 }) } },
       });
       expect(result.allowed).toBe(false);
       expect(result.exceeded).toContain("tag experiment");
@@ -195,7 +195,7 @@ describe("budgets", () => {
         casa: "researcher", authProfile: "default", tags: ["exp"],
         global: { today: makeSummary({ costUsd: 5 }), month: makeSummary({ costUsd: 50 }) },
         perCasa: { today: makeSummary({ costUsd: 2 }), month: makeSummary({ costUsd: 2 }) },
-        perTag: { exp: makeSummary({ costUsd: 1 }) },
+        perTag: { exp: { today: makeSummary({ costUsd: 1 }), month: makeSummary({ costUsd: 1 }) } },
       });
       expect(result.allowed).toBe(true);
       expect(result.warnings).toEqual([]);

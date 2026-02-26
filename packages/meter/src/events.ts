@@ -2,9 +2,18 @@ import { appendFileSync, mkdirSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { MeterEvent } from "./types.js";
 
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
 /** Get the UTC date string (YYYY-MM-DD) for an ISO timestamp */
 export function utcDate(ts: string): string {
   return ts.slice(0, 10);
+}
+
+function validateDate(date: string): string {
+  if (!DATE_RE.test(date)) {
+    throw new Error(`Invalid date format: ${date}. Expected YYYY-MM-DD.`);
+  }
+  return date;
 }
 
 /** Get the events directory path */
@@ -16,13 +25,13 @@ export function eventsDir(meterDir: string): string {
 export function appendEvent(meterDir: string, event: MeterEvent): void {
   const dir = eventsDir(meterDir);
   mkdirSync(dir, { recursive: true });
-  const file = join(dir, `${utcDate(event.ts)}.jsonl`);
+  const file = join(dir, `${validateDate(utcDate(event.ts))}.jsonl`);
   appendFileSync(file, JSON.stringify(event) + "\n");
 }
 
 /** Read all events for a specific UTC date. Skips malformed lines. */
 export function readEventsForDate(meterDir: string, date: string): MeterEvent[] {
-  const file = join(eventsDir(meterDir), `${date}.jsonl`);
+  const file = join(eventsDir(meterDir), `${validateDate(date)}.jsonl`);
   try {
     const raw = readFileSync(file, "utf-8");
     const events: MeterEvent[] = [];

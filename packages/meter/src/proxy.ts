@@ -11,7 +11,7 @@ import { appendEvent } from "./events.js";
 import { lookupCasa } from "./registry.js";
 import { readBudgets, checkBudgets } from "./budgets.js";
 import type { BudgetCheckResult } from "./budgets.js";
-import { emptySummary } from "./query.js";
+
 
 const UPSTREAM_HOST = "api.anthropic.com";
 
@@ -65,7 +65,8 @@ export function buildMeterEvent(
   },
 ): MeterEvent {
   const pricing = resolvePricing(ctx.pricing, usage.modelActual || model);
-  const costUsd = status === 200 ? computeCost(pricing, usage) : 0;
+  // Compute cost for 200 and -1 (client disconnect with partial usage consumed)
+  const costUsd = (status === 200 || status === -1) ? computeCost(pricing, usage) : 0;
 
   return {
     id: ulid(),
@@ -97,10 +98,10 @@ export function enforceBudget(
   const counters = ctx.counters;
   const casaBucket = counters.byCasa[casa];
   const authBucket = counters.byAuth[casaInfo.authProfile];
-  const tagSummaries: Record<string, import("./types.js").CostSummary> = {};
+  const tagSummaries: Record<string, { today: import("./types.js").CostSummary; month: import("./types.js").CostSummary }> = {};
   for (const tag of casaInfo.tags) {
     const bucket = counters.byTag[tag];
-    if (bucket) tagSummaries[tag] = bucket.today;
+    if (bucket) tagSummaries[tag] = { today: bucket.today, month: bucket.thisMonth };
   }
 
   return checkBudgets({
@@ -155,6 +156,9 @@ export function handleProxyRequest(
   }
 
   // Budget enforcement — check before forwarding
+  // Note: budget check is sync and runs on the event loop, so concurrent
+  // requests are serialized. Overshoot is possible only between check and
+  // async upstream completion, which is acceptable for local metering.
   const budgetResult = enforceBudget(ctx, casa, casaInfo);
   for (const w of budgetResult.warnings) {
     console.error(`[mecha:meter] Budget warning: ${w}`);
@@ -165,9 +169,20 @@ export function handleProxyRequest(
     return;
   }
 
-  // Read request body
+  // Read request body (max 32MB to prevent memory DoS)
+  const MAX_BODY = 32 * 1024 * 1024;
   const bodyChunks: Buffer[] = [];
-  req.on("data", (chunk: Buffer) => bodyChunks.push(chunk));
+  let bodySize = 0;
+  req.on("data", (chunk: Buffer) => {
+    bodySize += chunk.length;
+    if (bodySize > MAX_BODY) {
+      res.writeHead(413, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: "Request body too large" }));
+      req.destroy();
+      return;
+    }
+    bodyChunks.push(chunk);
+  });
   req.on("end", () => {
     const body = Buffer.concat(bodyChunks);
 
@@ -246,6 +261,8 @@ function handleStreamResponse(
       try { res.write(chunk); } catch { clientDisconnected = true; }
     }
   });
+
+  upstreamRes.on("error", () => { clientDisconnected = true; });
 
   upstreamRes.on("end", () => {
     res.end();
