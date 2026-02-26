@@ -1,0 +1,33 @@
+{
+  "name": "@mecha/server",
+  "version": "0.2.0",
+  "description": "Rendezvous + relay server for mecha.im P2P connectivity",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "bin": {
+    "mecha-server": "./dist/main.js"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit",
+    "start": "node dist/main.js",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "fastify": "^5.3.3",
+    "@fastify/websocket": "^11.2.0"
+  },
+  "devDependencies": {
+    "ws": "^8.19.0",
+    "@types/ws": "^8.5.10"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "license": "ISC"
+}
