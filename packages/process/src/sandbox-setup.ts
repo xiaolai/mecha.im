@@ -29,9 +29,10 @@ export interface CasaFilesystemResult {
 /**
  * Encode a workspace path into a directory name matching Claude Code's convention.
  * `/home/user/my-project` → `-home-alice-my-project`
+ * `C:\Users\joker\project` → `C-home-alice-project`
  */
 export function encodeProjectPath(workspacePath: string): string {
-  return workspacePath.replace(/\//g, "-");
+  return workspacePath.replace(/[/\\:]/g, "-");
 }
 
 export function prepareCasaFilesystem(opts: CasaFilesystemOpts): CasaFilesystemResult {
@@ -143,14 +144,20 @@ exit 0
   }
   const childEnv: Record<string, string> = {
     /* v8 ignore start -- construct minimal PATH: node binary dir + standard system paths */
-    PATH: [
-      ...new Set([
-        ...(process.execPath ? [process.execPath.replace(/\/[^/]+$/, "")] : []),
-        "/usr/local/bin",
-        "/usr/bin",
-        "/bin",
-      ]),
-    ].join(":"),
+    PATH: process.platform === "win32"
+      ? [
+          ...(process.execPath ? [process.execPath.replace(/[/\\][^/\\]+$/, "")] : []),
+          "C:\\Windows\\system32",
+          "C:\\Windows",
+        ].join(";")
+      : [
+          ...new Set([
+            ...(process.execPath ? [process.execPath.replace(/\/[^/]+$/, "")] : []),
+            "/usr/local/bin",
+            "/usr/bin",
+            "/bin",
+          ]),
+        ].join(":"),
     /* v8 ignore stop */
     ...safeUserEnv,
     HOME: homeDir,

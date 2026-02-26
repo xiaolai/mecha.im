@@ -50,6 +50,14 @@ describe("sandbox-setup", () => {
     it("handles root path", () => {
       expect(encodeProjectPath("/")).toBe("-");
     });
+
+    it("handles Windows paths with backslashes and drive letter", () => {
+      expect(encodeProjectPath("C:\\Users\\joker\\project")).toBe("C--home-alice-project");
+    });
+
+    it("handles mixed separators", () => {
+      expect(encodeProjectPath("C:\\Users/joker\\project")).toBe("C--home-alice-project");
+    });
   });
 
   describe("prepareCasaFilesystem", () => {
