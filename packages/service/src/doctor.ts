@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { readAuthProfiles } from "@mecha/core";
+import { getMeterStatus, meterDir } from "@mecha/meter";
 
 export interface DoctorCheck {
   name: string;
@@ -76,6 +77,22 @@ export function mechaDoctor(mechaDir: string): DoctorResult {
       message: "Auth store is corrupt — delete ~/.mecha/auth/ and re-add profiles",
     });
     /* v8 ignore stop */
+  }
+
+  // Meter proxy status
+  const meterStatus = getMeterStatus(meterDir(mechaDir));
+  if (meterStatus.running) {
+    checks.push({
+      name: "meter",
+      status: "ok",
+      message: `Proxy running on port ${meterStatus.port} (pid ${meterStatus.pid})`,
+    });
+  } else {
+    checks.push({
+      name: "meter",
+      status: "warn",
+      message: "Meter proxy not running — run: mecha meter start",
+    });
   }
 
   const healthy = checks.every((c) => c.status !== "error");

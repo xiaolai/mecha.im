@@ -16,6 +16,7 @@ export interface SpawnOpts {
   expose?: string[];
   runtimeBin?: string;
   sandboxMode?: SandboxMode;
+  meterOff?: boolean;
 }
 
 export interface ProcessInfo {

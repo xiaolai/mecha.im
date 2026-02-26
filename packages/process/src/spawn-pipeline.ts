@@ -61,6 +61,7 @@ export async function spawnCasa(ctx: SpawnContext, spawnOpts: SpawnOpts): Promis
     casaDir, workspacePath, port, token, name, mechaDir, model, permissionMode, auth, tags,
     expose: spawnOpts.expose,
     userEnv: spawnOpts.env,
+    meterOff: spawnOpts.meterOff,
   });
 
   // Determine runtime binary path

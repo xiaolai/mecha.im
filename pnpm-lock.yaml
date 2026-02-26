@@ -86,6 +86,9 @@ importers:
       '@mecha/core':
         specifier: workspace:*
         version: link:../core
+      '@mecha/meter':
+        specifier: workspace:*
+        version: link:../meter
       '@mecha/sandbox':
         specifier: workspace:*
         version: link:../sandbox
@@ -119,6 +122,9 @@ importers:
       '@mecha/core':
         specifier: workspace:*
         version: link:../core
+      '@mecha/meter':
+        specifier: workspace:*
+        version: link:../meter
       '@mecha/process':
         specifier: workspace:*
         version: link:../process

@@ -61,7 +61,12 @@ describe("mechaDoctor", () => {
 
     const result = mechaDoctor(mechaDir);
     expect(result.healthy).toBe(true);
-    expect(result.checks.every((c) => c.status === "ok")).toBe(true);
+    // All checks ok except meter (warn — proxy not running is expected in tests)
+    const nonMeterChecks = result.checks.filter((c) => c.name !== "meter");
+    expect(nonMeterChecks.every((c) => c.status === "ok")).toBe(true);
+    const meterCheck = result.checks.find((c) => c.name === "meter");
+    expect(meterCheck?.status).toBe("warn");
+    expect(meterCheck?.message).toContain("not running");
   });
 
   it("reports error for missing auth profiles", () => {
@@ -102,5 +107,20 @@ describe("mechaDoctor", () => {
     const result = mechaDoctor(mechaDir);
     const nodeIdCheck = result.checks.find((c) => c.name === "node-id");
     expect(nodeIdCheck?.status).toBe("warn");
+  });
+
+  it("reports meter proxy ok when proxy is running", () => {
+    const mechaDir = setupMechaDir({ withProfiles: true });
+    // Write a proxy.json with the current process pid (alive)
+    const meterDir = join(mechaDir, "meter");
+    mkdirSync(meterDir, { recursive: true });
+    writeFileSync(join(meterDir, "proxy.json"), JSON.stringify({
+      port: 7600, pid: process.pid, required: false, startedAt: new Date().toISOString(),
+    }));
+
+    const result = mechaDoctor(mechaDir);
+    const meterCheck = result.checks.find((c) => c.name === "meter");
+    expect(meterCheck?.status).toBe("ok");
+    expect(meterCheck?.message).toContain("7600");
   });
 });

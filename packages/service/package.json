@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@mecha/core": "workspace:*",
+    "@mecha/meter": "workspace:*",
     "@mecha/process": "workspace:*",
     "zod": "^3.25.36"
   },

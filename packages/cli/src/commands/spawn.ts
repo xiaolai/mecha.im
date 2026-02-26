@@ -21,7 +21,8 @@ export function registerSpawnCommand(program: Command, deps: CommandDeps): void 
     .option("--sandbox <mode>", "Sandbox mode: auto, off, require", "auto")
     .option("--model <model>", "Model to use")
     .option("--permission-mode <mode>", "Permission mode (default, plan, full-auto)")
-    .action(async (name: string, path: string, opts: { port?: string; auth?: string | boolean; tags?: string; expose?: string; sandbox?: string; model?: string; permissionMode?: string }) => withErrorHandler(deps, async () => {
+    .option("--meter <mode>", "Meter mode: on (default), off")
+    .action(async (name: string, path: string, opts: { port?: string; auth?: string | boolean; tags?: string; expose?: string; sandbox?: string; model?: string; permissionMode?: string; meter?: string }) => withErrorHandler(deps, async () => {
       const validated = casaName(name);
       const port = opts.port ? parsePort(opts.port) : undefined;
       if (opts.port && port === undefined) {
@@ -77,6 +78,7 @@ export function registerSpawnCommand(program: Command, deps: CommandDeps): void 
           sandboxMode,
           model: opts.model,
           permissionMode: opts.permissionMode,
+          meterOff: opts.meter === "off",
         });
         deps.formatter.success(`Spawned ${info.name} on port ${info.port}`);
       } finally {

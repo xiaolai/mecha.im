@@ -243,5 +243,49 @@ describe("sandbox-setup", () => {
         expect(result.childEnv.CLAUDE_CODE_OAUTH_TOKEN).toBeUndefined();
       });
     });
+
+    describe("meter proxy integration", () => {
+      function writeMeterProxy(opts: { port: number; pid: number; required: boolean }): void {
+        const md = join(mechaDir, "meter");
+        mkdirSync(md, { recursive: true });
+        writeFileSync(join(md, "proxy.json"), JSON.stringify({
+          port: opts.port,
+          pid: opts.pid,
+          required: opts.required,
+          startedAt: new Date().toISOString(),
+        }));
+      }
+
+      it("sets ANTHROPIC_BASE_URL when proxy alive", () => {
+        writeMeterProxy({ port: 7600, pid: process.pid, required: false });
+        const result = prepareCasaFilesystem(makeOpts());
+        expect(result.childEnv.ANTHROPIC_BASE_URL).toBe(`http://127.0.0.1:7600/casa/alice`);
+      });
+
+      it("skips metering when --meter off", () => {
+        writeMeterProxy({ port: 7600, pid: process.pid, required: false });
+        const result = prepareCasaFilesystem(makeOpts({ meterOff: true }));
+        expect(result.childEnv.ANTHROPIC_BASE_URL).toBeUndefined();
+      });
+
+      it("skips metering when no proxy.json exists", () => {
+        const result = prepareCasaFilesystem(makeOpts());
+        expect(result.childEnv.ANTHROPIC_BASE_URL).toBeUndefined();
+      });
+
+      it("throws MeterProxyRequiredError when proxy dead and required", () => {
+        writeMeterProxy({ port: 7600, pid: 999999, required: true });
+        expect(() => prepareCasaFilesystem(makeOpts())).toThrow("Metering proxy required but not running");
+      });
+
+      it("logs warning when proxy dead and not required", () => {
+        writeMeterProxy({ port: 7600, pid: 999999, required: false });
+        const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+        const result = prepareCasaFilesystem(makeOpts());
+        expect(result.childEnv.ANTHROPIC_BASE_URL).toBeUndefined();
+        expect(spy).toHaveBeenCalledWith(expect.stringContaining("stale proxy.json"));
+        spy.mockRestore();
+      });
+    });
   });
 });

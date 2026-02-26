@@ -1,8 +1,9 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { CasaName } from "@mecha/core";
-import { loadNodeIdentity, loadNodePrivateKey, createCasaIdentity, CASA_CONFIG_VERSION, resolveAuth } from "@mecha/core";
+import { loadNodeIdentity, loadNodePrivateKey, createCasaIdentity, CASA_CONFIG_VERSION, resolveAuth, MeterProxyRequiredError } from "@mecha/core";
 import type { ResolvedAuth } from "@mecha/core";
+import { readProxyInfo, isPidAlive, meterDir } from "@mecha/meter";
 
 export interface CasaFilesystemOpts {
   casaDir: string;
@@ -17,6 +18,7 @@ export interface CasaFilesystemOpts {
   tags?: string[];
   expose?: string[];
   userEnv?: Record<string, string>;
+  meterOff?: boolean;
 }
 
 export interface CasaFilesystemResult {
@@ -198,6 +200,21 @@ exit 0
   }
   if (resolved) {
     childEnv[resolved.envVar] = resolved.token;
+  }
+
+  // Meter proxy integration — set ANTHROPIC_BASE_URL if proxy is alive
+  if (!opts.meterOff) {
+    const md = meterDir(opts.mechaDir);
+    const proxyInfo = readProxyInfo(md);
+    if (proxyInfo) {
+      if (isPidAlive(proxyInfo.pid)) {
+        childEnv["ANTHROPIC_BASE_URL"] = `http://127.0.0.1:${proxyInfo.port}/casa/${name}`;
+      } else if (proxyInfo.required) {
+        throw new MeterProxyRequiredError();
+      } else {
+        console.error("[mecha] Meter proxy is not running (stale proxy.json), skipping metering");
+      }
+    }
   }
 
   return { homeDir, tmpDir, logsDir, projectsDir, childEnv };
