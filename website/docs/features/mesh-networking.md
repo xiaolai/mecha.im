@@ -33,7 +33,7 @@ This generates an Ed25519 keypair for your node's cryptographic identity.
 ### Add a Remote Node
 
 ```bash
-mecha node add bob --host 192.168.1.50 --port 7660 --api-key secret-key
+mecha node add bob 192.168.1.50 --port 7660 --api-key secret-key
 ```
 
 ### List Known Nodes

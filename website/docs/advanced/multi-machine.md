@@ -46,10 +46,10 @@ Each machine registers the other as a known node:
 
 ```bash
 # On alice — register bob
-mecha node add bob --host 192.168.1.50 --port 7660 --api-key shared-secret-bob
+mecha node add bob 192.168.1.50 --port 7660 --api-key shared-secret-bob
 
 # On bob — register alice
-mecha node add alice --host 192.168.1.100 --port 7660 --api-key shared-secret-alice
+mecha node add alice 192.168.1.100 --port 7660 --api-key shared-secret-alice
 ```
 
 ## Step 4: Spawn Agents

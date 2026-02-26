@@ -65,7 +65,7 @@ mecha budget set --global --daily 10.00
 mecha budget set --global --monthly 100.00
 
 # Set a per-CASA budget
-mecha budget set --casa researcher --daily 2.00
+mecha budget set researcher --daily 2.00
 
 # Set a per-auth-profile budget
 mecha budget set --auth mykey --daily 5.00
@@ -78,7 +78,7 @@ mecha budget ls
 
 # Remove a budget
 mecha budget rm --global --daily
-mecha budget rm --casa researcher --daily
+mecha budget rm researcher --daily
 ```
 
 ### Budget Enforcement

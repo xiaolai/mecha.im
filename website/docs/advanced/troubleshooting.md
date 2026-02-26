@@ -107,7 +107,7 @@ The OS sandbox runtime isn't installed:
 - **macOS**: `sandbox-exec` should be available by default
 - **Linux**: Install `bwrap` (bubblewrap): `apt install bubblewrap`
 
-In `auto` mode, Mecha will warn and continue without sandbox. In `strict` mode, spawn will fail.
+In `auto` mode, Mecha will warn and continue without sandbox. In `require` mode, spawn will fail.
 
 ### Agent can't access workspace files
 

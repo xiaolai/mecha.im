@@ -220,7 +220,7 @@ mecha node init [--name <name>]
 Register a remote node.
 
 ```bash
-mecha node add <name> --host <host> --port <port> --api-key <key>
+mecha node add <name> <host> [--port <port>] --api-key <key>
 ```
 
 ### `mecha node ls`
@@ -258,8 +258,12 @@ mecha agent start [options]
 Check agent server status.
 
 ```bash
-mecha agent status
+mecha agent status [--port <port>]
 ```
+
+| Option | Description |
+|--------|-------------|
+| `--port <port>` | Agent server port (default: `7660`) |
 
 ---
 
@@ -285,10 +289,10 @@ mecha schedule add researcher --id check-papers --every 1h --prompt "Check for n
 
 ### `mecha schedule list`
 
-List all schedules.
+List all schedules for a CASA.
 
 ```bash
-mecha schedule list
+mecha schedule list <casa>
 ```
 
 ### `mecha schedule pause / resume`
@@ -305,13 +309,13 @@ Omit `schedule-id` to pause/resume all schedules on a CASA.
 Run a schedule immediately.
 
 ```bash
-mecha schedule run <schedule-id>
+mecha schedule run <casa> <schedule-id>
 ```
 
 ### `mecha schedule remove`
 
 ```bash
-mecha schedule remove <schedule-id>
+mecha schedule remove <casa> <schedule-id>
 ```
 
 ### `mecha schedule history`
@@ -319,8 +323,12 @@ mecha schedule remove <schedule-id>
 View past runs.
 
 ```bash
-mecha schedule history <schedule-id>
+mecha schedule history <casa> <schedule-id> [--limit <n>]
 ```
+
+| Option | Description |
+|--------|-------------|
+| `--limit <n>` | Maximum entries to show (default: 20) |
 
 ---
 
@@ -370,17 +378,16 @@ Optionally pass a CASA name to show costs for a single agent.
 Set a spending limit.
 
 ```bash
-mecha budget set --daily <amount> [--monthly <amount>] [options]
+mecha budget set [name] --daily <amount> [--monthly <amount>] [options]
 ```
 
 | Option | Description |
 |--------|-------------|
 | `--daily <amount>` | Daily spending limit |
 | `--monthly <amount>` | Monthly spending limit |
-| `--global` | Set as a global budget |
-| `--casa <name>` | Set budget for a specific CASA |
-| `--auth <profile>` | Set budget for an auth profile |
-| `--tag <tag>` | Set budget for a tag group |
+| `--global` | Set as a global budget (omit name) |
+| `--auth <profile>` | Set budget for an auth profile (omit name) |
+| `--tag <tag>` | Set budget for a tag group (omit name) |
 
 ### `mecha budget ls`
 
@@ -395,17 +402,16 @@ mecha budget ls
 Remove a budget.
 
 ```bash
-mecha budget rm --daily [--monthly] [options]
+mecha budget rm [name] --daily [--monthly] [options]
 ```
 
 | Option | Description |
 |--------|-------------|
 | `--daily` | Remove daily limit |
 | `--monthly` | Remove monthly limit |
-| `--global` | Remove global budget |
-| `--casa <name>` | Remove budget for a specific CASA |
-| `--auth <profile>` | Remove budget for an auth profile |
-| `--tag <tag>` | Remove budget for a tag group |
+| `--global` | Remove global budget (omit name) |
+| `--auth <profile>` | Remove budget for an auth profile (omit name) |
+| `--tag <tag>` | Remove budget for a tag group (omit name) |
 
 ---
 

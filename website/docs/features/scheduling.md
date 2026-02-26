@@ -17,8 +17,8 @@ The `--every` accepts human-readable intervals (`30s`, `5m`, `1h`). The `--promp
 ## Managing Schedules
 
 ```bash
-# List all schedules
-mecha schedule list
+# List all schedules for a CASA
+mecha schedule list <casa>
 
 # Pause a schedule on a CASA
 mecha schedule pause <casa> <schedule-id>
@@ -30,17 +30,17 @@ mecha schedule pause <casa>
 mecha schedule resume <casa> <schedule-id>
 
 # Run immediately (outside schedule)
-mecha schedule run <schedule-id>
+mecha schedule run <casa> <schedule-id>
 
 # Remove a schedule
-mecha schedule remove <schedule-id>
+mecha schedule remove <casa> <schedule-id>
 ```
 
 ## Run History
 
 ```bash
 # View past runs
-mecha schedule history <schedule-id>
+mecha schedule history <casa> <schedule-id>
 ```
 
 Shows timestamps, outcomes (success/failure), and response summaries for each execution.
