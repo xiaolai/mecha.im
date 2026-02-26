@@ -4,13 +4,14 @@ import { casaName, readCasaConfig, loadCasaIdentity } from "@mecha/core";
 import { casaStatus } from "@mecha/service";
 import { readState } from "@mecha/process";
 import { join } from "node:path";
+import { withErrorHandler } from "../error-handler.js";
 
 export function registerStatusCommand(program: Command, deps: CommandDeps): void {
   program
     .command("status")
     .description("Show CASA status")
     .argument("<name>", "CASA name")
-    .action(async (name: string) => {
+    .action(async (name: string) => withErrorHandler(deps, async () => {
       const validated = casaName(name);
       const info = casaStatus(deps.processManager, validated);
       const { token: _token, ...safeInfo } = info;
@@ -57,6 +58,13 @@ export function registerStatusCommand(program: Command, deps: CommandDeps): void
         enriched.sandboxMode = state.sandboxMode;
       }
 
-      deps.formatter.json(enriched);
-    });
+      if (deps.formatter.isJson) {
+        deps.formatter.json(enriched);
+      } else {
+        deps.formatter.table(
+          ["Field", "Value"],
+          Object.entries(enriched).map(([k, v]) => [k, Array.isArray(v) ? v.join(", ") : String(v ?? "-")]),
+        );
+      }
+    }));
 }

@@ -11,6 +11,8 @@ export function createFormatter(opts: FormatterOptions = {}): Formatter {
   }
 
   return {
+    isJson: json,
+
     success(msg: string): void {
       if (json) return;
       write("stdout", msg);

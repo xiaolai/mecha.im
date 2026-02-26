@@ -1,16 +1,18 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { DEFAULTS, parsePort } from "@mecha/core";
+import { withErrorHandler } from "../error-handler.js";
 
 export function registerAgentStatusCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("status")
     .description("Check if the agent server is running")
     .option("--port <port>", "Agent server port", String(DEFAULTS.AGENT_PORT))
-    .action(async (opts: { port: string }) => {
+    .action(async (opts: { port: string }) => withErrorHandler(deps, async () => {
       const port = parsePort(opts.port);
       if (port === undefined) {
         deps.formatter.error(`Invalid port: ${opts.port}`);
+        process.exitCode = 1;
         return;
       }
       try {
@@ -22,9 +24,11 @@ export function registerAgentStatusCommand(parent: Command, deps: CommandDeps): 
           deps.formatter.success(`Agent server running on port ${port} (node: ${data.node})`);
         } else {
           deps.formatter.error(`Agent server returned HTTP ${res.status}`);
+          process.exitCode = 1;
         }
       } catch {
         deps.formatter.error(`Agent server not reachable on port ${port}`);
+        process.exitCode = 1;
       }
-    });
+    }));
 }

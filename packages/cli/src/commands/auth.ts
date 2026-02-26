@@ -10,6 +10,7 @@ import {
   mechaAuthTest,
   mechaAuthRenew,
 } from "@mecha/service";
+import { withErrorHandler } from "../error-handler.js";
 
 export function registerAuthCommand(program: Command, deps: CommandDeps): void {
   const auth = program
@@ -24,7 +25,7 @@ export function registerAuthCommand(program: Command, deps: CommandDeps): void {
     .option("--api-key", "API key type")
     .option("--token <token>", "Token value")
     .option("--tag <tags...>", "Tags for the profile")
-    .action(async (name: string, opts: { oauth?: boolean; apiKey?: boolean; token?: string; tag?: string[] }) => {
+    .action(async (name: string, opts: { oauth?: boolean; apiKey?: boolean; token?: string; tag?: string[] }) => withErrorHandler(deps, async () => {
       if (opts.oauth && opts.apiKey) {
         deps.formatter.error("Cannot use both --oauth and --api-key");
         process.exitCode = 1;
@@ -42,12 +43,12 @@ export function registerAuthCommand(program: Command, deps: CommandDeps): void {
       if (profile.isDefault) {
         deps.formatter.info("Set as default profile");
       }
-    });
+    }));
 
   auth
     .command("ls")
     .description("List auth profiles")
-    .action(async () => {
+    .action(async () => withErrorHandler(deps, async () => {
       const profiles = mechaAuthLs(deps.mechaDir);
       if (profiles.length === 0) {
         deps.formatter.info("No auth profiles");
@@ -57,50 +58,50 @@ export function registerAuthCommand(program: Command, deps: CommandDeps): void {
         ["Name", "Type", "Default", "Tags"],
         profiles.map((p) => [p.name, p.type, p.isDefault ? "✓" : "", p.tags.join(", ")]),
       );
-    });
+    }));
 
   auth
     .command("default")
     .description("Set default auth profile")
     .argument("<name>", "Profile name")
-    .action(async (name: string) => {
+    .action(async (name: string) => withErrorHandler(deps, async () => {
       mechaAuthDefault(deps.mechaDir, name);
       deps.formatter.success(`Default profile set to "${name}"`);
-    });
+    }));
 
   auth
     .command("rm")
     .description("Remove an auth profile")
     .argument("<name>", "Profile name")
-    .action(async (name: string) => {
+    .action(async (name: string) => withErrorHandler(deps, async () => {
       mechaAuthRm(deps.mechaDir, name);
       deps.formatter.success(`Removed auth profile "${name}"`);
-    });
+    }));
 
   auth
     .command("tag")
     .description("Set tags on an auth profile")
     .argument("<name>", "Profile name")
     .argument("<tags...>", "Tags")
-    .action(async (name: string, tags: string[]) => {
+    .action(async (name: string, tags: string[]) => withErrorHandler(deps, async () => {
       mechaAuthTag(deps.mechaDir, name, tags);
       deps.formatter.success(`Tags updated for "${name}"`);
-    });
+    }));
 
   auth
     .command("switch")
     .description("Switch active auth profile")
     .argument("<name>", "Profile name")
-    .action(async (name: string) => {
+    .action(async (name: string) => withErrorHandler(deps, async () => {
       const profile = mechaAuthSwitch(deps.mechaDir, name);
       deps.formatter.success(`Switched to "${profile.name}"`);
-    });
+    }));
 
   auth
     .command("test")
     .description("Test an auth profile")
     .argument("<name>", "Profile name")
-    .action(async (name: string) => {
+    .action(async (name: string) => withErrorHandler(deps, async () => {
       const result = mechaAuthTest(deps.mechaDir, name);
       if (result.valid) {
         deps.formatter.success(`Profile "${name}" is valid`);
@@ -108,15 +109,15 @@ export function registerAuthCommand(program: Command, deps: CommandDeps): void {
         deps.formatter.error(`Profile "${name}" has invalid token`);
         process.exitCode = 1;
       }
-    });
+    }));
 
   auth
     .command("renew")
     .description("Renew token for an auth profile")
     .argument("<name>", "Profile name")
     .argument("<token>", "New token value")
-    .action(async (name: string, token: string) => {
+    .action(async (name: string, token: string) => withErrorHandler(deps, async () => {
       mechaAuthRenew(deps.mechaDir, name, token);
       deps.formatter.success(`Token renewed for "${name}"`);
-    });
+    }));
 }

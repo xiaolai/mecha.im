@@ -12,7 +12,10 @@ describe("node commands", () => {
   beforeEach(() => {
     mechaDir = mkdtempSync(join(tmpdir(), "mecha-cli-node-"));
   });
-  afterEach(() => { rmSync(mechaDir, { recursive: true, force: true }); });
+  afterEach(() => {
+    rmSync(mechaDir, { recursive: true, force: true });
+    process.exitCode = undefined as unknown as number;
+  });
 
   describe("node init", () => {
     it("initializes with auto-generated name", async () => {
@@ -74,15 +77,15 @@ describe("node commands", () => {
       );
     });
 
-    it("rejects duplicate node name", async () => {
+    it("reports error for duplicate node name", async () => {
       const deps = makeDeps({ mechaDir });
       const program = createProgram(deps);
       program.exitOverride();
 
       await program.parseAsync(["node", "mecha", "node", "add", "bob", "192.168.1.10", "--api-key", "k"]);
-      await expect(
-        program.parseAsync(["node", "mecha", "node", "add", "bob", "192.168.1.20", "--api-key", "k"]),
-      ).rejects.toThrow(/already registered/);
+      await program.parseAsync(["node", "mecha", "node", "add", "bob", "192.168.1.20", "--api-key", "k"]);
+      expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringMatching(/already registered/));
+      expect(process.exitCode).toBe(1);
     });
   });
 
@@ -98,14 +101,14 @@ describe("node commands", () => {
       expect(readNodes(mechaDir)).toHaveLength(0);
     });
 
-    it("throws when node not found", async () => {
+    it("reports error when node not found", async () => {
       const deps = makeDeps({ mechaDir });
       const program = createProgram(deps);
       program.exitOverride();
 
-      await expect(
-        program.parseAsync(["node", "mecha", "node", "rm", "ghost"]),
-      ).rejects.toThrow(/not found/);
+      await program.parseAsync(["node", "mecha", "node", "rm", "ghost"]);
+      expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringMatching(/not found/));
+      expect(process.exitCode).toBe(1);
     });
   });
 

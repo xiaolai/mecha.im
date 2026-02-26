@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { casaName } from "@mecha/core";
+import { withErrorHandler } from "../error-handler.js";
 
 export function registerSandboxCommand(program: Command, deps: CommandDeps): void {
   const sandbox = program
@@ -13,7 +14,7 @@ export function registerSandboxCommand(program: Command, deps: CommandDeps): voi
     .command("show")
     .description("Show sandbox profile for a CASA")
     .argument("<name>", "CASA name")
-    .action(async (name: string) => {
+    .action(async (name: string) => withErrorHandler(deps, async () => {
       const validated = casaName(name);
       const profilePath = join(deps.mechaDir, validated, "sandbox-profile.json");
       if (!existsSync(profilePath)) {
@@ -28,5 +29,5 @@ export function registerSandboxCommand(program: Command, deps: CommandDeps): voi
         deps.formatter.error(`Failed to read sandbox profile for "${validated}"`);
         process.exitCode = 1;
       }
-    });
+    }));
 }

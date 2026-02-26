@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { addNode, DEFAULTS, parsePort } from "@mecha/core";
+import { withErrorHandler } from "../error-handler.js";
 
 export function registerNodeAddCommand(parent: Command, deps: CommandDeps): void {
   parent
@@ -10,7 +11,7 @@ export function registerNodeAddCommand(parent: Command, deps: CommandDeps): void
     .argument("<host>", "Peer node hostname or IP")
     .option("--port <port>", "Agent server port", String(DEFAULTS.AGENT_PORT))
     .requiredOption("--api-key <key>", "API key for authentication (required)")
-    .action((name: string, host: string, opts: { port: string; apiKey: string }) => {
+    .action(async (name: string, host: string, opts: { port: string; apiKey: string }) => withErrorHandler(deps, async () => {
       const port = parsePort(opts.port);
       if (port === undefined) {
         deps.formatter.error(`Invalid port: ${opts.port}`);
@@ -25,5 +26,5 @@ export function registerNodeAddCommand(parent: Command, deps: CommandDeps): void
         addedAt: new Date().toISOString(),
       });
       deps.formatter.success(`Node added: ${name} (${host}:${opts.port})`);
-    });
+    }));
 }

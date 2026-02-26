@@ -2,6 +2,7 @@ import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { casaName, validateTags, validateCapabilities } from "@mecha/core";
 import { casaConfigure } from "@mecha/service";
+import { withErrorHandler } from "../error-handler.js";
 
 export function registerConfigureCommand(program: Command, deps: CommandDeps): void {
   program
@@ -10,7 +11,7 @@ export function registerConfigureCommand(program: Command, deps: CommandDeps): v
     .argument("<name>", "CASA name")
     .option("--tags <tags>", "Comma-separated tags")
     .option("--expose <caps>", "Comma-separated capabilities to expose")
-    .action((name: string, opts: { tags?: string; expose?: string }) => {
+    .action(async (name: string, opts: { tags?: string; expose?: string }) => withErrorHandler(deps, async () => {
       const validated = casaName(name);
       const updates: { tags?: string[]; expose?: string[] } = {};
       if (opts.tags) {
@@ -37,5 +38,5 @@ export function registerConfigureCommand(program: Command, deps: CommandDeps): v
       }
       casaConfigure(deps.mechaDir, deps.processManager, validated, updates);
       deps.formatter.success(`${validated} updated`);
-    });
+    }));
 }

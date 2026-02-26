@@ -72,6 +72,7 @@ describe("createProgram", () => {
     expect(commandNames).toContain("doctor");
     expect(commandNames).toContain("spawn");
     expect(commandNames).toContain("kill");
+    expect(commandNames).toContain("stop");
     expect(commandNames).toContain("ls");
     expect(commandNames).toContain("status");
     expect(commandNames).toContain("logs");

@@ -14,7 +14,10 @@ vi.mock("@mecha/service", async (importOriginal) => {
 });
 
 describe("agent commands", () => {
-  afterEach(() => { vi.restoreAllMocks(); });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    process.exitCode = undefined as unknown as number;
+  });
 
   describe("agent start", () => {
     it("starts the agent server with defaults", async () => {
@@ -46,7 +49,7 @@ describe("agent commands", () => {
 
       await expect(
         program.parseAsync(["node", "mecha", "agent", "start"]),
-      ).rejects.toThrow();
+      ).rejects.toThrow(); // Commander throws on missing required option --api-key
     });
 
     it("errors when api key is empty/whitespace", async () => {
@@ -114,6 +117,7 @@ describe("agent commands", () => {
       expect(deps.formatter.error).toHaveBeenCalledWith(
         expect.stringContaining("Invalid port"),
       );
+      expect(process.exitCode).toBe(1);
     });
 
     it("reports not reachable when fetch fails", async () => {
@@ -127,6 +131,7 @@ describe("agent commands", () => {
       expect(deps.formatter.error).toHaveBeenCalledWith(
         expect.stringContaining("not reachable"),
       );
+      expect(process.exitCode).toBe(1);
     });
 
     it("reports error when healthz returns non-OK", async () => {
@@ -140,6 +145,7 @@ describe("agent commands", () => {
       expect(deps.formatter.error).toHaveBeenCalledWith(
         expect.stringContaining("HTTP 500"),
       );
+      expect(process.exitCode).toBe(1);
     });
   });
 });

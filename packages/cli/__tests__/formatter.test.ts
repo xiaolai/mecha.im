@@ -48,6 +48,18 @@ describe("createFormatter", () => {
     });
   });
 
+  describe("isJson", () => {
+    it("is false by default", () => {
+      const fmt = createFormatter();
+      expect(fmt.isJson).toBe(false);
+    });
+
+    it("is true in json mode", () => {
+      const fmt = createFormatter({ json: true });
+      expect(fmt.isJson).toBe(true);
+    });
+  });
+
   describe("json mode", () => {
     it("success is suppressed", () => {
       const fmt = createFormatter({ json: true });

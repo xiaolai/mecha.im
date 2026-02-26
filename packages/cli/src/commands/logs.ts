@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { casaName } from "@mecha/core";
+import { withErrorHandler } from "../error-handler.js";
 export function registerLogsCommand(program: Command, deps: CommandDeps): void {
   program
     .command("logs")
@@ -8,7 +9,7 @@ export function registerLogsCommand(program: Command, deps: CommandDeps): void {
     .argument("<name>", "CASA name")
     .option("-f, --follow", "Follow log output")
     .option("-n, --tail <lines>", "Number of lines to show")
-    .action(async (name: string, opts: { follow?: boolean; tail?: string }) => {
+    .action(async (name: string, opts: { follow?: boolean; tail?: string }) => withErrorHandler(deps, async () => {
       const validated = casaName(name);
       const tail = opts.tail ? Number(opts.tail) : undefined;
       if (opts.tail && (!Number.isInteger(tail) || tail! < 1)) {
@@ -29,5 +30,5 @@ export function registerLogsCommand(program: Command, deps: CommandDeps): void {
         stream.on("error", (err) => reject(err));
         /* v8 ignore stop */
       });
-    });
+    }));
 }
