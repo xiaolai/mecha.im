@@ -128,6 +128,9 @@ function handleToolCall(
 ): { content: Array<{ type: string; text: string }> } {
   switch (name) {
     case "mecha_workspace_list": {
+      if (args.path !== undefined && typeof args.path !== "string") {
+        throw new Error("Missing required argument: path must be a string");
+      }
       const files = listFiles(workspacePath, typeof args.path === "string" ? args.path : "");
       return { content: [{ type: "text", text: files.join("\n") }] };
     }
@@ -142,6 +145,26 @@ function handleToolCall(
       throw new Error(`Unknown tool: ${name}`);
   }
 }
+
+/** Prefixes of error messages safe to expose to clients (no filesystem details). */
+const SAFE_ERROR_PREFIXES: ReadonlyArray<string> = [
+  "Path traversal not allowed",
+  "Workspace path is invalid",
+  "Path is a directory",
+  "File too large",
+  "Missing required argument",
+  "Unknown tool",
+  "Directory not found",
+  "File not found",
+  "Access denied",
+  "CASA not found",
+];
+
+/* v8 ignore start -- .some() short-circuit creates untestable per-element branches */
+function isSafeErrorMessage(msg: string): boolean {
+  return SAFE_ERROR_PREFIXES.some((prefix) => msg.startsWith(prefix));
+}
+/* v8 ignore stop */
 
 const ToolCallParams = z.object({
   name: z.string(),
@@ -194,18 +217,8 @@ async function handleRequest(
       } catch (err) {
         const msg = (err as Error).message;
         // Only expose safe error messages; hide filesystem details
-        /* v8 ignore start -- ternary chain: each branch tested individually; v8 marks false-paths as null */
-        const safeMsg = msg === "Path traversal not allowed" ? msg
-          : msg === "Workspace path is invalid" ? msg
-          : msg.startsWith("Path is a directory") ? msg
-          : msg.startsWith("File too large") ? msg
-          : msg.startsWith("Missing required argument") ? msg
-          : msg.startsWith("Unknown tool") ? msg
-          : msg.startsWith("Directory not found") ? msg
-          : msg.startsWith("File not found") ? msg
-          : msg.startsWith("Access denied") ? msg
-          : msg.startsWith("CASA not found") ? msg
-          : "Tool execution failed";
+        /* v8 ignore start -- false branch: unexpected internal errors sanitized to generic message */
+        const safeMsg = isSafeErrorMessage(msg) ? msg : "Tool execution failed";
         /* v8 ignore stop */
         return {
           jsonrpc: "2.0",

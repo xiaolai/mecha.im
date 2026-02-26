@@ -6,6 +6,12 @@ describe("isPrivateHost", () => {
     expect(isPrivateHost("localhost")).toBe(true);
   });
 
+  it("detects localhost variants (case, trailing dot)", () => {
+    expect(isPrivateHost("LOCALHOST")).toBe(true);
+    expect(isPrivateHost("Localhost")).toBe(true);
+    expect(isPrivateHost("localhost.")).toBe(true);
+  });
+
   it("detects loopback IPv4", () => {
     expect(isPrivateHost("127.0.0.1")).toBe(true);
     expect(isPrivateHost("127.255.255.255")).toBe(true);
@@ -35,6 +41,10 @@ describe("isPrivateHost", () => {
     expect(isPrivateHost("::1")).toBe(true);
   });
 
+  it("detects IPv6 unspecified", () => {
+    expect(isPrivateHost("::")).toBe(true);
+  });
+
   it("detects IPv6 link-local", () => {
     expect(isPrivateHost("fe80::1")).toBe(true);
   });
@@ -42,6 +52,21 @@ describe("isPrivateHost", () => {
   it("detects IPv6 unique local", () => {
     expect(isPrivateHost("fc00::1")).toBe(true);
     expect(isPrivateHost("fd12::1")).toBe(true);
+  });
+
+  it("detects IPv4-mapped IPv6 (::ffff:127.0.0.1)", () => {
+    expect(isPrivateHost("::ffff:127.0.0.1")).toBe(true);
+    expect(isPrivateHost("::ffff:192.168.1.1")).toBe(true);
+    expect(isPrivateHost("::ffff:10.0.0.1")).toBe(true);
+  });
+
+  it("allows public IPv4-mapped IPv6", () => {
+    expect(isPrivateHost("::ffff:203.0.113.1")).toBe(false);
+  });
+
+  it("detects bracketed IPv6 loopback ([::1])", () => {
+    expect(isPrivateHost("[::1]")).toBe(true);
+    expect(isPrivateHost("[::ffff:127.0.0.1]")).toBe(true);
   });
 
   it("allows public hostnames", () => {
@@ -55,6 +80,10 @@ describe("validateRemoteHost", () => {
     expect(() => validateRemoteHost("127.0.0.1")).toThrow("private/loopback");
     expect(() => validateRemoteHost("localhost")).toThrow("private/loopback");
     expect(() => validateRemoteHost("192.168.1.1")).toThrow("private/loopback");
+  });
+
+  it("throws for IPv4-mapped IPv6 private hosts", () => {
+    expect(() => validateRemoteHost("::ffff:127.0.0.1")).toThrow("private/loopback");
   });
 
   it("allows public hosts", () => {

@@ -1,16 +1,15 @@
 import { isIP } from "node:net";
 
 /**
- * Private/reserved IPv4 ranges.
- * Blocks: loopback, link-local, private networks, broadcast.
+ * Private/reserved IPv4 ranges as start–end numeric pairs.
  */
-const PRIVATE_IPV4_RANGES: Array<{ prefix: string; bits: number; start: number; end: number }> = [
-  { prefix: "127.", bits: 8, start: 0x7F000000, end: 0x7FFFFFFF },    // 127.0.0.0/8 loopback
-  { prefix: "10.", bits: 8, start: 0x0A000000, end: 0x0AFFFFFF },     // 10.0.0.0/8
-  { prefix: "172.", bits: 12, start: 0xAC100000, end: 0xAC1FFFFF },   // 172.16.0.0/12
-  { prefix: "192.168.", bits: 16, start: 0xC0A80000, end: 0xC0A8FFFF }, // 192.168.0.0/16
-  { prefix: "169.254.", bits: 16, start: 0xA9FE0000, end: 0xA9FEFFFF }, // 169.254.0.0/16 link-local
-  { prefix: "0.", bits: 8, start: 0x00000000, end: 0x00FFFFFF },      // 0.0.0.0/8
+const PRIVATE_IPV4_RANGES: ReadonlyArray<{ start: number; end: number }> = [
+  { start: 0x7F000000, end: 0x7FFFFFFF },    // 127.0.0.0/8 loopback
+  { start: 0x0A000000, end: 0x0AFFFFFF },     // 10.0.0.0/8
+  { start: 0xAC100000, end: 0xAC1FFFFF },     // 172.16.0.0/12
+  { start: 0xC0A80000, end: 0xC0A8FFFF },     // 192.168.0.0/16
+  { start: 0xA9FE0000, end: 0xA9FEFFFF },     // 169.254.0.0/16 link-local
+  { start: 0x00000000, end: 0x00FFFFFF },      // 0.0.0.0/8
 ];
 
 function ipv4ToNumber(ip: string): number {
@@ -23,12 +22,42 @@ function isPrivateIPv4(ip: string): boolean {
   return PRIVATE_IPV4_RANGES.some((r) => num >= r.start && num <= r.end);
 }
 
+/** Extract embedded IPv4 from IPv4-mapped IPv6 (::ffff:a.b.c.d) */
+function extractMappedIPv4(ip: string): string | null {
+  const lower = ip.toLowerCase();
+  const match = lower.match(/^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/);
+  return match ? match[1]! : null;
+}
+
 function isPrivateIPv6(ip: string): boolean {
   const normalized = ip.toLowerCase();
+
+  // Check IPv4-mapped IPv6 addresses (::ffff:127.0.0.1)
+  const mapped = extractMappedIPv4(normalized);
+  if (mapped) return isPrivateIPv4(mapped);
+
   return normalized === "::1"             // loopback
+    || normalized === "::"                // unspecified
     || normalized.startsWith("fe80:")     // link-local
     || normalized.startsWith("fc")        // unique local fc00::/7
     || normalized.startsWith("fd");       // unique local fd00::/8
+}
+
+/**
+ * Canonicalize a host string before validation.
+ * Strips brackets from IPv6 literals, lowercases, removes trailing dots.
+ */
+function canonicalizeHost(host: string): string {
+  let h = host.trim().toLowerCase();
+  // Strip bracketed IPv6 (e.g. [::1])
+  if (h.startsWith("[") && h.endsWith("]")) {
+    h = h.slice(1, -1);
+  }
+  // Remove trailing dot from hostnames (e.g. localhost.)
+  if (h.endsWith(".") && !h.includes(":")) {
+    h = h.slice(0, -1);
+  }
+  return h;
 }
 
 /**
@@ -37,10 +66,11 @@ function isPrivateIPv6(ip: string): boolean {
  * are not caught here — DNS resolution is out of scope for a sync check.
  */
 export function isPrivateHost(host: string): boolean {
-  if (host === "localhost") return true;
+  const canonical = canonicalizeHost(host);
+  if (canonical === "localhost") return true;
 
-  if (isIP(host) === 4) return isPrivateIPv4(host);
-  if (isIP(host) === 6) return isPrivateIPv6(host);
+  if (isIP(canonical) === 4) return isPrivateIPv4(canonical);
+  if (isIP(canonical) === 6) return isPrivateIPv6(canonical);
 
   // Hostname — cannot validate without DNS resolution; allow
   return false;

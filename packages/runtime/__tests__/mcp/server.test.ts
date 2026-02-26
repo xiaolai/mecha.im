@@ -135,6 +135,17 @@ describe("MCP routes", () => {
       const { content } = res.json().result;
       expect(content[0].text).toContain("hello.txt");
     });
+
+    it("returns error when path argument is wrong type", async () => {
+      const res = await rpc("tools/call", {
+        name: "mecha_workspace_list",
+        arguments: { path: 42 },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json().result;
+      expect(body.isError).toBe(true);
+      expect(body.content[0].text).toContain("Missing required argument");
+    });
   });
 
   describe("tools/call — mecha_workspace_read", () => {
