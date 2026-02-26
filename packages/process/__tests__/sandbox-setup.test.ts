@@ -2,18 +2,6 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync, existsSync, readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-
-vi.mock("@mecha/core", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@mecha/core")>();
-  return {
-    ...actual,
-    loadNodeIdentity: vi.fn().mockReturnValue(null),
-    loadNodePrivateKey: vi.fn().mockReturnValue(null),
-    createCasaIdentity: vi.fn(),
-    CASA_CONFIG_VERSION: 1,
-  };
-});
-
 import { prepareCasaFilesystem, encodeProjectPath, type CasaFilesystemOpts } from "../src/sandbox-setup.js";
 
 describe("sandbox-setup", () => {

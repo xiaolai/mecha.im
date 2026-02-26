@@ -1,14 +1,17 @@
 import { readdirSync, readFileSync, statSync, realpathSync } from "node:fs";
 import { join, relative, isAbsolute } from "node:path";
+import { z } from "zod";
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { MESH_TOOLS, handleMeshTool, type MeshOpts, type MeshRouter } from "./mesh-tools.js";
 
-interface JsonRpcRequest {
-  jsonrpc: "2.0";
-  id?: string | number | null;
-  method: string;
-  params?: Record<string, unknown>;
-}
+const JsonRpcRequestSchema = z.object({
+  jsonrpc: z.literal("2.0"),
+  id: z.union([z.string(), z.number(), z.null()]).optional(),
+  method: z.string(),
+  params: z.record(z.unknown()).optional(),
+});
+
+type JsonRpcRequest = z.infer<typeof JsonRpcRequestSchema>;
 
 interface JsonRpcResponse {
   jsonrpc: "2.0";
@@ -125,17 +128,25 @@ function handleToolCall(
 ): { content: Array<{ type: string; text: string }> } {
   switch (name) {
     case "mecha_workspace_list": {
-      const files = listFiles(workspacePath, (args.path as string) ?? "");
+      const files = listFiles(workspacePath, typeof args.path === "string" ? args.path : "");
       return { content: [{ type: "text", text: files.join("\n") }] };
     }
     case "mecha_workspace_read": {
-      const text = readFile(workspacePath, args.path as string);
+      if (typeof args.path !== "string" || !args.path) {
+        throw new Error("Missing required argument: path");
+      }
+      const text = readFile(workspacePath, args.path);
       return { content: [{ type: "text", text }] };
     }
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
 }
+
+const ToolCallParams = z.object({
+  name: z.string(),
+  arguments: z.record(z.unknown()).default({}),
+});
 
 const MESH_TOOL_NAMES = new Set(MESH_TOOLS.map((t) => t.name));
 
@@ -167,9 +178,11 @@ async function handleRequest(
       return { jsonrpc: "2.0", id, result: { tools: allTools } };
 
     case "tools/call": {
-      const params = req.params ?? {};
-      const name = params.name as string;
-      const args = (params.arguments as Record<string, unknown>) ?? {};
+      const parseResult = ToolCallParams.safeParse(req.params ?? {});
+      if (!parseResult.success) {
+        return { jsonrpc: "2.0" as const, id, error: { code: -32602, message: "Invalid tool call params: name (string) is required" } };
+      }
+      const { name, arguments: args } = parseResult.data;
       try {
         // Mesh tools are async and handled separately
         if (isMeshTool(name) && meshOpts) {
@@ -186,6 +199,7 @@ async function handleRequest(
           : msg === "Workspace path is invalid" ? msg
           : msg.startsWith("Path is a directory") ? msg
           : msg.startsWith("File too large") ? msg
+          : msg.startsWith("Missing required argument") ? msg
           : msg.startsWith("Unknown tool") ? msg
           : msg.startsWith("Directory not found") ? msg
           : msg.startsWith("File not found") ? msg
@@ -227,12 +241,12 @@ export function registerMcpRoutes(app: FastifyInstance, opts: McpRouteOpts): voi
       : undefined;
 
   app.post("/mcp", async (request: FastifyRequest, reply: FastifyReply) => {
-    const body = request.body as JsonRpcRequest;
-    if (!body || body.jsonrpc !== "2.0" || !body.method) {
+    const parseResult = JsonRpcRequestSchema.safeParse(request.body);
+    if (!parseResult.success) {
       reply.code(400).send({ jsonrpc: "2.0", id: null, error: { code: -32600, message: "Invalid JSON-RPC request" } });
       return;
     }
-    const response = await handleRequest(opts.workspacePath, meshOpts, body);
+    const response = await handleRequest(opts.workspacePath, meshOpts, parseResult.data);
     return response;
   });
 }

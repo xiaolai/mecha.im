@@ -157,6 +157,17 @@ describe("MCP routes", () => {
       expect(res.json().result.content[0].text).toBe("nested content");
     });
 
+    it("returns error when path is missing", async () => {
+      const res = await rpc("tools/call", {
+        name: "mecha_workspace_read",
+        arguments: {},
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json().result;
+      expect(body.isError).toBe(true);
+      expect(body.content[0].text).toContain("Missing required argument: path");
+    });
+
     it("returns error for nonexistent file", async () => {
       const res = await rpc("tools/call", {
         name: "mecha_workspace_read",
@@ -265,17 +276,17 @@ describe("MCP routes", () => {
   });
 
   describe("tools/call without params", () => {
-    it("defaults to empty params", async () => {
+    it("rejects when name is missing", async () => {
       const res = await app.inject({
         method: "POST",
         url: "/mcp",
         payload: { jsonrpc: "2.0", id: 1, method: "tools/call" },
       });
       expect(res.statusCode).toBe(200);
-      // No name provided → unknown tool error
-      const body = res.json().result;
-      expect(body.isError).toBe(true);
-      expect(body.content[0].text).toContain("Unknown tool");
+      // Zod validation rejects missing name field
+      const body = res.json();
+      expect(body.error.code).toBe(-32602);
+      expect(body.error.message).toContain("name");
     });
   });
 
