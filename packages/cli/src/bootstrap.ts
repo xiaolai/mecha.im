@@ -5,7 +5,7 @@ import { createFormatter } from "./formatter.js";
 import { createProcessManager, type CreateProcessManagerOpts } from "@mecha/process";
 import { createAclEngine, CliAlreadyRunningError, MechaError } from "@mecha/core";
 import { createSandbox } from "@mecha/sandbox";
-import { acquireCliLock, readCliLock, releaseCliLock } from "./cli-lock.js";
+import { acquireCliLock, needsLock, readCliLock, releaseCliLock } from "./cli-lock.js";
 import type { CommandDeps } from "./types.js";
 
 export interface BootstrapOpts {
@@ -28,8 +28,10 @@ export function bootstrap(opts: BootstrapOpts): void {
 
   const mechaDir = process.env.MECHA_DIR ?? join(homedir(), ".mecha");
 
-  // Singleton guard — only one CLI instance at a time
-  if (!acquireCliLock(mechaDir)) {
+  // Singleton guard — only mutating commands need the lock.
+  // Read-only commands (ls, status, logs, cost, etc.) always run freely.
+  const locked = needsLock(process.argv);
+  if (locked && !acquireCliLock(mechaDir)) {
     const existing = readCliLock(mechaDir);
     const pid = existing?.pid ?? 0;
     throw new CliAlreadyRunningError(pid);
@@ -85,7 +87,7 @@ export function bootstrap(opts: BootstrapOpts): void {
   }
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
-  process.on("exit", () => releaseCliLock(mechaDir));
+  if (locked) process.on("exit", () => releaseCliLock(mechaDir));
 
   program.parseAsync(process.argv).catch((err: unknown) => {
     formatter.error(err instanceof Error ? err.message : String(err));

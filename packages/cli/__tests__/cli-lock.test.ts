@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { acquireCliLock, releaseCliLock, readCliLock } from "../src/cli-lock.js";
+import { acquireCliLock, releaseCliLock, readCliLock, needsLock } from "../src/cli-lock.js";
 
 describe("cli-lock", () => {
   let tempDir: string;
@@ -122,6 +122,75 @@ describe("cli-lock", () => {
     it("does nothing when no lock file exists", () => {
       // Should not throw
       releaseCliLock(tempDir);
+    });
+  });
+
+  describe("needsLock", () => {
+    // Mutating commands need the lock
+    it.each([
+      ["spawn", ["node", "mecha", "spawn", "alice", "/path"]],
+      ["stop", ["node", "mecha", "stop", "alice"]],
+      ["kill", ["node", "mecha", "kill", "alice"]],
+      ["init", ["node", "mecha", "init"]],
+      ["configure", ["node", "mecha", "configure"]],
+      ["agent", ["node", "mecha", "agent", "start"]],
+      ["meter start", ["node", "mecha", "meter", "start"]],
+      ["meter stop", ["node", "mecha", "meter", "stop"]],
+      ["schedule add", ["node", "mecha", "schedule", "add"]],
+      ["schedule remove", ["node", "mecha", "schedule", "remove"]],
+      ["schedule pause", ["node", "mecha", "schedule", "pause"]],
+      ["schedule resume", ["node", "mecha", "schedule", "resume"]],
+      ["schedule run", ["node", "mecha", "schedule", "run"]],
+      ["acl grant", ["node", "mecha", "acl", "grant"]],
+      ["acl revoke", ["node", "mecha", "acl", "revoke"]],
+      ["node add", ["node", "mecha", "node", "add"]],
+      ["node rm", ["node", "mecha", "node", "rm"]],
+      ["auth add", ["node", "mecha", "auth", "add"]],
+      ["auth rm", ["node", "mecha", "auth", "rm"]],
+      ["auth set-default", ["node", "mecha", "auth", "set-default"]],
+      ["budget set", ["node", "mecha", "budget", "set"]],
+      ["budget rm", ["node", "mecha", "budget", "rm"]],
+    ])("returns true for %s", (_label, argv) => {
+      expect(needsLock(argv)).toBe(true);
+    });
+
+    // Read-only commands skip the lock
+    it.each([
+      ["ls", ["node", "mecha", "ls"]],
+      ["status", ["node", "mecha", "status", "alice"]],
+      ["logs", ["node", "mecha", "logs", "alice"]],
+      ["cost", ["node", "mecha", "cost"]],
+      ["doctor", ["node", "mecha", "doctor"]],
+      ["find", ["node", "mecha", "find", "researcher"]],
+      ["chat", ["node", "mecha", "chat", "alice"]],
+      ["sessions", ["node", "mecha", "sessions", "alice"]],
+      ["tools", ["node", "mecha", "tools"]],
+      ["meter status", ["node", "mecha", "meter", "status"]],
+      ["schedule history", ["node", "mecha", "schedule", "history"]],
+      ["acl show", ["node", "mecha", "acl", "show"]],
+      ["node ls", ["node", "mecha", "node", "ls"]],
+      ["auth ls", ["node", "mecha", "auth", "ls"]],
+      ["budget ls", ["node", "mecha", "budget", "ls"]],
+      ["sandbox show", ["node", "mecha", "sandbox", "show"]],
+    ])("returns false for %s", (_label, argv) => {
+      expect(needsLock(argv)).toBe(false);
+    });
+
+    it("returns false for --help", () => {
+      expect(needsLock(["node", "mecha", "--help"])).toBe(false);
+    });
+
+    it("returns false for --version", () => {
+      expect(needsLock(["node", "mecha", "--version"])).toBe(false);
+    });
+
+    it("returns false for empty args", () => {
+      expect(needsLock(["node", "mecha"])).toBe(false);
+    });
+
+    it("skips flags when finding command", () => {
+      expect(needsLock(["node", "mecha", "--json", "spawn", "alice", "/path"])).toBe(true);
+      expect(needsLock(["node", "mecha", "--verbose", "ls"])).toBe(false);
     });
   });
 });

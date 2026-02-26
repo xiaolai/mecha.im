@@ -56,6 +56,49 @@ export function acquireCliLock(mechaDir: string): boolean {
   return true;
 }
 
+/**
+ * Commands that mutate state and need the singleton lock.
+ * Read-only commands (ls, status, logs, cost, etc.) skip the lock
+ * so users can inspect the system while a long-running command is active.
+ */
+const EXCLUSIVE_COMMANDS = new Set([
+  "spawn", "stop", "kill", "init", "configure",
+  "agent",  // agent start/stop
+]);
+
+/**
+ * Commands nested under a parent that need the lock.
+ * Format: "parent subcommand"
+ */
+const EXCLUSIVE_SUBCOMMANDS = new Set([
+  "meter start", "meter stop",
+  "schedule add", "schedule remove", "schedule pause", "schedule resume", "schedule run",
+  "acl grant", "acl revoke",
+  "node add", "node rm",
+  "auth add", "auth rm", "auth set-default",
+  "budget set", "budget rm",
+]);
+
+/**
+ * Check if the current argv requires the singleton lock.
+ * Returns true for mutating commands, false for read-only ones.
+ */
+export function needsLock(argv: string[]): boolean {
+  // Strip node/binary path — find the first non-flag argument(s)
+  const args = argv.slice(2).filter((a) => !a.startsWith("-"));
+  if (args.length === 0) return false; // --help, --version
+
+  const cmd = args[0]!;
+  if (EXCLUSIVE_COMMANDS.has(cmd)) return true;
+
+  if (args.length >= 2) {
+    const sub = `${cmd} ${args[1]}`;
+    if (EXCLUSIVE_SUBCOMMANDS.has(sub)) return true;
+  }
+
+  return false;
+}
+
 /** Release the CLI singleton lock. Only removes if the lock belongs to this process. */
 export function releaseCliLock(mechaDir: string): void {
   const info = readCliLock(mechaDir);
