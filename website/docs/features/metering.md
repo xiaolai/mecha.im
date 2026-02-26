@@ -6,10 +6,11 @@ Mecha includes a built-in metering proxy that tracks API costs per agent in real
 
 The metering proxy sits between your agents and the Anthropic API:
 
-```
-CASA → metering proxy (:7800) → api.anthropic.com
-                │
-                └─ records tokens, cost, model per request
+```mermaid
+graph LR
+  CASA --> proxy["metering proxy (:7800)"]
+  proxy --> api["api.anthropic.com"]
+  proxy -. "records tokens,<br/>cost, model" .-> events["events log"]
 ```
 
 Every API call is intercepted, forwarded to Anthropic, and the response is parsed for usage data (input tokens, output tokens, cache tokens). Costs are calculated using built-in model pricing.

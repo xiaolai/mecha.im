@@ -4,15 +4,20 @@ Mecha agents can communicate across machines through the mesh. Each node runs an
 
 ## Architecture
 
-```
-Machine A (alice)                    Machine B (bob)
-┌─────────────┐                     ┌─────────────┐
-│ coder       │──── mesh_query ───→│ analyst     │
-│ reviewer    │                     │ researcher  │
-│             │                     │             │
-│ agent server│◄═══ HTTP/JSON ════►│ agent server│
-│ :7660       │    (Bearer auth)    │ :7660       │
-└─────────────┘                     └─────────────┘
+```mermaid
+graph LR
+  subgraph alice["Machine A (alice)"]
+    coder
+    reviewer
+    agentA["agent server :7660"]
+  end
+  subgraph bob["Machine B (bob)"]
+    analyst
+    researcher
+    agentB["agent server :7660"]
+  end
+  coder -- "mesh_query" --> analyst
+  agentA <-- "HTTP/JSON<br/>Bearer auth" --> agentB
 ```
 
 ## Setting Up Nodes

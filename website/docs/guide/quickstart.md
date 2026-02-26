@@ -43,11 +43,11 @@ You'll see something like:
 
 ```
 researcher
-├── state: running
-├── port: 7700
-├── workspace: /Users/you/my-research
-├── tags: research
-└── sandbox: strict
+  state:     running
+  port:      7700
+  workspace: /Users/you/my-research
+  tags:      research
+  sandbox:   strict
 ```
 
 ## 5. Chat with Your Agent

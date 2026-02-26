@@ -13,18 +13,21 @@ Running AI agents locally gives you:
 
 ## How It Works
 
-```
-You (terminal)
-  │
-  ├── mecha spawn researcher ~/papers --tag research
-  ├── mecha spawn coder ~/project --tag dev
-  ├── mecha spawn reviewer ~/project --tag dev
-  │
-  └── mecha chat coder "refactor the auth module"
-        │
-        coder asks reviewer for a code review (mesh query)
-        reviewer reads coder's workspace (ACL-gated)
-        coder gets the review and applies changes
+```mermaid
+sequenceDiagram
+  participant You as You (terminal)
+  participant coder
+  participant reviewer
+  participant researcher
+
+  You->>researcher: mecha spawn researcher ~/papers
+  You->>coder: mecha spawn coder ~/project
+  You->>reviewer: mecha spawn reviewer ~/project
+  You->>coder: mecha chat coder "refactor the auth module"
+  coder->>reviewer: mesh_query: "review this code"
+  reviewer->>coder: reads workspace (ACL-gated)
+  reviewer-->>coder: code review response
+  coder-->>You: applies changes
 ```
 
 Each agent runs as a separate process with:

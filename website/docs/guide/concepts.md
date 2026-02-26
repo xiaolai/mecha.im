@@ -118,9 +118,12 @@ Tags power:
 
 Each CASA has a lifecycle state:
 
-```
-spawning → running → stopped
-                  ↘ error
+```mermaid
+stateDiagram-v2
+  [*] --> spawning
+  spawning --> running
+  running --> stopped
+  running --> error
 ```
 
 | State | Meaning |

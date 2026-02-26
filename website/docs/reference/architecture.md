@@ -20,23 +20,30 @@ Mecha is a TypeScript monorepo with 9 packages:
 
 ### Dependency Graph
 
-```
-cli → service → process → core
-                       → sandbox → core
-               → agent → core
-        → meter → core
-runtime → core
+```mermaid
+graph LR
+  cli --> service
+  service --> process
+  service --> agent
+  service --> meter
+  process --> core
+  process --> sandbox
+  sandbox --> core
+  agent --> core
+  meter --> core
+  runtime --> core
 ```
 
 ## Process Model
 
 Each CASA is a child process of the `mecha` CLI:
 
-```
-mecha (parent)
-  ├── researcher  (child process: mecha __runtime)
-  ├── coder       (child process: mecha __runtime)
-  └── reviewer    (child process: mecha __runtime)
+```mermaid
+graph TD
+  mecha["mecha (parent)"]
+  mecha --> researcher["researcher<br/><i>mecha __runtime</i>"]
+  mecha --> coder["coder<br/><i>mecha __runtime</i>"]
+  mecha --> reviewer["reviewer<br/><i>mecha __runtime</i>"]
 ```
 
 The single `mecha` binary serves dual duty:
@@ -49,40 +56,38 @@ This is how the bun single-binary distribution works — no separate runtime bin
 
 ### Chat Request
 
-```
-User: mecha chat coder "refactor auth"
-  │
-  ├── CLI parses arguments
-  ├── Reads config.json for port + token
-  ├── POST http://localhost:7700/api/sessions
-  │     Authorization: Bearer <token>
-  │     Body: { message: "refactor auth" }
-  │
-  ├── Response: SSE stream
-  │     data: {"type":"progress","content":"Reading files..."}
-  │     data: {"type":"assistant","content":"I'll refactor..."}
-  │
-  └── CLI prints streamed response to stdout
+```mermaid
+sequenceDiagram
+  participant User as User (terminal)
+  participant CLI as mecha CLI
+  participant CASA as coder CASA (:7700)
+
+  User->>CLI: mecha chat coder "refactor auth"
+  CLI->>CLI: Parse args, read config.json
+  CLI->>CASA: POST /api/sessions<br/>Authorization: Bearer &lt;token&gt;
+  CASA-->>CLI: SSE stream
+  Note right of CASA: progress: "Reading files..."<br/>assistant: "I'll refactor..."
+  CLI-->>User: Print streamed response
 ```
 
 ### Mesh Query
 
-```
-coder calls mesh_query("analyst@bob", "analyze this data")
-  │
-  ├── Runtime receives MCP tool call
-  ├── Router checks ACL: coder → analyst@bob → query
-  ├── Locator resolves "bob" → { host, port, apiKey }
-  ├── agentFetch sends HTTP request to bob's agent server
-  │     POST http://bob:7660/casas/analyst/query
-  │     Authorization: Bearer <bob-api-key>
-  │     X-Mecha-Source: coder@alice
-  │
-  ├── Bob's agent server validates auth + ACL
-  ├── Bob forwards query to local "analyst" CASA
-  ├── Response flows back
-  │
-  └── coder receives the response as MCP tool result
+```mermaid
+sequenceDiagram
+  participant coder as coder (alice)
+  participant router as Alice Router
+  participant agent as Bob Agent Server (:7660)
+  participant analyst as analyst (bob)
+
+  coder->>router: mesh_query("analyst@bob", ...)
+  router->>router: ACL check: coder → analyst@bob → query
+  router->>router: Resolve "bob" → host, port, apiKey
+  router->>agent: POST /casas/analyst/query<br/>Bearer &lt;bob-api-key&gt;<br/>X-Mecha-Source: coder@alice
+  agent->>agent: Validate auth + ACL
+  agent->>analyst: Forward query
+  analyst-->>agent: Response
+  agent-->>router: Response
+  router-->>coder: MCP tool result
 ```
 
 ## Data Storage

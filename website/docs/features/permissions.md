@@ -52,16 +52,18 @@ mecha acl show coder
 
 Every inter-agent interaction goes through the ACL engine:
 
-```
-coder wants to query reviewer
-  │
-  ├─ ACL check: does "coder → reviewer → query" grant exist?
-  │   ├─ YES → forward the query
-  │   └─ NO  → reject with "Access denied"
-  │
-  └─ For cross-node queries, BOTH nodes check:
-      ├─ Source node: does local ACL allow outbound query?
-      └─ Target node: does local ACL allow inbound query?
+```mermaid
+flowchart TD
+  A["coder wants to query reviewer"] --> B{"ACL grant exists?<br/>coder → reviewer → query"}
+  B -- YES --> C["Forward the query"]
+  B -- NO --> D["Reject: Access denied"]
+  A --> E{"Cross-node query?"}
+  E -- YES --> F["Source node checks<br/>outbound ACL"]
+  E -- YES --> G["Target node checks<br/>inbound ACL"]
+  F --> H{"Both approve?"}
+  G --> H
+  H -- YES --> C
+  H -- NO --> D
 ```
 
 Both sides must approve. This prevents a compromised node from unilaterally accessing agents on another node.
