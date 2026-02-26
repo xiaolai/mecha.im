@@ -22,6 +22,7 @@ import { registerScheduleCommand } from "./commands/schedule.js";
 import { registerMeterCommand } from "./commands/meter.js";
 import { registerCostCommand } from "./commands/cost.js";
 import { registerBudgetCommand } from "./commands/budget.js";
+import { registerPluginCommand } from "./commands/plugin.js";
 
 /**
  * Commands that mutate state and need the CLI singleton lock.
@@ -46,6 +47,8 @@ export const MUTATING_COMMANDS = new Set([
   "auth add", "auth rm", "auth default", "auth tag", "auth switch", "auth renew",
   // budget subcommands
   "budget set", "budget rm",
+  // plugin subcommands (ls, status, test are read-only)
+  "plugin add", "plugin rm",
 ]);
 
 /**
@@ -101,6 +104,7 @@ export function createProgram(deps: CommandDeps): Command {
   registerMeterCommand(program, deps);
   registerCostCommand(program, deps);
   registerBudgetCommand(program, deps);
+  registerPluginCommand(program, deps);
 
   return program;
 }

@@ -136,6 +136,36 @@ export type {
   ResolvedAuth,
 } from "./auth-resolve.js";
 
+// Plugin Registry
+export {
+  PLUGIN_REGISTRY_VERSION,
+  RESERVED_PLUGIN_NAMES,
+  pluginName,
+  StdioPluginInputSchema,
+  HttpPluginInputSchema,
+  PluginInputSchema,
+  PluginNameReservedError,
+  PluginNotFoundError,
+  PluginAlreadyExistsError,
+  PluginEnvError,
+  readPluginRegistry,
+  writePluginRegistry,
+  addPlugin,
+  removePlugin,
+  getPlugin,
+  listPlugins,
+  isPluginName,
+} from "./plugin-registry.js";
+export type {
+  PluginName,
+  PluginConfigBase,
+  StdioPluginConfig,
+  HttpPluginConfig,
+  PluginConfig,
+  PluginRegistry,
+} from "./plugin-registry.js";
+export { resolveEnvVars, resolveEnvString } from "./plugin-resolve.js";
+
 // Schedule Engine
 export {
   parseInterval,
