@@ -54,6 +54,7 @@ export {
   ScheduleNotFoundError,
   DuplicateScheduleError,
   InvalidIntervalError,
+  CliAlreadyRunningError,
   MeterProxyAlreadyRunningError,
   MeterProxyNotRunningError,
   MeterProxyRequiredError,

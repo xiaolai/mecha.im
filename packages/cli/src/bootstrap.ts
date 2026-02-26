@@ -3,8 +3,9 @@ import { homedir } from "node:os";
 import { createProgram } from "./program.js";
 import { createFormatter } from "./formatter.js";
 import { createProcessManager, type CreateProcessManagerOpts } from "@mecha/process";
-import { createAclEngine, MechaError } from "@mecha/core";
+import { createAclEngine, CliAlreadyRunningError, MechaError } from "@mecha/core";
 import { createSandbox } from "@mecha/sandbox";
+import { acquireCliLock, readCliLock, releaseCliLock } from "./cli-lock.js";
 import type { CommandDeps } from "./types.js";
 
 export interface BootstrapOpts {
@@ -26,6 +27,14 @@ export function bootstrap(opts: BootstrapOpts): void {
   });
 
   const mechaDir = process.env.MECHA_DIR ?? join(homedir(), ".mecha");
+
+  // Singleton guard — only one CLI instance at a time
+  if (!acquireCliLock(mechaDir)) {
+    const existing = readCliLock(mechaDir);
+    const pid = existing?.pid ?? 0;
+    throw new CliAlreadyRunningError(pid);
+  }
+
   const sandbox = createSandbox();
 
   const pmOpts: CreateProcessManagerOpts = { mechaDir, sandbox };
@@ -76,6 +85,7 @@ export function bootstrap(opts: BootstrapOpts): void {
   }
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
+  process.on("exit", () => releaseCliLock(mechaDir));
 
   program.parseAsync(process.argv).catch((err: unknown) => {
     formatter.error(err instanceof Error ? err.message : String(err));

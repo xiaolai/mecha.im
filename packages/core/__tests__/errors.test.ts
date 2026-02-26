@@ -35,6 +35,7 @@ import {
   ScheduleNotFoundError,
   DuplicateScheduleError,
   InvalidIntervalError,
+  CliAlreadyRunningError,
   MeterProxyAlreadyRunningError,
   MeterProxyNotRunningError,
   MeterProxyRequiredError,
@@ -347,6 +348,14 @@ describe("error classes", () => {
       expectedExit: 1,
       expectedCode: "INVALID_INTERVAL",
       messageContains: "2s",
+    },
+    {
+      name: "CliAlreadyRunningError",
+      error: new CliAlreadyRunningError(54321),
+      expectedStatus: 409,
+      expectedExit: 1,
+      expectedCode: "CLI_ALREADY_RUNNING",
+      messageContains: "54321",
     },
     {
       name: "MeterProxyAlreadyRunningError",

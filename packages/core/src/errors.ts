@@ -274,6 +274,13 @@ export const InvalidIntervalError = defError<[string]>(
   (interval) => `Invalid interval: "${interval}" (use format like "30s", "5m", "1h"; min 10s, max 24h)`,
 );
 
+// --- CLI errors ---
+export const CliAlreadyRunningError = defError<[number]>(
+  "CliAlreadyRunningError",
+  { code: "CLI_ALREADY_RUNNING", statusCode: 409, exitCode: 1 },
+  (pid) => `Another mecha CLI is already running (pid ${pid})`,
+);
+
 // --- Meter errors ---
 export const MeterProxyAlreadyRunningError = defError<[number]>(
   "MeterProxyAlreadyRunningError",
