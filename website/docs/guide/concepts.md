@@ -147,14 +147,26 @@ All Mecha state lives under `~/.mecha/`:
 ├── researcher/                  ← CASA directory
 │   ├── config.json              ← port, token, workspace, tags
 │   ├── state.json               ← running/stopped/error
+│   ├── identity.json            ← CASA Ed25519 public key + node signature
+│   ├── casa.key                 ← CASA private key (mode 0600)
 │   ├── logs/
 │   │   ├── stdout.log
 │   │   └── stderr.log
-│   ├── home/.claude/            ← Claude Code home (sessions, hooks)
-│   └── tmp/                     ← isolated temp directory
+│   ├── home/                    ← redirected HOME for this CASA
+│   │   └── .claude/
+│   │       ├── settings.json    ← auto-generated sandbox hooks
+│   │       ├── hooks/
+│   │       │   ├── sandbox-guard.sh
+│   │       │   └── bash-guard.sh
+│   │       └── projects/
+│   │           └── -home-alice-papers/
+│   │               ├── abc123.meta.json
+│   │               └── abc123.jsonl
+│   └── tmp/                     ← isolated TMPDIR
 ├── coder/                       ← another CASA
 ├── auth/
-│   └── profiles.json            ← API key / OAuth token profiles
+│   ├── profiles.json            ← API key / OAuth token metadata
+│   └── credentials.json         ← API key / OAuth token values
 ├── acl.json                     ← permission rules
 ├── nodes.json                   ← known remote nodes
 ├── identity/                    ← Ed25519 keypair for this node
@@ -162,6 +174,8 @@ All Mecha state lives under `~/.mecha/`:
 ```
 
 No SQLite, no databases. Everything is plain JSON files that you can inspect, back up, and version control.
+
+Each CASA's `home/` directory is an isolated Claude Code environment — the `HOME` env var is redirected there so Claude Code reads its own settings, not the host's. See [Sandbox & Security](/features/sandbox#casa-home-directory-isolation) for details.
 
 ## Parent-Child Workspaces
 

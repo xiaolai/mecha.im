@@ -92,8 +92,7 @@ if ! $DOC_CHANGED; then
   # Deduplicate
   AREAS=$(echo "$AREAS" | tr ',' '\n' | sort -u | tr '\n' ',' | sed 's/,$//' | sed 's/^,//')
 
-  echo "WARNING: Code changed in${AREAS} but no website docs were updated."
-  echo "Run /docs-check to audit documentation accuracy."
-  echo ""
-  echo "To disable this warning: .claude/scripts/docs-sync-check.sh --disable"
+  echo "WARNING: Code changed in${AREAS} but no website docs were updated." >&2
+  echo "Run /docs-check to audit documentation accuracy." >&2
+  echo "To disable this warning: .claude/scripts/docs-sync-check.sh --disable" >&2
 fi
