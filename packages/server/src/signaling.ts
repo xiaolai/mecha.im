@@ -117,11 +117,11 @@ export function registerSignaling(app: FastifyInstance, config: ServerConfig, go
 /** Verify Ed25519 signature over registration payload */
 function verifyRegistrationSignature(publicKeyPem: string, payload: string, signature: string): boolean {
   try {
-    const pubKey = createPublicKey({
-      key: Buffer.from(publicKeyPem, "base64"),
-      format: "der",
-      type: "spki",
-    });
+    // publicKey may be PEM (with headers) or raw base64 DER
+    const isPem = publicKeyPem.includes("-----BEGIN");
+    const pubKey = isPem
+      ? createPublicKey({ key: publicKeyPem, format: "pem", type: "spki" })
+      : createPublicKey({ key: Buffer.from(publicKeyPem, "base64"), format: "der", type: "spki" });
     return verify(null, Buffer.from(payload), pubKey, Buffer.from(signature, "base64"));
   /* v8 ignore start -- malformed key/signature */
   } catch {
