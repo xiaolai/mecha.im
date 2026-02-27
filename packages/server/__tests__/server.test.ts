@@ -464,9 +464,13 @@ describe("invite REST", () => {
         token: "expired-token",
         inviterName: "alice",
         inviterPublicKey: alice.publicKey,
-        expiresAt: Date.now() - 1000, // already expired
+        expiresAt: Date.now() + 86_400_000,
       }),
     });
+
+    // Simulate expiration by mutating the stored invite
+    const stored = invites.get("expired-token");
+    if (stored) stored.expiresAt = Date.now() - 1000;
 
     const res = await fetch(`${baseUrl}/invite/expired-token`);
     expect(res.status).toBe(410);
@@ -570,12 +574,14 @@ describe("invite REST", () => {
     wsBob.send(JSON.stringify(bob.registerMsg("r2")));
     await new Promise<void>(r => wsBob.once("message", () => r()));
 
-    // First invite — already expired
+    // First invite — create then expire it
     await fetch(`${url}/invite`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ token: "expired", inviterName: "alice", inviterPublicKey: alice.publicKey, expiresAt: Date.now() - 1000 }),
+      body: JSON.stringify({ token: "expired", inviterName: "alice", inviterPublicKey: alice.publicKey, expiresAt: Date.now() + 86_400_000 }),
     });
+    const storedExpired = invites.get("expired");
+    if (storedExpired) storedExpired.expiresAt = Date.now() - 1000;
 
     // Second invite — should succeed after purge
     const res = await fetch(`${url}/invite`, {
@@ -629,9 +635,13 @@ describe("invite REST", () => {
         token: "expired-accept",
         inviterName: "alice",
         inviterPublicKey: alice.publicKey,
-        expiresAt: Date.now() - 1000,
+        expiresAt: Date.now() + 86_400_000,
       }),
     });
+
+    // Simulate expiration by mutating the stored invite
+    const stored = invites.get("expired-accept");
+    if (stored) stored.expiresAt = Date.now() - 1000;
 
     const res = await fetch(`${baseUrl}/invite/expired-accept/accept`, {
       method: "POST",

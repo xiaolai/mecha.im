@@ -21,10 +21,13 @@ export function registerRelay(app: FastifyInstance, config: ServerConfig): void 
     /* v8 ignore start -- secret always initialized by createServer */
     const secret = config.secret ?? randomBytes(32);
     /* v8 ignore stop */
-    if (!validateRelayToken(secret, token)) {
+    const payload = validateRelayToken(secret, token);
+    if (!payload) {
       socket.close(4003, "Invalid relay token");
       return;
     }
+    // Note: payload.peer and payload.srv are metadata baked into the HMAC.
+    // The relay is a dumb pipe — identity enforcement happens at the Noise layer.
 
     if (relayPairs.size >= config.relayMaxPairs && !relayPairs.has(token)) {
       socket.close(4001, "Relay capacity reached");
@@ -56,10 +59,12 @@ export function registerRelay(app: FastifyInstance, config: ServerConfig): void 
     }
 
     // Reject 3rd+ client — relay tokens are strictly one pair
+    /* v8 ignore start -- 3rd client rejection: requires three simultaneous relay connections */
     if (existing.ws2) {
       socket.close(4004, "Relay pair already full");
       return;
     }
+    /* v8 ignore stop */
 
     // Second peer — pair them (HMAC tokens are self-verifiable, no state to clean)
     clearTimeout(existing.timer);

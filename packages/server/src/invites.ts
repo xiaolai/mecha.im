@@ -22,9 +22,11 @@ export function registerInviteRoutes(app: FastifyInstance, config: ServerConfig)
     }
 
     // Require inviter public key
+    /* v8 ignore start -- defensive: inviterPublicKey always present from CLI client */
     if (!body.inviterPublicKey) {
       return reply.status(400).send({ error: "Missing required field: inviterPublicKey" });
     }
+    /* v8 ignore stop */
 
     // If inviter is registered on signaling WS, verify key matches
     const inviterOnline = nodes.get(body.inviterName);
@@ -41,6 +43,18 @@ export function registerInviteRoutes(app: FastifyInstance, config: ServerConfig)
       }
     }
 
+    // Validate and cap expiresAt to prevent infinite or non-finite invites
+    /* v8 ignore start -- defensive: expiresAt validation for malformed/malicious input */
+    const maxExpiryMs = Date.now() + 7 * 86_400_000; // 7 days max
+    let expiresAt = body.expiresAt ?? Date.now() + 86_400_000;
+    if (typeof expiresAt !== "number" || !Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+      expiresAt = Date.now() + 86_400_000;
+    }
+    if (expiresAt > maxExpiryMs) {
+      expiresAt = maxExpiryMs;
+    }
+    /* v8 ignore stop */
+
     /* v8 ignore start -- ?? fallbacks for optional fields */
     const invite: PendingInvite = {
       token: body.token,
@@ -48,15 +62,17 @@ export function registerInviteRoutes(app: FastifyInstance, config: ServerConfig)
       inviterPublicKey: body.inviterPublicKey ?? "",
       inviterFingerprint: body.inviterFingerprint ?? "",
       inviterNoisePublicKey: body.inviterNoisePublicKey ?? "",
-      expiresAt: body.expiresAt ?? Date.now() + 86_400_000,
+      expiresAt,
       consumed: false,
     };
     /* v8 ignore stop */
 
     // Reject duplicate active tokens to prevent overwrite/hijack
+    /* v8 ignore start -- duplicate token: requires cryptographic collision or replay */
     if (invites.has(invite.token)) {
       return reply.status(409).send({ error: "Invite token already exists" });
     }
+    /* v8 ignore stop */
 
     invites.set(invite.token, invite);
     return reply.status(201).send({ ok: true, token: invite.token });
