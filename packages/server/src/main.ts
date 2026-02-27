@@ -1,23 +1,24 @@
 #!/usr/bin/env node
-import { createServer, DEFAULT_CONFIG } from "./index.js";
+import { createServer } from "./index.js";
+import { parseServerEnv } from "./env.js";
 
-const rawPort = process.env.PORT ?? String(DEFAULT_CONFIG.port);
-const port = parseInt(rawPort, 10);
-if (Number.isNaN(port) || port < 0 || port > 65535) {
-  console.error(`Invalid PORT: "${rawPort}" (must be 0-65535)`);
+/* v8 ignore start -- entrypoint validated via env tests */
+let env: ReturnType<typeof parseServerEnv>;
+try {
+  env = parseServerEnv(process.env as Record<string, string | undefined>);
+} catch (err) {
+  console.error(err instanceof Error ? err.message : String(err));
   process.exit(1);
 }
-const host = process.env.HOST ?? DEFAULT_CONFIG.host;
-const relayUrl = process.env.RELAY_URL ?? DEFAULT_CONFIG.relayUrl;
 
-const server = await createServer({ port, host, relayUrl });
+const server = await createServer(env);
 
-await server.listen({ port, host });
+await server.listen({ port: env.port, host: env.host });
 
-console.log(`mecha-server listening on ${host}:${port}`);
-console.log(`  Signaling: ws://${host}:${port}/ws`);
-console.log(`  Relay:     ws://${host}:${port}/relay?token=<token>`);
-console.log(`  Health:    http://${host}:${port}/healthz`);
+console.log(`mecha-server listening on ${env.host}:${env.port}`);
+console.log(`  Signaling: ws://${env.host}:${env.port}/ws`);
+console.log(`  Relay:     ws://${env.host}:${env.port}/relay?token=<token>`);
+console.log(`  Health:    http://${env.host}:${env.port}/healthz`);
 
 function shutdown(): void {
   console.log("Shutting down...");
@@ -26,3 +27,4 @@ function shutdown(): void {
 
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
+/* v8 ignore stop */

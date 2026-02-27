@@ -1,5 +1,5 @@
 import type { CasaAddress, NodeName, NodeEntry } from "@mecha/core";
-import { readCasaConfig } from "@mecha/core";
+import { readCasaConfig, nodeName } from "@mecha/core";
 import { join } from "node:path";
 import type { ProcessManager } from "@mecha/process";
 
@@ -13,7 +13,7 @@ export interface MechaLocator {
   locate(target: CasaAddress): LocateResult;
 }
 
-const LOCAL_NODE = "local" as NodeName;
+const LOCAL_NODE = nodeName("local");
 
 export interface CreateLocatorOpts {
   mechaDir: string;

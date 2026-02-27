@@ -203,7 +203,11 @@ export const AuthProfileAlreadyExistsError = defError<[string]>(
 export const ForwardingError = defError<[number]>(
   "ForwardingError",
   { code: "FORWARDING_ERROR", statusCode: 502, exitCode: 2 },
-  (status) => `Target returned HTTP ${status}`,
+  (status) => {
+    if (status === 401) return `Target returned HTTP 401 — check auth token`;
+    if (status === 502 || status === 503) return `Target returned HTTP ${status} — CASA may be starting up, retry shortly`;
+    return `Target returned HTTP ${status}`;
+  },
 );
 
 // --- Tool errors ---

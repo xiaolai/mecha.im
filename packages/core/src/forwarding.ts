@@ -41,7 +41,7 @@ export async function forwardQueryToCasa(
   });
 
   if (!response.ok) {
-    throw new ForwardingError(response.status);
+    throw new ForwardingError(response.status, { cause: new Error(`${response.statusText} from ${url}`) });
   }
 
   /* v8 ignore start -- content-type parsing branches */

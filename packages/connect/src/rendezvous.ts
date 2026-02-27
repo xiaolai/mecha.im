@@ -1,4 +1,4 @@
-import { DEFAULTS, RendezvousError, createLogger } from "@mecha/core";
+import { DEFAULTS, RendezvousError, createLogger, nodeName as toNodeName } from "@mecha/core";
 import type { NodeName } from "@mecha/core";
 import type { PeerInfo, SignalData, RendezvousClient } from "./types.js";
 import type { WebSocketLike } from "./relay.js";
@@ -96,7 +96,7 @@ export function createRendezvousClient(opts: CreateRendezvousClientOpts): Rendez
     // Handle server-pushed events
     switch (msg.type) {
       case "signal": {
-        const from = msg.from as NodeName;
+        const from = toNodeName(msg.from as string);
         const signalData = msg.data as SignalData;
         for (const handler of signalHandlers) handler(from, signalData);
         break;
