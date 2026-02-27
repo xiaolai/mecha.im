@@ -1,5 +1,7 @@
 /** Check if a process with the given PID is alive using kill -0. */
 export function isPidAlive(pid: number): boolean {
+  // Reject non-positive/non-integer PIDs — kill(0) targets process group, kill(-1) targets all
+  if (!Number.isInteger(pid) || pid <= 0) return false;
   try {
     process.kill(pid, 0);
     return true;

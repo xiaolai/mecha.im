@@ -11,8 +11,12 @@ function encodePayload(payload: InvitePayload): string {
   return Buffer.from(json).toString("base64url");
 }
 
-/** Decode base64url payload. */
+/** Decode base64url payload. Max 16KB to prevent memory abuse. */
 function decodePayload(encoded: string): unknown {
+  const MAX_ENCODED_SIZE = 16_384;
+  if (encoded.length > MAX_ENCODED_SIZE) {
+    throw new Error("Invite payload too large");
+  }
   const json = Buffer.from(encoded, "base64url").toString("utf-8");
   return JSON.parse(json);
 }
@@ -52,6 +56,8 @@ export interface CreateInviteOpts {
   noisePublicKey: string;
   privateKey: string;
   rendezvousUrl?: string;
+  /** Ordered list of rendezvous URLs (embedded → peer → central). */
+  rendezvousUrls?: string[];
   opts?: InviteOpts;
 }
 
@@ -63,6 +69,7 @@ export async function createInviteCode(createOpts: CreateInviteOpts): Promise<In
     noisePublicKey,
     privateKey,
     rendezvousUrl = DEFAULTS.RENDEZVOUS_URL,
+    rendezvousUrls,
     opts,
   } = createOpts;
 
@@ -70,7 +77,7 @@ export async function createInviteCode(createOpts: CreateInviteOpts): Promise<In
   const token = randomBytes(24).toString("base64url");
   const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
 
-  const payloadWithoutSig = {
+  const payloadWithoutSig: Omit<InvitePayload, "signature"> = {
     inviterName: nodeName,
     inviterPublicKey: identity.publicKey,
     inviterFingerprint: identity.fingerprint,
@@ -79,6 +86,9 @@ export async function createInviteCode(createOpts: CreateInviteOpts): Promise<In
     token,
     expiresAt,
   };
+  if (rendezvousUrls && rendezvousUrls.length > 0) {
+    payloadWithoutSig.rendezvousUrls = rendezvousUrls;
+  }
 
   const signature = signInvite(payloadWithoutSig, privateKey);
   const payload: InvitePayload = { ...payloadWithoutSig, signature };
@@ -113,6 +123,14 @@ export function parseInviteCode(code: string): InvitePayload {
   if (!/^wss?:\/\//i.test(raw.rendezvousUrl)) {
     throw new InvalidInviteError("Invalid rendezvous URL scheme (expected ws:// or wss://)");
   }
+  // Validate all rendezvousUrls entries have valid ws(s):// scheme
+  if (raw.rendezvousUrls) {
+    for (const url of raw.rendezvousUrls) {
+      if (!/^wss?:\/\//i.test(url)) {
+        throw new InvalidInviteError(`Invalid rendezvous URL scheme in rendezvousUrls: ${url}`);
+      }
+    }
+  }
   if (!/^[0-9a-f]{16}$/.test(raw.inviterFingerprint)) {
     throw new InvalidInviteError("Invalid fingerprint format");
   }
@@ -136,14 +154,20 @@ function isInvitePayload(v: unknown): v is InvitePayload {
   if (typeof v !== "object" || v === null) return false;
   /* v8 ignore stop */
   const o = v as Record<string, unknown>;
-  return (
-    typeof o.inviterName === "string" &&
-    typeof o.inviterPublicKey === "string" &&
-    typeof o.inviterFingerprint === "string" &&
-    typeof o.inviterNoisePublicKey === "string" &&
-    typeof o.rendezvousUrl === "string" &&
-    typeof o.token === "string" &&
-    typeof o.expiresAt === "string" &&
-    typeof o.signature === "string"
-  );
+  if (
+    typeof o.inviterName !== "string" ||
+    typeof o.inviterPublicKey !== "string" ||
+    typeof o.inviterFingerprint !== "string" ||
+    typeof o.inviterNoisePublicKey !== "string" ||
+    typeof o.rendezvousUrl !== "string" ||
+    typeof o.token !== "string" ||
+    typeof o.expiresAt !== "string" ||
+    typeof o.signature !== "string"
+  ) return false;
+  // Optional rendezvousUrls must be an array of strings if present
+  if (o.rendezvousUrls !== undefined) {
+    if (!Array.isArray(o.rendezvousUrls)) return false;
+    if (!o.rendezvousUrls.every((u: unknown) => typeof u === "string")) return false;
+  }
+  return true;
 }
