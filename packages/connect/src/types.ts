@@ -161,6 +161,14 @@ export interface ConnectOpts {
   holePunchTimeoutMs?: number;
   reconnectBaseMs?: number;
   reconnectMaxAttempts?: number;
+  /** Answer signal timeout (ms). Default: 10_000 */
+  answerTimeoutMs?: number;
+  /** DI: WebSocket factory for rendezvous client */
+  _createRendezvousWebSocket?: (url: string) => import("./relay.js").WebSocketLike;
+  /** DI: WebSocket factory for relay connections */
+  _createRelayWebSocket?: (url: string) => import("./relay.js").WebSocketLike;
+  /** DI: dgram.createSocket factory for UDP */
+  _createUdpSocket?: (type: "udp4") => import("node:dgram").Socket;
 }
 
 export interface ConnectManager {
