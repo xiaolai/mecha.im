@@ -41,11 +41,12 @@ export function nodeInit(mechaDir: string, opts?: { name?: string }): NodeInitRe
   const name = opts?.name ?? generateNodeName();
   if (!isValidName(name)) throw new InvalidNameError(name);
 
+  // Create identity + noise keys first (required for invite/join).
+  // If this fails, node.json is never written — keeping init transactional.
+  createNodeIdentity(mechaDir);
+
   const config: NodeConfig = { name, createdAt: new Date().toISOString() };
   writeFileSync(nodePath, JSON.stringify(config, null, 2) + "\n", { mode: 0o600 });
-
-  // Ensure identity + noise keys exist (required for invite/join)
-  createNodeIdentity(mechaDir);
 
   return { name: name as NodeName, created: true };
 }

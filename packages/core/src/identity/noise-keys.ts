@@ -43,7 +43,10 @@ export function createNoiseKeys(mechaDir: string): NoiseKeyPair {
   writeFileSync(tmpKey, kp.privateKey + "\n", { mode: 0o600 });
   renameSync(tmpKey, keyPath);
 
-  return kp;
+  // Re-read persisted keys to handle concurrent writers (TOCTOU safety)
+  /* v8 ignore start -- fallback only triggers under concurrent write race */
+  return loadNoiseKeyPair(mechaDir) ?? kp;
+  /* v8 ignore stop */
 }
 
 /** Load existing X25519 noise keypair from mechaDir/identity/. Returns undefined if missing. */
