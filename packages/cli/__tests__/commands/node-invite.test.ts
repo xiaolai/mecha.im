@@ -130,6 +130,28 @@ describe("node invite command", () => {
     ).rejects.toThrow("Invalid duration");
   });
 
+  it("uses --server override for rendezvous URL", async () => {
+    createNodeIdentity(mechaDir);
+    nodeInit(mechaDir, { name: "test-node" });
+
+    const deps = makeDeps({ mechaDir });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "node", "invite", "--server", "ws://custom:9090"]);
+
+    // Invite code should contain the custom URL
+    const inviteCode = (deps.formatter.success as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as string;
+    const payload = JSON.parse(Buffer.from(inviteCode.replace("mecha://invite/", ""), "base64url").toString());
+    expect(payload.rendezvousUrl).toBe("ws://custom:9090");
+
+    // Server registration should use the custom URL
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      expect.stringContaining("http://custom:9090/invite"),
+      expect.anything(),
+    );
+  });
+
   it("errors when node name not set", async () => {
     createNodeIdentity(mechaDir);
     // No nodeInit — name is missing

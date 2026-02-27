@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { hostname } from "node:os";
 import type { NodeName } from "@mecha/core";
-import { isValidName, InvalidNameError, CorruptConfigError, safeReadJson } from "@mecha/core";
+import { isValidName, InvalidNameError, CorruptConfigError, safeReadJson, createNodeIdentity } from "@mecha/core";
 
 const NODE_FILE = "node.json";
 
@@ -43,6 +43,9 @@ export function nodeInit(mechaDir: string, opts?: { name?: string }): NodeInitRe
 
   const config: NodeConfig = { name, createdAt: new Date().toISOString() };
   writeFileSync(nodePath, JSON.stringify(config, null, 2) + "\n", { mode: 0o600 });
+
+  // Ensure identity + noise keys exist (required for invite/join)
+  createNodeIdentity(mechaDir);
 
   return { name: name as NodeName, created: true };
 }
