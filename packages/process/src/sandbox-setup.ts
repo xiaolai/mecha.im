@@ -148,7 +148,7 @@ while read -r FPATH; do
     /usr/*|/bin/*|/etc/*|/dev/*|/tmp/*|/System/*|/lib/*|/lib64/*) ;;
     *) echo "BLOCKED: $RESOLVED is outside sandbox" >&2; exit 2 ;;
   esac
-done < <(echo "$COMMAND" | grep -oE '(/[^ ;"'"'"'|&>]+)')
+done < <(echo "$COMMAND" | grep -oE '((/|\\.\\./|\\./)([^ ;"'"'"'|&>]*))')
 exit 0
 `;
   writeFileSync(join(hooksDir, "sandbox-guard.sh"), sandboxGuard, { mode: 0o755 });
@@ -214,7 +214,7 @@ exit 0
     // If user explicitly passed --auth <name>, rethrow so spawn fails fast.
     /* v8 ignore start -- fallback for environments without auth profiles */
     if (opts.auth !== undefined) throw err;
-    console.error("[mecha] No auth profiles found, using host environment credentials");
+    console.error("[mecha] WARNING: No auth profiles found, inheriting host credentials. Use --auth <name> or create a profile with 'mecha auth add' for explicit auth.");
     const sdkKeys = ["ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"] as const;
     for (const key of sdkKeys) {
       if (process.env[key] && !childEnv[key]) {

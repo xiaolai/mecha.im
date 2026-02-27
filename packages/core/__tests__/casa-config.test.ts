@@ -120,11 +120,9 @@ describe("updateCasaConfig", () => {
     expect(cfg.tags).toEqual(["new1", "new2"]);
   });
 
-  it("creates config if missing", () => {
+  it("throws when config is missing", () => {
     tempDir = mkdtempSync(join(tmpdir(), "mecha-cfg-"));
-    updateCasaConfig(tempDir, { tags: ["a"] });
-    const cfg = JSON.parse(readFileSync(join(tempDir, "config.json"), "utf-8"));
-    expect(cfg.tags).toEqual(["a"]);
+    expect(() => updateCasaConfig(tempDir, { tags: ["a"] })).toThrow(/Cannot update CASA config/);
   });
 });
 

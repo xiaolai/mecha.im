@@ -1,6 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import type { WebSocket } from "@fastify/websocket";
+import { randomBytes } from "node:crypto";
 import type { RelayPair, ServerConfig } from "./types.js";
+import { validateRelayToken } from "./relay-tokens.js";
 
 /** Active relay pairs, keyed by token. */
 export const relayPairs = new Map<string, RelayPair>();
@@ -15,8 +17,11 @@ export function registerRelay(app: FastifyInstance, config: ServerConfig): void 
 
     const token: string = rawToken;
 
-    // Validate token was issued by the signaling server
-    if (config.issuedRelayTokens && !config.issuedRelayTokens.has(token)) {
+    // Validate HMAC relay token (self-verifiable, no shared state needed)
+    /* v8 ignore start -- secret always initialized by createServer */
+    const secret = config.secret ?? randomBytes(32);
+    /* v8 ignore stop */
+    if (!validateRelayToken(secret, token)) {
       socket.close(4003, "Invalid relay token");
       return;
     }
@@ -50,8 +55,13 @@ export function registerRelay(app: FastifyInstance, config: ServerConfig): void 
       return;
     }
 
-    // Second peer — pair them (consume the token so it can't be reused)
-    config.issuedRelayTokens?.delete(token);
+    // Reject 3rd+ client — relay tokens are strictly one pair
+    if (existing.ws2) {
+      socket.close(4004, "Relay pair already full");
+      return;
+    }
+
+    // Second peer — pair them (HMAC tokens are self-verifiable, no state to clean)
     clearTimeout(existing.timer);
     existing.ws2 = socket;
 

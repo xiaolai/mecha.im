@@ -59,8 +59,13 @@ export function updateCasaConfig(
   updates: Partial<CasaConfig>,
 ): void {
   const configPath = join(casaDir, "config.json");
-  const existing = readCasaConfig(casaDir) ?? ({} as Partial<CasaConfig>);
+  const existing = readCasaConfig(casaDir);
+  if (!existing) {
+    throw new Error(`Cannot update CASA config: no valid config.json found in ${casaDir}`);
+  }
   const merged = { ...existing, ...updates, configVersion: CASA_CONFIG_VERSION };
+  // Validate merged result against schema before persisting
+  CasaConfigSchema.parse(merged);
   const tmp = configPath + `.${randomBytes(4).toString("hex")}.tmp`;
   writeFileSync(tmp, JSON.stringify(merged, null, 2) + "\n", { mode: 0o600 });
   renameSync(tmp, configPath);

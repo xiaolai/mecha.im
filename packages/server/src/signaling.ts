@@ -1,7 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import type { WebSocket } from "@fastify/websocket";
 import type { OnlineNode, ClientMessage, ServerConfig } from "./types.js";
-import { randomUUID, createPublicKey, verify } from "node:crypto";
+import type { GossipCache } from "./gossip-cache.js";
+import { randomBytes, createPublicKey, verify } from "node:crypto";
+import { createRelayToken } from "./relay-tokens.js";
 
 /** In-memory registry of online nodes, keyed by name. */
 export const nodes = new Map<string, OnlineNode>();
@@ -25,9 +27,16 @@ const RATE_LIMIT_MAX = 60;
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const rateLimits = new Map<string, { count: number; resetAt: number }>();
 
+const RATE_LIMIT_MAX_ENTRIES = 10_000;
+
 /* v8 ignore start -- rate limiting: exercised via integration, hard to unit test without 60+ messages */
 function checkRateLimit(ip: string): boolean {
   const now = Date.now();
+  // Prevent unbounded growth from spoofed IPs
+  if (rateLimits.size >= RATE_LIMIT_MAX_ENTRIES && !rateLimits.has(ip)) {
+    purgeRateLimits();
+    if (rateLimits.size >= RATE_LIMIT_MAX_ENTRIES) return false;
+  }
   const entry = rateLimits.get(ip);
   if (!entry || now >= entry.resetAt) {
     rateLimits.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
@@ -50,7 +59,7 @@ function purgeRateLimits(): void {
 }
 /* v8 ignore stop */
 
-export function registerSignaling(app: FastifyInstance, config: ServerConfig): void {
+export function registerSignaling(app: FastifyInstance, config: ServerConfig, gossipCache?: GossipCache): void {
   app.get("/ws", { websocket: true }, (socket, req) => {
     const clientIp = getClientIp(socket, req);
 
@@ -85,7 +94,7 @@ export function registerSignaling(app: FastifyInstance, config: ServerConfig): v
           break;
         }
         case "lookup": {
-          handleLookup(socket, msg);
+          handleLookup(socket, msg, gossipCache);
           break;
         }
         case "request-relay": {
@@ -108,11 +117,11 @@ export function registerSignaling(app: FastifyInstance, config: ServerConfig): v
 /** Verify Ed25519 signature over registration payload */
 function verifyRegistrationSignature(publicKeyPem: string, payload: string, signature: string): boolean {
   try {
-    const pubKey = createPublicKey({
-      key: Buffer.from(publicKeyPem, "base64"),
-      format: "der",
-      type: "spki",
-    });
+    // publicKey may be PEM (with headers) or raw base64 DER
+    const isPem = publicKeyPem.includes("-----BEGIN");
+    const pubKey = isPem
+      ? createPublicKey({ key: publicKeyPem, format: "pem", type: "spki" })
+      : createPublicKey({ key: Buffer.from(publicKeyPem, "base64"), format: "der", type: "spki" });
     return verify(null, Buffer.from(payload), pubKey, Buffer.from(signature, "base64"));
   /* v8 ignore start -- malformed key/signature */
   } catch {
@@ -210,27 +219,46 @@ function handleSignal(
 function handleLookup(
   ws: WebSocket,
   msg: Extract<ClientMessage, { type: "lookup" }>,
+  gossipCache?: GossipCache,
 ): void {
   const node = nodes.get(msg.peer);
   const requestId = msg.requestId;
 
-  if (!node) {
-    send(ws, { type: "lookup-result", found: false, requestId });
+  if (node) {
+    send(ws, {
+      type: "lookup-result",
+      found: true,
+      peer: {
+        name: node.name,
+        publicKey: node.publicKey,
+        noisePublicKey: node.noisePublicKey,
+        fingerprint: node.fingerprint,
+        online: true,
+      },
+      requestId,
+    });
     return;
   }
 
-  send(ws, {
-    type: "lookup-result",
-    found: true,
-    peer: {
-      name: node.name,
-      publicKey: node.publicKey,
-      noisePublicKey: node.noisePublicKey,
-      fingerprint: node.fingerprint,
-      online: true,
-    },
-    requestId,
-  });
+  // Check gossip cache for routing hint
+  const gossipRecord = gossipCache?.lookup(msg.peer);
+  if (gossipRecord) {
+    send(ws, {
+      type: "lookup-result",
+      found: true,
+      peer: {
+        name: gossipRecord.name,
+        publicKey: gossipRecord.publicKey,
+        noisePublicKey: gossipRecord.noisePublicKey,
+        fingerprint: gossipRecord.fingerprint,
+        online: true,
+      },
+      requestId,
+    });
+    return;
+  }
+
+  send(ws, { type: "lookup-result", found: false, requestId });
 }
 
 function handleRequestRelay(
@@ -244,9 +272,10 @@ function handleRequestRelay(
     return;
   }
 
-  const token = randomUUID();
-  // Register the token so the relay endpoint can validate it
-  config.issuedRelayTokens?.add(token);
+  /* v8 ignore start -- secret always initialized by createServer */
+  const secret = config.secret ?? randomBytes(32);
+  /* v8 ignore stop */
+  const token = createRelayToken(secret, { peer: senderName, srv: config.host });
   send(ws, { type: "relay-token", token, relayUrl: config.relayUrl, requestId: msg.requestId });
 
   // Notify peer about relay readiness
