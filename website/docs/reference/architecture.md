@@ -4,7 +4,7 @@ Technical overview of Mecha's internal architecture.
 
 ## Package Structure
 
-Mecha is a TypeScript monorepo with 8 packages (+ dashboard planned for Phase 7):
+Mecha is a TypeScript monorepo with 10 packages (+ dashboard planned for Phase 7):
 
 ```
 @mecha/core       ← Types, schemas, validation, ACL engine, identity (Ed25519)
@@ -12,6 +12,8 @@ Mecha is a TypeScript monorepo with 8 packages (+ dashboard planned for Phase 7)
 @mecha/runtime    ← Fastify server per CASA: sessions, chat SSE, MCP tools
 @mecha/service    ← High-level API: casaSpawn, casaChat, casaFind, routing
 @mecha/agent      ← Inter-node HTTP server for mesh routing
+@mecha/connect    ← P2P connectivity: Noise IK handshake, SecureChannel, invite codes
+@mecha/server     ← Rendezvous + relay server for P2P peer discovery and transport
 @mecha/sandbox    ← OS-level isolation: macOS sandbox-exec, Linux bwrap
 @mecha/meter      ← Metering proxy: cost tracking, budgets, events
 @mecha/cli        ← Commander-based CLI: 40+ commands
@@ -25,6 +27,7 @@ graph LR
   cli --> service
   cli --> core
   cli --> agent
+  cli --> connect
   cli --> process
   cli --> runtime
   cli --> meter
@@ -37,6 +40,8 @@ graph LR
   sandbox --> core
   agent --> core
   agent --> process
+  connect --> core
+  server --> core
   meter --> core
   runtime --> core
   runtime --> process
@@ -78,7 +83,28 @@ sequenceDiagram
   CLI-->>User: Print streamed response
 ```
 
-### Mesh Query
+### Mesh Query (P2P / Managed Node)
+
+```mermaid
+sequenceDiagram
+  participant coder as coder (alice)
+  participant router as Alice Router
+  participant channel as SecureChannel (encrypted)
+  participant agent as Bob Agent
+  participant analyst as analyst (bob)
+
+  coder->>router: mesh_query("analyst@bob", ...)
+  router->>router: ACL check
+  router->>channel: Tunnel request
+  channel->>agent: Decrypt + deliver
+  agent->>analyst: Forward query
+  analyst-->>agent: Response
+  agent-->>channel: Encrypt response
+  channel-->>router: Tunnel response
+  router-->>coder: MCP tool result
+```
+
+### Mesh Query (HTTP / Direct Node)
 
 ```mermaid
 sequenceDiagram
@@ -88,10 +114,10 @@ sequenceDiagram
   participant analyst as analyst (bob)
 
   coder->>router: mesh_query("analyst@bob", ...)
-  router->>router: ACL check: coder → analyst@bob → query
-  router->>router: Resolve "bob" → host, port, apiKey
-  router->>agent: POST /casas/analyst/query<br/>Bearer &lt;bob-api-key&gt;<br/>X-Mecha-Source: coder@alice
-  agent->>agent: Validate auth + ACL
+  router->>router: ACL check
+  router->>router: Resolve "bob" from node registry
+  router->>agent: POST /casas/analyst/query<br/>Bearer token + X-Mecha-Source + X-Mecha-Signature
+  agent->>agent: Validate auth + signature + ACL
   agent->>analyst: Forward query
   analyst-->>agent: Response
   agent-->>router: Response
@@ -135,7 +161,8 @@ All state is plain files — no databases:
 | ACL rules | JSON | `~/.mecha/acl.json` |
 | Node registry | JSON | `~/.mecha/nodes.json` |
 | Auth profiles | JSON | `~/.mecha/auth/profiles.json` |
-| Identity | PEM | `~/.mecha/identity/` |
+| Identity (Ed25519) | PEM | `~/.mecha/identity/` |
+| Noise keys (X25519) | PEM | `~/.mecha/identity/` |
 | Meter events | JSONL | `~/.mecha/meter/events/` |
 | Meter snapshot | JSON | `~/.mecha/meter/snapshot.json` |
 | Budgets | JSON | `~/.mecha/meter/budgets.json` |
