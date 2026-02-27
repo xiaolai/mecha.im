@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { ArrowLeftIcon, SquareIcon, OctagonXIcon } from "lucide-react";
+import { ArrowLeftIcon, SquareIcon, OctagonXIcon, MessageSquareIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -94,6 +94,11 @@ export function CasaDetail({ name }: CasaDetailProps) {
         </div>
         {casa.state === "running" && (
           <div className="flex items-center gap-2">
+            <Button variant="default" size="sm" asChild>
+              <Link href={`/casa/${encodeURIComponent(name)}/chat`}>
+                <MessageSquareIcon className="size-4" /> Chat
+              </Link>
+            </Button>
             <Button variant="outline" size="sm" onClick={() => handleAction("stop")}>
               <SquareIcon className="size-4" /> Stop
             </Button>
