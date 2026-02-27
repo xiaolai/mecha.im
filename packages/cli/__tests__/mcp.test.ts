@@ -32,6 +32,7 @@ describe("mecha mcp serve", () => {
       transport: "stdio",
       port: undefined,
       host: undefined,
+      token: undefined,
     });
   });
 
@@ -76,6 +77,13 @@ describe("mecha mcp serve", () => {
   it("rejects hex/scientific port values", async () => {
     await expect(run(["mcp", "serve", "--port", "0x1F"])).rejects.toThrow(/Invalid port/);
     await expect(run(["mcp", "serve", "--port", "1e3"])).rejects.toThrow(/Invalid port/);
+  });
+
+  it("passes --token flag", async () => {
+    await run(["mcp", "serve", "--transport", "http", "--token", "my-secret"]);
+    expect(main).toHaveBeenCalledWith(
+      expect.objectContaining({ transport: "http", token: "my-secret" }),
+    );
   });
 });
 

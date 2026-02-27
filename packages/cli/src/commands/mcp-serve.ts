@@ -31,14 +31,16 @@ export function registerMcpServeCommand(parent: Command, deps: CommandDeps): voi
     )
     .option("--port <port>", "HTTP port (default: 7680)", parsePort)
     .option("--host <host>", "HTTP bind address (default: 127.0.0.1, use with caution on non-loopback)")
+    .option("--token <token>", "Bearer token for HTTP authentication (required for non-loopback hosts)")
     .action(
-      (opts: { mode: string; transport: "stdio" | "http"; port?: number; host?: string }) =>
+      (opts: { mode: string; transport: "stdio" | "http"; port?: number; host?: string; token?: string }) =>
         withErrorHandler(deps, async () => {
           await main({
             mode: opts.mode,
             transport: opts.transport,
             port: opts.port,
             host: opts.host,
+            token: opts.token,
           });
         }),
     );

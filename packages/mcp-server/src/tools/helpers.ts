@@ -16,17 +16,23 @@ export function withAuditAndRateLimit(
   fn: (args: Record<string, unknown>) => Promise<CallToolResult>,
 ): (args: Record<string, unknown>) => Promise<CallToolResult> {
   return async (args) => {
-    if (!ctx.rateLimiter.check(toolName)) {
-      const remaining = ctx.rateLimiter.remaining(toolName);
-      return errorResult(
-        `Rate limited: ${toolName} — ${remaining} requests remaining. Try again shortly.`,
-      );
-    }
-
     const start = Date.now();
     const client = ctx.clientInfo
       ? `${ctx.clientInfo.name}/${ctx.clientInfo.version}`
       : "unknown";
+
+    if (!ctx.rateLimiter.check(toolName)) {
+      const message = `Rate limited: ${toolName} — try again shortly.`;
+      ctx.audit.append({
+        ts: new Date().toISOString(),
+        client,
+        tool: toolName,
+        params: args as Record<string, unknown>,
+        result: "rate-limited",
+        durationMs: Date.now() - start,
+      });
+      return errorResult(message);
+    }
 
     try {
       const result = await fn(args);

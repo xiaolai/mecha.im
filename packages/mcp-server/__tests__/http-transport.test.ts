@@ -35,6 +35,14 @@ vi.mock("node:crypto", async (importOriginal) => {
   };
 });
 
+vi.mock("@mecha/core", async (importOriginal) => {
+  const orig = await importOriginal<typeof import("@mecha/core")>();
+  return {
+    ...orig,
+    safeCompare: (a: string, b: string) => a === b,
+  };
+});
+
 let capturedHandler: ((req: IncomingMessage, res: ServerResponse) => void) | undefined;
 
 vi.mock("node:http", () => ({
@@ -101,8 +109,8 @@ describe("runHttp", () => {
     capturedHandler = undefined;
   });
 
-  async function setup(): Promise<(req: IncomingMessage, res: ServerResponse) => Promise<void>> {
-    runHttp(createMockServer, { port: 7680, host: "127.0.0.1" });
+  async function setup(opts?: { token?: string }): Promise<(req: IncomingMessage, res: ServerResponse) => Promise<void>> {
+    runHttp(createMockServer, { port: 7680, host: "127.0.0.1", ...opts });
     await new Promise((r) => setTimeout(r, 0));
     expect(capturedHandler).toBeDefined();
     return capturedHandler! as (req: IncomingMessage, res: ServerResponse) => Promise<void>;
@@ -121,6 +129,13 @@ describe("runHttp", () => {
     const res = makeRes();
     await handler(makeReq({ method: "PUT" }), res);
     expect(res._status).toBe(405);
+  });
+
+  it("handles OPTIONS preflight with CORS denial", async () => {
+    const handler = await setup();
+    const res = makeRes();
+    await handler(makeReq({ method: "OPTIONS" }), res);
+    expect(res._status).toBe(204);
   });
 
   it("creates a new session on POST without mcp-session-id", async () => {
@@ -309,5 +324,53 @@ describe("runHttp", () => {
     );
     expect(res._status).toBe(500);
     expect(JSON.parse(res._body)).toEqual({ error: "Internal server error" });
+  });
+
+  // --- Bearer token authentication ---
+  it("rejects requests without token when token is configured", async () => {
+    const handler = await setup({ token: "secret-token" });
+    const res = makeRes();
+    await handler(makeReq({ method: "POST", headers: { host: "localhost:7680" } }), res);
+    expect(res._status).toBe(401);
+    expect(JSON.parse(res._body)).toEqual({ error: "Missing Authorization header" });
+  });
+
+  it("rejects requests with wrong token", async () => {
+    const handler = await setup({ token: "secret-token" });
+    const res = makeRes();
+    await handler(
+      makeReq({ method: "POST", headers: { host: "localhost:7680", authorization: "Bearer wrong" } }),
+      res,
+    );
+    expect(res._status).toBe(401);
+    expect(JSON.parse(res._body)).toEqual({ error: "Invalid token" });
+  });
+
+  it("accepts requests with correct token", async () => {
+    const handler = await setup({ token: "secret-token" });
+    const res = makeRes();
+    await handler(
+      makeReq({ method: "POST", headers: { host: "localhost:7680", authorization: "Bearer secret-token" } }),
+      res,
+    );
+    expect(transportInstances).toHaveLength(1);
+    expect(transportInstances[0].handleRequest).toHaveBeenCalledOnce();
+  });
+
+  it("allows requests without auth when no token configured", async () => {
+    const handler = await setup();
+    const res = makeRes();
+    await handler(makeReq({ method: "POST", headers: { host: "localhost:7680" } }), res);
+    expect(transportInstances).toHaveLength(1);
+  });
+
+  it("rejects malformed authorization header", async () => {
+    const handler = await setup({ token: "secret-token" });
+    const res = makeRes();
+    await handler(
+      makeReq({ method: "POST", headers: { host: "localhost:7680", authorization: "Basic dXNlcjpwYXNz" } }),
+      res,
+    );
+    expect(res._status).toBe(401);
   });
 });

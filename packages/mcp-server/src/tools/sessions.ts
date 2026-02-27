@@ -44,7 +44,6 @@ export function registerSessionTools(server: McpServer, ctx: MeshMcpContext): vo
       inputSchema: {
         target: z.string().describe("CASA name"),
         sessionId: z.string().describe("Session ID"),
-        includeMessages: z.boolean().optional().describe("Include message content (default: false)"),
       },
       annotations: annotationsFor("mecha_get_session"),
     },

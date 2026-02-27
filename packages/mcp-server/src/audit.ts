@@ -3,13 +3,14 @@ import { join } from "node:path";
 
 const AUDIT_FILE = "audit.jsonl";
 const MAX_PARAMS_BYTES = 1024;
+const FILE_MODE = 0o600;
 
 export interface AuditEntry {
   ts: string;
   client: string;
   tool: string;
   params: Record<string, unknown>;
-  result: "ok" | "error";
+  result: "ok" | "error" | "rate-limited";
   error?: string;
   durationMs: number;
 }
@@ -32,7 +33,14 @@ export function createAuditLog(mechaDir: string): AuditLog {
   return {
     append(entry: AuditEntry): void {
       const safe = { ...entry, params: truncateParams(entry.params) };
-      appendFileSync(filePath, JSON.stringify(safe) + "\n");
+      try {
+        appendFileSync(filePath, JSON.stringify(safe) + "\n", { mode: FILE_MODE });
+      /* v8 ignore start -- disk full / permission errors are runtime-only */
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        process.stderr.write(`[mecha] audit write failed: ${msg}\n`);
+      }
+      /* v8 ignore stop */
     },
 
     read(opts?: { limit?: number }): AuditEntry[] {
@@ -45,13 +53,23 @@ export function createAuditLog(mechaDir: string): AuditLog {
       }
       /* v8 ignore stop */
       const lines = content.trim().split("\n").filter(Boolean);
-      const entries = lines.map((line) => JSON.parse(line) as AuditEntry).reverse();
+      const entries: AuditEntry[] = [];
+      for (const line of lines) {
+        try {
+          entries.push(JSON.parse(line) as AuditEntry);
+        /* v8 ignore start -- corrupt lines are runtime-only */
+        } catch {
+          // Skip corrupt JSONL lines (e.g. partial writes from a crash)
+        }
+        /* v8 ignore stop */
+      }
+      entries.reverse();
       if (opts?.limit && opts.limit > 0) return entries.slice(0, opts.limit);
       return entries;
     },
 
     clear(): void {
-      writeFileSync(filePath, "");
+      writeFileSync(filePath, "", { mode: FILE_MODE });
     },
   };
 }
