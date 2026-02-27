@@ -146,7 +146,8 @@ export async function runHttp(
 
         // #2: Guard handleRequest — cleanup leaked session on failure
         await transport.handleRequest(req, res);
-      } catch {
+      } catch (err: unknown) {
+        process.stderr.write(`[mecha:mcp] session create error: ${err instanceof Error ? err.message : String(err)}\n`);
         if (transport) await transport.close().catch(() => {});
         if (server) await server.close().catch(() => {});
         if (transport?.sessionId) {
@@ -193,7 +194,8 @@ export async function runHttp(
       // #3: Guard existing-session handleRequest
       try {
         await session.transport.handleRequest(req, res);
-      } catch {
+      } catch (err: unknown) {
+        process.stderr.write(`[mecha:mcp] session ${sessionId} error: ${err instanceof Error ? err.message : String(err)}\n`);
         /* v8 ignore start -- res may already be sent */
         if (!res.headersSent) {
           sendJson(res, 500, { error: "Internal server error" });

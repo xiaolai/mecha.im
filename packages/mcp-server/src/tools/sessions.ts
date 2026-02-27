@@ -23,7 +23,7 @@ export function registerSessionTools(server: McpServer, ctx: MeshMcpContext): vo
 
       try {
         const sessions = await casaSessionList(ctx.pm, casaName(target));
-        const limited = limit ? sessions.slice(0, limit) : sessions;
+        const limited = limit !== undefined && limit > 0 ? sessions.slice(0, limit) : sessions;
         if (limited.length === 0) {
           return textResult(`No sessions found for CASA "${target}".`);
         }
