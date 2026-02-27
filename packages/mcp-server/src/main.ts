@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { createProcessManager } from "@mecha/process";
@@ -17,6 +18,7 @@ export async function main(opts: {
   transport?: "stdio" | "http";
   port?: number;
   host?: string;
+  token?: string;
 }): Promise<void> {
   // #9: Strict mode validation — fail-closed instead of defaulting to "query"
   const mode = opts.mode ?? "query";
@@ -37,6 +39,12 @@ export async function main(opts: {
   }
 
   const mechaDir = process.env.MECHA_DIR ?? join(homedir(), MECHA_DIR);
+
+  // Validate mechaDir exists before starting
+  if (!existsSync(mechaDir)) {
+    throw new Error(`MECHA_DIR "${mechaDir}" does not exist. Run \`mecha init\` first.`);
+  }
+
   const pm = createProcessManager({ mechaDir });
   const getNodes = () => readNodes(mechaDir);
   const audit = createAuditLog(mechaDir);
@@ -59,6 +67,7 @@ export async function main(opts: {
     await runHttp(createServer, {
       port: opts.port ?? 7680,
       host: opts.host ?? "127.0.0.1",
+      token: opts.token,
     });
   } else {
     await runStdio(createServer());

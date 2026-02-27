@@ -33,7 +33,7 @@ describe("errorResult", () => {
 });
 
 describe("withAuditAndRateLimit", () => {
-  it("returns rate limit error when blocked", async () => {
+  it("returns rate limit error when blocked and audits it", async () => {
     const ctx = makeCtx({
       rateLimiter: { check: vi.fn().mockReturnValue(false), remaining: vi.fn().mockReturnValue(0) },
     });
@@ -43,6 +43,9 @@ describe("withAuditAndRateLimit", () => {
     expect(result.isError).toBe(true);
     expect((result.content[0] as { text: string }).text).toContain("Rate limited");
     expect(fn).not.toHaveBeenCalled();
+    expect(ctx.audit.append).toHaveBeenCalledWith(
+      expect.objectContaining({ tool: "mecha_list_casas", result: "rate-limited" }),
+    );
   });
 
   it("uses clientInfo when available", async () => {
