@@ -17,6 +17,12 @@ export { createRendezvousClient } from "./rendezvous.js";
 export type { CreateRendezvousClientOpts } from "./rendezvous.js";
 export { createInviteCode, parseInviteCode } from "./invite.js";
 export type { CreateInviteOpts } from "./invite.js";
+export {
+  relayToNoiseTransport,
+  relayToChannelTransport,
+  udpToNoiseTransport,
+  udpToChannelTransport,
+} from "./transport-adapters.js";
 
 export type {
   NoiseKeyPair,
