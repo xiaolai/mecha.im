@@ -1,4 +1,4 @@
-import { DEFAULTS, addNode, getNode, ConnectError, PeerOfflineError, signMessage, createLogger } from "@mecha/core";
+import { DEFAULTS, addNode, getNode, ConnectError, PeerOfflineError, signMessage, createLogger, nodeName as toNodeName } from "@mecha/core";
 import type { NodeName } from "@mecha/core";
 import type {
   ConnectOpts,
@@ -82,9 +82,9 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
     });
   }
 
-  async function connectViaRelay(peer: string, peerFingerprint: string): Promise<SecureChannel> {
+  async function connectViaRelay(peer: NodeName, peerFingerprint: string): Promise<SecureChannel> {
     const rv = rendezvous!;
-    const token = await rv.requestRelay(peer as NodeName);
+    const token = await rv.requestRelay(peer);
 
     const relayChannel = await relayConnect({
       relayUrl,
@@ -94,7 +94,7 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
 
     const noiseTransport = relayToNoiseTransport(relayChannel);
     /* v8 ignore start -- getNode always returns a valid node at this point */
-    const peerNode = getNode(mechaDir, peer as NodeName);
+    const peerNode = getNode(mechaDir, peer);
     const remoteNoiseKey = peerNode?.noisePublicKey ?? "";
     /* v8 ignore stop */
     const { cipher } = await noiseInitiate({
@@ -106,7 +106,7 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
 
     const channelTransport = relayToChannelTransport(relayChannel);
     return createSecureChannel({
-      peer: peer as NodeName,
+      peer,
       type: "relayed",
       peerFingerprint,
       cipher,
@@ -114,12 +114,12 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
     });
   }
 
-  async function connectImpl(peer: string): Promise<SecureChannel> {
+  async function connectImpl(peer: NodeName): Promise<SecureChannel> {
     if (!rendezvous || !started) {
       throw new ConnectError("ConnectManager not started");
     }
 
-    const peerInfo = await rendezvous.lookup(peer as NodeName);
+    const peerInfo = await rendezvous.lookup(peer);
     if (!peerInfo || !peerInfo.online) {
       throw new PeerOfflineError(peer);
     }
@@ -147,7 +147,7 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
           { ip: stunResult.ip, port: stunResult.port, source: "stun" },
         ];
 
-        await rendezvous.signal(peer as NodeName, {
+        await rendezvous.signal(peer, {
           type: "offer",
           candidates: ourCandidates,
         });
@@ -163,13 +163,9 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
           });
 
           if (punchResult.success && punchResult.remoteAddress && punchResult.remotePort) {
-            // Hole punch succeeded but UDP Noise transport is deferred to future.
-            // Use relay for now — still benefits from NAT traversal discovery.
             return await connectViaRelay(peer, peerInfo.fingerprint);
           }
         } catch (_err) {
-          // Answer timeout or punch failed — fall through to relay.
-          // Preserve error for debugging; relay fallback is the expected path.
           void _err;
         }
       }
@@ -179,25 +175,25 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
     return connectViaRelay(peer, peerInfo.fingerprint);
   }
 
-  async function handleInboundOffer(from: string, candidates: Candidate[]): Promise<void> {
+  async function handleInboundOffer(from: NodeName, candidates: Candidate[]): Promise<void> {
     /* v8 ignore start -- guard: offer arrives after close() */
     if (!rendezvous || !started) return;
     /* v8 ignore stop */
 
-    const peerInfo = getNode(mechaDir, from as NodeName);
+    const peerInfo = getNode(mechaDir, from);
     /* v8 ignore start -- inbound offer from unknown peer */
     if (!peerInfo) return;
     /* v8 ignore stop */
 
     // Send answer with our own candidates (empty for relay-based response)
-    await rendezvous.signal(from as NodeName, {
+    await rendezvous.signal(from, {
       type: "answer",
       candidates: [],
     });
 
     // Establish channel via relay (responder always uses relay for simplicity)
     try {
-      const token = await rendezvous.requestRelay(from as NodeName);
+      const token = await rendezvous.requestRelay(from);
       const relayChannel = await relayConnect({
         relayUrl,
         token,
@@ -212,7 +208,7 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
 
       const channelTransport = relayToChannelTransport(relayChannel);
       const channel = createSecureChannel({
-        peer: from as NodeName,
+        peer: from,
         type: "relayed",
         /* v8 ignore start -- fingerprint always present for known peers */
         peerFingerprint: peerInfo.fingerprint ?? "",
@@ -349,7 +345,7 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
         managed: true,
       });
 
-      return { peer: peerName as NodeName };
+      return { peer: toNodeName(peerName) };
     },
 
     async ping(peer: NodeName): Promise<PingResult> {

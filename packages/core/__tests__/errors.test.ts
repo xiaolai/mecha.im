@@ -264,7 +264,15 @@ describe("error classes", () => {
       expectedStatus: 502,
       expectedExit: 2,
       expectedCode: "FORWARDING_ERROR",
-      messageContains: "HTTP 502",
+      messageContains: "retry shortly",
+    },
+    {
+      name: "ForwardingError (401)",
+      error: new ForwardingError(401),
+      expectedStatus: 502,
+      expectedExit: 2,
+      expectedCode: "FORWARDING_ERROR",
+      messageContains: "check auth token",
     },
     {
       name: "InvalidToolNameError",

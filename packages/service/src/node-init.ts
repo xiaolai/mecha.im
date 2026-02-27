@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { hostname } from "node:os";
 import type { NodeName } from "@mecha/core";
-import { isValidName, InvalidNameError, CorruptConfigError, safeReadJson, createNodeIdentity } from "@mecha/core";
+import { isValidName, InvalidNameError, CorruptConfigError, safeReadJson, createNodeIdentity, nodeName } from "@mecha/core";
 
 const NODE_FILE = "node.json";
 
@@ -29,7 +29,7 @@ export function nodeInit(mechaDir: string, opts?: { name?: string }): NodeInitRe
     try {
       const raw = JSON.parse(readFileSync(nodePath, "utf-8")) as NodeConfig;
       if (!isValidName(raw.name)) throw new InvalidNameError(raw.name);
-      return { name: raw.name as NodeName, created: false };
+      return { name: nodeName(raw.name), created: false };
     /* v8 ignore start -- corrupt node.json fallback */
     } catch (err) {
       if (err instanceof InvalidNameError) throw err;
@@ -48,7 +48,7 @@ export function nodeInit(mechaDir: string, opts?: { name?: string }): NodeInitRe
   const config: NodeConfig = { name, createdAt: new Date().toISOString() };
   writeFileSync(nodePath, JSON.stringify(config, null, 2) + "\n", { mode: 0o600 });
 
-  return { name: name as NodeName, created: true };
+  return { name: nodeName(name), created: true };
 }
 
 /** Read the current node name, if initialized. */
@@ -64,7 +64,7 @@ export function readNodeName(mechaDir: string): NodeName | undefined {
     return undefined;
   }
   if (typeof result.data.name !== "string" || !isValidName(result.data.name)) return undefined;
-  return result.data.name as NodeName;
+  return nodeName(result.data.name);
 }
 
 function generateNodeName(): string {
