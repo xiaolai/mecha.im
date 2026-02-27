@@ -188,7 +188,7 @@ describe("agent auth", () => {
       await app.close();
     });
 
-    it("rejects invalid signature", async () => {
+    it("rejects missing nonce header", async () => {
       const keys = new Map([["remote", "pk"]]);
       const verify = vi.fn().mockReturnValue(false);
       const app = await buildSigApp({ keys, verify });
@@ -203,7 +203,61 @@ describe("agent auth", () => {
         payload: { message: "hi" },
       });
       expect(res.statusCode).toBe(401);
+      expect(res.json().error).toContain("Missing X-Mecha-Nonce");
+      await app.close();
+    });
+
+    it("rejects invalid signature", async () => {
+      const keys = new Map([["remote", "pk"]]);
+      const verify = vi.fn().mockReturnValue(false);
+      const app = await buildSigApp({ keys, verify });
+      const res = await app.inject({
+        method: "POST",
+        url: "/casas/alice/query",
+        headers: {
+          "x-mecha-source": "coder@remote",
+          "x-mecha-signature": "badsig",
+          "x-mecha-timestamp": String(Date.now()),
+          "x-mecha-nonce": "nonce-1",
+        },
+        payload: { message: "hi" },
+      });
+      expect(res.statusCode).toBe(401);
       expect(res.json().error).toContain("Invalid signature");
+      await app.close();
+    });
+
+    it("rejects replayed nonce", async () => {
+      const keys = new Map([["remote", "pk"]]);
+      const verify = vi.fn().mockReturnValue(true);
+      const app = await buildSigApp({ keys, verify });
+      // First request succeeds
+      const res1 = await app.inject({
+        method: "POST",
+        url: "/casas/alice/query",
+        headers: {
+          "x-mecha-source": "coder@remote",
+          "x-mecha-signature": "validsig",
+          "x-mecha-timestamp": String(Date.now()),
+          "x-mecha-nonce": "replay-nonce",
+        },
+        payload: { message: "hi" },
+      });
+      expect(res1.statusCode).toBe(200);
+      // Same nonce rejected
+      const res2 = await app.inject({
+        method: "POST",
+        url: "/casas/alice/query",
+        headers: {
+          "x-mecha-source": "coder@remote",
+          "x-mecha-signature": "validsig",
+          "x-mecha-timestamp": String(Date.now()),
+          "x-mecha-nonce": "replay-nonce",
+        },
+        payload: { message: "hi" },
+      });
+      expect(res2.statusCode).toBe(401);
+      expect(res2.json().error).toContain("Nonce already used");
       await app.close();
     });
 
@@ -218,6 +272,7 @@ describe("agent auth", () => {
           "x-mecha-source": "coder@remote",
           "x-mecha-signature": "validsig",
           "x-mecha-timestamp": String(Date.now()),
+          "x-mecha-nonce": "nonce-valid-1",
         },
         payload: { message: "hi" },
       });
@@ -237,6 +292,7 @@ describe("agent auth", () => {
           "x-mecha-source": "coder@remote",
           "x-mecha-signature": "malformed",
           "x-mecha-timestamp": String(Date.now()),
+          "x-mecha-nonce": "nonce-malformed-1",
         },
         payload: { message: "hi" },
       });

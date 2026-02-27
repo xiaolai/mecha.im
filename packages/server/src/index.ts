@@ -13,12 +13,21 @@ export { relayPairs } from "./relay.js";
 export { DEFAULT_CONFIG } from "./types.js";
 export type { ServerConfig, OnlineNode, PendingInvite, RelayPair } from "./types.js";
 
+/** Issued relay tokens store. Exported for testing only. */
+let _issuedRelayTokens: Set<string> | undefined;
+export function getIssuedRelayTokens(): Set<string> | undefined { return _issuedRelayTokens; }
+
 export async function createServer(overrides: Partial<ServerConfig> = {}): Promise<FastifyInstance> {
   const config: ServerConfig = { ...DEFAULT_CONFIG, ...overrides };
+  // Initialize relay token store for signaling ↔ relay validation
+  if (!config.issuedRelayTokens) {
+    config.issuedRelayTokens = new Set();
+  }
+  _issuedRelayTokens = config.issuedRelayTokens;
 
   const app = Fastify({
     logger: false,
-    trustProxy: true,
+    trustProxy: config.trustProxy,
   });
 
   await app.register(websocket);

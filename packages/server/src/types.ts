@@ -62,6 +62,10 @@ export interface ServerConfig {
   relayMaxMessageBytes: number;
   relayMaxPairs: number;
   inviteMaxPending: number;
+  /** Trust proxy headers (X-Forwarded-For). Default: false. Set to specific CIDR or true only behind a known reverse proxy. */
+  trustProxy: boolean | string;
+  /** Issued relay tokens (shared between signaling and relay). Managed internally. */
+  issuedRelayTokens?: Set<string>;
 }
 
 export const DEFAULT_CONFIG: ServerConfig = {
@@ -73,4 +77,5 @@ export const DEFAULT_CONFIG: ServerConfig = {
   relayMaxMessageBytes: 65_536,
   relayMaxPairs: 1000,
   inviteMaxPending: 10_000,
+  trustProxy: false,
 };

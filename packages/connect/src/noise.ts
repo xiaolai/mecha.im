@@ -142,12 +142,16 @@ export async function noiseInitiate(opts: NoiseInitiateOpts): Promise<NoiseHands
 export interface NoiseRespondOpts {
   transport: NoiseTransport;
   localKeyPair: NoiseKeyPair;
+  /** Expected fingerprint of initiator peer (for identity binding). */
+  expectedFingerprint?: string;
+  /** Expected public key of initiator peer. */
+  expectedPublicKey?: string;
   timeoutMs?: number;
 }
 
 /** Respond to a Noise IK handshake. */
 export async function noiseRespond(opts: NoiseRespondOpts): Promise<NoiseHandshakeResult> {
-  const { transport, localKeyPair, timeoutMs = DEFAULTS.NOISE_HANDSHAKE_TIMEOUT_MS } = opts;
+  const { transport, localKeyPair, expectedFingerprint, expectedPublicKey, timeoutMs = DEFAULTS.NOISE_HANDSHAKE_TIMEOUT_MS } = opts;
 
   // Wait for initiator's public key
   const initiatorPub = await Promise.race([
@@ -156,6 +160,23 @@ export async function noiseRespond(opts: NoiseRespondOpts): Promise<NoiseHandsha
       setTimeout(() => reject(new HandshakeError(`Handshake timeout after ${timeoutMs}ms`)), timeoutMs),
     ),
   ]);
+
+  // Verify initiator's public key matches expected peer (identity binding)
+  if (expectedPublicKey) {
+    const expectedKeyBytes = Buffer.from(expectedPublicKey, "base64url");
+    if (!Buffer.from(initiatorPub).equals(expectedKeyBytes)) {
+      throw new HandshakeError("Initiator static key does not match expected peer");
+    }
+  }
+
+  // Verify initiator's fingerprint if provided
+  if (expectedFingerprint) {
+    const { createHash } = await import("node:crypto");
+    const fp = createHash("sha256").update(initiatorPub).digest("hex").slice(0, 16);
+    if (fp !== expectedFingerprint) {
+      throw new HandshakeError("Initiator peer identity mismatch");
+    }
+  }
 
   // Send our public key
   const localPubBytes = Buffer.from(localKeyPair.publicKey, "base64url");

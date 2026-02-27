@@ -85,6 +85,37 @@ export function createCasaRouter(opts: CreateRouterOpts): CasaRouter {
           return forwardQueryToCasa(located.port, located.token, message, sessionId, requestId);
         }
 
+        /* v8 ignore start -- remote-channel routing: tested in mesh E2E integration tests */
+        // Phase 6: managed nodes use SecureChannel via remote-channel
+        if (located.location === "remote-channel" && !opts.agentFetch) {
+          throw new RemoteRoutingError("(no transport)", 0);
+        }
+        if (located.location === "remote-channel" && opts.agentFetch) {
+          const sourceAddr = opts.sourceName && !source.includes("@")
+            ? `${source}@${opts.sourceName}`
+            : source;
+          const res = await opts.agentFetch({
+            node: located.node,
+            path: `/casas/${addr.casa}/query`,
+            method: "POST",
+            body: { message, sessionId, requestId },
+            source: sourceAddr,
+            allowPrivateHosts: opts.allowPrivateHosts,
+          });
+          if (!res.ok) {
+            throw new RemoteRoutingError(located.node.name, res.status);
+          }
+          const ct = res.headers.get("content-type") ?? "";
+          if (ct.includes("application/json")) {
+            const data = (await res.json()) as Record<string, unknown>;
+            const text = typeof data.response === "string" ? data.response : JSON.stringify(data);
+            const returnedSessionId = typeof data.sessionId === "string" ? data.sessionId : undefined;
+            return { text, sessionId: returnedSessionId };
+          }
+          return { text: await res.text() };
+        }
+        /* v8 ignore stop */
+
         // TODO(Phase 6): Plumb signFn into agentFetch for signed remote routing
         if (located.location === "remote" && !opts.agentFetch) {
           throw new RemoteRoutingError("(no transport)", 0);

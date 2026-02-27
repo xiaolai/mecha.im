@@ -53,7 +53,7 @@ export async function startDaemon(opts: DaemonOpts): Promise<DaemonHandle> {
   };
 
   // Build proxy context with hot counters and budgets
-  const mechaParent = opts.mechaDir ?? meterDir.replace(/\/meter$/, "");
+  const mechaParent = opts.mechaDir ?? join(meterDir, "..");
   const date = todayUTC();
   const snapshot = readSnapshot(meterDir);
   const counters = snapshot && snapshot.date === date ? fromSnapshot(snapshot) : createHotCounters(date);
