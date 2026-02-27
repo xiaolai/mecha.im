@@ -1,7 +1,12 @@
 #!/usr/bin/env node
 import { createServer, DEFAULT_CONFIG } from "./index.js";
 
-const port = parseInt(process.env.PORT ?? String(DEFAULT_CONFIG.port), 10);
+const rawPort = process.env.PORT ?? String(DEFAULT_CONFIG.port);
+const port = parseInt(rawPort, 10);
+if (Number.isNaN(port) || port < 0 || port > 65535) {
+  console.error(`Invalid PORT: "${rawPort}" (must be 0-65535)`);
+  process.exit(1);
+}
 const host = process.env.HOST ?? DEFAULT_CONFIG.host;
 const relayUrl = process.env.RELAY_URL ?? DEFAULT_CONFIG.relayUrl;
 

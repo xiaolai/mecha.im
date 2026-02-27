@@ -1,4 +1,4 @@
-import { DEFAULTS, RendezvousError } from "@mecha/core";
+import { DEFAULTS, RendezvousError, createLogger } from "@mecha/core";
 import type { NodeName } from "@mecha/core";
 import type { PeerInfo, SignalData, RendezvousClient } from "./types.js";
 import type { WebSocketLike } from "./relay.js";
@@ -19,6 +19,7 @@ interface PendingRequest {
   timer: ReturnType<typeof setTimeout>;
 }
 
+const log = createLogger("mecha:rendezvous");
 const WS_OPEN = 1;
 
 export function createRendezvousClient(opts: CreateRendezvousClientOpts): RendezvousClient {
@@ -33,6 +34,9 @@ export function createRendezvousClient(opts: CreateRendezvousClientOpts): Rendez
   let ws: WebSocketLike | undefined;
   let registered = false;
   let reconnectAttempts = 0;
+  let closedByUser = false;
+  let savedIdentity: { name: string; publicKey: string; noisePublicKey: string; fingerprint: string } | undefined;
+  const RECONNECT_MAX_MS = 30_000;
 
   const signalHandlers: Array<(from: NodeName, data: SignalData) => void> = [];
   const inviteAcceptedHandlers: Array<(peer: string, pubKey: string, noisePubKey: string, fp: string) => void> = [];
@@ -147,8 +151,8 @@ export function createRendezvousClient(opts: CreateRendezvousClientOpts): Rendez
               : typeof ev.data === "string" ? ev.data : String(ev.data);
             handleMessage(JSON.parse(text));
           /* v8 ignore start -- malformed server message */
-          } catch {
-            // Ignore unparseable messages
+          } catch (err) {
+            log.warn("Failed to parse server message", { error: err instanceof Error ? err.message : String(err) });
           }
           /* v8 ignore stop */
         };
@@ -168,6 +172,26 @@ export function createRendezvousClient(opts: CreateRendezvousClientOpts): Rendez
             pending.reject(new RendezvousError("Connection closed"));
           }
           pendingRequests.clear();
+
+          // Attempt reconnection if not explicitly closed by user
+          /* v8 ignore start -- reconnection requires real server disconnect timing */
+          if (!closedByUser && reconnectAttempts < reconnectMaxAttempts) {
+            const delay = Math.min(reconnectBaseMs * Math.pow(2, reconnectAttempts), RECONNECT_MAX_MS);
+            reconnectAttempts++;
+            setTimeout(async () => {
+              try {
+                await client.connect();
+                reconnectAttempts = 0;
+                // Re-register with saved identity if we had one
+                if (savedIdentity) {
+                  await client.register(savedIdentity);
+                }
+              } catch {
+                // Reconnect failed — onclose will fire again and retry
+              }
+            }, delay);
+          }
+          /* v8 ignore stop */
         };
 
         socket.onerror = () => {
@@ -191,6 +215,7 @@ export function createRendezvousClient(opts: CreateRendezvousClientOpts): Rendez
         signature: sig,
       });
       registered = true;
+      savedIdentity = identity;
     },
 
     async unregister(): Promise<void> {
@@ -223,6 +248,7 @@ export function createRendezvousClient(opts: CreateRendezvousClientOpts): Rendez
     },
 
     close(): void {
+      closedByUser = true;
       registered = false;
       /* v8 ignore start -- close() with pending requests requires specific async timing */
       for (const [, pending] of pendingRequests) {

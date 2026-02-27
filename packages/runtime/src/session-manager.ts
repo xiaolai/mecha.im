@@ -5,7 +5,9 @@ import {
   statSync,
 } from "node:fs";
 import { join } from "node:path";
-import { DEFAULTS } from "@mecha/core";
+import { DEFAULTS, createLogger } from "@mecha/core";
+
+const log = createLogger("mecha:runtime");
 
 export interface SessionMeta {
   id: string;
@@ -68,7 +70,7 @@ export function createSessionManager(
     try {
       return JSON.parse(readFileSync(path, "utf-8")) as StoredMeta;
     } catch {
-      console.error(`[mecha] Corrupt session metadata: ${path}`);
+      log.warn("Corrupt session metadata", { path });
       return undefined;
     }
   }
@@ -79,7 +81,7 @@ export function createSessionManager(
       files = readdirSync(projectsDir);
     /* v8 ignore start -- directory read failure fallback */
     } catch (err) {
-      console.error(`[mecha] Failed to read sessions directory: ${err instanceof Error ? err.message : String(err)}`);
+      log.error("Failed to read sessions directory", { error: err instanceof Error ? err.message : String(err) });
       return [];
     }
     /* v8 ignore stop */
@@ -140,7 +142,7 @@ export function createSessionManager(
       content = readFileSync(path, "utf-8").trim();
     /* v8 ignore start -- IO error reading transcript file */
     } catch (err) {
-      console.error(`[mecha] Failed to read transcript: ${err instanceof Error ? err.message : String(err)}`);
+      log.error("Failed to read transcript", { error: err instanceof Error ? err.message : String(err) });
       return [];
     }
     /* v8 ignore stop */
@@ -150,9 +152,12 @@ export function createSessionManager(
     for (const line of content.split("\n")) {
       try {
         events.push(JSON.parse(line) as TranscriptEvent);
-      } catch {
-        // skip malformed transcript lines
+      /* v8 ignore start -- malformed transcript line logging */
+      } catch (err) {
+        // Log malformed transcript lines for debugging
+        log.warn("Malformed transcript line in session", { error: err instanceof Error ? err.message : String(err) });
       }
+      /* v8 ignore stop */
     }
     return events;
   }

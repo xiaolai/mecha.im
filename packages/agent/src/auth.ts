@@ -64,11 +64,23 @@ export function createSignatureHook(opts: AuthOpts) {
       return;
     }
 
-    // Verify base64 signature against request body
-    // TODO(Phase 6): Sign canonical envelope (method+path+source+timestamp+body) to prevent replay
+    // Verify timestamp to prevent replay attacks (5-minute window)
+    const timestamp = request.headers["x-mecha-timestamp"];
+    if (typeof timestamp !== "string") {
+      reply.code(401).send({ error: "Missing X-Mecha-Timestamp header" });
+      return;
+    }
+    const tsNum = Number(timestamp);
+    if (Number.isNaN(tsNum) || Math.abs(Date.now() - tsNum) > 300_000) {
+      reply.code(401).send({ error: "Timestamp outside 5-minute window" });
+      return;
+    }
+
+    // Verify signature against canonical envelope (method+path+source+timestamp+bodyHash)
     try {
       const bodyStr = JSON.stringify((request as FastifyRequest & { body: unknown }).body ?? "");
-      const valid = opts.verifySignature(publicKeyPem, new TextEncoder().encode(bodyStr), sigHeader);
+      const envelope = `${request.method}\n${pathname}\n${source}\n${timestamp}\n${bodyStr}`;
+      const valid = opts.verifySignature(publicKeyPem, new TextEncoder().encode(envelope), sigHeader);
       if (!valid) {
         reply.code(401).send({ error: "Invalid signature" });
         return;

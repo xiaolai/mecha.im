@@ -21,6 +21,14 @@ export function registerInviteRoutes(app: FastifyInstance, config: ServerConfig)
       return reply.status(400).send({ error: "Missing required fields" });
     }
 
+    // Verify inviter is currently registered on signaling WebSocket
+    const inviterOnline = nodes.get(body.inviterName);
+    /* v8 ignore start -- inviter offline rejection: tested in server integration */
+    if (!inviterOnline) {
+      return reply.status(401).send({ error: "Inviter must be registered on signaling WebSocket" });
+    }
+    /* v8 ignore stop */
+
     if (invites.size >= config.inviteMaxPending) {
       purgeExpired();
       if (invites.size >= config.inviteMaxPending) {

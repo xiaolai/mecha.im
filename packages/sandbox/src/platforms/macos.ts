@@ -18,7 +18,15 @@ export function generateSbpl(profile: SandboxProfile): string {
     "(deny default)",
     // System info and IPC
     "(allow sysctl-read)",
-    "(allow mach-lookup)",
+    // Restrict mach-lookup to services Node.js requires
+    '(allow mach-lookup (global-name "com.apple.system.logger"))',
+    '(allow mach-lookup (global-name "com.apple.system.notification_center"))',
+    '(allow mach-lookup (global-name "com.apple.CoreServices.coreservicesd"))',
+    '(allow mach-lookup (global-name "com.apple.bsd.dirhelper"))',
+    '(allow mach-lookup (global-name "com.apple.system.opendirectoryd.libinfo"))',
+    '(allow mach-lookup (global-name "com.apple.SecurityServer"))',
+    '(allow mach-lookup (global-name "com.apple.cfprefsd.daemon"))',
+    '(allow mach-lookup (global-name "com.apple.lsd.mapdb"))',
     // Node.js requires fork (worker threads, libuv) and signal handling
     "(allow process-fork)",
     "(allow signal)",

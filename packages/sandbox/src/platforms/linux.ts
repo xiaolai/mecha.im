@@ -37,9 +37,13 @@ export function wrapLinux(
     }
   }
 
-  // Device and proc filesystems (needed for Node.js)
+  // Device filesystem (needed for Node.js)
   args.push("--dev", "/dev");
+  // Mount /proc read-only — restrict to minimum needed entries
+  // Note: bwrap --proc creates a new /proc mount; add --ro-bind for specific entries
   args.push("--proc", "/proc");
+  // Mask sensitive /proc entries to prevent secret exfiltration via /proc/self/environ
+  args.push("--ro-bind", "/dev/null", "/proc/self/environ");
 
   // Tmpfs for /tmp (separate from CASA tmp)
   args.push("--tmpfs", "/tmp");

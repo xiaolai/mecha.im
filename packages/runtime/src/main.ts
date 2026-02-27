@@ -29,4 +29,5 @@ app.listen({ port: env.MECHA_PORT, host: "127.0.0.1" }, (err) => {
 });
 
 process.on("SIGTERM", () => { app.close(); });
+process.on("SIGINT", () => { app.close(); });
 /* v8 ignore stop */

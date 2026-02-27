@@ -11,7 +11,9 @@ import { appendEvent } from "./events.js";
 import { lookupCasa } from "./registry.js";
 import { readBudgets, checkBudgets } from "./budgets.js";
 import type { BudgetCheckResult } from "./budgets.js";
+import { createLogger } from "@mecha/core";
 
+const log = createLogger("mecha:meter");
 
 const UPSTREAM_HOST = "api.anthropic.com";
 
@@ -125,10 +127,12 @@ export function reloadBudgets(ctx: ProxyContext): void {
 export function recordEvent(ctx: ProxyContext, event: MeterEvent): void {
   try {
     appendEvent(ctx.meterDir, event);
-  } catch {
-    console.error("[mecha:meter] Failed to write event:", event.id);
+    ingestEvent(ctx.counters, event);
+  /* v8 ignore start -- disk write failure logging */
+  } catch (err) {
+    log.error("Failed to write event", { eventId: event.id, error: err instanceof Error ? err.message : String(err) });
   }
-  ingestEvent(ctx.counters, event);
+  /* v8 ignore stop */
 }
 
 /** Max request body size (32 MB) to prevent memory DoS */
@@ -177,12 +181,12 @@ export function handleProxyRequest(
   const casaInfo = lookupCasa(ctx.registry, casa);
 
   if (casaInfo.workspace === "unknown") {
-    console.error(`[mecha:meter] Unregistered CASA: ${casa}`);
+    log.warn("Unregistered CASA", { casa });
   }
 
   const budgetResult = enforceBudget(ctx, casa, casaInfo);
   for (const w of budgetResult.warnings) {
-    console.error(`[mecha:meter] Budget warning: ${w}`);
+    log.warn("Budget warning", { detail: w });
   }
   if (!budgetResult.allowed) {
     res.writeHead(429, { "content-type": "application/json" });

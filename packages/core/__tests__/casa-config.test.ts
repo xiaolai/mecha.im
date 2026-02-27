@@ -49,14 +49,13 @@ describe("readCasaConfig", () => {
     expect(readCasaConfig(tempDir)).toBeUndefined();
   });
 
-  it("normalizes non-array expose to undefined", () => {
+  it("rejects non-array expose (Zod strict)", () => {
     tempDir = mkdtempSync(join(tmpdir(), "mecha-cfg-"));
     writeFileSync(join(tempDir, "config.json"), JSON.stringify({
       port: 7700, token: "tok", workspace: "/ws", expose: "not-an-array",
     }));
-    const cfg = readCasaConfig(tempDir);
-    expect(cfg).toBeDefined();
-    expect(cfg!.expose).toBeUndefined();
+    // Zod rejects non-array expose — config is invalid
+    expect(readCasaConfig(tempDir)).toBeUndefined();
   });
 
   it("reads valid sandboxMode", () => {
@@ -68,33 +67,31 @@ describe("readCasaConfig", () => {
     expect(cfg!.sandboxMode).toBe("require");
   });
 
-  it("normalizes invalid sandboxMode to undefined", () => {
+  it("rejects invalid sandboxMode (Zod strict)", () => {
     tempDir = mkdtempSync(join(tmpdir(), "mecha-cfg-"));
     writeFileSync(join(tempDir, "config.json"), JSON.stringify({
       port: 7700, token: "tok", workspace: "/ws", sandboxMode: "invalid",
     }));
-    const cfg = readCasaConfig(tempDir);
-    expect(cfg!.sandboxMode).toBeUndefined();
+    // Zod rejects invalid enum values — config is invalid
+    expect(readCasaConfig(tempDir)).toBeUndefined();
   });
 
-  it("filters non-string entries from expose array", () => {
+  it("rejects non-string entries in expose array (Zod strict)", () => {
     tempDir = mkdtempSync(join(tmpdir(), "mecha-cfg-"));
     writeFileSync(join(tempDir, "config.json"), JSON.stringify({
       port: 7700, token: "tok", workspace: "/ws", expose: ["query", 42, null, "execute"],
     }));
-    const cfg = readCasaConfig(tempDir);
-    expect(cfg).toBeDefined();
-    expect(cfg!.expose).toEqual(["query", "execute"]);
+    // Zod rejects mixed-type arrays — config is invalid
+    expect(readCasaConfig(tempDir)).toBeUndefined();
   });
 
-  it("normalizes non-array tags to undefined", () => {
+  it("rejects non-array tags (Zod strict)", () => {
     tempDir = mkdtempSync(join(tmpdir(), "mecha-cfg-"));
     writeFileSync(join(tempDir, "config.json"), JSON.stringify({
       port: 7700, token: "tok", workspace: "/ws", tags: "not-an-array",
     }));
-    const cfg = readCasaConfig(tempDir);
-    expect(cfg).toBeDefined();
-    expect(cfg!.tags).toBeUndefined();
+    // Zod rejects non-array tags — config is invalid
+    expect(readCasaConfig(tempDir)).toBeUndefined();
   });
 });
 

@@ -273,7 +273,7 @@ describe("proxy", () => {
       expect(events[0].id).toBe(event.id);
     });
 
-    it("logs error but still ingests when disk write fails", () => {
+    it("logs error and skips ingestion when disk write fails", () => {
       tempDir = mkdtempSync(join(tmpdir(), "meter-proxy-"));
       const ctx = makeCtx(tempDir);
       // Point to non-existent read-only dir to cause write failure
@@ -289,10 +289,12 @@ describe("proxy", () => {
 
       recordEvent(ctx, event);
 
-      // Ingestion still happened
-      expect(ctx.counters.global.today.requests).toBe(1);
-      // Error was logged
-      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("Failed to write event"), event.id);
+      // Ingestion did NOT happen — hot counters must not update on write failure
+      expect(ctx.counters.global.today.requests).toBe(0);
+      // Error was logged (structured JSON via createLogger)
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Failed to write event"),
+      );
     });
   });
 

@@ -9,8 +9,10 @@ import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import type { SandboxMode } from "@mecha/core";
-import { safeReadJson } from "@mecha/core";
+import { safeReadJson, createLogger } from "@mecha/core";
 import type { SandboxPlatform } from "@mecha/sandbox";
+
+const log = createLogger("mecha:process");
 
 /** Current state schema version — bump when shape changes */
 export const STATE_VERSION = 1;
@@ -51,7 +53,7 @@ export function readState(casaDir: string): CasaState | undefined {
   const result = safeReadJson(statePath, "CASA state", CasaStateSchema);
   if (!result.ok) {
     if (result.reason !== "missing") {
-      console.error(`[mecha] ${result.detail}`);
+      log.warn(result.detail);
     }
     return undefined;
   }
@@ -64,7 +66,7 @@ export function writeState(casaDir: string, state: CasaState): void {
   const statePath = join(casaDir, "state.json");
   const tmp = statePath + `.${process.pid}.${randomBytes(4).toString("hex")}.tmp`;
   const versioned = { ...state, stateVersion: STATE_VERSION };
-  writeFileSync(tmp, JSON.stringify(versioned, null, 2) + "\n", "utf-8");
+  writeFileSync(tmp, JSON.stringify(versioned, null, 2) + "\n", { encoding: "utf-8", mode: 0o600 });
   renameSync(tmp, statePath);
 }
 

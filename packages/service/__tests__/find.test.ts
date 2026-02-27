@@ -105,7 +105,7 @@ describe("casaFind", () => {
     expect(results).toHaveLength(0);
   });
 
-  it("filters non-string entries from tags array", () => {
+  it("treats non-string entries in tags array as invalid config (Zod strict)", () => {
     mechaDir = mkdtempSync(join(tmpdir(), "mecha-find-"));
     const dir = join(mechaDir, "alice");
     mkdirSync(dir, { recursive: true });
@@ -116,9 +116,10 @@ describe("casaFind", () => {
       list: vi.fn().mockReturnValue([makeInfo("alice")]),
     });
 
+    // Zod rejects mixed-type arrays — config is invalid, tags default to []
     const results = casaFind(mechaDir, pm, {});
     expect(results).toHaveLength(1);
-    expect(results[0].tags).toEqual(["valid", "also-valid"]);
+    expect(results[0].tags).toEqual([]);
   });
 
   it("defaults to empty tags for CASAs without tags field", () => {

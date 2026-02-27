@@ -19,17 +19,23 @@ export async function forwardQueryToCasa(
   token: string,
   message: string,
   sessionId?: string,
+  requestId?: string,
 ): Promise<ForwardResult> {
   const url = `http://127.0.0.1:${port}/api/chat`;
   const body: Record<string, string> = { message };
   if (sessionId !== undefined) body.sessionId = sessionId;
 
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+    authorization: `Bearer ${token}`,
+  };
+  /* v8 ignore start -- requestId is passed by service/router; tested in integration */
+  if (requestId) headers["x-request-id"] = requestId;
+  /* v8 ignore stop */
+
   const response = await fetch(url, {
     method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${token}`,
-    },
+    headers,
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(DEFAULTS.FORWARD_TIMEOUT_MS),
   });

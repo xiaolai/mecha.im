@@ -9,6 +9,10 @@ import type { MechaLocator, LocateResult } from "../src/locator.js";
 import { makeAcl, writeCasaConfig } from "../../core/__tests__/test-utils.js";
 import { makePm } from "./test-utils.js";
 
+function makeLocator(result: LocateResult): MechaLocator {
+  return { locate: vi.fn().mockReturnValue(result) };
+}
+
 describe("createCasaRouter", () => {
   let mechaDir: string;
   afterEach(() => { if (mechaDir) rmSync(mechaDir, { recursive: true, force: true }); vi.restoreAllMocks(); });
@@ -38,6 +42,7 @@ describe("createCasaRouter", () => {
       mechaDir = mkdtempSync(join(tmpdir(), "router-"));
       writeCasaConfig(mechaDir, "researcher", { port: 7700, token: "tok123", workspace: "/ws" });
       const acl = makeAcl();
+      const locator = makeLocator({ location: "local", port: 7700, token: "tok123" });
 
       vi.spyOn(globalThis, "fetch").mockResolvedValue(
         new Response(JSON.stringify({ response: "I found 3 papers" }), {
@@ -46,7 +51,7 @@ describe("createCasaRouter", () => {
         }),
       );
 
-      const router = createCasaRouter({ mechaDir, acl, pm: makePm() });
+      const router = createCasaRouter({ mechaDir, acl, pm: makePm(), locator });
       const result = await router.routeQuery("coder" as CasaName, "researcher" as CasaName, "find papers");
 
       expect(result).toEqual({ text: "I found 3 papers", sessionId: undefined });
@@ -65,12 +70,13 @@ describe("createCasaRouter", () => {
       mechaDir = mkdtempSync(join(tmpdir(), "router-"));
       writeCasaConfig(mechaDir, "researcher", { port: 7700, token: "tok", workspace: "/ws" });
       const acl = makeAcl();
+      const locator = makeLocator({ location: "local", port: 7700, token: "tok" });
 
       vi.spyOn(globalThis, "fetch").mockResolvedValue(
         new Response("error", { status: 500 }),
       );
 
-      const router = createCasaRouter({ mechaDir, acl, pm: makePm() });
+      const router = createCasaRouter({ mechaDir, acl, pm: makePm(), locator });
       await expect(
         router.routeQuery("coder" as CasaName, "researcher" as CasaName, "hello"),
       ).rejects.toThrow(/returned HTTP 500/);
@@ -80,6 +86,7 @@ describe("createCasaRouter", () => {
       mechaDir = mkdtempSync(join(tmpdir(), "router-"));
       writeCasaConfig(mechaDir, "researcher", { port: 7700, token: "tok", workspace: "/ws" });
       const acl = makeAcl();
+      const locator = makeLocator({ location: "local", port: 7700, token: "tok" });
 
       vi.spyOn(globalThis, "fetch").mockResolvedValue(
         new Response(JSON.stringify({ data: [1, 2, 3] }), {
@@ -88,7 +95,7 @@ describe("createCasaRouter", () => {
         }),
       );
 
-      const router = createCasaRouter({ mechaDir, acl, pm: makePm() });
+      const router = createCasaRouter({ mechaDir, acl, pm: makePm(), locator });
       const result = await router.routeQuery("coder" as CasaName, "researcher" as CasaName, "hello");
       expect(result.text).toContain('"data"');
     });
@@ -97,12 +104,13 @@ describe("createCasaRouter", () => {
       mechaDir = mkdtempSync(join(tmpdir(), "router-"));
       writeCasaConfig(mechaDir, "researcher", { port: 7700, token: "tok", workspace: "/ws" });
       const acl = makeAcl();
+      const locator = makeLocator({ location: "local", port: 7700, token: "tok" });
 
       vi.spyOn(globalThis, "fetch").mockResolvedValue(
         new Response("plain text response", { status: 200, headers: { "content-type": "text/plain" } }),
       );
 
-      const router = createCasaRouter({ mechaDir, acl, pm: makePm() });
+      const router = createCasaRouter({ mechaDir, acl, pm: makePm(), locator });
       const result = await router.routeQuery("coder" as CasaName, "researcher" as CasaName, "hello");
       expect(result.text).toBe("plain text response");
     });
@@ -111,6 +119,7 @@ describe("createCasaRouter", () => {
       mechaDir = mkdtempSync(join(tmpdir(), "router-"));
       writeCasaConfig(mechaDir, "researcher", { port: 7700, token: "tok", workspace: "/ws" });
       const acl = makeAcl();
+      const locator = makeLocator({ location: "local", port: 7700, token: "tok" });
 
       vi.spyOn(globalThis, "fetch").mockResolvedValue(
         new Response(JSON.stringify({ response: "continued", sessionId: "sess-xyz" }), {
@@ -119,7 +128,7 @@ describe("createCasaRouter", () => {
         }),
       );
 
-      const router = createCasaRouter({ mechaDir, acl, pm: makePm() });
+      const router = createCasaRouter({ mechaDir, acl, pm: makePm(), locator });
       const result = await router.routeQuery(
         "coder" as CasaName, "researcher" as CasaName, "continue", "sess-xyz",
       );
@@ -200,10 +209,6 @@ describe("createCasaRouter", () => {
       name: "bob", host: "192.168.1.10", port: 7660,
       apiKey: "key", addedAt: "2026-01-01T00:00:00Z",
     };
-
-    function makeLocator(result: LocateResult): MechaLocator {
-      return { locate: vi.fn().mockReturnValue(result) };
-    }
 
     it("routes locally when locator returns local", async () => {
       mechaDir = mkdtempSync(join(tmpdir(), "router-"));
