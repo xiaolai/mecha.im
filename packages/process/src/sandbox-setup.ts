@@ -31,11 +31,12 @@ export interface CasaFilesystemResult {
 
 /**
  * Encode a workspace path into a directory name matching Claude Code's convention.
- * `/home/user/my-project` → `-home-alice-my-project`
+ * Replaces `/`, `\`, `:`, and `.` with `-`.
+ * `/home/user/my.project` → `-home-alice-my-project`
  * `C:\Users\joker\project` → `C-home-alice-project`
  */
 export function encodeProjectPath(workspacePath: string): string {
-  return workspacePath.replace(/[/\\:]/g, "-");
+  return workspacePath.replace(/[/\\:.]/g, "-");
 }
 
 export function prepareCasaFilesystem(opts: CasaFilesystemOpts): CasaFilesystemResult {
