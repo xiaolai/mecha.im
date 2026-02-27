@@ -11,5 +11,9 @@ export function safeCompare(a: string, b: string): boolean {
   const bPadded = Buffer.alloc(maxLen);
   Buffer.from(a).copy(aPadded);
   Buffer.from(b).copy(bPadded);
-  return a.length === b.length && timingSafeEqual(aPadded, bPadded);
+  // Always run timingSafeEqual first, then combine with length check
+  // to avoid short-circuit timing leakage on length mismatch
+  const contentsEqual = timingSafeEqual(aPadded, bPadded);
+  const lengthsEqual = a.length === b.length;
+  return contentsEqual && lengthsEqual;
 }

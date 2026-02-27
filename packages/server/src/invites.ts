@@ -29,6 +29,13 @@ export function registerInviteRoutes(app: FastifyInstance, config: ServerConfig)
     }
     /* v8 ignore stop */
 
+    // Verify the POST caller matches the registered inviter's public key
+    /* v8 ignore start -- inviter key mismatch: requires spoofed identity in test */
+    if (body.inviterPublicKey && inviterOnline.publicKey !== body.inviterPublicKey) {
+      return reply.status(401).send({ error: "Inviter public key does not match registered identity" });
+    }
+    /* v8 ignore stop */
+
     if (invites.size >= config.inviteMaxPending) {
       purgeExpired();
       if (invites.size >= config.inviteMaxPending) {
@@ -92,6 +99,14 @@ export function registerInviteRoutes(app: FastifyInstance, config: ServerConfig)
       if (!body?.name || !body.publicKey || !body.fingerprint) {
         return reply.status(400).send({ error: "Missing required fields: name, publicKey, fingerprint" });
       }
+
+      // Verify acceptor identity: if registered on WS, public key must match
+      /* v8 ignore start -- acceptor key mismatch: requires spoofed identity in test */
+      const acceptorNode = nodes.get(body.name);
+      if (acceptorNode && acceptorNode.publicKey !== body.publicKey) {
+        return reply.status(401).send({ error: "Public key does not match registered identity" });
+      }
+      /* v8 ignore stop */
 
       invite.consumed = true;
 

@@ -99,22 +99,38 @@ function makeMockRendezvous(): RendezvousClient & {
 
 function makeMockChannel(peer: string, open = true): SecureChannel & {
   _closeHandlers: Array<(reason: string) => void>;
+  _messageHandlers: Array<(data: Uint8Array) => void>;
   _open: boolean;
 } {
   const closeHandlers: Array<(reason: string) => void> = [];
+  const messageHandlers: Array<(data: Uint8Array) => void> = [];
   const ch = {
     peer: peer as NodeName,
     type: "relayed" as const,
     latencyMs: 5,
     peerFingerprint: "fp-" + peer,
-    send: vi.fn(),
-    onMessage: vi.fn(),
-    offMessage: vi.fn(),
+    send: vi.fn().mockImplementation((data: Uint8Array) => {
+      // Auto-respond to ping messages with pong
+      try {
+        const msg = JSON.parse(new TextDecoder().decode(data)) as { type?: string; nonce?: string };
+        if (msg.type === "ping" && msg.nonce) {
+          const pong = new TextEncoder().encode(JSON.stringify({ type: "pong", nonce: msg.nonce }));
+          setTimeout(() => { for (const h of messageHandlers) h(pong); }, 1);
+        }
+      } catch { /* not a ping, ignore */ }
+    }),
+    onMessage(handler: (data: Uint8Array) => void) { messageHandlers.push(handler); },
+    offMessage(handler: (data: Uint8Array) => void) {
+      const idx = messageHandlers.indexOf(handler);
+      if (idx >= 0) messageHandlers.splice(idx, 1);
+    },
     onClose(handler: (reason: string) => void) { closeHandlers.push(handler); },
     onError: vi.fn(),
+    offError: vi.fn(),
     close: vi.fn(() => { ch._open = false; }),
     get isOpen() { return ch._open; },
     _closeHandlers: closeHandlers,
+    _messageHandlers: messageHandlers,
     _open: open,
   };
   return ch;
@@ -581,7 +597,8 @@ describe("ConnectManager", () => {
       const result = await mgr.ping(PEER);
       expect(result.peer).toBe(PEER);
       expect(result.connectionType).toBe("relayed");
-      expect(result.latencyMs).toBe(5); // mockCh.latencyMs = 5
+      expect(typeof result.latencyMs).toBe("number");
+      expect(result.latencyMs).toBeGreaterThanOrEqual(0);
       expect(mockCh.send).toHaveBeenCalled();
     });
   });

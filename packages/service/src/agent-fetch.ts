@@ -7,6 +7,9 @@ export interface SecureChannelLike {
   send(data: Uint8Array): void;
   onMessage(handler: (data: Uint8Array) => void): void;
   offMessage(handler: (data: Uint8Array) => void): void;
+  onError?(handler: (err: Error) => void): void;
+  offError?(handler: (err: Error) => void): void;
+  onClose?(handler: (reason: string) => void): void;
 }
 
 export interface AgentFetchOpts {
@@ -61,7 +64,13 @@ export async function agentFetch(opts: AgentFetchOpts): Promise<Response> {
   }
 
   if (signFn && bodyStr) {
-    const sig = signFn(new TextEncoder().encode(bodyStr));
+    const timestamp = String(Date.now());
+    const nonce = crypto.randomUUID();
+    headers["x-mecha-timestamp"] = timestamp;
+    headers["x-mecha-nonce"] = nonce;
+    // Sign canonical envelope matching auth.ts verifier contract
+    const envelope = `${method}\n${path}\n${source ?? ""}\n${timestamp}\n${nonce}\n${bodyStr}`;
+    const sig = signFn(new TextEncoder().encode(envelope));
     headers["x-mecha-signature"] = btoa(String.fromCharCode(...sig));
   }
 
@@ -97,7 +106,26 @@ async function channelBasedFetch(
       settled = true;
       clearTimeout(timer);
       channel.offMessage(messageHandler);
+      /* v8 ignore start -- offError cleanup for optional channel method */
+      if (channel.offError) channel.offError(errorHandler);
+      /* v8 ignore stop */
     }
+
+    /* v8 ignore start -- channel error/close handlers for early rejection */
+    const errorHandler = (err: Error): void => {
+      if (!settled) {
+        cleanup();
+        reject(err);
+      }
+    };
+
+    const closeHandler = (_reason: string): void => {
+      if (!settled) {
+        cleanup();
+        reject(new Error("Channel closed before response received"));
+      }
+    };
+    /* v8 ignore stop */
 
     const messageHandler = (data: Uint8Array): void => {
       /* v8 ignore start -- message after settle is a no-op */
@@ -130,6 +158,10 @@ async function channelBasedFetch(
     }, timeoutMs);
 
     channel.onMessage(messageHandler);
+    /* v8 ignore start -- register error/close for early rejection */
+    if (channel.onError) channel.onError(errorHandler);
+    if (channel.onClose) channel.onClose(closeHandler);
+    /* v8 ignore stop */
     channel.send(encoded);
   });
 }

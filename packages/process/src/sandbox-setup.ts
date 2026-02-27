@@ -139,7 +139,8 @@ SANDBOX=$(realpath -m "$MECHA_SANDBOX_ROOT" 2>/dev/null || echo "$MECHA_SANDBOX_
 WORKSPACE=$(realpath -m "$MECHA_WORKSPACE" 2>/dev/null || echo "$MECHA_WORKSPACE")
 # Block commands that explicitly reference paths outside sandbox/workspace
 # Extract file path arguments from the command
-echo "$COMMAND" | grep -oE '(/[^ ;"'"'"'|&>]+)' | while read -r FPATH; do
+# Use process substitution to avoid subshell — exit 2 exits the main script
+while read -r FPATH; do
   RESOLVED=$(realpath -m "$FPATH" 2>/dev/null || echo "$FPATH")
   case "$RESOLVED" in
     "$SANDBOX"/*|"$SANDBOX") ;;
@@ -147,11 +148,7 @@ echo "$COMMAND" | grep -oE '(/[^ ;"'"'"'|&>]+)' | while read -r FPATH; do
     /usr/*|/bin/*|/etc/*|/dev/*|/tmp/*|/System/*|/lib/*|/lib64/*) ;;
     *) echo "BLOCKED: $RESOLVED is outside sandbox" >&2; exit 2 ;;
   esac
-done
-# If the subshell (while loop) exited with 2, propagate
-if [ \${PIPESTATUS[1]} -eq 2 ]; then
-  exit 2
-fi
+done < <(echo "$COMMAND" | grep -oE '(/[^ ;"'"'"'|&>]+)')
 exit 0
 `;
   writeFileSync(join(hooksDir, "sandbox-guard.sh"), sandboxGuard, { mode: 0o755 });

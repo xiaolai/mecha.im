@@ -36,6 +36,18 @@ function checkRateLimit(ip: string): boolean {
   entry.count++;
   return entry.count <= RATE_LIMIT_MAX;
 }
+
+/** Purge expired rate limit entries to prevent unbounded growth. */
+const RATE_LIMIT_PURGE_INTERVAL_MS = 300_000; // 5 minutes
+let lastPurge = Date.now();
+function purgeRateLimits(): void {
+  const now = Date.now();
+  if (now - lastPurge < RATE_LIMIT_PURGE_INTERVAL_MS) return;
+  lastPurge = now;
+  for (const [ip, entry] of rateLimits) {
+    if (now >= entry.resetAt) rateLimits.delete(ip);
+  }
+}
 /* v8 ignore stop */
 
 export function registerSignaling(app: FastifyInstance, config: ServerConfig): void {
@@ -44,6 +56,7 @@ export function registerSignaling(app: FastifyInstance, config: ServerConfig): v
 
     socket.on("message", (raw: Buffer | ArrayBuffer | Buffer[]) => {
       /* v8 ignore start -- rate limit hit requires 60+ messages to test */
+      purgeRateLimits();
       if (!checkRateLimit(clientIp)) {
         send(socket, { type: "error", code: "RATE_LIMITED", message: "Too many messages, slow down" });
         return;
@@ -232,6 +245,8 @@ function handleRequestRelay(
   }
 
   const token = randomUUID();
+  // Register the token so the relay endpoint can validate it
+  config.issuedRelayTokens?.add(token);
   send(ws, { type: "relay-token", token, relayUrl: config.relayUrl, requestId: msg.requestId });
 
   // Notify peer about relay readiness

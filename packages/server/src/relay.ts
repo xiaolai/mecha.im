@@ -15,6 +15,12 @@ export function registerRelay(app: FastifyInstance, config: ServerConfig): void 
 
     const token: string = rawToken;
 
+    // Validate token was issued by the signaling server
+    if (config.issuedRelayTokens && !config.issuedRelayTokens.has(token)) {
+      socket.close(4003, "Invalid relay token");
+      return;
+    }
+
     if (relayPairs.size >= config.relayMaxPairs && !relayPairs.has(token)) {
       socket.close(4001, "Relay capacity reached");
       return;
@@ -44,7 +50,8 @@ export function registerRelay(app: FastifyInstance, config: ServerConfig): void 
       return;
     }
 
-    // Second peer — pair them
+    // Second peer — pair them (consume the token so it can't be reused)
+    config.issuedRelayTokens?.delete(token);
     clearTimeout(existing.timer);
     existing.ws2 = socket;
 

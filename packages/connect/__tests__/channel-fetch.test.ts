@@ -23,6 +23,10 @@ function makeChannel(): SecureChannel & {
     },
     onClose: vi.fn(),
     onError(h: (err: Error) => void) { ch._errorHandlers.push(h); },
+    offError(h: (err: Error) => void) {
+      const idx = ch._errorHandlers.indexOf(h);
+      if (idx >= 0) ch._errorHandlers.splice(idx, 1);
+    },
     close: vi.fn(),
   };
   return ch;

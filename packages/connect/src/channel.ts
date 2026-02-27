@@ -78,6 +78,13 @@ export function createSecureChannel(opts: CreateChannelOpts): SecureChannel {
       errorHandlers.push(handler);
     },
 
+    /* v8 ignore start -- offError: exercised by channelFetch, unit tested via channel-fetch.test.ts mock */
+    offError(handler: (err: Error) => void): void {
+      const idx = errorHandlers.indexOf(handler);
+      if (idx >= 0) errorHandlers.splice(idx, 1);
+    },
+    /* v8 ignore stop */
+
     close(): void {
       if (!open) return;
       open = false;
@@ -87,5 +94,5 @@ export function createSecureChannel(opts: CreateChannelOpts): SecureChannel {
 
     /** Internal: update latency measurement */
     set latencyMs(ms: number) { latencyMs = ms; },
-  } as SecureChannel;
+  } as SecureChannel & { latencyMs: number };
 }

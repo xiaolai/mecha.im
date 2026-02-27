@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll } from "vitest";
-import { createServer, nodes, invites, relayPairs } from "../src/index.js";
+import { createServer, nodes, invites, relayPairs, getIssuedRelayTokens } from "../src/index.js";
 import type { FastifyInstance } from "fastify";
 import WebSocket from "ws";
 import { generateKeyPairSync, sign } from "node:crypto";
@@ -637,6 +637,7 @@ describe("invite REST", () => {
 describe("relay", () => {
   it("pairs two peers and relays messages", async () => {
     const token = "relay-test-token";
+    getIssuedRelayTokens()!.add(token);
     const ws1 = await connectWs(`/relay?token=${token}`);
 
     const ws2Promise = connectWs(`/relay?token=${token}`);
@@ -670,8 +671,17 @@ describe("relay", () => {
     expect(code).toBe(4000);
   });
 
+  it("rejects unissued relay token", async () => {
+    const ws = new WebSocket(`${wsUrl}/relay?token=not-issued`);
+    const code = await new Promise<number>((resolve) => {
+      ws.on("close", (c) => resolve(c));
+    });
+    expect(code).toBe(4003);
+  });
+
   it("first peer disconnect cleans up pair", async () => {
     const token = "cleanup-test";
+    getIssuedRelayTokens()!.add(token);
     const ws1 = await connectWs(`/relay?token=${token}`);
     expect(relayPairs.size).toBe(1);
 
@@ -689,7 +699,9 @@ describe("relay", () => {
     const p = typeof addr === "object" && addr ? addr.port : 0;
     const localWsUrl = `ws://127.0.0.1:${p}`;
 
-    // Fill capacity
+    // Fill capacity — pre-register tokens
+    getIssuedRelayTokens()!.add("fill-1");
+    getIssuedRelayTokens()!.add("fill-2");
     const ws1 = new WebSocket(`${localWsUrl}/relay?token=fill-1`);
     await new Promise<void>((resolve, reject) => { ws1.on("open", () => resolve()); ws1.on("error", reject); });
 
@@ -704,6 +716,7 @@ describe("relay", () => {
 
   it("first peer disconnect after pairing closes second peer", async () => {
     const token = "disconnect-first";
+    getIssuedRelayTokens()!.add(token);
     const ws1 = await connectWs(`/relay?token=${token}`);
     const ws2 = await connectWs(`/relay?token=${token}`);
 
@@ -716,6 +729,7 @@ describe("relay", () => {
 
   it("second peer disconnect closes first peer", async () => {
     const token = "disconnect-test";
+    getIssuedRelayTokens()!.add(token);
     const ws1 = await connectWs(`/relay?token=${token}`);
     const ws2 = await connectWs(`/relay?token=${token}`);
 

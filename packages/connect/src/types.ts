@@ -23,6 +23,7 @@ export interface SecureChannel {
   offMessage(handler: (data: Uint8Array) => void): void;
   onClose(handler: (reason: string) => void): void;
   onError(handler: (err: Error) => void): void;
+  offError(handler: (err: Error) => void): void;
   close(): void;
   readonly isOpen: boolean;
 }
