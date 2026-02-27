@@ -12,6 +12,7 @@ export interface RelayConnectOpts {
 /** Minimal WebSocket interface for relay connections. */
 export interface WebSocketLike {
   readonly readyState: number;
+  binaryType?: string;
   send(data: Uint8Array): void;
   close(): void;
   onopen: ((ev: unknown) => void) | null;
@@ -35,6 +36,11 @@ export async function relayConnect(opts: RelayConnectOpts): Promise<RelayChannel
 
   /* v8 ignore start -- real WebSocket fallback, tests always inject createWebSocket */
   const ws = createWebSocket ? createWebSocket(url) : new WebSocket(url);
+  /* v8 ignore stop */
+
+  // Ensure binary data arrives as ArrayBuffer (not Blob) in Node.js native WebSocket
+  /* v8 ignore start -- binaryType only relevant for native WebSocket, tests inject mocks */
+  if (ws.binaryType !== undefined) ws.binaryType = "arraybuffer";
   /* v8 ignore stop */
 
   return new Promise<RelayChannel>((resolve, reject) => {
@@ -77,6 +83,11 @@ export async function relayConnect(opts: RelayConnectOpts): Promise<RelayChannel
       } else if (data instanceof ArrayBuffer) {
         bytes = new Uint8Array(data);
       }
+      /* v8 ignore start -- Buffer subclass of Uint8Array; guard for edge runtimes */
+      if (!bytes && typeof Buffer !== "undefined" && Buffer.isBuffer(data)) {
+        bytes = new Uint8Array(data);
+      }
+      /* v8 ignore stop */
       if (bytes) {
         /* v8 ignore start -- oversized frame guard requires real relay server */
         if (bytes.length > DEFAULTS.RELAY_MAX_MESSAGE_BYTES) {
