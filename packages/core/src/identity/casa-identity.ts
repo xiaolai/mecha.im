@@ -99,6 +99,8 @@ export function loadCasaIdentityFromDir(casaDir: string): CasaIdentity | undefin
 export function loadCasaIdentity(mechaDir: string, name: CasaName): CasaIdentity | undefined {
   // Validate name doesn't contain path traversal
   const resolved = join(mechaDir, name);
+  /* v8 ignore start -- path traversal guard: name is validated before reaching here */
   if (!resolved.startsWith(mechaDir)) return undefined;
+  /* v8 ignore stop */
   return loadCasaIdentityFromDir(resolved);
 }

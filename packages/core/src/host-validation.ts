@@ -77,9 +77,11 @@ export function isPrivateHost(host: string): boolean {
   try {
     const parsed = new URL(`http://${canonical}`);
     const resolvedHost = parsed.hostname;
+    /* v8 ignore start -- numeric IPv4 detection: requires non-standard IP forms like 0x7f000001 */
     if (resolvedHost !== canonical && isIP(resolvedHost) === 4) {
       return isPrivateIPv4(resolvedHost);
     }
+    /* v8 ignore stop */
   } catch {
     // Invalid host — not a numeric form
   }

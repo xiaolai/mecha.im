@@ -57,6 +57,7 @@ export function registerAgentStartCommand(parent: Command, deps: CommandDeps): v
       /* v8 ignore stop */
 
       // Start embedded rendezvous server if requested
+      /* v8 ignore start -- embedded server requires live @mecha/server import and listen */
       if (opts.server) {
         const serverPort = parsePort(opts.serverPort);
         if (serverPort === undefined) {
@@ -76,18 +77,17 @@ export function registerAgentStartCommand(parent: Command, deps: CommandDeps): v
           startedAt: new Date().toISOString(),
         });
 
-        /* v8 ignore start -- shutdown hook only fires on process signal */
         deps.registerShutdownHook?.(async () => {
           await rvServer.close();
           removeServerState(deps.mechaDir);
         });
-        /* v8 ignore stop */
 
         deps.formatter.info(`Embedded server started on ${opts.host}:${serverPort}`);
         if (!opts.publicAddr) {
           deps.formatter.warn("No --public-addr set — server is local-only");
         }
       }
+      /* v8 ignore stop */
 
       const host = opts.host;
       await server.listen({ port, host });

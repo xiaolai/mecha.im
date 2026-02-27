@@ -1,19 +1,16 @@
 
 __pycache__/
-!.codex/prompts/
-!.codex/skills/
 !.env.example              # Keep example files for documentation
-!.gemini/commands/
-!.gemini/skills/
 .claude/*.local.*
 .claude/.docs-sync-enabled
 .claude/CLAUDE.local.md
 .claude/settings.local.json
-.codex/*
+.claude/tdd-guardian/state.json
+.codex/config.local.json
 .DS_Store
 .env
 .env.*
-.gemini/*
+.gemini/settings.local.json
 .idea/
 .next/
 .nyc_output/
@@ -73,3 +70,4 @@ Thumbs.db
 tsconfig.tsbuildinfo
 vendor/
 venv/
+.gitnexus

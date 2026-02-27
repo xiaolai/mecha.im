@@ -53,17 +53,20 @@ export function readCasaConfig(casaDir: string): CasaConfig | undefined {
   return result.data;
 }
 
-/** Update fields in a CASA's config.json (read-modify-write, atomic). */
+/** Update fields in a CASA's config.json (read-modify-write, atomic).
+ *  When the existing config is corrupt/missing, uses `fallback` as base if provided. */
 export function updateCasaConfig(
   casaDir: string,
   updates: Partial<CasaConfig>,
+  fallback?: CasaConfig,
 ): void {
   const configPath = join(casaDir, "config.json");
   const existing = readCasaConfig(casaDir);
-  if (!existing) {
+  const base = existing ?? fallback;
+  if (!base) {
     throw new Error(`Cannot update CASA config: no valid config.json found in ${casaDir}`);
   }
-  const merged = { ...existing, ...updates, configVersion: CASA_CONFIG_VERSION };
+  const merged = { ...base, ...updates, configVersion: CASA_CONFIG_VERSION };
   // Validate merged result against schema before persisting
   CasaConfigSchema.parse(merged);
   const tmp = configPath + `.${randomBytes(4).toString("hex")}.tmp`;

@@ -61,4 +61,10 @@ export default defineWorkspace([
       include: ["packages/server/__tests__/**/*.test.ts"],
     },
   },
+  {
+    test: {
+      name: "mcp-server",
+      include: ["packages/mcp-server/__tests__/**/*.test.ts"],
+    },
+  },
 ]);

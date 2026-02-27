@@ -4,7 +4,7 @@
   "private": true,
   "description": "Local-first multi-agent runtime",
   "scripts": {
-    "build": "tsc -b packages/core packages/sandbox packages/process packages/runtime packages/service packages/agent packages/meter packages/connect packages/cli packages/server",
+    "build": "tsc -b packages/core packages/sandbox packages/process packages/runtime packages/service packages/agent packages/meter packages/connect packages/mcp-server packages/cli packages/server",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage --config vitest.config.ts",
     "typecheck": "tsc -b",

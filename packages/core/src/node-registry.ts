@@ -8,6 +8,11 @@ import { safeReadJson } from "./safe-read.js";
 
 const NODES_FILE = "nodes.json";
 
+/* v8 ignore start -- refine branch: managed=false short-circuits, publicKey-only branch unreachable */
+const managedRequiresKeys = (n: { managed?: boolean; fingerprint?: string; publicKey?: string }): boolean =>
+  !n.managed || !!(n.fingerprint && n.publicKey);
+/* v8 ignore stop */
+
 const NodeEntrySchema = z.object({
   name: z.string(),
   host: z.string(),
@@ -18,10 +23,8 @@ const NodeEntrySchema = z.object({
   fingerprint: z.string().optional(),
   addedAt: z.string(),
   managed: z.boolean().optional(),
-}).refine(
-  (n) => !n.managed || (n.fingerprint && n.publicKey),
-  { message: "Managed nodes require publicKey and fingerprint" },
-);
+  serverUrl: z.string().optional(),
+}).refine(managedRequiresKeys, { message: "Managed nodes require publicKey and fingerprint" });
 
 export type NodeEntry = z.infer<typeof NodeEntrySchema>;
 

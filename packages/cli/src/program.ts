@@ -23,6 +23,8 @@ import { registerMeterCommand } from "./commands/meter.js";
 import { registerCostCommand } from "./commands/cost.js";
 import { registerBudgetCommand } from "./commands/budget.js";
 import { registerPluginCommand } from "./commands/plugin.js";
+import { registerMcpCommand } from "./commands/mcp.js";
+import { registerAuditCommand } from "./commands/audit.js";
 
 /**
  * Commands that mutate state and need the CLI singleton lock.
@@ -49,6 +51,8 @@ export const MUTATING_COMMANDS = new Set([
   "budget set", "budget rm",
   // plugin subcommands (ls, status, test are read-only)
   "plugin add", "plugin rm",
+  // audit subcommands
+  "audit clear",
 ]);
 
 /**
@@ -105,6 +109,8 @@ export function createProgram(deps: CommandDeps): Command {
   registerCostCommand(program, deps);
   registerBudgetCommand(program, deps);
   registerPluginCommand(program, deps);
+  registerMcpCommand(program, deps);
+  registerAuditCommand(program, deps);
 
   return program;
 }

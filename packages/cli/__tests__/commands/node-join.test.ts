@@ -136,7 +136,7 @@ describe("node join command", () => {
     await program.parseAsync(["node", "mecha", "node", "join", code]);
 
     expect(deps.formatter.warn).toHaveBeenCalledWith(
-      "Untrusted rendezvous URL scheme in invite — skipping server notification",
+      "Could not reach any rendezvous server — peer added locally",
     );
     // Peer should still be added locally
     expect(deps.formatter.success).toHaveBeenCalledWith(

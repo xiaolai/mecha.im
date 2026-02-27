@@ -86,7 +86,9 @@ export function createRendezvousClient(opts: CreateRendezvousClientOpts): Rendez
       pendingRequests.delete(reqId);
       clearTimeout(pending.timer);
       if (msg.error || msg.type === "error") {
+        /* v8 ignore start -- ?? fallback for error message fields */
         pending.reject(new RendezvousError((msg.message ?? msg.code ?? "Unknown error") as string));
+        /* v8 ignore stop */
       } else {
         pending.resolve(msg);
       }

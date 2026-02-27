@@ -56,6 +56,8 @@ export const DEFAULTS = {
   METER_EVENT_BUFFER_INTERVAL_MS: 5_000,
   /** Default event retention (days) */
   METER_RETENTION_DAYS: 90,
+  /** Embedded rendezvous server port (Phase 6b) */
+  EMBEDDED_SERVER_PORT: 7681,
   // --- Connectivity (Phase 6) ---
   /** Rendezvous server URL */
   RENDEZVOUS_URL: "wss://rendezvous.mecha.im",
