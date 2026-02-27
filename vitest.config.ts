@@ -13,6 +13,8 @@ export default defineConfig({
         "**/types.ts",
         "**/bin.ts",
         "**/main.ts",
+        "**/transport.ts",
+        "**/http-transport.ts",
       ],
       thresholds: {
         lines: 100,

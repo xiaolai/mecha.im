@@ -64,8 +64,10 @@ export interface ServerConfig {
   inviteMaxPending: number;
   /** Trust proxy headers (X-Forwarded-For). Default: false. Set to specific CIDR or true only behind a known reverse proxy. */
   trustProxy: boolean | string;
-  /** Issued relay tokens (shared between signaling and relay). Managed internally. */
-  issuedRelayTokens?: Set<string>;
+  /** HMAC secret for self-verifiable relay tokens. Auto-generated if not provided. */
+  secret?: Buffer;
+  /** Mecha config dir — used for gossip peer validation (reads nodes.json). */
+  mechaDir?: string;
 }
 
 export const DEFAULT_CONFIG: ServerConfig = {

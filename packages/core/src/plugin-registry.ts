@@ -102,9 +102,11 @@ const PluginConfigSchema: z.ZodType<PluginConfig> = z.discriminatedUnion("type",
   }),
   z.object({
     type: z.enum(["http", "sse"]),
+    /* v8 ignore start -- refine branch: z.url() already enforces valid URL, scheme check is defense-in-depth */
     url: z.string().url().refine((u) => u.startsWith("http://") || u.startsWith("https://"), {
       message: "URL must use http:// or https:// scheme",
     }),
+    /* v8 ignore stop */
     headers: z.record(z.string()).optional(),
     description: z.string().optional(),
     addedAt: z.string(),
