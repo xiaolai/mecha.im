@@ -65,6 +65,9 @@ importers:
       '@mecha/sandbox':
         specifier: workspace:*
         version: link:../sandbox
+      '@mecha/server':
+        specifier: workspace:*
+        version: link:../server
       '@mecha/service':
         specifier: workspace:*
         version: link:../service
@@ -102,7 +105,7 @@ importers:
         specifier: workspace:*
         version: link:../sandbox
       zod:
-        specifier: ^3.25.36
+        specifier: ^3.25.76
         version: 3.25.76
 
   packages/runtime:
@@ -131,6 +134,9 @@ importers:
       '@fastify/websocket':
         specifier: ^11.2.0
         version: 11.2.0
+      '@mecha/core':
+        specifier: workspace:*
+        version: link:../core
       fastify:
         specifier: ^5.3.3
         version: 5.7.4
