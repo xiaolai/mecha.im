@@ -1,34 +1,116 @@
 # Mesh Networking
 
-Mecha agents can communicate across machines through the mesh. Each node runs an **agent server** that routes queries between local and remote CASAs.
+Mecha agents can communicate across machines through the mesh. Nodes connect via two modes: **P2P** (invite-based, encrypted channels) and **HTTP** (direct agent server connections).
+
+## Connection Modes
+
+Mecha supports two types of node connections:
+
+| Mode | Setup | Transport | Use Case |
+|------|-------|-----------|----------|
+| **P2P (managed)** | `node invite` + `node join` | Encrypted channel via relay | Zero-config, NAT-friendly, no port forwarding |
+| **HTTP (direct)** | `node add` | HTTP with Bearer auth | LAN/VPN, full control over networking |
 
 ## Architecture
 
+### P2P Mode (Managed Nodes)
+
 ```mermaid
-graph LR
-  subgraph alice["Machine A (alice)"]
-    coder
-    reviewer
-    agentA["agent server :7660"]
-  end
-  subgraph bob["Machine B (bob)"]
-    analyst
-    researcher
-    agentB["agent server :7660"]
-  end
-  coder -- "mesh_query" --> analyst
-  agentA <-- "HTTP/JSON<br/>Bearer auth" --> agentB
+sequenceDiagram
+    participant Alice as alice
+    participant RV as Rendezvous Server
+    participant Relay as Relay Server
+    participant Bob as bob
+
+    Alice->>RV: register (identity + Noise key)
+    Bob->>RV: register (identity + Noise key)
+    Alice->>RV: requestRelay(bob)
+    RV-->>Alice: relay token
+    Alice->>Relay: connect (token)
+    Bob->>Relay: connect (token)
+    Note over Alice,Bob: Noise IK handshake over relay
+    Alice->>Bob: Encrypted SecureChannel
+    Note over Alice,Bob: Queries tunnel through encrypted channel
 ```
 
-## Setting Up Nodes
+P2P nodes use a rendezvous server for discovery and a relay server for transport. All communication is end-to-end encrypted using the [Noise IK](http://noiseprotocol.org/) handshake pattern (X25519 + ChaCha20-Poly1305).
 
-### Initialize Your Node
+### HTTP Mode (Direct Nodes)
+
+```mermaid
+graph LR
+    subgraph alice["Machine A (alice)"]
+        coder
+        reviewer
+        agentA["agent server :7660"]
+    end
+    subgraph bob["Machine B (bob)"]
+        analyst
+        researcher
+        agentB["agent server :7660"]
+    end
+    coder -- "mesh_query" --> analyst
+    agentA <-- "HTTP + Bearer auth" --> agentB
+```
+
+HTTP nodes communicate directly through agent servers. This requires network connectivity (same LAN, VPN, or open ports) and shared API keys.
+
+## Setting Up P2P Nodes (Recommended)
+
+### 1. Initialize Both Nodes
+
+On each machine, generate an identity:
 
 ```bash
 mecha node init
 ```
 
-This generates an Ed25519 keypair for your node's cryptographic identity.
+This creates an Ed25519 keypair and X25519 Noise key for your node.
+
+### 2. Create and Share an Invite
+
+On the first machine:
+
+```bash
+mecha node invite
+```
+
+This outputs an invite code like `mecha://invite/eyJ...`. Share it with your peer.
+
+| Option | Description |
+|--------|-------------|
+| `--expires <duration>` | Invite expiry (default: `24h`). Accepts: `1h`, `6h`, `24h`, `7d` |
+| `--server <url>` | Rendezvous server URL |
+
+### 3. Accept the Invite
+
+On the second machine:
+
+```bash
+mecha node join mecha://invite/eyJ...
+```
+
+The peer is added as a **managed** node. Both nodes are now connected through the rendezvous infrastructure.
+
+### 4. Test the Connection
+
+```bash
+mecha node ping bob
+```
+
+For managed nodes, this checks online status via the rendezvous server and reports latency.
+
+### 5. List Nodes
+
+```bash
+mecha node ls
+```
+
+Displays all nodes with their type (`managed` or `http`), host, port, and when they were added.
+
+## Setting Up HTTP Nodes
+
+For LAN/VPN environments where you prefer direct connections:
 
 ### Add a Remote Node
 
@@ -36,66 +118,94 @@ This generates an Ed25519 keypair for your node's cryptographic identity.
 mecha node add bob 192.168.1.50 --port 7660 --api-key secret-key
 ```
 
-### List Known Nodes
-
-```bash
-mecha node ls
-```
-
-### Remove a Node
-
-```bash
-mecha node rm bob
-```
-
-## Starting the Agent Server
-
-The agent server handles incoming queries from remote nodes:
+### Start the Agent Server
 
 ```bash
 # Start with API key
 mecha agent start --api-key my-secret
 
-# Or use an environment variable
+# Or use environment variable
 export MECHA_AGENT_API_KEY=my-secret
-mecha agent start
-
-# Custom host/port
 mecha agent start --host 0.0.0.0 --port 7660
 ```
 
 By default, the agent server binds to `127.0.0.1` (localhost only). Use `--host 0.0.0.0` to accept connections from other machines.
 
-```bash
-# Check status
-mecha agent status
-```
-
 ## Cross-Node Queries
 
-Once nodes are connected, queries route automatically:
+Once nodes are connected (either mode), queries route automatically:
 
 ```bash
-# Query an agent on another node
 mecha chat coder "Ask analyst@bob about the sales data"
 ```
 
-The routing path:
+### Routing: Managed Nodes
 
-1. `coder` on alice makes a `mesh_query` MCP call targeting `analyst@bob`
-2. Alice's router looks up `bob` in the node registry
-3. Alice sends an authenticated HTTP request to bob's agent server
-4. Bob's agent server validates the request and checks its local ACL
-5. Bob forwards the query to `analyst`
-6. The response flows back through the same path
+```mermaid
+sequenceDiagram
+    participant coder as coder (alice)
+    participant router as Alice Router
+    participant channel as SecureChannel
+    participant agent as Bob Agent
+    participant analyst as analyst (bob)
+
+    coder->>router: mesh_query("analyst@bob", ...)
+    router->>router: ACL check
+    router->>channel: Tunnel request (encrypted)
+    channel->>agent: Decrypt + forward
+    agent->>analyst: Local query
+    analyst-->>agent: Response
+    agent-->>channel: Encrypt response
+    channel-->>router: Tunnel response
+    router-->>coder: MCP tool result
+```
+
+For managed nodes, the router tunnels requests through the encrypted SecureChannel. No HTTP ports or API keys are needed on either side.
+
+### Routing: HTTP Nodes
+
+```mermaid
+sequenceDiagram
+    participant coder as coder (alice)
+    participant router as Alice Router
+    participant agent as Bob Agent Server (:7660)
+    participant analyst as analyst (bob)
+
+    coder->>router: mesh_query("analyst@bob", ...)
+    router->>router: ACL check
+    router->>agent: POST /casas/analyst/query<br/>Bearer token + X-Mecha-Source
+    agent->>agent: Validate auth + ACL
+    agent->>analyst: Forward query
+    analyst-->>agent: Response
+    agent-->>router: Response
+    router-->>coder: MCP tool result
+```
 
 ## Security
+
+### P2P Encryption
+
+Managed nodes use end-to-end encryption:
+
+- **Noise IK handshake** — X25519 Diffie-Hellman key exchange with ChaCha20-Poly1305 AEAD
+- **Mutual authentication** — both sides verify the peer's Ed25519 fingerprint during the handshake
+- **Forward secrecy** — ephemeral keys are generated per session
+
+### Ed25519 Signatures (HTTP Mode)
+
+HTTP routing requests include signed envelopes for tamper detection:
+
+- **X-Mecha-Signature** — Ed25519 signature over the canonical request envelope
+- **X-Mecha-Timestamp** — Unix timestamp (rejects requests outside a 5-minute window)
+- **X-Mecha-Nonce** — Unique nonce per request (prevents replay attacks within the timestamp window)
+
+The canonical envelope format: `method\npath\nsource\ntimestamp\nnonce\nbody`
 
 ### Authentication
 
 Every cross-node request includes:
 
-- **Bearer token** — the target node's API key (timing-safe comparison)
+- **Bearer token** — the target node's API key (timing-safe comparison) — HTTP mode only
 - **X-Mecha-Source** — the fully qualified source address (e.g., `coder@alice`)
 
 ### SSRF Protection
@@ -106,9 +216,9 @@ The agent fetch layer validates remote hosts before connecting:
 - IPv4-mapped IPv6 addresses are detected and blocked (`::ffff:127.0.0.1`)
 - Bracketed IPv6 literals are canonicalized before validation
 
-### Ed25519 Signatures
+### Relay Token Validation
 
-Nodes have Ed25519 keypairs for message signing. Signature verification is available on routing endpoints — when a node's public key is configured, requests must include a valid `X-Mecha-Signature` header.
+Relay tokens are issued by the rendezvous server and validated on use. Tokens are single-use — consumed upon relay pairing to prevent reuse.
 
 ## Multi-Turn Mesh Conversations
 
@@ -127,3 +237,11 @@ When a mesh query creates a new session on the target, the response includes `_m
 | `analyst` | Local CASA on this node |
 | `analyst@bob` | CASA on remote node "bob" |
 | `+research` | All CASAs tagged "research" (local + remote) |
+
+## Infrastructure Services
+
+| Service | Default URL | Port | Purpose |
+|---------|-------------|------|---------|
+| Rendezvous server | `wss://rendezvous.mecha.im` | 7680 | Peer discovery, signaling, invite exchange |
+| Relay server | `wss://relay.mecha.im` | 7680 | Encrypted channel transport for managed nodes |
+| Agent server | `localhost:7660` | 7660 | HTTP mesh routing for direct nodes |
