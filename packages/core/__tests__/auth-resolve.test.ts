@@ -69,7 +69,7 @@ describe("auth-resolve", () => {
               account: "user@example.com",
               label: "Personal",
               tags: [],
-              expiresAt: 1771891200000,
+              expiresAt: 2000000000000,
               createdAt: "2026-02-26T00:00:00Z",
             },
           },
@@ -102,7 +102,7 @@ describe("auth-resolve", () => {
           account: "user@example.com",
           label: "Personal",
           tags: [],
-          expiresAt: 1771891200000,
+          expiresAt: 2000000000000,
           createdAt: "2026-02-26T00:00:00Z",
         },
         team: {

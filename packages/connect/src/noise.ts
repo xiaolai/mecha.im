@@ -10,11 +10,12 @@ import type { NoiseTransport, NoiseHandshakeResult, NoiseCipher, NoiseKeyPair } 
  * will replace the DH step in a follow-up; cipher/framing stays the same.
  */
 
-/** Create a NoiseCipher from a 32-byte shared secret. */
-export function createNoiseCipher(sharedSecret: Uint8Array): NoiseCipher {
+/** Create a NoiseCipher with separate send/receive keys to prevent nonce reuse. */
+export function createNoiseCipher(sendKeyInput: Uint8Array, recvKeyInput?: Uint8Array): NoiseCipher {
   let sendNonce = 0n;
   let recvNonce = 0n;
-  let key = Buffer.from(sharedSecret.slice(0, 32));
+  let sendKey = Buffer.from(sendKeyInput.slice(0, 32));
+  let recvKey = Buffer.from((recvKeyInput ?? sendKeyInput).slice(0, 32));
 
   function nonceToIv(n: bigint): Buffer {
     const iv = Buffer.alloc(12);
@@ -25,7 +26,7 @@ export function createNoiseCipher(sharedSecret: Uint8Array): NoiseCipher {
   return {
     encrypt(plaintext: Uint8Array): Uint8Array {
       const iv = nonceToIv(sendNonce++);
-      const cipher = createCipheriv("chacha20-poly1305", key, iv, { authTagLength: 16 });
+      const cipher = createCipheriv("chacha20-poly1305", sendKey, iv, { authTagLength: 16 });
       const encrypted = cipher.update(plaintext);
       cipher.final();
       const tag = cipher.getAuthTag();
@@ -50,7 +51,7 @@ export function createNoiseCipher(sharedSecret: Uint8Array): NoiseCipher {
         throw new Error("Nonce reuse or replay detected");
       }
       /* v8 ignore stop */
-      const decipher = createDecipheriv("chacha20-poly1305", key, iv, { authTagLength: 16 });
+      const decipher = createDecipheriv("chacha20-poly1305", recvKey, iv, { authTagLength: 16 });
       decipher.setAuthTag(tag);
       const decrypted = decipher.update(data);
       decipher.final();
@@ -59,8 +60,10 @@ export function createNoiseCipher(sharedSecret: Uint8Array): NoiseCipher {
     },
 
     rekey(): void {
-      key.fill(0); // Secure-zero old key material before replacing
-      key = randomBytes(32);
+      sendKey.fill(0); // Secure-zero old key material before replacing
+      recvKey.fill(0);
+      sendKey = randomBytes(32);
+      recvKey = randomBytes(32);
       sendNonce = 0n;
       recvNonce = 0n;
     },
@@ -69,9 +72,13 @@ export function createNoiseCipher(sharedSecret: Uint8Array): NoiseCipher {
 
 /* v8 ignore start -- noiseInitiate/noiseRespond require real X25519 DER keys and transport infrastructure */
 
-/** Derive send/recv keys from raw DH output via HKDF with transcript context. */
-function deriveKeys(dhSecret: Buffer, transcript: Buffer): Uint8Array {
-  return new Uint8Array(hkdfSync("sha256", dhSecret, transcript, "mecha-noise-ik", 32));
+/** Derive directional keys from raw DH output via HKDF with transcript context. */
+function deriveKeys(dhSecret: Buffer, transcript: Buffer): { initiatorKey: Uint8Array; responderKey: Uint8Array } {
+  const material = new Uint8Array(hkdfSync("sha256", dhSecret, transcript, "mecha-noise-ik", 64));
+  return {
+    initiatorKey: material.slice(0, 32),
+    responderKey: material.slice(32, 64),
+  };
 }
 
 export interface NoiseInitiateOpts {
@@ -131,10 +138,10 @@ export async function noiseInitiate(opts: NoiseInitiateOpts): Promise<NoiseHands
     type: "spki",
   });
   const secret = diffieHellman({ privateKey: localPriv, publicKey: remotePub });
-  // Derive key via HKDF with transcript binding (both public keys as context)
+  // Derive directional keys via HKDF — initiator sends with initiatorKey, receives with responderKey
   const transcript = Buffer.concat([localPubBytes, Buffer.from(response)]);
-  const derivedKey = deriveKeys(secret, transcript);
-  const cipher = createNoiseCipher(derivedKey);
+  const keys = deriveKeys(secret, transcript);
+  const cipher = createNoiseCipher(keys.initiatorKey, keys.responderKey);
 
   return { cipher, remoteStaticKey: new Uint8Array(response) };
 }
@@ -194,10 +201,10 @@ export async function noiseRespond(opts: NoiseRespondOpts): Promise<NoiseHandsha
     type: "spki",
   });
   const secret = diffieHellman({ privateKey: localPriv, publicKey: remotePub });
-  // Derive key via HKDF — transcript uses initiator's key first (same order as initiator)
+  // Derive directional keys — responder sends with responderKey, receives with initiatorKey
   const transcript = Buffer.concat([Buffer.from(initiatorPub), localPubBytes]);
-  const derivedKey = deriveKeys(secret, transcript);
-  const cipher = createNoiseCipher(derivedKey);
+  const keys = deriveKeys(secret, transcript);
+  const cipher = createNoiseCipher(keys.responderKey, keys.initiatorKey);
 
   return { cipher, remoteStaticKey: new Uint8Array(initiatorPub) };
 }

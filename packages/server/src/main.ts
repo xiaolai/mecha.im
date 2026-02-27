@@ -11,18 +11,28 @@ try {
   process.exit(1);
 }
 
-const server = await createServer(env);
-
-await server.listen({ port: env.port, host: env.host });
+let server: Awaited<ReturnType<typeof createServer>>;
+try {
+  server = await createServer(env);
+  await server.listen({ port: env.port, host: env.host });
+} catch (err) {
+  console.error("Failed to start server:", err instanceof Error ? err.message : String(err));
+  process.exit(1);
+}
 
 console.log(`mecha-server listening on ${env.host}:${env.port}`);
 console.log(`  Signaling: ws://${env.host}:${env.port}/ws`);
 console.log(`  Relay:     ws://${env.host}:${env.port}/relay?token=<token>`);
 console.log(`  Health:    http://${env.host}:${env.port}/healthz`);
 
+let shuttingDown = false;
 function shutdown(): void {
+  if (shuttingDown) return;
+  shuttingDown = true;
   console.log("Shutting down...");
-  server.close().then(() => process.exit(0));
+  server.close().catch((err) => {
+    console.error("Shutdown error:", err instanceof Error ? err.message : String(err));
+  }).finally(() => process.exit(0));
 }
 
 process.on("SIGINT", shutdown);

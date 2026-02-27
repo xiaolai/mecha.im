@@ -14,6 +14,28 @@ function getThreshold(): number {
   return LEVELS[env as Level] ?? LEVELS.info;
 }
 
+const REDACT_KEYS = new Set(["token", "authorization", "apiKey", "api_key", "secret", "password", "credential"]);
+
+function redact(data: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const [key, val] of Object.entries(data)) {
+    if (REDACT_KEYS.has(key.toLowerCase())) {
+      result[key] = "[REDACTED]";
+    } else {
+      result[key] = val;
+    }
+  }
+  return result;
+}
+
+function safeStringify(obj: unknown): string {
+  try {
+    return JSON.stringify(obj);
+  } catch {
+    return '{"error":"[unserializable log entry]"}';
+  }
+}
+
 function emit(level: Level, ns: string, msg: string, data?: Record<string, unknown>): void {
   const entry: Record<string, unknown> = {
     ts: new Date().toISOString(),
@@ -21,8 +43,8 @@ function emit(level: Level, ns: string, msg: string, data?: Record<string, unkno
     ns,
     msg,
   };
-  if (data !== undefined) entry.data = data;
-  console.error(JSON.stringify(entry));
+  if (data !== undefined) entry.data = redact(data);
+  console.error(safeStringify(entry));
 }
 
 /**

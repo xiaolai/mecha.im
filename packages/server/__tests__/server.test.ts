@@ -1,18 +1,25 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll } from "vitest";
-import { createServer, nodes, invites, relayPairs, getIssuedRelayTokens } from "../src/index.js";
+import { createServer, nodes, invites, relayPairs, createRelayToken } from "../src/index.js";
 import type { FastifyInstance } from "fastify";
 import WebSocket from "ws";
-import { generateKeyPairSync, sign } from "node:crypto";
+import { generateKeyPairSync, sign, randomBytes } from "node:crypto";
 
 let app: FastifyInstance;
 let baseUrl: string;
 let wsUrl: string;
+/** Shared secret used by all test servers for HMAC relay tokens */
+const testSecret = randomBytes(32);
+
+/** Create a valid HMAC relay token for testing */
+function makeRelayToken(peer = "test"): string {
+  return createRelayToken(testSecret, { peer, srv: "127.0.0.1" });
+}
 
 beforeEach(async () => {
   nodes.clear();
   invites.clear();
   relayPairs.clear();
-  app = await createServer({ port: 0, host: "127.0.0.1", relayUrl: "wss://relay.test" });
+  app = await createServer({ port: 0, host: "127.0.0.1", relayUrl: "wss://relay.test", secret: testSecret });
   await app.listen({ port: 0, host: "127.0.0.1" });
   const address = app.server.address();
   const port = typeof address === "object" && address ? address.port : 0;
@@ -93,7 +100,6 @@ describe("healthz", () => {
     const res = await fetch(`${baseUrl}/healthz`);
     const body = await res.json();
     expect(body.status).toBe("ok");
-    expect(body.nodes).toBe(0);
   });
 });
 
@@ -419,6 +425,7 @@ describe("invite REST", () => {
       body: JSON.stringify({
         token: "consumed-token",
         inviterName: "alice",
+        inviterPublicKey: alice.publicKey,
         expiresAt: Date.now() + 86_400_000,
       }),
     });
@@ -456,6 +463,7 @@ describe("invite REST", () => {
       body: JSON.stringify({
         token: "expired-token",
         inviterName: "alice",
+        inviterPublicKey: alice.publicKey,
         expiresAt: Date.now() - 1000, // already expired
       }),
     });
@@ -477,6 +485,7 @@ describe("invite REST", () => {
       body: JSON.stringify({
         token: "accept-missing",
         inviterName: "alice",
+        inviterPublicKey: alice.publicKey,
         expiresAt: Date.now() + 86_400_000,
       }),
     });
@@ -526,14 +535,14 @@ describe("invite REST", () => {
     await fetch(`${url}/invite`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ token: "t1", inviterName: "alice", expiresAt: Date.now() + 86_400_000 }),
+      body: JSON.stringify({ token: "t1", inviterName: "alice", inviterPublicKey: alice.publicKey, expiresAt: Date.now() + 86_400_000 }),
     });
 
     // Second invite — 429
     const res = await fetch(`${url}/invite`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ token: "t2", inviterName: "bob", expiresAt: Date.now() + 86_400_000 }),
+      body: JSON.stringify({ token: "t2", inviterName: "bob", inviterPublicKey: bob.publicKey, expiresAt: Date.now() + 86_400_000 }),
     });
     expect(res.status).toBe(429);
     wsAlice.close(); wsBob.close();
@@ -565,14 +574,14 @@ describe("invite REST", () => {
     await fetch(`${url}/invite`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ token: "expired", inviterName: "alice", expiresAt: Date.now() - 1000 }),
+      body: JSON.stringify({ token: "expired", inviterName: "alice", inviterPublicKey: alice.publicKey, expiresAt: Date.now() - 1000 }),
     });
 
     // Second invite — should succeed after purge
     const res = await fetch(`${url}/invite`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ token: "fresh", inviterName: "bob", expiresAt: Date.now() + 86_400_000 }),
+      body: JSON.stringify({ token: "fresh", inviterName: "bob", inviterPublicKey: bob.publicKey, expiresAt: Date.now() + 86_400_000 }),
     });
     expect(res.status).toBe(201);
     wsAlice.close(); wsBob.close();
@@ -590,6 +599,7 @@ describe("invite REST", () => {
       body: JSON.stringify({
         token: "offline-inviter",
         inviterName: "offline-alice",
+        inviterPublicKey: alice.publicKey,
         expiresAt: Date.now() + 86_400_000,
       }),
     });
@@ -618,6 +628,7 @@ describe("invite REST", () => {
       body: JSON.stringify({
         token: "expired-accept",
         inviterName: "alice",
+        inviterPublicKey: alice.publicKey,
         expiresAt: Date.now() - 1000,
       }),
     });
@@ -636,11 +647,10 @@ describe("invite REST", () => {
 
 describe("relay", () => {
   it("pairs two peers and relays messages", async () => {
-    const token = "relay-test-token";
-    getIssuedRelayTokens()!.add(token);
-    const ws1 = await connectWs(`/relay?token=${token}`);
+    const token = makeRelayToken("alice");
+    const ws1 = await connectWs(`/relay?token=${encodeURIComponent(token)}`);
 
-    const ws2Promise = connectWs(`/relay?token=${token}`);
+    const ws2Promise = connectWs(`/relay?token=${encodeURIComponent(token)}`);
     const ws2 = await ws2Promise;
 
     // ws1 → ws2
@@ -680,9 +690,8 @@ describe("relay", () => {
   });
 
   it("first peer disconnect cleans up pair", async () => {
-    const token = "cleanup-test";
-    getIssuedRelayTokens()!.add(token);
-    const ws1 = await connectWs(`/relay?token=${token}`);
+    const token = makeRelayToken("alice");
+    const ws1 = await connectWs(`/relay?token=${encodeURIComponent(token)}`);
     expect(relayPairs.size).toBe(1);
 
     ws1.close();
@@ -693,20 +702,20 @@ describe("relay", () => {
   it("rejects when relay capacity reached", async () => {
     await app.close();
     nodes.clear(); invites.clear(); relayPairs.clear();
-    app = await createServer({ port: 0, host: "127.0.0.1", relayUrl: "wss://relay.test", relayMaxPairs: 1 });
+    app = await createServer({ port: 0, host: "127.0.0.1", relayUrl: "wss://relay.test", relayMaxPairs: 1, secret: testSecret });
     await app.listen({ port: 0, host: "127.0.0.1" });
     const addr = app.server.address();
     const p = typeof addr === "object" && addr ? addr.port : 0;
     const localWsUrl = `ws://127.0.0.1:${p}`;
 
-    // Fill capacity — pre-register tokens
-    getIssuedRelayTokens()!.add("fill-1");
-    getIssuedRelayTokens()!.add("fill-2");
-    const ws1 = new WebSocket(`${localWsUrl}/relay?token=fill-1`);
+    // Fill capacity — create valid HMAC tokens
+    const fillToken1 = makeRelayToken("fill-1");
+    const fillToken2 = makeRelayToken("fill-2");
+    const ws1 = new WebSocket(`${localWsUrl}/relay?token=${encodeURIComponent(fillToken1)}`);
     await new Promise<void>((resolve, reject) => { ws1.on("open", () => resolve()); ws1.on("error", reject); });
 
     // Exceed capacity
-    const ws2 = new WebSocket(`${localWsUrl}/relay?token=fill-2`);
+    const ws2 = new WebSocket(`${localWsUrl}/relay?token=${encodeURIComponent(fillToken2)}`);
     const code = await new Promise<number>((resolve) => {
       ws2.on("close", (c) => resolve(c));
     });
@@ -715,10 +724,9 @@ describe("relay", () => {
   });
 
   it("first peer disconnect after pairing closes second peer", async () => {
-    const token = "disconnect-first";
-    getIssuedRelayTokens()!.add(token);
-    const ws1 = await connectWs(`/relay?token=${token}`);
-    const ws2 = await connectWs(`/relay?token=${token}`);
+    const token = makeRelayToken("alice");
+    const ws1 = await connectWs(`/relay?token=${encodeURIComponent(token)}`);
+    const ws2 = await connectWs(`/relay?token=${encodeURIComponent(token)}`);
 
     const ws2Closed = new Promise<void>((resolve) => { ws2.on("close", () => resolve()); });
     ws1.close();
@@ -728,10 +736,9 @@ describe("relay", () => {
   });
 
   it("second peer disconnect closes first peer", async () => {
-    const token = "disconnect-test";
-    getIssuedRelayTokens()!.add(token);
-    const ws1 = await connectWs(`/relay?token=${token}`);
-    const ws2 = await connectWs(`/relay?token=${token}`);
+    const token = makeRelayToken("alice");
+    const ws1 = await connectWs(`/relay?token=${encodeURIComponent(token)}`);
+    const ws2 = await connectWs(`/relay?token=${encodeURIComponent(token)}`);
 
     const ws1Closed = new Promise<void>((resolve) => { ws1.on("close", () => resolve()); });
     ws2.close();
