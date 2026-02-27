@@ -30,7 +30,19 @@ export async function holePunch(opts: HolePunchOpts): Promise<HolePunchResult> {
     createUdpSocket = createSocket,
   } = opts;
 
+  // Cap candidate count to prevent fan-out abuse
+  const MAX_CANDIDATES = 8;
   if (remoteCandidates.length === 0) {
+    return { success: false };
+  }
+  const validatedCandidates = remoteCandidates.slice(0, MAX_CANDIDATES).filter((c) => {
+    // Validate port range
+    if (c.port < 1 || c.port > 65535) return false;
+    // Validate IP format (basic check)
+    if (!c.ip || c.ip.includes("..")) return false;
+    return true;
+  });
+  if (validatedCandidates.length === 0) {
     return { success: false };
   }
 
@@ -58,22 +70,29 @@ export async function holePunch(opts: HolePunchOpts): Promise<HolePunchResult> {
       }
     });
 
+    // Build candidate whitelist for sender validation
+    const candidateSet = new Set(validatedCandidates.map((c) => `${c.ip}:${c.port}`));
+
     socket.on("message", (msg: Buffer, rinfo) => {
       if (resolved) return;
 
+      // Only accept messages from known candidates
+      const senderKey = `${rinfo.address}:${rinfo.port}`;
+      if (!candidateSet.has(senderKey)) return;
+
       if (msg.equals(PUNCH_MAGIC)) {
-        // Received a punch — send ACK back
+        // Received a punch from validated candidate — send ACK back
         socket.send(PUNCH_ACK, rinfo.port, rinfo.address);
       }
 
       if (msg.equals(PUNCH_ACK)) {
-        // Got an ACK — hole punch succeeded!
+        // Got an ACK from validated candidate — hole punch succeeded!
         resolved = true;
         clearTimeout(timer);
         clearInterval(burstTimer);
         socket.close();
 
-        const candidateIndex = remoteCandidates.findIndex(
+        const candidateIndex = validatedCandidates.findIndex(
           (c) => c.ip === rinfo.address && c.port === rinfo.port,
         );
 
@@ -86,9 +105,9 @@ export async function holePunch(opts: HolePunchOpts): Promise<HolePunchResult> {
       }
     });
 
-    // Send bursts to all candidates
+    // Send bursts to validated candidates only
     const sendBurst = (): void => {
-      for (const candidate of remoteCandidates) {
+      for (const candidate of validatedCandidates) {
         socket.send(PUNCH_MAGIC, candidate.port, candidate.ip);
       }
     };

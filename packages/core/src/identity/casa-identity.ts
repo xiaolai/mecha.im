@@ -97,5 +97,8 @@ export function loadCasaIdentityFromDir(casaDir: string): CasaIdentity | undefin
 
 /** Load CASA identity by name from mechaDir. Returns undefined if missing. */
 export function loadCasaIdentity(mechaDir: string, name: CasaName): CasaIdentity | undefined {
-  return loadCasaIdentityFromDir(join(mechaDir, name));
+  // Validate name doesn't contain path traversal
+  const resolved = join(mechaDir, name);
+  if (!resolved.startsWith(mechaDir)) return undefined;
+  return loadCasaIdentityFromDir(resolved);
 }

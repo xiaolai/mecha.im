@@ -33,12 +33,17 @@ export async function forwardQueryToCasa(
   if (requestId) headers["x-request-id"] = requestId;
   /* v8 ignore stop */
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(DEFAULTS.FORWARD_TIMEOUT_MS),
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(DEFAULTS.FORWARD_TIMEOUT_MS),
+    });
+  } catch (err) {
+    throw new ForwardingError(0, { cause: err instanceof Error ? err : new Error(String(err)) });
+  }
 
   if (!response.ok) {
     throw new ForwardingError(response.status, { cause: new Error(`${response.statusText} from ${url}`) });

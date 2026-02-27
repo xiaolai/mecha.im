@@ -144,6 +144,18 @@ export async function spawnCasa(ctx: SpawnContext, spawnOpts: SpawnOpts): Promis
     throw new ProcessSpawnError("Failed to get child PID");
   }
 
+  // Handle async spawn errors (e.g. EACCES, binary not found after initial spawn)
+  child.on("error", (err) => {
+    live.delete(name);
+    const errorState: CasaState = {
+      name, state: "error", pid: child.pid ?? undefined, port, workspacePath,
+      startedAt: new Date().toISOString(), stoppedAt: new Date().toISOString(),
+    };
+    writeState(casaDir, errorState);
+    ctx.onStateChange?.();
+    emitter.emit({ type: "error", name, error: err.message });
+  });
+
   child.unref();
   const startedAt = new Date().toISOString();
 

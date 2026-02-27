@@ -30,7 +30,9 @@ export function createSecureChannel(opts: CreateChannelOpts): SecureChannel {
   transport.onMessage((encrypted) => {
     try {
       const plaintext = cipher.decrypt(encrypted);
-      for (const handler of messageHandlers) handler(plaintext);
+      for (const handler of messageHandlers) {
+        try { handler(plaintext); } catch { /* isolate handler errors */ }
+      }
     } catch (err) {
       for (const handler of errorHandlers) handler(err instanceof Error ? err : new Error(String(err)));
     }

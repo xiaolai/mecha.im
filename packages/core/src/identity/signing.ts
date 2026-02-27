@@ -13,6 +13,12 @@ export function verifySignature(
   data: Uint8Array,
   signatureBase64: string,
 ): boolean {
-  const key = createPublicKey(publicKeyPem);
-  return verify(null, Buffer.from(data), key, Buffer.from(signatureBase64, "base64"));
+  try {
+    const key = createPublicKey(publicKeyPem);
+    return verify(null, Buffer.from(data), key, Buffer.from(signatureBase64, "base64"));
+  /* v8 ignore start -- malformed key/signature from untrusted input */
+  } catch {
+    return false;
+  }
+  /* v8 ignore stop */
 }

@@ -13,6 +13,7 @@ import type {
   Candidate,
 } from "./types.js";
 import { createRendezvousClient } from "./rendezvous.js";
+import { createMultiRendezvousClient } from "./multi-rendezvous.js";
 import { createInviteCode, parseInviteCode } from "./invite.js";
 import { stunDiscover } from "./stun.js";
 import { holePunch } from "./hole-punch.js";
@@ -112,7 +113,8 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
       transport: noiseTransport,
       localKeyPair: noiseKeyPair,
       remotePublicKey: remoteNoiseKey,
-      expectedFingerprint: peerFingerprint,
+      // Use Noise key comparison for identity verification (not identity fingerprint)
+      expectedFingerprint: "",
     });
 
     const channelTransport = relayToChannelTransport(relayChannel);
@@ -247,11 +249,20 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
     async start(): Promise<void> {
       if (started) return;
 
-      rendezvous = createRendezvousClient({
-        url: rendezvousUrl,
-        signFn,
-        createWebSocket: opts._createRendezvousWebSocket,
-      });
+      const rvUrls = opts.rendezvousUrls;
+      if (rvUrls && rvUrls.length > 1) {
+        rendezvous = createMultiRendezvousClient({
+          urls: rvUrls,
+          signFn,
+          createWebSocket: opts._createRendezvousWebSocket,
+        });
+      } else {
+        rendezvous = createRendezvousClient({
+          url: rvUrls?.[0] ?? rendezvousUrl,
+          signFn,
+          createWebSocket: opts._createRendezvousWebSocket,
+        });
+      }
 
       await rendezvous.connect();
       await rendezvous.register({
@@ -281,17 +292,23 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
         /* v8 ignore start -- race: invite accepted for already-known peer */
         if (existing) return;
         /* v8 ignore stop */
-        addNode(mechaDir, {
-          name: peer,
-          host: "",
-          port: 0,
-          apiKey: "",
-          publicKey,
-          noisePublicKey,
-          fingerprint,
-          addedAt: new Date().toISOString(),
-          managed: true,
-        });
+        try {
+          addNode(mechaDir, {
+            name: peer,
+            host: "",
+            port: 0,
+            apiKey: "",
+            publicKey,
+            noisePublicKey,
+            fingerprint,
+            addedAt: new Date().toISOString(),
+            managed: true,
+          });
+        /* v8 ignore start -- race/invalid payload in invite-accepted handler */
+        } catch (err) {
+          log.warn("Failed to add node from invite-accepted", { peer, error: err instanceof Error ? err.message : String(err) });
+        }
+        /* v8 ignore stop */
       });
 
       started = true;
@@ -350,17 +367,21 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
       }
 
       const peerName = payload.inviterName;
-      addNode(mechaDir, {
-        name: peerName,
-        host: "",
-        port: 0,
-        apiKey: "",
-        publicKey: payload.inviterPublicKey,
-        noisePublicKey: payload.inviterNoisePublicKey,
-        fingerprint: payload.inviterFingerprint,
-        addedAt: new Date().toISOString(),
-        managed: true,
-      });
+      try {
+        addNode(mechaDir, {
+          name: peerName,
+          host: "",
+          port: 0,
+          apiKey: "",
+          publicKey: payload.inviterPublicKey,
+          noisePublicKey: payload.inviterNoisePublicKey,
+          fingerprint: payload.inviterFingerprint,
+          addedAt: new Date().toISOString(),
+          managed: true,
+        });
+      } catch {
+        // Duplicate node is idempotent — peer already known
+      }
 
       return { peer: toNodeName(peerName) };
     },
@@ -424,7 +445,9 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
       pendingConnects.clear();
       if (rendezvous) {
         /* v8 ignore start -- unregister may throw if socket is already closed */
-        try { await rendezvous.unregister(); } catch { /* socket may already be closed */ }
+        try { await rendezvous.unregister(); } catch (err) {
+          log.warn("Unregister failed during close", { error: err instanceof Error ? err.message : String(err) });
+        }
         /* v8 ignore stop */
         rendezvous.close();
         rendezvous = undefined;
