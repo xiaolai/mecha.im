@@ -19,7 +19,8 @@ export function registerNodeInviteCommand(parent: Command, deps: CommandDeps): v
     .command("invite")
     .description("Create a one-time invite code")
     .option("--expires <duration>", "Invite expiry (default: 24h). Accepts: 1h, 6h, 24h, 7d", "24h")
-    .action(async (opts: { expires: string }) => withErrorHandler(deps, async () => {
+    .option("--server <url>", "Rendezvous server URL (overrides default)")
+    .action(async (opts: { expires: string; server?: string }) => withErrorHandler(deps, async () => {
       const identity = loadNodeIdentity(deps.mechaDir);
       if (!identity) throw new IdentityNotFoundError("node");
 
@@ -35,7 +36,7 @@ export function registerNodeInviteCommand(parent: Command, deps: CommandDeps): v
       const noiseKeys = createNoiseKeys(deps.mechaDir);
 
       const expiresIn = parseDuration(opts.expires);
-      const rendezvousUrl = DEFAULTS.RENDEZVOUS_URL;
+      const rendezvousUrl = opts.server ?? DEFAULTS.RENDEZVOUS_URL;
 
       // Create signed invite code (local cryptographic operation)
       const result = await createInviteCode({

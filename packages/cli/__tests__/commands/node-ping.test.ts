@@ -216,6 +216,34 @@ describe("node ping command", () => {
     );
   });
 
+  it("uses --server override for managed node ping", async () => {
+    addNode(mechaDir, {
+      name: "charlie",
+      host: "",
+      port: 0,
+      apiKey: "",
+      publicKey: "pk",
+      fingerprint: "fp",
+      managed: true,
+      addedAt: new Date().toISOString(),
+    });
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ name: "charlie", online: true })),
+    );
+
+    const deps = makeDeps({ mechaDir });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "node", "ping", "charlie", "--server", "ws://custom:9090"]);
+
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      expect.stringContaining("http://custom:9090/lookup/charlie"),
+      expect.anything(),
+    );
+  });
+
   it("errors for unknown node", async () => {
     const deps = makeDeps({ mechaDir });
     const program = createProgram(deps);

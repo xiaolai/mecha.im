@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { nodeInit, readNodeName } from "../src/node-init.js";
+import { IDENTITY_DIR } from "@mecha/core";
 
 describe("nodeInit", () => {
   let mechaDir: string;
@@ -23,6 +24,12 @@ describe("nodeInit", () => {
     const result = nodeInit(mechaDir, { name: "my-node" });
     expect(result.created).toBe(true);
     expect(result.name).toBe("my-node");
+  });
+
+  it("creates identity keys during init", () => {
+    nodeInit(mechaDir, { name: "id-test" });
+    expect(existsSync(join(mechaDir, IDENTITY_DIR, "node.json"))).toBe(true);
+    expect(existsSync(join(mechaDir, IDENTITY_DIR, "node.key"))).toBe(true);
   });
 
   it("is idempotent — returns existing name on second call", () => {
