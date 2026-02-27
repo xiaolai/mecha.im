@@ -225,6 +225,21 @@ describe("relay", () => {
       expect(ws.send).not.toHaveBeenCalled();
     });
 
+    it("rejects when websocket closes before open", async () => {
+      const ws = makeMockWebSocket();
+
+      const promise = relayConnect({
+        relayUrl: "wss://relay.test.com",
+        token: "tok",
+        createWebSocket: () => ws,
+      });
+
+      // Close before open
+      ws._trigger("close", "server rejected");
+
+      await expect(promise).rejects.toThrow("Relay connection closed before open");
+    });
+
     it("close closes the websocket", async () => {
       const ws = makeMockWebSocket();
 

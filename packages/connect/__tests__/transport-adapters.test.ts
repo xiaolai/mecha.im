@@ -142,10 +142,24 @@ describe("udpToNoiseTransport", () => {
 
     const promise = transport.receive();
     const msg = Buffer.from([9, 10]);
-    for (const h of socket._handlers.get("message") ?? []) h(msg);
+    for (const h of socket._handlers.get("message") ?? []) h(msg, { address: "1.2.3.4", port: 5000 });
 
     const result = await promise;
     expect(result).toEqual(new Uint8Array([9, 10]));
+  });
+
+  it("drops packets from wrong source address", async () => {
+    const socket = makeUdpSocket();
+    const transport = udpToNoiseTransport(socket as never, "1.2.3.4", 5000);
+
+    // Send from wrong address — should be ignored
+    for (const h of socket._handlers.get("message") ?? []) h(Buffer.from([99]), { address: "9.9.9.9", port: 5000 });
+
+    // Send from correct address — should be received
+    const promise = transport.receive();
+    for (const h of socket._handlers.get("message") ?? []) h(Buffer.from([42]), { address: "1.2.3.4", port: 5000 });
+    const result = await promise;
+    expect(result).toEqual(new Uint8Array([42]));
   });
 });
 
@@ -157,9 +171,29 @@ describe("udpToChannelTransport", () => {
     const received: Uint8Array[] = [];
     transport.onMessage((d) => received.push(d));
 
-    for (const h of socket._handlers.get("message") ?? []) h(Buffer.from([11]));
+    for (const h of socket._handlers.get("message") ?? []) h(Buffer.from([11]), { address: "1.2.3.4", port: 5000 });
     expect(received).toHaveLength(1);
     expect(received[0]).toEqual(new Uint8Array([11]));
+  });
+
+  it("drops packets from wrong source", () => {
+    const socket = makeUdpSocket();
+    const transport = udpToChannelTransport(socket as never, "1.2.3.4", 5000);
+
+    const received: Uint8Array[] = [];
+    transport.onMessage((d) => received.push(d));
+
+    // Wrong address — should be dropped
+    for (const h of socket._handlers.get("message") ?? []) h(Buffer.from([99]), { address: "9.9.9.9", port: 5000 });
+    expect(received).toHaveLength(0);
+
+    // Wrong port — should be dropped
+    for (const h of socket._handlers.get("message") ?? []) h(Buffer.from([99]), { address: "1.2.3.4", port: 9999 });
+    expect(received).toHaveLength(0);
+
+    // Correct source — should be received
+    for (const h of socket._handlers.get("message") ?? []) h(Buffer.from([42]), { address: "1.2.3.4", port: 5000 });
+    expect(received).toHaveLength(1);
   });
 
   it("send() delegates to socket", () => {
