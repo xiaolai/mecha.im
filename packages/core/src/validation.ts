@@ -58,6 +58,8 @@ export function validateTags(tags: string[]): { ok: true; tags: string[] } | { o
 
 /** Parse a port string. Returns a valid port number (1-65535) or undefined. */
 export function parsePort(raw: string): number | undefined {
+  // Enforce decimal-only format to reject hex (0x1f90), scientific (1e3), etc.
+  if (!/^\d+$/.test(raw)) return undefined;
   const n = Number(raw);
   if (!Number.isInteger(n) || n < 1 || n > 65535) return undefined;
   return n;
