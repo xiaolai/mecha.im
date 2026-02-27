@@ -8,13 +8,15 @@ export function registerNodePingCommand(parent: Command, deps: CommandDeps): voi
     .command("ping")
     .description("Test connectivity to a peer node")
     .argument("<name>", "Peer node name")
-    .action(async (name: string) => withErrorHandler(deps, async () => {
+    .option("--server <url>", "Rendezvous server URL (overrides default)")
+    .action(async (name: string, opts: { server?: string }) => withErrorHandler(deps, async () => {
       const node = getNode(deps.mechaDir, name);
       if (!node) throw new NodeNotFoundError(name);
 
       if (node.managed) {
         // Managed nodes: check online status via rendezvous server REST API
-        const serverUrl = DEFAULTS.RENDEZVOUS_URL.replace(/^wss:\/\//, "https://").replace(/^ws:\/\//, "http://");
+        const rendezvousUrl = opts.server ?? DEFAULTS.RENDEZVOUS_URL;
+        const serverUrl = rendezvousUrl.replace(/^wss:\/\//, "https://").replace(/^ws:\/\//, "http://");
         const start = performance.now();
         try {
           const res = await fetch(`${serverUrl}/lookup/${encodeURIComponent(name)}`, {
