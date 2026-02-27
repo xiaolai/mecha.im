@@ -45,8 +45,11 @@ describe("isPrivateHost", () => {
     expect(isPrivateHost("::")).toBe(true);
   });
 
-  it("detects IPv6 link-local", () => {
+  it("detects IPv6 link-local (full fe80::/10 range)", () => {
     expect(isPrivateHost("fe80::1")).toBe(true);
+    expect(isPrivateHost("fe90::1")).toBe(true);
+    expect(isPrivateHost("fea0::1")).toBe(true);
+    expect(isPrivateHost("febf::1")).toBe(true);
   });
 
   it("detects IPv6 unique local", () => {
@@ -58,6 +61,16 @@ describe("isPrivateHost", () => {
     expect(isPrivateHost("::ffff:127.0.0.1")).toBe(true);
     expect(isPrivateHost("::ffff:192.168.1.1")).toBe(true);
     expect(isPrivateHost("::ffff:10.0.0.1")).toBe(true);
+  });
+
+  it("detects IPv4-mapped IPv6 hex form (::ffff:7f00:1)", () => {
+    expect(isPrivateHost("::ffff:7f00:1")).toBe(true);      // 127.0.0.1
+    expect(isPrivateHost("::ffff:c0a8:101")).toBe(true);    // 192.168.1.1
+    expect(isPrivateHost("::ffff:0a00:1")).toBe(true);      // 10.0.0.1
+  });
+
+  it("allows public IPv4-mapped IPv6 hex form", () => {
+    expect(isPrivateHost("::ffff:cb00:7101")).toBe(false);  // 203.0.113.1
   });
 
   it("allows public IPv4-mapped IPv6", () => {

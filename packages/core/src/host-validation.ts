@@ -22,11 +22,20 @@ function isPrivateIPv4(ip: string): boolean {
   return PRIVATE_IPV4_RANGES.some((r) => num >= r.start && num <= r.end);
 }
 
-/** Extract embedded IPv4 from IPv4-mapped IPv6 (::ffff:a.b.c.d) */
+/** Extract embedded IPv4 from IPv4-mapped IPv6 (::ffff:a.b.c.d or ::ffff:XXXX:XXXX hex form) */
 function extractMappedIPv4(ip: string): string | null {
   const lower = ip.toLowerCase();
-  const match = lower.match(/^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/);
-  return match ? match[1]! : null;
+  // Dotted form: ::ffff:127.0.0.1
+  const dotted = lower.match(/^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/);
+  if (dotted) return dotted[1]!;
+  // Hex form: ::ffff:7f00:1 or ::ffff:7f00:0001
+  const hex = lower.match(/^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
+  if (hex) {
+    const hi = parseInt(hex[1]!, 16);
+    const lo = parseInt(hex[2]!, 16);
+    return `${(hi >> 8) & 0xff}.${hi & 0xff}.${(lo >> 8) & 0xff}.${lo & 0xff}`;
+  }
+  return null;
 }
 
 function isPrivateIPv6(ip: string): boolean {
@@ -38,7 +47,7 @@ function isPrivateIPv6(ip: string): boolean {
 
   return normalized === "::1"             // loopback
     || normalized === "::"                // unspecified
-    || normalized.startsWith("fe80:")     // link-local
+    || /^fe[89ab][0-9a-f]:/.test(normalized) // link-local fe80::/10
     || normalized.startsWith("fc")        // unique local fc00::/7
     || normalized.startsWith("fd");       // unique local fd00::/8
 }

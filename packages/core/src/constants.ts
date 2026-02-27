@@ -25,7 +25,7 @@ export const DEFAULTS = {
   /** Agent server port (Phase 4) */
   AGENT_PORT: 7660,
   /** MCP HTTP transport port (Phase 7) */
-  MCP_HTTP_PORT: 7670,
+  MCP_HTTP_PORT: 7680,
   /** Dashboard port (Phase 7) */
   DASHBOARD_PORT: 3457,
   /** Health check timeout (ms) */

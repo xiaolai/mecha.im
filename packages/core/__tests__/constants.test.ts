@@ -34,7 +34,7 @@ describe("constants", () => {
     expect(DEFAULTS.RUNTIME_PORT_BASE).toBe(7700);
     expect(DEFAULTS.RUNTIME_PORT_MAX).toBe(7799);
     expect(DEFAULTS.AGENT_PORT).toBe(7660);
-    expect(DEFAULTS.MCP_HTTP_PORT).toBe(7670);
+    expect(DEFAULTS.MCP_HTTP_PORT).toBe(7680);
     expect(DEFAULTS.DASHBOARD_PORT).toBe(3457);
   });
 
