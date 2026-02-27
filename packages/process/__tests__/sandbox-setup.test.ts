@@ -82,6 +82,10 @@ describe("sandbox-setup", () => {
     it("handles mixed separators", () => {
       expect(encodeProjectPath("C:\\Users/joker\\project")).toBe("C--home-alice-project");
     });
+
+    it("replaces dots with dashes", () => {
+      expect(encodeProjectPath("/home/testuser/ori.gami.art")).toBe("-home-alice-ori-gami-art");
+    });
   });
 
   describe("prepareCasaFilesystem", () => {
