@@ -321,6 +321,9 @@ mecha agent start [options]
 | `--api-key <key>` | Authentication key (or set `MECHA_AGENT_API_KEY`) |
 | `--host <host>` | Bind address (default: `127.0.0.1`) |
 | `--port <port>` | Port (default: `7660`) |
+| `--server` | Enable embedded rendezvous server for decentralized peer discovery |
+| `--server-port <port>` | Embedded server port (default: `7681`) |
+| `--public-addr <url>` | Externally reachable URL for the embedded server (e.g., `wss://my-server.example.com`) |
 
 ### `mecha agent status`
 
@@ -557,6 +560,70 @@ Remove a profile.
 
 ```bash
 mecha auth rm <name>
+```
+
+---
+
+## MCP Server
+
+### `mecha mcp serve`
+
+Start the MCP server. Supports stdio (default, launched by MCP clients) or HTTP transport (for remote clients).
+
+```bash
+mecha mcp serve [options]
+```
+
+| Option | Description |
+|--------|-------------|
+| `--mode <mode>` | Operating mode: `query` (default) or `read-only` |
+| `--transport <transport>` | Transport: `stdio` (default) or `http` |
+| `--port <port>` | HTTP port (default: `7680`) |
+| `--host <host>` | HTTP bind address (default: `127.0.0.1`) |
+
+```bash
+mecha mcp serve                                   # stdio (default)
+mecha mcp serve --transport http                   # HTTP on 127.0.0.1:7680
+mecha mcp serve --transport http --port 8080       # HTTP on custom port
+mecha mcp serve --transport http --host 0.0.0.0    # HTTP on all interfaces
+```
+
+### `mecha mcp config`
+
+Output Claude Desktop configuration JSON for copy-paste into `claude_desktop_config.json`.
+
+```bash
+mecha mcp config
+```
+
+---
+
+## Audit Log
+
+### `mecha audit log`
+
+View MCP tool call audit entries.
+
+```bash
+mecha audit log [options]
+```
+
+| Option | Description |
+|--------|-------------|
+| `--limit <n>` | Show last N entries (default: 50) |
+
+```bash
+mecha audit log
+mecha audit log --limit 10
+mecha audit log --json
+```
+
+### `mecha audit clear`
+
+Clear the audit log.
+
+```bash
+mecha audit clear
 ```
 
 ---

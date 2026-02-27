@@ -46,6 +46,8 @@ export interface InvitePayload {
   inviterFingerprint: string;
   inviterNoisePublicKey: string;
   rendezvousUrl: string;
+  /** Ordered list of rendezvous URLs (embedded → peer → central). Present in 6b+ invites. */
+  rendezvousUrls?: string[];
   token: string;
   expiresAt: string;
   signature: string;
@@ -157,6 +159,8 @@ export interface ConnectOpts {
   noiseKeyPair: NoiseKeyPair;
   mechaDir: string;
   rendezvousUrl?: string;
+  /** Ordered list of rendezvous URLs (local → peer → central). Uses MultiRendezvousClient when >1. */
+  rendezvousUrls?: string[];
   stunServers?: string[];
   relayUrl?: string;
   holePunchTimeoutMs?: number;

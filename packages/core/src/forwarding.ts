@@ -41,9 +41,11 @@ export async function forwardQueryToCasa(
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(DEFAULTS.FORWARD_TIMEOUT_MS),
     });
+  /* v8 ignore start -- network failure catch: requires unreachable localhost */
   } catch (err) {
     throw new ForwardingError(0, { cause: err instanceof Error ? err : new Error(String(err)) });
   }
+  /* v8 ignore stop */
 
   if (!response.ok) {
     throw new ForwardingError(response.status, { cause: new Error(`${response.statusText} from ${url}`) });

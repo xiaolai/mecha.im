@@ -19,7 +19,9 @@
   "dependencies": {
     "@mecha/core": "workspace:*",
     "@mecha/agent": "workspace:*",
+    "@mecha/mcp-server": "workspace:*",
     "@mecha/connect": "workspace:*",
+    "@mecha/server": "workspace:*",
     "@mecha/sandbox": "workspace:*",
     "@mecha/service": "workspace:*",
     "@mecha/process": "workspace:*",

@@ -25,7 +25,7 @@ export const DEFAULTS = {
   /** Agent server port (Phase 4) */
   AGENT_PORT: 7660,
   /** MCP HTTP transport port (Phase 7) */
-  MCP_HTTP_PORT: 7670,
+  MCP_HTTP_PORT: 7680,
   /** Dashboard port (Phase 7) */
   DASHBOARD_PORT: 3457,
   /** Health check timeout (ms) */
@@ -56,6 +56,8 @@ export const DEFAULTS = {
   METER_EVENT_BUFFER_INTERVAL_MS: 5_000,
   /** Default event retention (days) */
   METER_RETENTION_DAYS: 90,
+  /** Embedded rendezvous server port (Phase 6b) */
+  EMBEDDED_SERVER_PORT: 7681,
   // --- Connectivity (Phase 6) ---
   /** Rendezvous server URL */
   RENDEZVOUS_URL: "wss://rendezvous.mecha.im",

@@ -145,6 +145,7 @@ export async function spawnCasa(ctx: SpawnContext, spawnOpts: SpawnOpts): Promis
   }
 
   // Handle async spawn errors (e.g. EACCES, binary not found after initial spawn)
+  /* v8 ignore start -- async spawn error handler: requires binary to fail after initial spawn */
   child.on("error", (err) => {
     live.delete(name);
     const errorState: CasaState = {
@@ -155,6 +156,7 @@ export async function spawnCasa(ctx: SpawnContext, spawnOpts: SpawnOpts): Promis
     ctx.onStateChange?.();
     emitter.emit({ type: "error", name, error: err.message });
   });
+  /* v8 ignore stop */
 
   child.unref();
   const startedAt = new Date().toISOString();

@@ -15,6 +15,8 @@ export { relayConnect } from "./relay.js";
 export type { RelayConnectOpts, WebSocketLike } from "./relay.js";
 export { createRendezvousClient } from "./rendezvous.js";
 export type { CreateRendezvousClientOpts } from "./rendezvous.js";
+export { createMultiRendezvousClient } from "./multi-rendezvous.js";
+export type { MultiRendezvousOpts } from "./multi-rendezvous.js";
 export { createInviteCode, parseInviteCode } from "./invite.js";
 export type { CreateInviteOpts } from "./invite.js";
 export {

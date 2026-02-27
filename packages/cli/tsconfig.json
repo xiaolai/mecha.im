@@ -12,6 +12,7 @@
     { "path": "../service" },
     { "path": "../process" },
     { "path": "../meter" },
-    { "path": "../connect" }
+    { "path": "../connect" },
+    { "path": "../mcp-server" }
   ]
 }

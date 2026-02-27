@@ -13,7 +13,7 @@ Mecha is a TypeScript monorepo with 10 packages (+ dashboard planned for Phase 7
 @mecha/service    ← High-level API: casaSpawn, casaChat, casaFind, routing
 @mecha/agent      ← Inter-node HTTP server for mesh routing
 @mecha/connect    ← P2P connectivity: Noise IK handshake, SecureChannel, invite codes
-@mecha/server     ← Rendezvous + relay server for P2P peer discovery and transport
+@mecha/server     ← Rendezvous + relay server + gossip protocol for P2P peer discovery
 @mecha/sandbox    ← OS-level isolation: macOS sandbox-exec, Linux bwrap
 @mecha/meter      ← Metering proxy: cost tracking, budgets, events
 @mecha/cli        ← Commander-based CLI: 40+ commands
@@ -160,6 +160,7 @@ All state is plain files — no databases:
 | Logs | Text | `~/.mecha/<name>/logs/` |
 | ACL rules | JSON | `~/.mecha/acl.json` |
 | Node registry | JSON | `~/.mecha/nodes.json` |
+| Embedded server state | JSON | `~/.mecha/server.json` |
 | Auth profiles | JSON | `~/.mecha/auth/profiles.json` |
 | Identity (Ed25519) | PEM | `~/.mecha/identity/` |
 | Noise keys (X25519) | PEM | `~/.mecha/identity/` |
