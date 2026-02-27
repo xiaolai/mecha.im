@@ -98,6 +98,9 @@ importers:
       '@mecha/core':
         specifier: workspace:*
         version: link:../core
+      '@mecha/mcp-server':
+        specifier: workspace:*
+        version: link:../mcp-server
       '@mecha/meter':
         specifier: workspace:*
         version: link:../meter
