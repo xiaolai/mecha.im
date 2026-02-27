@@ -128,10 +128,12 @@ export async function runHttp(
         // #1: Guard server.connect() — catch + cleanup on failure
         await server.connect(transport);
 
+        // #2: handleRequest first — SDK populates sessionId during initialize handling
+        await transport.handleRequest(req, res);
+
         const newSessionId = transport.sessionId;
-        /* v8 ignore start -- sessionId is always set when sessionIdGenerator is provided */
+        /* v8 ignore start -- sessionId is always set after handleRequest with sessionIdGenerator */
         if (!newSessionId) {
-          sendJson(res, 500, { error: "Failed to create session" });
           return;
         }
         /* v8 ignore stop */
@@ -143,9 +145,6 @@ export async function runHttp(
           if (s) clearTimeout(s.timer);
           sessions.delete(newSessionId);
         };
-
-        // #2: Guard handleRequest — cleanup leaked session on failure
-        await transport.handleRequest(req, res);
       } catch (err: unknown) {
         process.stderr.write(`[mecha:mcp] session create error: ${err instanceof Error ? err.message : String(err)}\n`);
         if (transport) await transport.close().catch(() => {});

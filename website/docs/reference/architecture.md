@@ -4,20 +4,21 @@ Technical overview of Mecha's internal architecture.
 
 ## Package Structure
 
-Mecha is a TypeScript monorepo with 10 packages (+ dashboard planned for Phase 7):
+Mecha is a TypeScript monorepo with 11 packages (+ dashboard planned for Phase 7b):
 
 ```
-@mecha/core       ← Types, schemas, validation, ACL engine, identity (Ed25519)
-@mecha/process    ← ProcessManager: spawn/kill/stop, port allocation, sandbox hooks
-@mecha/runtime    ← Fastify server per CASA: sessions, chat SSE, MCP tools
-@mecha/service    ← High-level API: casaSpawn, casaChat, casaFind, routing
-@mecha/agent      ← Inter-node HTTP server for mesh routing
-@mecha/connect    ← P2P connectivity: Noise IK handshake, SecureChannel, invite codes
-@mecha/server     ← Rendezvous + relay server + gossip protocol for P2P peer discovery
-@mecha/sandbox    ← OS-level isolation: macOS sandbox-exec, Linux bwrap
-@mecha/meter      ← Metering proxy: cost tracking, budgets, events
-@mecha/cli        ← Commander-based CLI: 40+ commands
-@mecha/dashboard  ← Next.js web UI (Phase 7)
+@mecha/core        ← Types, schemas, validation, ACL engine, identity (Ed25519)
+@mecha/process     ← ProcessManager: spawn/kill/stop, port allocation, sandbox hooks
+@mecha/runtime     ← Fastify server per CASA: sessions, chat SSE, MCP tools
+@mecha/service     ← High-level API: casaSpawn, casaChat, casaFind, routing
+@mecha/agent       ← Inter-node HTTP server for mesh routing
+@mecha/connect     ← P2P connectivity: Noise IK handshake, SecureChannel, invite codes
+@mecha/server      ← Rendezvous + relay server + gossip protocol for P2P peer discovery
+@mecha/sandbox     ← OS-level isolation: macOS sandbox-exec, Linux bwrap
+@mecha/meter       ← Metering proxy: cost tracking, budgets, events
+@mecha/mcp-server  ← MCP server: stdio + HTTP transport, audit logging, rate limiting
+@mecha/cli         ← Commander-based CLI: 40+ commands
+@mecha/dashboard   ← Next.js web UI (Phase 7b)
 ```
 
 ### Dependency Graph
@@ -43,6 +44,9 @@ graph LR
   connect --> core
   server --> core
   meter --> core
+  mcp-server --> core
+  mcp-server --> service
+  mcp-server --> process
   runtime --> core
   runtime --> process
 ```
@@ -168,6 +172,7 @@ All state is plain files — no databases:
 | Meter snapshot | JSON | `~/.mecha/meter/snapshot.json` |
 | Budgets | JSON | `~/.mecha/meter/budgets.json` |
 | Plugin registry | JSON | `~/.mecha/plugins.json` |
+| Audit log | JSONL | `~/.mecha/audit.jsonl` |
 
 All file writes use atomic tmp+rename to prevent corruption on crash.
 
@@ -189,7 +194,7 @@ Subscribe via `processManager.onEvent(handler)`, which returns an unsubscribe fu
 Every change must pass before merge:
 
 ```bash
-pnpm test           # 1500+ tests
+pnpm test           # 2000+ tests
 pnpm test:coverage  # 100% statements, branches, functions, lines
 pnpm typecheck      # tsc -b (strict TypeScript)
 pnpm build          # clean compilation
