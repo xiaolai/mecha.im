@@ -102,7 +102,9 @@ const PluginConfigSchema: z.ZodType<PluginConfig> = z.discriminatedUnion("type",
   }),
   z.object({
     type: z.enum(["http", "sse"]),
-    url: z.string(),
+    url: z.string().url().refine((u) => u.startsWith("http://") || u.startsWith("https://"), {
+      message: "URL must use http:// or https:// scheme",
+    }),
     headers: z.record(z.string()).optional(),
     description: z.string().optional(),
     addedAt: z.string(),
@@ -184,6 +186,8 @@ export function addPlugin(
   config: PluginConfig,
   force = false,
 ): void {
+  // Validate config against schema before persisting
+  PluginConfigSchema.parse(config);
   const registry = readPluginRegistry(mechaDir);
   if (Object.hasOwn(registry.plugins, name) && !force) {
     throw new PluginAlreadyExistsError(name);

@@ -21,17 +21,15 @@ export function registerInviteRoutes(app: FastifyInstance, config: ServerConfig)
       return reply.status(400).send({ error: "Missing required fields" });
     }
 
-    // Verify inviter is currently registered on signaling WebSocket
-    const inviterOnline = nodes.get(body.inviterName);
-    /* v8 ignore start -- inviter offline rejection: tested in server integration */
-    if (!inviterOnline) {
-      return reply.status(401).send({ error: "Inviter must be registered on signaling WebSocket" });
+    // Require inviter public key
+    if (!body.inviterPublicKey) {
+      return reply.status(400).send({ error: "Missing required field: inviterPublicKey" });
     }
-    /* v8 ignore stop */
 
-    // Verify the POST caller matches the registered inviter's public key
+    // If inviter is registered on signaling WS, verify key matches
+    const inviterOnline = nodes.get(body.inviterName);
     /* v8 ignore start -- inviter key mismatch: requires spoofed identity in test */
-    if (body.inviterPublicKey && inviterOnline.publicKey !== body.inviterPublicKey) {
+    if (inviterOnline && inviterOnline.publicKey !== body.inviterPublicKey) {
       return reply.status(401).send({ error: "Inviter public key does not match registered identity" });
     }
     /* v8 ignore stop */
@@ -54,6 +52,11 @@ export function registerInviteRoutes(app: FastifyInstance, config: ServerConfig)
       consumed: false,
     };
     /* v8 ignore stop */
+
+    // Reject duplicate active tokens to prevent overwrite/hijack
+    if (invites.has(invite.token)) {
+      return reply.status(409).send({ error: "Invite token already exists" });
+    }
 
     invites.set(invite.token, invite);
     return reply.status(201).send({ ok: true, token: invite.token });

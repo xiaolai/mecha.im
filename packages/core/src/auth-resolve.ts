@@ -47,7 +47,13 @@ function isAuthProfileStore(v: unknown): v is AuthProfileStore {
 
 /** Check if a value looks like a valid AuthCredentialStore. */
 function isAuthCredentialStore(v: unknown): v is AuthCredentialStore {
-  if (typeof v !== "object" || v === null) return false;
+  if (typeof v !== "object" || v === null || Array.isArray(v)) return false;
+  // Validate each entry has a token string
+  for (const [key, val] of Object.entries(v as Record<string, unknown>)) {
+    if (RESERVED_KEYS.has(key)) continue;
+    if (typeof val !== "object" || val === null) return false;
+    if (typeof (val as Record<string, unknown>).token !== "string") return false;
+  }
   return true;
 }
 /* v8 ignore stop */
@@ -137,11 +143,24 @@ export function resolveAuth(mechaDir: string, authProfileName?: string | null): 
     throw new AuthProfileNotFoundError(hint);
   }
 
+  // Validate profile name to prevent prototype/reserved key lookups
+  if (RESERVED_KEYS.has(targetName) || !Object.hasOwn(store.profiles, targetName)) {
+    throw new AuthProfileNotFoundError(targetName);
+  }
+
   const meta = store.profiles[targetName];
   if (!meta) {
     throw new AuthProfileNotFoundError(targetName);
   }
 
+  // Enforce token expiration
+  if (meta.expiresAt && meta.expiresAt < Date.now()) {
+    throw new AuthTokenInvalidError(`${targetName} (expired)`);
+  }
+
+  if (!Object.hasOwn(creds, targetName)) {
+    throw new AuthTokenInvalidError(targetName);
+  }
   const cred = creds[targetName];
   /* v8 ignore start -- !cred.token branch tested via service/auth.test.ts (mechaAuthProbe empty token) */
   if (!cred || !cred.token) {

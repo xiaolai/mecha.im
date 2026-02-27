@@ -105,9 +105,8 @@ export function createSignatureHook(opts: AuthOpts) {
       reply.code(401).send({ error: "Nonce already used (replay detected)" });
       return;
     }
-    usedNonces.set(nonce, tsNum);
 
-    // Verify signature against canonical envelope (method+path+source+timestamp+bodyHash)
+    // Verify signature BEFORE marking nonce as used — prevents nonce-cache poisoning
     try {
       const bodyStr = JSON.stringify((request as FastifyRequest & { body: unknown }).body ?? "");
       const nonceStr = typeof nonce === "string" ? nonce : "";
@@ -121,6 +120,8 @@ export function createSignatureHook(opts: AuthOpts) {
       reply.code(401).send({ error: "Malformed signature" });
       return;
     }
+    // Only mark nonce used after successful signature verification
+    usedNonces.set(nonce, tsNum);
     /* v8 ignore stop */
   };
 }

@@ -72,6 +72,18 @@ export function isPrivateHost(host: string): boolean {
   if (isIP(canonical) === 4) return isPrivateIPv4(canonical);
   if (isIP(canonical) === 6) return isPrivateIPv6(canonical);
 
+  // Detect numeric IPv4 forms (decimal, hex, octal) that bypass isIP()
+  // e.g. 2130706433, 0x7f000001, 0177.0.0.1 — URL parsing normalizes these
+  try {
+    const parsed = new URL(`http://${canonical}`);
+    const resolvedHost = parsed.hostname;
+    if (resolvedHost !== canonical && isIP(resolvedHost) === 4) {
+      return isPrivateIPv4(resolvedHost);
+    }
+  } catch {
+    // Invalid host — not a numeric form
+  }
+
   // Hostname — cannot validate without DNS resolution; allow
   return false;
 }

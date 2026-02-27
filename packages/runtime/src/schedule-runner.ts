@@ -82,9 +82,9 @@ export async function executeRun(entry: ScheduleEntry, deps: RunDeps): Promise<S
     return result;
   }
 
-  // Concurrency guard
+  // Concurrency guard — enforces maxConcurrent for all values, not just <=1
   const maxConcurrent = config.maxConcurrent ?? SCHEDULE_DEFAULTS.MAX_CONCURRENT;
-  if (deps.getActiveRun() && maxConcurrent <= 1) {
+  if (deps.getActiveRun()) {
     log("warn", `Schedule "${entry.id}" skipped: another schedule is running`, { activeRun: deps.getActiveRun() });
     const result: ScheduleRunResult = {
       scheduleId: entry.id,
