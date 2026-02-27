@@ -97,8 +97,12 @@ export {
   loadCasaIdentityFromDir,
   signMessage,
   verifySignature,
+  generateNoiseKeyPair,
+  createNoiseKeys,
+  loadNoiseKeyPair,
+  loadNoisePublicKey,
 } from "./identity/index.js";
-export type { KeyPair, NodeIdentity, CasaIdentity } from "./identity/index.js";
+export type { KeyPair, NodeIdentity, CasaIdentity, NoiseKeyPairCore } from "./identity/index.js";
 
 // ACL (Phase 3)
 export {

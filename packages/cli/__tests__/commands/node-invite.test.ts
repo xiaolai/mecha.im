@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -14,8 +14,15 @@ describe("node invite command", () => {
   beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), "mecha-cli-invite-"));
     mechaDir = join(tempDir, ".mecha");
+    // Mock fetch for server registration (best-effort)
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), { status: 201 }),
+    );
   });
-  afterEach(() => { rmSync(tempDir, { recursive: true, force: true }); });
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+    vi.restoreAllMocks();
+  });
 
   it("creates an invite code", async () => {
     createNodeIdentity(mechaDir);
@@ -32,6 +39,46 @@ describe("node invite command", () => {
     );
     expect(deps.formatter.info).toHaveBeenCalledWith(
       expect.stringContaining("Expires:"),
+    );
+  });
+
+  it("registers invite on server", async () => {
+    createNodeIdentity(mechaDir);
+    nodeInit(mechaDir, { name: "test-node" });
+
+    const deps = makeDeps({ mechaDir });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "node", "invite"]);
+
+    // Verify fetch was called with POST /invite
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/invite"),
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("warns when server registration fails", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("error", { status: 500 }),
+    );
+
+    createNodeIdentity(mechaDir);
+    nodeInit(mechaDir, { name: "test-node" });
+
+    const deps = makeDeps({ mechaDir });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "node", "invite"]);
+
+    expect(deps.formatter.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Server registration failed"),
+    );
+    // Invite code should still be output
+    expect(deps.formatter.success).toHaveBeenCalledWith(
+      expect.stringContaining("mecha://invite/"),
     );
   });
 

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -33,14 +33,20 @@ describe("node join command", () => {
     tempDir = mkdtempSync(join(tmpdir(), "mecha-cli-join-"));
     inviterDir = join(tempDir, "inviter");
     joinerDir = join(tempDir, "joiner");
+    // Mock fetch to simulate server accept (best-effort, may fail)
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ ok: true })));
   });
-  afterEach(() => { rmSync(tempDir, { recursive: true, force: true }); });
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+    vi.restoreAllMocks();
+  });
 
   it("joins with a valid invite code", async () => {
     const code = await makeInviteCode(inviterDir);
 
     // Initialize joiner
     createNodeIdentity(joinerDir);
+    nodeInit(joinerDir, { name: "joiner-node" });
 
     const deps = makeDeps({ mechaDir: joinerDir });
     const program = createProgram(deps);
@@ -58,8 +64,45 @@ describe("node join command", () => {
     expect(nodes[0]!.managed).toBe(true);
   });
 
+  it("notifies when server accept succeeds", async () => {
+    const code = await makeInviteCode(inviterDir);
+    createNodeIdentity(joinerDir);
+    nodeInit(joinerDir, { name: "joiner-node" });
+
+    const deps = makeDeps({ mechaDir: joinerDir });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "node", "join", code]);
+
+    expect(deps.formatter.info).toHaveBeenCalledWith("Invite accepted on server (inviter notified)");
+  });
+
+  it("warns when server accept fails", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("error", { status: 500 }));
+
+    const code = await makeInviteCode(inviterDir);
+    createNodeIdentity(joinerDir);
+    nodeInit(joinerDir, { name: "joiner-node" });
+
+    const deps = makeDeps({ mechaDir: joinerDir });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "node", "join", code]);
+
+    expect(deps.formatter.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Server accept failed"),
+    );
+    // Peer should still be added locally
+    expect(deps.formatter.success).toHaveBeenCalledWith(
+      expect.stringContaining("Peer added"),
+    );
+  });
+
   it("rejects invalid invite code", async () => {
     createNodeIdentity(joinerDir);
+    nodeInit(joinerDir, { name: "joiner-node" });
 
     const deps = makeDeps({ mechaDir: joinerDir });
     const program = createProgram(deps);
@@ -86,6 +129,7 @@ describe("node join command", () => {
     });
 
     createNodeIdentity(joinerDir);
+    nodeInit(joinerDir, { name: "joiner-node" });
 
     const deps = makeDeps({ mechaDir: joinerDir });
     const program = createProgram(deps);
@@ -112,11 +156,26 @@ describe("node join command", () => {
     );
   });
 
+  it("errors when node name not set", async () => {
+    const code = await makeInviteCode(inviterDir);
+    createNodeIdentity(joinerDir);
+    // No nodeInit — name is missing
+
+    const deps = makeDeps({ mechaDir: joinerDir });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "node", "join", code]);
+
+    expect(deps.formatter.error).toHaveBeenCalledWith(
+      expect.stringContaining("Identity not found"),
+    );
+  });
+
   it("rejects self-invite", async () => {
     // Create identity for joiner
     const identity = createNodeIdentity(joinerDir);
     const privateKey = loadNodePrivateKey(joinerDir)!;
-    const { nodeInit } = await import("@mecha/service");
     nodeInit(joinerDir, { name: "my-node" });
 
     // Create an invite FROM the joiner's own identity
@@ -142,6 +201,7 @@ describe("node join command", () => {
   it("allows duplicate peer with --force", async () => {
     const code = await makeInviteCode(inviterDir);
     createNodeIdentity(joinerDir);
+    nodeInit(joinerDir, { name: "joiner-node" });
 
     const deps = makeDeps({ mechaDir: joinerDir });
     const program = createProgram(deps);
@@ -164,6 +224,7 @@ describe("node join command", () => {
   it("rejects duplicate peer without --force", async () => {
     const code = await makeInviteCode(inviterDir);
     createNodeIdentity(joinerDir);
+    nodeInit(joinerDir, { name: "joiner-node" });
 
     const deps = makeDeps({ mechaDir: joinerDir });
     const program = createProgram(deps);
