@@ -1,6 +1,7 @@
 import { writeFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
+import { z } from "zod";
 import { safeReadJson } from "./safe-read.js";
 
 /** Sandbox enforcement mode */
@@ -25,36 +26,31 @@ export interface CasaConfig {
   allowNetwork?: boolean;
 }
 
-function isCasaConfig(v: unknown): v is CasaConfig {
-  if (typeof v !== "object" || v === null) return false;
-  const o = v as Record<string, unknown>;
-  return typeof o.port === "number" && typeof o.token === "string" && typeof o.workspace === "string";
-}
+const CasaConfigSchema: z.ZodType<CasaConfig> = z.object({
+  configVersion: z.number().optional(),
+  port: z.number(),
+  token: z.string(),
+  workspace: z.string(),
+  model: z.string().optional(),
+  permissionMode: z.string().optional(),
+  auth: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  expose: z.array(z.string()).optional(),
+  sandboxMode: z.enum(["auto", "off", "require"]).optional(),
+  allowNetwork: z.boolean().optional(),
+});
 
 /** Read a CASA's config.json. Returns undefined if missing or malformed. */
 export function readCasaConfig(casaDir: string): CasaConfig | undefined {
   const configPath = join(casaDir, "config.json");
-  const result = safeReadJson<unknown>(configPath, "casa config");
+  const result = safeReadJson(configPath, "casa config", CasaConfigSchema);
   if (!result.ok) {
     if (result.reason !== "missing") {
       console.error(`[mecha] ${result.detail}`);
     }
     return undefined;
   }
-  if (!isCasaConfig(result.data)) return undefined;
-  const parsed = result.data;
-  // Normalize tags and expose to string[] | undefined
-  if (parsed.tags !== undefined) {
-    parsed.tags = Array.isArray(parsed.tags) ? parsed.tags.filter((t: unknown): t is string => typeof t === "string") : undefined;
-  }
-  if (parsed.expose !== undefined) {
-    parsed.expose = Array.isArray(parsed.expose) ? parsed.expose.filter((e: unknown): e is string => typeof e === "string") : undefined;
-  }
-  // Validate sandboxMode against known values
-  if (parsed.sandboxMode !== undefined && !["auto", "off", "require"].includes(parsed.sandboxMode as string)) {
-    parsed.sandboxMode = undefined;
-  }
-  return parsed;
+  return result.data;
 }
 
 /** Update fields in a CASA's config.json (read-modify-write, atomic). */

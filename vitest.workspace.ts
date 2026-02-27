@@ -49,4 +49,16 @@ export default defineWorkspace([
       include: ["packages/meter/__tests__/**/*.test.ts"],
     },
   },
+  {
+    test: {
+      name: "connect",
+      include: ["packages/connect/__tests__/**/*.test.ts"],
+    },
+  },
+  {
+    test: {
+      name: "server",
+      include: ["packages/server/__tests__/**/*.test.ts"],
+    },
+  },
 ]);

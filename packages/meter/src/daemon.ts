@@ -1,6 +1,6 @@
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from "node:http";
 import { join } from "node:path";
-import { MeterProxyAlreadyRunningError, PortConflictError } from "@mecha/core";
+import { MeterProxyAlreadyRunningError, PortConflictError, createLogger } from "@mecha/core";
 import {
   readProxyInfo, isPidAlive, writeProxyInfo, deleteProxyInfo,
 } from "./lifecycle.js";
@@ -8,11 +8,12 @@ import { initPricing, loadPricing } from "./pricing.js";
 import { handleProxyRequest, reloadBudgets, type ProxyContext } from "./proxy.js";
 import { scanCasaRegistry } from "./registry.js";
 import { readBudgets } from "./budgets.js";
-import { createHotCounters, fromSnapshot, resetToday } from "./hot-counters.js";
+import { createHotCounters, fromSnapshot, resetToday, toSnapshot } from "./hot-counters.js";
 import { readSnapshot, writeSnapshot } from "./snapshot.js";
-import { toSnapshot } from "./hot-counters.js";
 import { todayUTC } from "./query.js";
 import type { ProxyInfo } from "./types.js";
+
+const log = createLogger("mecha:meter");
 
 export interface DaemonOpts {
   meterDir: string;
@@ -79,7 +80,11 @@ export async function startDaemon(opts: DaemonOpts): Promise<DaemonHandle> {
       }
       /* v8 ignore stop */
       writeSnapshot(meterDir, toSnapshot(ctx.counters));
-    } catch { /* best-effort */ }
+    /* v8 ignore start -- snapshot flush error in timer callback */
+    } catch (err) {
+      log.error("Snapshot flush failed", { error: err instanceof Error ? err.message : String(err) });
+    }
+    /* v8 ignore stop */
   }, 5_000);
   snapshotTimer.unref();
 

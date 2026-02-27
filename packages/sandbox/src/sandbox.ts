@@ -1,6 +1,6 @@
 import { platform as osPlatform } from "node:os";
 import { existsSync } from "node:fs";
-import { execFileSync, execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import type { Sandbox, SandboxPlatform, SandboxProfile, SandboxWrapResult } from "./types.js";
 import { generateSbpl, wrapMacos, writeProfileMacos } from "./platforms/macos.js";
 import { wrapLinux } from "./platforms/linux.js";
@@ -9,8 +9,8 @@ import { wrapFallback } from "./platforms/fallback.js";
 /** Resolve the absolute path of a command, or return undefined if not found. */
 export function resolveCommand(cmd: string): string | undefined {
   try {
-    /* v8 ignore start -- empty-string fallback: command -v always returns a path or throws */
-    const result = execSync(`command -v ${cmd}`, { encoding: "utf-8", stdio: ["pipe", "pipe", "ignore"] }).trim();
+    /* v8 ignore start -- command resolution is environment-dependent */
+    const result = execFileSync("/bin/sh", ["-c", `command -v "$1"`, "--", cmd], { encoding: "utf-8", stdio: ["pipe", "pipe", "ignore"] }).trim();
     return result || undefined;
     /* v8 ignore stop */
   /* v8 ignore start -- command resolution is environment-dependent */

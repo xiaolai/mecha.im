@@ -62,8 +62,13 @@ export function registerRoutingRoutes(app: FastifyInstance, opts: RoutingRouteOp
       try {
         const fwd = await forwardQueryToCasa(config.port, config.token, message, sessionId);
         return { response: fwd.text, sessionId: fwd.sessionId };
-      } catch {
-        reply.code(502).send({ error: "Upstream CASA unavailable" });
+      } catch (err) {
+        /* v8 ignore start -- upstream connection errors are runtime-only */
+        const detail = err instanceof Error ? err.message : String(err);
+        request.log.error(`Routing to CASA "${target}" failed: ${detail}`);
+        const code = err instanceof Error && "code" in err && (err as { code: string }).code === "UND_ERR_CONNECT_TIMEOUT" ? 504 : 502;
+        reply.code(code).send({ error: `Upstream CASA unavailable: ${detail}` });
+        /* v8 ignore stop */
       }
     },
   );

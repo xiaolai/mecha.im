@@ -16,8 +16,7 @@
   "dependencies": {
     "@mecha/core": "workspace:*",
     "@mecha/meter": "workspace:*",
-    "@mecha/sandbox": "workspace:*",
-    "zod": "^3.25.36"
+    "@mecha/sandbox": "workspace:*"
   },
   "engines": {
     "node": ">=20.0.0"

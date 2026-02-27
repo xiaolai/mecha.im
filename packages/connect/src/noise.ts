@@ -59,6 +59,7 @@ export function createNoiseCipher(sharedSecret: Uint8Array): NoiseCipher {
     },
 
     rekey(): void {
+      key.fill(0); // Secure-zero old key material before replacing
       key = randomBytes(32);
       sendNonce = 0n;
       recvNonce = 0n;
@@ -77,8 +78,8 @@ export interface NoiseInitiateOpts {
   transport: NoiseTransport;
   localKeyPair: NoiseKeyPair;
   remotePublicKey: string;
-  /** Expected fingerprint of remote peer (for identity binding). Omit to skip verification. */
-  expectedFingerprint?: string;
+  /** Expected fingerprint of remote peer (for identity binding). */
+  expectedFingerprint: string;
   timeoutMs?: number;
 }
 
@@ -102,6 +103,12 @@ export async function noiseInitiate(opts: NoiseInitiateOpts): Promise<NoiseHands
       setTimeout(() => reject(new HandshakeError(`Handshake timeout after ${timeoutMs}ms`)), timeoutMs),
     ),
   ]);
+
+  // Verify received key matches expected key from registry
+  const expectedKeyBytes = Buffer.from(remotePublicKey, "base64url");
+  if (!Buffer.from(response).equals(expectedKeyBytes)) {
+    throw new HandshakeError("Remote static key does not match registry");
+  }
 
   // Verify responder identity if fingerprint is provided
   if (expectedFingerprint) {

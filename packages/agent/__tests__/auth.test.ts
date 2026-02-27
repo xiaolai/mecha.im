@@ -151,6 +151,43 @@ describe("agent auth", () => {
       await app.close();
     });
 
+    it("rejects missing timestamp header", async () => {
+      const keys = new Map([["remote", "pk"]]);
+      const verify = vi.fn().mockReturnValue(false);
+      const app = await buildSigApp({ keys, verify });
+      const res = await app.inject({
+        method: "POST",
+        url: "/casas/alice/query",
+        headers: {
+          "x-mecha-source": "coder@remote",
+          "x-mecha-signature": "badsig",
+        },
+        payload: { message: "hi" },
+      });
+      expect(res.statusCode).toBe(401);
+      expect(res.json().error).toContain("Missing X-Mecha-Timestamp");
+      await app.close();
+    });
+
+    it("rejects expired timestamp", async () => {
+      const keys = new Map([["remote", "pk"]]);
+      const verify = vi.fn().mockReturnValue(false);
+      const app = await buildSigApp({ keys, verify });
+      const res = await app.inject({
+        method: "POST",
+        url: "/casas/alice/query",
+        headers: {
+          "x-mecha-source": "coder@remote",
+          "x-mecha-signature": "badsig",
+          "x-mecha-timestamp": String(Date.now() - 400_000),
+        },
+        payload: { message: "hi" },
+      });
+      expect(res.statusCode).toBe(401);
+      expect(res.json().error).toContain("5-minute window");
+      await app.close();
+    });
+
     it("rejects invalid signature", async () => {
       const keys = new Map([["remote", "pk"]]);
       const verify = vi.fn().mockReturnValue(false);
@@ -161,6 +198,7 @@ describe("agent auth", () => {
         headers: {
           "x-mecha-source": "coder@remote",
           "x-mecha-signature": "badsig",
+          "x-mecha-timestamp": String(Date.now()),
         },
         payload: { message: "hi" },
       });
@@ -179,6 +217,7 @@ describe("agent auth", () => {
         headers: {
           "x-mecha-source": "coder@remote",
           "x-mecha-signature": "validsig",
+          "x-mecha-timestamp": String(Date.now()),
         },
         payload: { message: "hi" },
       });
@@ -197,6 +236,7 @@ describe("agent auth", () => {
         headers: {
           "x-mecha-source": "coder@remote",
           "x-mecha-signature": "malformed",
+          "x-mecha-timestamp": String(Date.now()),
         },
         payload: { message: "hi" },
       });

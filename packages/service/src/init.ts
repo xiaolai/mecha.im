@@ -1,5 +1,6 @@
 import { mkdirSync, existsSync, writeFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { homedir } from "node:os";
 import { randomUUID } from "node:crypto";
 import { createNodeIdentity, loadNodeIdentity } from "@mecha/core";
 
@@ -14,6 +15,15 @@ export interface InitResult {
  * Initializes the ~/.mecha/ directory structure and node identity.
  */
 export function mechaInit(mechaDir: string): InitResult {
+  // Validate mechaDir is under user home directory
+  const home = homedir();
+  const resolved = join(mechaDir); // normalize
+  /* v8 ignore start -- defensive warning for non-standard mechaDir */
+  if (!resolved.startsWith(home)) {
+    console.warn(`[mecha] Warning: mechaDir "${resolved}" is outside home directory "${home}"`);
+  }
+  /* v8 ignore stop */
+
   const existed = existsSync(mechaDir);
 
   // Create directory structure with restrictive permissions

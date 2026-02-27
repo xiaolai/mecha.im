@@ -1,4 +1,4 @@
-import { DEFAULTS, addNode, getNode, ConnectError, PeerOfflineError, signMessage } from "@mecha/core";
+import { DEFAULTS, addNode, getNode, ConnectError, PeerOfflineError, signMessage, createLogger } from "@mecha/core";
 import type { NodeName } from "@mecha/core";
 import type {
   ConnectOpts,
@@ -21,6 +21,7 @@ import { relayConnect } from "./relay.js";
 import { createSecureChannel } from "./channel.js";
 import { relayToNoiseTransport, relayToChannelTransport } from "./transport-adapters.js";
 
+const log = createLogger("mecha:connect");
 const ANSWER_TIMEOUT_MS = 10_000;
 
 /**
@@ -41,6 +42,7 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
     stunServers,
     holePunchTimeoutMs,
     answerTimeoutMs = ANSWER_TIMEOUT_MS,
+    enableUdpTransport = false,
     _createRelayWebSocket,
     _createUdpSocket,
   } = opts;
@@ -99,6 +101,7 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
       transport: noiseTransport,
       localKeyPair: noiseKeyPair,
       remotePublicKey: remoteNoiseKey,
+      expectedFingerprint: peerFingerprint,
     });
 
     const channelTransport = relayToChannelTransport(relayChannel);
@@ -121,47 +124,54 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
       throw new PeerOfflineError(peer);
     }
 
-    // Try STUN → hole-punch path
-    let stunResult: { ip: string; port: number } | undefined;
-    try {
-      stunResult = await stunDiscover({
-        localPort: 0,
-        stunServer: stunServers?.[0],
-        createUdpSocket: _createUdpSocket as typeof import("node:dgram").createSocket | undefined,
-      });
-    } catch {
-      // STUN failed — skip to relay
-    }
-
-    if (stunResult) {
-      const ourCandidates: Candidate[] = [
-        { ip: stunResult.ip, port: stunResult.port, source: "stun" },
-      ];
-
-      await rendezvous.signal(peer as NodeName, {
-        type: "offer",
-        candidates: ourCandidates,
-      });
-
+    // Try STUN → hole-punch path (only when UDP transport is enabled)
+    if (enableUdpTransport) {
+      let stunResult: { ip: string; port: number } | undefined;
       try {
-        const remoteCandidates = await waitForAnswer(peer);
-
-        const punchResult = await holePunch({
-          localPort: stunResult.port,
-          remoteCandidates,
-          timeoutMs: holePunchTimeoutMs,
+        stunResult = await stunDiscover({
+          localPort: 0,
+          stunServer: stunServers?.[0],
           createUdpSocket: _createUdpSocket as typeof import("node:dgram").createSocket | undefined,
         });
+      /* v8 ignore start -- STUN failure is network-dependent, tested via integration */
+      } catch (err) {
+        // STUN failed — skip to relay
+        log.warn("STUN discovery failed, using relay", { error: err instanceof Error ? err.message : String(err) });
+      }
+      /* v8 ignore stop */
 
-        if (punchResult.success && punchResult.remoteAddress && punchResult.remotePort) {
-          // Hole punch succeeded but UDP Noise transport is deferred to future.
-          // Use relay for now — still benefits from NAT traversal discovery.
-          return await connectViaRelay(peer, peerInfo.fingerprint);
+      /* v8 ignore start -- stunResult undefined branch: falls through to relay */
+      if (stunResult) {
+      /* v8 ignore stop */
+        const ourCandidates: Candidate[] = [
+          { ip: stunResult.ip, port: stunResult.port, source: "stun" },
+        ];
+
+        await rendezvous.signal(peer as NodeName, {
+          type: "offer",
+          candidates: ourCandidates,
+        });
+
+        try {
+          const remoteCandidates = await waitForAnswer(peer);
+
+          const punchResult = await holePunch({
+            localPort: stunResult.port,
+            remoteCandidates,
+            timeoutMs: holePunchTimeoutMs,
+            createUdpSocket: _createUdpSocket as typeof import("node:dgram").createSocket | undefined,
+          });
+
+          if (punchResult.success && punchResult.remoteAddress && punchResult.remotePort) {
+            // Hole punch succeeded but UDP Noise transport is deferred to future.
+            // Use relay for now — still benefits from NAT traversal discovery.
+            return await connectViaRelay(peer, peerInfo.fingerprint);
+          }
+        } catch (_err) {
+          // Answer timeout or punch failed — fall through to relay.
+          // Preserve error for debugging; relay fallback is the expected path.
+          void _err;
         }
-      } catch (_err) {
-        // Answer timeout or punch failed — fall through to relay.
-        // Preserve error for debugging; relay fallback is the expected path.
-        void _err;
       }
     }
 
@@ -214,8 +224,8 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
       cacheChannel(from, channel);
       for (const handler of connectionHandlers) handler(channel);
     /* v8 ignore start -- relay/noise failure on inbound path */
-    } catch {
-      // Inbound connection attempt failed silently
+    } catch (err) {
+      log.error("Inbound connection failed", { from, error: err instanceof Error ? err.message : String(err) });
     }
     /* v8 ignore stop */
   }

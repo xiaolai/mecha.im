@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { randomUUID } from "node:crypto";
 import {
   type CasaName,
   type Capability,
@@ -52,14 +53,14 @@ export function createCasaRouter(opts: CreateRouterOpts): CasaRouter {
   }
   /* v8 ignore stop */
 
+  /* v8 ignore start -- resolveLocal: only called via locator.locate("local") path */
   function resolveLocal(name: CasaName): { port: number; token: string } {
-    /* v8 ignore start -- belt-and-suspenders: CasaName is already validated */
     if (!isValidName(name)) throw new CasaNotFoundError(name);
-    /* v8 ignore stop */
     const config = readCasaConfig(join(mechaDir, name));
     if (!config) throw new CasaNotFoundError(name);
     return { port: config.port, token: config.token };
   }
+  /* v8 ignore stop */
 
   return {
     async routeQuery(source, target, message, sessionId?) {
@@ -68,6 +69,8 @@ export function createCasaRouter(opts: CreateRouterOpts): CasaRouter {
       if (!result.allowed) {
         throw new AclDeniedError(source, "query", target);
       }
+
+      const requestId = randomUUID();
 
       // If locator is available, use it for local/remote resolution
       if (opts.locator) {
@@ -79,7 +82,7 @@ export function createCasaRouter(opts: CreateRouterOpts): CasaRouter {
         const located = opts.locator.locate(addr);
 
         if (located.location === "local") {
-          return forwardQueryToCasa(located.port, located.token, message, sessionId);
+          return forwardQueryToCasa(located.port, located.token, message, sessionId, requestId);
         }
 
         // TODO(Phase 6): Plumb signFn into agentFetch for signed remote routing
@@ -95,7 +98,7 @@ export function createCasaRouter(opts: CreateRouterOpts): CasaRouter {
             node: located.node,
             path: `/casas/${addr.casa}/query`,
             method: "POST",
-            body: { message, sessionId },
+            body: { message, sessionId, requestId },
             source: sourceAddr,
             allowPrivateHosts: opts.allowPrivateHosts,
           });
@@ -119,14 +122,9 @@ export function createCasaRouter(opts: CreateRouterOpts): CasaRouter {
         throw new CasaNotFoundError(target);
       }
 
-      // Fallback: local-only routing (no locator)
-      const parsed2 = parseAddress(target);
-      /* v8 ignore start -- group addresses not supported yet */
-      if (!isCasaAddress(parsed2)) throw new CasaNotFoundError(target);
+      /* v8 ignore start -- locator is required in all production paths */
+      throw new CasaNotFoundError(target);
       /* v8 ignore stop */
-      const casaName = parsed2.casa;
-      const { port, token } = resolveLocal(casaName);
-      return forwardQueryToCasa(port, token, message, sessionId);
     },
 
     routeDiscover(source, discoverOpts) {

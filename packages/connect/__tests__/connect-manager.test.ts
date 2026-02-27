@@ -337,7 +337,7 @@ describe("ConnectManager", () => {
     });
 
     it("falls back to relay when STUN succeeds but answer times out", async () => {
-      const mgr = createConnectManager(makeOpts({ answerTimeoutMs: 50 }));
+      const mgr = createConnectManager(makeOpts({ answerTimeoutMs: 50, enableUdpTransport: true }));
       await mgr.start();
 
       mockRv.lookup.mockResolvedValue(PEER_INFO);
@@ -368,7 +368,7 @@ describe("ConnectManager", () => {
 
   describe("inbound offer handling", () => {
     it("resolves pending answer when answer signal arrives", async () => {
-      const mgr = createConnectManager(makeOpts());
+      const mgr = createConnectManager(makeOpts({ enableUdpTransport: true }));
       await mgr.start();
 
       mockRv.lookup.mockResolvedValue(PEER_INFO);
@@ -588,7 +588,7 @@ describe("ConnectManager", () => {
 
   describe("hole-punch success path", () => {
     it("returns hole-punched channel when punch succeeds", async () => {
-      const mgr = createConnectManager(makeOpts());
+      const mgr = createConnectManager(makeOpts({ enableUdpTransport: true }));
       await mgr.start();
 
       mockRv.lookup.mockResolvedValue(PEER_INFO);
@@ -689,7 +689,7 @@ describe("ConnectManager", () => {
 
   describe("close with pending answers", () => {
     it("rejects pending answers on close", async () => {
-      const mgr = createConnectManager(makeOpts({ answerTimeoutMs: 60_000 }));
+      const mgr = createConnectManager(makeOpts({ answerTimeoutMs: 60_000, enableUdpTransport: true }));
       await mgr.start();
 
       mockRv.lookup.mockResolvedValue(PEER_INFO);
@@ -701,8 +701,8 @@ describe("ConnectManager", () => {
       // Make relay fail too so connect doesn't succeed via fallback
       mockRv.requestRelay.mockRejectedValue(new Error("closed"));
 
-      // Start a connect that will wait for answer
-      const connectPromise = mgr.connect(PEER);
+      // Start a connect that will wait for answer — capture the promise rejection
+      const connectPromise = mgr.connect(PEER).catch((err: Error) => err);
 
       // Wait for offer to be sent
       await vi.waitFor(() => {
@@ -712,8 +712,9 @@ describe("ConnectManager", () => {
       // Close while waiting for answer
       await mgr.close();
 
-      // Connect should reject
-      await expect(connectPromise).rejects.toThrow();
+      // Connect should reject (may reject with ConnectError or relay error)
+      const result = await connectPromise;
+      expect(result).toBeInstanceOf(Error);
     });
   });
 

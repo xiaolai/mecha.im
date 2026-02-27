@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, afterAll } from "vitest";
 import { createServer, nodes, invites, relayPairs } from "../src/index.js";
 import type { FastifyInstance } from "fastify";
 import WebSocket from "ws";
+import { generateKeyPairSync, sign } from "node:crypto";
 
 let app: FastifyInstance;
 let baseUrl: string;
@@ -22,6 +23,41 @@ beforeEach(async () => {
 afterEach(async () => {
   await app.close();
 });
+
+// --- Crypto helper ---
+
+function makeIdentity(name: string) {
+  const { publicKey, privateKey } = generateKeyPairSync("ed25519");
+  const pubDer = publicKey.export({ type: "spki", format: "der" });
+  const pubB64 = pubDer.toString("base64");
+  const fp = `fp-${name}`;
+  const npk = `npk-${name}`;
+
+  function signRegistration(overrides?: { noisePublicKey?: string; fingerprint?: string }) {
+    const payload = JSON.stringify({
+      name,
+      publicKey: pubB64,
+      noisePublicKey: overrides?.noisePublicKey ?? npk,
+      fingerprint: overrides?.fingerprint ?? fp,
+    });
+    const sig = sign(null, Buffer.from(payload), privateKey);
+    return sig.toString("base64");
+  }
+
+  function registerMsg(requestId?: string, overrides?: { noisePublicKey?: string; fingerprint?: string }) {
+    return {
+      type: "register" as const,
+      name,
+      publicKey: pubB64,
+      noisePublicKey: overrides?.noisePublicKey ?? npk,
+      fingerprint: overrides?.fingerprint ?? fp,
+      signature: signRegistration(overrides),
+      requestId,
+    };
+  }
+
+  return { name, publicKey: pubB64, privateKey, fingerprint: fp, noisePublicKey: npk, signRegistration, registerMsg };
+}
 
 // --- Helper ---
 
@@ -74,16 +110,9 @@ describe("GET /lookup/:name", () => {
 
 describe("signaling", () => {
   it("register + lookup", async () => {
+    const alice = makeIdentity("alice");
     const ws = await connectWs();
-    const reply = await sendAndReceive(ws, {
-      type: "register",
-      name: "alice",
-      publicKey: "pk-alice",
-      noisePublicKey: "npk-alice",
-      fingerprint: "fp-alice",
-      signature: "sig",
-      requestId: "1",
-    });
+    const reply = await sendAndReceive(ws, alice.registerMsg("1"));
     expect(reply).toEqual({ type: "registered", ok: true, requestId: "1" });
     expect(nodes.size).toBe(1);
 
@@ -121,32 +150,62 @@ describe("signaling", () => {
     ws.close();
   });
 
-  it("evicts previous connection for same name", async () => {
-    const ws1 = await connectWs();
-    await sendAndReceive(ws1, {
+  it("rejects register with missing signature", async () => {
+    const ws = await connectWs();
+    const reply = await sendAndReceive(ws, {
       type: "register", name: "alice", publicKey: "pk", noisePublicKey: "npk",
-      fingerprint: "fp", signature: "sig", requestId: "1",
+      fingerprint: "fp", requestId: "1",
     });
+    expect(reply.type).toBe("error");
+    expect(reply.code).toBe("MISSING_SIGNATURE");
+    ws.close();
+  });
+
+  it("rejects register with invalid signature", async () => {
+    const ws = await connectWs();
+    const reply = await sendAndReceive(ws, {
+      type: "register", name: "alice", publicKey: "pk", noisePublicKey: "npk",
+      fingerprint: "fp", signature: "bad-sig", requestId: "1",
+    });
+    expect(reply.type).toBe("error");
+    expect(reply.code).toBe("INVALID_SIGNATURE");
+    ws.close();
+  });
+
+  it("evicts previous connection for same name (same key)", async () => {
+    const alice = makeIdentity("alice");
+    const ws1 = await connectWs();
+    await sendAndReceive(ws1, alice.registerMsg("1"));
 
     const ws2 = await connectWs();
-    await sendAndReceive(ws2, {
-      type: "register", name: "alice", publicKey: "pk2", noisePublicKey: "npk2",
-      fingerprint: "fp2", signature: "sig2", requestId: "2",
-    });
+    await sendAndReceive(ws2, alice.registerMsg("2"));
 
     expect(nodes.size).toBe(1);
-    expect(nodes.get("alice")!.publicKey).toBe("pk2");
+    expect(nodes.get("alice")!.publicKey).toBe(alice.publicKey);
+
+    ws1.close();
+    ws2.close();
+  });
+
+  it("rejects re-register with different key (key pinning)", async () => {
+    const alice1 = makeIdentity("alice");
+    const ws1 = await connectWs();
+    await sendAndReceive(ws1, alice1.registerMsg("1"));
+
+    const alice2 = makeIdentity("alice"); // different keypair, same name
+    const ws2 = await connectWs();
+    const reply = await sendAndReceive(ws2, alice2.registerMsg("2"));
+    expect(reply.type).toBe("error");
+    expect(reply.code).toBe("KEY_MISMATCH");
 
     ws1.close();
     ws2.close();
   });
 
   it("unregister removes node", async () => {
+    const alice = makeIdentity("alice");
     const ws = await connectWs();
-    await sendAndReceive(ws, {
-      type: "register", name: "alice", publicKey: "pk", noisePublicKey: "npk",
-      fingerprint: "fp", signature: "sig", requestId: "1",
-    });
+    await sendAndReceive(ws, alice.registerMsg("1"));
     expect(nodes.size).toBe(1);
 
     ws.send(JSON.stringify({ type: "unregister" }));
@@ -157,11 +216,9 @@ describe("signaling", () => {
   });
 
   it("cleans up on disconnect", async () => {
+    const alice = makeIdentity("alice");
     const ws = await connectWs();
-    await sendAndReceive(ws, {
-      type: "register", name: "alice", publicKey: "pk", noisePublicKey: "npk",
-      fingerprint: "fp", signature: "sig", requestId: "1",
-    });
+    await sendAndReceive(ws, alice.registerMsg("1"));
     expect(nodes.size).toBe(1);
 
     ws.close();
@@ -170,17 +227,14 @@ describe("signaling", () => {
   });
 
   it("signal forwards to target peer", async () => {
+    const alice = makeIdentity("alice");
+    const bob = makeIdentity("bob");
+
     const wsAlice = await connectWs();
-    await sendAndReceive(wsAlice, {
-      type: "register", name: "alice", publicKey: "pk-a", noisePublicKey: "npk-a",
-      fingerprint: "fp-a", signature: "sig", requestId: "1",
-    });
+    await sendAndReceive(wsAlice, alice.registerMsg("1"));
 
     const wsBob = await connectWs();
-    await sendAndReceive(wsBob, {
-      type: "register", name: "bob", publicKey: "pk-b", noisePublicKey: "npk-b",
-      fingerprint: "fp-b", signature: "sig", requestId: "2",
-    });
+    await sendAndReceive(wsBob, bob.registerMsg("2"));
 
     // Alice signals Bob
     const bobMsg = waitMessage(wsBob);
@@ -203,11 +257,9 @@ describe("signaling", () => {
   });
 
   it("signal errors if peer offline", async () => {
+    const alice = makeIdentity("alice");
     const ws = await connectWs();
-    await sendAndReceive(ws, {
-      type: "register", name: "alice", publicKey: "pk", noisePublicKey: "npk",
-      fingerprint: "fp", signature: "sig", requestId: "1",
-    });
+    await sendAndReceive(ws, alice.registerMsg("1"));
     const reply = await sendAndReceive(ws, { type: "signal", to: "bob", data: {} });
     expect(reply.type).toBe("error");
     expect(reply.code).toBe("PEER_OFFLINE");
@@ -222,11 +274,9 @@ describe("signaling", () => {
   });
 
   it("lookup via WS returns peer info", async () => {
+    const alice = makeIdentity("alice");
     const ws1 = await connectWs();
-    await sendAndReceive(ws1, {
-      type: "register", name: "alice", publicKey: "pk", noisePublicKey: "npk",
-      fingerprint: "fp", signature: "sig", requestId: "1",
-    });
+    await sendAndReceive(ws1, alice.registerMsg("1"));
 
     const ws2 = await connectWs();
     const reply = await sendAndReceive(ws2, { type: "lookup", peer: "alice", requestId: "2" });
@@ -245,17 +295,14 @@ describe("signaling", () => {
   });
 
   it("request-relay returns token and notifies peer", async () => {
+    const alice = makeIdentity("alice");
+    const bob = makeIdentity("bob");
+
     const wsAlice = await connectWs();
-    await sendAndReceive(wsAlice, {
-      type: "register", name: "alice", publicKey: "pk-a", noisePublicKey: "npk-a",
-      fingerprint: "fp-a", signature: "sig", requestId: "1",
-    });
+    await sendAndReceive(wsAlice, alice.registerMsg("1"));
 
     const wsBob = await connectWs();
-    await sendAndReceive(wsBob, {
-      type: "register", name: "bob", publicKey: "pk-b", noisePublicKey: "npk-b",
-      fingerprint: "fp-b", signature: "sig", requestId: "2",
-    });
+    await sendAndReceive(wsBob, bob.registerMsg("2"));
 
     const bobMsg = waitMessage(wsBob);
     const reply = await sendAndReceive(wsAlice, { type: "request-relay", peer: "bob", requestId: "3" });
@@ -272,11 +319,9 @@ describe("signaling", () => {
   });
 
   it("request-relay works when peer is offline", async () => {
+    const alice = makeIdentity("alice");
     const ws = await connectWs();
-    await sendAndReceive(ws, {
-      type: "register", name: "alice", publicKey: "pk", noisePublicKey: "npk",
-      fingerprint: "fp", signature: "sig", requestId: "1",
-    });
+    await sendAndReceive(ws, alice.registerMsg("1"));
     // Request relay to offline peer — should still return token
     const reply = await sendAndReceive(ws, { type: "request-relay", peer: "nobody", requestId: "2" });
     expect(reply.type).toBe("relay-token");
@@ -297,12 +342,10 @@ describe("signaling", () => {
 
 describe("invite REST", () => {
   it("create + get + accept invite", async () => {
-    // Register inviter via WS so they can receive notifications
+    // Register inviter via WS with real Ed25519 signature
+    const alice = makeIdentity("alice");
     const wsAlice = await connectWs();
-    await sendAndReceive(wsAlice, {
-      type: "register", name: "alice", publicKey: "pk-a", noisePublicKey: "npk-a",
-      fingerprint: "fp-a", signature: "sig", requestId: "1",
-    });
+    await sendAndReceive(wsAlice, alice.registerMsg("1"));
 
     // Create invite
     const createRes = await fetch(`${baseUrl}/invite`, {
@@ -311,9 +354,9 @@ describe("invite REST", () => {
       body: JSON.stringify({
         token: "test-token-123",
         inviterName: "alice",
-        inviterPublicKey: "pk-a",
-        inviterFingerprint: "fp-a",
-        inviterNoisePublicKey: "npk-a",
+        inviterPublicKey: alice.publicKey,
+        inviterFingerprint: alice.fingerprint,
+        inviterNoisePublicKey: alice.noisePublicKey,
         expiresAt: Date.now() + 86_400_000,
       }),
     });
@@ -365,6 +408,11 @@ describe("invite REST", () => {
   });
 
   it("returns 410 for consumed invite", async () => {
+    // Register inviter first
+    const alice = makeIdentity("alice");
+    const wsAlice = await connectWs();
+    await sendAndReceive(wsAlice, alice.registerMsg("r1"));
+
     await fetch(`${baseUrl}/invite`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -393,9 +441,15 @@ describe("invite REST", () => {
       body: JSON.stringify({ name: "charlie", publicKey: "pk2", fingerprint: "fp2" }),
     });
     expect(acceptRes.status).toBe(410);
+    wsAlice.close();
   });
 
   it("returns 410 for expired invite", async () => {
+    // Register inviter first
+    const alice = makeIdentity("alice");
+    const wsAlice = await connectWs();
+    await sendAndReceive(wsAlice, alice.registerMsg("r1"));
+
     await fetch(`${baseUrl}/invite`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -408,9 +462,15 @@ describe("invite REST", () => {
 
     const res = await fetch(`${baseUrl}/invite/expired-token`);
     expect(res.status).toBe(410);
+    wsAlice.close();
   });
 
   it("returns 400 for accept with missing fields", async () => {
+    // Register inviter first
+    const alice = makeIdentity("alice");
+    const wsAlice = await connectWs();
+    await sendAndReceive(wsAlice, alice.registerMsg("r1"));
+
     await fetch(`${baseUrl}/invite`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -427,6 +487,7 @@ describe("invite REST", () => {
       body: JSON.stringify({}),
     });
     expect(res.status).toBe(400);
+    wsAlice.close();
   });
 
   it("returns 404 for accept of unknown invite", async () => {
@@ -447,6 +508,19 @@ describe("invite REST", () => {
     const address = app.server.address();
     const port = typeof address === "object" && address ? address.port : 0;
     const url = `http://127.0.0.1:${port}`;
+    const localWsUrl = `ws://127.0.0.1:${port}`;
+
+    // Register both inviters
+    const alice = makeIdentity("alice");
+    const bob = makeIdentity("bob");
+    const wsAlice = new WebSocket(`${localWsUrl}/ws`);
+    await new Promise<void>((resolve, reject) => { wsAlice.on("open", () => resolve()); wsAlice.on("error", reject); });
+    wsAlice.send(JSON.stringify(alice.registerMsg("r1")));
+    await new Promise<void>(r => wsAlice.once("message", () => r()));
+    const wsBob = new WebSocket(`${localWsUrl}/ws`);
+    await new Promise<void>((resolve, reject) => { wsBob.on("open", () => resolve()); wsBob.on("error", reject); });
+    wsBob.send(JSON.stringify(bob.registerMsg("r2")));
+    await new Promise<void>(r => wsBob.once("message", () => r()));
 
     // First invite — ok
     await fetch(`${url}/invite`, {
@@ -462,6 +536,7 @@ describe("invite REST", () => {
       body: JSON.stringify({ token: "t2", inviterName: "bob", expiresAt: Date.now() + 86_400_000 }),
     });
     expect(res.status).toBe(429);
+    wsAlice.close(); wsBob.close();
   });
 
   it("purges expired invites when limit reached", async () => {
@@ -472,6 +547,19 @@ describe("invite REST", () => {
     const address = app.server.address();
     const port = typeof address === "object" && address ? address.port : 0;
     const url = `http://127.0.0.1:${port}`;
+    const localWsUrl = `ws://127.0.0.1:${port}`;
+
+    // Register both inviters
+    const alice = makeIdentity("alice");
+    const bob = makeIdentity("bob");
+    const wsAlice = new WebSocket(`${localWsUrl}/ws`);
+    await new Promise<void>((resolve, reject) => { wsAlice.on("open", () => resolve()); wsAlice.on("error", reject); });
+    wsAlice.send(JSON.stringify(alice.registerMsg("r1")));
+    await new Promise<void>(r => wsAlice.once("message", () => r()));
+    const wsBob = new WebSocket(`${localWsUrl}/ws`);
+    await new Promise<void>((resolve, reject) => { wsBob.on("open", () => resolve()); wsBob.on("error", reject); });
+    wsBob.send(JSON.stringify(bob.registerMsg("r2")));
+    await new Promise<void>(r => wsBob.once("message", () => r()));
 
     // First invite — already expired
     await fetch(`${url}/invite`, {
@@ -487,9 +575,15 @@ describe("invite REST", () => {
       body: JSON.stringify({ token: "fresh", inviterName: "bob", expiresAt: Date.now() + 86_400_000 }),
     });
     expect(res.status).toBe(201);
+    wsAlice.close(); wsBob.close();
   });
 
   it("accepts invite without inviter online (no notification)", async () => {
+    // Register inviter, create invite, then disconnect
+    const alice = makeIdentity("offline-alice");
+    const wsAlice = await connectWs();
+    await sendAndReceive(wsAlice, alice.registerMsg("r1"));
+
     await fetch(`${baseUrl}/invite`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -500,6 +594,10 @@ describe("invite REST", () => {
       }),
     });
 
+    // Disconnect inviter
+    wsAlice.close();
+    await new Promise((r) => setTimeout(r, 50));
+
     const res = await fetch(`${baseUrl}/invite/offline-inviter/accept`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -509,6 +607,11 @@ describe("invite REST", () => {
   });
 
   it("returns 410 for accept of expired invite", async () => {
+    // Register inviter first
+    const alice = makeIdentity("alice");
+    const wsAlice = await connectWs();
+    await sendAndReceive(wsAlice, alice.registerMsg("r1"));
+
     await fetch(`${baseUrl}/invite`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -525,6 +628,7 @@ describe("invite REST", () => {
       body: JSON.stringify({ name: "bob", publicKey: "pk", fingerprint: "fp" }),
     });
     expect(res.status).toBe(410);
+    wsAlice.close();
   });
 });
 
