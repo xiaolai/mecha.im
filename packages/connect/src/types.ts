@@ -34,7 +34,8 @@ export interface InviteOpts {
 }
 
 export interface InviteCode {
-  code: string;          // "mecha://invite/<token>"
+  code: string;          // "mecha://invite/<base64url-payload>"
+  token: string;         // raw token for server registration
   expiresAt: string;     // ISO timestamp
 }
 

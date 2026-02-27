@@ -81,7 +81,7 @@ export async function createInviteCode(createOpts: CreateInviteOpts): Promise<In
   const payload: InvitePayload = { ...payloadWithoutSig, signature };
   const code = INVITE_SCHEME + encodePayload(payload);
 
-  return { code, expiresAt };
+  return { code, token, expiresAt };
 }
 
 /** Parse and validate an invite code string. Throws InvalidInviteError on failure. */

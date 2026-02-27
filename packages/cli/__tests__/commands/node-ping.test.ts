@@ -82,7 +82,7 @@ describe("node ping command", () => {
     expect(deps.formatter.error).toHaveBeenCalledWith("bob: unreachable");
   });
 
-  it("shows info for managed node", async () => {
+  it("pings managed node via rendezvous — online", async () => {
     addNode(mechaDir, {
       name: "charlie",
       host: "",
@@ -94,14 +94,125 @@ describe("node ping command", () => {
       addedAt: new Date().toISOString(),
     });
 
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ name: "charlie", online: true })),
+    );
+
     const deps = makeDeps({ mechaDir });
     const program = createProgram(deps);
     program.exitOverride();
 
     await program.parseAsync(["node", "mecha", "node", "ping", "charlie"]);
 
-    expect(deps.formatter.info).toHaveBeenCalledWith(
-      expect.stringContaining("managed node"),
+    expect(deps.formatter.success).toHaveBeenCalledWith(
+      expect.stringMatching(/charlie: \d+ms \(rendezvous\)/),
+    );
+  });
+
+  it("pings managed node via rendezvous — offline (404)", async () => {
+    addNode(mechaDir, {
+      name: "charlie",
+      host: "",
+      port: 0,
+      apiKey: "",
+      publicKey: "pk",
+      fingerprint: "fp",
+      managed: true,
+      addedAt: new Date().toISOString(),
+    });
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ error: "Node not found" }), { status: 404 }),
+    );
+
+    const deps = makeDeps({ mechaDir });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "node", "ping", "charlie"]);
+
+    expect(deps.formatter.error).toHaveBeenCalledWith(
+      expect.stringContaining("offline"),
+    );
+  });
+
+  it("pings managed node via rendezvous — server error", async () => {
+    addNode(mechaDir, {
+      name: "charlie",
+      host: "",
+      port: 0,
+      apiKey: "",
+      publicKey: "pk",
+      fingerprint: "fp",
+      managed: true,
+      addedAt: new Date().toISOString(),
+    });
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("error", { status: 500 }),
+    );
+
+    const deps = makeDeps({ mechaDir });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "node", "ping", "charlie"]);
+
+    expect(deps.formatter.error).toHaveBeenCalledWith(
+      expect.stringContaining("rendezvous lookup failed"),
+    );
+  });
+
+  it("pings managed node via rendezvous — server unreachable", async () => {
+    addNode(mechaDir, {
+      name: "charlie",
+      host: "",
+      port: 0,
+      apiKey: "",
+      publicKey: "pk",
+      fingerprint: "fp",
+      managed: true,
+      addedAt: new Date().toISOString(),
+    });
+
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("ECONNREFUSED"));
+
+    const deps = makeDeps({ mechaDir });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "node", "ping", "charlie"]);
+
+    expect(deps.formatter.error).toHaveBeenCalledWith(
+      "charlie: rendezvous server unreachable",
+    );
+  });
+
+  it("pings managed node — online response but not online", async () => {
+    addNode(mechaDir, {
+      name: "charlie",
+      host: "",
+      port: 0,
+      apiKey: "",
+      publicKey: "pk",
+      fingerprint: "fp",
+      managed: true,
+      addedAt: new Date().toISOString(),
+    });
+
+    // 200 OK but online: false (shouldn't normally happen with /lookup/:name but handle it)
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ name: "charlie", online: false })),
+    );
+
+    const deps = makeDeps({ mechaDir });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "node", "ping", "charlie"]);
+
+    expect(deps.formatter.error).toHaveBeenCalledWith(
+      expect.stringContaining("offline"),
     );
   });
 

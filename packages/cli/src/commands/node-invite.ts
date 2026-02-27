@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { withErrorHandler } from "../error-handler.js";
-import { loadNodeIdentity, loadNodePrivateKey, IdentityNotFoundError, DEFAULTS } from "@mecha/core";
+import { loadNodeIdentity, loadNodePrivateKey, IdentityNotFoundError, DEFAULTS, createNoiseKeys } from "@mecha/core";
 import { readNodeName } from "@mecha/service";
 import { createInviteCode } from "@mecha/connect";
 
@@ -31,21 +31,47 @@ export function registerNodeInviteCommand(parent: Command, deps: CommandDeps): v
       if (!privateKey) throw new IdentityNotFoundError("node private key");
       /* v8 ignore stop */
 
-      const expiresIn = parseDuration(opts.expires);
+      // Ensure X25519 noise keys exist (created during node init, but ensure for older inits)
+      const noiseKeys = createNoiseKeys(deps.mechaDir);
 
-      // Phase 6 MVP: invite creation is local-only (no rendezvous server needed).
-      // The client param is reserved for future server-side token registration.
-      // The noisePublicKey is a placeholder — real X25519 keys are negotiated
-      // during the Noise IK handshake when an actual connection is established.
+      const expiresIn = parseDuration(opts.expires);
+      const rendezvousUrl = DEFAULTS.RENDEZVOUS_URL;
+
+      // Create signed invite code (local cryptographic operation)
       const result = await createInviteCode({
         client: undefined as never,
         identity,
         nodeName,
-        noisePublicKey: "pending",
+        noisePublicKey: noiseKeys.publicKey,
         privateKey,
-        rendezvousUrl: DEFAULTS.RENDEZVOUS_URL,
+        rendezvousUrl,
         opts: { expiresIn },
       });
+
+      // Register invite on the rendezvous server (best-effort — invite works offline too)
+      const serverUrl = rendezvousUrl.replace(/^wss:\/\//, "https://").replace(/^ws:\/\//, "http://");
+      try {
+        const res = await fetch(`${serverUrl}/invite`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            token: result.token,
+            inviterName: nodeName,
+            inviterPublicKey: identity.publicKey,
+            inviterFingerprint: identity.fingerprint,
+            inviterNoisePublicKey: noiseKeys.publicKey,
+            expiresAt: Date.now() + expiresIn * 1000,
+          }),
+          signal: AbortSignal.timeout(10_000),
+        });
+        if (!res.ok) {
+          deps.formatter.warn(`Server registration failed (HTTP ${res.status}) — invite still works for offline exchange`);
+        }
+      /* v8 ignore start -- network failure is best-effort */
+      } catch {
+        deps.formatter.warn("Could not reach rendezvous server — invite still works for offline exchange");
+      }
+      /* v8 ignore stop */
 
       deps.formatter.success(result.code);
       deps.formatter.info(`Expires: ${result.expiresAt} (${opts.expires})`);

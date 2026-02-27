@@ -1,7 +1,8 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { withErrorHandler } from "../error-handler.js";
-import { loadNodeIdentity, IdentityNotFoundError, addNode, getNode, DuplicateNodeError } from "@mecha/core";
+import { loadNodeIdentity, IdentityNotFoundError, addNode, getNode, DuplicateNodeError, createNoiseKeys } from "@mecha/core";
+import { readNodeName } from "@mecha/service";
 import { parseInviteCode } from "@mecha/connect";
 
 export function registerNodeJoinCommand(parent: Command, deps: CommandDeps): void {
@@ -13,6 +14,9 @@ export function registerNodeJoinCommand(parent: Command, deps: CommandDeps): voi
     .action(async (code: string, opts: { force: boolean }) => withErrorHandler(deps, async () => {
       const identity = loadNodeIdentity(deps.mechaDir);
       if (!identity) throw new IdentityNotFoundError("node");
+
+      const nodeName = readNodeName(deps.mechaDir);
+      if (!nodeName) throw new IdentityNotFoundError("node name (run `mecha node init` first)");
 
       // Parse and validate invite (checks expiry, signature)
       const payload = parseInviteCode(code);
@@ -30,13 +34,41 @@ export function registerNodeJoinCommand(parent: Command, deps: CommandDeps): voi
         throw new DuplicateNodeError(payload.inviterName);
       }
 
-      // Add peer to registry as managed node
+      // Ensure X25519 noise keys exist
+      const noiseKeys = createNoiseKeys(deps.mechaDir);
+
+      // Accept invite on the rendezvous server (best-effort — notifies inviter if online)
+      const serverUrl = payload.rendezvousUrl.replace(/^wss:\/\//, "https://").replace(/^ws:\/\//, "http://");
+      try {
+        const res = await fetch(`${serverUrl}/invite/${encodeURIComponent(payload.token)}/accept`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            name: nodeName,
+            publicKey: identity.publicKey,
+            fingerprint: identity.fingerprint,
+            noisePublicKey: noiseKeys.publicKey,
+          }),
+          signal: AbortSignal.timeout(10_000),
+        });
+        if (res.ok) {
+          deps.formatter.info("Invite accepted on server (inviter notified)");
+        } else {
+          deps.formatter.warn(`Server accept failed (HTTP ${res.status}) — peer added locally`);
+        }
+      /* v8 ignore start -- network failure is best-effort */
+      } catch {
+        deps.formatter.warn("Could not reach rendezvous server — peer added locally");
+      }
+      /* v8 ignore stop */
+
+      // Remove existing if --force
       if (existing && opts.force) {
-        // Remove existing first, then re-add
         const { removeNode } = await import("@mecha/core");
         removeNode(deps.mechaDir, payload.inviterName);
       }
 
+      // Add peer to registry as managed node
       addNode(deps.mechaDir, {
         name: payload.inviterName,
         host: "",
@@ -50,6 +82,5 @@ export function registerNodeJoinCommand(parent: Command, deps: CommandDeps): voi
       });
 
       deps.formatter.success(`Peer added: ${payload.inviterName} (managed)`);
-      deps.formatter.info("Direct P2P connection requires rendezvous infrastructure deployment.");
     }));
 }
