@@ -161,6 +161,8 @@ export interface ConnectOpts {
   holePunchTimeoutMs?: number;
   /** Answer signal timeout (ms). Default: 10_000 */
   answerTimeoutMs?: number;
+  /** Enable UDP transport (STUN/hole-punch). Default: false — goes straight to relay. */
+  enableUdpTransport?: boolean;
   /** DI: WebSocket factory for rendezvous client */
   _createRendezvousWebSocket?: (url: string) => import("./relay.js").WebSocketLike;
   /** DI: WebSocket factory for relay connections */

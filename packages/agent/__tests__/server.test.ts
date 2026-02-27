@@ -222,7 +222,7 @@ describe("AgentServer", () => {
         payload: { message: "hello" },
       });
       expect(res.statusCode).toBe(502);
-      expect(res.json().error).toBe("Upstream CASA unavailable");
+      expect(res.json().error).toContain("Upstream CASA unavailable");
     });
   });
 

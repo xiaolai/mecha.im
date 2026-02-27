@@ -156,7 +156,7 @@ export const ProcessSpawnError = defError<[string]>(
 export const ProcessHealthTimeoutError = defError<[string]>(
   "ProcessHealthTimeoutError",
   { code: "PROCESS_HEALTH_TIMEOUT", statusCode: 500, exitCode: 2 },
-  (name) => `CASA "${name}" failed health check`,
+  (name) => `CASA "${name}" failed health check. Check logs with: mecha logs ${name}`,
 );
 
 // --- ACL errors (Phase 3) ---

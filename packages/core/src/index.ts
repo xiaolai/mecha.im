@@ -1,3 +1,5 @@
+export { createLogger } from "./logger.js";
+export type { Logger } from "./logger.js";
 export { safeReadJson } from "./safe-read.js";
 export { isPidAlive } from "./pid.js";
 export { safeCompare } from "./safe-compare.js";

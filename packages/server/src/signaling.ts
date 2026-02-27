@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { WebSocket } from "@fastify/websocket";
 import type { OnlineNode, ClientMessage, ServerConfig } from "./types.js";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createPublicKey, verify } from "node:crypto";
 
 /** In-memory registry of online nodes, keyed by name. */
 export const nodes = new Map<string, OnlineNode>();
@@ -20,11 +20,36 @@ function getClientIp(ws: WebSocket, req: { ip: string }): string {
   return req.ip;
 }
 
+/** Per-IP rate limiting: 60 messages per minute sliding window. */
+const RATE_LIMIT_MAX = 60;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const rateLimits = new Map<string, { count: number; resetAt: number }>();
+
+/* v8 ignore start -- rate limiting: exercised via integration, hard to unit test without 60+ messages */
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = rateLimits.get(ip);
+  if (!entry || now >= entry.resetAt) {
+    rateLimits.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return true;
+  }
+  entry.count++;
+  return entry.count <= RATE_LIMIT_MAX;
+}
+/* v8 ignore stop */
+
 export function registerSignaling(app: FastifyInstance, config: ServerConfig): void {
   app.get("/ws", { websocket: true }, (socket, req) => {
     const clientIp = getClientIp(socket, req);
 
     socket.on("message", (raw: Buffer | ArrayBuffer | Buffer[]) => {
+      /* v8 ignore start -- rate limit hit requires 60+ messages to test */
+      if (!checkRateLimit(clientIp)) {
+        send(socket, { type: "error", code: "RATE_LIMITED", message: "Too many messages, slow down" });
+        return;
+      }
+      /* v8 ignore stop */
+
       let msg: ClientMessage;
       try {
         msg = JSON.parse(String(raw)) as ClientMessage;
@@ -67,21 +92,55 @@ export function registerSignaling(app: FastifyInstance, config: ServerConfig): v
   });
 }
 
+/** Verify Ed25519 signature over registration payload */
+function verifyRegistrationSignature(publicKeyPem: string, payload: string, signature: string): boolean {
+  try {
+    const pubKey = createPublicKey({
+      key: Buffer.from(publicKeyPem, "base64"),
+      format: "der",
+      type: "spki",
+    });
+    return verify(null, Buffer.from(payload), pubKey, Buffer.from(signature, "base64"));
+  /* v8 ignore start -- malformed key/signature */
+  } catch {
+    return false;
+  }
+  /* v8 ignore stop */
+}
+
 function handleRegister(
   ws: WebSocket,
   clientIp: string,
   msg: Extract<ClientMessage, { type: "register" }>,
 ): void {
-  const { name, publicKey, noisePublicKey, fingerprint, requestId } = msg;
+  const { name, publicKey, noisePublicKey, fingerprint, signature, requestId } = msg;
 
   if (!name || !publicKey || !fingerprint) {
     send(ws, { type: "error", code: "INVALID_REGISTER", message: "Missing required fields", requestId });
     return;
   }
 
-  // Evict previous connection for same name
+  // Verify Ed25519 signature over registration payload
+  if (!signature) {
+    send(ws, { type: "error", code: "MISSING_SIGNATURE", message: "Registration requires a valid signature", requestId });
+    return;
+  }
+
+  /* v8 ignore start -- ?? fallback for optional noisePublicKey */
+  const payload = JSON.stringify({ name, publicKey, noisePublicKey: noisePublicKey ?? "", fingerprint });
+  /* v8 ignore stop */
+  if (!verifyRegistrationSignature(publicKey, payload, signature)) {
+    send(ws, { type: "error", code: "INVALID_SIGNATURE", message: "Signature verification failed", requestId });
+    return;
+  }
+
+  // Public key pinning: if a node is already registered with a different key, reject
   const existing = nodes.get(name);
   if (existing && existing.ws !== ws) {
+    if (existing.publicKey !== publicKey) {
+      send(ws, { type: "error", code: "KEY_MISMATCH", message: "Name already registered with a different public key", requestId });
+      return;
+    }
     /* v8 ignore start -- evict close may race with ws already closing */
     existing.ws.close(1000, "Replaced by new connection");
     /* v8 ignore stop */

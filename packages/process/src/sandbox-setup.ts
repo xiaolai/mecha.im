@@ -125,7 +125,33 @@ esac
 # Bash guard: validate Bash tool calls
 # Claude Code PreToolUse hooks receive JSON on stdin with tool_input.command
 # Exit 0 = allow command as-is, Exit 2 = block
-# CWD is already set to workspace by spawn pipeline — allow all commands
+INPUT=$(cat)
+COMMAND=$(echo "$INPUT" | node -e "
+  const d=JSON.parse(require('fs').readFileSync(0,'utf8'));
+  const i=d.tool_input||{};
+  process.stdout.write(String(i.command||''));
+" 2>/dev/null)
+if [ -z "$COMMAND" ]; then
+  exit 2  # No command extracted — deny by default (fail-closed)
+fi
+# Canonicalize allowed roots
+SANDBOX=$(realpath -m "$MECHA_SANDBOX_ROOT" 2>/dev/null || echo "$MECHA_SANDBOX_ROOT")
+WORKSPACE=$(realpath -m "$MECHA_WORKSPACE" 2>/dev/null || echo "$MECHA_WORKSPACE")
+# Block commands that explicitly reference paths outside sandbox/workspace
+# Extract file path arguments from the command
+echo "$COMMAND" | grep -oE '(/[^ ;"'"'"'|&>]+)' | while read -r FPATH; do
+  RESOLVED=$(realpath -m "$FPATH" 2>/dev/null || echo "$FPATH")
+  case "$RESOLVED" in
+    "$SANDBOX"/*|"$SANDBOX") ;;
+    "$WORKSPACE"/*|"$WORKSPACE") ;;
+    /usr/*|/bin/*|/etc/*|/dev/*|/tmp/*|/System/*|/lib/*|/lib64/*) ;;
+    *) echo "BLOCKED: $RESOLVED is outside sandbox" >&2; exit 2 ;;
+  esac
+done
+# If the subshell (while loop) exited with 2, propagate
+if [ \${PIPESTATUS[1]} -eq 2 ]; then
+  exit 2
+fi
 exit 0
 `;
   writeFileSync(join(hooksDir, "sandbox-guard.sh"), sandboxGuard, { mode: 0o755 });
