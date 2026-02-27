@@ -8,3 +8,6 @@ export { createCasaIdentity, loadCasaIdentity, loadCasaIdentityFromDir } from ".
 export type { CasaIdentity } from "./casa-identity.js";
 
 export { signMessage, verifySignature } from "./signing.js";
+
+export { generateNoiseKeyPair, createNoiseKeys, loadNoiseKeyPair, loadNoisePublicKey } from "./noise-keys.js";
+export type { NoiseKeyPair as NoiseKeyPairCore } from "./noise-keys.js";

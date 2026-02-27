@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { randomBytes, randomUUID } from "node:crypto";
 import { IDENTITY_DIR } from "../constants.js";
 import { generateKeyPair, fingerprint } from "./keys.js";
+import { createNoiseKeys } from "./noise-keys.js";
 import { safeReadJson } from "../safe-read.js";
 
 export interface NodeIdentity {
@@ -67,6 +68,9 @@ export function createNodeIdentity(mechaDir: string): NodeIdentity {
   const tmpKey = keyPath + `.${randomBytes(4).toString("hex")}.tmp`;
   writeFileSync(tmpKey, kp.privateKey, { mode: 0o600 });
   renameSync(tmpKey, keyPath);
+
+  // Generate X25519 noise keys for P2P encryption (Phase 6)
+  createNoiseKeys(mechaDir);
 
   return identity;
 }

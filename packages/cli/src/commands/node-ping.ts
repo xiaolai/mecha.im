@@ -13,8 +13,33 @@ export function registerNodePingCommand(parent: Command, deps: CommandDeps): voi
       if (!node) throw new NodeNotFoundError(name);
 
       if (node.managed) {
-        // Managed nodes use SecureChannel — requires ConnectManager
-        deps.formatter.info(`${name}: managed node (P2P connectivity requires infrastructure)`);
+        // Managed nodes: check online status via rendezvous server REST API
+        const serverUrl = DEFAULTS.RENDEZVOUS_URL.replace(/^wss:\/\//, "https://").replace(/^ws:\/\//, "http://");
+        const start = performance.now();
+        try {
+          const res = await fetch(`${serverUrl}/lookup/${encodeURIComponent(name)}`, {
+            signal: AbortSignal.timeout(DEFAULTS.AGENT_STATUS_TIMEOUT_MS),
+          });
+          const latencyMs = Math.round(performance.now() - start);
+          if (res.ok) {
+            const data = await res.json() as { online?: boolean };
+            if (data.online) {
+              deps.formatter.success(`${name}: ${latencyMs}ms (rendezvous)`);
+            } else {
+              deps.formatter.error(`${name}: offline (not registered on rendezvous)`);
+              process.exitCode = 1;
+            }
+          } else if (res.status === 404) {
+            deps.formatter.error(`${name}: offline (not registered on rendezvous)`);
+            process.exitCode = 1;
+          } else {
+            deps.formatter.error(`${name}: rendezvous lookup failed (HTTP ${res.status})`);
+            process.exitCode = 1;
+          }
+        } catch {
+          deps.formatter.error(`${name}: rendezvous server unreachable`);
+          process.exitCode = 1;
+        }
         return;
       }
 
