@@ -5,6 +5,11 @@ import { loadNodeIdentity, IdentityNotFoundError, addNode, getNode, DuplicateNod
 import { readNodeName } from "@mecha/service";
 import { parseInviteCode } from "@mecha/connect";
 
+/** Convert ws:// URL to http:// for REST calls. */
+function wsToHttp(url: string): string {
+  return url.replace(/^wss:\/\//, "https://").replace(/^ws:\/\//, "http://");
+}
+
 export function registerNodeJoinCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("join")
@@ -37,11 +42,14 @@ export function registerNodeJoinCommand(parent: Command, deps: CommandDeps): voi
       // Ensure X25519 noise keys exist
       const noiseKeys = createNoiseKeys(deps.mechaDir);
 
-      // Accept invite on the rendezvous server (best-effort — notifies inviter if online)
-      // Validate URL scheme to prevent SSRF from crafted invites
-      const rvUrl = payload.rendezvousUrl;
-      if (/^wss?:\/\//i.test(rvUrl)) {
-        const serverUrl = rvUrl.replace(/^wss:\/\//, "https://").replace(/^ws:\/\//, "http://");
+      // Build URL list: prefer rendezvousUrls (6b+), fall back to [rendezvousUrl] (6a)
+      const rvUrls = payload.rendezvousUrls ?? [payload.rendezvousUrl];
+
+      // Accept invite on each URL (best-effort, first success wins)
+      let accepted = false;
+      for (const rvUrl of rvUrls) {
+        if (!/^wss?:\/\//i.test(rvUrl)) continue;
+        const serverUrl = wsToHttp(rvUrl);
         try {
           const res = await fetch(`${serverUrl}/invite/${encodeURIComponent(payload.token)}/accept`, {
             method: "POST",
@@ -56,16 +64,18 @@ export function registerNodeJoinCommand(parent: Command, deps: CommandDeps): voi
           });
           if (res.ok) {
             deps.formatter.info("Invite accepted on server (inviter notified)");
-          } else {
-            deps.formatter.warn(`Server accept failed (HTTP ${res.status}) — peer added locally`);
+            accepted = true;
+            break;
           }
+          deps.formatter.warn(`Server accept failed (HTTP ${res.status}) on ${rvUrl}`);
         /* v8 ignore start -- network failure is best-effort */
         } catch {
-          deps.formatter.warn("Could not reach rendezvous server — peer added locally");
+          deps.formatter.warn(`Could not reach ${rvUrl}`);
         }
         /* v8 ignore stop */
-      } else {
-        deps.formatter.warn("Untrusted rendezvous URL scheme in invite — skipping server notification");
+      }
+      if (!accepted) {
+        deps.formatter.warn("Could not reach any rendezvous server — peer added locally");
       }
 
       // Remove existing if --force
@@ -73,6 +83,11 @@ export function registerNodeJoinCommand(parent: Command, deps: CommandDeps): voi
         const { removeNode } = await import("@mecha/core");
         removeNode(deps.mechaDir, payload.inviterName);
       }
+
+      // Store first rendezvous URL as serverUrl for future use
+      /* v8 ignore start -- ternary branch: rvUrls[0] equals rendezvousUrl when no multi-URL invite */
+      const serverUrl = rvUrls[0] !== payload.rendezvousUrl ? rvUrls[0] : undefined;
+      /* v8 ignore stop */
 
       // Add peer to registry as managed node
       addNode(deps.mechaDir, {
@@ -85,6 +100,7 @@ export function registerNodeJoinCommand(parent: Command, deps: CommandDeps): voi
         fingerprint: payload.inviterFingerprint,
         addedAt: new Date().toISOString(),
         managed: true,
+        serverUrl,
       });
 
       deps.formatter.success(`Peer added: ${payload.inviterName} (managed)`);

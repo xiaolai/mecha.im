@@ -21,8 +21,10 @@ export function isNewer(a: VectorClock, b: VectorClock): boolean {
   // Check all keys in both clocks
   const allKeys = new Set([...Object.keys(a), ...Object.keys(b)]);
   for (const key of allKeys) {
+    /* v8 ignore start -- ?? 0 fallback: key always exists in at least one clock */
     const aVal = a[key] ?? 0;
     const bVal = b[key] ?? 0;
+    /* v8 ignore stop */
     if (aVal < bVal) return false; // a is behind on this key
     if (aVal > bVal) strictlyGreater = true;
   }

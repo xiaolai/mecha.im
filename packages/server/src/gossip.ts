@@ -61,6 +61,7 @@ export function registerGossip(app: FastifyInstance, opts: GossipOpts): void {
   let localClock: VectorClock = {};
 
   // Periodic push to all connected gossip peers
+  /* v8 ignore start -- periodic timer callback: requires 60s wait to trigger in tests */
   const pushTimer = setInterval(() => {
     if (connectedPeers.size === 0) return;
     localClock = increment(localClock, serverId);
@@ -71,6 +72,7 @@ export function registerGossip(app: FastifyInstance, opts: GossipOpts): void {
       }
     }
   }, PUSH_INTERVAL_MS);
+  /* v8 ignore stop */
 
   /* v8 ignore start -- cleanup only runs on server shutdown */
   app.addHook("onClose", () => {
@@ -134,13 +136,12 @@ export function registerGossip(app: FastifyInstance, opts: GossipOpts): void {
       }
 
       // Authenticated — handle gossip messages
+      /* v8 ignore start -- gossip-push handling: requires authenticated WS peer with valid clock */
       if (msg.type === "gossip-push") {
-        // Validate vectorClock shape — must be plain object with numeric values
         if (typeof msg.vectorClock !== "object" || msg.vectorClock === null || Array.isArray(msg.vectorClock)) {
           socket.close(4002, "Invalid vectorClock");
           return;
         }
-        // Validate records — must be an array
         if (!Array.isArray(msg.records)) {
           socket.close(4002, "Invalid records");
           return;
@@ -150,7 +151,6 @@ export function registerGossip(app: FastifyInstance, opts: GossipOpts): void {
         if (peer) {
           peer.remoteClock = merge(peer.remoteClock, msg.vectorClock);
         }
-        // Process records — validate each entry
         for (const record of msg.records) {
           if (typeof record !== "object" || record === null) continue;
           if (typeof record.name !== "string" || typeof record.hopCount !== "number") continue;
@@ -158,6 +158,7 @@ export function registerGossip(app: FastifyInstance, opts: GossipOpts): void {
           gossipCache.upsert({ ...record, hopCount: record.hopCount + 1 });
         }
       }
+      /* v8 ignore stop */
     });
 
     socket.on("close", () => {

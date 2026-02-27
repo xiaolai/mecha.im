@@ -8,6 +8,7 @@
   },
   "references": [
     { "path": "packages/core" },
+    { "path": "packages/mcp-server" },
     { "path": "packages/cli" },
     { "path": "packages/process" },
     { "path": "packages/sandbox" },

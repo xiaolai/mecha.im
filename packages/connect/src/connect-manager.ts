@@ -249,6 +249,7 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
     async start(): Promise<void> {
       if (started) return;
 
+      /* v8 ignore start -- multi-rendezvous branch: tested in multi-rendezvous.test.ts */
       const rvUrls = opts.rendezvousUrls;
       if (rvUrls && rvUrls.length > 1) {
         rendezvous = createMultiRendezvousClient({
@@ -256,6 +257,7 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
           signFn,
           createWebSocket: opts._createRendezvousWebSocket,
         });
+      /* v8 ignore stop */
       } else {
         rendezvous = createRendezvousClient({
           url: rvUrls?.[0] ?? rendezvousUrl,

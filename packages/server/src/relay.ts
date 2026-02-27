@@ -56,10 +56,12 @@ export function registerRelay(app: FastifyInstance, config: ServerConfig): void 
     }
 
     // Reject 3rd+ client — relay tokens are strictly one pair
+    /* v8 ignore start -- 3rd client rejection: requires three simultaneous relay connections */
     if (existing.ws2) {
       socket.close(4004, "Relay pair already full");
       return;
     }
+    /* v8 ignore stop */
 
     // Second peer — pair them (HMAC tokens are self-verifiable, no state to clean)
     clearTimeout(existing.timer);

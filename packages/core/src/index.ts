@@ -127,6 +127,10 @@ export type {
 export { readNodes, writeNodes, addNode, removeNode, getNode } from "./node-registry.js";
 export type { NodeEntry } from "./node-registry.js";
 
+// Server State (Phase 6b)
+export { readServerState, writeServerState, removeServerState } from "./server-state.js";
+export type { ServerState } from "./server-state.js";
+
 // Host validation
 export { isPrivateHost, validateRemoteHost } from "./host-validation.js";
 
