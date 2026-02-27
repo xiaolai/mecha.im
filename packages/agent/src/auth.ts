@@ -30,6 +30,22 @@ export function createAuthHook(opts: AuthOpts) {
   };
 }
 
+/** Nonce cache to prevent replay attacks within the timestamp window. */
+const usedNonces = new Map<string, number>();
+const NONCE_PURGE_INTERVAL_MS = 60_000;
+let lastNoncePurge = Date.now();
+/* v8 ignore start -- nonce purge runs on a timer-like check */
+function purgeExpiredNonces(): void {
+  const now = Date.now();
+  if (now - lastNoncePurge < NONCE_PURGE_INTERVAL_MS) return;
+  lastNoncePurge = now;
+  const cutoff = now - 300_000; // 5-minute window
+  for (const [nonce, ts] of usedNonces) {
+    if (ts < cutoff) usedNonces.delete(nonce);
+  }
+}
+/* v8 ignore stop */
+
 /**
  * Fastify preHandler hook that verifies Ed25519 signatures on routing endpoints.
  * Must run after body parsing (preHandler), not onRequest.
@@ -52,7 +68,9 @@ export function createSignatureHook(opts: AuthOpts) {
     }
 
     // Extract node name from source (e.g. "coder@alice" → "alice")
-    const nodeName = source.includes("@") ? source.split("@")[1]! : undefined;
+    // Use lastIndexOf to handle edge cases with multiple @ characters
+    const atIdx = source.lastIndexOf("@");
+    const nodeName = atIdx >= 0 ? source.slice(atIdx + 1) : undefined;
     if (!nodeName) {
       reply.code(401).send({ error: "Source must include node name (casa@node)" });
       return;
@@ -76,10 +94,24 @@ export function createSignatureHook(opts: AuthOpts) {
       return;
     }
 
+    // Nonce-based replay defense: require nonce to prevent in-window replays
+    purgeExpiredNonces();
+    const nonce = request.headers["x-mecha-nonce"];
+    if (typeof nonce !== "string" || !nonce) {
+      reply.code(401).send({ error: "Missing X-Mecha-Nonce header" });
+      return;
+    }
+    if (usedNonces.has(nonce)) {
+      reply.code(401).send({ error: "Nonce already used (replay detected)" });
+      return;
+    }
+    usedNonces.set(nonce, tsNum);
+
     // Verify signature against canonical envelope (method+path+source+timestamp+bodyHash)
     try {
       const bodyStr = JSON.stringify((request as FastifyRequest & { body: unknown }).body ?? "");
-      const envelope = `${request.method}\n${pathname}\n${source}\n${timestamp}\n${bodyStr}`;
+      const nonceStr = typeof nonce === "string" ? nonce : "";
+      const envelope = `${request.method}\n${pathname}\n${source}\n${timestamp}\n${nonceStr}\n${bodyStr}`;
       const valid = opts.verifySignature(publicKeyPem, new TextEncoder().encode(envelope), sigHeader);
       if (!valid) {
         reply.code(401).send({ error: "Invalid signature" });

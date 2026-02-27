@@ -39,6 +39,7 @@ export async function channelFetch(opts: ChannelFetchOpts): Promise<ChannelRespo
       settled = true;
       clearTimeout(timer);
       channel.offMessage(messageHandler);
+      channel.offError(errorHandler);
     }
 
     const messageHandler = (data: Uint8Array): void => {
@@ -70,14 +71,16 @@ export async function channelFetch(opts: ChannelFetchOpts): Promise<ChannelRespo
 
     channel.onMessage(messageHandler);
 
-    channel.onError((err: Error): void => {
+    const errorHandler = (err: Error): void => {
       /* v8 ignore start -- error after settle is a no-op race */
       if (!settled) {
         cleanup();
         reject(err);
       }
       /* v8 ignore stop */
-    });
+    };
+
+    channel.onError(errorHandler);
 
     /* v8 ignore start -- channel.send() only throws if channel is closed pre-call */
     try {
