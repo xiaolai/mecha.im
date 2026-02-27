@@ -25,6 +25,7 @@ import { registerBudgetCommand } from "./commands/budget.js";
 import { registerPluginCommand } from "./commands/plugin.js";
 import { registerMcpCommand } from "./commands/mcp.js";
 import { registerAuditCommand } from "./commands/audit.js";
+import { registerDashboardCommand } from "./commands/dashboard.js";
 
 /**
  * Commands that mutate state and need the CLI singleton lock.
@@ -53,6 +54,8 @@ export const MUTATING_COMMANDS = new Set([
   "plugin add", "plugin rm",
   // audit subcommands
   "audit clear",
+  // dashboard subcommands
+  "dashboard serve",
 ]);
 
 /**
@@ -111,6 +114,7 @@ export function createProgram(deps: CommandDeps): Command {
   registerPluginCommand(program, deps);
   registerMcpCommand(program, deps);
   registerAuditCommand(program, deps);
+  registerDashboardCommand(program, deps);
 
   return program;
 }

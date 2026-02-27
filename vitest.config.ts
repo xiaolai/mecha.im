@@ -15,6 +15,7 @@ export default defineConfig({
         "**/main.ts",
         "**/transport.ts",
         "**/http-transport.ts",
+        "packages/dashboard/**",
       ],
       thresholds: {
         lines: 100,

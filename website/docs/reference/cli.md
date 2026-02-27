@@ -580,12 +580,13 @@ mecha mcp serve [options]
 | `--transport <transport>` | Transport: `stdio` (default) or `http` |
 | `--port <port>` | HTTP port (default: `7680`) |
 | `--host <host>` | HTTP bind address (default: `127.0.0.1`) |
+| `--token <token>` | Bearer token for HTTP authentication (required for non-loopback hosts) |
 
 ```bash
 mecha mcp serve                                   # stdio (default)
 mecha mcp serve --transport http                   # HTTP on 127.0.0.1:7680
 mecha mcp serve --transport http --port 8080       # HTTP on custom port
-mecha mcp serve --transport http --host 0.0.0.0    # HTTP on all interfaces
+mecha mcp serve --transport http --host 0.0.0.0 --token secret  # HTTP on all interfaces (token required)
 ```
 
 ### `mecha mcp config`
@@ -723,3 +724,23 @@ Test plugin connectivity (HTTP) or validate config (stdio).
 ```bash
 mecha plugin test <name>
 ```
+
+---
+
+## Dashboard
+
+### `mecha dashboard serve`
+
+Start the web dashboard.
+
+```bash
+mecha dashboard serve [options]
+```
+
+| Option | Description |
+|--------|-------------|
+| `--port <port>` | Dashboard port (default: 3457) |
+| `--host <host>` | Bind address (default: 127.0.0.1) |
+| `--open` | Open browser after starting |
+
+The dashboard provides a web UI for managing CASAs, viewing mesh topology, ACL rules, and audit logs. It creates a `ProcessManager` in-process (no separate daemon needed).

@@ -27,6 +27,7 @@
     "@mecha/process": "workspace:*",
     "@mecha/runtime": "workspace:*",
     "@mecha/meter": "workspace:*",
+    "@mecha/dashboard": "workspace:*",
     "commander": "^14.0.0"
   },
   "engines": {
