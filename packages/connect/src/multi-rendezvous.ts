@@ -15,7 +15,10 @@ export interface MultiRendezvousOpts {
 /**
  * Create a RendezvousClient that tries multiple servers in order.
  * First successful connection becomes the active client.
- * On disconnect, fails over to the next URL and re-registers.
+ *
+ * NOTE: Disconnect failover is not yet implemented. Currently, once connected
+ * to a server, disconnection will not trigger automatic failover to the next URL.
+ * This will be addressed in a future phase when reconnect orchestration is added.
  */
 export function createMultiRendezvousClient(opts: MultiRendezvousOpts): RendezvousClient {
   const { urls, signFn, createWebSocket } = opts;

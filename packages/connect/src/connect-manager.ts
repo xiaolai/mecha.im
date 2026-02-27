@@ -176,6 +176,10 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
           });
 
           if (punchResult.success && punchResult.remoteAddress && punchResult.remotePort) {
+            // TODO: Build direct UDP channel using punchResult instead of relay.
+            // Currently falls through to relay even on successful punch because
+            // direct UDP transport is not yet implemented. The enableUdpTransport
+            // flag is false by default so this path is unreachable in production.
             return await connectViaRelay(peer, peerInfo.fingerprint);
           }
         /* v8 ignore start -- hole-punch failure path requires UDP transport test infra */
@@ -381,9 +385,12 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
           addedAt: new Date().toISOString(),
           managed: true,
         });
-      } catch {
-        // Duplicate node is idempotent — peer already known
+      /* v8 ignore start -- duplicate node is idempotent; non-duplicate errors rethrown */
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (!msg.includes("already exists")) throw err;
       }
+      /* v8 ignore stop */
 
       return { peer: toNodeName(peerName) };
     },

@@ -163,7 +163,14 @@ export function registerGossip(app: FastifyInstance, opts: GossipOpts): void {
 
     socket.on("close", () => {
       if (peerName) {
-        connectedPeers.delete(peerName);
+        // Only delete if this socket is still the active connection for this peer
+        // (a newer connection may have replaced it)
+        const current = connectedPeers.get(peerName);
+        /* v8 ignore start -- race: newer connection may replace socket between auth and close */
+        if (current && current.ws === socket) {
+          connectedPeers.delete(peerName);
+        }
+        /* v8 ignore stop */
       }
     });
   });

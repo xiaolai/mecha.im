@@ -64,9 +64,14 @@ export async function main(opts: {
     });
 
   if (transport === "http") {
+    const host = opts.host ?? "127.0.0.1";
+    // Enforce token for non-loopback hosts
+    if (host !== "127.0.0.1" && host !== "localhost" && host !== "::1" && !opts.token) {
+      throw new Error("--token is required when binding to non-loopback address");
+    }
     await runHttp(createServer, {
       port: opts.port ?? 7680,
-      host: opts.host ?? "127.0.0.1",
+      host,
       token: opts.token,
     });
   } else {

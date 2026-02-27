@@ -78,7 +78,7 @@ export function registerDiscoveryTools(server: McpServer, ctx: MeshMcpContext): 
           const res = await ctx.agentFetch({ node, path: "/casas", allowPrivateHosts: true });
           if (!res.ok) return errorResult(`Remote node returned ${res.status}`);
           const remote = await res.json() as Array<{ name: string; state: string; port?: number }>;
-          const limited = limit ? remote.slice(0, limit) : remote;
+          const limited = limit !== undefined && limit > 0 ? remote.slice(0, limit) : remote;
           const lines = limited.map((c) => `${c.name}: ${c.state}${c.port ? ` (port ${c.port})` : ""}`);
           return textResult(`CASAs on ${nodeFilter}:\n${lines.join("\n")}`);
         } catch (err: unknown) {
@@ -89,7 +89,7 @@ export function registerDiscoveryTools(server: McpServer, ctx: MeshMcpContext): 
       }
 
       const casas = casaFind(ctx.mechaDir, ctx.pm, {});
-      const limited = limit ? casas.slice(0, limit) : casas;
+      const limited = limit !== undefined && limit > 0 ? casas.slice(0, limit) : casas;
       if (limited.length === 0) {
         return textResult("No CASAs found. Use `mecha spawn <name>` to create one.");
       }
@@ -187,7 +187,7 @@ export function registerDiscoveryTools(server: McpServer, ctx: MeshMcpContext): 
         });
       }
 
-      const limited = limit ? casas.slice(0, limit) : casas;
+      const limited = limit !== undefined && limit > 0 ? casas.slice(0, limit) : casas;
       if (limited.length === 0) {
         return textResult("No CASAs match the given filters.");
       }
