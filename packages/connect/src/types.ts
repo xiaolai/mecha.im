@@ -159,8 +159,6 @@ export interface ConnectOpts {
   stunServers?: string[];
   relayUrl?: string;
   holePunchTimeoutMs?: number;
-  reconnectBaseMs?: number;
-  reconnectMaxAttempts?: number;
   /** Answer signal timeout (ms). Default: 10_000 */
   answerTimeoutMs?: number;
   /** DI: WebSocket factory for rendezvous client */

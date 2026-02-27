@@ -38,6 +38,8 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
     mechaDir,
     rendezvousUrl = DEFAULTS.RENDEZVOUS_URL,
     relayUrl = DEFAULTS.RELAY_URL,
+    stunServers,
+    holePunchTimeoutMs,
     answerTimeoutMs = ANSWER_TIMEOUT_MS,
     _createRelayWebSocket,
     _createUdpSocket,
@@ -89,13 +91,14 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
     });
 
     const noiseTransport = relayToNoiseTransport(relayChannel);
+    /* v8 ignore start -- getNode always returns a valid node at this point */
+    const peerNode = getNode(mechaDir, peer as NodeName);
+    const remoteNoiseKey = peerNode?.noisePublicKey ?? "";
+    /* v8 ignore stop */
     const { cipher } = await noiseInitiate({
       transport: noiseTransport,
       localKeyPair: noiseKeyPair,
-      /* v8 ignore start -- getNode always returns a valid node at this point */
-      remotePublicKey: getNode(mechaDir, peer as NodeName)?.noisePublicKey ?? "",
-      /* v8 ignore stop */
-      expectedFingerprint: peerFingerprint,
+      remotePublicKey: remoteNoiseKey,
     });
 
     const channelTransport = relayToChannelTransport(relayChannel);
@@ -123,6 +126,7 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
     try {
       stunResult = await stunDiscover({
         localPort: 0,
+        stunServer: stunServers?.[0],
         createUdpSocket: _createUdpSocket as typeof import("node:dgram").createSocket | undefined,
       });
     } catch {
@@ -145,18 +149,19 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
         const punchResult = await holePunch({
           localPort: stunResult.port,
           remoteCandidates,
+          timeoutMs: holePunchTimeoutMs,
           createUdpSocket: _createUdpSocket as typeof import("node:dgram").createSocket | undefined,
         });
 
         if (punchResult.success && punchResult.remoteAddress && punchResult.remotePort) {
-          // Hole punch succeeded — Noise handshake over relay fallback
-          // (UDP Noise transport requires fresh reuseAddr socket — deferred to future)
-          const channel = await connectViaRelay(peer, peerInfo.fingerprint);
-          (channel as unknown as { type: string }).type = "hole-punched";
-          return channel;
+          // Hole punch succeeded but UDP Noise transport is deferred to future.
+          // Use relay for now — still benefits from NAT traversal discovery.
+          return await connectViaRelay(peer, peerInfo.fingerprint);
         }
-      } catch {
-        // Answer timeout or punch failed — fall through to relay
+      } catch (_err) {
+        // Answer timeout or punch failed — fall through to relay.
+        // Preserve error for debugging; relay fallback is the expected path.
+        void _err;
       }
     }
 

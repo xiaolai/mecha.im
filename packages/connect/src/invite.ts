@@ -17,7 +17,9 @@ function decodePayload(encoded: string): unknown {
   return JSON.parse(json);
 }
 
-/** Sign the invite payload (excluding the signature field itself). */
+/** Sign the invite payload (excluding the signature field itself).
+ * NOTE: relies on JSON.stringify key order matching between sign and verify.
+ * Both paths use JS object literal order (deterministic in V8/Node.js). */
 function signInvite(payload: Omit<InvitePayload, "signature">, privateKey: string): string {
   const data = JSON.stringify(payload);
   // signMessage(privateKeyPem, data) returns base64 string
@@ -43,7 +45,8 @@ function verifyInviteSignature(payload: InvitePayload): boolean {
 }
 
 export interface CreateInviteOpts {
-  client: RendezvousClient;
+  /** Rendezvous client — optional for offline invite creation. */
+  client?: RendezvousClient;
   identity: NodeIdentity;
   nodeName: string;
   noisePublicKey: string;
@@ -104,6 +107,14 @@ export function parseInviteCode(code: string): InvitePayload {
 
   if (!isInvitePayload(raw)) {
     throw new InvalidInviteError("Malformed invite code");
+  }
+
+  // Validate field formats beyond type checks
+  if (!/^wss?:\/\//i.test(raw.rendezvousUrl)) {
+    throw new InvalidInviteError("Invalid rendezvous URL scheme (expected ws:// or wss://)");
+  }
+  if (!/^[0-9a-f]{16}$/.test(raw.inviterFingerprint)) {
+    throw new InvalidInviteError("Invalid fingerprint format");
   }
 
   // Check expiry client-side

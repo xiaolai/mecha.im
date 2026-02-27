@@ -137,7 +137,7 @@ describe("invite", () => {
       const payload = {
         inviterName: "alice",
         inviterPublicKey: "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAtest\n-----END PUBLIC KEY-----",
-        inviterFingerprint: "abcd1234",
+        inviterFingerprint: "abcd1234abcd1234",
         inviterNoisePublicKey: "noise-key",
         rendezvousUrl: "wss://test.example.com",
         token: "abc123",
@@ -147,6 +147,36 @@ describe("invite", () => {
       const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
 
       expect(() => parseInviteCode(`mecha://invite/${encoded}`)).toThrow("Invalid invite signature");
+    });
+
+    it("rejects invalid rendezvous URL scheme", () => {
+      const payload = {
+        inviterName: "alice",
+        inviterPublicKey: "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAtest\n-----END PUBLIC KEY-----",
+        inviterFingerprint: "abcd1234abcd1234",
+        inviterNoisePublicKey: "noise-key",
+        rendezvousUrl: "file:///etc/passwd",
+        token: "abc123",
+        expiresAt: new Date(Date.now() + 86400000).toISOString(),
+        signature: "test",
+      };
+      const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
+      expect(() => parseInviteCode(`mecha://invite/${encoded}`)).toThrow("Invalid rendezvous URL scheme");
+    });
+
+    it("rejects invalid fingerprint format", () => {
+      const payload = {
+        inviterName: "alice",
+        inviterPublicKey: "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAtest\n-----END PUBLIC KEY-----",
+        inviterFingerprint: "tooshort",
+        inviterNoisePublicKey: "noise-key",
+        rendezvousUrl: "wss://test.example.com",
+        token: "abc123",
+        expiresAt: new Date(Date.now() + 86400000).toISOString(),
+        signature: "test",
+      };
+      const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
+      expect(() => parseInviteCode(`mecha://invite/${encoded}`)).toThrow("Invalid fingerprint format");
     });
   });
 });

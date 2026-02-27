@@ -40,7 +40,6 @@ export function registerNodeInviteCommand(parent: Command, deps: CommandDeps): v
 
       // Create signed invite code (local cryptographic operation)
       const result = await createInviteCode({
-        client: undefined as never,
         identity,
         nodeName,
         noisePublicKey: noiseKeys.publicKey,

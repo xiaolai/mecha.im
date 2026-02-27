@@ -13,7 +13,6 @@ async function makeInviteCode(mechaDir: string, nodeName = "inviter-node"): Prom
   nodeInit(mechaDir, { name: nodeName });
   const privateKey = loadNodePrivateKey(mechaDir)!;
   const result = await createInviteCode({
-    client: undefined as never,
     identity,
     nodeName,
     noisePublicKey: "test-noise-key",
@@ -113,6 +112,38 @@ describe("node join command", () => {
     expect(deps.formatter.error).toHaveBeenCalledWith(
       expect.stringContaining("Expected mecha:// scheme"),
     );
+  });
+
+  it("warns on untrusted rendezvous URL scheme", async () => {
+    // Create invite with file:// scheme (simulated via mock parseInviteCode)
+    // We test the node-join SSRF guard by using a specially crafted invite
+    const code = await makeInviteCode(inviterDir);
+    createNodeIdentity(joinerDir);
+    nodeInit(joinerDir, { name: "joiner-node" });
+
+    // Mock parseInviteCode to return a payload with untrusted scheme
+    const connectMod = await import("@mecha/connect");
+    const originalParse = connectMod.parseInviteCode;
+    const parseSpy = vi.spyOn(connectMod, "parseInviteCode").mockImplementation((c: string) => {
+      const payload = originalParse(c);
+      return { ...payload, rendezvousUrl: "file:///etc/passwd" };
+    });
+
+    const deps = makeDeps({ mechaDir: joinerDir });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "node", "join", code]);
+
+    expect(deps.formatter.warn).toHaveBeenCalledWith(
+      "Untrusted rendezvous URL scheme in invite — skipping server notification",
+    );
+    // Peer should still be added locally
+    expect(deps.formatter.success).toHaveBeenCalledWith(
+      expect.stringContaining("Peer added"),
+    );
+
+    parseSpy.mockRestore();
   });
 
   it("rejects expired invite", async () => {

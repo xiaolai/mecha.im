@@ -17,6 +17,8 @@ interface AsyncQueue<T> {
   pull(): Promise<T>;
 }
 
+const MAX_QUEUE_SIZE = 1024;
+
 function createAsyncQueue<T>(): AsyncQueue<T> {
   const buffer: T[] = [];
   const waiters: Array<(item: T) => void> = [];
@@ -26,9 +28,13 @@ function createAsyncQueue<T>(): AsyncQueue<T> {
       const waiter = waiters.shift();
       if (waiter) {
         waiter(item);
-      } else {
+        return;
+      }
+      /* v8 ignore start -- backpressure drop only triggers at 1024 queued items */
+      if (buffer.length < MAX_QUEUE_SIZE) {
         buffer.push(item);
       }
+      /* v8 ignore stop */
     },
     pull(): Promise<T> {
       const item = buffer.shift();
@@ -55,7 +61,8 @@ export function relayToNoiseTransport(channel: RelayChannel): NoiseTransport {
   };
 }
 
-/** Wrap RelayChannel as ChannelTransport (adds missing onError and isOpen). */
+/** Wrap RelayChannel as ChannelTransport (adds missing onError and isOpen).
+ * Note: onError is a no-op — relay errors surface as close events. */
 export function relayToChannelTransport(channel: RelayChannel): ChannelTransport {
   let open = true;
   const errorHandlers: Array<(err: Error) => void> = [];
@@ -74,22 +81,31 @@ export function relayToChannelTransport(channel: RelayChannel): ChannelTransport
 
 // --- UDP adapters ---
 
+interface UdpRemoteInfo {
+  address: string;
+  port: number;
+}
+
 interface UdpSocket {
   send(data: Uint8Array, port: number, address: string, cb?: (err: Error | null) => void): void;
-  on(event: "message", handler: (msg: Buffer) => void): void;
+  on(event: "message", handler: (msg: Buffer, rinfo: UdpRemoteInfo) => void): void;
   on(event: "close", handler: () => void): void;
   on(event: "error", handler: (err: Error) => void): void;
   close(): void;
 }
 
-/** Wrap a dgram socket as NoiseTransport. */
+/** Wrap a dgram socket as NoiseTransport. Only accepts packets from expected remote. */
 export function udpToNoiseTransport(
   socket: UdpSocket,
   remoteAddress: string,
   remotePort: number,
 ): NoiseTransport {
   const queue = createAsyncQueue<Uint8Array>();
-  socket.on("message", (msg: Buffer) => queue.push(new Uint8Array(msg)));
+  socket.on("message", (msg: Buffer, rinfo: UdpRemoteInfo) => {
+    if (rinfo.address === remoteAddress && rinfo.port === remotePort) {
+      queue.push(new Uint8Array(msg));
+    }
+  });
 
   return {
     send(data: Uint8Array): void {
@@ -112,7 +128,8 @@ export function udpToChannelTransport(
   const closeHandlers: Array<(reason: string) => void> = [];
   const errorHandlers: Array<(err: Error) => void> = [];
 
-  socket.on("message", (msg: Buffer) => {
+  socket.on("message", (msg: Buffer, rinfo: UdpRemoteInfo) => {
+    if (rinfo.address !== remoteAddress || rinfo.port !== remotePort) return;
     const data = new Uint8Array(msg);
     for (const h of messageHandlers) h(data);
   });

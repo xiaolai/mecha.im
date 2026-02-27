@@ -44,6 +44,7 @@ export async function relayConnect(opts: RelayConnectOpts): Promise<RelayChannel
   /* v8 ignore stop */
 
   return new Promise<RelayChannel>((resolve, reject) => {
+    let connected = false;
     const timer = setTimeout(() => {
       ws.close();
       reject(new Error(`Relay connection timeout after ${timeoutMs}ms`));
@@ -53,9 +54,11 @@ export async function relayConnect(opts: RelayConnectOpts): Promise<RelayChannel
     const closeHandlers: Array<(reason: string) => void> = [];
 
     ws.onopen = () => {
+      connected = true;
       clearTimeout(timer);
 
       const channel: RelayChannel = {
+        /** Send data to the relay. No-op if socket is not open (matches WebSocket semantics). */
         send(data: Uint8Array): void {
           if (ws.readyState === WS_OPEN) {
             ws.send(data);
@@ -104,6 +107,10 @@ export async function relayConnect(opts: RelayConnectOpts): Promise<RelayChannel
     ws.onclose = (ev: { reason?: string }) => {
       clearTimeout(timer);
       const reason = ev.reason ?? "connection closed";
+      if (!connected) {
+        reject(new Error(`Relay connection closed before open: ${reason}`));
+        return;
+      }
       for (const handler of closeHandlers) handler(reason);
     };
 

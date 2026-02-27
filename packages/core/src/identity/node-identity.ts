@@ -72,7 +72,10 @@ export function createNodeIdentity(mechaDir: string): NodeIdentity {
   // Generate X25519 noise keys for P2P encryption (Phase 6)
   createNoiseKeys(mechaDir);
 
-  return identity;
+  // Re-read persisted identity to handle concurrent writers (TOCTOU safety)
+  /* v8 ignore start -- fallback only triggers under concurrent write race */
+  return loadNodeIdentity(mechaDir) ?? identity;
+  /* v8 ignore stop */
 }
 
 /** Load existing node identity from mechaDir/identity/. Returns undefined if missing. */
