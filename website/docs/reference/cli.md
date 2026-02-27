@@ -223,13 +223,82 @@ Register a remote node.
 mecha node add <name> <host> [--port <port>] --api-key <key>
 ```
 
+### `mecha node invite`
+
+Create a one-time invite code for P2P peer discovery.
+
+```bash
+mecha node invite [options]
+```
+
+| Option | Description |
+|--------|-------------|
+| `--expires <duration>` | Invite expiry (default: `24h`). Accepts: `1h`, `6h`, `24h`, `7d` |
+| `--server <url>` | Rendezvous server URL (overrides default) |
+
+```bash
+mecha node invite
+mecha node invite --expires 7d
+mecha node invite --server wss://my-rendezvous.example.com
+```
+
+The invite code is registered on the rendezvous server (best-effort — works offline too). Share the code with your peer.
+
+### `mecha node join`
+
+Accept an invite and connect to a peer.
+
+```bash
+mecha node join <code> [options]
+```
+
+| Argument | Description |
+|----------|-------------|
+| `<code>` | Invite code (`mecha://invite/...`) |
+
+| Option | Description |
+|--------|-------------|
+| `--force` | Overwrite if peer already in registry |
+
+```bash
+mecha node join mecha://invite/eyJ...
+mecha node join mecha://invite/eyJ... --force
+```
+
+The peer is added as a **managed** node — communication routes through the rendezvous/relay infrastructure instead of direct HTTP.
+
 ### `mecha node ls`
 
-List known nodes.
+List registered peer nodes.
 
 ```bash
 mecha node ls
 ```
+
+Displays a table with columns: Name, Type (`managed` or `http`), Host, Port, Added.
+
+### `mecha node ping`
+
+Test connectivity to a peer node.
+
+```bash
+mecha node ping <name> [options]
+```
+
+| Argument | Description |
+|----------|-------------|
+| `<name>` | Peer node name |
+
+| Option | Description |
+|--------|-------------|
+| `--server <url>` | Rendezvous server URL (overrides default) |
+
+```bash
+mecha node ping bob
+mecha node ping bob --server wss://my-rendezvous.example.com
+```
+
+For **managed** nodes, checks online status via the rendezvous server. For **HTTP** nodes, pings the `/healthz` endpoint.
 
 ### `mecha node rm`
 
