@@ -106,6 +106,7 @@ mecha mcp serve --transport http --port 8080 --host 0.0.0.0
 | `--transport` | `stdio` | Transport: `stdio` or `http` |
 | `--port` | `7680` | HTTP port |
 | `--host` | `127.0.0.1` | Bind address |
+| `--token` | — | Bearer token for HTTP authentication (required for non-loopback hosts) |
 
 The HTTP transport exposes a single `/mcp` endpoint that handles:
 
@@ -115,13 +116,21 @@ The HTTP transport exposes a single `/mcp` endpoint that handles:
 
 Each HTTP session gets its own transport and server instance. Sessions are tracked by the `mcp-session-id` header returned in the response to the initial `initialize` request. A maximum of 64 concurrent sessions is enforced.
 
-> **Security note:** The HTTP transport has no authentication. By default it binds to `127.0.0.1` (localhost only). Binding to `0.0.0.0` or a public interface exposes the unauthenticated control plane to the network — only do this in trusted environments.
+> **Security note:** When binding to a non-loopback address (e.g., `0.0.0.0`), you must provide a `--token` for Bearer authentication. All requests must include an `Authorization: Bearer <token>` header. On localhost (`127.0.0.1`), authentication is optional but recommended.
 
 ```bash
-# Example: Initialize a session
+# Example: Initialize a session (with token)
 curl -X POST http://localhost:7680/mcp \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "Authorization: Bearer my-secret-token" \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'
+```
+
+```bash
+# Example: Start HTTP server with authentication
+mecha mcp serve --transport http --token my-secret-token
+mecha mcp serve --transport http --host 0.0.0.0 --token my-secret-token
 ```
 
 ## Architecture
