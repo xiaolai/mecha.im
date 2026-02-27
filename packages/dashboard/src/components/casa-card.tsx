@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { SquareIcon, OctagonXIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { TooltipIconButton } from "@/components/ui/tooltip-icon-button";
@@ -33,7 +34,10 @@ export function CasaCard({ casa }: CasaCardProps) {
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4">
+    <Link
+      href={`/casa/${encodeURIComponent(casa.name)}`}
+      className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4 transition-colors hover:bg-accent/50"
+    >
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -68,7 +72,7 @@ export function CasaCard({ casa }: CasaCardProps) {
 
       {/* Actions */}
       {casa.state === "running" && (
-        <div className="flex items-center gap-2 border-t border-border pt-2">
+        <div className="flex items-center gap-2 border-t border-border pt-2" onClick={(e) => e.preventDefault()}>
           <TooltipIconButton
             tooltip="Stop"
             variant="outline"
@@ -88,6 +92,6 @@ export function CasaCard({ casa }: CasaCardProps) {
           </TooltipIconButton>
         </div>
       )}
-    </div>
+    </Link>
   );
 }
