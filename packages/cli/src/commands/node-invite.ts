@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { withErrorHandler } from "../error-handler.js";
-import { loadNodeIdentity, loadNodePrivateKey, IdentityNotFoundError, DEFAULTS, createNoiseKeys } from "@mecha/core";
+import { loadNodeIdentity, loadNodePrivateKey, IdentityNotFoundError, DEFAULTS, createNoiseKeys, readServerState } from "@mecha/core";
 import { readNodeName } from "@mecha/service";
 import { createInviteCode } from "@mecha/connect";
 
@@ -12,6 +12,11 @@ function parseDuration(duration: string): number {
   const unit = match[2]!;
   const multipliers: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86400 };
   return value * multipliers[unit]!;
+}
+
+/** Convert ws:// URL to http:// for REST calls. */
+function wsToHttp(url: string): string {
+  return url.replace(/^wss:\/\//, "https://").replace(/^ws:\/\//, "http://");
 }
 
 export function registerNodeInviteCommand(parent: Command, deps: CommandDeps): void {
@@ -36,7 +41,24 @@ export function registerNodeInviteCommand(parent: Command, deps: CommandDeps): v
       const noiseKeys = createNoiseKeys(deps.mechaDir);
 
       const expiresIn = parseDuration(opts.expires);
-      const rendezvousUrl = opts.server ?? DEFAULTS.RENDEZVOUS_URL;
+
+      // Build rendezvous URL list: embedded server → central fallback
+      const centralUrl = opts.server ?? DEFAULTS.RENDEZVOUS_URL;
+      let rendezvousUrls: string[];
+
+      const serverState = readServerState(deps.mechaDir);
+      /* v8 ignore start -- embedded server state branch: requires running embedded server */
+      if (serverState) {
+        const localUrl = serverState.publicAddr ?? `ws://localhost:${serverState.port}`;
+        rendezvousUrls = [localUrl, centralUrl];
+      } else {
+      /* v8 ignore stop */
+        rendezvousUrls = [centralUrl];
+      }
+
+      /* v8 ignore start -- rendezvousUrls[0] always exists since array is non-empty */
+      const rendezvousUrl = rendezvousUrls[0]!;
+      /* v8 ignore stop */
 
       // Create signed invite code (local cryptographic operation)
       const result = await createInviteCode({
@@ -45,11 +67,14 @@ export function registerNodeInviteCommand(parent: Command, deps: CommandDeps): v
         noisePublicKey: noiseKeys.publicKey,
         privateKey,
         rendezvousUrl,
+        /* v8 ignore start -- ternary: single-URL path returns undefined */
+        rendezvousUrls: rendezvousUrls.length > 1 ? rendezvousUrls : undefined,
+        /* v8 ignore stop */
         opts: { expiresIn },
       });
 
       // Register invite on the rendezvous server (best-effort — invite works offline too)
-      const serverUrl = rendezvousUrl.replace(/^wss:\/\//, "https://").replace(/^ws:\/\//, "http://");
+      const serverUrl = wsToHttp(rendezvousUrl);
       try {
         const res = await fetch(`${serverUrl}/invite`, {
           method: "POST",

@@ -1,5 +1,10 @@
 {
   "mcpServers": {
+    "gitnexus": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "gitnexus", "mcp"]
+    },
     "codex-cli": {
       "type": "stdio",
       "command": "npx",

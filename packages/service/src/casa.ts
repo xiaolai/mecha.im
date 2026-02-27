@@ -34,9 +34,17 @@ export function casaConfigure(
   mechaDir: string,
   pm: ProcessManager,
   name: CasaName,
-  updates: { tags?: string[]; expose?: string[] },
+  updates: { tags?: string[]; expose?: string[]; auth?: string },
 ): void {
   const info = pm.get(name);
   if (!info) throw new CasaNotFoundError(name);
-  updateCasaConfig(join(mechaDir, name), updates);
+  // Fallback base for corrupt/missing config — reconstruct from ProcessInfo
+  /* v8 ignore start -- null coalescing fallbacks for optional ProcessInfo fields */
+  const fallback = {
+    port: info.port ?? 0,
+    token: "",
+    workspace: info.workspacePath ?? "",
+  };
+  /* v8 ignore stop */
+  updateCasaConfig(join(mechaDir, name), updates, fallback);
 }

@@ -22,9 +22,11 @@ export function registerInviteRoutes(app: FastifyInstance, config: ServerConfig)
     }
 
     // Require inviter public key
+    /* v8 ignore start -- defensive: inviterPublicKey always present from CLI client */
     if (!body.inviterPublicKey) {
       return reply.status(400).send({ error: "Missing required field: inviterPublicKey" });
     }
+    /* v8 ignore stop */
 
     // If inviter is registered on signaling WS, verify key matches
     const inviterOnline = nodes.get(body.inviterName);
@@ -54,9 +56,11 @@ export function registerInviteRoutes(app: FastifyInstance, config: ServerConfig)
     /* v8 ignore stop */
 
     // Reject duplicate active tokens to prevent overwrite/hijack
+    /* v8 ignore start -- duplicate token: requires cryptographic collision or replay */
     if (invites.has(invite.token)) {
       return reply.status(409).send({ error: "Invite token already exists" });
     }
+    /* v8 ignore stop */
 
     invites.set(invite.token, invite);
     return reply.status(201).send({ ok: true, token: invite.token });

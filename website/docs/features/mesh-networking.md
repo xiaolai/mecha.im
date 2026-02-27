@@ -218,7 +218,47 @@ The agent fetch layer validates remote hosts before connecting:
 
 ### Relay Token Validation
 
-Relay tokens are issued by the rendezvous server and validated on use. Tokens are single-use — consumed upon relay pairing to prevent reuse.
+Relay tokens use HMAC-SHA256 for stateless verification. Each token includes the peer name, a random nonce, an expiration timestamp, and the issuing server ID. Tokens are validated cryptographically — no server-side state is needed.
+
+## Decentralized Mode
+
+By default, all nodes use the central rendezvous server for discovery. Mecha supports a decentralized mode where each node can run its own embedded rendezvous server, eliminating the central server as a single point of failure.
+
+### Embedded Server
+
+Start an embedded rendezvous server alongside the agent:
+
+```bash
+mecha agent start --api-key my-secret --server
+mecha agent start --api-key my-secret --server --server-port 7681
+mecha agent start --api-key my-secret --server --public-addr wss://my-server.example.com
+```
+
+When `--server` is enabled, the agent starts an in-process rendezvous server. Invite codes automatically include both the local server URL and the central fallback, enabling multi-URL failover.
+
+### Multi-URL Invites
+
+When an embedded server is running, `mecha node invite` produces invite codes with multiple rendezvous URLs:
+
+```bash
+# With embedded server running at ws://my-server:7681
+mecha node invite
+# → Invite code contains [ws://my-server:7681, wss://rendezvous.mecha.im]
+```
+
+The joining node tries each URL in order. If the first (embedded) server is unreachable, it falls back to the central server automatically.
+
+### Gossip Protocol
+
+When multiple nodes run embedded servers, they propagate peer information via a gossip protocol:
+
+- Servers authenticate each other using Ed25519 challenge-response (against their `nodes.json` registry)
+- Peer records (name, public key, server URL, last-seen timestamp) propagate across servers
+- A hop count (max 3) limits gossip propagation depth
+- Vector clocks prevent redundant synchronization
+- Records expire after 5 minutes (TTL) — they are routing hints, not a trust store
+
+This enables peer discovery across a decentralized mesh without relying on any single server.
 
 ## Multi-Turn Mesh Conversations
 
@@ -244,4 +284,5 @@ When a mesh query creates a new session on the target, the response includes `_m
 |---------|-------------|------|---------|
 | Rendezvous server | `wss://rendezvous.mecha.im` | 7680 | Peer discovery, signaling, invite exchange |
 | Relay server | `wss://relay.mecha.im` | 7680 | Encrypted channel transport for managed nodes |
+| Embedded server | `localhost:7681` | 7681 | Local rendezvous server (decentralized mode via `--server`) |
 | Agent server | `localhost:7660` | 7660 | HTTP mesh routing for direct nodes |

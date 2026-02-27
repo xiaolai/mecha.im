@@ -15,6 +15,12 @@ All environment variables recognized by Mecha.
 |----------|-------------|
 | `MECHA_AGENT_API_KEY` | API key for the inter-node agent server. Alternative to `--api-key` flag. |
 
+## Server
+
+| Variable | Description |
+|----------|-------------|
+| `SERVER_SECRET_PATH` | Path to a file containing the 32-byte HMAC secret for relay tokens. If not set, an ephemeral secret is generated on each server start. |
+
 ## Directories
 
 | Variable | Description |
