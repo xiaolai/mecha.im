@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ShieldCheckIcon, LoaderIcon } from "lucide-react";
 
@@ -12,6 +12,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [lockoutMs, setLockoutMs] = useState(0);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const submitRef = useRef<() => void>(() => {});
   const router = useRouter();
 
   const handleChange = useCallback(
@@ -24,6 +25,15 @@ export default function LoginPage() {
 
       if (value && index < DIGITS - 1) {
         inputRefs.current[index + 1]?.focus();
+      }
+
+      // Auto-submit when all digits are filled
+      if (value && next.every((d) => d !== "")) {
+        // Defer to let state update propagate
+        setTimeout(() => {
+          const joined = next.join("");
+          if (joined.length === DIGITS) submitRef.current();
+        }, 0);
       }
     },
     [code],
@@ -50,6 +60,11 @@ export default function LoginPage() {
       setCode(next);
       const focusIdx = Math.min(pasted.length, DIGITS - 1);
       inputRefs.current[focusIdx]?.focus();
+
+      // Auto-submit if paste filled all digits
+      if (next.every((d) => d !== "")) {
+        setTimeout(() => submitRef.current(), 0);
+      }
     },
     [code],
   );
@@ -91,6 +106,9 @@ export default function LoginPage() {
       setLoading(false);
     }
   }, [code, router]);
+
+  // Keep submitRef in sync so handleChange can call it without stale closure
+  useEffect(() => { submitRef.current = submit; }, [submit]);
 
   const isComplete = code.every((d) => d !== "");
 
