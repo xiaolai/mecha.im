@@ -24,14 +24,15 @@ export async function GET(): Promise<Response> {
     });
   }
 
-  activeConnections++;
-  log.info("GET /api/events", "SSE connection opened", { activeConnections });
-
   let cleanedUp = false;
   let cleanupFn: (() => void) | undefined;
 
   const stream = new ReadableStream({
     start(controller) {
+      // Increment INSIDE start() so cleanup is always reachable on error
+      activeConnections++;
+      log.info("GET /api/events", "SSE connection opened", { activeConnections });
+
       const encoder = new TextEncoder();
 
       const unsubscribe = pm.onEvent((event) => {

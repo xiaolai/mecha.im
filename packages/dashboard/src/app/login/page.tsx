@@ -85,6 +85,8 @@ export default function LoginPage() {
 
       setCode(Array(DIGITS).fill(""));
       inputRefs.current[0]?.focus();
+    } catch {
+      setError("Network error. Check your connection and try again.");
     } finally {
       setLoading(false);
     }

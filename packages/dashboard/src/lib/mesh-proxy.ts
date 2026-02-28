@@ -58,7 +58,8 @@ export async function fetchAllNodes(mechaDir: string): Promise<{ nodes: NodeStat
   let entries: NodeEntry[];
   try {
     entries = readNodes(mechaDir);
-  } catch {
+  } catch (err) {
+    console.warn("[mesh-proxy] readNodes failed:", err instanceof Error ? err.message : String(err));
     return { nodes: [] };
   }
 
@@ -99,7 +100,8 @@ export async function fetchAllCasas(
   let entries: NodeEntry[];
   try {
     entries = readNodes(mechaDir);
-  } catch {
+  } catch (err) {
+    console.warn("[mesh-proxy] readNodes failed:", err instanceof Error ? err.message : String(err));
     return { casas: localCasas, nodeStatus };
   }
 
