@@ -1,6 +1,9 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { AuthProfileNotFoundError, AuthTokenInvalidError } from "./errors.js";
+import { createLogger } from "./logger.js";
+
+const log = createLogger("mecha:core");
 
 /** Auth profile metadata stored in profiles.json */
 export interface AuthProfileMeta {
@@ -79,7 +82,7 @@ export function readAuthProfiles(mechaDir: string): AuthProfileStore {
     /* v8 ignore start -- non-ENOENT errors (EACCES, EIO, corrupt JSON) */
     const code = (err as NodeJS.ErrnoException).code;
     if (code !== "ENOENT") {
-      console.error(`[mecha] Failed to read ${path}: ${(err as Error).message}`);
+      log.error("Failed to read auth file", { path, error: (err as Error).message });
     }
     /* v8 ignore stop */
     return { default: null, profiles: {} };
@@ -99,7 +102,7 @@ export function readAuthCredentials(mechaDir: string): AuthCredentialStore {
     /* v8 ignore start -- non-ENOENT errors (EACCES, EIO, corrupt JSON) */
     const code = (err as NodeJS.ErrnoException).code;
     if (code !== "ENOENT") {
-      console.error(`[mecha] Failed to read ${path}: ${(err as Error).message}`);
+      log.error("Failed to read auth file", { path, error: (err as Error).message });
     }
     /* v8 ignore stop */
     return {};

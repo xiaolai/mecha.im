@@ -1,6 +1,6 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import fastifyWebSocket from "@fastify/websocket";
-import { type AclEngine, readNodes, verifySignature } from "@mecha/core";
+import { type AclEngine, MechaError, readNodes, verifySignature } from "@mecha/core";
 import type { ProcessManager } from "@mecha/process";
 import { createAuthHook, createSignatureHook } from "./auth.js";
 import { registerHealthRoutes } from "./routes/health.js";
@@ -26,6 +26,18 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
   const app = Fastify({
     logger: { redact: ["req.headers.authorization", "req.headers['x-mecha-signature']"] },
   });
+
+  // Global error handler — map MechaError to correct HTTP status
+  /* v8 ignore start -- error handler tested via route-level integration tests */
+  app.setErrorHandler((err, _req, reply) => {
+    if (err instanceof MechaError) {
+      reply.code(err.statusCode).send({ error: err.message, code: err.code });
+    } else {
+      app.log.error(err);
+      reply.code(500).send({ error: "Internal server error" });
+    }
+  });
+  /* v8 ignore stop */
 
   // Build node public key map for signature verification
   const nodePublicKeys = new Map<string, string>();

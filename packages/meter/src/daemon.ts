@@ -20,6 +20,8 @@ export interface DaemonOpts {
   mechaDir?: string;
   port: number;
   required: boolean;
+  /** Bearer token for meter proxy auth. If set, requests must include Authorization header. */
+  authToken?: string;
 }
 
 export interface DaemonHandle {
@@ -64,9 +66,19 @@ export async function startDaemon(opts: DaemonOpts): Promise<DaemonHandle> {
     registry: scanCasaRegistry(mechaParent),
     counters,
     budgets: readBudgets(meterDir),
+    pendingRequests: new Map(),
   };
 
   const server = createServer((req: IncomingMessage, res: ServerResponse) => {
+    // Auth check: if authToken is configured, verify Bearer token
+    if (opts.authToken) {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || authHeader !== `Bearer ${opts.authToken}`) {
+        res.writeHead(401, { "content-type": "application/json" });
+        res.end(JSON.stringify({ error: "Unauthorized" }));
+        return;
+      }
+    }
     handleProxyRequest(req, res, ctx);
   });
 

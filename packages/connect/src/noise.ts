@@ -104,12 +104,18 @@ export async function noiseInitiate(opts: NoiseInitiateOpts): Promise<NoiseHands
   transport.send(localPubBytes);
 
   // Wait for responder's public key
-  const response = await Promise.race([
-    transport.receive(),
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new HandshakeError(`Handshake timeout after ${timeoutMs}ms`)), timeoutMs),
-    ),
-  ]);
+  let timer: ReturnType<typeof setTimeout>;
+  let response: Uint8Array;
+  try {
+    response = await Promise.race([
+      transport.receive(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new HandshakeError(`Handshake timeout after ${timeoutMs}ms`)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer!);
+  }
 
   // Verify received key matches expected key from registry
   const expectedKeyBytes = Buffer.from(remotePublicKey, "base64url");
@@ -161,12 +167,18 @@ export async function noiseRespond(opts: NoiseRespondOpts): Promise<NoiseHandsha
   const { transport, localKeyPair, expectedFingerprint, expectedPublicKey, timeoutMs = DEFAULTS.NOISE_HANDSHAKE_TIMEOUT_MS } = opts;
 
   // Wait for initiator's public key
-  const initiatorPub = await Promise.race([
-    transport.receive(),
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new HandshakeError(`Handshake timeout after ${timeoutMs}ms`)), timeoutMs),
-    ),
-  ]);
+  let timer: ReturnType<typeof setTimeout>;
+  let initiatorPub: Uint8Array;
+  try {
+    initiatorPub = await Promise.race([
+      transport.receive(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new HandshakeError(`Handshake timeout after ${timeoutMs}ms`)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer!);
+  }
 
   // Verify initiator's public key matches expected peer (identity binding)
   if (expectedPublicKey) {

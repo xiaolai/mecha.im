@@ -4,6 +4,9 @@ import { randomBytes } from "node:crypto";
 import type { AclRule } from "./types.js";
 import { isCapability } from "./types.js";
 import { safeReadJson } from "../safe-read.js";
+import { createLogger } from "../logger.js";
+
+const log = createLogger("mecha:core");
 
 export interface AclData {
   version: number;
@@ -32,12 +35,12 @@ export function loadAcl(mechaDir: string): AclData {
   const result = safeReadJson<unknown>(aclPath, "ACL rules");
   if (!result.ok) {
     if (result.reason !== "missing") {
-      console.error(`[mecha] ${result.detail}`);
+      log.error("ACL error", { detail: result.detail });
     }
     return { version: 1, rules: [] };
   }
   if (!isAclData(result.data)) {
-    console.error(`[mecha] ACL rules: schema validation failed`);
+    log.error("ACL rules: schema validation failed");
     return { version: 1, rules: [] };
   }
   return result.data;

@@ -12,9 +12,9 @@ import { emptySummary, todayUTC } from "../src/query.js";
 import { writeBudgets, readBudgets } from "../src/budgets.js";
 import type { MeterEvent } from "../src/types.js";
 
-function httpGet(port: number, path: string): Promise<{ status: number; body: string }> {
+function httpGet(port: number, path: string, headers?: Record<string, string>): Promise<{ status: number; body: string }> {
   return new Promise((resolve, reject) => {
-    const req = request({ hostname: "127.0.0.1", port, path, method: "GET" }, (res) => {
+    const req = request({ hostname: "127.0.0.1", port, path, method: "GET", headers }, (res) => {
       let body = "";
       res.on("data", (chunk: Buffer) => { body += chunk.toString(); });
       res.on("end", () => resolve({ status: res.statusCode!, body }));
@@ -243,6 +243,40 @@ describe("daemon", () => {
     handle = undefined;
 
     expect(process.listenerCount("SIGHUP")).toBe(listenersBefore);
+  });
+
+  describe("authToken", () => {
+    it("rejects requests without Bearer token when authToken is set", async () => {
+      tempDir = mkdtempSync(join(tmpdir(), "meter-daemon-"));
+      handle = await startDaemon({ meterDir: tempDir, port: 0, required: false, authToken: "secret-token" });
+      const addr = handle.server.address();
+      const port = typeof addr === "object" && addr ? addr.port : 0;
+
+      const res = await httpGet(port, "/casa/test/v1/messages");
+      expect(res.status).toBe(401);
+      expect(JSON.parse(res.body).error).toBe("Unauthorized");
+    });
+
+    it("rejects requests with wrong Bearer token", async () => {
+      tempDir = mkdtempSync(join(tmpdir(), "meter-daemon-"));
+      handle = await startDaemon({ meterDir: tempDir, port: 0, required: false, authToken: "secret-token" });
+      const addr = handle.server.address();
+      const port = typeof addr === "object" && addr ? addr.port : 0;
+
+      const res = await httpGet(port, "/casa/test/v1/messages", { authorization: "Bearer wrong-token" });
+      expect(res.status).toBe(401);
+    });
+
+    it("accepts requests with correct Bearer token", async () => {
+      tempDir = mkdtempSync(join(tmpdir(), "meter-daemon-"));
+      handle = await startDaemon({ meterDir: tempDir, port: 0, required: false, authToken: "secret-token" });
+      const addr = handle.server.address();
+      const port = typeof addr === "object" && addr ? addr.port : 0;
+
+      // With correct token, request passes auth and hits the proxy handler (404 = invalid CASA path)
+      const res = await httpGet(port, "/", { authorization: "Bearer secret-token" });
+      expect(res.status).toBe(404);
+    });
   });
 
   describe("stopDaemon", () => {

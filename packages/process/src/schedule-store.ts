@@ -16,7 +16,10 @@ import {
   ScheduleConfigSchema,
   ScheduleStateSchema,
   safeReadJson,
+  createLogger,
 } from "@mecha/core";
+
+const log = createLogger("mecha:process");
 
 // --- Atomic write helper ---
 
@@ -38,7 +41,7 @@ export function readScheduleConfig(casaDir: string): ScheduleConfig {
   if (!result.ok) {
     /* v8 ignore start -- corrupt/unreadable config fallback */
     if (result.reason !== "missing") {
-      console.error(`[mecha] ${result.detail}`);
+      log.error("Schedule config/state error", { detail: result.detail });
     }
     /* v8 ignore stop */
     return { ...EMPTY_CONFIG, schedules: [] };
@@ -67,7 +70,7 @@ export function readScheduleState(casaDir: string, scheduleId: string): Schedule
   if (!result.ok) {
     /* v8 ignore start -- corrupt/unreadable state fallback */
     if (result.reason !== "missing") {
-      console.error(`[mecha] ${result.detail}`);
+      log.error("Schedule config/state error", { detail: result.detail });
     }
     /* v8 ignore stop */
     return undefined;
@@ -109,7 +112,7 @@ export function readRunHistory(casaDir: string, scheduleId: string, limit?: numb
     return results;
   /* v8 ignore start -- corrupt file fallback */
   } catch (err) {
-    console.error(`[mecha] schedule "${scheduleId}" history: ${err instanceof Error ? err.message : String(err)}`);
+    log.error("Failed to read schedule history", { scheduleId, error: err instanceof Error ? err.message : String(err) });
     return [];
   }
   /* v8 ignore stop */
