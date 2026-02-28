@@ -45,7 +45,7 @@ export default function LoginPage() {
       if (!pasted) return;
       const next = [...code];
       for (let i = 0; i < pasted.length; i++) {
-        next[i] = pasted[i];
+        next[i] = pasted[i] ?? "";
       }
       setCode(next);
       const focusIdx = Math.min(pasted.length, DIGITS - 1);

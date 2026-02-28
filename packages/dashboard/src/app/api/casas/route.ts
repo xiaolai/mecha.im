@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { MechaError } from "@mecha/core";
+import { MechaError, type CasaName } from "@mecha/core";
 import { casaFind } from "@mecha/service";
 import { getProcessManager, getMechaDir, log } from "@/lib/pm-singleton";
 import { fetchAllCasas } from "@/lib/mesh-proxy";
@@ -25,7 +25,7 @@ export async function GET(): Promise<NextResponse> {
 
     const enriched = casas.map((c) => {
       if (c.node === "local") {
-        const detail = detailMap.get(c.name);
+        const detail = detailMap.get(c.name as unknown as CasaName);
         return detail ? { ...detail, node: "local" } : { ...c };
       }
       return c;

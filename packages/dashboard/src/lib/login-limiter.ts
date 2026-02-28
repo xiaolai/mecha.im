@@ -28,7 +28,7 @@ export function createLoginLimiter(opts?: LoginLimiterOpts): LoginLimiter {
       }
 
       // Prune old failures outside window
-      while (failures.length > 0 && failures[0] <= now - windowMs) {
+      while (failures.length > 0 && (failures[0] ?? 0) <= now - windowMs) {
         failures.shift();
       }
 
@@ -40,7 +40,7 @@ export function createLoginLimiter(opts?: LoginLimiterOpts): LoginLimiter {
       failures.push(now);
 
       // Prune old failures outside window
-      while (failures.length > 0 && failures[0] <= now - windowMs) {
+      while (failures.length > 0 && (failures[0] ?? 0) <= now - windowMs) {
         failures.shift();
       }
 

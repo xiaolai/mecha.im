@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { verifyTotpCode, getOtpSecret } from "../../../../lib/totp.js";
-import { deriveSessionKey, createSessionToken, SESSION_COOKIE } from "../../../../lib/session.js";
-import { createLoginLimiter } from "../../../../lib/login-limiter.js";
-import { getSessionTtlHours, log } from "../../../../lib/pm-singleton.js";
+import { verifyTotpCode, getOtpSecret } from "@/lib/totp";
+import { deriveSessionKey, createSessionToken, SESSION_COOKIE } from "@/lib/session";
+import { createLoginLimiter } from "@/lib/login-limiter";
+import { getSessionTtlHours, log } from "@/lib/pm-singleton";
 
 const limiter = createLoginLimiter();
 

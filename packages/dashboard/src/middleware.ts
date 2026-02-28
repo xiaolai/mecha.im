@@ -23,39 +23,56 @@ export function extractHost(raw: string): string {
   return raw;
 }
 
+function hexToUint8Array(hex: string): Uint8Array {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) {
+    bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
+  }
+  return bytes;
+}
+
+function base64urlToUint8Array(b64url: string): Uint8Array {
+  const b64 = b64url.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
 /**
- * Verify a JWT (HS256) using the pre-computed session key.
- * Edge-compatible: uses only base64 decoding + constant-time compare via string ops.
+ * Verify a JWT (HS256) using the Web Crypto API (Edge-compatible).
  * The key is pre-derived via HKDF at server startup and stored in MECHA_SESSION_KEY.
- *
- * Note: We use synchronous HMAC here via a manual implementation that works in Edge.
- * For production, this uses the same HS256 algorithm as session.ts.
  */
-export function verifySessionTokenSync(hexKey: string, token: string): boolean {
+export async function verifySessionToken(hexKey: string, token: string): Promise<boolean> {
   const parts = token.split(".");
   if (parts.length !== 3) return false;
 
   // Decode and check expiry first (cheap check before crypto)
   try {
-    const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"))) as { exp?: number };
+    const payload = JSON.parse(atob(parts[1]!.replace(/-/g, "+").replace(/_/g, "/"))) as { exp?: number };
     if (!payload.exp || payload.exp <= Math.floor(Date.now() / 1000)) return false;
   } catch {
     return false;
   }
 
-  // Verify HMAC-SHA256 signature using Web Crypto (sync not available in Edge,
-  // but we can't go async in middleware easily — fall back to structural validation).
-  // Since this runs behind a custom Node.js server (server-entry.ts), we can use
-  // the Node.js crypto module which IS available in the middleware context.
+  // Verify HMAC-SHA256 signature using Web Crypto API
   try {
-    const { createHmac } = require("node:crypto") as typeof import("node:crypto");
-    const sigInput = `${parts[0]}.${parts[1]}`;
-    const expectedSig = createHmac("sha256", Buffer.from(hexKey, "hex")).update(sigInput).digest("base64url");
-    // Constant-length compare
-    if (expectedSig.length !== parts[2].length) return false;
+    const keyData = hexToUint8Array(hexKey);
+    const cryptoKey = await crypto.subtle.importKey(
+      "raw", keyData as unknown as ArrayBuffer, { name: "HMAC", hash: "SHA-256" }, false, ["sign"],
+    );
+    const sigInput = new TextEncoder().encode(`${parts[0]}.${parts[1]}`);
+    const expectedSig = new Uint8Array(await crypto.subtle.sign("HMAC", cryptoKey, sigInput));
+    const actualSig = base64urlToUint8Array(parts[2]!);
+
+    // Constant-time compare
+    if (expectedSig.length !== actualSig.length) return false;
     let mismatch = 0;
     for (let i = 0; i < expectedSig.length; i++) {
-      mismatch |= expectedSig.charCodeAt(i) ^ parts[2].charCodeAt(i);
+      mismatch |= (expectedSig[i] ?? 0) ^ (actualSig[i] ?? 0);
     }
     return mismatch === 0;
   } catch {
@@ -91,7 +108,7 @@ function rejectResponse(reason: string, status: number, pathname: string): NextR
 }
 
 /** Block DNS rebinding + CSRF attacks. Enforce session auth when TOTP is configured. */
-export function middleware(request: NextRequest): NextResponse {
+export async function middleware(request: NextRequest): Promise<NextResponse> {
   const pathname = request.nextUrl.pathname;
   const networkMode = process.env.MECHA_NETWORK_MODE === "true";
   const otpConfigured = !!process.env.MECHA_OTP;
@@ -146,7 +163,7 @@ export function middleware(request: NextRequest): NextResponse {
 
     // Verify JWT signature using pre-computed session key
     const sessionKey = process.env.MECHA_SESSION_KEY;
-    if (!sessionKey || !verifySessionTokenSync(sessionKey, cookie.value)) {
+    if (!sessionKey || !(await verifySessionToken(sessionKey, cookie.value))) {
       if (pathname.startsWith("/api/")) {
         return rejectResponse("Unauthorized: invalid session", 401, pathname);
       }

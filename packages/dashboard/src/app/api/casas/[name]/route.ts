@@ -21,7 +21,7 @@ export async function GET(
     }
 
     const pm = getProcessManager();
-    const { token: _token, ...safe } = casaStatus(pm, name) as Record<string, unknown>;
+    const { token: _token, ...safe } = casaStatus(pm, name) as unknown as Record<string, unknown>;
     return NextResponse.json(safe);
   } catch (err) {
     log.error("GET /api/casas/[name]", "Failed to get CASA status", err);

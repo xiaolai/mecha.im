@@ -10,7 +10,7 @@ export async function GET(): Promise<Response> {
   let pm;
   try {
     pm = getProcessManager();
-  } catch (err) {
+  } catch {
     return new Response(JSON.stringify({ error: "Dashboard not initialized" }), {
       status: 503,
       headers: { "Content-Type": "application/json" },
