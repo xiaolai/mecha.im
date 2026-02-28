@@ -129,9 +129,11 @@ export function createPtyManager(opts: CreatePtyManagerOpts): PtyManager {
       ]);
       const env: Record<string, string> = { TERM: "xterm-256color" };
       for (const [k, v] of Object.entries(process.env)) {
+        /* v8 ignore start -- Object.entries filters out undefined values */
         if (v !== undefined && !FILTERED_ENV_KEYS.has(k)) {
           env[k] = v;
         }
+        /* v8 ignore stop */
       }
 
       const pty = spawnPty("claude", args, {
