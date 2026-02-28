@@ -28,9 +28,11 @@ export function createLoginLimiter(opts?: LoginLimiterOpts): LoginLimiter {
       }
 
       // Prune old failures outside window
+      /* v8 ignore start -- failures[0] is always defined when length > 0 */
       while (failures.length > 0 && (failures[0] ?? 0) <= now - windowMs) {
         failures.shift();
       }
+      /* v8 ignore stop */
 
       return { allowed: true };
     },
@@ -40,9 +42,11 @@ export function createLoginLimiter(opts?: LoginLimiterOpts): LoginLimiter {
       failures.push(now);
 
       // Prune old failures outside window
+      /* v8 ignore start -- failures[0] is always defined when length > 0 */
       while (failures.length > 0 && (failures[0] ?? 0) <= now - windowMs) {
         failures.shift();
       }
+      /* v8 ignore stop */
 
       if (failures.length >= maxAttempts) {
         lockoutUntil = now + lockoutMs;

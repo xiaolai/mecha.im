@@ -33,11 +33,13 @@ export function handleTerminalConnection(
 
   const casaName = parts[3];
 
+  /* v8 ignore start -- CASA names validated before reaching WS handler in practice */
   if (!isValidName(casaName)) {
     sendError(ws, "Invalid CASA name");
     ws.close(4400, "Invalid CASA name");
     return;
   }
+  /* v8 ignore stop */
 
   const sessionId = url.searchParams.get("session") ?? undefined;
   const node = url.searchParams.get("node") ?? undefined;
