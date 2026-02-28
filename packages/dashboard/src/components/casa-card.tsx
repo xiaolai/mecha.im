@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { SquareIcon, OctagonXIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { TooltipIconButton } from "@/components/ui/tooltip-icon-button";
 import { cn } from "@/lib/utils";
 import { stateStyles } from "@/lib/casa-styles";
+import { useCasaAction } from "@/lib/use-casa-action";
 
 export interface CasaInfo {
   name: string;
@@ -24,30 +24,15 @@ interface CasaCardProps {
 
 export function CasaCard({ casa }: CasaCardProps) {
   const style = stateStyles[casa.state];
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [acting, setActing] = useState(false);
-
-  async function handleAction(action: "stop" | "kill") {
-    setActing(true);
-    setActionError(null);
-    try {
-      const res = await fetch(`/api/casas/${encodeURIComponent(casa.name)}/${action}`, { method: "POST" });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({ error: "Request failed" }));
-        setActionError(body.error ?? `Failed to ${action}`);
-      }
-    } catch {
-      setActionError(`Failed to ${action} — connection error`);
-    } finally {
-      setActing(false);
-    }
-  }
+  const { acting, actionError, handleAction } = useCasaAction(casa.name);
 
   return (
-    <Link
-      href={`/casa/${encodeURIComponent(casa.name)}`}
-      className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4 transition-colors hover:bg-accent/50"
-    >
+    <div className="relative flex flex-col gap-3 rounded-lg border border-border bg-card p-4 transition-colors hover:bg-accent/50">
+      <Link
+        href={`/casa/${encodeURIComponent(casa.name)}`}
+        className="absolute inset-0 rounded-lg"
+        aria-label={`View ${casa.name}`}
+      />
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -87,11 +72,12 @@ export function CasaCard({ casa }: CasaCardProps) {
 
       {/* Actions */}
       {casa.state === "running" && (
-        <div className="flex items-center gap-2 border-t border-border pt-2" onClick={(e) => e.preventDefault()}>
+        <div className="relative z-10 flex items-center gap-3 border-t border-border pt-2">
           <TooltipIconButton
             tooltip="Stop"
             variant="outline"
-            size="icon-sm"
+            size="icon"
+            className="sm:size-8"
             disabled={acting}
             onClick={() => handleAction("stop")}
           >
@@ -100,8 +86,8 @@ export function CasaCard({ casa }: CasaCardProps) {
           <TooltipIconButton
             tooltip="Kill"
             variant="ghost"
-            size="icon-sm"
-            className="text-destructive hover:text-destructive"
+            size="icon"
+            className="text-destructive hover:text-destructive sm:size-8"
             disabled={acting}
             onClick={() => handleAction("kill")}
           >
@@ -109,6 +95,6 @@ export function CasaCard({ casa }: CasaCardProps) {
           </TooltipIconButton>
         </div>
       )}
-    </Link>
+    </div>
   );
 }

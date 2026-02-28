@@ -9,7 +9,6 @@ interface NodeEntry {
   name: string;
   host: string;
   port: number;
-  apiKey: string;
   publicKey?: string;
   fingerprint?: string;
   addedAt: string;

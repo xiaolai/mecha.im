@@ -17,7 +17,6 @@ export async function GET(req: Request): Promise<NextResponse> {
     return NextResponse.json(result);
   } catch (err) {
     log.error("GET /api/meter/cost", "Failed to query meter cost", err);
-    const message = err instanceof Error ? err.message : "Internal server error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
