@@ -15,6 +15,13 @@ export default defineConfig({
         "**/main.ts",
         "**/transport.ts",
         "**/http-transport.ts",
+        "packages/dashboard/src/app/**",
+        "packages/dashboard/src/components/**",
+        "packages/dashboard/src/server-entry.ts",
+        "packages/dashboard/src/lib/use-fetch.ts",
+        "packages/dashboard/src/lib/use-casa-action.ts",
+        "packages/dashboard/src/lib/pm-singleton.ts",
+        "packages/dashboard/src/lib/params.ts",
       ],
       thresholds: {
         lines: 100,

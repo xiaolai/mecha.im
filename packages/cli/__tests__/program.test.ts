@@ -83,6 +83,7 @@ describe("createProgram", () => {
     expect(commandNames).toContain("find");
     expect(commandNames).toContain("configure");
     expect(commandNames).toContain("acl");
+    expect(commandNames).toContain("dashboard");
   });
 
   it("parses --version without error", async () => {
