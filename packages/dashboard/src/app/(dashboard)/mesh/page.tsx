@@ -1,10 +1,10 @@
 import { MeshView } from "@/components/mesh-view";
+import { PageShell } from "@/components/page-shell";
 
 export default function MeshPage() {
   return (
-    <div className="flex flex-col gap-4">
-      <h1 className="text-lg font-semibold text-foreground">Mesh Nodes</h1>
+    <PageShell title="Mesh Nodes">
       <MeshView />
-    </div>
+    </PageShell>
   );
 }

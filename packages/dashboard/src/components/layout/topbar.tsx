@@ -18,7 +18,8 @@ export function Topbar({ onMenuClick }: TopbarProps) {
           <TooltipIconButton
             tooltip="Open menu"
             variant="ghost"
-            size="icon-sm"
+            size="icon"
+            className="sm:size-8"
             onClick={onMenuClick}
           >
             <MenuIcon className="size-4" />
@@ -30,7 +31,8 @@ export function Topbar({ onMenuClick }: TopbarProps) {
       <TooltipIconButton
         tooltip={resolvedTheme === "dark" ? "Light mode" : "Dark mode"}
         variant="ghost"
-        size="icon-sm"
+        size="icon"
+        className="sm:size-8"
         onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
       >
         <SunIcon className="size-4 rotate-0 scale-100 transition-transform dark:hidden dark:-rotate-90 dark:scale-0" />

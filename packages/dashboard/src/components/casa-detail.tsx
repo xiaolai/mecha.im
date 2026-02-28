@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeftIcon, SquareIcon, OctagonXIcon, MessageSquareIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { SessionList } from "@/components/session-list";
 import { cn } from "@/lib/utils";
 import { useFetch } from "@/lib/use-fetch";
+import { useCasaAction } from "@/lib/use-casa-action";
 import { stateStyles } from "@/lib/casa-styles";
 import type { CasaInfo } from "./casa-card";
 
@@ -24,25 +24,7 @@ export function CasaDetail({ name }: CasaDetailProps) {
     { interval: 5000, deps: [name] },
   );
 
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [acting, setActing] = useState(false);
-
-  async function handleAction(action: "stop" | "kill") {
-    setActing(true);
-    setActionError(null);
-    try {
-      const res = await fetch(`/api/casas/${encodeURIComponent(name)}/${action}`, { method: "POST" });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({ error: "Request failed" }));
-        setActionError(body.error ?? `Failed to ${action}`);
-      }
-    } catch {
-      setActionError(`Failed to ${action} — connection error`);
-    } finally {
-      setActing(false);
-      refetch();
-    }
-  }
+  const { acting, actionError, handleAction } = useCasaAction(name, refetch);
 
   if (loading) {
     return (
@@ -73,7 +55,7 @@ export function CasaDetail({ name }: CasaDetailProps) {
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <Link href="/" className="text-muted-foreground hover:text-foreground">
+          <Link href="/" className="min-h-11 min-w-11 sm:min-h-0 sm:min-w-0 inline-flex items-center justify-center text-muted-foreground hover:text-foreground" aria-label="Back to CASAs">
             <ArrowLeftIcon className="size-4" />
           </Link>
           <span className={cn("size-2.5 rounded-full", style.dot)} />
@@ -81,7 +63,7 @@ export function CasaDetail({ name }: CasaDetailProps) {
           <Badge variant={style.badge}>{casa.state}</Badge>
         </div>
         {casa.state === "running" && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <Button variant="default" size="sm" asChild>
               <Link href={`/casa/${encodeURIComponent(name)}/chat`}>
                 <MessageSquareIcon className="size-4" /> Chat
@@ -93,8 +75,8 @@ export function CasaDetail({ name }: CasaDetailProps) {
             <TooltipIconButton
               tooltip="Force kill"
               variant="ghost"
-              size="icon-sm"
-              className="text-destructive hover:text-destructive"
+              size="icon"
+              className="text-destructive hover:text-destructive sm:size-8"
               disabled={acting}
               onClick={() => handleAction("kill")}
             >

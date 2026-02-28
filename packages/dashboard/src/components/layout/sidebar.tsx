@@ -55,7 +55,8 @@ export function Sidebar({ open, onClose }: SidebarProps) {
             <TooltipIconButton
               tooltip="Close sidebar"
               variant="ghost"
-              size="icon-sm"
+              size="icon"
+              className="sm:size-8"
               onClick={onClose}
             >
               <XIcon className="size-4" />
@@ -66,7 +67,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         {/* Nav */}
         <nav className="flex-1 space-y-1 px-2 py-2">
           {navItems.map(({ href, label, icon: Icon }) => {
-            const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
+            const active = href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
             return (
               <Link
                 key={href}

@@ -30,9 +30,20 @@ export function MechaChat({ name }: MechaChatProps) {
     scrollToBottom();
   }, [messages, scrollToBottom]);
 
+  const abortRef = useRef<AbortController | null>(null);
+
+  // Abort stream on unmount
+  useEffect(() => {
+    return () => { abortRef.current?.abort(); };
+  }, []);
+
   async function handleSend() {
     const text = input.trim();
     if (!text || sending) return;
+
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     setInput("");
     setSending(true);
@@ -43,6 +54,7 @@ export function MechaChat({ name }: MechaChatProps) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text, sessionId }),
+        signal: controller.signal,
       });
 
       if (!res.ok) {
@@ -60,7 +72,17 @@ export function MechaChat({ name }: MechaChatProps) {
 
       const decoder = new TextDecoder();
       let assistantContent = "";
+      let rafPending = false;
       setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+
+      function flushContent() {
+        rafPending = false;
+        setMessages((prev) => {
+          const updated = [...prev];
+          updated[updated.length - 1] = { role: "assistant", content: assistantContent };
+          return updated;
+        });
+      }
 
       let buffer = "";
       while (true) {
@@ -76,27 +98,26 @@ export function MechaChat({ name }: MechaChatProps) {
           try {
             const event = JSON.parse(line.slice(6));
             if (event.type === "error" && event.content) {
-              setMessages((prev) => {
-                const updated = [...prev];
-                updated[updated.length - 1] = { role: "assistant", content: `Error: ${event.content}` };
-                return updated;
-              });
+              assistantContent = `Error: ${event.content}`;
+              flushContent();
             } else if (event.type === "text" && event.content) {
               assistantContent += event.content;
-              setMessages((prev) => {
-                const updated = [...prev];
-                updated[updated.length - 1] = { role: "assistant", content: assistantContent };
-                return updated;
-              });
+              if (!rafPending) {
+                rafPending = true;
+                requestAnimationFrame(flushContent);
+              }
             } else if (event.type === "done" && event.sessionId) {
               setSessionId(event.sessionId);
             }
-          } catch {
-            // Skip malformed SSE lines
+          } catch (parseErr) {
+            console.warn("Malformed SSE line:", line, parseErr);
           }
         }
       }
-    } catch {
+      // Final flush to ensure last content is rendered
+      flushContent();
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
       setMessages((prev) => [...prev, { role: "assistant", content: "Error: Connection failed" }]);
     } finally {
       setSending(false);
@@ -107,7 +128,7 @@ export function MechaChat({ name }: MechaChatProps) {
     <div className="flex h-full flex-col">
       {/* Header */}
       <div className="flex items-center gap-3 border-b border-border pb-3">
-        <Link href={`/casa/${encodeURIComponent(name)}`} className="text-muted-foreground hover:text-foreground">
+        <Link href={`/casa/${encodeURIComponent(name)}`} className="min-h-11 min-w-11 sm:min-h-0 sm:min-w-0 inline-flex items-center justify-center text-muted-foreground hover:text-foreground" aria-label="Back to CASA detail">
           <ArrowLeftIcon className="size-4" />
         </Link>
         <h1 className="text-sm font-semibold text-foreground">Chat with {name}</h1>
@@ -151,7 +172,7 @@ export function MechaChat({ name }: MechaChatProps) {
       <div className="border-t border-border pt-3">
         <form
           onSubmit={(e) => { e.preventDefault(); handleSend(); }}
-          className="flex items-center gap-2"
+          className="flex items-center gap-3"
         >
           <input
             type="text"
@@ -161,7 +182,7 @@ export function MechaChat({ name }: MechaChatProps) {
             disabled={sending}
             className="h-11 sm:h-9 flex-1 rounded-md border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
           />
-          <Button type="submit" size="sm" disabled={sending || !input.trim()}>
+          <Button type="submit" size="sm" className="min-h-11 sm:min-h-0" disabled={sending || !input.trim()}>
             <SendIcon className="size-4" />
             Send
           </Button>

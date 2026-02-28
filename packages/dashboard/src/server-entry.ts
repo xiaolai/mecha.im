@@ -40,9 +40,16 @@ export async function startDashboard(opts: StartDashboardOpts): Promise<() => Pr
     });
   });
 
-  // Handle post-listen errors (e.g. EMFILE) to prevent unhandled crash
+  // Handle post-listen errors — log and close gracefully on fatal errors
   server.on("error", (err) => {
     console.error("[dashboard] server error:", err.message);
+    // Fatal errors (EMFILE, EADDRINUSE) warrant shutdown
+    const fatal = new Set(["EMFILE", "ENFILE", "EADDRINUSE", "EACCES"]);
+    if ("code" in err && fatal.has(err.code as string)) {
+      console.error("[dashboard] fatal server error, shutting down");
+      server.close();
+      app.close().catch(() => {});
+    }
   });
 
   return async () => {

@@ -29,7 +29,7 @@ function formatTokens(n: number): string {
 }
 
 export function MeterSummary() {
-  const { data, loading } = useFetch<CostQueryResult>("/api/meter/cost", { interval: 30000 });
+  const { data, loading, error } = useFetch<CostQueryResult>("/api/meter/cost", { interval: 30000 });
 
   if (loading) {
     return (
@@ -41,7 +41,13 @@ export function MeterSummary() {
     );
   }
 
-  if (!data) return null;
+  if (error || !data) {
+    return (
+      <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+        {error ?? "Failed to load metering data"}
+      </div>
+    );
+  }
 
   const { total } = data;
 

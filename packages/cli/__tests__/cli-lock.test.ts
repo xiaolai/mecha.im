@@ -170,6 +170,7 @@ describe("cli-lock", () => {
       ["auth renew", ["node", "mecha", "auth", "renew"]],
       ["budget set", ["node", "mecha", "budget", "set"]],
       ["budget rm", ["node", "mecha", "budget", "rm"]],
+      ["dashboard serve", ["node", "mecha", "dashboard", "serve"]],
     ])("returns true for %s", (_label, argv) => {
       expect(needsLock(argv)).toBe(true);
     });

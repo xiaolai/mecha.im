@@ -1,10 +1,10 @@
 import { AclView } from "@/components/acl-view";
+import { PageShell } from "@/components/page-shell";
 
 export default function AclPage() {
   return (
-    <div className="flex flex-col gap-4">
-      <h1 className="text-lg font-semibold text-foreground">ACL Rules</h1>
+    <PageShell title="ACL Rules">
       <AclView />
-    </div>
+    </PageShell>
   );
 }

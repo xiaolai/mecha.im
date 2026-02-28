@@ -48,8 +48,8 @@ export function AclView() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rules.map((rule, i) => (
-            <TableRow key={i}>
+          {rules.map((rule) => (
+            <TableRow key={`${rule.source}:${rule.target}`}>
               <TableCell className="font-mono text-sm">{rule.source}</TableCell>
               <TableCell className="font-mono text-sm">{rule.target}</TableCell>
               <TableCell>

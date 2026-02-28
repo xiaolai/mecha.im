@@ -13,15 +13,14 @@ export async function GET(
     const [name, err] = parseCasaNameParam(raw);
     if (err) return err;
     const pm = getProcessManager();
-    const info = casaStatus(pm, name);
-    return NextResponse.json(info);
+    const { token: _token, ...safe } = casaStatus(pm, name) as Record<string, unknown>;
+    return NextResponse.json(safe);
   } catch (err) {
     log.error("GET /api/casas/[name]", "Failed to get CASA status", err);
     if (err instanceof MechaError) {
-      return NextResponse.json({ error: err.message }, { status: 404 });
+      return NextResponse.json({ error: err.message }, { status: err.statusCode });
     }
-    const message = err instanceof Error ? err.message : "Internal server error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
@@ -39,9 +38,8 @@ export async function DELETE(
   } catch (err) {
     log.error("DELETE /api/casas/[name]", "Failed to delete CASA", err);
     if (err instanceof MechaError) {
-      return NextResponse.json({ error: err.message }, { status: 404 });
+      return NextResponse.json({ error: err.message }, { status: err.statusCode });
     }
-    const message = err instanceof Error ? err.message : "Internal server error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

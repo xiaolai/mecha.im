@@ -26,8 +26,7 @@ export async function POST(
   try {
     pm = getProcessManager();
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Dashboard not initialized";
-    return new Response(JSON.stringify({ error: message }), {
+    return new Response(JSON.stringify({ error: "Dashboard not initialized" }), {
       status: 503,
       headers: { "Content-Type": "application/json" },
     });
@@ -61,7 +60,7 @@ export async function POST(
     const iter = await casaChat(pm, validName, {
       message: body.message,
       sessionId: body.sessionId,
-    });
+    }, req.signal);
 
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
@@ -73,9 +72,13 @@ export async function POST(
           controller.close();
         } catch (err) {
           log.error("POST /api/casas/[name]/chat", "Chat stream error", err);
-          const msg = err instanceof Error ? err.message : "Stream error";
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "error", content: msg })}\n\n`));
-          controller.close();
+          try {
+            const msg = err instanceof Error ? err.message : "Stream error";
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "error", content: msg })}\n\n`));
+          } catch {
+            // Stream already closed — nothing to send
+          }
+          try { controller.close(); } catch { /* already closed */ }
         }
       },
     });
@@ -91,12 +94,11 @@ export async function POST(
     log.error("POST /api/casas/[name]/chat", "Failed to start chat", err);
     if (err instanceof MechaError) {
       return new Response(JSON.stringify({ error: err.message }), {
-        status: 404,
+        status: err.statusCode,
         headers: { "Content-Type": "application/json" },
       });
     }
-    const message = err instanceof Error ? err.message : "Internal server error";
-    return new Response(JSON.stringify({ error: message }), {
+    return new Response(JSON.stringify({ error: "Internal server error" }), {
       status: 500,
       headers: { "Content-Type": "application/json" },
     });

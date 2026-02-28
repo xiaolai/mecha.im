@@ -17,9 +17,8 @@ export async function POST(
   } catch (err) {
     log.error("POST /api/casas/[name]/kill", "Failed to kill CASA", err);
     if (err instanceof MechaError) {
-      return NextResponse.json({ error: err.message }, { status: 404 });
+      return NextResponse.json({ error: err.message }, { status: err.statusCode });
     }
-    const message = err instanceof Error ? err.message : "Internal server error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

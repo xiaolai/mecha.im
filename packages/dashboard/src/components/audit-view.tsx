@@ -57,8 +57,8 @@ export function AuditView() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {entries.map((entry, i) => (
-            <TableRow key={i}>
+          {entries.map((entry) => (
+            <TableRow key={`${entry.ts}:${entry.tool}:${entry.client}`}>
               <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                 {new Date(entry.ts).toLocaleString()}
               </TableCell>
