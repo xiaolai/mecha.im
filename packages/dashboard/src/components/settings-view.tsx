@@ -9,11 +9,26 @@ interface NodeEntry {
   port: number;
 }
 
-export function SettingsView() {
-  const { data: nodes, loading } = useFetch<NodeEntry[]>("/api/mesh/nodes");
+interface RuntimeConfig {
+  casaPortRange: string;
+  agentPort: number;
+  mcpPort: number;
+}
 
-  if (loading) {
+export function SettingsView() {
+  const { data: nodes, loading: nodesLoading, error: nodesError } = useFetch<NodeEntry[]>("/api/mesh/nodes");
+  const { data: runtime, loading: runtimeLoading } = useFetch<RuntimeConfig>("/api/settings/runtime");
+
+  if (nodesLoading || runtimeLoading) {
     return <Skeleton className="h-48 rounded-lg" />;
+  }
+
+  if (nodesError) {
+    return (
+      <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+        {nodesError}
+      </div>
+    );
   }
 
   return (
@@ -38,9 +53,9 @@ export function SettingsView() {
       <div className="rounded-lg border border-border bg-card p-4">
         <h2 className="text-sm font-semibold text-card-foreground mb-3">Runtime</h2>
         <div className="flex flex-col gap-2 text-sm text-muted-foreground">
-          <span>CASA port range: <span className="font-mono text-card-foreground">7700-7799</span></span>
-          <span>Agent port: <span className="font-mono text-card-foreground">7660</span></span>
-          <span>MCP port: <span className="font-mono text-card-foreground">7680</span></span>
+          <span>CASA port range: <span className="font-mono text-card-foreground">{runtime?.casaPortRange ?? "7700-7799"}</span></span>
+          <span>Agent port: <span className="font-mono text-card-foreground">{runtime?.agentPort ?? 7660}</span></span>
+          <span>MCP port: <span className="font-mono text-card-foreground">{runtime?.mcpPort ?? 7680}</span></span>
         </div>
       </div>
     </div>

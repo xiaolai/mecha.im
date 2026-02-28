@@ -21,9 +21,8 @@ export async function GET(
   } catch (err) {
     log.error("GET /api/casas/[name]/sessions/[id]", "Failed to get session", err);
     if (err instanceof MechaError) {
-      return NextResponse.json({ error: err.message }, { status: 404 });
+      return NextResponse.json({ error: err.message }, { status: err.statusCode });
     }
-    const message = err instanceof Error ? err.message : "Internal server error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

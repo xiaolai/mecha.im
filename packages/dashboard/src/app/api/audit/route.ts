@@ -14,7 +14,6 @@ export async function GET(req: Request): Promise<NextResponse> {
     return NextResponse.json(entries);
   } catch (err) {
     log.error("GET /api/audit", "Failed to read audit log", err);
-    const message = err instanceof Error ? err.message : "Internal server error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

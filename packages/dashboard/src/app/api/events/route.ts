@@ -2,8 +2,6 @@ import { getProcessManager, log } from "@/lib/pm-singleton";
 
 export const dynamic = "force-dynamic";
 
-const unsubMap = new WeakMap<ReadableStreamDefaultController, () => void>();
-
 const MAX_CONNECTIONS = 10;
 const HEARTBEAT_INTERVAL_MS = 15_000;
 let activeConnections = 0;
@@ -13,8 +11,7 @@ export async function GET(): Promise<Response> {
   try {
     pm = getProcessManager();
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Dashboard not initialized";
-    return new Response(JSON.stringify({ error: message }), {
+    return new Response(JSON.stringify({ error: "Dashboard not initialized" }), {
       status: 503,
       headers: { "Content-Type": "application/json" },
     });
@@ -30,6 +27,9 @@ export async function GET(): Promise<Response> {
   activeConnections++;
   log.info("GET /api/events", "SSE connection opened", { activeConnections });
 
+  let cleanedUp = false;
+  let cleanupFn: (() => void) | undefined;
+
   const stream = new ReadableStream({
     start(controller) {
       const encoder = new TextEncoder();
@@ -38,34 +38,33 @@ export async function GET(): Promise<Response> {
         try {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
         } catch {
-          // Stream closed — unsubscribe handled by cancel()
+          // Stream closed — cleanup handled by cancel()
         }
       });
 
-      // Send initial heartbeat so the client knows the connection is live
       controller.enqueue(encoder.encode(": heartbeat\n\n"));
 
-      // Periodic heartbeat to detect dead connections
       const heartbeat = setInterval(() => {
         try {
           controller.enqueue(encoder.encode(": heartbeat\n\n"));
         } catch {
-          clearInterval(heartbeat);
+          cleanup();
         }
       }, HEARTBEAT_INTERVAL_MS);
 
-      // Store cleanup functions
-      unsubMap.set(controller, () => {
+      function cleanup() {
+        if (cleanedUp) return;
+        cleanedUp = true;
         unsubscribe();
         clearInterval(heartbeat);
         activeConnections--;
         log.info("GET /api/events", "SSE connection closed", { activeConnections });
-      });
+      }
+
+      cleanupFn = cleanup;
     },
-    cancel(controller) {
-      const cleanup = unsubMap.get(controller);
-      cleanup?.();
-      unsubMap.delete(controller);
+    cancel() {
+      cleanupFn?.();
     },
   });
 

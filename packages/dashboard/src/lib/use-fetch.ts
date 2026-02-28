@@ -25,40 +25,54 @@ export function useFetch<T>(url: string, opts: UseFetchOptions = {}): UseFetchRe
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const activeRef = useRef(true);
+  const abortRef = useRef<AbortController | null>(null);
 
   const fetchData = useCallback(async () => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
-      const res = await fetch(url);
+      const res = await fetch(url, { signal: controller.signal });
+      if (controller.signal.aborted) return;
       if (!res.ok) {
         const body = await res.json().catch(() => ({ error: "Request failed" }));
-        if (activeRef.current) setError(body.error ?? "Request failed");
+        if (!controller.signal.aborted) setError(body.error ?? "Request failed");
         return;
       }
       const result = await res.json();
-      if (activeRef.current) {
+      if (!controller.signal.aborted) {
         setData(result);
         setError(null);
       }
-    } catch {
-      if (activeRef.current) setError("Failed to connect to server");
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      if (!controller.signal.aborted) setError("Failed to connect to server");
     } finally {
-      if (activeRef.current) setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
   }, [url, ...deps]);
 
   useEffect(() => {
-    activeRef.current = true;
+    let cancelled = false;
     fetchData();
 
-    let timer: ReturnType<typeof setInterval> | undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     if (interval && interval > 0) {
-      timer = setInterval(fetchData, interval);
+      function scheduleNext() {
+        if (cancelled) return;
+        timer = setTimeout(async () => {
+          if (cancelled) return;
+          await fetchData();
+          scheduleNext();
+        }, interval);
+      }
+      scheduleNext();
     }
 
     return () => {
-      activeRef.current = false;
-      if (timer) clearInterval(timer);
+      cancelled = true;
+      abortRef.current?.abort();
+      if (timer) clearTimeout(timer);
     };
   }, [fetchData, interval]);
 

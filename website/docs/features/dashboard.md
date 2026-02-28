@@ -18,8 +18,14 @@ The dashboard runs as a Next.js application started by the CLI. It creates a `Pr
 mecha dashboard serve
   └── ProcessManager (in-process)
   └── Next.js (port 3457)
-       ├── /api/casas → casaFind()
-       └── / → CASA list UI
+       ├── /api/casas → CASA list & management
+       ├── /api/events → SSE real-time events
+       ├── /api/acl → ACL rules
+       ├── /api/audit → Audit log
+       ├── /api/mesh/nodes → Mesh topology
+       ├── /api/meter/cost → Metering data
+       ├── /api/settings/runtime → Runtime config
+       └── / → Dashboard UI
 ```
 
 ## Features
@@ -28,9 +34,67 @@ mecha dashboard serve
 
 The home page shows all CASAs with their status, port, and tags. Cards update every 5 seconds via polling. You can stop or kill running CASAs directly from the UI.
 
+### CASA Detail
+
+Click a CASA card to see detailed information: port, workspace path, start time, tags, sessions, and raw configuration. Actions (stop, kill, chat) are available from the detail view.
+
+### Chat
+
+Send messages to a running CASA via the built-in chat interface. Messages are streamed back via SSE for real-time display. Session continuity is maintained across messages.
+
+### Mesh Topology
+
+View all registered peer nodes with their host, port, fingerprint, and managed status.
+
+### ACL Rules
+
+Browse all ACL rules showing source, target, and granted capabilities.
+
+### Audit Log
+
+View the last 100 audit entries with tool name, client, result status, and latency. Auto-refreshes every 10 seconds.
+
+### Metering
+
+The home page shows today's request count, cost, token usage, and average latency. Auto-refreshes every 30 seconds.
+
+### Settings
+
+View node configuration and runtime port assignments.
+
+### Real-time Events
+
+The dashboard subscribes to runtime events via SSE (`/api/events`). Connection limits (max 10) and heartbeat keep-alive (15s) are enforced.
+
 ### Dark Mode
 
 Toggle between light and dark themes using the button in the top bar. The dashboard respects your system preference by default.
+
+## API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/casas` | GET | List all CASAs (token redacted) |
+| `/api/casas/[name]` | GET | Get CASA status (token redacted) |
+| `/api/casas/[name]` | DELETE | Kill a CASA |
+| `/api/casas/[name]/stop` | POST | Graceful stop |
+| `/api/casas/[name]/kill` | POST | Force kill |
+| `/api/casas/[name]/chat` | POST | Chat via SSE stream |
+| `/api/casas/[name]/sessions` | GET | List sessions |
+| `/api/casas/[name]/sessions/[id]` | GET | Get session detail |
+| `/api/events` | GET | SSE event stream |
+| `/api/acl` | GET | List ACL rules |
+| `/api/audit` | GET | Read audit log (`?limit=N`) |
+| `/api/mesh/nodes` | GET | List mesh nodes (apiKey redacted) |
+| `/api/meter/cost` | GET | Query metering data (`?casa=name`) |
+| `/api/settings/runtime` | GET | Runtime port configuration |
+
+## Security
+
+- **Localhost only**: Middleware rejects requests from non-localhost hosts (DNS rebinding protection)
+- **CSRF protection**: Origin header validated on state-changing requests
+- **Secret redaction**: Bearer tokens and API keys are stripped from API responses
+- **Error sanitization**: Internal error messages are not exposed to clients
 
 ## Options
 
@@ -39,11 +103,3 @@ Toggle between light and dark themes using the button in the top bar. The dashbo
 | `--port` | 3457 | Dashboard port |
 | `--host` | 127.0.0.1 | Bind address |
 | `--open` | false | Open browser after starting |
-
-## Planned Features
-
-- CASA detail view with sessions and configuration (Phase 7d-2)
-- Chat interface with SSE streaming (Phase 7d-3)
-- Mesh topology visualization (Phase 7d-4)
-- ACL rule viewer (Phase 7d-4)
-- Audit log and metering dashboard (Phase 7d-5)
