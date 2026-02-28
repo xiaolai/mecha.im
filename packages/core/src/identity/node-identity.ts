@@ -5,6 +5,9 @@ import { IDENTITY_DIR } from "../constants.js";
 import { generateKeyPair, fingerprint } from "./keys.js";
 import { createNoiseKeys } from "./noise-keys.js";
 import { safeReadJson } from "../safe-read.js";
+import { createLogger } from "../logger.js";
+
+const log = createLogger("mecha:core");
 
 export interface NodeIdentity {
   readonly id: string;
@@ -85,7 +88,7 @@ export function loadNodeIdentity(mechaDir: string): NodeIdentity | undefined {
   if (!result.ok) {
     /* v8 ignore start -- corrupt/unreadable identity fallback */
     if (result.reason !== "missing") {
-      console.error(`[mecha] ${result.detail}`);
+      log.error("Node identity error", { detail: result.detail });
     }
     /* v8 ignore stop */
     return undefined;

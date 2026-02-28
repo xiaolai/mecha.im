@@ -179,7 +179,13 @@ export async function spawnCasa(ctx: SpawnContext, spawnOpts: SpawnOpts): Promis
       stoppedAt: new Date().toISOString(),
       exitCode: code ?? undefined,
     };
-    writeState(ctx.casaDir(name), state);
+    /* v8 ignore start -- disk-full guard: prevent crash in event handler */
+    try {
+      writeState(ctx.casaDir(name), state);
+    } catch (err) {
+      console.error(`[mecha:process] Failed to write exit state for ${name}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    /* v8 ignore stop */
     ctx.onStateChange?.();
     emitter.emit({ type: "stopped", name, exitCode: code ?? undefined });
   });

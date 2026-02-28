@@ -26,15 +26,25 @@ console.log(`  Relay:     ws://${env.host}:${env.port}/relay?token=<token>`);
 console.log(`  Health:    http://${env.host}:${env.port}/healthz`);
 
 let shuttingDown = false;
-function shutdown(): void {
+function shutdown(exitCode = 0): void {
   if (shuttingDown) return;
   shuttingDown = true;
   console.log("Shutting down...");
   server.close().catch((err) => {
     console.error("Shutdown error:", err instanceof Error ? err.message : String(err));
-  }).finally(() => process.exit(0));
+  }).finally(() => process.exit(exitCode));
 }
 
-process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);
+process.on("SIGINT", () => shutdown(0));
+process.on("SIGTERM", () => shutdown(0));
+
+process.on("unhandledRejection", (reason) => {
+  console.error(`[mecha-server] Unhandled rejection: ${reason instanceof Error ? (reason as Error).stack ?? (reason as Error).message : String(reason)}`);
+  shutdown(1);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error(`[mecha-server] Uncaught exception: ${err.stack ?? err.message}`);
+  shutdown(1);
+});
 /* v8 ignore stop */

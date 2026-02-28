@@ -30,4 +30,14 @@ app.listen({ port: env.MECHA_PORT, host: "127.0.0.1" }, (err) => {
 
 process.on("SIGTERM", () => { app.close(); });
 process.on("SIGINT", () => { app.close(); });
+
+process.on("unhandledRejection", (reason) => {
+  console.error(`[mecha:runtime] Unhandled rejection: ${reason instanceof Error ? reason.stack ?? reason.message : String(reason)}`);
+  app.close().finally(() => process.exit(1));
+});
+
+process.on("uncaughtException", (err) => {
+  console.error(`[mecha:runtime] Uncaught exception: ${err.stack ?? err.message}`);
+  app.close().finally(() => process.exit(1));
+});
 /* v8 ignore stop */

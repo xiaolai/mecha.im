@@ -28,6 +28,8 @@ export interface ProxyContext {
   registry: Map<string, CasaRegistryEntry>;
   counters: HotCounters;
   budgets: BudgetConfig;
+  /** Number of in-flight requests per CASA (for budget pre-accounting). */
+  pendingRequests: Map<string, number>;
 }
 
 /** Parse the CASA name from the request URL path: /casa/{name}/... */
@@ -91,6 +93,12 @@ export function buildMeterEvent(
   };
 }
 
+/**
+ * Estimated cost per in-flight request ($0.03) for budget pre-accounting.
+ * Prevents concurrent requests from bypassing budget limits.
+ */
+export const ESTIMATED_REQUEST_COST_USD = 0.03;
+
 /** Run budget check for a CASA request. Returns null if allowed. */
 export function enforceBudget(
   ctx: ProxyContext,
@@ -106,6 +114,10 @@ export function enforceBudget(
     if (bucket) tagSummaries[tag] = { today: bucket.today, month: bucket.thisMonth };
   }
 
+  // Add estimated cost for in-flight requests to prevent concurrent budget bypass
+  const pending = ctx.pendingRequests.get(casa) ?? 0;
+  const pendingCostUsd = pending * ESTIMATED_REQUEST_COST_USD;
+
   return checkBudgets({
     config: ctx.budgets,
     casa,
@@ -115,6 +127,7 @@ export function enforceBudget(
     perCasa: casaBucket ? { today: casaBucket.today, month: casaBucket.thisMonth } : undefined,
     perAuth: authBucket ? { today: authBucket.today, month: authBucket.thisMonth } : undefined,
     perTag: tagSummaries,
+    pendingCostUsd,
   });
 }
 
@@ -123,6 +136,16 @@ export function reloadBudgets(ctx: ProxyContext): void {
   ctx.budgets = readBudgets(ctx.meterDir);
 }
 
+/** Counter for events that failed to persist (observable via snapshot). */
+let droppedEvents = 0;
+
+/** Get the number of dropped events since process start. */
+/* v8 ignore start -- observable getter for monitoring; no unit test path */
+export function getDroppedEventCount(): number {
+  return droppedEvents;
+}
+/* v8 ignore stop */
+
 /** Record a meter event: append to disk + update hot counters */
 export function recordEvent(ctx: ProxyContext, event: MeterEvent): void {
   try {
@@ -130,13 +153,17 @@ export function recordEvent(ctx: ProxyContext, event: MeterEvent): void {
     ingestEvent(ctx.counters, event);
   /* v8 ignore start -- disk write failure logging */
   } catch (err) {
-    log.error("Failed to write event", { eventId: event.id, error: err instanceof Error ? err.message : String(err) });
+    droppedEvents++;
+    log.error("Failed to write event", { eventId: event.id, droppedEvents, error: err instanceof Error ? err.message : String(err) });
   }
   /* v8 ignore stop */
 }
 
 /** Max request body size (32 MB) to prevent memory DoS */
 export const MAX_BODY_BYTES = 32 * 1024 * 1024;
+
+/** Max response body size (128 MB) to prevent memory DoS on non-stream responses */
+export const MAX_RESPONSE_BYTES = 128 * 1024 * 1024;
 
 /** Extract model name and stream flag from a request body JSON. */
 export function parseModelAndStream(body: Buffer): { model: string; stream: boolean } {
@@ -161,6 +188,16 @@ export function stripHopByHop(
 }
 
 /* v8 ignore start -- integration code: wires Node.js HTTP streams to/from api.anthropic.com */
+
+/** Decrement in-flight counter and clean up zero entries to prevent unbounded map growth. */
+function endPending(ctx: ProxyContext, casa: string): void {
+  const count = (ctx.pendingRequests.get(casa) ?? 1) - 1;
+  if (count <= 0) {
+    ctx.pendingRequests.delete(casa);
+  } else {
+    ctx.pendingRequests.set(casa, count);
+  }
+}
 /** Handle a proxied request */
 export function handleProxyRequest(
   req: IncomingMessage,
@@ -194,19 +231,38 @@ export function handleProxyRequest(
     return;
   }
 
+  // Track in-flight requests for budget pre-accounting
+  ctx.pendingRequests.set(casa, (ctx.pendingRequests.get(casa) ?? 0) + 1);
+
+  // Handle client abort before upstream request is made
+  let requestCompleted = false;
+  req.on("error", () => {
+    if (!requestCompleted) {
+      requestCompleted = true;
+      endPending(ctx, casa);
+    }
+  });
+
   const bodyChunks: Buffer[] = [];
   let bodySize = 0;
+  let bodyRejected = false;
   req.on("data", (chunk: Buffer) => {
+    if (bodyRejected) return;
     bodySize += chunk.length;
     if (bodySize > MAX_BODY_BYTES) {
+      bodyRejected = true;
+      requestCompleted = true;
       res.writeHead(413, { "content-type": "application/json" });
       res.end(JSON.stringify({ error: "Request body too large" }));
       req.destroy();
+      endPending(ctx, casa);
       return;
     }
     bodyChunks.push(chunk);
   });
   req.on("end", () => {
+    if (bodyRejected) return;
+    requestCompleted = true; // upstream handlers take over pending cleanup
     const body = Buffer.concat(bodyChunks);
     const { model, stream } = parseModelAndStream(body);
 
@@ -234,6 +290,7 @@ export function handleProxyRequest(
     upstreamReq.on("error", () => {
       res.writeHead(502, { "content-type": "application/json" });
       res.end(JSON.stringify({ error: "Upstream unreachable" }));
+      endPending(ctx, casa);
       const event = buildMeterEvent(ctx, startMs, casa, casaInfo, model, stream, 0, {
         inputTokens: 0, outputTokens: 0,
         cacheCreationTokens: 0, cacheReadTokens: 0,
@@ -275,6 +332,7 @@ function handleStreamResponse(
 
   upstreamRes.on("end", () => {
     res.end();
+    endPending(ctx, casa);
     const event = buildMeterEvent(ctx, startMs, casa, casaInfo, model, true,
       clientDisconnected ? -1 : 200, state);
     recordEvent(ctx, event);
@@ -293,8 +351,28 @@ function handleNonStreamResponse(
   status: number,
 ): void {
   const chunks: Buffer[] = [];
-  upstreamRes.on("data", (chunk: Buffer) => chunks.push(chunk));
+  let responseSize = 0;
+  let oversized = false;
+  upstreamRes.on("data", (chunk: Buffer) => {
+    responseSize += chunk.length;
+    if (responseSize <= MAX_RESPONSE_BYTES) {
+      chunks.push(chunk);
+    } else if (!oversized) {
+      oversized = true;
+      upstreamRes.destroy();
+      res.writeHead(502, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: "Upstream response too large" }));
+      endPending(ctx, casa);
+      const event = buildMeterEvent(ctx, startMs, casa, casaInfo, model, stream, 502, {
+        inputTokens: 0, outputTokens: 0,
+        cacheCreationTokens: 0, cacheReadTokens: 0,
+        modelActual: model, ttftMs: null,
+      });
+      recordEvent(ctx, event);
+    }
+  });
   upstreamRes.on("end", () => {
+    if (oversized) return;
     const body = Buffer.concat(chunks).toString();
 
     res.writeHead(status, stripHopByHop(upstreamRes.headers));
@@ -304,6 +382,7 @@ function handleNonStreamResponse(
       ? extractNonStreamUsage(body)
       : { inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0, modelActual: model, ttftMs: null };
 
+    endPending(ctx, casa);
     const event = buildMeterEvent(ctx, startMs, casa, casaInfo, model, stream, status, usage);
     recordEvent(ctx, event);
   });

@@ -1,4 +1,6 @@
-import type { CasaName } from "@mecha/core";
+import { type CasaName, createLogger } from "@mecha/core";
+
+const log = createLogger("mecha:process");
 
 /** Lifecycle events emitted by ProcessManager */
 export type ProcessEvent =
@@ -30,7 +32,7 @@ export class ProcessEventEmitter {
       } catch (err) {
         // Isolate handler failures so one bad handler doesn't break others.
         // Log to stderr so failures are not completely invisible.
-        console.error("[ProcessEventEmitter] Handler threw:", err instanceof Error ? err.message : String(err));
+        log.error("Event handler threw", { error: err instanceof Error ? err.message : String(err) });
       }
     }
   }

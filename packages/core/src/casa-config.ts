@@ -3,6 +3,9 @@ import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { safeReadJson } from "./safe-read.js";
+import { createLogger } from "./logger.js";
+
+const log = createLogger("mecha:core");
 
 /** Sandbox enforcement mode */
 export type SandboxMode = "auto" | "off" | "require";
@@ -46,7 +49,7 @@ export function readCasaConfig(casaDir: string): CasaConfig | undefined {
   const result = safeReadJson(configPath, "casa config", CasaConfigSchema);
   if (!result.ok) {
     if (result.reason !== "missing") {
-      console.error(`[mecha] ${result.detail}`);
+      log.error("Casa config error", { detail: result.detail });
     }
     return undefined;
   }

@@ -6,6 +6,7 @@ import {
   parseCasaPath, buildUpstreamHeaders,
   buildMeterEvent, enforceBudget, reloadBudgets, recordEvent,
   parseModelAndStream, stripHopByHop, MAX_BODY_BYTES,
+  ESTIMATED_REQUEST_COST_USD,
 } from "../src/proxy.js";
 import type { ProxyContext } from "../src/proxy.js";
 import { loadPricing, initPricing } from "../src/pricing.js";
@@ -31,6 +32,7 @@ function makeCtx(meterDir: string, overrides: Partial<ProxyContext> = {}): Proxy
     registry: new Map(),
     counters: createHotCounters("2026-02-26"),
     budgets: emptyBudgets(),
+    pendingRequests: new Map(),
     ...overrides,
   };
 }
@@ -233,6 +235,26 @@ describe("proxy", () => {
 
       const result = enforceBudget(ctx, "r", makeCasaInfo({ tags: ["exp"] }));
       expect(result.allowed).toBe(true);
+    });
+
+    it("includes pending request cost in budget check", () => {
+      tempDir = mkdtempSync(join(tmpdir(), "meter-proxy-"));
+      const ctx = makeCtx(tempDir, {
+        budgets: { global: { dailyUsd: 0.10 }, byCasa: {}, byAuthProfile: {}, byTag: {} },
+      });
+      // Cost is under limit
+      ctx.counters.global.today.costUsd = 0.05;
+      expect(enforceBudget(ctx, "r", makeCasaInfo()).allowed).toBe(true);
+
+      // Add 3 pending requests → 3 * $0.03 = $0.09, total = $0.14 > $0.10
+      ctx.pendingRequests.set("r", 3);
+      const result = enforceBudget(ctx, "r", makeCasaInfo());
+      expect(result.allowed).toBe(false);
+      expect(result.exceeded).toContain("exceeded daily limit");
+    });
+
+    it("ESTIMATED_REQUEST_COST_USD is $0.03", () => {
+      expect(ESTIMATED_REQUEST_COST_USD).toBe(0.03);
     });
   });
 

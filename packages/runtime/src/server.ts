@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance } from "fastify";
+import { MechaError } from "@mecha/core";
 import { createSessionManager } from "./session-manager.js";
 import { createAuthHook } from "./auth.js";
 import { registerHealthRoutes } from "./routes/health.js";
@@ -28,6 +29,18 @@ export function createServer(opts: CreateServerOpts): ServerResult {
   const app = Fastify({
     logger: { redact: ["req.headers.authorization"] },
   });
+
+  // Global error handler — map MechaError to correct HTTP status
+  /* v8 ignore start -- error handler tested via route-level integration tests */
+  app.setErrorHandler((err, _req, reply) => {
+    if (err instanceof MechaError) {
+      reply.code(err.statusCode).send({ error: err.message, code: err.code });
+    } else {
+      app.log.error(err);
+      reply.code(500).send({ error: "Internal server error" });
+    }
+  });
+  /* v8 ignore stop */
 
   // Auth middleware
   app.addHook("onRequest", createAuthHook(opts.authToken));

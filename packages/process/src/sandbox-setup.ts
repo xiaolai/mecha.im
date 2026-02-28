@@ -1,9 +1,11 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { CasaName } from "@mecha/core";
-import { loadNodeIdentity, loadNodePrivateKey, createCasaIdentity, CASA_CONFIG_VERSION, resolveAuth, MeterProxyRequiredError } from "@mecha/core";
+import { loadNodeIdentity, loadNodePrivateKey, createCasaIdentity, CASA_CONFIG_VERSION, resolveAuth, MeterProxyRequiredError, createLogger } from "@mecha/core";
 import type { ResolvedAuth } from "@mecha/core";
 import { readProxyInfo, isPidAlive, meterDir } from "@mecha/meter";
+
+const log = createLogger("mecha:process");
 
 export interface CasaFilesystemOpts {
   casaDir: string;
@@ -215,7 +217,7 @@ exit 0
     // If user explicitly passed --auth <name>, rethrow so spawn fails fast.
     /* v8 ignore start -- fallback for environments without auth profiles */
     if (opts.auth !== undefined) throw err;
-    console.error("[mecha] WARNING: No auth profiles found, inheriting host credentials. Use --auth <name> or create a profile with 'mecha auth add' for explicit auth.");
+    log.warn("No auth profiles found, inheriting host credentials. Use --auth <name> or create a profile with 'mecha auth add' for explicit auth.");
     const sdkKeys = ["ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"] as const;
     for (const key of sdkKeys) {
       if (process.env[key] && !childEnv[key]) {
@@ -238,7 +240,7 @@ exit 0
       } else if (proxyInfo.required) {
         throw new MeterProxyRequiredError();
       } else {
-        console.error("[mecha] Meter proxy is not running (stale proxy.json), skipping metering");
+        log.warn("Meter proxy is not running (stale proxy.json), skipping metering");
       }
     }
   }

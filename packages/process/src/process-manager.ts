@@ -47,6 +47,24 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
   const emitter = new ProcessEventEmitter();
   const live = new Map<string, LiveProcess>();
 
+  // Per-CASA mutex to serialize lifecycle operations (spawn/stop/kill)
+  const casaLocks = new Map<string, Promise<void>>();
+  async function withCasaLock<T>(name: string, fn: () => Promise<T>): Promise<T> {
+    const prev = casaLocks.get(name) ?? Promise.resolve();
+    let resolve: () => void;
+    const next = new Promise<void>((r) => { resolve = r; });
+    casaLocks.set(name, next);
+    await prev;
+    try {
+      return await fn();
+    } finally {
+      resolve!();
+      /* v8 ignore start -- concurrent lock cleanup: only last enqueued lock deletes entry */
+      if (casaLocks.get(name) === next) casaLocks.delete(name);
+      /* v8 ignore stop */
+    }
+  }
+
   function _casaDir(name: string): string {
     if (!isValidName(name)) throw new InvalidNameError(name);
     return join(mechaDir, name);
@@ -112,9 +130,11 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
   };
 
   async function spawn(spawnOpts: SpawnOpts): Promise<ProcessInfo> {
-    const result = await spawnCasa(spawnCtx, spawnOpts);
-    _updateDiscoveryIndex();
-    return result;
+    return withCasaLock(spawnOpts.name, async () => {
+      const result = await spawnCasa(spawnCtx, spawnOpts);
+      _updateDiscoveryIndex();
+      return result;
+    });
   }
 
   function getCasa(name: CasaName): ProcessInfo | undefined {
@@ -174,6 +194,7 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
   }
 
   async function stopCasa(name: CasaName): Promise<void> {
+    return withCasaLock(name, async () => {
     const lp = live.get(name);
     if (!lp) {
       const state = readState(_casaDir(name));
@@ -200,9 +221,11 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
       try { lp.child.kill("SIGKILL"); } catch { /* child already gone */ }
       await waitForChildExit(lp.child, 2000);
     }
+    });
   }
 
   async function killCasa(name: CasaName): Promise<void> {
+    return withCasaLock(name, async () => {
     const lp = live.get(name);
     if (!lp) {
       const state = readState(_casaDir(name));
@@ -220,6 +243,7 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
 
     try { lp.child.kill("SIGKILL"); } catch { /* child already gone */ }
     await waitForChildExit(lp.child, DEFAULTS.STOP_GRACE_MS);
+    });
   }
 
   function getLogs(name: CasaName, logOpts?: LogOpts): Readable {

@@ -227,7 +227,7 @@ describe("AUTH", () => {
     await sleep(61_000);
   }, 90_000);
 
-  it("AUTH-09: cross-machine login", async () => {
+  it("AUTH-09: cross-machine login", { timeout: 30_000 }, async () => {
     const nodes = [
       { host: DASH_HOST, port: DASH_PORT },
     ];

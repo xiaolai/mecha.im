@@ -94,12 +94,25 @@ export function createPtyManager(opts: CreatePtyManagerOpts): PtyManager {
       const key = sessionId ? `${casaName}:${sessionId}` : `${casaName}:new-${randomBytes(8).toString("hex")}`;
       const args: string[] = sessionId ? ["--resume", sessionId] : [];
 
+      // Build minimal env from CASA config — never spread process.env (leaks host secrets)
+      const casaEnv: Record<string, string> = {
+        TERM: "xterm-256color",
+        /* v8 ignore start -- PATH/HOME always set in normal environments */
+        PATH: process.env.PATH ?? "/usr/local/bin:/usr/bin:/bin",
+        HOME: process.env.HOME ?? "/tmp",
+        /* v8 ignore stop */
+        MECHA_CASA_NAME: casaName,
+        MECHA_WORKSPACE: config.workspace,
+        MECHA_PORT: String(config.port),
+        MECHA_AUTH_TOKEN: config.token,
+      };
+
       const pty = spawnFn("claude", args, {
         name: "xterm-256color",
         cols,
         rows,
         cwd: config.workspace,
-        env: { ...process.env as Record<string, string>, TERM: "xterm-256color" },
+        env: casaEnv,
       });
 
       const session: PtySession = {
