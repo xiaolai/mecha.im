@@ -1,11 +1,19 @@
 import type { ProcessManager } from "@mecha/process";
 import type { AclEngine } from "@mecha/core";
 
-let _pm: ProcessManager | undefined;
-let _mechaDir: string | undefined;
-let _acl: AclEngine | undefined;
-let _networkMode = false;
-let _sessionTtlHours = 24;
+// Use globalThis to share state across module instances.
+// Next.js production builds bundle API routes separately from server-entry,
+// creating different module instances of this file. Module-level variables
+// would be isolated between the two copies. globalThis ensures both copies
+// read/write the same singleton.
+
+const G = globalThis as unknown as {
+  __mecha_pm?: ProcessManager;
+  __mecha_dir?: string;
+  __mecha_acl?: AclEngine;
+  __mecha_network_mode?: boolean;
+  __mecha_session_ttl?: number;
+};
 
 export interface DashboardSingletonOpts {
   pm: ProcessManager;
@@ -16,34 +24,34 @@ export interface DashboardSingletonOpts {
 }
 
 export function setProcessManager(pm: ProcessManager, mechaDir: string, acl: AclEngine, opts?: { networkMode?: boolean; sessionTtlHours?: number }): void {
-  _pm = pm;
-  _mechaDir = mechaDir;
-  _acl = acl;
-  _networkMode = opts?.networkMode ?? false;
-  _sessionTtlHours = opts?.sessionTtlHours ?? 24;
+  G.__mecha_pm = pm;
+  G.__mecha_dir = mechaDir;
+  G.__mecha_acl = acl;
+  G.__mecha_network_mode = opts?.networkMode ?? false;
+  G.__mecha_session_ttl = opts?.sessionTtlHours ?? 24;
 }
 
 export function getProcessManager(): ProcessManager {
-  if (!_pm) throw new Error("ProcessManager not initialized — was startDashboard() called?");
-  return _pm;
+  if (!G.__mecha_pm) throw new Error("ProcessManager not initialized — was startDashboard() called?");
+  return G.__mecha_pm;
 }
 
 export function getMechaDir(): string {
-  if (!_mechaDir) throw new Error("mechaDir not initialized — was startDashboard() called?");
-  return _mechaDir;
+  if (!G.__mecha_dir) throw new Error("mechaDir not initialized — was startDashboard() called?");
+  return G.__mecha_dir;
 }
 
 export function getAcl(): AclEngine {
-  if (!_acl) throw new Error("AclEngine not initialized — was startDashboard() called?");
-  return _acl;
+  if (!G.__mecha_acl) throw new Error("AclEngine not initialized — was startDashboard() called?");
+  return G.__mecha_acl;
 }
 
 export function getNetworkMode(): boolean {
-  return _networkMode;
+  return G.__mecha_network_mode ?? false;
 }
 
 export function getSessionTtlHours(): number {
-  return _sessionTtlHours;
+  return G.__mecha_session_ttl ?? 24;
 }
 
 /** Minimal structured logger for dashboard API routes. */
