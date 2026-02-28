@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { useFetch } from "@/lib/use-fetch";
 
 interface SessionEntry {
   id: string;
@@ -17,34 +17,10 @@ interface SessionListProps {
 }
 
 export function SessionList({ name }: SessionListProps) {
-  const [sessions, setSessions] = useState<SessionEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    async function fetchSessions() {
-      try {
-        const res = await fetch(`/api/casas/${encodeURIComponent(name)}/sessions`);
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({ error: "Failed to fetch" }));
-          if (active) setError(body.error ?? "Failed to fetch sessions");
-          return;
-        }
-        const data = await res.json();
-        if (active) {
-          setSessions(data);
-          setError(null);
-        }
-      } catch {
-        if (active) setError("Failed to connect to server");
-      } finally {
-        if (active) setLoading(false);
-      }
-    }
-    fetchSessions();
-    return () => { active = false; };
-  }, [name]);
+  const { data: sessions, loading, error } = useFetch<SessionEntry[]>(
+    `/api/casas/${encodeURIComponent(name)}/sessions`,
+    { deps: [name] },
+  );
 
   if (loading) {
     return <Skeleton className="h-32 rounded-lg" />;
@@ -58,7 +34,7 @@ export function SessionList({ name }: SessionListProps) {
     );
   }
 
-  if (sessions.length === 0) {
+  if (!sessions || sessions.length === 0) {
     return (
       <div className="rounded-lg border border-border bg-card p-6 text-center text-sm text-muted-foreground">
         No sessions yet.

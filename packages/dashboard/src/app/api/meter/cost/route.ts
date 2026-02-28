@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { join } from "node:path";
 import { queryCostToday, queryCostForCasa } from "@mecha/meter";
-import { getMechaDir } from "@/lib/pm-singleton";
+import { getMechaDir, log } from "@/lib/pm-singleton";
 
 export async function GET(req: Request): Promise<NextResponse> {
   try {
@@ -16,6 +16,7 @@ export async function GET(req: Request): Promise<NextResponse> {
 
     return NextResponse.json(result);
   } catch (err) {
+    log.error("GET /api/meter/cost", "Failed to query meter cost", err);
     const message = err instanceof Error ? err.message : "Internal server error";
     return NextResponse.json({ error: message }, { status: 500 });
   }

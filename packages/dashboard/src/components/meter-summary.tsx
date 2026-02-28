@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useFetch } from "@/lib/use-fetch";
 
 interface CostSummary {
   requests: number;
@@ -29,28 +29,7 @@ function formatTokens(n: number): string {
 }
 
 export function MeterSummary() {
-  const [data, setData] = useState<CostQueryResult | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let active = true;
-    async function fetchCost() {
-      try {
-        const res = await fetch("/api/meter/cost");
-        if (res.ok) {
-          const result = await res.json();
-          if (active) setData(result);
-        }
-      } catch {
-        // Metering is optional — graceful degradation
-      } finally {
-        if (active) setLoading(false);
-      }
-    }
-    fetchCost();
-    const interval = setInterval(fetchCost, 30000);
-    return () => { active = false; clearInterval(interval); };
-  }, []);
+  const { data, loading } = useFetch<CostQueryResult>("/api/meter/cost", { interval: 30000 });
 
   if (loading) {
     return (
