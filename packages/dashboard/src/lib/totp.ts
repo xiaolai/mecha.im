@@ -16,7 +16,7 @@ export function verifyTotpCode(secret: string, code: string): boolean {
     secret: Secret.fromBase32(secret),
   });
 
-  const delta = totp.validate({ token: code, window: 1 });
+  const delta = totp.validate({ token: code, window: 0 });
   return delta !== null;
 }
 
