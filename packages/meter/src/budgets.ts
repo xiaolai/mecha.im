@@ -49,17 +49,19 @@ export interface BudgetCheckInput {
   perCasa?: { today: CostSummary; month: CostSummary };
   perAuth?: { today: CostSummary; month: CostSummary };
   perTag: Record<string, { today: CostSummary; month: CostSummary }>;
+  /** Estimated cost of in-flight requests (for pre-accounting). */
+  pendingCostUsd?: number;
 }
 
 /** Check all applicable budgets for a request */
 export function checkBudgets(input: BudgetCheckInput): BudgetCheckResult {
-  const { config, casa, authProfile, tags } = input;
+  const { config, casa, authProfile, tags, pendingCostUsd = 0 } = input;
   const warnings: string[] = [];
   let exceeded: string | null = null;
 
   // Check global limits
   if (config.global.dailyUsd !== undefined || config.global.monthlyUsd !== undefined) {
-    const r = checkLimit(config.global, "global", input.global.today, input.global.month);
+    const r = checkLimit(config.global, "global", input.global.today, input.global.month, pendingCostUsd);
     if (r.exceeded) exceeded = r.exceeded;
     warnings.push(...r.warnings);
   }
@@ -67,7 +69,7 @@ export function checkBudgets(input: BudgetCheckInput): BudgetCheckResult {
   // Check per-CASA limits
   const casaBudget = config.byCasa[casa];
   if (casaBudget && input.perCasa) {
-    const r = checkLimit(casaBudget, `CASA ${casa}`, input.perCasa.today, input.perCasa.month);
+    const r = checkLimit(casaBudget, `CASA ${casa}`, input.perCasa.today, input.perCasa.month, pendingCostUsd);
     if (r.exceeded) exceeded = r.exceeded;
     warnings.push(...r.warnings);
   }
@@ -75,7 +77,7 @@ export function checkBudgets(input: BudgetCheckInput): BudgetCheckResult {
   // Check per-auth limits
   const authBudget = config.byAuthProfile[authProfile];
   if (authBudget && input.perAuth) {
-    const r = checkLimit(authBudget, `auth ${authProfile}`, input.perAuth.today, input.perAuth.month);
+    const r = checkLimit(authBudget, `auth ${authProfile}`, input.perAuth.today, input.perAuth.month, pendingCostUsd);
     if (r.exceeded) exceeded = r.exceeded;
     warnings.push(...r.warnings);
   }
@@ -85,7 +87,7 @@ export function checkBudgets(input: BudgetCheckInput): BudgetCheckResult {
     const tagBudget = config.byTag[tag];
     const tagData = input.perTag[tag];
     if (tagBudget && tagData) {
-      const r = checkLimit(tagBudget, `tag ${tag}`, tagData.today, tagData.month);
+      const r = checkLimit(tagBudget, `tag ${tag}`, tagData.today, tagData.month, pendingCostUsd);
       if (r.exceeded) exceeded = r.exceeded;
       warnings.push(...r.warnings);
     }
@@ -99,25 +101,28 @@ function checkLimit(
   label: string,
   today: CostSummary,
   month: CostSummary,
+  pendingCostUsd = 0,
 ): { warnings: string[]; exceeded: string | null } {
   const warnings: string[] = [];
   let exceeded: string | null = null;
 
   if (limit.dailyUsd !== undefined) {
-    const ratio = today.costUsd / limit.dailyUsd;
+    const effectiveCost = today.costUsd + pendingCostUsd;
+    const ratio = effectiveCost / limit.dailyUsd;
     if (ratio >= 1.0) {
-      exceeded = `${label} exceeded daily limit ($${limit.dailyUsd.toFixed(2)}). Current: $${today.costUsd.toFixed(2)}`;
+      exceeded = `${label} exceeded daily limit ($${limit.dailyUsd.toFixed(2)}). Current: $${effectiveCost.toFixed(2)}`;
     } else if (ratio >= 0.8) {
-      warnings.push(`${label} at ${Math.round(ratio * 100)}% of daily budget ($${today.costUsd.toFixed(2)}/$${limit.dailyUsd.toFixed(2)})`);
+      warnings.push(`${label} at ${Math.round(ratio * 100)}% of daily budget ($${effectiveCost.toFixed(2)}/$${limit.dailyUsd.toFixed(2)})`);
     }
   }
 
   if (limit.monthlyUsd !== undefined) {
-    const ratio = month.costUsd / limit.monthlyUsd;
+    const effectiveCost = month.costUsd + pendingCostUsd;
+    const ratio = effectiveCost / limit.monthlyUsd;
     if (ratio >= 1.0) {
-      exceeded = `${label} exceeded monthly limit ($${limit.monthlyUsd.toFixed(2)}). Current: $${month.costUsd.toFixed(2)}`;
+      exceeded = `${label} exceeded monthly limit ($${limit.monthlyUsd.toFixed(2)}). Current: $${effectiveCost.toFixed(2)}`;
     } else if (ratio >= 0.8) {
-      warnings.push(`${label} at ${Math.round(ratio * 100)}% of monthly budget ($${month.costUsd.toFixed(2)}/$${limit.monthlyUsd.toFixed(2)})`);
+      warnings.push(`${label} at ${Math.round(ratio * 100)}% of monthly budget ($${effectiveCost.toFixed(2)}/$${limit.monthlyUsd.toFixed(2)})`);
     }
   }
 

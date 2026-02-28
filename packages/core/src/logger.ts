@@ -14,13 +14,16 @@ function getThreshold(): number {
   return LEVELS[env as Level] ?? LEVELS.info;
 }
 
-const REDACT_KEYS = new Set(["token", "authorization", "apiKey", "api_key", "secret", "password", "credential"]);
+const REDACT_KEYS = new Set(["token", "authorization", "apikey", "api_key", "secret", "password", "credential"]);
+const MAX_REDACT_DEPTH = 3;
 
-function redact(data: Record<string, unknown>): Record<string, unknown> {
+function redact(data: Record<string, unknown>, depth = 0): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const [key, val] of Object.entries(data)) {
     if (REDACT_KEYS.has(key.toLowerCase())) {
       result[key] = "[REDACTED]";
+    } else if (depth < MAX_REDACT_DEPTH && val !== null && typeof val === "object" && !Array.isArray(val)) {
+      result[key] = redact(val as Record<string, unknown>, depth + 1);
     } else {
       result[key] = val;
     }

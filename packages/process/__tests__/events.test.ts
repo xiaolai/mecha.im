@@ -94,7 +94,11 @@ describe("ProcessEventEmitter", () => {
 
     // Good handler still called despite bad handler throwing
     expect(good).toHaveBeenCalledWith(event);
-    expect(spy).toHaveBeenCalledWith("[ProcessEventEmitter] Handler threw:", "handler boom");
+    // Structured logger writes JSON to stderr
+    expect(spy).toHaveBeenCalled();
+    const logged = spy.mock.calls[0]![0] as string;
+    expect(logged).toContain("Event handler threw");
+    expect(logged).toContain("handler boom");
     spy.mockRestore();
   });
 
@@ -106,7 +110,10 @@ describe("ProcessEventEmitter", () => {
     emitter.subscribe(bad);
     emitter.emit({ type: "stopped", name });
 
-    expect(spy).toHaveBeenCalledWith("[ProcessEventEmitter] Handler threw:", "string error");
+    expect(spy).toHaveBeenCalled();
+    const logged = spy.mock.calls[0]![0] as string;
+    expect(logged).toContain("Event handler threw");
+    expect(logged).toContain("string error");
     spy.mockRestore();
   });
 });
