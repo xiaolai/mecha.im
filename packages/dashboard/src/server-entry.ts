@@ -34,6 +34,12 @@ export async function startDashboard(opts: StartDashboardOpts): Promise<() => Pr
     process.env.MECHA_NETWORK_MODE = "true";
   }
 
+  // Pre-compute session signing key so Edge middleware can verify JWTs
+  // without importing node:crypto (which isn't available in Edge runtime)
+  if (process.env.MECHA_OTP) {
+    process.env.MECHA_SESSION_KEY = deriveSessionKey(process.env.MECHA_OTP);
+  }
+
   setProcessManager(opts.processManager, opts.mechaDir, opts.acl, {
     networkMode: isNetworkHost,
     sessionTtlHours: opts.sessionTtlHours,

@@ -49,7 +49,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const response = NextResponse.json({ ok: true });
   response.cookies.set(SESSION_COOKIE, token, {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: "strict",
     path: "/",
     maxAge: ttl * 3600,
     secure: request.nextUrl.protocol === "https:",
