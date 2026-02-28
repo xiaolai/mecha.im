@@ -1,6 +1,6 @@
 import type { WebSocket } from "ws";
 import type { PtyManager } from "./pty-manager.js";
-import type { NodeEntry } from "@mecha/core";
+import { isValidName, type NodeEntry } from "@mecha/core";
 
 const BACKPRESSURE_LIMIT = 1_048_576; // 1 MB
 
@@ -32,6 +32,13 @@ export function handleTerminalConnection(
   }
 
   const casaName = parts[3];
+
+  if (!isValidName(casaName)) {
+    sendError(ws, "Invalid CASA name");
+    ws.close(4400, "Invalid CASA name");
+    return;
+  }
+
   const sessionId = url.searchParams.get("session") ?? undefined;
   const node = url.searchParams.get("node") ?? undefined;
 

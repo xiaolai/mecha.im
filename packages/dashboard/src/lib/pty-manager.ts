@@ -122,11 +122,17 @@ export function createPtyManager(opts: CreatePtyManagerOpts): PtyManager {
         args.push("--resume", sessionId);
       }
 
-      // Build env from CASA config
-      const env: Record<string, string> = {
-        ...process.env as Record<string, string>,
-        TERM: "xterm-256color",
-      };
+      // Build env from CASA config — filter out secrets
+      const FILTERED_ENV_KEYS = new Set([
+        "MECHA_OTP",
+        "MECHA_SESSION_KEY",
+      ]);
+      const env: Record<string, string> = { TERM: "xterm-256color" };
+      for (const [k, v] of Object.entries(process.env)) {
+        if (v !== undefined && !FILTERED_ENV_KEYS.has(k)) {
+          env[k] = v;
+        }
+      }
 
       const pty = spawnPty("claude", args, {
         name: "xterm-256color",
