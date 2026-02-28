@@ -1,17 +1,21 @@
 import { NextResponse } from "next/server";
 import { MechaError } from "@mecha/core";
-import { getProcessManager } from "@/lib/pm-singleton";
+import { getProcessManager, log } from "@/lib/pm-singleton";
+import { parseCasaNameParam } from "@/lib/params";
 
 export async function POST(
   _req: Request,
   { params }: { params: Promise<{ name: string }> },
 ): Promise<NextResponse> {
   try {
-    const { name } = await params;
+    const { name: raw } = await params;
+    const [name, err] = parseCasaNameParam(raw);
+    if (err) return err;
     const pm = getProcessManager();
-    await pm.stop(name as never);
+    await pm.stop(name);
     return NextResponse.json({ ok: true });
   } catch (err) {
+    log.error("POST /api/casas/[name]/stop", "Failed to stop CASA", err);
     if (err instanceof MechaError) {
       return NextResponse.json({ error: err.message }, { status: 404 });
     }

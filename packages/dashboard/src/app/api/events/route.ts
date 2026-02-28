@@ -1,9 +1,34 @@
-import { getProcessManager } from "@/lib/pm-singleton";
+import { getProcessManager, log } from "@/lib/pm-singleton";
 
 export const dynamic = "force-dynamic";
 
+const unsubMap = new WeakMap<ReadableStreamDefaultController, () => void>();
+
+const MAX_CONNECTIONS = 10;
+const HEARTBEAT_INTERVAL_MS = 15_000;
+let activeConnections = 0;
+
 export async function GET(): Promise<Response> {
-  const pm = getProcessManager();
+  let pm;
+  try {
+    pm = getProcessManager();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Dashboard not initialized";
+    return new Response(JSON.stringify({ error: message }), {
+      status: 503,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  if (activeConnections >= MAX_CONNECTIONS) {
+    return new Response(JSON.stringify({ error: "Too many SSE connections" }), {
+      status: 429,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  activeConnections++;
+  log.info("GET /api/events", "SSE connection opened", { activeConnections });
 
   const stream = new ReadableStream({
     start(controller) {
@@ -20,12 +45,27 @@ export async function GET(): Promise<Response> {
       // Send initial heartbeat so the client knows the connection is live
       controller.enqueue(encoder.encode(": heartbeat\n\n"));
 
-      // Store unsubscribe for cleanup
-      (controller as unknown as Record<string, unknown>).__unsub = unsubscribe;
+      // Periodic heartbeat to detect dead connections
+      const heartbeat = setInterval(() => {
+        try {
+          controller.enqueue(encoder.encode(": heartbeat\n\n"));
+        } catch {
+          clearInterval(heartbeat);
+        }
+      }, HEARTBEAT_INTERVAL_MS);
+
+      // Store cleanup functions
+      unsubMap.set(controller, () => {
+        unsubscribe();
+        clearInterval(heartbeat);
+        activeConnections--;
+        log.info("GET /api/events", "SSE connection closed", { activeConnections });
+      });
     },
     cancel(controller) {
-      const unsub = (controller as unknown as Record<string, unknown>).__unsub as (() => void) | undefined;
-      unsub?.();
+      const cleanup = unsubMap.get(controller);
+      cleanup?.();
+      unsubMap.delete(controller);
     },
   });
 

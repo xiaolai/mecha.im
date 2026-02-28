@@ -1,44 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { CasaCard, type CasaInfo } from "./casa-card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useFetch } from "@/lib/use-fetch";
 
 export function CasaList() {
-  const [casas, setCasas] = useState<CasaInfo[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-
-    async function fetchCasas() {
-      try {
-        const res = await fetch("/api/casas");
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({ error: "Failed to fetch" }));
-          if (active) setError(body.error ?? "Failed to fetch CASAs");
-          return;
-        }
-        const data = await res.json();
-        if (active) {
-          setCasas(data);
-          setError(null);
-        }
-      } catch {
-        if (active) setError("Failed to connect to server");
-      } finally {
-        if (active) setLoading(false);
-      }
-    }
-
-    fetchCasas();
-    const interval = setInterval(fetchCasas, 5000);
-    return () => {
-      active = false;
-      clearInterval(interval);
-    };
-  }, []);
+  const { data: casas, loading, error } = useFetch<CasaInfo[]>("/api/casas", { interval: 5000 });
 
   if (loading) {
     return (
@@ -58,7 +25,7 @@ export function CasaList() {
     );
   }
 
-  if (casas.length === 0) {
+  if (!casas || casas.length === 0) {
     return (
       <div className="rounded-lg border border-border bg-card p-8 text-center">
         <p className="text-sm text-muted-foreground">No CASAs running.</p>

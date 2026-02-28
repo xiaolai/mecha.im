@@ -75,15 +75,20 @@ export function MechaChat({ name }: MechaChatProps) {
           if (!line.startsWith("data: ")) continue;
           try {
             const event = JSON.parse(line.slice(6));
-            if (event.type === "text" && event.content) {
+            if (event.type === "error" && event.content) {
+              setMessages((prev) => {
+                const updated = [...prev];
+                updated[updated.length - 1] = { role: "assistant", content: `Error: ${event.content}` };
+                return updated;
+              });
+            } else if (event.type === "text" && event.content) {
               assistantContent += event.content;
               setMessages((prev) => {
                 const updated = [...prev];
                 updated[updated.length - 1] = { role: "assistant", content: assistantContent };
                 return updated;
               });
-            }
-            if (event.type === "done" && event.sessionId) {
+            } else if (event.type === "done" && event.sessionId) {
               setSessionId(event.sessionId);
             }
           } catch {

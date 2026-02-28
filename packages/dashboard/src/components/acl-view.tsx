@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { useFetch } from "@/lib/use-fetch";
 
 interface AclRule {
   source: string;
@@ -12,31 +12,7 @@ interface AclRule {
 }
 
 export function AclView() {
-  const [rules, setRules] = useState<AclRule[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    async function fetchRules() {
-      try {
-        const res = await fetch("/api/acl");
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({ error: "Failed to fetch" }));
-          if (active) setError(body.error ?? "Failed to fetch ACL rules");
-          return;
-        }
-        const data = await res.json();
-        if (active) { setRules(data); setError(null); }
-      } catch {
-        if (active) setError("Failed to connect to server");
-      } finally {
-        if (active) setLoading(false);
-      }
-    }
-    fetchRules();
-    return () => { active = false; };
-  }, []);
+  const { data: rules, loading, error } = useFetch<AclRule[]>("/api/acl");
 
   if (loading) {
     return <Skeleton className="h-48 rounded-lg" />;
@@ -50,7 +26,7 @@ export function AclView() {
     );
   }
 
-  if (rules.length === 0) {
+  if (!rules || rules.length === 0) {
     return (
       <div className="rounded-lg border border-border bg-card p-8 text-center">
         <p className="text-sm text-muted-foreground">No ACL rules defined.</p>

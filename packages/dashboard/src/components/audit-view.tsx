@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { useFetch } from "@/lib/use-fetch";
 
 interface AuditEntry {
   ts: string;
@@ -22,32 +22,7 @@ const resultBadge = {
 };
 
 export function AuditView() {
-  const [entries, setEntries] = useState<AuditEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    async function fetchAudit() {
-      try {
-        const res = await fetch("/api/audit?limit=100");
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({ error: "Failed to fetch" }));
-          if (active) setError(body.error ?? "Failed to fetch audit log");
-          return;
-        }
-        const data = await res.json();
-        if (active) { setEntries(data); setError(null); }
-      } catch {
-        if (active) setError("Failed to connect to server");
-      } finally {
-        if (active) setLoading(false);
-      }
-    }
-    fetchAudit();
-    const interval = setInterval(fetchAudit, 10000);
-    return () => { active = false; clearInterval(interval); };
-  }, []);
+  const { data: entries, loading, error } = useFetch<AuditEntry[]>("/api/audit?limit=100", { interval: 10000 });
 
   if (loading) {
     return <Skeleton className="h-48 rounded-lg" />;
@@ -61,7 +36,7 @@ export function AuditView() {
     );
   }
 
-  if (entries.length === 0) {
+  if (!entries || entries.length === 0) {
     return (
       <div className="rounded-lg border border-border bg-card p-8 text-center">
         <p className="text-sm text-muted-foreground">No audit entries found.</p>

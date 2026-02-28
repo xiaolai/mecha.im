@@ -40,6 +40,11 @@ export async function startDashboard(opts: StartDashboardOpts): Promise<() => Pr
     });
   });
 
+  // Handle post-listen errors (e.g. EMFILE) to prevent unhandled crash
+  server.on("error", (err) => {
+    console.error("[dashboard] server error:", err.message);
+  });
+
   return async () => {
     await new Promise<void>((resolve) => {
       server.close(() => resolve());
