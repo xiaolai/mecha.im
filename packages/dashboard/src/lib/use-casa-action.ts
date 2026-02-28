@@ -12,8 +12,9 @@ interface UseCasaActionResult {
  * Shared hook for stop/kill CASA actions with loading + error state.
  * @param name - CASA name
  * @param onDone - optional callback after action completes (e.g. refetch)
+ * @param node - optional node name for remote dispatch
  */
-export function useCasaAction(name: string, onDone?: () => void): UseCasaActionResult {
+export function useCasaAction(name: string, onDone?: () => void, node?: string): UseCasaActionResult {
   const [acting, setActing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -21,7 +22,8 @@ export function useCasaAction(name: string, onDone?: () => void): UseCasaActionR
     setActing(true);
     setActionError(null);
     try {
-      const res = await fetch(`/api/casas/${encodeURIComponent(name)}/${action}`, { method: "POST" });
+      const nodeQuery = node && node !== "local" ? `?node=${encodeURIComponent(node)}` : "";
+      const res = await fetch(`/api/casas/${encodeURIComponent(name)}/${action}${nodeQuery}`, { method: "POST" });
       if (!res.ok) {
         const body = await res.json().catch(() => ({ error: "Request failed" }));
         setActionError(body.error ?? `Failed to ${action}`);
@@ -32,7 +34,7 @@ export function useCasaAction(name: string, onDone?: () => void): UseCasaActionR
       setActing(false);
       onDone?.();
     }
-  }, [name, onDone]);
+  }, [name, node, onDone]);
 
   return { acting, actionError, handleAction };
 }

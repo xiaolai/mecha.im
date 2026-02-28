@@ -40,6 +40,7 @@ mecha dashboard serve
        ├── /api/mesh/nodes    → Mesh topology
        ├── /api/meter/cost    → Metering data
        ├── /api/settings/runtime → Runtime config
+       ├── /ws/terminal/:name → WebSocket terminal (PTY)
        └── /                  → Dashboard UI
 ```
 
@@ -65,7 +66,7 @@ The home page also shows a **metering summary** — four cards showing today's r
 
 The detail view shows full information for a single CASA:
 
-- **Header**: Name, status badge, action buttons (Chat, Stop, Kill)
+- **Header**: Name, status badge, action buttons (Terminal, Stop, Kill)
 - **Overview cards**: Port, workspace path, start time
 - **Tags**: Displayed as badges
 - **Sessions tab**: Table of all sessions (ID, title, created, updated)
@@ -73,26 +74,41 @@ The detail view shows full information for a single CASA:
 
 Data auto-refreshes every **5 seconds**.
 
-### Chat
+### Terminal
 
-Send messages to a running CASA via a built-in chat interface. Messages stream back in real time via SSE.
+Attach to any CASA session in a real terminal emulator powered by xterm.js. The terminal connects to `claude --resume <session>` via a WebSocket-to-PTY bridge, providing the full Claude Code experience in the browser.
 
-- User messages appear right-aligned (primary color)
-- Assistant responses appear left-aligned (muted background)
-- Session ID is displayed after the first response
-- Session continuity is maintained across messages within the same chat
+- **Session selector**: Dropdown of existing sessions or "New Session" button
+- **Full PTY**: ANSI colors, cursor movement, progress bars — everything works
+- **Resize**: Terminal resizes with browser window via `@xterm/addon-fit`
+- **Scrollback**: 10,000-line scrollback buffer
+- **Theme**: Matches dashboard dark/light mode
+- **Detach/Reattach**: Close the tab without killing the session. Reopen to reconnect.
+- **Multi-tab**: Multiple browser tabs can attach to the same PTY session
+- **Remote CASAs**: Terminal works for CASAs on remote nodes via WebSocket relay through the agent server
 
-The chat uses `requestAnimationFrame` throttling to batch stream updates and avoid excessive re-renders.
+The WebSocket endpoint is `ws://host:port/ws/terminal/<casa-name>?session=<id>&node=<node>`. Session auth is validated during the HTTP upgrade handshake.
 
 ### Mesh Topology
 
-View all registered peer nodes in a 3-column grid. Each card shows:
+View all registered peer nodes in a 3-column grid with live health status. Each card shows:
 
-- Node name and "managed" badge (if applicable)
-- Host and port (monospace)
-- Public key fingerprint (truncated, full value on hover)
-- Server URL (if configured)
-- Date added
+- Status dot (green for online, red for offline)
+- Node name and status badge
+- Latency in ms (online nodes)
+- CASA count (online nodes)
+- Error message (offline nodes)
+
+Health data auto-refreshes every **30 seconds** via the `fetchAllNodes` mesh proxy.
+
+### Mesh-Wide Management
+
+The dashboard manages CASAs across all mesh nodes from a single interface:
+
+- **Unified CASA list**: The home page shows local and remote CASAs together. Remote CASAs display a `@ node-name` badge.
+- **Node dispatch**: All CASA API routes accept `?node=X` to proxy requests to remote nodes. Local operations use the in-process ProcessManager.
+- **Remote actions**: Stop, Kill, and session listing work on remote CASAs through the agent server proxy.
+- **Detail view**: The CASA detail page shows a node badge and routes actions through `?node=X` for remote CASAs. Terminal works for both local and remote CASAs via WebSocket relay.
 
 ### ACL Rules
 
@@ -146,26 +162,39 @@ All endpoints are served under `/api/` and protected by the security middleware.
 
 #### `GET /api/casas`
 
-List all CASAs. Bearer tokens are redacted from the response.
+List all CASAs (local + remote). Bearer tokens are redacted from the response.
 
 ```json
 // Response 200
-[
-  {
-    "name": "researcher",
-    "state": "running",
-    "pid": 12345,
-    "port": 7701,
-    "workspacePath": "/home/user/papers",
-    "startedAt": "2026-02-28T10:00:00Z",
-    "tags": ["research", "prod"]
+{
+  "casas": [
+    {
+      "name": "researcher",
+      "node": "local",
+      "state": "running",
+      "pid": 12345,
+      "port": 7701,
+      "workspacePath": "/home/user/papers",
+      "startedAt": "2026-02-28T10:00:00Z",
+      "tags": ["research", "prod"]
+    },
+    {
+      "name": "analyst",
+      "node": "bob",
+      "state": "running",
+      "port": 7702
+    }
+  ],
+  "nodeStatus": {
+    "local": { "name": "local", "status": "online" },
+    "bob": { "name": "bob", "status": "online", "latencyMs": 23 }
   }
-]
+}
 ```
 
 #### `GET /api/casas/[name]`
 
-Get status for a single CASA. Token redacted.
+Get status for a single CASA. Token redacted. Supports `?node=X` for remote dispatch.
 
 ```json
 // Response 200
@@ -180,10 +209,16 @@ Get status for a single CASA. Token redacted.
 }
 ```
 
+| Query param | Description |
+|-------------|-------------|
+| `node` | Node name for remote dispatch (omit or "local" for local) |
+
 | Status | Condition |
 |--------|-----------|
 | 200 | Success |
-| 400 | Invalid CASA name |
+| 400 | Invalid CASA name or node name |
+| 404 | Node not found |
+| 502 | Remote node unreachable |
 | 500 | Internal error |
 
 #### `DELETE /api/casas/[name]`
@@ -213,49 +248,37 @@ Force kill (sends SIGKILL immediately).
 { "ok": true }
 ```
 
-### Chat
+### Terminal WebSocket
 
-#### `POST /api/casas/[name]/chat`
+#### `WS /ws/terminal/<name>?session=<id>&node=<node>`
 
-Send a message to a running CASA. Response is an SSE stream.
+Attach to a CASA session via WebSocket. The server spawns (or reattaches to) a `claude --resume <session>` PTY process.
 
-**Request body:**
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `name` | yes | CASA name |
+| `session` | no | Session ID to resume (omit for new session) |
+| `node` | no | Node name for remote CASAs (omit or "local" for local) |
 
-```json
-{
-  "message": "Summarize the latest papers",
-  "sessionId": "optional-session-id"
-}
-```
+**Protocol:**
 
-| Field | Type | Required | Constraint |
-|-------|------|----------|------------|
-| `message` | string | yes | Max 100,000 characters |
-| `sessionId` | string | no | Resume an existing session |
+| Direction | Frame Type | Payload | Description |
+|-----------|-----------|---------|-------------|
+| Client to Server | Binary | Raw keystrokes | Terminal input |
+| Client to Server | Text (JSON) | `{ "type": "resize", "cols": N, "rows": N }` | Terminal resize |
+| Server to Client | Binary | PTY output bytes | Terminal output (ANSI preserved) |
+| Server to Client | Text (JSON) | `{ "type": "session", "id": "..." }` | Session ID assigned |
+| Server to Client | Text (JSON) | `{ "type": "error", "message": "..." }` | Error notification |
+| Server to Client | Text (JSON) | `{ "type": "exit", "code": N }` | PTY process exited |
 
-**Response:** `text/event-stream`
+**Auth:** Session cookie is validated during the HTTP upgrade handshake. Unauthenticated upgrades are rejected with 401.
 
-```
-data: {"type":"text","content":"Here are the latest"}
+**Backpressure:** If the client falls behind (`bufferedAmount > 1MB`), output frames are dropped until the client catches up.
 
-data: {"type":"text","content":" findings from..."}
-
-data: {"type":"done","sessionId":"sess_abc123"}
-```
-
-| Event type | Fields | Description |
-|------------|--------|-------------|
-| `text` | `content: string` | Streamed text chunk |
-| `done` | `sessionId: string` | Chat complete |
-| `error` | `content: string` | Error occurred |
-
-| Status | Condition |
-|--------|-----------|
-| 200 | Stream started |
-| 400 | Invalid JSON, missing message, message too long, invalid name |
-| 503 | Dashboard not initialized |
-
-The stream supports client-side abort via the request signal. If the client disconnects, the server-side iterator is cancelled cleanly.
+**Close semantics:**
+- Client closes WebSocket: PTY stays alive (detached). Client can reconnect.
+- PTY exits: Server sends `{ "type": "exit" }` and closes WebSocket.
+- Server shutdown: All PTYs receive SIGHUP.
 
 ### Sessions
 
@@ -345,18 +368,21 @@ Read the audit log.
 
 #### `GET /api/mesh/nodes`
 
-List mesh peer nodes. The `apiKey` field is redacted from the response.
+List mesh peer nodes with live health status.
 
 ```json
 // Response 200
 [
   {
     "name": "bob",
-    "host": "192.168.1.100",
-    "port": 7660,
-    "fingerprint": "SHA256:abc...",
-    "managed": true,
-    "addedAt": "2026-02-28T09:00:00Z"
+    "status": "online",
+    "latencyMs": 23,
+    "casaCount": 2
+  },
+  {
+    "name": "charlie",
+    "status": "offline",
+    "error": "unreachable"
   }
 ]
 ```
@@ -444,7 +470,7 @@ The full error details are logged server-side via structured JSON logging (times
 
 ## Polling Intervals
 
-The dashboard uses client-side polling for data freshness. No WebSocket connection is required for basic operation.
+The dashboard uses client-side polling for data freshness. WebSocket connections are used only for the terminal feature.
 
 | View | Interval | Endpoint |
 |------|----------|----------|
@@ -452,7 +478,8 @@ The dashboard uses client-side polling for data freshness. No WebSocket connecti
 | CASA Detail | 5s | `GET /api/casas/[name]` |
 | Audit Log | 10s | `GET /api/audit?limit=100` |
 | Meter Summary | 30s | `GET /api/meter/cost` |
-| Mesh/ACL/Settings | One-shot | Respective endpoints |
+| Mesh Nodes | 30s | `GET /api/mesh/nodes` |
+| ACL/Settings | One-shot | Respective endpoints |
 
 All polling uses `AbortController` to cancel in-flight requests when a new poll starts or the component unmounts — preventing race conditions and stale data.
 
