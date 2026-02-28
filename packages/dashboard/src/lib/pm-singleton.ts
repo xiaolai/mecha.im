@@ -49,6 +49,7 @@ export function getSessionTtlHours(): number {
 /** Minimal structured logger for dashboard API routes. */
 export const log = {
   info(route: string, msg: string, data?: Record<string, unknown>) {
+    // eslint-disable-next-line no-console
     console.info(JSON.stringify({ level: "info", route, msg, ...data, ts: new Date().toISOString() }));
   },
   warn(route: string, msg: string, data?: Record<string, unknown>) {

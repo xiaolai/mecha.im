@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { getOtpSecret } from "../../../../lib/totp.js";
-import { deriveSessionKey, verifySessionToken, SESSION_COOKIE } from "../../../../lib/session.js";
+import { getOtpSecret } from "@/lib/totp";
+import { deriveSessionKey, verifySessionToken, SESSION_COOKIE } from "@/lib/session";
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const secret = getOtpSecret();
