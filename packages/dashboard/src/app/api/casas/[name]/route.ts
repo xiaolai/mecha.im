@@ -3,15 +3,23 @@ import { MechaError } from "@mecha/core";
 import { casaStatus } from "@mecha/service";
 import { getProcessManager, log } from "@/lib/pm-singleton";
 import { parseCasaNameParam } from "@/lib/params";
+import { resolveNodeParam, proxyRequest } from "@/lib/node-dispatch";
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ name: string }> },
 ): Promise<NextResponse> {
   try {
     const { name: raw } = await params;
     const [name, err] = parseCasaNameParam(raw);
     if (err) return err;
+
+    const dispatch = await resolveNodeParam(req);
+    if ("error" in dispatch) return dispatch.error;
+    if (dispatch.node) {
+      return proxyRequest(dispatch.node, "GET", `/casas/${encodeURIComponent(raw)}/status`);
+    }
+
     const pm = getProcessManager();
     const { token: _token, ...safe } = casaStatus(pm, name) as Record<string, unknown>;
     return NextResponse.json(safe);
@@ -25,13 +33,20 @@ export async function GET(
 }
 
 export async function DELETE(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ name: string }> },
 ): Promise<NextResponse> {
   try {
     const { name: raw } = await params;
     const [name, err] = parseCasaNameParam(raw);
     if (err) return err;
+
+    const dispatch = await resolveNodeParam(req);
+    if ("error" in dispatch) return dispatch.error;
+    if (dispatch.node) {
+      return proxyRequest(dispatch.node, "POST", `/casas/${encodeURIComponent(raw)}/kill`);
+    }
+
     const pm = getProcessManager();
     await pm.kill(name);
     return NextResponse.json({ ok: true });

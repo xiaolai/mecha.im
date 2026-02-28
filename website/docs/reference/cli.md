@@ -300,6 +300,30 @@ mecha node ping bob --server wss://my-rendezvous.example.com
 
 For **managed** nodes, checks online status via the rendezvous server. For **HTTP** nodes, pings the `/healthz` endpoint.
 
+### `mecha node health`
+
+Check health of mesh nodes with latency and CASA count.
+
+```bash
+mecha node health [name]
+```
+
+| Argument | Description |
+|----------|-------------|
+| `[name]` | Specific node name (omit for all) |
+
+```bash
+# Check all nodes
+mecha node health
+
+# Check a specific node
+mecha node health bob
+```
+
+For **HTTP** nodes, checks `/healthz` and fetches CASA count from `/casas`. For **managed** nodes, checks online status via the rendezvous server.
+
+Output shows: node name, latency in ms, CASA count (if available), and node type (http/managed).
+
 ### `mecha node rm`
 
 Remove a remote node.

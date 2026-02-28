@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createAgentServer } from "../src/server.js";
 import type { AclEngine, CasaName } from "@mecha/core";
-import type { ProcessInfo } from "@mecha/process";
+import type { ProcessInfo, ProcessManager } from "@mecha/process";
 import { makeAcl, writeCasaConfig } from "../../core/__tests__/test-utils.js";
 import { makePm } from "../../service/__tests__/test-utils.js";
 
@@ -113,6 +113,304 @@ describe("AgentServer", () => {
       const res = await app.inject({
         method: "GET",
         url: "/casas/BAD_NAME/status",
+        headers: { authorization: "Bearer test-key" },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+  });
+
+  describe("POST /casas/:name/stop", () => {
+    it("stops a running CASA", async () => {
+      const list: ProcessInfo[] = [
+        { name: "coder" as CasaName, state: "running", port: 7700, workspacePath: "/ws" },
+      ];
+      const pm = makePm(list);
+      const app = createServer({ pm });
+
+      const res = await app.inject({
+        method: "POST",
+        url: "/casas/coder/stop",
+        headers: { authorization: "Bearer test-key" },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().ok).toBe(true);
+      expect(pm.stop).toHaveBeenCalledWith("coder");
+    });
+
+    it("returns 404 for unknown CASA", async () => {
+      const app = createServer();
+      const res = await app.inject({
+        method: "POST",
+        url: "/casas/ghost/stop",
+        headers: { authorization: "Bearer test-key" },
+      });
+      expect(res.statusCode).toBe(404);
+    });
+
+    it("returns 400 for invalid CASA name", async () => {
+      const app = createServer();
+      const res = await app.inject({
+        method: "POST",
+        url: "/casas/BAD_NAME/stop",
+        headers: { authorization: "Bearer test-key" },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it("returns 403 for stopped CASA", async () => {
+      const list: ProcessInfo[] = [
+        { name: "coder" as CasaName, state: "stopped", workspacePath: "/ws" },
+      ];
+      const app = createServer({ pm: makePm(list) });
+
+      const res = await app.inject({
+        method: "POST",
+        url: "/casas/coder/stop",
+        headers: { authorization: "Bearer test-key" },
+      });
+      expect(res.statusCode).toBe(403);
+    });
+  });
+
+  describe("POST /casas/:name/kill", () => {
+    it("kills a CASA", async () => {
+      const list: ProcessInfo[] = [
+        { name: "coder" as CasaName, state: "running", port: 7700, workspacePath: "/ws" },
+      ];
+      const pm = makePm(list);
+      const app = createServer({ pm });
+
+      const res = await app.inject({
+        method: "POST",
+        url: "/casas/coder/kill",
+        headers: { authorization: "Bearer test-key" },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().ok).toBe(true);
+      expect(pm.kill).toHaveBeenCalledWith("coder");
+    });
+
+    it("returns 404 for unknown CASA", async () => {
+      const app = createServer();
+      const res = await app.inject({
+        method: "POST",
+        url: "/casas/ghost/kill",
+        headers: { authorization: "Bearer test-key" },
+      });
+      expect(res.statusCode).toBe(404);
+    });
+
+    it("returns 400 for invalid CASA name", async () => {
+      const app = createServer();
+      const res = await app.inject({
+        method: "POST",
+        url: "/casas/BAD_NAME/kill",
+        headers: { authorization: "Bearer test-key" },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+  });
+
+  describe("POST /casas (spawn)", () => {
+    it("spawns a new CASA", async () => {
+      const pm = makePm();
+      (pm.spawn as ReturnType<typeof vi.fn>).mockResolvedValue({
+        name: "analyst",
+        state: "running",
+        port: 7702,
+        workspacePath: "/data",
+      });
+      const app = createServer({ pm });
+
+      const res = await app.inject({
+        method: "POST",
+        url: "/casas",
+        headers: { authorization: "Bearer test-key" },
+        payload: { name: "analyst", workspacePath: "/data" },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.ok).toBe(true);
+      expect(body.name).toBe("analyst");
+      expect(body.port).toBe(7702);
+    });
+
+    it("returns 400 for missing name", async () => {
+      const app = createServer();
+      const res = await app.inject({
+        method: "POST",
+        url: "/casas",
+        headers: { authorization: "Bearer test-key" },
+        payload: { workspacePath: "/data" },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it("returns 400 for invalid name", async () => {
+      const app = createServer();
+      const res = await app.inject({
+        method: "POST",
+        url: "/casas",
+        headers: { authorization: "Bearer test-key" },
+        payload: { name: "BAD_NAME", workspacePath: "/data" },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it("returns 400 for missing workspacePath", async () => {
+      const app = createServer();
+      const res = await app.inject({
+        method: "POST",
+        url: "/casas",
+        headers: { authorization: "Bearer test-key" },
+        payload: { name: "analyst" },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it("returns 409 for duplicate CASA", async () => {
+      const list: ProcessInfo[] = [
+        { name: "analyst" as CasaName, state: "running", port: 7702, workspacePath: "/data" },
+      ];
+      const app = createServer({ pm: makePm(list) });
+
+      const res = await app.inject({
+        method: "POST",
+        url: "/casas",
+        headers: { authorization: "Bearer test-key" },
+        payload: { name: "analyst", workspacePath: "/data" },
+      });
+      expect(res.statusCode).toBe(409);
+    });
+  });
+
+  describe("GET /casas/:name/sessions", () => {
+    it("returns sessions for valid CASA", async () => {
+      const list: ProcessInfo[] = [
+        { name: "coder" as CasaName, state: "running", port: 7700, workspacePath: "/ws" },
+      ];
+      const pm = makePm(list);
+      (pm.getPortAndToken as ReturnType<typeof vi.fn>).mockReturnValue({ port: 7700, token: "tok" });
+
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response(JSON.stringify([{ id: "s1", title: "Session 1" }]), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+
+      const app = createServer({ pm });
+      const res = await app.inject({
+        method: "GET",
+        url: "/casas/coder/sessions",
+        headers: { authorization: "Bearer test-key" },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body).toHaveLength(1);
+      expect(body[0].id).toBe("s1");
+    });
+
+    it("returns 404 for unknown CASA", async () => {
+      const app = createServer();
+      const res = await app.inject({
+        method: "GET",
+        url: "/casas/ghost/sessions",
+        headers: { authorization: "Bearer test-key" },
+      });
+      expect(res.statusCode).toBe(404);
+    });
+
+    it("returns 400 for invalid CASA name", async () => {
+      const app = createServer();
+      const res = await app.inject({
+        method: "GET",
+        url: "/casas/BAD_NAME/sessions",
+        headers: { authorization: "Bearer test-key" },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it("returns 502 when session fetch fails", async () => {
+      const list: ProcessInfo[] = [
+        { name: "coder" as CasaName, state: "running", port: 7700, workspacePath: "/ws" },
+      ];
+      const pm = makePm(list);
+      (pm.getPortAndToken as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
+
+      const app = createServer({ pm });
+      const res = await app.inject({
+        method: "GET",
+        url: "/casas/coder/sessions",
+        headers: { authorization: "Bearer test-key" },
+      });
+      expect(res.statusCode).toBe(502);
+    });
+  });
+
+  describe("GET /casas/:name/sessions/:id", () => {
+    it("returns specific session", async () => {
+      const list: ProcessInfo[] = [
+        { name: "coder" as CasaName, state: "running", port: 7700, workspacePath: "/ws" },
+      ];
+      const pm = makePm(list);
+      (pm.getPortAndToken as ReturnType<typeof vi.fn>).mockReturnValue({ port: 7700, token: "tok" });
+
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response(JSON.stringify({ id: "s1", messages: [] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+
+      const app = createServer({ pm });
+      const res = await app.inject({
+        method: "GET",
+        url: "/casas/coder/sessions/s1",
+        headers: { authorization: "Bearer test-key" },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().id).toBe("s1");
+    });
+
+    it("returns 404 for unknown session", async () => {
+      const list: ProcessInfo[] = [
+        { name: "coder" as CasaName, state: "running", port: 7700, workspacePath: "/ws" },
+      ];
+      const pm = makePm(list);
+      (pm.getPortAndToken as ReturnType<typeof vi.fn>).mockReturnValue({ port: 7700, token: "tok" });
+
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response(JSON.stringify(null), {
+          status: 404,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+
+      const app = createServer({ pm });
+      const res = await app.inject({
+        method: "GET",
+        url: "/casas/coder/sessions/ghost",
+        headers: { authorization: "Bearer test-key" },
+      });
+      expect(res.statusCode).toBe(404);
+    });
+
+    it("returns 404 for unknown CASA", async () => {
+      const app = createServer();
+      const res = await app.inject({
+        method: "GET",
+        url: "/casas/ghost/sessions/s1",
+        headers: { authorization: "Bearer test-key" },
+      });
+      expect(res.statusCode).toBe(404);
+    });
+
+    it("returns 400 for invalid CASA name", async () => {
+      const app = createServer();
+      const res = await app.inject({
+        method: "GET",
+        url: "/casas/BAD_NAME/sessions/s1",
         headers: { authorization: "Bearer test-key" },
       });
       expect(res.statusCode).toBe(400);

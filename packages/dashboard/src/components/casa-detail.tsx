@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeftIcon, SquareIcon, OctagonXIcon, MessageSquareIcon } from "lucide-react";
+import { ArrowLeftIcon, SquareIcon, OctagonXIcon, TerminalSquareIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,15 +16,17 @@ import type { CasaInfo } from "./casa-card";
 
 interface CasaDetailProps {
   name: string;
+  node?: string;
 }
 
-export function CasaDetail({ name }: CasaDetailProps) {
+export function CasaDetail({ name, node }: CasaDetailProps) {
+  const nodeQuery = node && node !== "local" ? `?node=${encodeURIComponent(node)}` : "";
   const { data: casa, loading, error, refetch } = useFetch<CasaInfo>(
-    `/api/casas/${encodeURIComponent(name)}`,
-    { interval: 5000, deps: [name] },
+    `/api/casas/${encodeURIComponent(name)}${nodeQuery}`,
+    { interval: 5000, deps: [name, node] },
   );
 
-  const { acting, actionError, handleAction } = useCasaAction(name, refetch);
+  const { acting, actionError, handleAction } = useCasaAction(name, refetch, node);
 
   if (loading) {
     return (
@@ -61,12 +63,15 @@ export function CasaDetail({ name }: CasaDetailProps) {
           <span className={cn("size-2.5 rounded-full", style.dot)} />
           <h1 className="text-lg font-semibold text-foreground">{casa.name}</h1>
           <Badge variant={style.badge}>{casa.state}</Badge>
+          {node && node !== "local" && (
+            <span className="text-xs text-muted-foreground font-mono">@ {node}</span>
+          )}
         </div>
         {casa.state === "running" && (
           <div className="flex items-center gap-3">
             <Button variant="default" size="sm" asChild>
-              <Link href={`/casa/${encodeURIComponent(name)}/chat`}>
-                <MessageSquareIcon className="size-4" /> Chat
+              <Link href={`/casa/${encodeURIComponent(name)}/terminal${nodeQuery}`}>
+                <TerminalSquareIcon className="size-4" /> Terminal
               </Link>
             </Button>
             <Button variant="outline" size="sm" disabled={acting} onClick={() => handleAction("stop")}>
@@ -102,7 +107,7 @@ export function CasaDetail({ name }: CasaDetailProps) {
         <div className="rounded-lg border border-border bg-card p-4">
           <div className="text-xs font-medium text-muted-foreground mb-1">WORKSPACE</div>
           <div className="truncate text-sm font-mono text-card-foreground" title={casa.workspacePath}>
-            {casa.workspacePath}
+            {casa.workspacePath ?? "—"}
           </div>
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
@@ -129,7 +134,7 @@ export function CasaDetail({ name }: CasaDetailProps) {
           <TabsTrigger value="config">Config</TabsTrigger>
         </TabsList>
         <TabsContent value="sessions">
-          <SessionList name={name} />
+          <SessionList name={name} node={node} />
         </TabsContent>
         <TabsContent value="config">
           <div className="rounded-lg border border-border bg-card p-4">

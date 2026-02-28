@@ -2,9 +2,11 @@ import { CasaDetail } from "@/components/casa-detail";
 
 interface CasaPageProps {
   params: Promise<{ name: string }>;
+  searchParams: Promise<{ node?: string }>;
 }
 
-export default async function CasaPage({ params }: CasaPageProps) {
+export default async function CasaPage({ params, searchParams }: CasaPageProps) {
   const { name } = await params;
-  return <CasaDetail name={name} />;
+  const { node } = await searchParams;
+  return <CasaDetail name={name} node={node} />;
 }

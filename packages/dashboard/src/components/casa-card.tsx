@@ -16,6 +16,7 @@ export interface CasaInfo {
   workspacePath: string;
   startedAt?: string;
   tags: string[];
+  node?: string;
 }
 
 interface CasaCardProps {
@@ -24,12 +25,12 @@ interface CasaCardProps {
 
 export function CasaCard({ casa }: CasaCardProps) {
   const style = stateStyles[casa.state];
-  const { acting, actionError, handleAction } = useCasaAction(casa.name);
+  const { acting, actionError, handleAction } = useCasaAction(casa.name, undefined, casa.node);
 
   return (
     <div className="relative flex flex-col gap-3 rounded-lg border border-border bg-card p-4 transition-colors hover:bg-accent/50">
       <Link
-        href={`/casa/${encodeURIComponent(casa.name)}`}
+        href={`/casa/${encodeURIComponent(casa.name)}${casa.node && casa.node !== "local" ? `?node=${encodeURIComponent(casa.node)}` : ""}`}
         className="absolute inset-0 rounded-lg"
         aria-label={`View ${casa.name}`}
       />
@@ -38,6 +39,9 @@ export function CasaCard({ casa }: CasaCardProps) {
         <div className="flex items-center gap-2">
           <span className={cn("size-2 rounded-full", style.dot)} />
           <span className="text-sm font-semibold text-card-foreground">{casa.name}</span>
+          {casa.node && casa.node !== "local" && (
+            <span className="text-xs text-muted-foreground font-mono">@ {casa.node}</span>
+          )}
         </div>
         <Badge variant={style.badge}>{casa.state}</Badge>
       </div>
@@ -49,13 +53,15 @@ export function CasaCard({ casa }: CasaCardProps) {
             Port: <span className="font-mono">{casa.port}</span>
           </span>
         )}
-        <span className="truncate" title={casa.workspacePath}>
-          {casa.workspacePath}
-        </span>
+        {casa.workspacePath && (
+          <span className="truncate" title={casa.workspacePath}>
+            {casa.workspacePath}
+          </span>
+        )}
       </div>
 
       {/* Tags */}
-      {casa.tags.length > 0 && (
+      {casa.tags && casa.tags.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {casa.tags.map((tag) => (
             <Badge key={tag} variant="outline" className="text-xs">

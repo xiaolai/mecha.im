@@ -4,11 +4,23 @@ import type { AclEngine } from "@mecha/core";
 let _pm: ProcessManager | undefined;
 let _mechaDir: string | undefined;
 let _acl: AclEngine | undefined;
+let _networkMode = false;
+let _sessionTtlHours = 24;
 
-export function setProcessManager(pm: ProcessManager, mechaDir: string, acl: AclEngine): void {
+export interface DashboardSingletonOpts {
+  pm: ProcessManager;
+  mechaDir: string;
+  acl: AclEngine;
+  networkMode?: boolean;
+  sessionTtlHours?: number;
+}
+
+export function setProcessManager(pm: ProcessManager, mechaDir: string, acl: AclEngine, opts?: { networkMode?: boolean; sessionTtlHours?: number }): void {
   _pm = pm;
   _mechaDir = mechaDir;
   _acl = acl;
+  _networkMode = opts?.networkMode ?? false;
+  _sessionTtlHours = opts?.sessionTtlHours ?? 24;
 }
 
 export function getProcessManager(): ProcessManager {
@@ -24,6 +36,14 @@ export function getMechaDir(): string {
 export function getAcl(): AclEngine {
   if (!_acl) throw new Error("AclEngine not initialized — was startDashboard() called?");
   return _acl;
+}
+
+export function getNetworkMode(): boolean {
+  return _networkMode;
+}
+
+export function getSessionTtlHours(): number {
+  return _sessionTtlHours;
 }
 
 /** Minimal structured logger for dashboard API routes. */

@@ -2,15 +2,23 @@ import { NextResponse } from "next/server";
 import { MechaError } from "@mecha/core";
 import { getProcessManager, log } from "@/lib/pm-singleton";
 import { parseCasaNameParam } from "@/lib/params";
+import { resolveNodeParam, proxyRequest } from "@/lib/node-dispatch";
 
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ name: string }> },
 ): Promise<NextResponse> {
   try {
     const { name: raw } = await params;
     const [name, err] = parseCasaNameParam(raw);
     if (err) return err;
+
+    const dispatch = await resolveNodeParam(req);
+    if ("error" in dispatch) return dispatch.error;
+    if (dispatch.node) {
+      return proxyRequest(dispatch.node, "POST", `/casas/${encodeURIComponent(raw)}/stop`);
+    }
+
     const pm = getProcessManager();
     await pm.stop(name);
     return NextResponse.json({ ok: true });

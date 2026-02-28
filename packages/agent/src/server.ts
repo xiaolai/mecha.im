@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance } from "fastify";
+import fastifyWebSocket from "@fastify/websocket";
 import { type AclEngine, readNodes, verifySignature } from "@mecha/core";
 import type { ProcessManager } from "@mecha/process";
 import { createAuthHook, createSignatureHook } from "./auth.js";
@@ -6,6 +7,9 @@ import { registerHealthRoutes } from "./routes/health.js";
 import { registerCasaRoutes } from "./routes/casas.js";
 import { registerRoutingRoutes } from "./routes/routing.js";
 import { registerDiscoverRoutes } from "./routes/discover.js";
+import { registerSessionRoutes } from "./routes/sessions.js";
+import { registerTerminalRoutes } from "./routes/terminal.js";
+import { createPtyManager, type PtySpawnFn } from "./pty-manager.js";
 
 export interface AgentServerOpts {
   port: number;
@@ -14,6 +18,8 @@ export interface AgentServerOpts {
   acl: AclEngine;
   mechaDir: string;
   nodeName: string;
+  /** Injected PTY spawn function (for terminal WS). Omit to disable terminal. */
+  ptySpawnFn?: PtySpawnFn;
 }
 
 export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
@@ -49,6 +55,23 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
   registerCasaRoutes(app, opts.processManager);
   registerRoutingRoutes(app, { mechaDir: opts.mechaDir, acl: opts.acl });
   registerDiscoverRoutes(app, { mechaDir: opts.mechaDir, pm: opts.processManager });
+  registerSessionRoutes(app, opts.processManager);
+
+  /* v8 ignore start -- terminal WS wiring tested in terminal.test.ts + pty-manager.test.ts */
+  if (opts.ptySpawnFn) {
+    app.register(fastifyWebSocket);
+    const ptyManager = createPtyManager({
+      processManager: opts.processManager,
+      mechaDir: opts.mechaDir,
+      spawnFn: opts.ptySpawnFn,
+    });
+    registerTerminalRoutes(app, ptyManager);
+
+    app.addHook("onClose", () => {
+      ptyManager.shutdown();
+    });
+  }
+  /* v8 ignore stop */
 
   return app;
 }

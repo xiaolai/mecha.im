@@ -1,9 +1,14 @@
 import { createServer } from "node:http";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { WebSocketServer } from "ws";
 import type { ProcessManager } from "@mecha/process";
 import type { AclEngine } from "@mecha/core";
+import { getNode } from "@mecha/core";
 import { setProcessManager } from "./lib/pm-singleton.js";
+import { parseSessionCookie, verifySessionToken, deriveSessionKey } from "./lib/session.js";
+import { createPtyManager } from "./lib/pty-manager.js";
+import { handleTerminalConnection } from "./lib/ws-handler.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -13,10 +18,26 @@ export interface StartDashboardOpts {
   processManager: ProcessManager;
   mechaDir: string;
   acl: AclEngine;
+  sessionTtlHours?: number;
 }
 
 export async function startDashboard(opts: StartDashboardOpts): Promise<() => Promise<void>> {
-  setProcessManager(opts.processManager, opts.mechaDir, opts.acl);
+  const isNetworkHost = opts.host !== "127.0.0.1" && opts.host !== "localhost";
+  if (isNetworkHost && !process.env.MECHA_OTP) {
+    throw new Error(
+      "MECHA_OTP not set. Run 'mecha dashboard totp setup' to generate a TOTP secret before exposing the dashboard to the network.",
+    );
+  }
+
+  // Set env var for middleware (Edge runtime can read process.env)
+  if (isNetworkHost) {
+    process.env.MECHA_NETWORK_MODE = "true";
+  }
+
+  setProcessManager(opts.processManager, opts.mechaDir, opts.acl, {
+    networkMode: isNetworkHost,
+    sessionTtlHours: opts.sessionTtlHours,
+  });
 
   // Next.js dir is the package root (one level up from dist/)
   const dir = join(__dirname, "..");
@@ -31,6 +52,46 @@ export async function startDashboard(opts: StartDashboardOpts): Promise<() => Pr
   await app.prepare();
 
   const server = createServer(handle);
+
+  // PTY manager for terminal WebSocket connections
+  const nodePty = await import("node-pty");
+  const ptyManager = createPtyManager({
+    processManager: opts.processManager,
+    mechaDir: opts.mechaDir,
+    spawnFn: nodePty.spawn,
+  });
+
+  // WebSocket server for terminal connections
+  const wss = new WebSocketServer({ noServer: true });
+
+  server.on("upgrade", (request, socket, head) => {
+    const url = new URL(request.url!, `http://${request.headers.host}`);
+
+    // Only handle /ws/* paths
+    if (!url.pathname.startsWith("/ws/")) {
+      socket.destroy();
+      return;
+    }
+
+    // Validate session cookie when TOTP is configured
+    const otpSecret = process.env.MECHA_OTP;
+    if (otpSecret) {
+      const cookie = parseSessionCookie(request.headers.cookie ?? "");
+      const sessionKey = deriveSessionKey(otpSecret);
+      if (!cookie || !verifySessionToken(sessionKey, cookie).valid) {
+        socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+        socket.destroy();
+        return;
+      }
+    }
+
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      handleTerminalConnection(ws, url, {
+        ptyManager,
+        getNode: (name) => getNode(opts.mechaDir, name),
+      });
+    });
+  });
 
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
@@ -53,6 +114,8 @@ export async function startDashboard(opts: StartDashboardOpts): Promise<() => Pr
   });
 
   return async () => {
+    ptyManager.shutdown();
+    wss.close();
     await new Promise<void>((resolve) => {
       server.close(() => resolve());
     });
