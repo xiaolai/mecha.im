@@ -14,12 +14,14 @@ interface SessionEntry {
 
 interface SessionListProps {
   name: string;
+  node?: string;
 }
 
-export function SessionList({ name }: SessionListProps) {
+export function SessionList({ name, node }: SessionListProps) {
+  const nodeQuery = node && node !== "local" ? `?node=${encodeURIComponent(node)}` : "";
   const { data: sessions, loading, error } = useFetch<SessionEntry[]>(
-    `/api/casas/${encodeURIComponent(name)}/sessions`,
-    { deps: [name] },
+    `/api/casas/${encodeURIComponent(name)}/sessions${nodeQuery}`,
+    { deps: [name, node] },
   );
 
   if (loading) {

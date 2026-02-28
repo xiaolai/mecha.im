@@ -15,12 +15,18 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@fastify/websocket": "^11.2.0",
     "@mecha/core": "workspace:*",
     "@mecha/process": "workspace:*",
-    "fastify": "^5.3.3"
+    "@mecha/service": "workspace:*",
+    "fastify": "^5.3.3",
+    "node-pty": "^1.1.0"
   },
   "engines": {
     "node": ">=20.0.0"
   },
-  "license": "ISC"
+  "license": "ISC",
+  "devDependencies": {
+    "@types/ws": "^8.18.1"
+  }
 }

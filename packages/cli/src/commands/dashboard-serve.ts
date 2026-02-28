@@ -7,6 +7,7 @@ interface DashboardServeOpts {
   port: string;
   host: string;
   open: boolean;
+  sessionTtl: string;
 }
 
 export async function executeDashboardServe(opts: DashboardServeOpts, deps: CommandDeps): Promise<void> {
@@ -19,12 +20,15 @@ export async function executeDashboardServe(opts: DashboardServeOpts, deps: Comm
 
   const { startDashboard } = await import("@mecha/dashboard");
 
+  const sessionTtlHours = Number(opts.sessionTtl);
+
   const shutdown = await startDashboard({
     port,
     host: opts.host,
     processManager: deps.processManager,
     mechaDir: deps.mechaDir,
     acl: deps.acl,
+    sessionTtlHours: Number.isFinite(sessionTtlHours) && sessionTtlHours > 0 ? sessionTtlHours : undefined,
   });
   deps.registerShutdownHook?.(shutdown);
 
@@ -56,5 +60,6 @@ export function registerDashboardServeCommand(parent: Command, deps: CommandDeps
     .option("--port <port>", "Dashboard port", String(DEFAULTS.DASHBOARD_PORT))
     .option("--host <host>", "Bind address", "127.0.0.1")
     .option("--open", "Open browser after starting", false)
+    .option("--session-ttl <hours>", "Session duration in hours", "24")
     .action(async (opts: DashboardServeOpts) => withErrorHandler(deps, () => executeDashboardServe(opts, deps)));
 }

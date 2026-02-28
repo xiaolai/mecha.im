@@ -3,21 +3,19 @@
 import { GlobeIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import { useFetch } from "@/lib/use-fetch";
 
-interface NodeEntry {
+interface NodeHealth {
   name: string;
-  host: string;
-  port: number;
-  publicKey?: string;
-  fingerprint?: string;
-  addedAt: string;
-  managed?: boolean;
-  serverUrl?: string;
+  status: "online" | "offline";
+  latencyMs?: number;
+  error?: string;
+  casaCount?: number;
 }
 
 export function MeshView() {
-  const { data: nodes, loading, error } = useFetch<NodeEntry[]>("/api/mesh/nodes");
+  const { data: nodes, loading, error } = useFetch<NodeHealth[]>("/api/mesh/nodes", { interval: 30_000 });
 
   if (loading) {
     return (
@@ -52,26 +50,29 @@ export function MeshView() {
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {nodes.map((node) => (
         <div key={node.name} className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4">
-          <div className="flex items-center gap-2">
-            <GlobeIcon className="size-4 text-muted-foreground" />
-            <span className="text-sm font-semibold text-card-foreground">{node.name}</span>
-            {node.managed && <Badge variant="default">managed</Badge>}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className={cn(
+                "size-2 rounded-full",
+                node.status === "online" ? "bg-success" : "bg-destructive",
+              )} />
+              <GlobeIcon className="size-4 text-muted-foreground" />
+              <span className="text-sm font-semibold text-card-foreground">{node.name}</span>
+            </div>
+            <Badge variant={node.status === "online" ? "default" : "destructive"}>
+              {node.status}
+            </Badge>
           </div>
           <div className="flex flex-col gap-1 text-xs text-muted-foreground">
-            <span>
-              Host: <span className="font-mono">{node.host}:{node.port}</span>
-            </span>
-            {node.fingerprint && (
-              <span className="truncate font-mono" title={node.fingerprint}>
-                {node.fingerprint}
-              </span>
+            {node.latencyMs != null && (
+              <span>Latency: <span className="font-mono">{node.latencyMs}ms</span></span>
             )}
-            {node.serverUrl && (
-              <span className="truncate font-mono" title={node.serverUrl}>
-                {node.serverUrl}
-              </span>
+            {node.casaCount != null && (
+              <span>CASAs: <span className="font-mono">{node.casaCount}</span></span>
             )}
-            <span>Added: {new Date(node.addedAt).toLocaleDateString()}</span>
+            {node.error && (
+              <span className="text-destructive">{node.error}</span>
+            )}
           </div>
         </div>
       ))}

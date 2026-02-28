@@ -4,7 +4,7 @@
     "outDir": "dist",
     "rootDir": "src"
   },
-  "include": ["src/server-entry.ts", "src/lib/pm-singleton.ts"],
+  "include": ["src/server-entry.ts", "src/lib/pm-singleton.ts", "src/lib/session.ts", "src/lib/pty-manager.ts", "src/lib/ws-handler.ts"],
   "references": [
     { "path": "../core" },
     { "path": "../process" },

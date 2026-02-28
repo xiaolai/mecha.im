@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { registerDashboardServeCommand } from "./dashboard-serve.js";
+import { registerDashboardTotpCommand } from "./dashboard-totp.js";
 
 export function registerDashboardCommand(program: Command, deps: CommandDeps): void {
   const dashboard = program
@@ -8,4 +9,5 @@ export function registerDashboardCommand(program: Command, deps: CommandDeps): v
     .description("Manage the web dashboard");
 
   registerDashboardServeCommand(dashboard, deps);
+  registerDashboardTotpCommand(dashboard, deps);
 }
