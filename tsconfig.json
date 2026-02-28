@@ -16,7 +16,8 @@
     { "path": "packages/service" },
     { "path": "packages/agent" },
     { "path": "packages/meter" },
-    { "path": "packages/server" }
+    { "path": "packages/server" },
+    { "path": "packages/dashboard/tsconfig.server.json" }
   ],
   "include": [],
   "exclude": ["node_modules", "dist", "coverage"]

@@ -30,6 +30,8 @@
     "grill@xiaolai": true,
     "loc-guardian@xiaolai": true,
     "tdd-guardian@xiaolai": true,
-    "codex-toolkit@xiaolai": true
+    "codex-toolkit@xiaolai": true,
+    "echo-sleuth@xiaolai": true,
+    "docs-guardian@xiaolai": true
   }
 }
