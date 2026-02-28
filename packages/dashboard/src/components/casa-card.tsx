@@ -1,10 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { SquareIcon, OctagonXIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { TooltipIconButton } from "@/components/ui/tooltip-icon-button";
 import { cn } from "@/lib/utils";
+import { stateStyles } from "@/lib/casa-styles";
 
 export interface CasaInfo {
   name: string;
@@ -20,17 +22,25 @@ interface CasaCardProps {
   casa: CasaInfo;
 }
 
-const stateStyles = {
-  running: { dot: "bg-success", badge: "success" as const },
-  stopped: { dot: "bg-muted-foreground", badge: "secondary" as const },
-  error: { dot: "bg-destructive", badge: "destructive" as const },
-};
-
 export function CasaCard({ casa }: CasaCardProps) {
   const style = stateStyles[casa.state];
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [acting, setActing] = useState(false);
 
   async function handleAction(action: "stop" | "kill") {
-    await fetch(`/api/casas/${casa.name}/${action}`, { method: "POST" });
+    setActing(true);
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/casas/${encodeURIComponent(casa.name)}/${action}`, { method: "POST" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: "Request failed" }));
+        setActionError(body.error ?? `Failed to ${action}`);
+      }
+    } catch {
+      setActionError(`Failed to ${action} — connection error`);
+    } finally {
+      setActing(false);
+    }
   }
 
   return (
@@ -70,6 +80,11 @@ export function CasaCard({ casa }: CasaCardProps) {
         </div>
       )}
 
+      {/* Action error */}
+      {actionError && (
+        <div className="text-xs text-destructive">{actionError}</div>
+      )}
+
       {/* Actions */}
       {casa.state === "running" && (
         <div className="flex items-center gap-2 border-t border-border pt-2" onClick={(e) => e.preventDefault()}>
@@ -77,6 +92,7 @@ export function CasaCard({ casa }: CasaCardProps) {
             tooltip="Stop"
             variant="outline"
             size="icon-sm"
+            disabled={acting}
             onClick={() => handleAction("stop")}
           >
             <SquareIcon className="size-4" />
@@ -86,6 +102,7 @@ export function CasaCard({ casa }: CasaCardProps) {
             variant="ghost"
             size="icon-sm"
             className="text-destructive hover:text-destructive"
+            disabled={acting}
             onClick={() => handleAction("kill")}
           >
             <OctagonXIcon className="size-4" />

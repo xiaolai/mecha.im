@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeftIcon, SquareIcon, OctagonXIcon, MessageSquareIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -10,50 +10,38 @@ import { TooltipIconButton } from "@/components/ui/tooltip-icon-button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { SessionList } from "@/components/session-list";
 import { cn } from "@/lib/utils";
+import { useFetch } from "@/lib/use-fetch";
+import { stateStyles } from "@/lib/casa-styles";
 import type { CasaInfo } from "./casa-card";
-
-const stateStyles = {
-  running: { dot: "bg-success", badge: "success" as const },
-  stopped: { dot: "bg-muted-foreground", badge: "secondary" as const },
-  error: { dot: "bg-destructive", badge: "destructive" as const },
-};
 
 interface CasaDetailProps {
   name: string;
 }
 
 export function CasaDetail({ name }: CasaDetailProps) {
-  const [casa, setCasa] = useState<CasaInfo | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: casa, loading, error, refetch } = useFetch<CasaInfo>(
+    `/api/casas/${encodeURIComponent(name)}`,
+    { interval: 5000, deps: [name] },
+  );
 
-  const fetchCasa = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/casas/${encodeURIComponent(name)}`);
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({ error: "Not found" }));
-        setError(body.error ?? "Failed to fetch CASA");
-        return;
-      }
-      const data = await res.json();
-      setCasa(data);
-      setError(null);
-    } catch {
-      setError("Failed to connect to server");
-    } finally {
-      setLoading(false);
-    }
-  }, [name]);
-
-  useEffect(() => {
-    fetchCasa();
-    const interval = setInterval(fetchCasa, 5000);
-    return () => clearInterval(interval);
-  }, [fetchCasa]);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [acting, setActing] = useState(false);
 
   async function handleAction(action: "stop" | "kill") {
-    await fetch(`/api/casas/${encodeURIComponent(name)}/${action}`, { method: "POST" });
-    fetchCasa();
+    setActing(true);
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/casas/${encodeURIComponent(name)}/${action}`, { method: "POST" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: "Request failed" }));
+        setActionError(body.error ?? `Failed to ${action}`);
+      }
+    } catch {
+      setActionError(`Failed to ${action} — connection error`);
+    } finally {
+      setActing(false);
+      refetch();
+    }
   }
 
   if (loading) {
@@ -99,7 +87,7 @@ export function CasaDetail({ name }: CasaDetailProps) {
                 <MessageSquareIcon className="size-4" /> Chat
               </Link>
             </Button>
-            <Button variant="outline" size="sm" onClick={() => handleAction("stop")}>
+            <Button variant="outline" size="sm" disabled={acting} onClick={() => handleAction("stop")}>
               <SquareIcon className="size-4" /> Stop
             </Button>
             <TooltipIconButton
@@ -107,6 +95,7 @@ export function CasaDetail({ name }: CasaDetailProps) {
               variant="ghost"
               size="icon-sm"
               className="text-destructive hover:text-destructive"
+              disabled={acting}
               onClick={() => handleAction("kill")}
             >
               <OctagonXIcon className="size-4" />
@@ -114,6 +103,13 @@ export function CasaDetail({ name }: CasaDetailProps) {
           </div>
         )}
       </div>
+
+      {/* Action error */}
+      {actionError && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+          {actionError}
+        </div>
+      )}
 
       {/* Overview cards */}
       <div className="grid gap-4 sm:grid-cols-3">

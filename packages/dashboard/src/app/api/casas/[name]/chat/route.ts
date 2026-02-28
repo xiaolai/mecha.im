@@ -1,15 +1,37 @@
-import { MechaError } from "@mecha/core";
+import { MechaError, casaName } from "@mecha/core";
 import { casaChat } from "@mecha/service";
-import { getProcessManager } from "@/lib/pm-singleton";
+import { getProcessManager, log } from "@/lib/pm-singleton";
 
 export const dynamic = "force-dynamic";
+
+const MAX_MESSAGE_LENGTH = 100_000; // 100 KB
 
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ name: string }> },
 ): Promise<Response> {
-  const { name } = await params;
-  const pm = getProcessManager();
+  const { name: raw } = await params;
+
+  let validName;
+  try {
+    validName = casaName(raw);
+  } catch {
+    return new Response(JSON.stringify({ error: `Invalid CASA name: ${raw}` }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  let pm;
+  try {
+    pm = getProcessManager();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Dashboard not initialized";
+    return new Response(JSON.stringify({ error: message }), {
+      status: 503,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
 
   let body: { message: string; sessionId?: string };
   try {
@@ -28,8 +50,15 @@ export async function POST(
     });
   }
 
+  if (body.message.length > MAX_MESSAGE_LENGTH) {
+    return new Response(JSON.stringify({ error: `message exceeds ${MAX_MESSAGE_LENGTH} character limit` }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   try {
-    const iter = await casaChat(pm, name as never, {
+    const iter = await casaChat(pm, validName, {
       message: body.message,
       sessionId: body.sessionId,
     });
@@ -43,6 +72,7 @@ export async function POST(
           }
           controller.close();
         } catch (err) {
+          log.error("POST /api/casas/[name]/chat", "Chat stream error", err);
           const msg = err instanceof Error ? err.message : "Stream error";
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "error", content: msg })}\n\n`));
           controller.close();
@@ -58,6 +88,7 @@ export async function POST(
       },
     });
   } catch (err) {
+    log.error("POST /api/casas/[name]/chat", "Failed to start chat", err);
     if (err instanceof MechaError) {
       return new Response(JSON.stringify({ error: err.message }), {
         status: 404,

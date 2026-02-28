@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { GlobeIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useFetch } from "@/lib/use-fetch";
 
 interface NodeEntry {
   name: string;
@@ -18,31 +18,7 @@ interface NodeEntry {
 }
 
 export function MeshView() {
-  const [nodes, setNodes] = useState<NodeEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    async function fetchNodes() {
-      try {
-        const res = await fetch("/api/mesh/nodes");
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({ error: "Failed to fetch" }));
-          if (active) setError(body.error ?? "Failed to fetch nodes");
-          return;
-        }
-        const data = await res.json();
-        if (active) { setNodes(data); setError(null); }
-      } catch {
-        if (active) setError("Failed to connect to server");
-      } finally {
-        if (active) setLoading(false);
-      }
-    }
-    fetchNodes();
-    return () => { active = false; };
-  }, []);
+  const { data: nodes, loading, error } = useFetch<NodeEntry[]>("/api/mesh/nodes");
 
   if (loading) {
     return (
@@ -62,7 +38,7 @@ export function MeshView() {
     );
   }
 
-  if (nodes.length === 0) {
+  if (!nodes || nodes.length === 0) {
     return (
       <div className="rounded-lg border border-border bg-card p-8 text-center">
         <p className="text-sm text-muted-foreground">No mesh nodes configured.</p>
