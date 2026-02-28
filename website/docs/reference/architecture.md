@@ -18,7 +18,7 @@ Mecha is a TypeScript monorepo with 11 packages (+ dashboard planned for Phase 7
 @mecha/meter       ← Metering proxy: cost tracking, budgets, events
 @mecha/mcp-server  ← MCP server: stdio + HTTP transport, audit logging, rate limiting
 @mecha/cli         ← Commander-based CLI: 40+ commands
-@mecha/dashboard   ← Next.js web UI (Phase 7b)
+@mecha/dashboard   ← Next.js web UI: CASA management, chat, mesh, ACL, audit, metering
 ```
 
 ### Dependency Graph
@@ -49,6 +49,12 @@ graph LR
   mcp-server --> process
   runtime --> core
   runtime --> process
+  dashboard --> core
+  dashboard --> process
+  dashboard --> service
+  dashboard --> meter
+  dashboard --> mcp-server
+  cli --> dashboard
 ```
 
 ## Process Model
