@@ -12,6 +12,7 @@ import { readFileSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { TOTP, Secret } from "otpauth";
+import { isAuthBypassed } from "../src/lib/totp";
 import { deriveSessionKey, createSessionToken } from "../src/lib/session";
 
 // ---------------------------------------------------------------------------
@@ -71,14 +72,20 @@ export const MESH_NODES = {
 // TOTP
 // ---------------------------------------------------------------------------
 
+const BYPASS_FALLBACK_SECRET = "JBSWY3DPEHPK3PXP";
+
 export function getOtpSecret(): string {
   const secret = process.env.MECHA_OTP;
-  if (!secret) throw new Error("MECHA_OTP env var is required for integration tests");
+  if (!secret) {
+    if (isAuthBypassed()) return BYPASS_FALLBACK_SECRET;
+    throw new Error("MECHA_OTP env var is required for integration tests");
+  }
   return secret;
 }
 
 /** Generate a valid TOTP code for the current 30s window. */
 export function generateTotp(): string {
+  if (isAuthBypassed()) return "000000";
   const totp = new TOTP({
     issuer: "mecha",
     label: "dashboard",
@@ -96,7 +103,8 @@ export function generateTotp(): string {
 
 /** Create a JWT that is already expired (negative TTL). */
 export function createExpiredToken(): string {
-  const key = deriveSessionKey(getOtpSecret());
+  const secret = process.env.MECHA_OTP ?? BYPASS_FALLBACK_SECRET;
+  const key = deriveSessionKey(secret);
   return createSessionToken(key, -1);
 }
 

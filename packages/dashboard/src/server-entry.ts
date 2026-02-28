@@ -40,6 +40,10 @@ export async function startDashboard(opts: StartDashboardOpts): Promise<() => Pr
     process.env.MECHA_SESSION_KEY = deriveSessionKey(process.env.MECHA_OTP);
   }
 
+  if (process.env.MECHA_AUTH_BYPASS === "true") {
+    console.warn("[dashboard] WARNING: MECHA_AUTH_BYPASS is set — TOTP validation is disabled. Do not use in production.");
+  }
+
   setProcessManager(opts.processManager, opts.mechaDir, opts.acl, {
     networkMode: isNetworkHost,
     sessionTtlHours: opts.sessionTtlHours,

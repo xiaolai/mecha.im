@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { verifyTotpCode, getOtpSecret } from "../src/lib/totp.js";
+import { verifyTotpCode, getOtpSecret, isAuthBypassed } from "../src/lib/totp.js";
 import { TOTP, Secret } from "otpauth";
 
 function generateCurrentCode(base32Secret: string): string {
@@ -35,6 +35,52 @@ describe("verifyTotpCode", () => {
 
   it("rejects empty secret", () => {
     expect(verifyTotpCode("", "123456")).toBe(false);
+  });
+});
+
+describe("isAuthBypassed", () => {
+  const originalBypass = process.env.MECHA_AUTH_BYPASS;
+
+  afterEach(() => {
+    if (originalBypass !== undefined) {
+      process.env.MECHA_AUTH_BYPASS = originalBypass;
+    } else {
+      delete process.env.MECHA_AUTH_BYPASS;
+    }
+  });
+
+  it("returns true when MECHA_AUTH_BYPASS=true", () => {
+    process.env.MECHA_AUTH_BYPASS = "true";
+    expect(isAuthBypassed()).toBe(true);
+  });
+
+  it("returns false when not set", () => {
+    delete process.env.MECHA_AUTH_BYPASS;
+    expect(isAuthBypassed()).toBe(false);
+  });
+
+  it("returns false for other values", () => {
+    process.env.MECHA_AUTH_BYPASS = "1";
+    expect(isAuthBypassed()).toBe(false);
+  });
+});
+
+describe("verifyTotpCode with bypass", () => {
+  const originalBypass = process.env.MECHA_AUTH_BYPASS;
+
+  afterEach(() => {
+    if (originalBypass !== undefined) {
+      process.env.MECHA_AUTH_BYPASS = originalBypass;
+    } else {
+      delete process.env.MECHA_AUTH_BYPASS;
+    }
+  });
+
+  it("accepts any code when bypass is active", () => {
+    process.env.MECHA_AUTH_BYPASS = "true";
+    expect(verifyTotpCode(TEST_SECRET, "000000")).toBe(true);
+    expect(verifyTotpCode(TEST_SECRET, "123456")).toBe(true);
+    expect(verifyTotpCode("", "")).toBe(true);
   });
 });
 
