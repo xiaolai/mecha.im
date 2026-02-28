@@ -17,20 +17,26 @@
     "typecheck": "tsc -b --noEmit"
   },
   "dependencies": {
-    "@mecha/core": "workspace:*",
     "@mecha/agent": "workspace:*",
-    "@mecha/mcp-server": "workspace:*",
     "@mecha/connect": "workspace:*",
-    "@mecha/server": "workspace:*",
-    "@mecha/sandbox": "workspace:*",
-    "@mecha/service": "workspace:*",
+    "@mecha/core": "workspace:*",
+    "@mecha/dashboard": "workspace:*",
+    "@mecha/mcp-server": "workspace:*",
+    "@mecha/meter": "workspace:*",
     "@mecha/process": "workspace:*",
     "@mecha/runtime": "workspace:*",
-    "@mecha/meter": "workspace:*",
-    "commander": "^14.0.0"
+    "@mecha/sandbox": "workspace:*",
+    "@mecha/server": "workspace:*",
+    "@mecha/service": "workspace:*",
+    "commander": "^14.0.0",
+    "otpauth": "^9.5.0",
+    "qrcode": "^1.5.4"
   },
   "engines": {
     "node": ">=20.0.0"
   },
-  "license": "ISC"
+  "license": "ISC",
+  "devDependencies": {
+    "@types/qrcode": "^1.5.6"
+  }
 }

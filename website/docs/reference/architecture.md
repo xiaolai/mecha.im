@@ -18,7 +18,7 @@ Mecha is a TypeScript monorepo with 11 packages (+ dashboard planned for Phase 7
 @mecha/meter       ← Metering proxy: cost tracking, budgets, events
 @mecha/mcp-server  ← MCP server: stdio + HTTP transport, audit logging, rate limiting
 @mecha/cli         ← Commander-based CLI: 40+ commands
-@mecha/dashboard   ← Next.js web UI (Phase 7b)
+@mecha/dashboard   ← Next.js web UI: CASA management, terminal, mesh, ACL, audit, metering
 ```
 
 ### Dependency Graph
@@ -49,6 +49,12 @@ graph LR
   mcp-server --> process
   runtime --> core
   runtime --> process
+  dashboard --> core
+  dashboard --> process
+  dashboard --> service
+  dashboard --> meter
+  dashboard --> mcp-server
+  cli --> dashboard
 ```
 
 ## Process Model
@@ -127,6 +133,24 @@ sequenceDiagram
   agent-->>router: Response
   router-->>coder: MCP tool result
 ```
+
+## Agent Server API
+
+The agent server (`@mecha/agent`, port 7660) exposes these HTTP endpoints for inter-node communication. All routes except `/healthz` require `Authorization: Bearer <apiKey>`.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/healthz` | Health check (no auth required) |
+| `GET` | `/casas` | List all CASAs on this node |
+| `GET` | `/casas/:name/status` | Get CASA status |
+| `POST` | `/casas/:name/stop` | Graceful stop |
+| `POST` | `/casas/:name/kill` | Force kill |
+| `POST` | `/casas` | Spawn a new CASA |
+| `GET` | `/casas/:name/sessions` | List CASA sessions |
+| `GET` | `/casas/:name/sessions/:id` | Get specific session |
+| `POST` | `/casas/:name/query` | Forward a mesh query (requires `X-Mecha-Source` header) |
+| `GET` | `/discover` | Discover CASAs (filterable by `?tag=` and `?capability=`) |
+| `WS` | `/ws/terminal/:name` | Terminal WebSocket (PTY attach, requires `ptySpawnFn`) |
 
 ## Runtime API
 
