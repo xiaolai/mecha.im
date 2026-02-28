@@ -1,5 +1,5 @@
 import type { ProcessManager, ProcessInfo } from "@mecha/process";
-import { type NodeEntry, readNodes, DEFAULTS } from "@mecha/core";
+import { type NodeEntry, readNodes } from "@mecha/core";
 import { agentFetch } from "@mecha/service";
 
 export interface NodeStatus {
@@ -71,7 +71,7 @@ export async function fetchAllNodes(mechaDir: string): Promise<{ nodes: NodeStat
   const nodes: NodeStatus[] = results.map((r, i) =>
     r.status === "fulfilled"
       ? r.value
-      : { name: entries[i].name, status: "offline" as const, error: "check failed" },
+      : { name: entries[i]!.name, status: "offline" as const, error: "check failed" },
   );
   /* v8 ignore stop */
 
