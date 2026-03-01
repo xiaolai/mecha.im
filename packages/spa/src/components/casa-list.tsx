@@ -2,13 +2,8 @@ import { CasaCard, type CasaInfo } from "./casa-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useFetch } from "@/lib/use-fetch";
 
-interface CasaListResponse {
-  casas: CasaInfo[];
-  nodeStatus: Record<string, { status: string; latencyMs?: number }>;
-}
-
 export function CasaList() {
-  const { data, loading, error } = useFetch<CasaListResponse>("/casas", { interval: 5000 });
+  const { data, loading, error } = useFetch<CasaInfo[]>("/casas", { interval: 5000 });
 
   if (loading) {
     return (
@@ -28,7 +23,7 @@ export function CasaList() {
     );
   }
 
-  const casas = data?.casas ?? [];
+  const casas = data ?? [];
 
   if (casas.length === 0) {
     return (
