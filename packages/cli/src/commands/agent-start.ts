@@ -41,6 +41,7 @@ export function registerAgentStartCommand(parent: Command, deps: CommandDeps): v
       // Lazy import to avoid pulling in fastify when not needed
       const { createAgentServer } = await import("@mecha/agent");
       const { readNodeName } = await import("@mecha/service");
+      const { createBunPtySpawn } = await import("@mecha/process");
 
       const nodeName = readNodeName(deps.mechaDir) ?? "unknown";
       const server = createAgentServer({
@@ -50,6 +51,7 @@ export function registerAgentStartCommand(parent: Command, deps: CommandDeps): v
         acl: deps.acl,
         mechaDir: deps.mechaDir,
         nodeName,
+        ptySpawnFn: createBunPtySpawn(),
       });
 
       /* v8 ignore start -- shutdown hook only fires on process signal */

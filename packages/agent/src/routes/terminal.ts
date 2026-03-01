@@ -8,8 +8,17 @@ export function registerTerminalRoutes(
   ptyManager: PtyManager,
 ): void {
   app.get("/ws/terminal/:name", { websocket: true }, (socket, req) => {
-    const casaName = (req.params as { name: string }).name;
-    const sessionId = (req.query as { session?: string }).session ?? undefined;
+    // @fastify/websocket v11: req may lack params/url in some runtimes.
+    // Use raw request URL as fallback for robust param extraction.
+    /* v8 ignore start -- fallback branches for runtimes where req.url/params are missing */
+    const rawUrl = req.url ?? req.raw?.url ?? "";
+    const casaName = (req.params as { name?: string } | undefined)?.name
+      ?? rawUrl.match(/\/ws\/terminal\/([^/?]+)/)?.[1]
+      ?? "";
+    const sessionId = (req.query as { session?: string } | undefined)?.session
+      ?? new URL(rawUrl || "/", "http://localhost").searchParams.get("session")
+      ?? undefined;
+    /* v8 ignore stop */
 
     let session = sessionId ? ptyManager.getSession(`${casaName}:${sessionId}`) : null;
 

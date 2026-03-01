@@ -17,25 +17,19 @@ describe("generateSbpl", () => {
     const sbpl = generateSbpl(profile);
     expect(sbpl).toContain("(version 1)");
     expect(sbpl).toContain("(deny default)");
+    expect(sbpl).toContain("(allow sysctl-read)");
+    expect(sbpl).toContain("(allow mach-lookup)");
     expect(sbpl).toContain("(allow process-fork)");
     expect(sbpl).toContain("(allow signal)");
-    expect(sbpl).toContain("(allow file-read-metadata)");
-    expect(sbpl).toContain('(allow file-read* (literal "/"))');
-    expect(sbpl).toContain('(allow file-read* (subpath "/usr/lib"))');
-    expect(sbpl).toContain('(allow file-read* (subpath "/System"))');
-    expect(sbpl).toContain('(allow file-read* (subpath "/dev"))');
+    // Unrestricted file-read* — Bun compiled binary requires access to
+    // paths that can't be enumerated (kernel pseudo-filesystems, Apple-internal)
+    expect(sbpl).toContain("(allow file-read*)");
   });
 
-  it("includes read path rules", () => {
+  it("includes write path rules", () => {
     const sbpl = generateSbpl(profile);
-    expect(sbpl).toContain('(allow file-read* (subpath "/usr/local/bin/node"))');
-    expect(sbpl).toContain('(allow file-read* (subpath "/mecha/discovery.json"))');
-  });
-
-  it("includes write path rules with both read and write", () => {
-    const sbpl = generateSbpl(profile);
-    expect(sbpl).toContain('(allow file-read* (subpath "/mecha/alice/home"))');
     expect(sbpl).toContain('(allow file-write* (subpath "/mecha/alice/home"))');
+    expect(sbpl).toContain('(allow file-write* (subpath "/mecha/alice/logs"))');
   });
 
   it("includes network access when allowed", () => {
@@ -65,14 +59,15 @@ describe("generateSbpl", () => {
   it("escapes quotes and backslashes in paths", () => {
     const evil: SandboxProfile = {
       readPaths: ['/path/with"quote'],
-      writePaths: ["/path/with\\backslash"],
+      writePaths: ["/path/with\\backslash", '/path/with"quote'],
       allowedProcesses: ['/bin/"evil"),'],
       allowNetwork: false,
     };
     const sbpl = generateSbpl(evil);
-    expect(sbpl).toContain('(subpath "/path/with\\"quote")');
-    expect(sbpl).toContain('(subpath "/path/with\\\\backslash")');
-    expect(sbpl).toContain('(literal "/bin/\\"evil\\"),")');
+    // readPaths are covered by unrestricted file-read* — only writePaths and processes escape
+    expect(sbpl).toContain('(allow file-write* (subpath "/path/with\\"quote"))');
+    expect(sbpl).toContain('(allow file-write* (subpath "/path/with\\\\backslash"))');
+    expect(sbpl).toContain('(allow process-exec (literal "/bin/\\"evil\\"),"))');
   });
 });
 

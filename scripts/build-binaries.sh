@@ -23,6 +23,13 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="$ROOT/dist/bin"
 ENTRY="$ROOT/packages/cli/src/bin-entry.ts"
 
+# Dashboard (Next.js) cannot be bundled into compiled binary.
+# It's only used via dynamic import and gracefully errors at runtime.
+EXTERNALS=(
+  --external "@mecha/dashboard"
+  --external "next"
+)
+
 TARGETS=(
   "bun-darwin-arm64"
   "bun-darwin-x64"
@@ -51,6 +58,7 @@ build_target() {
 
   echo "Building mecha for $target..."
   bun build --compile --target="$target" \
+    "${EXTERNALS[@]}" \
     --outfile "$dir/mecha${ext}" \
     "$ENTRY"
 
@@ -67,6 +75,7 @@ build_current() {
 
   echo "Building mecha for current platform..."
   bun build --compile \
+    "${EXTERNALS[@]}" \
     --outfile "$dir/mecha${ext}" \
     "$ENTRY"
 
