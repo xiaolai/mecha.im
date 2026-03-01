@@ -6,6 +6,16 @@ export function todayUTC(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+/** Get UTC month string (YYYY-MM) for today */
+export function monthUTC(): string {
+  return new Date().toISOString().slice(0, 7);
+}
+
+/** Extract month (YYYY-MM) from a date string (YYYY-MM-DD) */
+export function monthFromDate(date: string): string {
+  return date.slice(0, 7);
+}
+
 /** Create an empty CostSummary */
 export function emptySummary(): CostSummary {
   return {

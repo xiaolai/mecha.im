@@ -1,19 +1,33 @@
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from "node:http";
+import { timingSafeEqual } from "node:crypto";
 import { join } from "node:path";
 import { MeterProxyAlreadyRunningError, PortConflictError, createLogger } from "@mecha/core";
 import {
   readProxyInfo, isPidAlive, writeProxyInfo, deleteProxyInfo,
 } from "./lifecycle.js";
 import { initPricing, loadPricing } from "./pricing.js";
-import { handleProxyRequest, reloadBudgets, type ProxyContext } from "./proxy.js";
+import { handleProxyRequest, reloadBudgets, getDroppedEventCount, type ProxyContext } from "./proxy.js";
 import { scanCasaRegistry } from "./registry.js";
 import { readBudgets } from "./budgets.js";
-import { createHotCounters, fromSnapshot, resetToday, toSnapshot } from "./hot-counters.js";
+import { cleanupOldEvents } from "./events.js";
+import { createHotCounters, fromSnapshot, resetToday, resetMonth, toSnapshot } from "./hot-counters.js";
 import { readSnapshot, writeSnapshot } from "./snapshot.js";
-import { todayUTC } from "./query.js";
+import { todayUTC, monthFromDate } from "./query.js";
 import type { ProxyInfo } from "./types.js";
 
 const log = createLogger("mecha:meter");
+
+/** Timing-safe string comparison that doesn't leak length info via early return. */
+function timingSafeCompare(a: string, b: string): boolean {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) {
+    // Compare against itself to spend constant time, then return false
+    timingSafeEqual(bufA, bufA);
+    return false;
+  }
+  return timingSafeEqual(bufA, bufB);
+}
 
 export interface DaemonOpts {
   meterDir: string;
@@ -70,10 +84,11 @@ export async function startDaemon(opts: DaemonOpts): Promise<DaemonHandle> {
   };
 
   const server = createServer((req: IncomingMessage, res: ServerResponse) => {
-    // Auth check: if authToken is configured, verify Bearer token
+    // Auth check: if authToken is configured, verify Bearer token (timing-safe)
     if (opts.authToken) {
       const authHeader = req.headers.authorization;
-      if (!authHeader || authHeader !== `Bearer ${opts.authToken}`) {
+      const expected = `Bearer ${opts.authToken}`;
+      if (!authHeader || !timingSafeCompare(authHeader, expected)) {
         res.writeHead(401, { "content-type": "application/json" });
         res.end(JSON.stringify({ error: "Unauthorized" }));
         return;
@@ -86,12 +101,20 @@ export async function startDaemon(opts: DaemonOpts): Promise<DaemonHandle> {
   const snapshotTimer = setInterval(() => {
     try {
       const now = todayUTC();
-      /* v8 ignore start -- day rollover: resetToday is tested in hot-counters.test.ts; timer tested via snapshot flush */
+      /* v8 ignore start -- day/month rollover: reset functions tested in hot-counters.test.ts; timer tested via snapshot flush */
       if (now !== ctx.counters.date) {
-        resetToday(ctx.counters, now);
+        if (monthFromDate(now) !== monthFromDate(ctx.counters.date)) {
+          resetMonth(ctx.counters, now);
+        } else {
+          resetToday(ctx.counters, now);
+        }
+        // Clean up event files older than 90 days on day rollover
+        cleanupOldEvents(meterDir, 90);
       }
       /* v8 ignore stop */
-      writeSnapshot(meterDir, toSnapshot(ctx.counters));
+      const snap = toSnapshot(ctx.counters);
+      snap.droppedEvents = getDroppedEventCount();
+      writeSnapshot(meterDir, snap);
     /* v8 ignore start -- snapshot flush error in timer callback */
     } catch (err) {
       log.error("Snapshot flush failed", { error: err instanceof Error ? err.message : String(err) });
@@ -140,7 +163,11 @@ export async function startDaemon(opts: DaemonOpts): Promise<DaemonHandle> {
         clearInterval(registryTimer);
         process.removeListener("SIGHUP", sighupHandler);
         // Flush final snapshot before shutdown
-        try { writeSnapshot(meterDir, toSnapshot(ctx.counters)); } catch { /* best-effort */ }
+        try {
+          const finalSnap = toSnapshot(ctx.counters);
+          finalSnap.droppedEvents = getDroppedEventCount();
+          writeSnapshot(meterDir, finalSnap);
+        } catch { /* best-effort */ }
         return new Promise<void>((res) => {
           server.close(() => {
             deleteProxyInfo(meterDir);

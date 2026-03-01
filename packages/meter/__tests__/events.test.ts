@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { appendEvent, readEventsForDate, listEventDates, utcDate, eventsDir } from "../src/events.js";
+import { appendEvent, readEventsForDate, listEventDates, utcDate, eventsDir, cleanupOldEvents } from "../src/events.js";
 import type { MeterEvent } from "../src/types.js";
 
 function makeEvent(overrides: Partial<MeterEvent> = {}): MeterEvent {
@@ -128,6 +128,35 @@ describe("events", () => {
 
       const dates = listEventDates(tempDir);
       expect(dates).toEqual(["2026-02-25", "2026-02-26", "2026-02-27"]);
+    });
+  });
+
+  describe("cleanupOldEvents", () => {
+    it("deletes event files older than retention period", () => {
+      tempDir = mkdtempSync(join(tmpdir(), "meter-events-"));
+      // Create events with old dates
+      appendEvent(tempDir, makeEvent({ ts: "2020-01-01T00:00:00Z" }));
+      appendEvent(tempDir, makeEvent({ ts: "2020-01-15T00:00:00Z" }));
+      // Create a recent event (today)
+      appendEvent(tempDir, makeEvent());
+
+      const deleted = cleanupOldEvents(tempDir, 30);
+      expect(deleted).toBe(2);
+
+      const remaining = listEventDates(tempDir);
+      expect(remaining).toHaveLength(1);
+      expect(remaining[0]!.startsWith("2020")).toBe(false);
+    });
+
+    it("returns 0 when no old events", () => {
+      tempDir = mkdtempSync(join(tmpdir(), "meter-events-"));
+      appendEvent(tempDir, makeEvent());
+      expect(cleanupOldEvents(tempDir, 30)).toBe(0);
+    });
+
+    it("returns 0 when no events directory exists", () => {
+      tempDir = mkdtempSync(join(tmpdir(), "meter-events-"));
+      expect(cleanupOldEvents(tempDir, 30)).toBe(0);
     });
   });
 });

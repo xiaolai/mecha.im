@@ -29,7 +29,7 @@ describe("chat command", () => {
     process.stdout.write = ((chunk: string) => { writes.push(chunk); return true; }) as typeof process.stdout.write;
 
     try {
-      await program.parseAsync(["node", "mecha", "chat", "researcher", "Hello"]);
+      await program.parseAsync(["node", "mecha", "casa", "chat", "researcher", "Hello"]);
     } finally {
       process.stdout.write = origWrite;
     }
@@ -44,7 +44,7 @@ describe("chat command", () => {
     program.exitOverride();
 
     await expect(
-      program.parseAsync(["node", "mecha", "chat", "researcher"]),
+      program.parseAsync(["node", "mecha", "casa", "chat", "researcher"]),
     ).rejects.toThrow(); // Commander throws on missing required argument <message>
   });
 
@@ -59,7 +59,7 @@ describe("chat command", () => {
     program.exitOverride();
 
     await expect(
-      program.parseAsync(["node", "mecha", "chat", "researcher", "Hello"]),
+      program.parseAsync(["node", "mecha", "casa", "chat", "researcher", "Hello"]),
     ).rejects.toThrow("Chat is handled by Claude Agent SDK");
   });
 });

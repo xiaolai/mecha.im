@@ -64,8 +64,8 @@ export const CLI_TIMEOUT = 30_000;
 // Mesh node IPs (mesh network)
 export const MESH_NODES = {
   overlay-node-4: "100.64.200.5",
-  "server-03": "100.64.200.3",
-  overlay-node-3: "100.64.200.4",
+  "server-03": "100.64.200.7",
+  overlay-node-3: "100.64.200.9",
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -350,7 +350,7 @@ export async function collectSSEEvents(
 /** Kill a CASA by name, ignoring errors if it doesn't exist. */
 export function cleanupCasa(name: string): void {
   try {
-    execSync(`node ${CLI_BIN} kill ${name}`, {
+    execSync(`node ${CLI_BIN} casa kill ${name}`, {
       env: { ...process.env },
       timeout: CLI_TIMEOUT,
       stdio: "ignore",

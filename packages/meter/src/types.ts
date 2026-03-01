@@ -54,6 +54,7 @@ export interface HotCounterBuckets {
 
 export interface HotSnapshot extends HotCounterBuckets {
   ts: string;
+  droppedEvents?: number;
 }
 
 export interface ModelPricing {

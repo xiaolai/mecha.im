@@ -113,6 +113,16 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
           changed = true;
         }
       }
+      /* v8 ignore start -- error state recovery: requires CASA in error state with dead PID on disk at startup */
+      if (state.state === "error" && state.pid) {
+        if (!isPidAlive(state.pid)) {
+          state.state = "stopped";
+          state.stoppedAt = new Date().toISOString();
+          writeState(casaDir, state);
+          changed = true;
+        }
+      }
+      /* v8 ignore stop */
     }
     if (changed) _updateDiscoveryIndex();
   }
@@ -205,6 +215,16 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
         await waitForPidExit(state.pid, DEFAULTS.STOP_GRACE_MS);
         if (isPidAlive(state.pid)) {
           safePidKill(state.pid, "SIGKILL");
+          /* v8 ignore start -- SIGKILL verification: process surviving SIGKILL is OS-level edge case */
+          await waitForPidExit(state.pid, 5_000);
+          if (isPidAlive(state.pid)) {
+            state.state = "error";
+            writeState(_casaDir(name), state);
+            _updateDiscoveryIndex();
+            emitter.emit({ type: "warning", name, message: `Process ${state.pid} did not exit after SIGKILL` });
+            return;
+          }
+          /* v8 ignore stop */
         }
       }
       state.state = "stopped";
