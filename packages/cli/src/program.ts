@@ -1,19 +1,13 @@
 import { Command } from "commander";
 import type { CommandDeps } from "./types.js";
+import { registerStartCommand } from "./commands/start.js";
+import { registerStopDaemonCommand } from "./commands/stop-daemon.js";
+import { registerRestartDaemonCommand } from "./commands/restart-daemon.js";
 import { registerInitCommand } from "./commands/init.js";
 import { registerDoctorCommand } from "./commands/doctor.js";
-import { registerSpawnCommand } from "./commands/spawn.js";
-import { registerKillCommand } from "./commands/kill.js";
-import { registerStopCommand } from "./commands/stop.js";
-import { registerLsCommand } from "./commands/ls.js";
-import { registerStatusCommand } from "./commands/status.js";
-import { registerLogsCommand } from "./commands/logs.js";
-import { registerChatCommand } from "./commands/chat.js";
-import { registerSessionsCommand } from "./commands/sessions.js";
+import { registerCasaCommand } from "./commands/casa.js";
 import { registerToolsCommand } from "./commands/tools.js";
 import { registerAuthCommand } from "./commands/auth.js";
-import { registerFindCommand } from "./commands/find.js";
-import { registerConfigureCommand } from "./commands/configure.js";
 import { registerAclCommand } from "./commands/acl.js";
 import { registerNodeCommand } from "./commands/node.js";
 import { registerAgentCommand } from "./commands/agent.js";
@@ -30,12 +24,15 @@ import { registerDashboardCommand } from "./commands/dashboard.js";
 /**
  * Commands that mutate state and need the CLI singleton lock.
  * Maintained here alongside command registration as single source of truth.
- * Top-level commands (e.g. "spawn") and "parent subcommand" pairs (e.g. "meter start").
+ * Top-level commands (e.g. "start") and "parent subcommand" pairs (e.g. "casa spawn").
  * Read-only commands NOT listed here run without the lock.
  */
 export const MUTATING_COMMANDS = new Set([
-  // Top-level mutating commands
-  "spawn", "stop", "kill", "init", "configure",
+  // Daemon-level mutating commands
+  "start", "stop", "restart", "init",
+  // CASA subcommands
+  "casa spawn", "casa start", "casa stop", "casa kill",
+  "casa restart", "casa remove", "casa configure",
   // agent subcommands (agent status is read-only)
   "agent start",
   // meter subcommands
@@ -89,32 +86,33 @@ export function createProgram(deps: CommandDeps): Command {
     .option("--verbose", "Detailed output", false)
     .option("--no-color", "Disable colored output");
 
+  // Daemon-level commands
+  registerStartCommand(program, deps);
+  registerStopDaemonCommand(program, deps);
+  registerRestartDaemonCommand(program, deps);
   registerInitCommand(program, deps);
   registerDoctorCommand(program, deps);
-  registerSpawnCommand(program, deps);
-  registerKillCommand(program, deps);
-  registerStopCommand(program, deps);
-  registerLsCommand(program, deps);
-  registerStatusCommand(program, deps);
-  registerLogsCommand(program, deps);
-  registerChatCommand(program, deps);
-  registerSessionsCommand(program, deps);
+
+  // CASA management (subgroup)
+  registerCasaCommand(program, deps);
+
+  // Infrastructure subgroups
+  registerAgentCommand(program, deps);
+  registerMeterCommand(program, deps);
+  registerDashboardCommand(program, deps);
+  registerNodeCommand(program, deps);
+
+  // Feature subgroups
   registerToolsCommand(program, deps);
   registerAuthCommand(program, deps);
-  registerFindCommand(program, deps);
-  registerConfigureCommand(program, deps);
   registerAclCommand(program, deps);
-  registerNodeCommand(program, deps);
-  registerAgentCommand(program, deps);
   registerSandboxCommand(program, deps);
   registerScheduleCommand(program, deps);
-  registerMeterCommand(program, deps);
   registerCostCommand(program, deps);
   registerBudgetCommand(program, deps);
   registerPluginCommand(program, deps);
   registerMcpCommand(program, deps);
   registerAuditCommand(program, deps);
-  registerDashboardCommand(program, deps);
 
   return program;
 }

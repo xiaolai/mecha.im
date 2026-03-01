@@ -1,12 +1,13 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { casaFind, buildHierarchy, flattenHierarchy } from "@mecha/service";
+import { withErrorHandler } from "../error-handler.js";
 
-export function registerLsCommand(program: Command, deps: CommandDeps): void {
-  program
+export function registerCasaLsCommand(parent: Command, deps: CommandDeps): void {
+  parent
     .command("ls")
     .description("List CASA processes")
-    .action(async () => {
+    .action(async () => withErrorHandler(deps, async () => {
       const list = casaFind(deps.mechaDir, deps.processManager, {});
       if (list.length === 0) {
         deps.formatter.info("No CASAs running");
@@ -26,5 +27,5 @@ export function registerLsCommand(program: Command, deps: CommandDeps): void {
           casa.tags.join(", ") || "-",
         ]),
       );
-    });
+    }));
 }

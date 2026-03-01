@@ -136,15 +136,18 @@ export function reloadBudgets(ctx: ProxyContext): void {
   ctx.budgets = readBudgets(ctx.meterDir);
 }
 
-/** Counter for events that failed to persist (observable via snapshot). */
+/** Counter for events that failed to persist (observable via snapshot and logs). */
 let droppedEvents = 0;
 
 /** Get the number of dropped events since process start. */
-/* v8 ignore start -- observable getter for monitoring; no unit test path */
 export function getDroppedEventCount(): number {
   return droppedEvents;
 }
-/* v8 ignore stop */
+
+/** Reset dropped event counter (for testing). */
+export function resetDroppedEventCount(): void {
+  droppedEvents = 0;
+}
 
 /** Record a meter event: append to disk + update hot counters */
 export function recordEvent(ctx: ProxyContext, event: MeterEvent): void {
@@ -236,12 +239,14 @@ export function handleProxyRequest(
 
   // Handle client abort before upstream request is made
   let requestCompleted = false;
-  req.on("error", () => {
+  const cleanupPending = () => {
     if (!requestCompleted) {
       requestCompleted = true;
       endPending(ctx, casa);
     }
-  });
+  };
+  req.on("error", cleanupPending);
+  req.on("close", () => { if (!requestCompleted) cleanupPending(); });
 
   const bodyChunks: Buffer[] = [];
   let bodySize = 0;
@@ -318,13 +323,16 @@ function handleStreamResponse(
   const state = createSSEParseState(startMs, model);
   let clientDisconnected = false;
 
-  res.socket?.on("close", () => { clientDisconnected = true; });
+  res.socket?.on("close", () => {
+    clientDisconnected = true;
+    upstreamRes.destroy();
+  });
 
   upstreamRes.on("data", (chunk: Buffer) => {
     const text = chunk.toString();
     parseSSEChunk(text, state);
     if (!clientDisconnected) {
-      try { res.write(chunk); } catch { clientDisconnected = true; }
+      try { res.write(chunk); } catch { clientDisconnected = true; upstreamRes.destroy(); }
     }
   });
 

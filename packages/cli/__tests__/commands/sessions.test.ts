@@ -20,7 +20,7 @@ describe("sessions commands", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "sessions", "list", "researcher"]);
+    await program.parseAsync(["node", "mecha", "casa", "sessions", "list", "researcher"]);
     expect(deps.formatter.table).toHaveBeenCalledWith(
       ["Session ID", "Title", "Created", "Updated"],
       [["s1", "Test", "-", "-"]],
@@ -35,7 +35,7 @@ describe("sessions commands", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "sessions", "list", "researcher"]);
+    await program.parseAsync(["node", "mecha", "casa", "sessions", "list", "researcher"]);
     expect(deps.formatter.info).toHaveBeenCalledWith("No sessions");
   });
 
@@ -44,7 +44,7 @@ describe("sessions commands", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "sessions", "show", "researcher", "s1"]);
+    await program.parseAsync(["node", "mecha", "casa", "sessions", "show", "researcher", "s1"]);
     expect(deps.formatter.json).toHaveBeenCalledWith(expect.objectContaining({ id: "s1" }));
   });
 
@@ -54,7 +54,7 @@ describe("sessions commands", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "sessions", "list", "researcher"]);
+    await program.parseAsync(["node", "mecha", "casa", "sessions", "list", "researcher"]);
     expect(deps.formatter.json).toHaveBeenCalledWith([{ id: "s1", title: "Test" }]);
     expect(deps.formatter.table).not.toHaveBeenCalled();
   });
@@ -64,7 +64,7 @@ describe("sessions commands", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "sessions", "ls", "researcher"]);
+    await program.parseAsync(["node", "mecha", "casa", "sessions", "ls", "researcher"]);
     expect(deps.formatter.table).toHaveBeenCalledWith(
       ["Session ID", "Title", "Created", "Updated"],
       expect.any(Array),
@@ -79,7 +79,7 @@ describe("sessions commands", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "sessions", "list", "researcher"]);
+    await program.parseAsync(["node", "mecha", "casa", "sessions", "list", "researcher"]);
     expect(deps.formatter.table).toHaveBeenCalledWith(
       ["Session ID", "Title", "Created", "Updated"],
       [["-", "-", "-", "-"]],
@@ -94,7 +94,7 @@ describe("sessions commands", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "sessions", "list", "researcher"]);
+    await program.parseAsync(["node", "mecha", "casa", "sessions", "list", "researcher"]);
     expect(deps.formatter.table).toHaveBeenCalledWith(
       ["Session ID", "Title", "Created", "Updated"],
       [["-", "-", "-", "-"], ["-", "-", "-", "-"], ["-", "-", "-", "-"]],
@@ -109,7 +109,7 @@ describe("sessions commands", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "sessions", "show", "researcher", "missing"]);
+    await program.parseAsync(["node", "mecha", "casa", "sessions", "show", "researcher", "missing"]);
     expect(deps.formatter.error).toHaveBeenCalledWith("Session not found");
   });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createHotCounters, ingestEvent, resetToday, toSnapshot, fromSnapshot } from "../src/hot-counters.js";
+import { createHotCounters, ingestEvent, resetToday, resetMonth, toSnapshot, fromSnapshot } from "../src/hot-counters.js";
 import type { MeterEvent } from "../src/types.js";
 
 function makeEvent(overrides: Partial<MeterEvent> = {}): MeterEvent {
@@ -94,6 +94,36 @@ describe("hot-counters", () => {
 
       resetToday(c, "2026-02-27");
       expect(c.byCasa["stale"]).toBeUndefined();
+    });
+  });
+
+  describe("resetMonth", () => {
+    it("zeroes both today and thisMonth counters", () => {
+      const c = createHotCounters("2026-02-26");
+      ingestEvent(c, makeEvent({ costUsd: 0.10 }));
+      expect(c.global.thisMonth.requests).toBe(1);
+      expect(c.global.thisMonth.costUsd).toBe(0.10);
+
+      resetMonth(c, "2026-03-01");
+      expect(c.date).toBe("2026-03-01");
+      expect(c.global.today.requests).toBe(0);
+      expect(c.global.today.costUsd).toBe(0);
+      expect(c.global.thisMonth.requests).toBe(0);
+      expect(c.global.thisMonth.costUsd).toBe(0);
+    });
+
+    it("clears all per-CASA, per-auth, and per-tag buckets", () => {
+      const c = createHotCounters("2026-02-26");
+      ingestEvent(c, makeEvent({ casa: "a", authProfile: "p1", tags: ["t1"] }));
+      ingestEvent(c, makeEvent({ casa: "b", authProfile: "p2", tags: ["t2"] }));
+      expect(Object.keys(c.byCasa)).toHaveLength(2);
+      expect(Object.keys(c.byAuth)).toHaveLength(2);
+      expect(Object.keys(c.byTag)).toHaveLength(2);
+
+      resetMonth(c, "2026-03-01");
+      expect(Object.keys(c.byCasa)).toHaveLength(0);
+      expect(Object.keys(c.byAuth)).toHaveLength(0);
+      expect(Object.keys(c.byTag)).toHaveLength(0);
     });
   });
 

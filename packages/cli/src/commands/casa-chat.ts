@@ -4,8 +4,8 @@ import { casaName } from "@mecha/core";
 import { casaChat } from "@mecha/service";
 import { withErrorHandler } from "../error-handler.js";
 
-export function registerChatCommand(program: Command, deps: CommandDeps): void {
-  program
+export function registerCasaChatCommand(parent: Command, deps: CommandDeps): void {
+  parent
     .command("chat")
     .description("Chat with a CASA")
     .argument("<name>", "CASA name")

@@ -107,7 +107,7 @@ async function spawn(name: string, workspace: string): Promise<void> {
   if (res.ok || res.status === 201) return;
 
   // Fallback: CLI (only works if no other mecha holds the lock)
-  const { exitCode, stdout } = cliSafe(`spawn ${name} ${workspace} --sandbox off --meter off`);
+  const { exitCode, stdout } = cliSafe(`casa spawn ${name} ${workspace} --sandbox off --meter off`);
   if (exitCode !== 0) {
     throw new Error(`Spawn failed via both API (${res.status}) and CLI: ${stdout}`);
   }
@@ -122,7 +122,7 @@ async function kill(name: string): Promise<void> {
     // ignore
   }
   // Fallback: CLI
-  cliSafe(`kill ${name}`);
+  cliSafe(`casa kill ${name}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -392,7 +392,7 @@ describe("LIFE-CLI", () => {
 
   it("LIFE-CLI-02: spawned CASA appears in ls (read-only CLI)", async () => {
     if (!canSpawn) { requireSpawn(); return; }
-    const { stdout, exitCode } = cliSafe("ls --json");
+    const { stdout, exitCode } = cliSafe("casa ls --json");
     if (exitCode !== 0) {
       console.warn("Skipping: CLI ls --json failed:", stdout);
       return;
@@ -415,7 +415,7 @@ describe("LIFE-CLI", () => {
 
   it("LIFE-CLI-03: status returns expected fields (read-only CLI)", async () => {
     if (!canSpawn) { requireSpawn(); return; }
-    const out = cli(`status ${casaName} --json`);
+    const out = cli(`casa status ${casaName} --json`);
     const data = JSON.parse(out);
     expect(data.name).toBe(casaName);
     expect(data.state).toBe("running");
@@ -429,7 +429,7 @@ describe("LIFE-CLI", () => {
     expect(stopRes.status).toBe(200);
     await sleep(500);
 
-    const statusOut = cli(`status ${casaName} --json`);
+    const statusOut = cli(`casa status ${casaName} --json`);
     const data = JSON.parse(statusOut);
     expect(data.state).toBe("stopped");
   });
@@ -438,7 +438,7 @@ describe("LIFE-CLI", () => {
     if (!canSpawn) { requireSpawn(); return; }
     await kill(casaName);
 
-    const lsOut = cli("ls --json");
+    const lsOut = cli("casa ls --json");
     const data = JSON.parse(lsOut);
     const list = Array.isArray(data) ? data : data.casas ?? [];
     const found = list.find((c: { name: string }) => c.name === casaName);
@@ -457,7 +457,7 @@ describe("LIFE-CLI", () => {
       expect(res.status).toBe(400);
     } else {
       // API spawn not deployed — try CLI (works even with lock since it fails fast on validation)
-      const { exitCode } = cliSafe(`spawn "bad name!" /tmp/x --sandbox off`);
+      const { exitCode } = cliSafe(`casa spawn "bad name!" /tmp/x --sandbox off`);
       expect(exitCode).not.toBe(0);
     }
   });
@@ -527,7 +527,7 @@ describe("LIFE-API", () => {
     expect(res.status).toBe(200);
     await sleep(500);
 
-    const statusOut = cli(`status ${casaName} --json`);
+    const statusOut = cli(`casa status ${casaName} --json`);
     const data = JSON.parse(statusOut);
     expect(data.state).toBe("stopped");
   });
@@ -540,7 +540,7 @@ describe("LIFE-API", () => {
     const res = await dashDelete(`/api/casas/${casaName}`, cookie);
     expect(res.status).toBe(200);
 
-    const lsOut = cli("ls --json");
+    const lsOut = cli("casa ls --json");
     const data = JSON.parse(lsOut);
     const list = Array.isArray(data) ? data : data.casas ?? [];
     const found = list.find((c: { name: string }) => c.name === casaName);
@@ -793,7 +793,7 @@ describe("XCHECK", () => {
       expect(res.status).toBe(200);
       await sleep(500);
 
-      const statusOut = cli(`status ${casaName} --json`);
+      const statusOut = cli(`casa status ${casaName} --json`);
       const data = JSON.parse(statusOut);
       expect(data.state).toBe("stopped");
     } finally {
@@ -951,7 +951,7 @@ describe("MESH", () => {
       }
     } finally {
       try {
-        remoteCli(`user@${MESH_NODES.spark01}`, `kill ${remoteName}`);
+        remoteCli(`user@${MESH_NODES.spark01}`, `casa kill ${remoteName}`);
       } catch {
         // ignore
       }
@@ -977,7 +977,7 @@ describe("MESH", () => {
       expect(body.name).toBe(remoteName);
     } finally {
       try {
-        remoteCli(`user@${MESH_NODES.spark01}`, `kill ${remoteName}`);
+        remoteCli(`user@${MESH_NODES.spark01}`, `casa kill ${remoteName}`);
       } catch {
         // ignore
       }
@@ -1004,7 +1004,7 @@ describe("MESH", () => {
       expect(res.status).toBe(200);
     } finally {
       try {
-        remoteCli(`user@${MESH_NODES.spark01}`, `kill ${remoteName}`);
+        remoteCli(`user@${MESH_NODES.spark01}`, `casa kill ${remoteName}`);
       } catch {
         // ignore
       }
@@ -1041,7 +1041,7 @@ describe("MESH", () => {
       }
     } catch {
       try {
-        remoteCli(`user@${MESH_NODES.spark01}`, `kill integ-remote-kill`);
+        remoteCli(`user@${MESH_NODES.spark01}`, `casa kill integ-remote-kill`);
       } catch {
         // ignore
       }
@@ -1098,7 +1098,7 @@ describe("SESS", () => {
 
   it("SESS-01: sessions list via CLI (read-only)", () => {
     if (!canSpawn) { requireSpawn(); return; }
-    const { stdout, exitCode } = cliSafe(`sessions list ${casaName} --json`);
+    const { stdout, exitCode } = cliSafe(`casa sessions list ${casaName} --json`);
     if (exitCode === 0 && stdout.trim()) {
       try {
         const data = JSON.parse(stdout);
@@ -1176,7 +1176,7 @@ describe("ERR", () => {
       });
       if (res.status === 404) {
         // No API spawn route — use CLI (will fail with lock error, which is still "fail")
-        const { exitCode } = cliSafe(`spawn ${casaName} /tmp/${casaName}2 --sandbox off`);
+        const { exitCode } = cliSafe(`casa spawn ${casaName} /tmp/${casaName}2 --sandbox off`);
         expect(exitCode).not.toBe(0);
       } else {
         // API spawn exists — should reject duplicate

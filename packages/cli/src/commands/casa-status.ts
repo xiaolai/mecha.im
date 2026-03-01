@@ -3,11 +3,11 @@ import type { CommandDeps } from "../types.js";
 import { casaName, readCasaConfig, loadCasaIdentity, readAuthProfiles } from "@mecha/core";
 import { casaStatus } from "@mecha/service";
 import { readState } from "@mecha/process";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { withErrorHandler } from "../error-handler.js";
 
-export function registerStatusCommand(program: Command, deps: CommandDeps): void {
-  program
+export function registerCasaStatusCommand(parent: Command, deps: CommandDeps): void {
+  parent
     .command("status")
     .description("Show CASA status")
     .argument("<name>", "CASA name")
@@ -28,7 +28,7 @@ export function registerStatusCommand(program: Command, deps: CommandDeps): void
         const all = deps.processManager.list();
         for (const other of all) {
           if (other.name === validated) continue;
-          if (other.workspacePath && info.workspacePath.startsWith(other.workspacePath + "/")) {
+          if (other.workspacePath && info.workspacePath.startsWith(other.workspacePath + sep)) {
             if (!parent || other.workspacePath.length > parentWsLen) {
               parent = other.name;
               parentWsLen = other.workspacePath.length;

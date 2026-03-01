@@ -18,7 +18,7 @@ function makeInfo(name: string, port: number): ProcessInfo {
   };
 }
 
-describe("find command", () => {
+describe("casa find command", () => {
   let mechaDir: string;
   afterEach(() => { if (mechaDir) rmSync(mechaDir, { recursive: true, force: true }); });
 
@@ -40,7 +40,7 @@ describe("find command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "find", "--tag", "code"]);
+    await program.parseAsync(["node", "mecha", "casa", "find", "--tag", "code"]);
     expect(deps.formatter.table).toHaveBeenCalledWith(
       ["Name", "State", "Port", "Tags"],
       expect.arrayContaining([
@@ -61,7 +61,7 @@ describe("find command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "find", "--tag", "nonexistent"]);
+    await program.parseAsync(["node", "mecha", "casa", "find", "--tag", "nonexistent"]);
     expect(deps.formatter.info).toHaveBeenCalledWith(expect.stringContaining("No CASAs found"));
   });
 
@@ -74,7 +74,7 @@ describe("find command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "find"]);
+    await program.parseAsync(["node", "mecha", "casa", "find"]);
     expect(deps.formatter.info).toHaveBeenCalledWith("No CASAs found");
   });
 
@@ -89,7 +89,7 @@ describe("find command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "find"]);
+    await program.parseAsync(["node", "mecha", "casa", "find"]);
     expect(deps.formatter.table).toHaveBeenCalledWith(
       ["Name", "State", "Port", "Tags"],
       [["alice", "running", "7701", "research"]],
@@ -110,7 +110,7 @@ describe("find command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "find"]);
+    await program.parseAsync(["node", "mecha", "casa", "find"]);
     expect(deps.formatter.table).toHaveBeenCalledWith(
       ["Name", "State", "Port", "Tags"],
       [["alice", "stopped", "-", "-"]],
@@ -129,7 +129,7 @@ describe("find command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "find", "--tag", "code", "--tag", "review"]);
+    await program.parseAsync(["node", "mecha", "casa", "find", "--tag", "code", "--tag", "review"]);
     expect(deps.formatter.table).toHaveBeenCalledWith(
       ["Name", "State", "Port", "Tags"],
       [["bob", "running", "7702", "code, review"]],

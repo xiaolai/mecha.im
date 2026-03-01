@@ -1,14 +1,16 @@
+import { existsSync, statSync } from "node:fs";
+import { resolve } from "node:path";
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
-import { casaName, validateTags, validateCapabilities, parsePort } from "@mecha/core";
+import { casaName, validateTags, validateCapabilities, parsePort, PathNotFoundError, PathNotDirectoryError } from "@mecha/core";
 import type { SandboxMode } from "@mecha/core";
 import { withErrorHandler } from "../error-handler.js";
 
 const SANDBOX_MODES: readonly string[] = ["auto", "off", "require"];
 const PERMISSION_MODES: readonly string[] = ["default", "plan", "full-auto"];
 
-export function registerSpawnCommand(program: Command, deps: CommandDeps): void {
-  program
+export function registerCasaSpawnCommand(parent: Command, deps: CommandDeps): void {
+  parent
     .command("spawn")
     .description("Spawn a new CASA process")
     .argument("<name>", "CASA name")
@@ -61,6 +63,14 @@ export function registerSpawnCommand(program: Command, deps: CommandDeps): void 
         process.exitCode = 1;
         return;
       }
+      // Validate workspace path exists and is a directory
+      const resolvedPath = resolve(path);
+      if (!existsSync(resolvedPath)) {
+        throw new PathNotFoundError(resolvedPath);
+      }
+      if (!statSync(resolvedPath).isDirectory()) {
+        throw new PathNotDirectoryError(resolvedPath);
+      }
       // Subscribe to warning events before spawn (scoped to this CASA)
       /* v8 ignore start -- event handler callback; wiring tested via onEvent call check */
       const unsub = deps.processManager.onEvent((event) => {
@@ -70,7 +80,7 @@ export function registerSpawnCommand(program: Command, deps: CommandDeps): void 
       try {
         const info = await deps.processManager.spawn({
           name: validated,
-          workspacePath: path,
+          workspacePath: resolvedPath,
           port,
           auth: opts.auth === false ? null : (opts.auth as string | undefined),
           tags,
