@@ -20,7 +20,6 @@
     "@mecha/agent": "workspace:*",
     "@mecha/connect": "workspace:*",
     "@mecha/core": "workspace:*",
-    "@mecha/dashboard": "workspace:*",
     "@mecha/mcp-server": "workspace:*",
     "@mecha/meter": "workspace:*",
     "@mecha/process": "workspace:*",

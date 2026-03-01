@@ -7,6 +7,9 @@ set -euo pipefail
 #   mecha <command>     → CLI mode
 #   mecha __runtime     → runtime mode (spawned internally as child process)
 #
+# The SPA dashboard is built first and copied alongside the binary
+# so the agent server can serve it on the same port.
+#
 # Usage:
 #   ./scripts/build-binaries.sh                    # current platform
 #   ./scripts/build-binaries.sh darwin-arm64        # macOS Apple Silicon
@@ -22,13 +25,17 @@ fi
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="$ROOT/dist/bin"
 ENTRY="$ROOT/packages/cli/src/bin-entry.ts"
+SPA_DIST="$ROOT/packages/spa/dist"
 
-# Dashboard (Next.js) cannot be bundled into compiled binary.
-# It's only used via dynamic import and gracefully errors at runtime.
-EXTERNALS=(
-  --external "@mecha/dashboard"
-  --external "next"
-)
+# Build SPA dashboard first
+echo "Building SPA dashboard..."
+if command -v pnpm &>/dev/null; then
+  pnpm --filter @mecha/spa build
+else
+  (cd "$ROOT/packages/spa" && npm run build)
+fi
+echo "  → SPA built at $SPA_DIST"
+echo ""
 
 TARGETS=(
   "bun-darwin-arm64"
@@ -58,9 +65,14 @@ build_target() {
 
   echo "Building mecha for $target..."
   bun build --compile --target="$target" \
-    "${EXTERNALS[@]}" \
     --outfile "$dir/mecha${ext}" \
     "$ENTRY"
+
+  # Copy SPA dist alongside binary (clean first to avoid nested dirs)
+  if [[ -d "$SPA_DIST" ]]; then
+    rm -rf "$dir/spa"
+    cp -r "$SPA_DIST" "$dir/spa"
+  fi
 
   echo "  → $dir/mecha${ext}"
   ls -lh "$dir/mecha${ext}" | awk '{print "    size: " $5}'
@@ -75,9 +87,14 @@ build_current() {
 
   echo "Building mecha for current platform..."
   bun build --compile \
-    "${EXTERNALS[@]}" \
     --outfile "$dir/mecha${ext}" \
     "$ENTRY"
+
+  # Copy SPA dist alongside binary (clean first to avoid nested dirs)
+  if [[ -d "$SPA_DIST" ]]; then
+    rm -rf "$dir/spa"
+    cp -r "$SPA_DIST" "$dir/spa"
+  fi
 
   echo "  → $dir/mecha${ext}"
   ls -lh "$dir/mecha${ext}" | awk '{print "    size: " $5}'
