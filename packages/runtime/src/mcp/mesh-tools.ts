@@ -7,7 +7,10 @@ import {
   matchesDiscoveryFilter,
   AclDeniedError,
   CasaNotFoundError,
+  createLogger,
 } from "@mecha/core";
+
+const log = createLogger("mecha:runtime:mesh");
 
 interface McpToolDef {
   name: string;
@@ -143,7 +146,7 @@ export async function handleMeshTool(
         }
         /* v8 ignore start -- generic error fallback for unexpected forwarding failures */
         const detail = err instanceof Error ? err.message : String(err);
-        console.error(`[mecha] Mesh query to "${target}" failed: ${detail}`);
+        log.error("Mesh query failed", { target, error: detail });
         return {
           content: [{ type: "text", text: "Mesh query failed" }],
           isError: true,

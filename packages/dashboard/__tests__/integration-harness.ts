@@ -64,8 +64,8 @@ export const CLI_TIMEOUT = 30_000;
 // Mesh node IPs (mesh network)
 export const MESH_NODES = {
   spark01: "100.100.1.5",
-  "server-03": "100.100.1.3",
-  linode02: "100.100.1.4",
+  "server-03": "100.100.1.7",
+  linode02: "100.100.1.9",
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -350,7 +350,7 @@ export async function collectSSEEvents(
 /** Kill a CASA by name, ignoring errors if it doesn't exist. */
 export function cleanupCasa(name: string): void {
   try {
-    execSync(`node ${CLI_BIN} kill ${name}`, {
+    execSync(`node ${CLI_BIN} casa kill ${name}`, {
       env: { ...process.env },
       timeout: CLI_TIMEOUT,
       stdio: "ignore",

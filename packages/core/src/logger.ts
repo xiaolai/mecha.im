@@ -9,9 +9,18 @@ export interface Logger {
   error(msg: string, data?: Record<string, unknown>): void;
 }
 
+let cachedThreshold: number | null = null;
+
 function getThreshold(): number {
+  if (cachedThreshold !== null) return cachedThreshold;
   const env = (process.env.MECHA_LOG_LEVEL ?? "info").toLowerCase();
-  return LEVELS[env as Level] ?? LEVELS.info;
+  cachedThreshold = LEVELS[env as Level] ?? LEVELS.info;
+  return cachedThreshold;
+}
+
+/** Reset cached log level (for testing). */
+export function resetLogLevel(): void {
+  cachedThreshold = null;
 }
 
 const REDACT_KEYS = new Set(["token", "authorization", "apikey", "api_key", "secret", "password", "credential"]);

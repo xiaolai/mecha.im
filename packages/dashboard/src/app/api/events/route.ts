@@ -3,7 +3,8 @@ import { getProcessManager, log } from "@/lib/pm-singleton";
 export const dynamic = "force-dynamic";
 
 const MAX_CONNECTIONS = 10;
-const HEARTBEAT_INTERVAL_MS = 15_000;
+// 10s heartbeat keeps connection alive through proxies (many default to 30s timeout)
+const HEARTBEAT_INTERVAL_MS = 10_000;
 let activeConnections = 0;
 
 export async function GET(): Promise<Response> {

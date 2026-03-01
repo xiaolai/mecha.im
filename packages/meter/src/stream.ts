@@ -53,9 +53,11 @@ export function parseSSEChunk(
           state.outputTokens = usage.output_tokens ?? state.outputTokens;
         }
       }
+    /* v8 ignore start -- malformed SSE data fallback */
     } catch {
       // Malformed SSE data — skip, log is handled by caller
     }
+    /* v8 ignore stop */
   }
 }
 

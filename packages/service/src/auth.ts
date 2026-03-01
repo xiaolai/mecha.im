@@ -129,8 +129,17 @@ export function mechaAuthAddFull(mechaDir: string, opts: AuthAddOpts): AuthProfi
 
   creds[opts.name] = { token: opts.token };
 
+  // Best-effort dual-write: if credentials write fails, revert profiles
+  const prevStore = readAuthProfiles(mechaDir);
   writeProfiles(mechaDir, store);
-  writeCredentials(mechaDir, creds);
+  try {
+    writeCredentials(mechaDir, creds);
+  /* v8 ignore start -- credentials write failure after profiles write */
+  } catch (err) {
+    writeProfiles(mechaDir, prevStore);
+    throw err;
+  }
+  /* v8 ignore stop */
 
   return toPublicProfile(opts.name, meta, store.default);
 }
@@ -164,8 +173,17 @@ export function mechaAuthRm(mechaDir: string, name: string): void {
     store.default = remaining.length > 0 ? remaining[0]! : null;
   }
 
+  // Best-effort dual-write: if credentials write fails, revert profiles
+  const prevStore = readAuthProfiles(mechaDir);
   writeProfiles(mechaDir, store);
-  writeCredentials(mechaDir, creds);
+  try {
+    writeCredentials(mechaDir, creds);
+  /* v8 ignore start -- credentials write failure after profiles write */
+  } catch (err) {
+    writeProfiles(mechaDir, prevStore);
+    throw err;
+  }
+  /* v8 ignore stop */
 }
 
 export function mechaAuthTag(mechaDir: string, name: string, tags: string[]): void {

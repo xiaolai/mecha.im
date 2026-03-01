@@ -1,6 +1,9 @@
-import { appendFileSync, mkdirSync, readFileSync, readdirSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, readdirSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
+import { createLogger } from "@mecha/core";
 import type { MeterEvent } from "./types.js";
+
+const log = createLogger("mecha:meter");
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -41,7 +44,7 @@ export function readEventsForDate(meterDir: string, date: string): MeterEvent[] 
         events.push(JSON.parse(line) as MeterEvent);
       } catch {
         /* v8 ignore start -- malformed line in JSONL */
-        console.error(`[mecha:meter] Skipping malformed line in ${date}.jsonl`);
+        log.warn("Skipping malformed line in event file", { date });
         continue;
         /* v8 ignore stop */
       }
@@ -63,4 +66,30 @@ export function listEventDates(meterDir: string): string[] {
   } catch {
     return [];
   }
+}
+
+/**
+ * Delete event files older than `retentionDays` days.
+ * Returns the number of files deleted.
+ */
+export function cleanupOldEvents(meterDir: string, retentionDays: number): number {
+  const cutoff = new Date();
+  cutoff.setUTCDate(cutoff.getUTCDate() - retentionDays);
+  const cutoffDate = cutoff.toISOString().slice(0, 10);
+
+  const dates = listEventDates(meterDir);
+  let deleted = 0;
+  for (const date of dates) {
+    if (date < cutoffDate) {
+      try {
+        unlinkSync(join(eventsDir(meterDir), `${date}.jsonl`));
+        deleted++;
+      /* v8 ignore start -- race: file deleted between list and unlink */
+      } catch {
+        continue;
+      }
+      /* v8 ignore stop */
+    }
+  }
+  return deleted;
 }

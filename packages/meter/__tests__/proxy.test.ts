@@ -7,6 +7,7 @@ import {
   buildMeterEvent, enforceBudget, reloadBudgets, recordEvent,
   parseModelAndStream, stripHopByHop, MAX_BODY_BYTES,
   ESTIMATED_REQUEST_COST_USD,
+  getDroppedEventCount, resetDroppedEventCount,
 } from "../src/proxy.js";
 import type { ProxyContext } from "../src/proxy.js";
 import { loadPricing, initPricing } from "../src/pricing.js";
@@ -378,6 +379,34 @@ describe("proxy", () => {
   describe("MAX_BODY_BYTES", () => {
     it("is 32MB", () => {
       expect(MAX_BODY_BYTES).toBe(32 * 1024 * 1024);
+    });
+  });
+
+  describe("getDroppedEventCount / resetDroppedEventCount", () => {
+    afterEach(() => resetDroppedEventCount());
+
+    it("tracks dropped events from failed writes", () => {
+      tempDir = mkdtempSync(join(tmpdir(), "meter-proxy-"));
+      const ctx = makeCtx(tempDir);
+      ctx.meterDir = "/nonexistent/path/meter";
+
+      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const before = getDroppedEventCount();
+
+      const event = buildMeterEvent(ctx, Date.now(), "r", makeCasaInfo(), "m", false, 200, {
+        inputTokens: 1, outputTokens: 1,
+        cacheCreationTokens: 0, cacheReadTokens: 0,
+        modelActual: "m", ttftMs: null,
+      });
+
+      recordEvent(ctx, event);
+      expect(getDroppedEventCount()).toBe(before + 1);
+      consoleSpy.mockRestore();
+    });
+
+    it("resets counter to zero", () => {
+      resetDroppedEventCount();
+      expect(getDroppedEventCount()).toBe(0);
     });
   });
 });
