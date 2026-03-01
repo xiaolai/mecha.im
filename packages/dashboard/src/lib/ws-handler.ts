@@ -122,8 +122,11 @@ function handleLocalPty(
     exitDisposable.dispose();
   });
 
-  // Send session ID to client
-  sendJson(ws, { type: "session", id: sessionKey });
+  // Send session ID to client (strip casaName: prefix so client doesn't double-prefix on reconnect)
+  /* v8 ignore start -- sessionKey always has casaName: prefix from makeSessionKey */
+  const clientSessionId = sessionKey.startsWith(`${casaName}:`) ? sessionKey.slice(casaName.length + 1) : sessionKey;
+  /* v8 ignore stop */
+  sendJson(ws, { type: "session", id: clientSessionId });
 }
 
 /* v8 ignore start -- remote relay requires real WS connections; covered by integration tests (WI-3.8) */

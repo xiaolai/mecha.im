@@ -16,6 +16,8 @@ export { isPidAlive, waitForChildExit, waitForPidExit } from "./process-lifecycl
 export { prepareCasaFilesystem, encodeProjectPath } from "./sandbox-setup.js";
 export type { CasaFilesystemOpts, CasaFilesystemResult } from "./sandbox-setup.js";
 export { readLogs } from "./log-reader.js";
+export type { MechaPty, PtySpawnOpts, PtySpawnFn, PtyDisposable } from "./pty-types.js";
+export { createBunPtySpawn } from "./bun-pty.js";
 export {
   readScheduleConfig,
   writeScheduleConfig,

@@ -35,6 +35,12 @@ export function Terminal({ casaName, sessionId, node, onSessionCreated, onExit }
   const { resolvedTheme } = useTheme();
   const [status, setStatus] = useState<"connecting" | "connected" | "disconnected">("connecting");
 
+  // Store callbacks in refs to avoid triggering effect re-runs
+  const onSessionCreatedRef = useRef(onSessionCreated);
+  onSessionCreatedRef.current = onSessionCreated;
+  const onExitRef = useRef(onExit);
+  onExitRef.current = onExit;
+
   const sendResize = useCallback(() => {
     const ws = wsRef.current;
     const term = termRef.current;
@@ -43,6 +49,8 @@ export function Terminal({ casaName, sessionId, node, onSessionCreated, onExit }
     }
   }, []);
 
+  // Main effect: create terminal + WS connection
+  // Only re-runs when casaName, sessionId, or node changes (actual navigation)
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -55,11 +63,10 @@ export function Terminal({ casaName, sessionId, node, onSessionCreated, onExit }
 
       if (disposed) return;
 
-      const isDark = resolvedTheme === "dark";
       const term = new XTerm({
         cursorBlink: true,
         scrollback: 10_000,
-        theme: isDark ? DARK_THEME : LIGHT_THEME,
+        theme: resolvedTheme === "dark" ? DARK_THEME : LIGHT_THEME,
         fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace",
         fontSize: 14,
       });
@@ -98,9 +105,9 @@ export function Terminal({ casaName, sessionId, node, onSessionCreated, onExit }
           try {
             const msg = JSON.parse(event.data as string) as { type: string; id?: string; code?: number; message?: string };
             if (msg.type === "session" && msg.id) {
-              onSessionCreated?.(msg.id);
+              onSessionCreatedRef.current?.(msg.id);
             } else if (msg.type === "exit" && typeof msg.code === "number") {
-              onExit?.(msg.code);
+              onExitRef.current?.(msg.code);
               setStatus("disconnected");
             } else if (msg.type === "error") {
               term.writeln(`\r\n\x1b[31mError: ${msg.message ?? "Unknown error"}\x1b[0m`);
@@ -148,7 +155,15 @@ export function Terminal({ casaName, sessionId, node, onSessionCreated, onExit }
       termRef.current = null;
       fitRef.current = null;
     };
-  }, [casaName, sessionId, node, resolvedTheme, onSessionCreated, onExit, sendResize]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- callbacks stored in refs; theme handled separately
+  }, [casaName, sessionId, node, sendResize]);
+
+  // Separate effect: update theme without tearing down WS
+  useEffect(() => {
+    const term = termRef.current;
+    if (!term) return;
+    term.options.theme = resolvedTheme === "dark" ? DARK_THEME : LIGHT_THEME;
+  }, [resolvedTheme]);
 
   return (
     <div className="relative flex flex-col h-full">
