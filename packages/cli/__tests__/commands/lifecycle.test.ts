@@ -32,15 +32,15 @@ function defaultPm(): Partial<ProcessManager> {
   };
 }
 
-describe("spawn command", () => {
+describe("casa spawn command", () => {
   it("spawns a CASA", async () => {
     const deps = makeDeps({ pm: defaultPm() });
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "spawn", "researcher", "/home/user/research"]);
+    await program.parseAsync(["node", "mecha", "casa", "spawn", "researcher", tmpdir()]);
     expect(deps.processManager.spawn).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "researcher", workspacePath: "/home/user/research" }),
+      expect.objectContaining({ name: "researcher", workspacePath: tmpdir() }),
     );
     expect(deps.formatter.success).toHaveBeenCalledWith(expect.stringContaining("Spawned"));
   });
@@ -50,7 +50,7 @@ describe("spawn command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "spawn", "test", "/ws", "--port", "7701"]);
+    await program.parseAsync(["node", "mecha", "casa", "spawn", "test", tmpdir(), "--port", "7701"]);
     expect(deps.processManager.spawn).toHaveBeenCalledWith(
       expect.objectContaining({ port: 7701 }),
     );
@@ -61,7 +61,7 @@ describe("spawn command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "spawn", "test", "/ws", "--port", "abc"]);
+    await program.parseAsync(["node", "mecha", "casa", "spawn", "test", tmpdir(), "--port", "abc"]);
     expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("Port must be"));
     expect(process.exitCode).toBe(1);
 
@@ -72,7 +72,7 @@ describe("spawn command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "spawn", "test", "/ws", "--tags", "dev,research, ml"]);
+    await program.parseAsync(["node", "mecha", "casa", "spawn", "test", tmpdir(), "--tags", "dev,research, ml"]);
     expect(deps.processManager.spawn).toHaveBeenCalledWith(
       expect.objectContaining({ tags: ["dev", "research", "ml"] }),
     );
@@ -83,7 +83,7 @@ describe("spawn command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "spawn", "test", "/ws", "--tags", "has space,ok"]);
+    await program.parseAsync(["node", "mecha", "casa", "spawn", "test", tmpdir(), "--tags", "has space,ok"]);
     expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("invalid characters"));
     expect(process.exitCode).toBe(1);
 
@@ -94,7 +94,7 @@ describe("spawn command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "spawn", "test", "/ws", "--auth", "personal"]);
+    await program.parseAsync(["node", "mecha", "casa", "spawn", "test", tmpdir(), "--auth", "personal"]);
     expect(deps.processManager.spawn).toHaveBeenCalledWith(
       expect.objectContaining({ auth: "personal" }),
     );
@@ -105,7 +105,7 @@ describe("spawn command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "spawn", "test", "/ws", "--no-auth"]);
+    await program.parseAsync(["node", "mecha", "casa", "spawn", "test", tmpdir(), "--no-auth"]);
     expect(deps.processManager.spawn).toHaveBeenCalledWith(
       expect.objectContaining({ auth: null }),
     );
@@ -116,7 +116,7 @@ describe("spawn command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "spawn", "test", "/ws", "--expose", "query,read_workspace"]);
+    await program.parseAsync(["node", "mecha", "casa", "spawn", "test", tmpdir(), "--expose", "query,read_workspace"]);
     expect(deps.processManager.spawn).toHaveBeenCalledWith(
       expect.objectContaining({ expose: ["query", "read_workspace"] }),
     );
@@ -127,7 +127,7 @@ describe("spawn command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "spawn", "test", "/ws", "--expose", "bogus"]);
+    await program.parseAsync(["node", "mecha", "casa", "spawn", "test", tmpdir(), "--expose", "bogus"]);
     expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("Invalid capability"));
     expect(process.exitCode).toBe(1);
 
@@ -138,7 +138,7 @@ describe("spawn command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "spawn", "test", "/ws", "--model", "claude-sonnet-4-5-20250514"]);
+    await program.parseAsync(["node", "mecha", "casa", "spawn", "test", tmpdir(), "--model", "claude-sonnet-4-5-20250514"]);
     expect(deps.processManager.spawn).toHaveBeenCalledWith(
       expect.objectContaining({ model: "claude-sonnet-4-5-20250514" }),
     );
@@ -149,7 +149,7 @@ describe("spawn command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "spawn", "test", "/ws", "--permission-mode", "full-auto"]);
+    await program.parseAsync(["node", "mecha", "casa", "spawn", "test", tmpdir(), "--permission-mode", "full-auto"]);
     expect(deps.processManager.spawn).toHaveBeenCalledWith(
       expect.objectContaining({ permissionMode: "full-auto" }),
     );
@@ -160,7 +160,7 @@ describe("spawn command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "spawn", "test", "/ws", "--permission-mode", "bogus"]);
+    await program.parseAsync(["node", "mecha", "casa", "spawn", "test", tmpdir(), "--permission-mode", "bogus"]);
     expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("Permission mode must be"));
     expect(process.exitCode).toBe(1);
     expect(deps.processManager.spawn).not.toHaveBeenCalled();
@@ -171,7 +171,7 @@ describe("spawn command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "spawn", "test", "/ws", "--sandbox", "require"]);
+    await program.parseAsync(["node", "mecha", "casa", "spawn", "test", tmpdir(), "--sandbox", "require"]);
     expect(deps.processManager.spawn).toHaveBeenCalledWith(
       expect.objectContaining({ sandboxMode: "require" }),
     );
@@ -182,10 +182,33 @@ describe("spawn command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "spawn", "test", "/ws", "--sandbox", "bogus"]);
+    await program.parseAsync(["node", "mecha", "casa", "spawn", "test", tmpdir(), "--sandbox", "bogus"]);
     expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("Sandbox mode must be"));
     expect(process.exitCode).toBe(1);
 
+  });
+
+  it("rejects non-existent workspace path", async () => {
+    const deps = makeDeps({ pm: defaultPm() });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "casa", "spawn", "test", "/nonexistent/path/xyz"]);
+    expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("Path not found"));
+    expect(deps.processManager.spawn).not.toHaveBeenCalled();
+  });
+
+  it("rejects workspace path that is not a directory", async () => {
+    const tempFile = join(mkdtempSync(join(tmpdir(), "spawn-test-")), "file.txt");
+    writeFileSync(tempFile, "not a directory");
+    const deps = makeDeps({ pm: defaultPm() });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "casa", "spawn", "test", tempFile]);
+    expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("not a directory"));
+    expect(deps.processManager.spawn).not.toHaveBeenCalled();
+    rmSync(join(tempFile, ".."), { recursive: true, force: true });
   });
 
   it("subscribes to warning events during spawn", async () => {
@@ -194,31 +217,31 @@ describe("spawn command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "spawn", "test", "/ws"]);
+    await program.parseAsync(["node", "mecha", "casa", "spawn", "test", tmpdir()]);
     expect(onEventMock).toHaveBeenCalledWith(expect.any(Function));
     expect(deps.formatter.success).toHaveBeenCalledWith(expect.stringContaining("Spawned"));
   });
 });
 
-describe("kill command", () => {
+describe("casa kill command", () => {
   it("kills a CASA", async () => {
     const deps = makeDeps({ pm: defaultPm() });
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "kill", "researcher"]);
+    await program.parseAsync(["node", "mecha", "casa", "kill", "researcher"]);
     expect(deps.processManager.kill).toHaveBeenCalledWith("researcher");
     expect(deps.formatter.success).toHaveBeenCalledWith(expect.stringContaining("Killed"));
   });
 });
 
-describe("stop command", () => {
+describe("casa stop command", () => {
   it("stops a CASA", async () => {
     const deps = makeDeps({ pm: defaultPm() });
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "stop", "researcher"]);
+    await program.parseAsync(["node", "mecha", "casa", "stop", "researcher"]);
     expect(deps.processManager.stop).toHaveBeenCalledWith("researcher");
     expect(deps.formatter.success).toHaveBeenCalledWith(expect.stringContaining("Stopped"));
   });
@@ -231,7 +254,7 @@ describe("stop command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "stop", "ghost"]);
+    await program.parseAsync(["node", "mecha", "casa", "stop", "ghost"]);
     expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("not found"));
     expect(process.exitCode).toBe(1);
   });
@@ -244,20 +267,20 @@ describe("stop command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "stop", "test"]);
+    await program.parseAsync(["node", "mecha", "casa", "stop", "test"]);
     expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("not running"));
     expect(process.exitCode).toBe(1);
   });
 });
 
-describe("ls command", () => {
+describe("casa ls command", () => {
   let mechaDir: string;
   afterEach(() => { if (mechaDir) rmSync(mechaDir, { recursive: true, force: true }); });
 
   function writeCasaConfig(name: string, tags: string[]): void {
     const dir = join(mechaDir, name);
     mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, "config.json"), JSON.stringify({ port: 7700, token: "t", workspace: "/ws", tags }));
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ port: 7700, token: "t", workspace: tmpdir(), tags }));
   }
 
   it("lists CASAs with tags", async () => {
@@ -267,7 +290,7 @@ describe("ls command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "ls"]);
+    await program.parseAsync(["node", "mecha", "casa", "ls"]);
     expect(deps.formatter.table).toHaveBeenCalledWith(
       ["Name", "State", "Port", "PID", "Tags"],
       [["test", "running", "7700", "12345", "code, dev"]],
@@ -280,7 +303,7 @@ describe("ls command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "ls"]);
+    await program.parseAsync(["node", "mecha", "casa", "ls"]);
     expect(deps.formatter.info).toHaveBeenCalledWith("No CASAs running");
   });
 
@@ -288,21 +311,21 @@ describe("ls command", () => {
     mechaDir = mkdtempSync(join(tmpdir(), "mecha-ls-"));
     const dir = join(mechaDir, "x");
     mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, "config.json"), JSON.stringify({ port: 7700, token: "t", workspace: "/ws" }));
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ port: 7700, token: "t", workspace: tmpdir() }));
 
     const deps = makeDeps({
       mechaDir,
       pm: {
         ...defaultPm(),
         list: vi.fn().mockReturnValue([
-          { name: "x", state: "stopped", port: undefined, pid: undefined, workspacePath: "/ws" },
+          { name: "x", state: "stopped", port: undefined, pid: undefined, workspacePath: tmpdir() },
         ]),
       },
     });
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "ls"]);
+    await program.parseAsync(["node", "mecha", "casa", "ls"]);
     expect(deps.formatter.table).toHaveBeenCalledWith(
       ["Name", "State", "Port", "PID", "Tags"],
       [["x", "stopped", "-", "-", "-"]],
@@ -344,7 +367,7 @@ describe("ls command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "ls"]);
+    await program.parseAsync(["node", "mecha", "casa", "ls"]);
     const tableCall = (deps.formatter.table as ReturnType<typeof vi.fn>).mock.calls[0];
     const rows = tableCall[1] as string[][];
     // Parent at depth 0 — no indent
@@ -354,7 +377,7 @@ describe("ls command", () => {
   });
 });
 
-describe("status command", () => {
+describe("casa status command", () => {
   let mechaDir: string;
   afterEach(() => { if (mechaDir) rmSync(mechaDir, { recursive: true, force: true }); });
 
@@ -363,7 +386,7 @@ describe("status command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "status", "test"]);
+    await program.parseAsync(["node", "mecha", "casa", "status", "test"]);
     const tableCall = (deps.formatter.table as ReturnType<typeof vi.fn>).mock.calls[0];
     const rows = tableCall[1] as string[][];
     expect(tableCall[0]).toEqual(["Field", "Value"]);
@@ -379,7 +402,7 @@ describe("status command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "status", "test"]);
+    await program.parseAsync(["node", "mecha", "casa", "status", "test"]);
     const jsonArg = (deps.formatter.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(jsonArg.name).toBe("test");
     expect(jsonArg).not.toHaveProperty("token");
@@ -410,7 +433,7 @@ describe("status command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "status", "test"]);
+    await program.parseAsync(["node", "mecha", "casa", "status", "test"]);
     expect(findRow(getStatusRows(deps), "fingerprint")).toBe("sha256:abcdef");
   });
 
@@ -419,14 +442,14 @@ describe("status command", () => {
     const casaDir = join(mechaDir, "test");
     mkdirSync(casaDir, { recursive: true });
     writeFileSync(join(casaDir, "config.json"), JSON.stringify({
-      port: 7700, token: "t", workspace: "/ws", expose: ["query", "read_workspace"],
+      port: 7700, token: "t", workspace: tmpdir(), expose: ["query", "read_workspace"],
     }));
 
     const deps = makeDeps({ mechaDir, pm: defaultPm() });
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "status", "test"]);
+    await program.parseAsync(["node", "mecha", "casa", "status", "test"]);
     expect(findRow(getStatusRows(deps), "expose")).toBe("query, read_workspace");
   });
 
@@ -456,7 +479,7 @@ describe("status command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "status", "child"]);
+    await program.parseAsync(["node", "mecha", "casa", "status", "child"]);
     expect(findRow(getStatusRows(deps), "parent")).toBe("parent");
   });
 
@@ -465,7 +488,7 @@ describe("status command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "status", "test"]);
+    await program.parseAsync(["node", "mecha", "casa", "status", "test"]);
     const rows = getStatusRows(deps);
     expect(rows.find(([k]) => k === "parent")).toBeUndefined();
   });
@@ -476,7 +499,7 @@ describe("status command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "status", "test"]);
+    await program.parseAsync(["node", "mecha", "casa", "status", "test"]);
     const rows = getStatusRows(deps);
     expect(rows.find(([k]) => k === "fingerprint")).toBeUndefined();
   });
@@ -485,13 +508,13 @@ describe("status command", () => {
     mechaDir = mkdtempSync(join(tmpdir(), "mecha-status-"));
     const casaDir = join(mechaDir, "test");
     mkdirSync(casaDir, { recursive: true });
-    writeFileSync(join(casaDir, "config.json"), JSON.stringify({ port: 7700, token: "t", workspace: "/ws" }));
+    writeFileSync(join(casaDir, "config.json"), JSON.stringify({ port: 7700, token: "t", workspace: tmpdir() }));
 
     const deps = makeDeps({ mechaDir, pm: defaultPm() });
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "status", "test"]);
+    await program.parseAsync(["node", "mecha", "casa", "status", "test"]);
     const rows = getStatusRows(deps);
     expect(rows.find(([k]) => k === "expose")).toBeUndefined();
   });
@@ -514,7 +537,7 @@ describe("status command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "status", "nowstest"]);
+    await program.parseAsync(["node", "mecha", "casa", "status", "nowstest"]);
     const rows = getStatusRows(deps);
     expect(rows.find(([k]) => k === "parent")).toBeUndefined();
   });
@@ -536,7 +559,7 @@ describe("status command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "status", "leaf"]);
+    await program.parseAsync(["node", "mecha", "casa", "status", "leaf"]);
     expect(findRow(getStatusRows(deps), "parent")).toBe("mid");
   });
 
@@ -556,7 +579,7 @@ describe("status command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "status", "child"]);
+    await program.parseAsync(["node", "mecha", "casa", "status", "child"]);
     const rows = getStatusRows(deps);
     expect(rows.find(([k]) => k === "parent")).toBeUndefined();
   });
@@ -570,7 +593,7 @@ describe("status command", () => {
       state: "running",
       pid: 12345,
       port: 7700,
-      workspacePath: "/ws",
+      workspacePath: tmpdir(),
       sandboxPlatform: "macos",
       sandboxMode: "auto",
     }));
@@ -579,20 +602,20 @@ describe("status command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "status", "test"]);
+    await program.parseAsync(["node", "mecha", "casa", "status", "test"]);
     const rows = getStatusRows(deps);
     expect(findRow(rows, "sandboxPlatform")).toBe("macos");
     expect(findRow(rows, "sandboxMode")).toBe("auto");
   });
 });
 
-describe("logs command", () => {
+describe("casa logs command", () => {
   it("streams logs", async () => {
     const deps = makeDeps({ pm: defaultPm() });
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "logs", "test"]);
+    await program.parseAsync(["node", "mecha", "casa", "logs", "test"]);
     expect(deps.processManager.logs).toHaveBeenCalledWith("test", {
       follow: undefined,
       tail: undefined,
@@ -618,7 +641,7 @@ describe("logs command", () => {
     }) as typeof process.stdout.write;
 
     try {
-      await program.parseAsync(["node", "mecha", "logs", "test"]);
+      await program.parseAsync(["node", "mecha", "casa", "logs", "test"]);
     } finally {
       process.stdout.write = origWrite;
     }
@@ -630,7 +653,7 @@ describe("logs command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "logs", "test", "-n", "abc"]);
+    await program.parseAsync(["node", "mecha", "casa", "logs", "test", "-n", "abc"]);
     expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("Tail must be"));
     expect(process.exitCode).toBe(1);
 
@@ -641,7 +664,7 @@ describe("logs command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "logs", "test", "-f", "-n", "50"]);
+    await program.parseAsync(["node", "mecha", "casa", "logs", "test", "-f", "-n", "50"]);
     expect(deps.processManager.logs).toHaveBeenCalledWith("test", {
       follow: true,
       tail: 50,

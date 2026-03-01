@@ -28,7 +28,7 @@ describe("configure command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "configure", "alice", "--tags", "research,papers"]);
+    await program.parseAsync(["node", "mecha", "casa", "configure", "alice", "--tags", "research,papers"]);
     expect(deps.formatter.success).toHaveBeenCalledWith("alice updated");
     const cfg = JSON.parse(readFileSync(join(casaDir, "config.json"), "utf-8"));
     expect(cfg.tags).toEqual(["research", "papers"]);
@@ -44,7 +44,7 @@ describe("configure command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "configure", "alice"]);
+    await program.parseAsync(["node", "mecha", "casa", "configure", "alice"]);
     expect(deps.formatter.info).toHaveBeenCalledWith("Nothing to update");
   });
 
@@ -54,7 +54,7 @@ describe("configure command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "configure", "alice", "--tags", "has space"]);
+    await program.parseAsync(["node", "mecha", "casa", "configure", "alice", "--tags", "has space"]);
     expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("invalid characters"));
     expect(process.exitCode).toBe(1);
 
@@ -74,7 +74,7 @@ describe("configure command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "configure", "alice", "--tags", "new-tag"]);
+    await program.parseAsync(["node", "mecha", "casa", "configure", "alice", "--tags", "new-tag"]);
     expect(deps.formatter.success).toHaveBeenCalledWith("alice updated");
     const cfg = JSON.parse(readFileSync(join(casaDir, "config.json"), "utf-8"));
     expect(cfg.tags).toEqual(["new-tag"]);
@@ -86,7 +86,7 @@ describe("configure command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "configure", "unknown", "--tags", "foo"]);
+    await program.parseAsync(["node", "mecha", "casa", "configure", "unknown", "--tags", "foo"]);
     expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("not found"));
     expect(process.exitCode).toBe(1);
   });
@@ -105,7 +105,7 @@ describe("configure command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "configure", "alice", "--expose", "query,read_workspace"]);
+    await program.parseAsync(["node", "mecha", "casa", "configure", "alice", "--expose", "query,read_workspace"]);
     expect(deps.formatter.success).toHaveBeenCalledWith("alice updated");
     const cfg = JSON.parse(readFileSync(join(casaDir, "config.json"), "utf-8"));
     expect(cfg.expose).toEqual(["query", "read_workspace"]);
@@ -117,7 +117,7 @@ describe("configure command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "configure", "alice", "--expose", "invalid_cap"]);
+    await program.parseAsync(["node", "mecha", "casa", "configure", "alice", "--expose", "invalid_cap"]);
     expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("Invalid capability"));
     expect(process.exitCode).toBe(1);
 
@@ -137,7 +137,7 @@ describe("configure command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "configure", "alice", "--tags", "dev", "--expose", "query"]);
+    await program.parseAsync(["node", "mecha", "casa", "configure", "alice", "--tags", "dev", "--expose", "query"]);
     expect(deps.formatter.success).toHaveBeenCalledWith("alice updated");
     const cfg = JSON.parse(readFileSync(join(casaDir, "config.json"), "utf-8"));
     expect(cfg.tags).toEqual(["dev"]);
@@ -167,7 +167,7 @@ describe("configure command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "configure", "alice", "--auth", "personal"]);
+    await program.parseAsync(["node", "mecha", "casa", "configure", "alice", "--auth", "personal"]);
     expect(deps.formatter.success).toHaveBeenCalledWith("alice updated");
     const cfg = JSON.parse(readFileSync(join(casaDir, "config.json"), "utf-8"));
     expect(cfg.auth).toBe("personal");
@@ -180,7 +180,7 @@ describe("configure command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "configure", "alice", "--auth", "nonexistent"]);
+    await program.parseAsync(["node", "mecha", "casa", "configure", "alice", "--auth", "nonexistent"]);
     expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("not found"));
     expect(process.exitCode).toBe(1);
   });

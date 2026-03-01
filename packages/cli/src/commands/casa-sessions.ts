@@ -7,8 +7,8 @@ import {
 } from "@mecha/service";
 import { withErrorHandler } from "../error-handler.js";
 
-export function registerSessionsCommand(program: Command, deps: CommandDeps): void {
-  const sessions = program
+export function registerCasaSessionsCommand(parent: Command, deps: CommandDeps): void {
+  const sessions = parent
     .command("sessions")
     .description("Manage CASA sessions");
 

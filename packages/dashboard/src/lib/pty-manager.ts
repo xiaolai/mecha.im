@@ -39,6 +39,20 @@ export interface CreatePtyManagerOpts {
 const DEFAULT_MAX_SESSIONS = 10;
 const DEFAULT_IDLE_TIMEOUT_MS = 1_800_000; // 30 min
 
+/** Allowlist of env var names/prefixes safe to pass to PTY sessions. */
+const PTY_ENV_ALLOWLIST = new Set([
+  "PATH", "HOME", "USER", "SHELL", "TERM", "LANG", "EDITOR", "VISUAL",
+  "TMPDIR", "NODE_ENV", "MECHA_DIR",
+]);
+
+const PTY_ENV_PREFIX_ALLOWLIST = ["LC_", "XDG_"];
+
+/** Check if an env var name is safe to pass to PTY. */
+export function isPtyEnvAllowed(key: string): boolean {
+  if (PTY_ENV_ALLOWLIST.has(key)) return true;
+  return PTY_ENV_PREFIX_ALLOWLIST.some(prefix => key.startsWith(prefix));
+}
+
 export function createPtyManager(opts: CreatePtyManagerOpts): PtyManager {
   const {
     processManager,
@@ -122,15 +136,11 @@ export function createPtyManager(opts: CreatePtyManagerOpts): PtyManager {
         args.push("--resume", sessionId);
       }
 
-      // Build env from CASA config — filter out secrets
-      const FILTERED_ENV_KEYS = new Set([
-        "MECHA_OTP",
-        "MECHA_SESSION_KEY",
-      ]);
+      // Build env from allowlist — only pass known-safe vars to PTY
       const env: Record<string, string> = { TERM: "xterm-256color" };
       for (const [k, v] of Object.entries(process.env)) {
         /* v8 ignore start -- Object.entries filters out undefined values */
-        if (v !== undefined && !FILTERED_ENV_KEYS.has(k)) {
+        if (v !== undefined && isPtyEnvAllowed(k)) {
           env[k] = v;
         }
         /* v8 ignore stop */

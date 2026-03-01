@@ -41,7 +41,11 @@ export async function startDashboard(opts: StartDashboardOpts): Promise<() => Pr
   }
 
   if (process.env.MECHA_AUTH_BYPASS === "true") {
-    console.warn("[dashboard] WARNING: MECHA_AUTH_BYPASS is set — TOTP validation is disabled. Do not use in production.");
+    if (process.env.NODE_ENV === "test") {
+      console.warn("[dashboard] WARNING: MECHA_AUTH_BYPASS is active (NODE_ENV=test) — TOTP validation is disabled.");
+    } else {
+      console.warn("[dashboard] WARNING: MECHA_AUTH_BYPASS is set but ignored — only active when NODE_ENV=test.");
+    }
   }
 
   setProcessManager(opts.processManager, opts.mechaDir, opts.acl, {
@@ -75,7 +79,25 @@ export async function startDashboard(opts: StartDashboardOpts): Promise<() => Pr
   const wss = new WebSocketServer({ noServer: true });
 
   server.on("upgrade", (request, socket, head) => {
-    const url = new URL(request.url!, `http://${request.headers.host}`);
+    // Validate Host header first to avoid URL parse DoS with malformed headers
+    const rawHost = request.headers.host ?? "";
+    const hostOnly = rawHost.replace(/:\d+$/, "");
+    const allowedHosts = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+    // In network mode, TOTP protects against DNS rebinding; skip host check
+    if (!isNetworkHost && !allowedHosts.has(hostOnly)) {
+      socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
+      socket.destroy();
+      return;
+    }
+
+    let url: URL;
+    try {
+      url = new URL(request.url!, `http://${rawHost || "localhost"}`);
+    } catch {
+      socket.write("HTTP/1.1 400 Bad Request\r\n\r\n");
+      socket.destroy();
+      return;
+    }
 
     // Only handle /ws/* paths
     if (!url.pathname.startsWith("/ws/")) {

@@ -2,8 +2,9 @@ import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { casaName } from "@mecha/core";
 import { withErrorHandler } from "../error-handler.js";
-export function registerLogsCommand(program: Command, deps: CommandDeps): void {
-  program
+
+export function registerCasaLogsCommand(parent: Command, deps: CommandDeps): void {
+  parent
     .command("logs")
     .description("View CASA logs")
     .argument("<name>", "CASA name")
