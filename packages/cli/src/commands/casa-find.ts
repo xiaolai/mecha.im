@@ -3,8 +3,8 @@ import type { CommandDeps } from "../types.js";
 import { casaFind } from "@mecha/service";
 import { withErrorHandler } from "../error-handler.js";
 
-export function registerFindCommand(program: Command, deps: CommandDeps): void {
-  program
+export function registerCasaFindCommand(parent: Command, deps: CommandDeps): void {
+  parent
     .command("find")
     .description("Find CASAs (all, or filtered by tag)")
     .option("--tag <tag>", "Filter by tag (repeatable, AND logic)", collect, [])

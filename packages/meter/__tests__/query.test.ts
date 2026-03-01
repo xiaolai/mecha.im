@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { emptySummary, accumulateEvent, aggregateEvents, queryCostToday, queryCostForCasa } from "../src/query.js";
+import { emptySummary, accumulateEvent, aggregateEvents, queryCostToday, queryCostForCasa, monthFromDate, monthUTC } from "../src/query.js";
 import { appendEvent } from "../src/events.js";
 import type { MeterEvent } from "../src/types.js";
 
@@ -34,6 +34,20 @@ describe("query", () => {
 
   afterEach(() => {
     if (tempDir) rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  describe("monthFromDate", () => {
+    it("extracts YYYY-MM from date string", () => {
+      expect(monthFromDate("2026-02-26")).toBe("2026-02");
+      expect(monthFromDate("2026-03-01")).toBe("2026-03");
+    });
+  });
+
+  describe("monthUTC", () => {
+    it("returns current month as YYYY-MM", () => {
+      const m = monthUTC();
+      expect(m).toMatch(/^\d{4}-\d{2}$/);
+    });
   });
 
   describe("emptySummary", () => {

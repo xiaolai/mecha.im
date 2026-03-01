@@ -15,7 +15,68 @@ These flags work with any command:
 
 ---
 
-## Lifecycle
+## Daemon Lifecycle
+
+### `mecha start`
+
+Start the agent server and dashboard as one daemon.
+
+```bash
+mecha start [options]
+```
+
+| Option | Description |
+|--------|-------------|
+| `--port <port>` | Agent server port (default: 7660) |
+| `--host <host>` | Bind address (default: `127.0.0.1`) |
+| `--dashboard-port <port>` | Dashboard port (default: 3457) |
+| `--open` | Open browser after starting |
+
+Requires `MECHA_AGENT_API_KEY` environment variable.
+
+```bash
+mecha start
+mecha start --port 7661 --dashboard-port 3458
+mecha start --host 0.0.0.0 --open
+```
+
+### `mecha stop`
+
+Stop all running CASAs, meter, and daemon.
+
+```bash
+mecha stop [options]
+```
+
+| Option | Description |
+|--------|-------------|
+| `--force` | Force kill CASAs instead of graceful stop |
+
+Gracefully stops all running CASAs (SIGTERM with 5s grace), then stops the meter proxy and daemon. With `--force`, sends SIGKILL immediately.
+
+```bash
+mecha stop
+mecha stop --force
+```
+
+### `mecha restart`
+
+Restart the daemon (stop then start).
+
+```bash
+mecha restart [options]
+```
+
+| Option | Description |
+|--------|-------------|
+| `--force` | Force kill CASAs instead of graceful stop |
+| `--restart-casas` | Also restart CASAs that were running before stop |
+
+```bash
+mecha restart
+mecha restart --force
+mecha restart --restart-casas
+```
 
 ### `mecha init`
 
@@ -33,12 +94,18 @@ Check system requirements and environment health.
 mecha doctor
 ```
 
-### `mecha spawn`
+---
+
+## CASA Management
+
+All CASA commands live under `mecha casa`.
+
+### `mecha casa spawn`
 
 Create and start a new CASA.
 
 ```bash
-mecha spawn <name> <path> [options]
+mecha casa spawn <name> <path> [options]
 ```
 
 | Option | Description |
@@ -54,48 +121,98 @@ mecha spawn <name> <path> [options]
 | `--meter <mode>` | Meter mode: `on` (default), `off` |
 
 ```bash
-mecha spawn researcher ~/papers --tags research,ml
-mecha spawn coder ~/project --permission-mode full-auto --port 7710
+mecha casa spawn researcher ~/papers --tags research,ml
+mecha casa spawn coder ~/project --permission-mode full-auto --port 7710
 ```
 
-### `mecha stop`
+### `mecha casa start`
+
+Start a stopped CASA from its persisted configuration.
+
+```bash
+mecha casa start <name>
+```
+
+Re-reads the CASA's `config.json` and spawns a new process from it. Allocates a fresh port. Errors if the CASA is already running or if no config exists.
+
+```bash
+mecha casa start researcher
+```
+
+### `mecha casa stop`
 
 Gracefully stop a CASA (SIGTERM).
 
 ```bash
-mecha stop <name>
+mecha casa stop <name>
 ```
 
-### `mecha kill`
+### `mecha casa kill`
 
-Immediately stop a CASA (SIGKILL).
+Immediately stop a CASA (SIGKILL). Keeps data.
 
 ```bash
-mecha kill <name>
+mecha casa kill <name>
 ```
 
-### `mecha ls`
+### `mecha casa restart`
+
+Stop and re-spawn a CASA from its persisted configuration.
+
+```bash
+mecha casa restart <name> [options]
+```
+
+| Option | Description |
+|--------|-------------|
+| `--force` | Force kill instead of graceful stop |
+
+Reads `config.json` before stopping (fails fast if missing). Stops the CASA, then re-spawns from config with a fresh port.
+
+```bash
+mecha casa restart researcher
+mecha casa restart researcher --force
+```
+
+### `mecha casa remove`
+
+Stop a CASA and delete its entire directory (config, logs, sessions).
+
+```bash
+mecha casa remove <name> [options]
+```
+
+| Option | Description |
+|--------|-------------|
+| `--force` | Force kill instead of graceful stop |
+
+```bash
+mecha casa remove old-agent
+mecha casa remove stuck-agent --force
+```
+
+### `mecha casa ls`
 
 List all CASAs with state, port, workspace, and tags.
 
 ```bash
-mecha ls
+mecha casa ls
 ```
 
-### `mecha status`
+### `mecha casa status`
 
 Show detailed status of a CASA.
 
 ```bash
-mecha status <name>
+mecha casa status <name>
 ```
 
-### `mecha logs`
+### `mecha casa logs`
 
 View CASA logs.
 
 ```bash
-mecha logs <name> [options]
+mecha casa logs <name> [options]
 ```
 
 | Option | Description |
@@ -103,12 +220,12 @@ mecha logs <name> [options]
 | `--follow`, `-f` | Stream logs live |
 | `--tail <n>`, `-n <n>` | Number of lines (default: all) |
 
-### `mecha configure`
+### `mecha casa configure`
 
 Update CASA configuration.
 
 ```bash
-mecha configure <name> [options]
+mecha casa configure <name> [options]
 ```
 
 | Option | Description |
@@ -117,16 +234,27 @@ mecha configure <name> [options]
 | `--expose <caps>` | Comma-separated capabilities to expose |
 | `--auth <profile>` | Auth profile name to use |
 
----
+### `mecha casa find`
 
-## Chat & Sessions
+Find CASAs by tag.
 
-### `mecha chat`
+```bash
+mecha casa find [--tag <tag>]
+```
+
+Multiple `--tag` flags use AND logic.
+
+```bash
+mecha casa find --tag research
+mecha casa find --tag code --tag typescript
+```
+
+### `mecha casa chat`
 
 Send a message and stream the response.
 
 ```bash
-mecha chat <name> <message> [options]
+mecha casa chat <name> <message> [options]
 ```
 
 | Option | Description |
@@ -134,41 +262,24 @@ mecha chat <name> <message> [options]
 | `--session <id>`, `-s` | Resume a specific session |
 
 ```bash
-mecha chat researcher "What files are in my workspace?"
-mecha chat researcher "Continue where we left off" --session abc123
+mecha casa chat researcher "What files are in my workspace?"
+mecha casa chat researcher "Continue where we left off" --session abc123
 ```
 
-### `mecha sessions list`
+### `mecha casa sessions list`
 
 List all sessions for a CASA.
 
 ```bash
-mecha sessions list <name>
+mecha casa sessions list <name>
 ```
 
-### `mecha sessions show`
+### `mecha casa sessions show`
 
 Show a session transcript.
 
 ```bash
-mecha sessions show <name> <session-id>
-```
-
----
-
-## Discovery & Tags
-
-### `mecha find`
-
-Find CASAs by tag.
-
-```bash
-mecha find --tag <tag>
-```
-
-```bash
-mecha find --tag research
-mecha find --tag dev
+mecha casa sessions show <name> <session-id>
 ```
 
 ---

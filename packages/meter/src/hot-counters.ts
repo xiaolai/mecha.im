@@ -59,6 +59,18 @@ export function resetToday(counters: HotCounters, newDate: string): void {
   }
 }
 
+/** Reset monthly counters to zero (UTC month boundary). Also resets today. */
+export function resetMonth(counters: HotCounters, newDate: string): void {
+  counters.date = newDate;
+  counters.global.today = emptySummary();
+  counters.global.thisMonth = emptySummary();
+  for (const map of [counters.byCasa, counters.byAuth, counters.byTag]) {
+    for (const key of Object.keys(map)) {
+      delete map[key];
+    }
+  }
+}
+
 /** Convert hot counters to snapshot format */
 export function toSnapshot(counters: HotCounters): HotSnapshot {
   return { ts: new Date().toISOString(), ...counters };

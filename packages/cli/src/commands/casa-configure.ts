@@ -4,8 +4,8 @@ import { casaName, validateTags, validateCapabilities, readAuthProfiles, AuthPro
 import { casaConfigure } from "@mecha/service";
 import { withErrorHandler } from "../error-handler.js";
 
-export function registerConfigureCommand(program: Command, deps: CommandDeps): void {
-  program
+export function registerCasaConfigureCommand(parent: Command, deps: CommandDeps): void {
+  parent
     .command("configure")
     .description("Update CASA configuration")
     .argument("<name>", "CASA name")

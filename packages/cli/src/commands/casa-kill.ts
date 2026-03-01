@@ -2,8 +2,9 @@ import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { casaName } from "@mecha/core";
 import { withErrorHandler } from "../error-handler.js";
-export function registerKillCommand(program: Command, deps: CommandDeps): void {
-  program
+
+export function registerCasaKillCommand(parent: Command, deps: CommandDeps): void {
+  parent
     .command("kill")
     .description("Kill a CASA process")
     .argument("<name>", "CASA name")

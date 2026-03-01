@@ -1,7 +1,10 @@
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, renameSync } from "node:fs";
 import { join, dirname } from "node:path";
+import { createLogger } from "@mecha/core";
 import type { MeterEvent, CostSummary, HourlyRollup, DailyRollup, CasaRollup } from "./types.js";
 import { emptySummary, accumulateEvent } from "./query.js";
+
+const log = createLogger("mecha:meter");
 
 // ── Path safety ─────────────────────────────────────────────────────
 
@@ -35,7 +38,7 @@ function readJson<T>(path: string, fallback: T): T {
     return JSON.parse(readFileSync(path, "utf-8")) as T;
   } catch {
     /* v8 ignore start -- missing or corrupt rollup file */
-    console.error(`[mecha:meter] Failed to read ${path}, using empty rollup`);
+    log.warn("Failed to read rollup, using empty", { path });
     return fallback;
     /* v8 ignore stop */
   }
@@ -43,7 +46,9 @@ function readJson<T>(path: string, fallback: T): T {
 
 function writeJson(path: string, data: unknown): void {
   mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, JSON.stringify(data, null, 2) + "\n");
+  const tmp = `${path}.${Date.now()}.${process.pid}.tmp`;
+  writeFileSync(tmp, JSON.stringify(data, null, 2) + "\n");
+  renameSync(tmp, path);
 }
 
 // ── Read helpers ──────────────────────────────────────────────────

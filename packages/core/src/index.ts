@@ -1,4 +1,4 @@
-export { createLogger } from "./logger.js";
+export { createLogger, resetLogLevel } from "./logger.js";
 export type { Logger } from "./logger.js";
 export { safeReadJson } from "./safe-read.js";
 export { isPidAlive } from "./pid.js";
