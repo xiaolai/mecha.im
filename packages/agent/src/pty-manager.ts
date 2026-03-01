@@ -1,23 +1,18 @@
 import { randomBytes } from "node:crypto";
 import { join } from "node:path";
-import type { IPty } from "node-pty";
 import type { WebSocket } from "@fastify/websocket";
-import type { ProcessManager } from "@mecha/process";
+import type { ProcessManager, MechaPty, PtySpawnFn } from "@mecha/process";
 import { readCasaConfig } from "@mecha/core";
 import type { CasaName } from "@mecha/core";
 
 export interface PtySession {
   id: string;
   casaName: string;
-  pty: IPty;
+  pty: MechaPty;
   clients: Set<WebSocket>;
   createdAt: Date;
   lastActivity: Date;
 }
-
-export type PtySpawnFn = (file: string, args: string[], opts: {
-  name: string; cols: number; rows: number; cwd: string; env: Record<string, string>;
-}) => IPty;
 
 export interface PtyManager {
   spawn(casaName: string, sessionId: string | undefined, cols: number, rows: number): PtySession;

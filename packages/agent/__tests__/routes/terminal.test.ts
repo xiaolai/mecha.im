@@ -3,18 +3,17 @@ import { EventEmitter } from "node:events";
 import { registerTerminalRoutes } from "../../src/routes/terminal.js";
 import type { PtyManager, PtySession } from "../../src/pty-manager.js";
 import type { FastifyInstance } from "fastify";
-import type { IPty } from "node-pty";
+import type { MechaPty } from "@mecha/process";
 
-function createMockPty(): IPty & { _emitData: (d: string) => void; _emitExit: (code: number) => void } {
+function createMockPty(): MechaPty & { _emitData: (d: string) => void; _emitExit: (code: number) => void } {
   const emitter = new EventEmitter();
   return {
-    pid: 123, cols: 80, rows: 24, process: "claude", handleFlowControl: false,
     onData: (cb: (d: string) => void) => { emitter.on("data", cb); return { dispose: () => emitter.removeListener("data", cb) }; },
     onExit: (cb: (e: { exitCode: number }) => void) => { emitter.on("exit", cb); return { dispose: () => emitter.removeListener("exit", cb) }; },
-    write: vi.fn(), resize: vi.fn(), kill: vi.fn(), pause: vi.fn(), resume: vi.fn(), clear: vi.fn(),
+    write: vi.fn(), resize: vi.fn(), kill: vi.fn(),
     _emitData(d: string) { emitter.emit("data", d); },
     _emitExit(code: number) { emitter.emit("exit", { exitCode: code }); },
-  } as unknown as IPty & { _emitData: (d: string) => void; _emitExit: (code: number) => void };
+  } as unknown as MechaPty & { _emitData: (d: string) => void; _emitExit: (code: number) => void };
 }
 
 function createMockPtyManager(): PtyManager & { _sessions: Map<string, PtySession> } {
