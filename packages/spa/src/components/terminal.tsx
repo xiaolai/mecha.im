@@ -160,8 +160,11 @@ export function Terminal({ casaName, sessionId, node, onSessionCreated, onExit }
       termRef.current = null;
       fitRef.current = null;
     };
+  // sessionId intentionally excluded — it's only used for the initial connection.
+  // Including it would cause an infinite loop: server returns session ID → parent
+  // updates state → effect re-runs → spawns new PTY → repeat.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [casaName, sessionId, node, sendResize, authHeaders]);
+  }, [casaName, node, sendResize, authHeaders]);
 
   useEffect(() => {
     const term = termRef.current;

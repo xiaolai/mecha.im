@@ -5,6 +5,21 @@ import type { ProcessManager, MechaPty, PtySpawnFn } from "@mecha/process";
 import { readCasaConfig } from "@mecha/core";
 import type { CasaName } from "@mecha/core";
 
+/** Allowlist of env var names safe to pass to PTY sessions. */
+const PTY_ENV_ALLOWLIST = new Set([
+  "PATH", "HOME", "USER", "SHELL", "TERM", "LANG", "EDITOR", "VISUAL",
+  "TMPDIR", "NODE_ENV", "MECHA_DIR",
+  // SDK auth credentials — required for Claude Code to work in PTY
+  "ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN",
+]);
+
+const PTY_ENV_PREFIX_ALLOWLIST = ["LC_", "XDG_"];
+
+function isPtyEnvAllowed(key: string): boolean {
+  if (PTY_ENV_ALLOWLIST.has(key)) return true;
+  return PTY_ENV_PREFIX_ALLOWLIST.some(prefix => key.startsWith(prefix));
+}
+
 export interface PtySession {
   id: string;
   casaName: string;
@@ -89,18 +104,19 @@ export function createPtyManager(opts: CreatePtyManagerOpts): PtyManager {
       const key = sessionId ? `${casaName}:${sessionId}` : `${casaName}:new-${randomBytes(8).toString("hex")}`;
       const args: string[] = sessionId ? ["--resume", sessionId] : [];
 
-      // Build minimal env from CASA config — never spread process.env (leaks host secrets)
-      const casaEnv: Record<string, string> = {
-        TERM: "xterm-256color",
-        /* v8 ignore start -- PATH/HOME always set in normal environments */
-        PATH: process.env.PATH ?? "/usr/local/bin:/usr/bin:/bin",
-        HOME: process.env.HOME ?? "/tmp",
+      // Build env from allowlist — only pass known-safe vars to PTY
+      const casaEnv: Record<string, string> = { TERM: "xterm-256color" };
+      for (const [k, v] of Object.entries(process.env)) {
+        /* v8 ignore start -- Object.entries filters out undefined values */
+        if (v !== undefined && isPtyEnvAllowed(k)) {
+          casaEnv[k] = v;
+        }
         /* v8 ignore stop */
-        MECHA_CASA_NAME: casaName,
-        MECHA_WORKSPACE: config.workspace,
-        MECHA_PORT: String(config.port),
-        MECHA_AUTH_TOKEN: config.token,
-      };
+      }
+      casaEnv.MECHA_CASA_NAME = casaName;
+      casaEnv.MECHA_WORKSPACE = config.workspace;
+      casaEnv.MECHA_PORT = String(config.port);
+      casaEnv.MECHA_AUTH_TOKEN = config.token;
 
       const pty = spawnFn("claude", args, {
         name: "xterm-256color",
