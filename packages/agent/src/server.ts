@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import Fastify, { type FastifyInstance } from "fastify";
 import fastifyWebSocket from "@fastify/websocket";
 import { type AclEngine, MechaError, readNodes, verifySignature } from "@mecha/core";
@@ -127,7 +129,8 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
 
 /* v8 ignore start -- SPA serving is tested via integration/E2E */
 function registerSpaRoutes(app: FastifyInstance, spaDir: string): void {
-  // Use app.register with async plugin so Fastify awaits it before listen()
+  const indexHtml = readFileSync(join(spaDir, "index.html"), "utf-8");
+
   app.register(async (instance) => {
     const { default: fastifyStatic } = await import("@fastify/static");
     instance.register(fastifyStatic, {
@@ -144,11 +147,11 @@ function registerSpaRoutes(app: FastifyInstance, spaDir: string): void {
       const p = request.url.split("?")[0]!;
       const isApi = p.startsWith("/casas") || p.startsWith("/acl") ||
         p.startsWith("/audit") || p.startsWith("/mesh") ||
-        p.startsWith("/meter") || p.startsWith("/settings") ||
+        p.startsWith("/meter") || p.startsWith("/settings/") ||
         p.startsWith("/events") || p.startsWith("/discover") ||
         p.startsWith("/ws") || p === "/healthz";
       if (!isApi) {
-        return reply.sendFile("index.html");
+        return reply.type("text/html").send(indexHtml);
       }
     }
     reply.code(404).send({ error: "Not found" });
