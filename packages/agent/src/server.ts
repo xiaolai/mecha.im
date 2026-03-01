@@ -1,7 +1,7 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import fastifyWebSocket from "@fastify/websocket";
 import { type AclEngine, MechaError, readNodes, verifySignature } from "@mecha/core";
-import type { ProcessManager } from "@mecha/process";
+import type { ProcessManager, PtySpawnFn } from "@mecha/process";
 import { createAuthHook, createSignatureHook } from "./auth.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerCasaRoutes } from "./routes/casas.js";
@@ -9,7 +9,7 @@ import { registerRoutingRoutes } from "./routes/routing.js";
 import { registerDiscoverRoutes } from "./routes/discover.js";
 import { registerSessionRoutes } from "./routes/sessions.js";
 import { registerTerminalRoutes } from "./routes/terminal.js";
-import { createPtyManager, type PtySpawnFn } from "./pty-manager.js";
+import { createPtyManager } from "./pty-manager.js";
 
 export interface AgentServerOpts {
   port: number;

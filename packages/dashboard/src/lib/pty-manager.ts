@@ -1,15 +1,14 @@
 import { randomBytes } from "node:crypto";
 import { join } from "node:path";
-import type { IPty } from "node-pty";
 import type { WebSocket } from "ws";
-import type { ProcessManager } from "@mecha/process";
+import type { ProcessManager, MechaPty, PtySpawnFn } from "@mecha/process";
 import { readCasaConfig } from "@mecha/core";
 import type { CasaName } from "@mecha/core";
 
 export interface PtySession {
   id: string;
   casaName: string;
-  pty: IPty;
+  pty: MechaPty;
   clients: Set<WebSocket>;
   createdAt: Date;
   lastActivity: Date;
@@ -25,14 +24,11 @@ export interface PtyManager {
   shutdown(): void;
 }
 
-export type PtySpawnFn = (file: string, args: string[], opts: { name: string; cols: number; rows: number; cwd: string; env: Record<string, string> }) => IPty;
-
 export interface CreatePtyManagerOpts {
   processManager: ProcessManager;
   mechaDir: string;
   maxSessions?: number;
   idleTimeoutMs?: number;
-  /** Injected spawn function — required. Use node-pty's spawn in production. */
   spawnFn: PtySpawnFn;
 }
 

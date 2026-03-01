@@ -3,7 +3,7 @@ import { EventEmitter } from "node:events";
 import { handleTerminalConnection } from "../src/lib/ws-handler.js";
 import type { PtyManager, PtySession } from "../src/lib/pty-manager.js";
 import type { WebSocket } from "ws";
-import type { IPty } from "node-pty";
+import type { MechaPty } from "@mecha/process";
 
 function createMockWs(): WebSocket & EventEmitter & { _sent: Array<{ data: unknown; binary: boolean }> } {
   const emitter = new EventEmitter();
@@ -23,14 +23,9 @@ function createMockWs(): WebSocket & EventEmitter & { _sent: Array<{ data: unkno
   return ws as unknown as WebSocket & EventEmitter & { _sent: Array<{ data: unknown; binary: boolean }> };
 }
 
-function createMockPty(): IPty & { _emitData: (d: string) => void; _emitExit: (code: number) => void } {
+function createMockPty(): MechaPty & { _emitData: (d: string) => void; _emitExit: (code: number) => void } {
   const emitter = new EventEmitter();
   return {
-    pid: 123,
-    cols: 80,
-    rows: 24,
-    process: "claude",
-    handleFlowControl: false,
     onData: (cb: (d: string) => void) => {
       emitter.on("data", cb);
       return { dispose: () => emitter.removeListener("data", cb) };
@@ -42,12 +37,9 @@ function createMockPty(): IPty & { _emitData: (d: string) => void; _emitExit: (c
     write: vi.fn(),
     resize: vi.fn(),
     kill: vi.fn(),
-    pause: vi.fn(),
-    resume: vi.fn(),
-    clear: vi.fn(),
     _emitData(d: string) { emitter.emit("data", d); },
     _emitExit(code: number) { emitter.emit("exit", { exitCode: code }); },
-  } as unknown as IPty & { _emitData: (d: string) => void; _emitExit: (code: number) => void };
+  } as unknown as MechaPty & { _emitData: (d: string) => void; _emitExit: (code: number) => void };
 }
 
 function createMockPtyManager(opts?: { existingSession?: PtySession }): PtyManager {
@@ -204,7 +196,7 @@ describe("handleTerminalConnection", () => {
     handleTerminalConnection(ws, url, { ptyManager });
 
     const session = (ptyManager.spawn as ReturnType<typeof vi.fn>).mock.results[0].value;
-    const pty = session.pty as IPty;
+    const pty = session.pty as MechaPty;
 
     ws.emit("message", Buffer.from("ls\r"), true);
     expect(pty.write).toHaveBeenCalledWith("ls\r");

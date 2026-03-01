@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocketServer } from "ws";
 import type { ProcessManager } from "@mecha/process";
+import { createBunPtySpawn } from "@mecha/process";
 import type { AclEngine } from "@mecha/core";
 import { getNode } from "@mecha/core";
 import { setProcessManager } from "./lib/pm-singleton.js";
@@ -68,11 +69,10 @@ export async function startDashboard(opts: StartDashboardOpts): Promise<() => Pr
   const server = createServer(handle);
 
   // PTY manager for terminal WebSocket connections
-  const nodePty = await import("node-pty");
   const ptyManager = createPtyManager({
     processManager: opts.processManager,
     mechaDir: opts.mechaDir,
-    spawnFn: nodePty.spawn,
+    spawnFn: createBunPtySpawn(),
   });
 
   // WebSocket server for terminal connections

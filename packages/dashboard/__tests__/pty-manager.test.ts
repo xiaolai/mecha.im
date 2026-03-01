@@ -7,20 +7,14 @@ vi.mock("@mecha/core", () => ({
 
 import { readCasaConfig } from "@mecha/core";
 import { createPtyManager } from "../src/lib/pty-manager.js";
-import type { ProcessManager } from "@mecha/process";
-import type { IPty } from "node-pty";
+import type { ProcessManager, MechaPty } from "@mecha/process";
 import type { WebSocket } from "ws";
 
 const mockReadCasaConfig = vi.mocked(readCasaConfig);
 
-function createMockPty(): IPty & { _emitExit: (code: number) => void; _emitData: (data: string) => void } {
+function createMockPty(): MechaPty & { _emitExit: (code: number) => void; _emitData: (data: string) => void } {
   const emitter = new EventEmitter();
   const pty = {
-    pid: 1234,
-    cols: 80,
-    rows: 24,
-    process: "claude",
-    handleFlowControl: false,
     onData: (cb: (data: string) => void) => {
       emitter.on("data", cb);
       return { dispose: () => emitter.removeListener("data", cb) };
@@ -32,13 +26,10 @@ function createMockPty(): IPty & { _emitExit: (code: number) => void; _emitData:
     write: vi.fn(),
     resize: vi.fn(),
     kill: vi.fn(),
-    pause: vi.fn(),
-    resume: vi.fn(),
-    clear: vi.fn(),
     _emitExit(code: number) { emitter.emit("exit", { exitCode: code }); },
     _emitData(data: string) { emitter.emit("data", data); },
   };
-  return pty as unknown as IPty & { _emitExit: (code: number) => void; _emitData: (data: string) => void };
+  return pty as unknown as MechaPty & { _emitExit: (code: number) => void; _emitData: (data: string) => void };
 }
 
 function createMockPm(running = true): ProcessManager {
