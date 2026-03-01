@@ -66,10 +66,10 @@ describe("registerTerminalRoutes", () => {
     });
   }
 
-  function createReq(name: string, session?: string) {
+  function createReq(name: string, session?: string, cols?: string, rows?: string) {
     return {
       params: { name },
-      query: { session },
+      query: { session, cols, rows },
     };
   }
 
@@ -83,6 +83,13 @@ describe("registerTerminalRoutes", () => {
       try { return JSON.parse(data).type === "session"; } catch { return false; }
     });
     expect(sessionMsg).toBeDefined();
+  });
+
+  it("spawns PTY with client-provided dimensions", () => {
+    const socket = createSocket();
+    routeHandler(socket, createReq("coder", undefined, "120", "40"));
+
+    expect(ptyManager.spawn).toHaveBeenCalledWith("coder", undefined, 120, 40);
   });
 
   it("reattaches to existing session", () => {

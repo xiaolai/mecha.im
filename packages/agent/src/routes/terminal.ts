@@ -20,13 +20,21 @@ export function registerTerminalRoutes(
       ?? undefined;
     /* v8 ignore stop */
 
+    // Use client-provided initial dimensions to avoid size mismatch artifacts.
+    /* v8 ignore start -- fallback for missing query params */
+    const queryObj = (req.query as { cols?: string; rows?: string } | undefined) ?? {};
+    const parsedUrl = new URL(rawUrl || "/", "http://localhost");
+    const initCols = Number(queryObj.cols ?? parsedUrl.searchParams.get("cols")) || 80;
+    const initRows = Number(queryObj.rows ?? parsedUrl.searchParams.get("rows")) || 24;
+    /* v8 ignore stop */
+
     let session = sessionId ? ptyManager.getSession(`${casaName}:${sessionId}`) : null;
 
     try {
       if (session) {
         ptyManager.attach(session.id, socket);
       } else {
-        session = ptyManager.spawn(casaName, sessionId, 80, 24);
+        session = ptyManager.spawn(casaName, sessionId, initCols, initRows);
         ptyManager.attach(session.id, socket);
       }
     } catch (err) {
