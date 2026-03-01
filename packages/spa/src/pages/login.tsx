@@ -16,7 +16,7 @@ export function LoginPage() {
     setError(null);
 
     try {
-      const res = await fetch("/healthz", {
+      const res = await fetch("/casas", {
         headers: { Authorization: `Bearer ${trimmed}` },
       });
 
