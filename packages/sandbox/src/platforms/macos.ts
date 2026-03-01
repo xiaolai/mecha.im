@@ -16,41 +16,24 @@ export function generateSbpl(profile: SandboxProfile): string {
   const lines: string[] = [
     "(version 1)",
     "(deny default)",
-    // System info and IPC
+    // System info, IPC, and runtime requirements
     "(allow sysctl-read)",
-    // Restrict mach-lookup to services Node.js requires
-    '(allow mach-lookup (global-name "com.apple.system.logger"))',
-    '(allow mach-lookup (global-name "com.apple.system.notification_center"))',
-    '(allow mach-lookup (global-name "com.apple.CoreServices.coreservicesd"))',
-    '(allow mach-lookup (global-name "com.apple.bsd.dirhelper"))',
-    '(allow mach-lookup (global-name "com.apple.system.opendirectoryd.libinfo"))',
-    '(allow mach-lookup (global-name "com.apple.SecurityServer"))',
-    '(allow mach-lookup (global-name "com.apple.cfprefsd.daemon"))',
-    '(allow mach-lookup (global-name "com.apple.lsd.mapdb"))',
-    // Node.js requires fork (worker threads, libuv) and signal handling
+    "(allow mach-lookup)",
     "(allow process-fork)",
     "(allow signal)",
-    // Read metadata for stat/lstat calls during module resolution
-    "(allow file-read-metadata)",
-    // System paths required by the dynamic linker and Node.js runtime
-    '(allow file-read* (literal "/"))',
-    '(allow file-read* (subpath "/usr/lib"))',
-    '(allow file-read* (subpath "/System"))',
-    '(allow file-read* (subpath "/dev"))',
+    // Unrestricted file reads — Bun compiled binary requires access to paths beyond
+    // what can be enumerated (kernel pseudo-filesystems, Apple-internal paths).
+    // Security is enforced via file-write* restrictions and process-exec restrictions.
+    "(allow file-read*)",
   ];
 
   if (profile.allowNetwork) {
     lines.push("(allow network*)");
   }
 
-  // Allow read access
-  for (const p of profile.readPaths) {
-    lines.push(`(allow file-read* (subpath "${escapeSbpl(p)}"))`);
-  }
-
-  // Allow write access (implies read)
+  // readPaths are covered by unrestricted file-read* above.
+  // Write access is explicitly restricted to specific paths.
   for (const p of profile.writePaths) {
-    lines.push(`(allow file-read* (subpath "${escapeSbpl(p)}"))`);
     lines.push(`(allow file-write* (subpath "${escapeSbpl(p)}"))`);
   }
 

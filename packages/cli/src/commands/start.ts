@@ -43,6 +43,7 @@ export function registerStartCommand(program: Command, deps: CommandDeps): void 
       // Start agent server
       const { createAgentServer } = await import("@mecha/agent");
       const { readNodeName } = await import("@mecha/service");
+      const { createBunPtySpawn } = await import("@mecha/process");
 
       /* v8 ignore start -- readNodeName returns null only if mesh.json missing */
       const nodeName = readNodeName(deps.mechaDir) ?? "unknown";
@@ -54,6 +55,7 @@ export function registerStartCommand(program: Command, deps: CommandDeps): void 
         acl: deps.acl,
         mechaDir: deps.mechaDir,
         nodeName,
+        ptySpawnFn: createBunPtySpawn(),
       });
 
       /* v8 ignore start -- shutdown hook only fires on process signal */

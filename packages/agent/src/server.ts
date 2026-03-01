@@ -71,13 +71,19 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
 
   /* v8 ignore start -- terminal WS wiring tested in terminal.test.ts + pty-manager.test.ts */
   if (opts.ptySpawnFn) {
-    app.register(fastifyWebSocket);
     const ptyManager = createPtyManager({
       processManager: opts.processManager,
       mechaDir: opts.mechaDir,
       spawnFn: opts.ptySpawnFn,
     });
-    registerTerminalRoutes(app, ptyManager);
+
+    // Terminal routes MUST be registered inside the websocket plugin scope.
+    // @fastify/websocket adds an onRoute hook that intercepts { websocket: true }
+    // handlers — routes registered outside the plugin scope won't be intercepted.
+    app.register(async (instance) => {
+      await instance.register(fastifyWebSocket);
+      registerTerminalRoutes(instance, ptyManager);
+    });
 
     app.addHook("onClose", () => {
       ptyManager.shutdown();
