@@ -86,6 +86,92 @@ describe("agent auth", () => {
       expect(res.statusCode).toBe(200);
       await app.close();
     });
+
+    it("skips auth for non-API paths when spaDir is set", async () => {
+      const app = Fastify();
+      app.addHook("onRequest", createAuthHook({ apiKey: "secret", spaDir: "/fake/spa" }));
+      app.get("/some-page", async () => ({ page: true }));
+      app.get("/casas", async () => ({ casas: [] }));
+      await app.ready();
+
+      // Non-API path should bypass auth
+      const res1 = await app.inject({ method: "GET", url: "/some-page" });
+      expect(res1.statusCode).toBe(200);
+
+      // API path should still require auth
+      const res2 = await app.inject({ method: "GET", url: "/casas" });
+      expect(res2.statusCode).toBe(401);
+
+      await app.close();
+    });
+
+    it("requires auth for all paths when spaDir is not set", async () => {
+      const app = Fastify();
+      app.addHook("onRequest", createAuthHook({ apiKey: "secret" }));
+      app.get("/some-page", async () => ({ page: true }));
+      await app.ready();
+
+      const res = await app.inject({ method: "GET", url: "/some-page" });
+      expect(res.statusCode).toBe(401);
+      await app.close();
+    });
+
+    it("accepts valid ticket for /ws/ paths", async () => {
+      const { issueTicket } = await import("../src/ws-tickets.js");
+      const ticket = issueTicket();
+      const app = Fastify();
+      app.addHook("onRequest", createAuthHook({ apiKey: "secret" }));
+      app.get("/ws/terminal/alice", async () => ({ ws: true }));
+      await app.ready();
+
+      const res = await app.inject({ method: "GET", url: `/ws/terminal/alice?ticket=${ticket}` });
+      expect(res.statusCode).toBe(200);
+      await app.close();
+    });
+
+    it("rejects invalid ticket for /ws/ paths", async () => {
+      const app = Fastify();
+      app.addHook("onRequest", createAuthHook({ apiKey: "secret" }));
+      app.get("/ws/terminal/alice", async () => ({ ws: true }));
+      await app.ready();
+
+      const res = await app.inject({ method: "GET", url: "/ws/terminal/alice?ticket=bogus" });
+      expect(res.statusCode).toBe(401);
+      await app.close();
+    });
+
+    it("rejects /ws/ paths without ticket or bearer", async () => {
+      const app = Fastify();
+      app.addHook("onRequest", createAuthHook({ apiKey: "secret" }));
+      app.get("/ws/terminal/alice", async () => ({ ws: true }));
+      await app.ready();
+
+      const res = await app.inject({ method: "GET", url: "/ws/terminal/alice" });
+      expect(res.statusCode).toBe(401);
+      await app.close();
+    });
+
+    it("allows /ws/ticket with Bearer auth (not ticket)", async () => {
+      const app = Fastify();
+      app.addHook("onRequest", createAuthHook({ apiKey: "secret" }));
+      app.post("/ws/ticket", async () => ({ ticket: "abc" }));
+      await app.ready();
+
+      // Bearer auth should work for /ws/ticket
+      const res = await app.inject({
+        method: "POST",
+        url: "/ws/ticket",
+        headers: { authorization: "Bearer secret" },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({ ticket: "abc" });
+
+      // No auth should be rejected with 401 (falls through to Bearer check)
+      const res2 = await app.inject({ method: "POST", url: "/ws/ticket" });
+      expect(res2.statusCode).toBe(401);
+
+      await app.close();
+    });
   });
 
   describe("createSignatureHook", () => {

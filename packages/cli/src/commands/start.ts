@@ -2,33 +2,25 @@ import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { DEFAULTS, parsePort } from "@mecha/core";
 import { withErrorHandler } from "../error-handler.js";
-import { executeDashboardServe } from "./dashboard-serve.js";
+import { resolveSpaDir } from "../spa-resolve.js";
 
 interface StartOpts {
   port: string;
   host: string;
-  dashboardPort: string;
   open: boolean;
 }
 
 export function registerStartCommand(program: Command, deps: CommandDeps): void {
   program
     .command("start")
-    .description("Start agent server + dashboard as one daemon")
+    .description("Start agent server with embedded dashboard")
     .option("--port <port>", "Agent server port", String(DEFAULTS.AGENT_PORT))
     .option("--host <host>", "Bind address", "127.0.0.1")
-    .option("--dashboard-port <port>", "Dashboard port", String(DEFAULTS.DASHBOARD_PORT))
     .option("--open", "Open browser after starting", false)
     .action(async (opts: StartOpts) => withErrorHandler(deps, async () => {
       const port = parsePort(opts.port);
       if (port === undefined) {
         deps.formatter.error(`Invalid port: ${opts.port}`);
-        process.exitCode = 1;
-        return;
-      }
-      const dashboardPort = parsePort(opts.dashboardPort);
-      if (dashboardPort === undefined) {
-        deps.formatter.error(`Invalid dashboard port: ${opts.dashboardPort}`);
         process.exitCode = 1;
         return;
       }
@@ -48,6 +40,8 @@ export function registerStartCommand(program: Command, deps: CommandDeps): void 
       /* v8 ignore start -- readNodeName returns null only if mesh.json missing */
       const nodeName = readNodeName(deps.mechaDir) ?? "unknown";
       /* v8 ignore stop */
+
+      const spaDir = resolveSpaDir();
       const server = createAgentServer({
         port,
         apiKey,
@@ -56,6 +50,7 @@ export function registerStartCommand(program: Command, deps: CommandDeps): void 
         mechaDir: deps.mechaDir,
         nodeName,
         ptySpawnFn: createBunPtySpawn(),
+        spaDir,
       });
 
       /* v8 ignore start -- shutdown hook only fires on process signal */
@@ -63,20 +58,24 @@ export function registerStartCommand(program: Command, deps: CommandDeps): void 
       /* v8 ignore stop */
 
       await server.listen({ port, host: opts.host });
-      deps.formatter.success(`Agent server started on ${opts.host}:${port} (node: ${nodeName})`);
 
-      // Start dashboard — rollback agent server on failure
-      try {
-        await executeDashboardServe({
-          port: opts.dashboardPort,
-          host: opts.host,
-          open: opts.open,
-          sessionTtl: "24",
-        }, deps);
-      /* v8 ignore start -- dashboard startup failure rollback */
-      } catch (err) {
-        await server.close();
-        throw err;
+      if (spaDir) {
+        deps.formatter.success(`Mecha started on http://${opts.host}:${port} (node: ${nodeName})`);
+      } else {
+        deps.formatter.success(`Agent server started on ${opts.host}:${port} (node: ${nodeName})`);
+        deps.formatter.warn?.("SPA not found — dashboard not available. Run pnpm --filter @mecha/spa build");
+      }
+
+      /* v8 ignore start -- browser open is platform-specific */
+      if (opts.open && spaDir) {
+        const { execFile } = await import("node:child_process");
+        const url = new URL(`http://${opts.host}:${port}`).href;
+        if (process.platform === "win32") {
+          execFile("cmd", ["/c", "start", "", url]);
+        } else {
+          const opener = process.platform === "darwin" ? "open" : "xdg-open";
+          execFile(opener, [url]);
+        }
       }
       /* v8 ignore stop */
     }));

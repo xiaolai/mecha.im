@@ -85,6 +85,7 @@ export default defineConfig({
         "packages/dashboard/src/lib/use-casa-action.ts",
         "packages/dashboard/src/lib/pm-singleton.ts",
         "packages/dashboard/src/lib/params.ts",
+        "packages/spa/src/**",
       ],
       thresholds: {
         lines: 100,

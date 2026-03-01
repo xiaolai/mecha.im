@@ -24,12 +24,20 @@ vi.mock("@mecha/service", async (importOriginal) => {
   };
 });
 
-vi.mock("@mecha/dashboard", () => ({
-  startDashboard: vi.fn().mockResolvedValue(vi.fn()),
+vi.mock("@mecha/process", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@mecha/process")>();
+  return {
+    ...actual,
+    createBunPtySpawn: vi.fn().mockReturnValue(vi.fn()),
+  };
+});
+
+vi.mock("../../src/spa-resolve.js", () => ({
+  resolveSpaDir: vi.fn().mockReturnValue("/fake/spa/dist"),
 }));
 
 describe("start command", () => {
-  it("starts agent server and dashboard", async () => {
+  it("starts agent server with SPA", async () => {
     process.env.MECHA_AGENT_API_KEY = "test-key";
     const hooks: Array<() => Promise<void>> = [];
     const deps = makeDeps({ registerShutdownHook: (fn) => hooks.push(fn) });
@@ -37,8 +45,21 @@ describe("start command", () => {
     program.exitOverride();
 
     await program.parseAsync(["node", "mecha", "start"]);
+    expect(deps.formatter.success).toHaveBeenCalledWith(expect.stringContaining("Mecha started"));
+  });
+
+  it("warns when SPA not found", async () => {
+    process.env.MECHA_AGENT_API_KEY = "test-key";
+    const { resolveSpaDir } = await import("../../src/spa-resolve.js");
+    vi.mocked(resolveSpaDir).mockReturnValueOnce(undefined);
+
+    const deps = makeDeps();
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "start"]);
     expect(deps.formatter.success).toHaveBeenCalledWith(expect.stringContaining("Agent server started"));
-    expect(deps.formatter.success).toHaveBeenCalledWith(expect.stringContaining("Dashboard started"));
+    expect(deps.formatter.warn).toHaveBeenCalledWith(expect.stringContaining("SPA not found"));
   });
 
   it("errors without API key", async () => {
@@ -62,25 +83,13 @@ describe("start command", () => {
     expect(process.exitCode).toBe(1);
   });
 
-  it("rejects invalid dashboard port", async () => {
+  it("forwards port option to server", async () => {
     process.env.MECHA_AGENT_API_KEY = "test-key";
     const deps = makeDeps();
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "start", "--dashboard-port", "abc"]);
-    expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("Invalid dashboard port"));
-    expect(process.exitCode).toBe(1);
-  });
-
-  it("forwards port options", async () => {
-    process.env.MECHA_AGENT_API_KEY = "test-key";
-    const deps = makeDeps();
-    const program = createProgram(deps);
-    program.exitOverride();
-
-    await program.parseAsync(["node", "mecha", "start", "--port", "7700", "--dashboard-port", "4000"]);
+    await program.parseAsync(["node", "mecha", "start", "--port", "7700"]);
     expect(mockServer.listen).toHaveBeenCalledWith(expect.objectContaining({ port: 7700 }));
-    expect(deps.formatter.success).toHaveBeenCalledWith(expect.stringContaining("Agent server started"));
   });
 });

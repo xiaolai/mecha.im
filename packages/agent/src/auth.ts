@@ -1,6 +1,7 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
 import { safeCompare } from "@mecha/core";
 import type { verifySignature as VerifySignatureFn } from "@mecha/core";
+import { consumeTicket } from "./ws-tickets.js";
 
 export interface AuthOpts {
   apiKey: string;
@@ -11,16 +12,40 @@ export interface AuthOpts {
   nodePublicKeys?: Map<string, string>;
   /** Signature verification function — defaults to @mecha/core verifySignature */
   verifySignature?: typeof VerifySignatureFn;
+  /** When SPA is served, skip auth for static asset requests. */
+  spaDir?: string;
 }
+
+/** Known API path prefixes that always require auth. */
+const API_PREFIXES = [
+  "/casas", "/acl", "/audit", "/mesh", "/meter",
+  "/settings", "/events", "/discover", "/ws",
+];
 
 /**
  * Fastify onRequest hook that validates Bearer token.
  */
 export function createAuthHook(opts: AuthOpts) {
   return async (request: FastifyRequest, reply: FastifyReply) => {
-    // Healthz is public (match pathname only, ignore query string)
-    const pathname = request.url.split("?")[0];
+    const pathname = request.url.split("?")[0]!;
+
+    // Healthz is always public
     if (pathname === "/healthz") return;
+
+    // When SPA is served, skip auth for static asset requests (non-API paths)
+    if (opts.spaDir && !API_PREFIXES.some((p) => pathname.startsWith(p))) {
+      return;
+    }
+
+    // WS paths: accept ticket-based auth (browser WS can't set headers)
+    // Exclude /ws/ticket itself — it uses Bearer auth to issue tickets
+    if (pathname.startsWith("/ws/") && pathname !== "/ws/ticket") {
+      const url = new URL(request.url, "http://localhost");
+      const ticket = url.searchParams.get("ticket");
+      if (ticket && consumeTicket(ticket)) return;
+      reply.code(401).send({ error: "Unauthorized" });
+      return;
+    }
 
     const auth = request.headers.authorization;
     if (!auth || !auth.startsWith("Bearer ") || !safeCompare(auth.slice(7), opts.apiKey)) {
