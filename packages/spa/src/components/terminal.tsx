@@ -95,6 +95,10 @@ export function Terminal({ casaName, sessionId, node, onSessionCreated, onExit }
       if (sessionId) params.set("session", sessionId);
       if (node && node !== "local") params.set("node", node);
       if (ticket) params.set("ticket", ticket);
+      // Send initial terminal dimensions so the PTY spawns at the correct size,
+      // avoiding garbled output from the spinner rendering at wrong dimensions.
+      params.set("cols", String(term.cols));
+      params.set("rows", String(term.rows));
       const query = params.toString();
       const wsUrl = `${proto}//${window.location.host}/ws/terminal/${casaName}${query ? `?${query}` : ""}`;
 
