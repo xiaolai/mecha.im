@@ -58,6 +58,7 @@ __pycache__/
 build/
 CLAUDE.local.md
 coverage/
+reports/
 credentials.json
 dist/
 htmlcov/

@@ -65,6 +65,10 @@ export { projects };
 export default defineConfig({
   test: {
     projects,
+    reporters: ["default", "junit"],
+    outputFile: {
+      junit: "reports/junit.xml",
+    },
     coverage: {
       provider: "v8",
       include: ["packages/*/src/**"],
@@ -93,7 +97,8 @@ export default defineConfig({
         branches: 100,
         statements: 100,
       },
-      reporter: ["text-summary", "json-summary"],
+      reporter: ["text-summary", "json-summary", "html"],
+      reportsDirectory: "reports/coverage",
     },
   },
 });
