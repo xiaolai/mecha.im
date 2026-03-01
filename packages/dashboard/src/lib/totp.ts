@@ -1,8 +1,8 @@
 import { TOTP, Secret } from "otpauth";
 
-/** Returns true when MECHA_AUTH_BYPASS=true — skips TOTP code validation. */
+/** Returns true when MECHA_AUTH_BYPASS=true AND NODE_ENV=test — skips TOTP code validation. */
 export function isAuthBypassed(): boolean {
-  return process.env.MECHA_AUTH_BYPASS === "true";
+  return process.env.MECHA_AUTH_BYPASS === "true" && process.env.NODE_ENV === "test";
 }
 
 /**
@@ -22,7 +22,8 @@ export function verifyTotpCode(secret: string, code: string): boolean {
     secret: Secret.fromBase32(secret),
   });
 
-  const delta = totp.validate({ token: code, window: 0 });
+  // window: 1 allows ±30s clock skew (standard TOTP recommendation)
+  const delta = totp.validate({ token: code, window: 1 });
   return delta !== null;
 }
 

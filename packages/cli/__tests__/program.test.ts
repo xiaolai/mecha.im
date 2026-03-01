@@ -68,20 +68,14 @@ describe("createProgram", () => {
   it("registers all expected commands", () => {
     const program = createProgram(makeDeps());
     const commandNames = program.commands.map((c) => c.name());
+    expect(commandNames).toContain("start");
+    expect(commandNames).toContain("stop");
+    expect(commandNames).toContain("restart");
     expect(commandNames).toContain("init");
     expect(commandNames).toContain("doctor");
-    expect(commandNames).toContain("spawn");
-    expect(commandNames).toContain("kill");
-    expect(commandNames).toContain("stop");
-    expect(commandNames).toContain("ls");
-    expect(commandNames).toContain("status");
-    expect(commandNames).toContain("logs");
-    expect(commandNames).toContain("chat");
-    expect(commandNames).toContain("sessions");
+    expect(commandNames).toContain("casa");
     expect(commandNames).toContain("tools");
     expect(commandNames).toContain("auth");
-    expect(commandNames).toContain("find");
-    expect(commandNames).toContain("configure");
     expect(commandNames).toContain("acl");
     expect(commandNames).toContain("dashboard");
   });
