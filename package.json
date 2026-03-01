@@ -6,6 +6,9 @@
   "scripts": {
     "build": "tsc -b packages/core packages/sandbox packages/process packages/runtime packages/service packages/agent packages/meter packages/connect packages/mcp-server packages/dashboard/tsconfig.server.json packages/cli packages/server",
     "test": "vitest run",
+    "test:unit": "vitest run",
+    "test:pkg": "vitest run --project",
+    "test:integration": "vitest run --config vitest.integration.ts",
     "test:coverage": "vitest run --coverage --config vitest.config.ts",
     "typecheck": "tsc -b",
     "build:bin": "bash scripts/build-binaries.sh",
