@@ -57,7 +57,7 @@ describe("mesh e2e: cross-node query", () => {
     // Start bob's agent server
     bobServer = createAgentServer({
       port: 0, // will be overridden by listen
-      apiKey: bobApiKey,
+      auth: { apiKey: bobApiKey },
       processManager: makePm(),
       acl: makeAcl(),
       mechaDir: bobDir,
