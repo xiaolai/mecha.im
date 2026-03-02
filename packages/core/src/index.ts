@@ -197,6 +197,10 @@ export {
 } from "./auth-config.js";
 export type { AuthConfig, AuthConfigOverrides } from "./auth-config.js";
 
+// Node Info
+export { getNetworkIps, fetchPublicIp, collectNodeInfo, formatUptime } from "./node-info.js";
+export type { NodeInfo } from "./node-info.js";
+
 // Schedule Engine
 export {
   parseInterval,

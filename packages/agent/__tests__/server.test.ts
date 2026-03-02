@@ -21,6 +21,7 @@ describe("AgentServer", () => {
       acl: opts?.acl ?? makeAcl(),
       mechaDir,
       nodeName: "alice",
+      startedAt: "2026-03-02T12:00:00.000Z",
     });
   }
 
