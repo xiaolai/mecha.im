@@ -27,6 +27,9 @@ export function useFetch<T>(url: string, opts: UseFetchOptions = {}): UseFetchRe
   const abortRef = useRef<AbortController | null>(null);
   const { authHeaders, logout } = useAuth();
 
+  // Stabilize deps as a JSON string to avoid recreating fetchData on every render
+  const depsKey = JSON.stringify(deps);
+
   const fetchData = useCallback(async () => {
     abortRef.current?.abort();
     const controller = new AbortController();
@@ -56,7 +59,7 @@ export function useFetch<T>(url: string, opts: UseFetchOptions = {}): UseFetchRe
       if (!controller.signal.aborted) setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [url, authHeaders, logout, ...deps]);
+  }, [url, authHeaders, logout, depsKey]);
 
   useEffect(() => {
     let cancelled = false;

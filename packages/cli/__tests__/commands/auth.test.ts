@@ -54,12 +54,22 @@ describe("auth commands", () => {
   });
 
   it("lists profiles (empty)", async () => {
-    const { deps } = setup();
-    const program = createProgram(deps);
-    program.exitOverride();
+    // Temporarily clear env vars so synthetic env profiles don't appear
+    const savedApiKey = process.env.ANTHROPIC_API_KEY;
+    const savedOauth = process.env.CLAUDE_CODE_OAUTH_TOKEN;
+    delete process.env.ANTHROPIC_API_KEY;
+    delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
+    try {
+      const { deps } = setup();
+      const program = createProgram(deps);
+      program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "auth", "ls"]);
-    expect(deps.formatter.info).toHaveBeenCalledWith("No auth profiles");
+      await program.parseAsync(["node", "mecha", "auth", "ls"]);
+      expect(deps.formatter.info).toHaveBeenCalledWith("No auth profiles");
+    } finally {
+      if (savedApiKey !== undefined) process.env.ANTHROPIC_API_KEY = savedApiKey;
+      if (savedOauth !== undefined) process.env.CLAUDE_CODE_OAUTH_TOKEN = savedOauth;
+    }
   });
 
   it("rejects profile without --token flag", async () => {
