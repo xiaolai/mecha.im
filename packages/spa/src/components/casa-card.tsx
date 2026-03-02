@@ -1,19 +1,20 @@
 import { Link } from "react-router-dom";
-import { SquareIcon, OctagonXIcon } from "lucide-react";
+import { PlayIcon, RefreshCwIcon, SquareIcon, OctagonXIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { TooltipIconButton } from "@/components/ui/tooltip-icon-button";
 import { cn } from "@/lib/utils";
 import { stateStyles } from "@/lib/casa-styles";
 import { useCasaAction } from "@/lib/use-casa-action";
+import { BusyWarningBanner } from "@/components/busy-warning-banner";
 
 export interface CasaInfo {
   name: string;
   state: "running" | "stopped" | "error";
   pid?: number;
   port?: number;
-  workspacePath: string;
+  workspacePath?: string;
   startedAt?: string;
-  tags: string[];
+  tags?: string[];
   node?: string;
 }
 
@@ -23,7 +24,7 @@ interface CasaCardProps {
 
 export function CasaCard({ casa }: CasaCardProps) {
   const style = stateStyles[casa.state];
-  const { acting, actionError, handleAction } = useCasaAction(casa.name, undefined, casa.node);
+  const { acting, actionError, busyWarning, handleAction, confirmForce, dismissBusy } = useCasaAction(casa.name, undefined, casa.node);
 
   return (
     <div className="relative flex flex-col gap-3 rounded-lg border border-border bg-card p-4 transition-colors hover:bg-accent/50">
@@ -74,31 +75,65 @@ export function CasaCard({ casa }: CasaCardProps) {
         <div className="text-xs text-destructive">{actionError}</div>
       )}
 
+      {/* Busy warning */}
+      {busyWarning && (
+        <BusyWarningBanner
+          warning={busyWarning}
+          onConfirm={confirmForce}
+          onCancel={dismissBusy}
+          acting={acting}
+        />
+      )}
+
       {/* Actions */}
-      {casa.state === "running" && (
-        <div className="relative z-10 flex items-center gap-3 border-t border-border pt-2">
+      <div className="relative z-10 flex items-center gap-3 border-t border-border pt-2">
+        {casa.state === "stopped" && (
           <TooltipIconButton
-            tooltip="Stop"
+            tooltip="Start"
             variant="outline"
             size="icon"
-            className="sm:size-8"
+            className="text-success hover:text-success sm:size-8"
             disabled={acting}
-            onClick={() => handleAction("stop")}
+            onClick={() => handleAction("start")}
           >
-            <SquareIcon className="size-4" />
+            <PlayIcon className="size-4" />
           </TooltipIconButton>
-          <TooltipIconButton
-            tooltip="Kill"
-            variant="ghost"
-            size="icon"
-            className="text-destructive hover:text-destructive sm:size-8"
-            disabled={acting}
-            onClick={() => handleAction("kill")}
-          >
-            <OctagonXIcon className="size-4" />
-          </TooltipIconButton>
-        </div>
-      )}
+        )}
+        {casa.state === "running" && (
+          <>
+            <TooltipIconButton
+              tooltip="Restart"
+              variant="outline"
+              size="icon"
+              className="sm:size-8"
+              disabled={acting}
+              onClick={() => handleAction("restart")}
+            >
+              <RefreshCwIcon className="size-4" />
+            </TooltipIconButton>
+            <TooltipIconButton
+              tooltip="Stop"
+              variant="outline"
+              size="icon"
+              className="sm:size-8"
+              disabled={acting}
+              onClick={() => handleAction("stop")}
+            >
+              <SquareIcon className="size-4" />
+            </TooltipIconButton>
+            <TooltipIconButton
+              tooltip="Kill"
+              variant="ghost"
+              size="icon"
+              className="text-destructive hover:text-destructive sm:size-8"
+              disabled={acting}
+              onClick={() => handleAction("kill")}
+            >
+              <OctagonXIcon className="size-4" />
+            </TooltipIconButton>
+          </>
+        )}
+      </div>
     </div>
   );
 }

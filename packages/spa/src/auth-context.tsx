@@ -82,8 +82,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const authMode: AuthMode = totpAuth ? "totp" : apiKey ? "apikey" : null;
 
-  const authHeaders = useMemo<Record<string, string>>(
-    () => apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
+  const authHeaders = useMemo(
+    (): Record<string, string> => {
+      if (apiKey) return { Authorization: `Bearer ${apiKey}` };
+      return {};
+    },
     [apiKey],
   );
 

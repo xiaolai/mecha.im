@@ -88,6 +88,12 @@ export const CasaAlreadyRunningError = defError<[string]>(
   (name) => `CASA "${name}" is already running`,
 );
 
+export const CasaBusyError = defError<[string, number]>(
+  "CasaBusyError",
+  { code: "CASA_BUSY", statusCode: 409, exitCode: 1 },
+  (name, count) => `CASA "${name}" has ${count} active session${count === 1 ? "" : "s"} — use --force to override`,
+);
+
 // --- Path errors ---
 export const PathNotFoundError = defError<[string]>(
   "PathNotFoundError",

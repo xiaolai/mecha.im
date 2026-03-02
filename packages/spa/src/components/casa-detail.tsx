@@ -1,11 +1,12 @@
 import { Link } from "react-router-dom";
-import { ArrowLeftIcon, SquareIcon, OctagonXIcon, TerminalSquareIcon } from "lucide-react";
+import { ArrowLeftIcon, PlayIcon, RefreshCwIcon, SquareIcon, OctagonXIcon, TerminalSquareIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TooltipIconButton } from "@/components/ui/tooltip-icon-button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { SessionList } from "@/components/session-list";
+import { BusyWarningBanner } from "@/components/busy-warning-banner";
 import { cn } from "@/lib/utils";
 import { useFetch } from "@/lib/use-fetch";
 import { useCasaAction } from "@/lib/use-casa-action";
@@ -24,7 +25,7 @@ export function CasaDetail({ name, node }: CasaDetailProps) {
     { interval: 5000, deps: [name, node] },
   );
 
-  const { acting, actionError, handleAction } = useCasaAction(name, refetch, node);
+  const { acting, actionError, busyWarning, handleAction, confirmForce, dismissBusy } = useCasaAction(name, refetch, node);
 
   if (loading) {
     return (
@@ -65,28 +66,44 @@ export function CasaDetail({ name, node }: CasaDetailProps) {
             <span className="text-xs text-muted-foreground font-mono">@ {node}</span>
           )}
         </div>
-        {casa.state === "running" && (
-          <div className="flex items-center gap-3">
-            <Button variant="default" size="sm" asChild>
-              <Link to={`/casa/${encodeURIComponent(name)}/terminal${nodeQuery}`}>
-                <TerminalSquareIcon className="size-4" /> Terminal
-              </Link>
-            </Button>
-            <Button variant="outline" size="sm" disabled={acting} onClick={() => handleAction("stop")}>
-              <SquareIcon className="size-4" /> Stop
-            </Button>
-            <TooltipIconButton
-              tooltip="Force kill"
-              variant="ghost"
-              size="icon"
-              className="text-destructive hover:text-destructive sm:size-8"
+        <div className="flex items-center gap-3">
+          {casa.state === "stopped" && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-success border-success"
               disabled={acting}
-              onClick={() => handleAction("kill")}
+              onClick={() => handleAction("start")}
             >
-              <OctagonXIcon className="size-4" />
-            </TooltipIconButton>
-          </div>
-        )}
+              <PlayIcon className="size-4" /> Start
+            </Button>
+          )}
+          {casa.state === "running" && (
+            <>
+              <Button variant="default" size="sm" asChild>
+                <Link to={`/casa/${encodeURIComponent(name)}/terminal${nodeQuery}`}>
+                  <TerminalSquareIcon className="size-4" /> Terminal
+                </Link>
+              </Button>
+              <Button variant="outline" size="sm" disabled={acting} onClick={() => handleAction("restart")}>
+                <RefreshCwIcon className="size-4" /> Restart
+              </Button>
+              <Button variant="outline" size="sm" disabled={acting} onClick={() => handleAction("stop")}>
+                <SquareIcon className="size-4" /> Stop
+              </Button>
+              <TooltipIconButton
+                tooltip="Force kill"
+                variant="ghost"
+                size="icon"
+                className="text-destructive hover:text-destructive sm:size-8"
+                disabled={acting}
+                onClick={() => handleAction("kill")}
+              >
+                <OctagonXIcon className="size-4" />
+              </TooltipIconButton>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Action error */}
@@ -94,6 +111,16 @@ export function CasaDetail({ name, node }: CasaDetailProps) {
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
           {actionError}
         </div>
+      )}
+
+      {/* Busy warning */}
+      {busyWarning && (
+        <BusyWarningBanner
+          warning={busyWarning}
+          onConfirm={confirmForce}
+          onCancel={dismissBusy}
+          acting={acting}
+        />
       )}
 
       {/* Overview cards */}

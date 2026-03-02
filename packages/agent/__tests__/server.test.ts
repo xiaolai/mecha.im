@@ -158,7 +158,7 @@ describe("AgentServer", () => {
       expect(res.statusCode).toBe(400);
     });
 
-    it("returns 403 for stopped CASA", async () => {
+    it("returns 409 for stopped CASA", async () => {
       const list: ProcessInfo[] = [
         { name: "coder" as CasaName, state: "stopped", workspacePath: "/ws" },
       ];
@@ -169,7 +169,8 @@ describe("AgentServer", () => {
         url: "/casas/coder/stop",
         headers: { authorization: "Bearer test-key" },
       });
-      expect(res.statusCode).toBe(403);
+      expect(res.statusCode).toBe(409);
+      expect(res.json().code).toBe("CASA_NOT_RUNNING");
     });
   });
 
