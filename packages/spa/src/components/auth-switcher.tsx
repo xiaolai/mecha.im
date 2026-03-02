@@ -8,7 +8,9 @@ import { useAuth } from "@/auth-context";
 interface AuthProfile {
   name: string;
   type: "oauth" | "api-key";
+  label?: string;
   isDefault: boolean;
+  tags?: string[];
 }
 
 interface AuthSwitcherProps {
@@ -107,7 +109,7 @@ export function AuthSwitcher({ casaName, currentAuth, currentAuthType, casaState
               <span className="size-4 flex items-center justify-center">
                 {p.name === currentAuth && <CheckIcon className="size-3.5 text-primary" />}
               </span>
-              <span>{p.name}</span>
+              <span>{p.name.startsWith("$env:") ? p.label || p.name : p.name}</span>
               <Badge variant="outline" className="ml-auto text-xs">{p.type}</Badge>
               {p.isDefault && (
                 <span className="text-xs text-muted-foreground">default</span>

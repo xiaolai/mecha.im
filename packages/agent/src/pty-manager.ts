@@ -1,5 +1,7 @@
 import { randomBytes } from "node:crypto";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { homedir } from "node:os";
 import type { WebSocket } from "@fastify/websocket";
 import type { ProcessManager, MechaPty, PtySpawnFn } from "@mecha/process";
 import { readCasaConfig } from "@mecha/core";
@@ -14,6 +16,22 @@ const PTY_ENV_ALLOWLIST = new Set([
 ]);
 
 const PTY_ENV_PREFIX_ALLOWLIST = ["LC_", "XDG_"];
+
+/** Resolve absolute path to `claude` binary, checking common install locations. */
+function resolveClaudeBin(): string {
+  const home = homedir();
+  const candidates = [
+    join(home, ".local", "bin", "claude"),
+    join(home, ".claude", "local", "bin", "claude"),
+    "/usr/local/bin/claude",
+    "/usr/bin/claude",
+  ];
+  for (const p of candidates) {
+    if (existsSync(p)) return p;
+  }
+  // Fallback: rely on PATH
+  return "claude";
+}
 
 function isPtyEnvAllowed(key: string): boolean {
   if (PTY_ENV_ALLOWLIST.has(key)) return true;
@@ -113,12 +131,18 @@ export function createPtyManager(opts: CreatePtyManagerOpts): PtyManager {
         }
         /* v8 ignore stop */
       }
+      // Ensure ~/.local/bin is on PATH (common claude install location)
+      const localBin = join(homedir(), ".local", "bin");
+      if (casaEnv.PATH && !casaEnv.PATH.split(":").includes(localBin)) {
+        casaEnv.PATH = `${localBin}:${casaEnv.PATH}`;
+      }
       casaEnv.MECHA_CASA_NAME = casaName;
       casaEnv.MECHA_WORKSPACE = config.workspace;
       casaEnv.MECHA_PORT = String(config.port);
       casaEnv.MECHA_AUTH_TOKEN = config.token;
 
-      const pty = spawnFn("claude", args, {
+      const claudeBin = resolveClaudeBin();
+      const pty = spawnFn(claudeBin, args, {
         name: "xterm-256color",
         cols,
         rows,
