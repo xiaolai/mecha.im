@@ -12,16 +12,28 @@ import type { ProcessInfo } from "@mecha/process";
 import { writeCasaConfig, makeAcl } from "../../core/__tests__/test-utils.js";
 import { makePm } from "../../service/__tests__/test-utils.js";
 
+vi.mock("@mecha/core", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@mecha/core")>();
+  return {
+    ...actual,
+    readAuthProfiles: vi.fn().mockReturnValue({ default: null, profiles: {} }),
+  };
+});
+
 vi.mock("@mecha/service", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@mecha/service")>();
   return {
     ...actual,
+    casaConfigure: vi.fn(),
     checkCasaBusy: vi.fn().mockResolvedValue({ busy: false, activeSessions: 0 }),
     getCachedSnapshot: vi.fn().mockReturnValue(null),
   };
 });
 
-import { checkCasaBusy, getCachedSnapshot } from "@mecha/service";
+import { readAuthProfiles } from "@mecha/core";
+import { casaConfigure, checkCasaBusy, getCachedSnapshot } from "@mecha/service";
+const mockReadAuthProfiles = vi.mocked(readAuthProfiles);
+const mockCasaConfigure = vi.mocked(casaConfigure);
 const mockCheckBusy = vi.mocked(checkCasaBusy);
 const mockGetSnapshot = vi.mocked(getCachedSnapshot);
 
@@ -31,6 +43,8 @@ describe("agent routes", () => {
     if (mechaDir) rmSync(mechaDir, { recursive: true, force: true });
     vi.restoreAllMocks();
     mockCheckBusy.mockResolvedValue({ busy: false, activeSessions: 0 });
+    mockReadAuthProfiles.mockReturnValue({ default: null, profiles: {} });
+    mockCasaConfigure.mockReset();
   });
 
   describe("health routes", () => {
@@ -484,6 +498,177 @@ describe("agent routes", () => {
         expect(res.statusCode).toBe(409);
         expect(res.json().code).toBe("CASA_BUSY");
         expect(pm.stop).not.toHaveBeenCalled();
+        await app.close();
+      });
+    });
+
+    describe("PATCH /casas/:name/config", () => {
+      it("updates config fields without restart", async () => {
+        const pm = makePm([
+          { name: "alice" as CasaName, state: "running", port: 7700, workspacePath: "/ws" },
+        ]);
+        const app = Fastify();
+        registerCasaRoutes(app, pm, mechaDir);
+        await app.ready();
+
+        const res = await app.inject({
+          method: "PATCH",
+          url: "/casas/alice/config",
+          payload: { model: "claude-haiku-4-5-20251001", tags: ["coder"] },
+        });
+        expect(res.statusCode).toBe(200);
+        expect(res.json()).toEqual({ ok: true, restarted: false });
+        expect(mockCasaConfigure).toHaveBeenCalledWith(
+          mechaDir, pm, "alice",
+          { model: "claude-haiku-4-5-20251001", tags: ["coder"] },
+        );
+        await app.close();
+      });
+
+      it("updates and restarts when restart=true", async () => {
+        writeCasaConfig(mechaDir, "alice", {
+          port: 7700, token: "tok", workspace: "/ws",
+        });
+        const pm = makePm([
+          { name: "alice" as CasaName, state: "running", port: 7700, workspacePath: "/ws" },
+        ]);
+        vi.mocked(pm.spawn).mockResolvedValue({
+          name: "alice" as CasaName, state: "running", port: 7700, workspacePath: "/ws",
+        });
+        const app = Fastify();
+        registerCasaRoutes(app, pm, mechaDir);
+        await app.ready();
+
+        const res = await app.inject({
+          method: "PATCH",
+          url: "/casas/alice/config",
+          payload: { model: "claude-haiku-4-5-20251001", restart: true },
+        });
+        expect(res.statusCode).toBe(200);
+        expect(res.json()).toEqual({ ok: true, restarted: true });
+        expect(pm.stop).toHaveBeenCalledWith("alice");
+        expect(pm.spawn).toHaveBeenCalled();
+        await app.close();
+      });
+
+      it("force-restarts with kill when force=true", async () => {
+        writeCasaConfig(mechaDir, "alice", {
+          port: 7700, token: "tok", workspace: "/ws",
+        });
+        const pm = makePm([
+          { name: "alice" as CasaName, state: "running", port: 7700, workspacePath: "/ws" },
+        ]);
+        mockCheckBusy.mockResolvedValue({
+          busy: true, activeSessions: 1, lastActivity: "2026-03-02T12:00:00Z",
+        });
+        vi.mocked(pm.spawn).mockResolvedValue({
+          name: "alice" as CasaName, state: "running", port: 7700, workspacePath: "/ws",
+        });
+        const app = Fastify();
+        registerCasaRoutes(app, pm, mechaDir);
+        await app.ready();
+
+        const res = await app.inject({
+          method: "PATCH",
+          url: "/casas/alice/config",
+          payload: { model: "claude-haiku-4-5-20251001", restart: true, force: true },
+        });
+        expect(res.statusCode).toBe(200);
+        expect(res.json()).toEqual({ ok: true, restarted: true });
+        expect(pm.kill).toHaveBeenCalledWith("alice");
+        await app.close();
+      });
+
+      it("returns 400 for invalid CASA name", async () => {
+        const app = Fastify();
+        registerCasaRoutes(app, makePm(), mechaDir);
+        await app.ready();
+
+        const res = await app.inject({
+          method: "PATCH",
+          url: "/casas/INVALID/config",
+          payload: { model: "claude-haiku-4-5-20251001" },
+        });
+        expect(res.statusCode).toBe(400);
+        await app.close();
+      });
+
+      it("returns 404 when CASA not found", async () => {
+        const app = Fastify();
+        registerCasaRoutes(app, makePm(), mechaDir);
+        await app.ready();
+
+        const res = await app.inject({
+          method: "PATCH",
+          url: "/casas/ghost/config",
+          payload: { model: "claude-haiku-4-5-20251001" },
+        });
+        expect(res.statusCode).toBe(404);
+        await app.close();
+      });
+
+      it("returns 400 for invalid auth profile", async () => {
+        const pm = makePm([
+          { name: "alice" as CasaName, state: "running", port: 7700, workspacePath: "/ws" },
+        ]);
+        mockReadAuthProfiles.mockReturnValue({
+          default: null,
+          profiles: { existing: { type: "oauth", addedAt: "2026-01-01T00:00:00Z" } },
+        });
+        const app = Fastify();
+        registerCasaRoutes(app, pm, mechaDir);
+        await app.ready();
+
+        const res = await app.inject({
+          method: "PATCH",
+          url: "/casas/alice/config",
+          payload: { auth: "nonexistent" },
+        });
+        expect(res.statusCode).toBe(400);
+        expect(res.json().error).toContain("Auth profile not found");
+        await app.close();
+      });
+
+      it("returns 409 when busy CASA + restart without force", async () => {
+        const pm = makePm([
+          { name: "alice" as CasaName, state: "running", port: 7700, workspacePath: "/ws" },
+        ]);
+        mockCheckBusy.mockResolvedValue({
+          busy: true, activeSessions: 2, lastActivity: "2026-03-02T12:00:00Z",
+        });
+        const app = Fastify();
+        registerCasaRoutes(app, pm, mechaDir);
+        await app.ready();
+
+        const res = await app.inject({
+          method: "PATCH",
+          url: "/casas/alice/config",
+          payload: { model: "claude-haiku-4-5-20251001", restart: true },
+        });
+        expect(res.statusCode).toBe(409);
+        expect(res.json().code).toBe("CASA_BUSY");
+        // Config should still have been updated before the busy check
+        expect(mockCasaConfigure).toHaveBeenCalled();
+        await app.close();
+      });
+
+      it("skips restart when CASA is stopped", async () => {
+        const pm = makePm([
+          { name: "alice" as CasaName, state: "stopped", workspacePath: "/ws" },
+        ]);
+        const app = Fastify();
+        registerCasaRoutes(app, pm, mechaDir);
+        await app.ready();
+
+        const res = await app.inject({
+          method: "PATCH",
+          url: "/casas/alice/config",
+          payload: { model: "claude-haiku-4-5-20251001", restart: true },
+        });
+        expect(res.statusCode).toBe(200);
+        expect(res.json()).toEqual({ ok: true, restarted: false });
+        expect(pm.stop).not.toHaveBeenCalled();
+        expect(pm.spawn).not.toHaveBeenCalled();
         await app.close();
       });
     });

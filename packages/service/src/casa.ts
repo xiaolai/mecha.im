@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { type CasaName, CasaNotFoundError, isValidName, readCasaConfig, updateCasaConfig, matchesDiscoveryFilter } from "@mecha/core";
+import { type CasaName, type CasaConfig, CasaNotFoundError, isValidName, readCasaConfig, updateCasaConfig, matchesDiscoveryFilter } from "@mecha/core";
 import type { ProcessManager, ProcessInfo } from "@mecha/process";
 
 export interface FindResult extends ProcessInfo {
@@ -30,11 +30,20 @@ export function casaFind(
   return results;
 }
 
+export interface CasaConfigUpdates {
+  auth?: string | null;
+  model?: string;
+  tags?: string[];
+  expose?: string[];
+  sandboxMode?: "auto" | "off" | "require";
+  permissionMode?: string;
+}
+
 export function casaConfigure(
   mechaDir: string,
   pm: ProcessManager,
   name: CasaName,
-  updates: { tags?: string[]; expose?: string[]; auth?: string },
+  updates: CasaConfigUpdates,
 ): void {
   const info = pm.get(name);
   if (!info) throw new CasaNotFoundError(name);
@@ -46,5 +55,8 @@ export function casaConfigure(
     workspace: info.workspacePath ?? "",
   };
   /* v8 ignore stop */
-  updateCasaConfig(join(mechaDir, name), updates, fallback);
+  // Convert null auth to undefined to clear the field; strip null from type
+  const { auth, ...rest } = updates;
+  const configUpdates: Partial<CasaConfig> = { ...rest, ...(auth !== null && auth !== undefined ? { auth } : {}) };
+  updateCasaConfig(join(mechaDir, name), configUpdates, fallback);
 }

@@ -130,6 +130,19 @@ export function resolveAuth(mechaDir: string, authProfileName?: string | null): 
   // Explicit --no-auth
   if (authProfileName === null) return null;
 
+  // Env sentinel profiles: $env:api-key, $env:oauth
+  if (authProfileName?.startsWith("$env:")) {
+    const envMap: Record<string, { type: "oauth" | "api-key"; envVar: "ANTHROPIC_API_KEY" | "CLAUDE_CODE_OAUTH_TOKEN" }> = {
+      "$env:api-key": { type: "api-key", envVar: "ANTHROPIC_API_KEY" },
+      "$env:oauth": { type: "oauth", envVar: "CLAUDE_CODE_OAUTH_TOKEN" },
+    };
+    const entry = envMap[authProfileName];
+    if (!entry) throw new AuthProfileNotFoundError(authProfileName);
+    const token = process.env[entry.envVar];
+    if (!token) throw new AuthTokenInvalidError(`${authProfileName} (${entry.envVar} not set)`);
+    return { profileName: authProfileName, type: entry.type, envVar: entry.envVar, token };
+  }
+
   const store = readAuthProfiles(mechaDir);
   const creds = readAuthCredentials(mechaDir);
 

@@ -143,8 +143,11 @@ The agent server (`@mecha/agent`, port 7660) exposes these HTTP endpoints for in
 | `GET` | `/healthz` | Health check (no auth required) |
 | `GET` | `/casas` | List all CASAs on this node |
 | `GET` | `/casas/:name/status` | Get CASA status |
-| `POST` | `/casas/:name/stop` | Graceful stop |
+| `POST` | `/casas/:name/start` | Start a stopped CASA from config |
+| `POST` | `/casas/:name/stop` | Graceful stop (supports `force` body param) |
+| `POST` | `/casas/:name/restart` | Restart CASA (supports `force` body param) |
 | `POST` | `/casas/:name/kill` | Force kill |
+| `PATCH` | `/casas/:name/config` | Update CASA config fields, optionally restart |
 | `POST` | `/casas` | Spawn a new CASA |
 | `GET` | `/casas/:name/sessions` | List CASA sessions |
 | `GET` | `/casas/:name/sessions/:id` | Get specific session |

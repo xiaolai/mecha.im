@@ -1,8 +1,8 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { type CasaName, isValidName, readCasaConfig, CasaNotRunningError } from "@mecha/core";
+import { type CasaName, isValidName, readCasaConfig, readAuthProfiles, CasaNotRunningError } from "@mecha/core";
 import type { ProcessManager } from "@mecha/process";
-import { checkCasaBusy, enrichCasaInfo, buildEnrichContext, getCachedSnapshot } from "@mecha/service";
-import type { EnrichedCasaInfo } from "@mecha/service";
+import { casaConfigure, checkCasaBusy, enrichCasaInfo, buildEnrichContext, getCachedSnapshot, mechaAuthLs } from "@mecha/service";
+import type { CasaConfigUpdates, EnrichedCasaInfo } from "@mecha/service";
 import { join, basename } from "node:path";
 
 function validateName(name: string, reply: FastifyReply): CasaName | null {
@@ -187,5 +187,75 @@ export function registerCasaRoutes(app: FastifyInstance, pm: ProcessManager, mec
     }
     const result = await pm.spawn({ name: casaName, workspacePath: body.workspacePath });
     return { ok: true, name: casaName, port: result.port };
+  });
+
+  // --- Update CASA config fields, optionally restart ---
+  interface ConfigPatchBody extends CasaConfigUpdates {
+    restart?: boolean;
+    force?: boolean;
+  }
+
+  app.patch("/casas/:name/config", async (
+    request: FastifyRequest<{ Params: { name: string }; Body: ConfigPatchBody }>,
+    reply: FastifyReply,
+  ) => {
+    const casaName = validateName(request.params.name, reply);
+    if (!casaName) return;
+    const info = pm.get(casaName);
+    if (!info) {
+      reply.code(404).send({ error: `CASA not found: ${casaName}` });
+      return;
+    }
+    /* v8 ignore start -- Fastify always parses body for PATCH */
+    const body = (request.body ?? {}) as ConfigPatchBody;
+    /* v8 ignore stop */
+
+    // Validate auth profile exists if specified
+    if (body.auth !== undefined && body.auth !== null) {
+      const store = readAuthProfiles(mechaDir);
+      if (!store.profiles[body.auth]) {
+        reply.code(400).send({ error: `Auth profile not found: ${body.auth}` });
+        return;
+      }
+    }
+
+    // Extract config fields (exclude restart/force)
+    const { restart, force, ...configUpdates } = body;
+    casaConfigure(mechaDir, pm, casaName, configUpdates);
+
+    let restarted = false;
+    if (restart === true && info.state === "running") {
+      if (force !== true) {
+        const check = await checkCasaBusy(pm, casaName);
+        if (check.busy) {
+          reply.code(409).send({
+            error: `CASA has ${check.activeSessions} active session(s)`,
+            code: "CASA_BUSY",
+            activeSessions: check.activeSessions,
+            lastActivity: check.lastActivity,
+          });
+          return;
+        }
+      }
+      if (force === true) {
+        await pm.kill(casaName);
+      } else {
+        await pm.stop(casaName);
+      }
+      const config = readCasaConfig(join(mechaDir, casaName));
+      /* v8 ignore start -- config always exists after casaConfigure */
+      if (config) {
+        await pm.spawn(spawnOptsFromConfig(casaName, config));
+      }
+      /* v8 ignore stop */
+      restarted = true;
+    }
+
+    return { ok: true, restarted };
+  });
+
+  // --- List auth profiles (for UI dropdowns) ---
+  app.get("/auth/profiles", async () => {
+    return mechaAuthLs(mechaDir);
   });
 }
