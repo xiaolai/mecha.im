@@ -129,7 +129,7 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
     startedAt: opts.startedAt,
     publicIp: opts.publicIp,
   });
-  registerCasaRoutes(app, opts.processManager);
+  registerCasaRoutes(app, opts.processManager, opts.mechaDir);
   registerRoutingRoutes(app, { mechaDir: opts.mechaDir, acl: opts.acl });
   registerDiscoverRoutes(app, { mechaDir: opts.mechaDir, pm: opts.processManager });
   registerSessionRoutes(app, opts.processManager);

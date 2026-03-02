@@ -30,6 +30,7 @@ export {
   CasaAlreadyExistsError,
   CasaNotRunningError,
   CasaAlreadyRunningError,
+  CasaBusyError,
   PathNotFoundError,
   PathNotDirectoryError,
   PortConflictError,
