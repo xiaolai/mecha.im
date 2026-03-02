@@ -1,0 +1,199 @@
+import type { MeterEvent, PricingTable, BudgetConfig, CasaRegistryEntry, CostSummary } from "./types.js";
+import type { HotCounters } from "./hot-counters.js";
+import { ingestEvent } from "./hot-counters.js";
+import { computeCost, resolvePricing } from "./pricing.js";
+import { ulid } from "./ulid.js";
+import { appendEvent } from "./events.js";
+import { readBudgets, checkBudgets } from "./budgets.js";
+import type { BudgetCheckResult } from "./budgets.js";
+import { createLogger } from "@mecha/core";
+
+const log = createLogger("mecha:meter");
+
+const HOP_BY_HOP = new Set([
+  "connection", "keep-alive", "proxy-authenticate",
+  "proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade",
+]);
+
+export interface ProxyContext {
+  meterDir: string;
+  pricing: PricingTable;
+  registry: Map<string, CasaRegistryEntry>;
+  counters: HotCounters;
+  budgets: BudgetConfig;
+  /** Number of in-flight requests per CASA (for budget pre-accounting). */
+  pendingRequests: Map<string, number>;
+}
+
+/** Parse the CASA name from the request URL path: /casa/{name}/... */
+export function parseCasaPath(url: string): { casa: string; upstreamPath: string } | null {
+  const match = /^\/casa\/([a-z0-9-]+)(\/.*)$/.exec(url);
+  if (!match) return null;
+  return { casa: match[1]!, upstreamPath: match[2]! };
+}
+
+/** Build upstream headers: set Host, strip hop-by-hop (static + Connection-declared) */
+export function buildUpstreamHeaders(
+  incoming: Record<string, string | string[] | undefined>,
+): Record<string, string> {
+  // Build dynamic deny-list from Connection header tokens (RFC 7230 §6.1)
+  const dynamicHop = new Set(HOP_BY_HOP);
+  const connValue = incoming["connection"];
+  if (connValue) {
+    const tokens = (Array.isArray(connValue) ? connValue.join(", ") : connValue);
+    for (const token of tokens.split(",")) {
+      const trimmed = token.trim().toLowerCase();
+      if (trimmed) dynamicHop.add(trimmed);
+    }
+  }
+
+  const headers: Record<string, string> = {};
+  for (const [key, value] of Object.entries(incoming)) {
+    if (dynamicHop.has(key.toLowerCase())) continue;
+    if (value === undefined) continue;
+    headers[key] = Array.isArray(value) ? value.join(", ") : value;
+  }
+  headers["host"] = "api.anthropic.com";
+  return headers;
+}
+
+/** Build a MeterEvent from proxy usage data and compute cost */
+export function buildMeterEvent(
+  ctx: ProxyContext,
+  startMs: number,
+  casa: string,
+  casaInfo: CasaRegistryEntry,
+  model: string,
+  stream: boolean,
+  status: number,
+  usage: {
+    inputTokens: number; outputTokens: number;
+    cacheCreationTokens: number; cacheReadTokens: number;
+    modelActual: string; ttftMs: number | null;
+  },
+): MeterEvent {
+  const pricing = resolvePricing(ctx.pricing, usage.modelActual || model);
+  // Compute cost for 200 and -1 (client disconnect with partial usage consumed)
+  const costUsd = (status === 200 || status === -1) ? computeCost(pricing, usage) : 0;
+
+  return {
+    id: ulid(),
+    ts: new Date().toISOString(),
+    casa,
+    authProfile: casaInfo.authProfile,
+    workspace: casaInfo.workspace,
+    tags: casaInfo.tags,
+    model,
+    stream,
+    status,
+    modelActual: usage.modelActual || model,
+    latencyMs: Date.now() - startMs,
+    ttftMs: usage.ttftMs,
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+    cacheCreationTokens: usage.cacheCreationTokens,
+    cacheReadTokens: usage.cacheReadTokens,
+    costUsd,
+  };
+}
+
+/**
+ * Estimated cost per in-flight request ($0.03) for budget pre-accounting.
+ * Prevents concurrent requests from bypassing budget limits.
+ */
+export const ESTIMATED_REQUEST_COST_USD = 0.03;
+
+/** Run budget check for a CASA request. Returns null if allowed. */
+export function enforceBudget(
+  ctx: ProxyContext,
+  casa: string,
+  casaInfo: CasaRegistryEntry,
+): BudgetCheckResult {
+  const counters = ctx.counters;
+  const casaBucket = counters.byCasa[casa];
+  const authBucket = counters.byAuth[casaInfo.authProfile];
+  const tagSummaries: Record<string, { today: CostSummary; month: CostSummary }> = {};
+  for (const tag of casaInfo.tags) {
+    const bucket = counters.byTag[tag];
+    if (bucket) tagSummaries[tag] = { today: bucket.today, month: bucket.thisMonth };
+  }
+
+  // Add estimated cost for in-flight requests to prevent concurrent budget bypass
+  const pending = ctx.pendingRequests.get(casa) ?? 0;
+  const pendingCostUsd = pending * ESTIMATED_REQUEST_COST_USD;
+
+  return checkBudgets({
+    config: ctx.budgets,
+    casa,
+    authProfile: casaInfo.authProfile,
+    tags: casaInfo.tags,
+    global: { today: counters.global.today, month: counters.global.thisMonth },
+    perCasa: casaBucket ? { today: casaBucket.today, month: casaBucket.thisMonth } : undefined,
+    perAuth: authBucket ? { today: authBucket.today, month: authBucket.thisMonth } : undefined,
+    perTag: tagSummaries,
+    pendingCostUsd,
+  });
+}
+
+/** Reload budgets from disk (called on SIGHUP) */
+export function reloadBudgets(ctx: ProxyContext): void {
+  ctx.budgets = readBudgets(ctx.meterDir);
+}
+
+/** Counter for events that failed to persist (observable via snapshot and logs). */
+let droppedEvents = 0;
+
+/** Get the number of dropped events since process start. */
+export function getDroppedEventCount(): number {
+  return droppedEvents;
+}
+
+/** Reset dropped event counter (for testing). */
+export function resetDroppedEventCount(): void {
+  droppedEvents = 0;
+}
+
+/** Record a meter event: append to disk + update hot counters (skips ingest on persist failure) */
+export function recordEvent(ctx: ProxyContext, event: MeterEvent): void {
+  try {
+    appendEvent(ctx.meterDir, event);
+    ingestEvent(ctx.counters, event);
+  /* v8 ignore start -- disk write failure logging */
+  } catch (err) {
+    droppedEvents++;
+    log.error("Failed to write event", { eventId: event.id, droppedEvents, error: err instanceof Error ? err.message : String(err) });
+  }
+  /* v8 ignore stop */
+}
+
+/** Max request body size (32 MB) to prevent memory DoS */
+export const MAX_BODY_BYTES = 32 * 1024 * 1024;
+
+/** Max response body size (128 MB) to prevent memory DoS on non-stream responses */
+export const MAX_RESPONSE_BYTES = 128 * 1024 * 1024;
+
+/** Extract model name and stream flag from a request body JSON. */
+export function parseModelAndStream(body: Buffer): { model: string; stream: boolean } {
+  try {
+    const parsed = JSON.parse(body.toString()) as Record<string, unknown>;
+    return {
+      model: (typeof parsed.model === "string" ? parsed.model : ""),
+      stream: (typeof parsed.stream === "boolean" ? parsed.stream : false),
+    };
+  } catch {
+    return { model: "", stream: false };
+  }
+}
+
+/** Strip hop-by-hop headers from upstream response headers (case-insensitive). */
+export function stripHopByHop(
+  headers: Record<string, string | string[] | undefined>,
+): Record<string, string | string[] | undefined> {
+  const out: Record<string, string | string[] | undefined> = {};
+  for (const [key, value] of Object.entries(headers)) {
+    if (!HOP_BY_HOP.has(key.toLowerCase())) {
+      out[key] = value;
+    }
+  }
+  return out;
+}

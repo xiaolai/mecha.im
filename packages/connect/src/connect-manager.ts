@@ -17,13 +17,12 @@ import { createMultiRendezvousClient } from "./multi-rendezvous.js";
 import { createInviteCode, parseInviteCode } from "./invite.js";
 import { stunDiscover } from "./stun.js";
 import { holePunch } from "./hole-punch.js";
-import { noiseInitiate, noiseRespond } from "./noise.js";
-import { relayConnect } from "./relay.js";
-import { createSecureChannel } from "./channel.js";
-import { relayToNoiseTransport, relayToChannelTransport } from "./transport-adapters.js";
+import type { ConnectState } from "./connect-io.js";
+import { waitForAnswer, cacheChannel, connectViaRelay, handleInboundOffer } from "./connect-io.js";
 
 const log = createLogger("mecha:connect");
-const ANSWER_TIMEOUT_MS = 10_000;
+const textDecoder = new TextDecoder();
+const textEncoder = new TextEncoder();
 
 /**
  * Create a ConnectManager that orchestrates P2P connectivity.
@@ -42,7 +41,7 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
     relayUrl = DEFAULTS.RELAY_URL,
     stunServers,
     holePunchTimeoutMs,
-    answerTimeoutMs = ANSWER_TIMEOUT_MS,
+    answerTimeoutMs = 10_000,
     enableUdpTransport = false,
     _createRelayWebSocket,
     _createUdpSocket,
@@ -58,6 +57,7 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
   const connectionHandlers: Array<(channel: SecureChannel) => void> = [];
   let rendezvous: RendezvousClient | undefined;
   let started = false;
+  let startPromise: Promise<void> | undefined;
 
   /* v8 ignore start -- signFn is passed to rendezvous client, invoked by server protocol */
   const signFn = (data: Uint8Array): string => {
@@ -65,66 +65,21 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
   };
   /* v8 ignore stop */
 
-  function waitForAnswer(peer: string): Promise<Candidate[]> {
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        pendingAnswers.delete(peer);
-        reject(new ConnectError(`Answer timeout from "${peer}" after ${answerTimeoutMs}ms`));
-      }, answerTimeoutMs);
-      pendingAnswers.set(peer, { resolve, reject, timer });
-    });
-  }
-
-  function cacheChannel(peer: string, channel: SecureChannel): void {
-    channels.set(peer, channel);
-    channel.onClose(() => {
-      channels.delete(peer);
-      pendingConnects.delete(peer);
-    });
-    // Auto-respond to ping messages with pong (for RTT measurement)
-    channel.onMessage((data) => {
-      /* v8 ignore start -- ping/pong auto-responder: tested via mock channel in unit tests */
-      try {
-        const msg = JSON.parse(new TextDecoder().decode(data)) as { type?: string; nonce?: string };
-        if (msg.type === "ping" && msg.nonce) {
-          channel.send(new TextEncoder().encode(JSON.stringify({ type: "pong", nonce: msg.nonce })));
-        }
-      } catch { /* not a ping message, ignore */ }
-      /* v8 ignore stop */
-    });
-  }
-
-  async function connectViaRelay(peer: NodeName, peerFingerprint: string): Promise<SecureChannel> {
-    const rv = rendezvous!;
-    const token = await rv.requestRelay(peer);
-
-    const relayChannel = await relayConnect({
+  /** Build ConnectState from current closure for I/O helpers. */
+  function state(): ConnectState {
+    if (!rendezvous) throw new ConnectError("ConnectManager not started");
+    return {
+      rendezvous,
+      channels,
+      pendingConnects,
+      pendingAnswers,
+      connectionHandlers,
+      noiseKeyPair,
+      mechaDir,
       relayUrl,
-      token,
-      createWebSocket: _createRelayWebSocket,
-    });
-
-    const noiseTransport = relayToNoiseTransport(relayChannel);
-    /* v8 ignore start -- getNode always returns a valid node at this point */
-    const peerNode = getNode(mechaDir, peer);
-    const remoteNoiseKey = peerNode?.noisePublicKey ?? "";
-    /* v8 ignore stop */
-    const { cipher } = await noiseInitiate({
-      transport: noiseTransport,
-      localKeyPair: noiseKeyPair,
-      remotePublicKey: remoteNoiseKey,
-      // Use Noise key comparison for identity verification (not identity fingerprint)
-      expectedFingerprint: "",
-    });
-
-    const channelTransport = relayToChannelTransport(relayChannel);
-    return createSecureChannel({
-      peer,
-      type: "relayed",
-      peerFingerprint,
-      cipher,
-      transport: channelTransport,
-    });
+      answerTimeoutMs,
+      _createRelayWebSocket,
+    };
   }
 
   async function connectImpl(peer: NodeName): Promise<SecureChannel> {
@@ -166,7 +121,7 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
         });
 
         try {
-          const remoteCandidates = await waitForAnswer(peer);
+          const remoteCandidates = await waitForAnswer(state(), peer);
 
           const punchResult = await holePunch({
             localPort: stunResult.port,
@@ -180,7 +135,7 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
             // Currently falls through to relay even on successful punch because
             // direct UDP transport is not yet implemented. The enableUdpTransport
             // flag is false by default so this path is unreachable in production.
-            return await connectViaRelay(peer, peerInfo.fingerprint);
+            return await connectViaRelay(state(), peer, peerInfo.fingerprint);
           }
         /* v8 ignore start -- hole-punch failure path requires UDP transport test infra */
         } catch (punchErr) {
@@ -191,133 +146,86 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
     }
 
     // Relay fallback
-    return connectViaRelay(peer, peerInfo.fingerprint);
+    return connectViaRelay(state(), peer, peerInfo.fingerprint);
   }
 
-  async function handleInboundOffer(from: NodeName, candidates: Candidate[]): Promise<void> {
-    /* v8 ignore start -- guard: offer arrives after close() */
-    if (!rendezvous || !started) return;
+  async function startInner(): Promise<void> {
+    /* v8 ignore start -- multi-rendezvous branch: tested in multi-rendezvous.test.ts */
+    const rvUrls = opts.rendezvousUrls;
+    if (rvUrls && rvUrls.length > 1) {
+      rendezvous = createMultiRendezvousClient({
+        urls: rvUrls,
+        signFn,
+        createWebSocket: opts._createRendezvousWebSocket,
+      });
     /* v8 ignore stop */
+    } else {
+      rendezvous = createRendezvousClient({
+        url: rvUrls?.[0] ?? rendezvousUrl,
+        signFn,
+        createWebSocket: opts._createRendezvousWebSocket,
+      });
+    }
 
-    const peerInfo = getNode(mechaDir, from);
-    /* v8 ignore start -- inbound offer from unknown peer */
-    if (!peerInfo) return;
-    /* v8 ignore stop */
-
-    // Send answer with our own candidates (empty for relay-based response)
-    await rendezvous.signal(from, {
-      type: "answer",
-      candidates: [],
+    await rendezvous.connect();
+    await rendezvous.register({
+      name: identity.id,
+      publicKey: identity.publicKey,
+      noisePublicKey: noiseKeyPair.publicKey,
+      fingerprint: identity.fingerprint,
     });
 
-    // Establish channel via relay (responder always uses relay for simplicity)
-    try {
-      const token = await rendezvous.requestRelay(from);
-      const relayChannel = await relayConnect({
-        relayUrl,
-        token,
-        createWebSocket: _createRelayWebSocket,
-      });
-
-      const noiseTransport = relayToNoiseTransport(relayChannel);
-      const { cipher } = await noiseRespond({
-        transport: noiseTransport,
-        localKeyPair: noiseKeyPair,
-        expectedFingerprint: peerInfo.fingerprint,
-        /* v8 ignore start -- || undefined fallback for empty noisePublicKey */
-        expectedPublicKey: peerInfo.noisePublicKey || undefined,
+    // Route incoming signals
+    rendezvous.onSignal((from: NodeName, data: SignalData) => {
+      if (data.type === "offer") {
+        /* v8 ignore start -- guard: offer arrives after close() */
+        if (!rendezvous || !started) return;
         /* v8 ignore stop */
-      });
+        void handleInboundOffer(state(), from, data.candidates);
+      } else if (data.type === "answer") {
+        const pending = pendingAnswers.get(from);
+        if (pending) {
+          pendingAnswers.delete(from);
+          clearTimeout(pending.timer);
+          pending.resolve(data.candidates);
+        }
+      }
+    });
 
-      const channelTransport = relayToChannelTransport(relayChannel);
-      const channel = createSecureChannel({
-        peer: from,
-        type: "relayed",
-        /* v8 ignore start -- fingerprint always present for known peers */
-        peerFingerprint: peerInfo.fingerprint ?? "",
-        /* v8 ignore stop */
-        cipher,
-        transport: channelTransport,
-      });
+    // Handle incoming invite acceptances
+    rendezvous.onInviteAccepted((peer, publicKey, noisePublicKey, fingerprint) => {
+      const existing = getNode(mechaDir, peer);
+      /* v8 ignore start -- race: invite accepted for already-known peer */
+      if (existing) return;
+      /* v8 ignore stop */
+      try {
+        addNode(mechaDir, {
+          name: peer,
+          host: "",
+          port: 0,
+          apiKey: "",
+          publicKey,
+          noisePublicKey,
+          fingerprint,
+          addedAt: new Date().toISOString(),
+          managed: true,
+        });
+      /* v8 ignore start -- race/invalid payload in invite-accepted handler */
+      } catch (err) {
+        log.warn("Failed to add node from invite-accepted", { peer, error: err instanceof Error ? err.message : String(err) });
+      }
+      /* v8 ignore stop */
+    });
 
-      cacheChannel(from, channel);
-      for (const handler of connectionHandlers) handler(channel);
-    /* v8 ignore start -- relay/noise failure on inbound path */
-    } catch (err) {
-      log.error("Inbound connection failed", { from, error: err instanceof Error ? err.message : String(err) });
-    }
-    /* v8 ignore stop */
+    started = true;
   }
 
   const manager: ConnectManager = {
     async start(): Promise<void> {
       if (started) return;
-
-      /* v8 ignore start -- multi-rendezvous branch: tested in multi-rendezvous.test.ts */
-      const rvUrls = opts.rendezvousUrls;
-      if (rvUrls && rvUrls.length > 1) {
-        rendezvous = createMultiRendezvousClient({
-          urls: rvUrls,
-          signFn,
-          createWebSocket: opts._createRendezvousWebSocket,
-        });
-      /* v8 ignore stop */
-      } else {
-        rendezvous = createRendezvousClient({
-          url: rvUrls?.[0] ?? rendezvousUrl,
-          signFn,
-          createWebSocket: opts._createRendezvousWebSocket,
-        });
-      }
-
-      await rendezvous.connect();
-      await rendezvous.register({
-        name: identity.id,
-        publicKey: identity.publicKey,
-        noisePublicKey: noiseKeyPair.publicKey,
-        fingerprint: identity.fingerprint,
-      });
-
-      // Route incoming signals
-      rendezvous.onSignal((from: NodeName, data: SignalData) => {
-        if (data.type === "offer") {
-          void handleInboundOffer(from, data.candidates);
-        } else if (data.type === "answer") {
-          const pending = pendingAnswers.get(from);
-          if (pending) {
-            pendingAnswers.delete(from);
-            clearTimeout(pending.timer);
-            pending.resolve(data.candidates);
-          }
-        }
-      });
-
-      // Handle incoming invite acceptances
-      rendezvous.onInviteAccepted((peer, publicKey, noisePublicKey, fingerprint) => {
-        const existing = getNode(mechaDir, peer);
-        /* v8 ignore start -- race: invite accepted for already-known peer */
-        if (existing) return;
-        /* v8 ignore stop */
-        try {
-          addNode(mechaDir, {
-            name: peer,
-            host: "",
-            port: 0,
-            apiKey: "",
-            publicKey,
-            noisePublicKey,
-            fingerprint,
-            addedAt: new Date().toISOString(),
-            managed: true,
-          });
-        /* v8 ignore start -- race/invalid payload in invite-accepted handler */
-        } catch (err) {
-          log.warn("Failed to add node from invite-accepted", { peer, error: err instanceof Error ? err.message : String(err) });
-        }
-        /* v8 ignore stop */
-      });
-
-      started = true;
+      if (startPromise) return startPromise;
+      startPromise = startInner().finally(() => { startPromise = undefined; });
+      return startPromise;
     },
 
     async connect(peer: NodeName): Promise<SecureChannel> {
@@ -330,8 +238,13 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
       if (pending) return pending;
 
       const promise = connectImpl(peer).then((channel) => {
-        cacheChannel(peer, channel);
         pendingConnects.delete(peer);
+        // Guard: if close() was called during in-flight connect, discard the channel
+        if (!started) {
+          channel.close();
+          throw new ConnectError("ConnectManager closed during connect");
+        }
+        cacheChannel({ channels, pendingConnects }, peer, channel);
         return channel;
       }).catch((err) => {
         pendingConnects.delete(peer);
@@ -404,7 +317,7 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
 
       const nonce = crypto.randomUUID();
       const start = performance.now();
-      const pingData = new TextEncoder().encode(JSON.stringify({ type: "ping", nonce }));
+      const pingData = textEncoder.encode(JSON.stringify({ type: "ping", nonce }));
       channel.send(pingData);
 
       // Wait for pong response to measure actual RTT
@@ -419,7 +332,7 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
         /* v8 ignore start -- pong handler: non-matching nonce and parse errors are defensive */
         function handler(data: Uint8Array): void {
           try {
-            const msg = JSON.parse(new TextDecoder().decode(data)) as { type?: string; nonce?: string };
+            const msg = JSON.parse(textDecoder.decode(data)) as { type?: string; nonce?: string };
             if (msg.type === "pong" && msg.nonce === nonce) {
               clearTimeout(timeout);
               channel.offMessage(handler);
