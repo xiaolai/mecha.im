@@ -64,6 +64,8 @@ export async function executeDashboardServe(opts: DashboardServeOpts, deps: Comm
   const nodeName = readNodeName(deps.mechaDir) ?? "unknown";
   /* v8 ignore stop */
 
+  const { fetchPublicIp } = await import("@mecha/core");
+  const publicIp = await fetchPublicIp();
   const server = createAgentServer({
     port,
     auth: {
@@ -76,6 +78,8 @@ export async function executeDashboardServe(opts: DashboardServeOpts, deps: Comm
     acl: deps.acl,
     mechaDir: deps.mechaDir,
     nodeName,
+    startedAt: new Date().toISOString(),
+    publicIp,
     ptySpawnFn: createBunPtySpawn(),
     spaDir,
   });
@@ -96,12 +100,14 @@ export async function executeDashboardServe(opts: DashboardServeOpts, deps: Comm
   /* v8 ignore start -- platform-specific browser open */
   if (opts.open) {
     const { execFile } = await import("node:child_process");
-    const url = new URL(`http://${opts.host}:${port}`).href;
+    const hostPart = opts.host.includes(":") ? `[${opts.host}]` : opts.host;
+    const url = new URL(`http://${hostPart}:${port}`).href;
+    const onError = (err: Error | null) => { if (err) deps.formatter.warn(`Failed to open browser: ${err.message}`); };
     if (process.platform === "win32") {
-      execFile("cmd", ["/c", "start", "", url]);
+      execFile("cmd", ["/c", "start", "", url], onError);
     } else {
       const opener = process.platform === "darwin" ? "open" : "xdg-open";
-      execFile(opener, [url]);
+      execFile(opener, [url], onError);
     }
   }
   /* v8 ignore stop */

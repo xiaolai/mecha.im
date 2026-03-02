@@ -62,6 +62,7 @@ describe("mesh e2e: cross-node query", () => {
       acl: makeAcl(),
       mechaDir: bobDir,
       nodeName: "bob",
+      startedAt: new Date().toISOString(),
     });
 
     // Listen on a random available port

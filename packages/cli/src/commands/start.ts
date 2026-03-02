@@ -65,6 +65,8 @@ export function registerStartCommand(program: Command, deps: CommandDeps): void 
       /* v8 ignore stop */
 
       const spaDir = resolveSpaDir();
+      const { fetchPublicIp } = await import("@mecha/core");
+      const publicIp = await fetchPublicIp();
       const server = createAgentServer({
         port,
         auth: {
@@ -75,6 +77,8 @@ export function registerStartCommand(program: Command, deps: CommandDeps): void 
         acl: deps.acl,
         mechaDir: deps.mechaDir,
         nodeName,
+        startedAt: new Date().toISOString(),
+        publicIp,
         ptySpawnFn: createBunPtySpawn(),
         spaDir,
       });
@@ -99,12 +103,14 @@ export function registerStartCommand(program: Command, deps: CommandDeps): void 
       /* v8 ignore start -- browser open is platform-specific */
       if (opts.open && spaDir) {
         const { execFile } = await import("node:child_process");
-        const url = new URL(`http://${opts.host}:${port}`).href;
+        const hostPart = opts.host.includes(":") ? `[${opts.host}]` : opts.host;
+        const url = new URL(`http://${hostPart}:${port}`).href;
+        const onError = (err: Error | null) => { if (err) deps.formatter.warn(`Failed to open browser: ${err.message}`); };
         if (process.platform === "win32") {
-          execFile("cmd", ["/c", "start", "", url]);
+          execFile("cmd", ["/c", "start", "", url], onError);
         } else {
           const opener = process.platform === "darwin" ? "open" : "xdg-open";
-          execFile(opener, [url]);
+          execFile(opener, [url], onError);
         }
       }
       /* v8 ignore stop */

@@ -8,6 +8,7 @@ import { registerNodeInviteCommand } from "./node-invite.js";
 import { registerNodeJoinCommand } from "./node-join.js";
 import { registerNodePingCommand } from "./node-ping.js";
 import { registerNodeHealthCommand } from "./node-health.js";
+import { registerNodeInfoCommand } from "./node-info.js";
 
 export function registerNodeCommand(program: Command, deps: CommandDeps): void {
   const node = program
@@ -22,4 +23,5 @@ export function registerNodeCommand(program: Command, deps: CommandDeps): void {
   registerNodeJoinCommand(node, deps);
   registerNodePingCommand(node, deps);
   registerNodeHealthCommand(node, deps);
+  registerNodeInfoCommand(node, deps);
 }

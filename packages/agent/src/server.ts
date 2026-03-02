@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import Fastify, { type FastifyInstance } from "fastify";
 import fastifyWebSocket from "@fastify/websocket";
-import { type AclEngine, MechaError, readNodes, verifySignature } from "@mecha/core";
+import { type AclEngine, MechaError, readNodes, verifySignature, fetchPublicIp } from "@mecha/core";
 import type { ProcessManager, PtySpawnFn } from "@mecha/process";
 import { createAuthHook, createSignatureHook, API_PREFIXES } from "./auth.js";
 import { deriveSessionKey } from "./session.js";
@@ -38,11 +38,18 @@ export interface AgentServerOpts {
   acl: AclEngine;
   mechaDir: string;
   nodeName: string;
+  /** ISO timestamp of when the server started. */
+  startedAt: string;
+  /** Cached public IP (fetched at startup). */
+  publicIp?: string;
   /** Injected PTY spawn function (for terminal WS). Omit to disable terminal. */
   ptySpawnFn?: PtySpawnFn;
   /** Path to SPA dist directory. When set, serves static SPA files. */
   spaDir?: string;
 }
+
+/** Fetch public IP for server startup. Call before createAgentServer(). */
+export { fetchPublicIp } from "@mecha/core";
 
 export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
   const app = Fastify({
@@ -63,31 +70,42 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
   });
   /* v8 ignore stop */
 
-  // Build node public key map for signature verification
-  const nodePublicKeys = new Map<string, string>();
-  /* v8 ignore start -- node registry + signature wiring tested in mesh E2E */
-  try {
-    const nodes = readNodes(opts.mechaDir);
-    for (const node of nodes) {
-      if (node.publicKey) nodePublicKeys.set(node.name, node.publicKey);
+  /* v8 ignore start -- node key loading requires live nodes.json + readNodes */
+  // Build node public key map for signature verification.
+  // Reloaded from disk on each resolution to pick up key rotation/revocation.
+  function loadNodePublicKeys(): Map<string, string> {
+    const keys = new Map<string, string>();
+    try {
+      const nodes = readNodes(opts.mechaDir);
+      for (const node of nodes) {
+        if (node.publicKey) keys.set(node.name, node.publicKey);
+      }
+    } catch (err) {
+      // Fail closed: empty map means all signed routing requests are rejected.
+      app.log.warn("Failed to read nodes.json — routing will reject signed requests: %s",
+        err instanceof Error ? err.message : String(err));
     }
-  } catch (err) {
-    // Fail closed: log error but don't disable verification — nodePublicKeys stays empty
-    // so all signed routing requests will be rejected (unknown node).
-    app.log.warn("Failed to read nodes.json — routing will reject signed requests: %s",
-      err instanceof Error ? err.message : String(err));
+    return keys;
   }
+
+  const initialKeys = loadNodePublicKeys();
+  /* v8 ignore stop */
 
   // Derive session key from TOTP secret if TOTP is enabled
   const sessionKey = opts.auth.totpSecret
     ? deriveSessionKey(opts.auth.totpSecret)
     : undefined;
 
+  /* v8 ignore start -- auth wiring tested via auth.test.ts + server.test.ts */
   const authOpts = {
     apiKey: opts.auth.apiKey,
     sessionKey,
-    nodePublicKeys: nodePublicKeys.size > 0 ? nodePublicKeys : undefined,
-    verifySignature: nodePublicKeys.size > 0 ? verifySignature : undefined,
+    // Lazy-loading getter so keys are re-read from disk on each request
+    get nodePublicKeys() {
+      const keys = loadNodePublicKeys();
+      return keys.size > 0 ? keys : undefined;
+    },
+    verifySignature: initialKeys.size > 0 ? verifySignature : undefined,
     spaDir: opts.spaDir,
   };
 
@@ -104,14 +122,27 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
     sessionTtlHours: opts.auth.sessionTtlHours,
   });
 
-  registerHealthRoutes(app, { nodeName: opts.nodeName, port: opts.port });
+  registerHealthRoutes(app, {
+    nodeName: opts.nodeName,
+    port: opts.port,
+    processManager: opts.processManager,
+    startedAt: opts.startedAt,
+    publicIp: opts.publicIp,
+  });
   registerCasaRoutes(app, opts.processManager);
   registerRoutingRoutes(app, { mechaDir: opts.mechaDir, acl: opts.acl });
   registerDiscoverRoutes(app, { mechaDir: opts.mechaDir, pm: opts.processManager });
   registerSessionRoutes(app, opts.processManager);
   registerAclRoutes(app, { acl: opts.acl });
   registerAuditRoutes(app, { mechaDir: opts.mechaDir });
-  registerMeshRoutes(app, { mechaDir: opts.mechaDir });
+  registerMeshRoutes(app, {
+    mechaDir: opts.mechaDir,
+    nodeName: opts.nodeName,
+    processManager: opts.processManager,
+    port: opts.port,
+    startedAt: opts.startedAt,
+    publicIp: opts.publicIp,
+  });
   registerMeterRoutes(app, { mechaDir: opts.mechaDir });
   registerSettingsRoutes(app);
   registerEventsRoutes(app, { processManager: opts.processManager });

@@ -142,37 +142,61 @@ describe("dashboard routes", () => {
   });
 
   describe("mesh routes", () => {
-    it("returns empty array when no nodes configured", async () => {
+    it("returns local node when no remote nodes configured", async () => {
       mechaDir = mkdtempSync(join(tmpdir(), "agent-mesh-"));
+      const pm = { list: vi.fn().mockReturnValue([
+        { name: "a", state: "running", port: 7700, workspacePath: "/ws" },
+        { name: "b", state: "stopped", workspacePath: "/ws2" },
+      ]) } as unknown as ProcessManager;
 
       const app = Fastify();
-      registerMeshRoutes(app, { mechaDir });
-      await app.ready();
-
-      const res = await app.inject({ method: "GET", url: "/mesh/nodes" });
-      expect(res.statusCode).toBe(200);
-      expect(res.json()).toEqual([]);
-      await app.close();
-    });
-
-    it("returns node statuses when nodes exist", async () => {
-      mechaDir = mkdtempSync(join(tmpdir(), "agent-mesh-"));
-      // nodes.json is at mechaDir/nodes.json (not in a subdirectory)
-      writeFileSync(join(mechaDir, "nodes.json"), JSON.stringify([
-        { name: "remote", host: "192.168.1.100", port: 7660, apiKey: "k", addedAt: new Date().toISOString() },
-      ]));
-
-      const app = Fastify();
-      registerMeshRoutes(app, { mechaDir });
+      registerMeshRoutes(app, { mechaDir, nodeName: "local-test", processManager: pm, port: 7660, startedAt: "2026-03-02T12:00:00.000Z" });
       await app.ready();
 
       const res = await app.inject({ method: "GET", url: "/mesh/nodes" });
       expect(res.statusCode).toBe(200);
       const body = res.json();
       expect(body).toHaveLength(1);
-      expect(body[0].name).toBe("remote");
-      // Node will be offline since it's a fake host
-      expect(body[0].status).toBe("offline");
+      expect(body[0].name).toBe("local-test");
+      expect(body[0].status).toBe("online");
+      expect(body[0].isLocal).toBe(true);
+      expect(body[0].latencyMs).toBe(0);
+      expect(body[0].casaCount).toBe(1);
+      // New fields from collectNodeInfo
+      expect(body[0].hostname).toBeDefined();
+      expect(body[0].platform).toBeDefined();
+      expect(body[0].arch).toBeDefined();
+      expect(body[0].cpuCount).toBeGreaterThan(0);
+      expect(body[0].totalMemMB).toBeGreaterThan(0);
+      expect(body[0].port).toBe(7660);
+      expect(body[0].startedAt).toBe("2026-03-02T12:00:00.000Z");
+      await app.close();
+    });
+
+    it("returns local node plus remote node statuses", async () => {
+      mechaDir = mkdtempSync(join(tmpdir(), "agent-mesh-"));
+      const pm = { list: vi.fn().mockReturnValue([]) } as unknown as ProcessManager;
+      // nodes.json is at mechaDir/nodes.json (not in a subdirectory)
+      writeFileSync(join(mechaDir, "nodes.json"), JSON.stringify([
+        { name: "remote", host: "192.168.1.100", port: 7660, apiKey: "k", addedAt: new Date().toISOString() },
+      ]));
+
+      const app = Fastify();
+      registerMeshRoutes(app, { mechaDir, nodeName: "local-test", processManager: pm, port: 7660, startedAt: "2026-03-02T12:00:00.000Z" });
+      await app.ready();
+
+      const res = await app.inject({ method: "GET", url: "/mesh/nodes" });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body).toHaveLength(2);
+      expect(body[0].name).toBe("local-test");
+      expect(body[0].status).toBe("online");
+      expect(body[0].isLocal).toBe(true);
+      expect(body[0].hostname).toBeDefined();
+      expect(body[1].name).toBe("remote");
+      // Remote node will be offline since it's a fake host
+      expect(body[1].status).toBe("offline");
+      expect(body[1].isLocal).toBeUndefined();
       await app.close();
     });
   });

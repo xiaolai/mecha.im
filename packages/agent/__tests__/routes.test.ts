@@ -20,14 +20,52 @@ describe("agent routes", () => {
   });
 
   describe("health routes", () => {
-    it("returns node name and status", async () => {
+    it("returns minimal status on public /healthz", async () => {
       const app = Fastify();
-      registerHealthRoutes(app, { nodeName: "bob", port: 7660 });
+      registerHealthRoutes(app, {
+        nodeName: "bob",
+        port: 7660,
+        processManager: makePm(),
+        startedAt: "2026-03-02T12:00:00.000Z",
+      });
       await app.ready();
 
       const res = await app.inject({ method: "GET", url: "/healthz" });
       expect(res.statusCode).toBe(200);
-      expect(res.json()).toEqual({ status: "ok", node: "bob" });
+      const body = res.json();
+      expect(body).toEqual({ status: "ok", node: "bob" });
+      // Should NOT leak system info
+      expect(body.hostname).toBeUndefined();
+      expect(body.lanIp).toBeUndefined();
+      await app.close();
+    });
+
+    it("returns full system info on /node/info", async () => {
+      const list: ProcessInfo[] = [
+        { name: "a" as CasaName, state: "running", port: 7700, workspacePath: "/ws" },
+        { name: "b" as CasaName, state: "stopped", workspacePath: "/ws2" },
+      ];
+      const app = Fastify();
+      registerHealthRoutes(app, {
+        nodeName: "bob",
+        port: 7660,
+        processManager: makePm(list),
+        startedAt: "2026-03-02T12:00:00.000Z",
+      });
+      await app.ready();
+
+      const res = await app.inject({ method: "GET", url: "/node/info" });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.node).toBe("bob");
+      expect(body.hostname).toBeDefined();
+      expect(body.platform).toBeDefined();
+      expect(body.arch).toBeDefined();
+      expect(body.port).toBe(7660);
+      expect(body.startedAt).toBe("2026-03-02T12:00:00.000Z");
+      expect(body.cpuCount).toBeGreaterThan(0);
+      expect(body.totalMemMB).toBeGreaterThan(0);
+      expect(body.casaCount).toBe(1); // only "a" is running
       await app.close();
     });
   });

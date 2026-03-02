@@ -198,6 +198,7 @@ export async function createTestMesh(): Promise<TestMesh> {
       acl,
       mechaDir,
       nodeName: name,
+      startedAt: new Date().toISOString(),
     });
     const agentAddr = await agentServer.listen({ port: 0, host: "127.0.0.1" });
     const agentPort = parseInt(new URL(agentAddr).port, 10);

@@ -66,6 +66,8 @@ export function registerAgentStartCommand(parent: Command, deps: CommandDeps): v
       const { createBunPtySpawn } = await import("@mecha/process");
 
       const nodeName = readNodeName(deps.mechaDir) ?? "unknown";
+      const { fetchPublicIp } = await import("@mecha/core");
+      const publicIp = await fetchPublicIp();
       const server = createAgentServer({
         port,
         auth: {
@@ -76,6 +78,8 @@ export function registerAgentStartCommand(parent: Command, deps: CommandDeps): v
         acl: deps.acl,
         mechaDir: deps.mechaDir,
         nodeName,
+        startedAt: new Date().toISOString(),
+        publicIp,
         ptySpawnFn: createBunPtySpawn(),
       });
 
@@ -85,6 +89,7 @@ export function registerAgentStartCommand(parent: Command, deps: CommandDeps): v
 
       // Start embedded rendezvous server if requested
       /* v8 ignore start -- embedded server requires live @mecha/server import and listen */
+      let rvServer: { close(): Promise<void> } | undefined;
       if (opts.server) {
         const serverPort = parsePort(opts.serverPort);
         if (serverPort === undefined) {
@@ -94,8 +99,9 @@ export function registerAgentStartCommand(parent: Command, deps: CommandDeps): v
         }
 
         const { createServer: createRendezvousServer } = await import("@mecha/server");
-        const rvServer = await createRendezvousServer({ port: serverPort, host: opts.host });
-        await rvServer.listen({ port: serverPort, host: opts.host });
+        const rv = await createRendezvousServer({ port: serverPort, host: opts.host });
+        await rv.listen({ port: serverPort, host: opts.host });
+        rvServer = rv;
 
         writeServerState(deps.mechaDir, {
           port: serverPort,
@@ -105,7 +111,7 @@ export function registerAgentStartCommand(parent: Command, deps: CommandDeps): v
         });
 
         deps.registerShutdownHook?.(async () => {
-          await rvServer.close();
+          await rvServer!.close();
           removeServerState(deps.mechaDir);
         });
 
@@ -122,6 +128,10 @@ export function registerAgentStartCommand(parent: Command, deps: CommandDeps): v
       /* v8 ignore start -- listen failure cleanup requires port conflict */
       } catch (listenErr) {
         await server.close().catch(() => {});
+        if (rvServer) {
+          await rvServer.close().catch(() => {});
+          removeServerState(deps.mechaDir);
+        }
         throw listenErr;
       }
       /* v8 ignore stop */
