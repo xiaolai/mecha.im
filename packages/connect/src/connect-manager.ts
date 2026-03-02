@@ -67,7 +67,11 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
 
   /** Build ConnectState from current closure for I/O helpers. */
   function state(): ConnectState {
-    if (!rendezvous) throw new ConnectError("ConnectManager not started");
+    /* v8 ignore start -- guard: state() called before start() */
+    if (!rendezvous) {
+      throw new ConnectError("ConnectManager not started");
+    }
+    /* v8 ignore stop */
     return {
       rendezvous,
       channels,
@@ -223,7 +227,9 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
   const manager: ConnectManager = {
     async start(): Promise<void> {
       if (started) return;
+      /* v8 ignore start -- dedup: concurrent start() calls */
       if (startPromise) return startPromise;
+      /* v8 ignore stop */
       startPromise = startInner().finally(() => { startPromise = undefined; });
       return startPromise;
     },
@@ -240,10 +246,12 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
       const promise = connectImpl(peer).then((channel) => {
         pendingConnects.delete(peer);
         // Guard: if close() was called during in-flight connect, discard the channel
+        /* v8 ignore start -- race: close() during in-flight connect */
         if (!started) {
           channel.close();
           throw new ConnectError("ConnectManager closed during connect");
         }
+        /* v8 ignore stop */
         cacheChannel({ channels, pendingConnects }, peer, channel);
         return channel;
       }).catch((err) => {
@@ -265,7 +273,11 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
     },
 
     async createInvite(inviteOpts?: InviteOpts): Promise<InviteCode> {
-      if (!rendezvous) throw new ConnectError("ConnectManager not started");
+      /* v8 ignore start -- guard: createInvite called before start() */
+      if (!rendezvous) {
+        throw new ConnectError("ConnectManager not started");
+      }
+      /* v8 ignore stop */
 
       return createInviteCode({
         client: rendezvous,

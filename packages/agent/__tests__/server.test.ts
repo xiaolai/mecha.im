@@ -16,7 +16,7 @@ describe("AgentServer", () => {
     mechaDir = mkdtempSync(join(tmpdir(), "agent-"));
     return createAgentServer({
       port: 7660,
-      apiKey: "test-key",
+      auth: { apiKey: "test-key" },
       processManager: opts?.pm ?? makePm(),
       acl: opts?.acl ?? makeAcl(),
       mechaDir,

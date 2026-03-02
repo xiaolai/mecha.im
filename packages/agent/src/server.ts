@@ -4,7 +4,8 @@ import Fastify, { type FastifyInstance } from "fastify";
 import fastifyWebSocket from "@fastify/websocket";
 import { type AclEngine, MechaError, readNodes, verifySignature } from "@mecha/core";
 import type { ProcessManager, PtySpawnFn } from "@mecha/process";
-import { createAuthHook, createSignatureHook } from "./auth.js";
+import { createAuthHook, createSignatureHook, API_PREFIXES } from "./auth.js";
+import { deriveSessionKey } from "./session.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerCasaRoutes } from "./routes/casas.js";
 import { registerRoutingRoutes } from "./routes/routing.js";
@@ -17,12 +18,22 @@ import { registerMeshRoutes } from "./routes/mesh.js";
 import { registerMeterRoutes } from "./routes/meter.js";
 import { registerSettingsRoutes } from "./routes/settings.js";
 import { registerEventsRoutes } from "./routes/events.js";
+import { registerAuthRoutes } from "./routes/auth.js";
 import { createPtyManager } from "./pty-manager.js";
-import { issueTicket, consumeTicket, purgeTickets } from "./ws-tickets.js";
+import { issueTicket, purgeTickets } from "./ws-tickets.js";
+
+export interface AgentServerAuth {
+  /** API key for Bearer token auth. Omit to disable. */
+  apiKey?: string;
+  /** TOTP secret (base32). When set, enables session-based TOTP auth. */
+  totpSecret?: string;
+  /** Session TTL in hours (default: 24). */
+  sessionTtlHours?: number;
+}
 
 export interface AgentServerOpts {
   port: number;
-  apiKey: string;
+  auth: AgentServerAuth;
   processManager: ProcessManager;
   acl: AclEngine;
   mechaDir: string;
@@ -61,12 +72,20 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
       if (node.publicKey) nodePublicKeys.set(node.name, node.publicKey);
     }
   } catch (err) {
-    app.log.warn("Failed to read nodes.json — signature verification disabled: %s",
+    // Fail closed: log error but don't disable verification — nodePublicKeys stays empty
+    // so all signed routing requests will be rejected (unknown node).
+    app.log.warn("Failed to read nodes.json — routing will reject signed requests: %s",
       err instanceof Error ? err.message : String(err));
   }
 
+  // Derive session key from TOTP secret if TOTP is enabled
+  const sessionKey = opts.auth.totpSecret
+    ? deriveSessionKey(opts.auth.totpSecret)
+    : undefined;
+
   const authOpts = {
-    apiKey: opts.apiKey,
+    apiKey: opts.auth.apiKey,
+    sessionKey,
     nodePublicKeys: nodePublicKeys.size > 0 ? nodePublicKeys : undefined,
     verifySignature: nodePublicKeys.size > 0 ? verifySignature : undefined,
     spaDir: opts.spaDir,
@@ -76,6 +95,14 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
   // Signature hook runs in preHandler (after body parsing) so request.body is available
   app.addHook("preHandler", createSignatureHook(authOpts));
   /* v8 ignore stop */
+
+  // Auth routes (public: /auth/status, /auth/login, /auth/logout)
+  registerAuthRoutes(app, {
+    totpSecret: opts.auth.totpSecret,
+    apiKey: opts.auth.apiKey,
+    sessionKey,
+    sessionTtlHours: opts.auth.sessionTtlHours,
+  });
 
   registerHealthRoutes(app, { nodeName: opts.nodeName, port: opts.port });
   registerCasaRoutes(app, opts.processManager);
@@ -128,6 +155,12 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
 }
 
 /* v8 ignore start -- SPA serving is tested via integration/E2E */
+
+/** Check if a path is an API or auth endpoint (shared by auth hook + SPA fallback). */
+function isApiOrAuthPath(pathname: string): boolean {
+  return API_PREFIXES.some((p) => pathname.startsWith(p))
+    || pathname === "/healthz" || pathname.startsWith("/auth/");
+}
 function registerSpaRoutes(app: FastifyInstance, spaDir: string): void {
   const indexHtml = readFileSync(join(spaDir, "index.html"), "utf-8");
 
@@ -145,12 +178,7 @@ function registerSpaRoutes(app: FastifyInstance, spaDir: string): void {
     // SPA fallback: non-API GET requests → index.html for client-side routing
     if (request.method === "GET") {
       const p = request.url.split("?")[0]!;
-      const isApi = p.startsWith("/casas") || p.startsWith("/acl") ||
-        p.startsWith("/audit") || p.startsWith("/mesh") ||
-        p.startsWith("/meter") || p.startsWith("/settings/") ||
-        p.startsWith("/events") || p.startsWith("/discover") ||
-        p.startsWith("/ws") || p === "/healthz";
-      if (!isApi) {
+      if (!isApiOrAuthPath(p)) {
         return reply.type("text/html").send(indexHtml);
       }
     }

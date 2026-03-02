@@ -1,11 +1,13 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
-import { DEFAULTS, parsePort, writeServerState, removeServerState, loadNodeIdentity, loadNodePrivateKey, createNoiseKeys, readServerState, signMessage } from "@mecha/core";
+import { DEFAULTS, parsePort, writeServerState, removeServerState, loadNodeIdentity, loadNodePrivateKey, createNoiseKeys, readServerState, signMessage, resolveAuthConfig, ensureTotpSecret } from "@mecha/core";
 import { withErrorHandler } from "../error-handler.js";
+import { displayTotpSetup } from "../totp-display.js";
 
 interface AgentStartOpts {
   port: string;
-  apiKey?: string;
+  apiKey?: string | false;
+  totp: boolean;
   host: string;
   server: boolean;
   serverPort: string;
@@ -19,6 +21,8 @@ export function registerAgentStartCommand(parent: Command, deps: CommandDeps): v
     .description("Start the agent server for cross-node communication")
     .option("--port <port>", "Agent server port", String(DEFAULTS.AGENT_PORT))
     .option("--api-key <key>", "API key for authentication (or set MECHA_AGENT_API_KEY)")
+    .option("--no-api-key", "Disable API key authentication")
+    .option("--no-totp", "Disable TOTP authentication")
     .option("--host <host>", "Bind address (default: 127.0.0.1)", "127.0.0.1")
     .option("--server", "Enable embedded rendezvous + relay server", false)
     .option("--server-port <port>", "Embedded server listen port", String(DEFAULTS.EMBEDDED_SERVER_PORT))
@@ -31,11 +35,29 @@ export function registerAgentStartCommand(parent: Command, deps: CommandDeps): v
         process.exitCode = 1;
         return;
       }
-      const apiKey = (opts.apiKey ?? process.env.MECHA_AGENT_API_KEY ?? "").trim();
-      if (!apiKey) {
-        deps.formatter.error("API key required: use --api-key or set MECHA_AGENT_API_KEY");
+
+      // Resolve auth config
+      const rawApiKey = typeof opts.apiKey === "string" ? opts.apiKey.trim() : undefined;
+      const explicitApiKey = rawApiKey || ((process.env.MECHA_AGENT_API_KEY ?? "").trim() || undefined);
+      const authConfig = resolveAuthConfig(deps.mechaDir, {
+        totp: opts.totp === false ? false : undefined,
+        apiKey: opts.apiKey === false ? false : explicitApiKey ? true : undefined,
+      });
+
+      if (authConfig.apiKey && !explicitApiKey) {
+        deps.formatter.error("API key auth enabled but no key provided: use --api-key or set MECHA_AGENT_API_KEY");
         process.exitCode = 1;
         return;
+      }
+
+      // Ensure TOTP secret if TOTP is enabled
+      let totpSecret: string | undefined;
+      if (authConfig.totp) {
+        const { secret, isNew } = await ensureTotpSecret(deps.mechaDir);
+        totpSecret = secret;
+        if (isNew) {
+          await displayTotpSetup(secret, deps.formatter);
+        }
       }
 
       // Lazy import to avoid pulling in fastify when not needed
@@ -46,7 +68,10 @@ export function registerAgentStartCommand(parent: Command, deps: CommandDeps): v
       const nodeName = readNodeName(deps.mechaDir) ?? "unknown";
       const server = createAgentServer({
         port,
-        apiKey,
+        auth: {
+          apiKey: authConfig.apiKey ? explicitApiKey : undefined,
+          totpSecret,
+        },
         processManager: deps.processManager,
         acl: deps.acl,
         mechaDir: deps.mechaDir,
@@ -92,8 +117,19 @@ export function registerAgentStartCommand(parent: Command, deps: CommandDeps): v
       /* v8 ignore stop */
 
       const host = opts.host;
-      await server.listen({ port, host });
-      deps.formatter.success(`Agent server started on ${host}:${port} (node: ${nodeName})`);
+      try {
+        await server.listen({ port, host });
+      /* v8 ignore start -- listen failure cleanup requires port conflict */
+      } catch (listenErr) {
+        await server.close().catch(() => {});
+        throw listenErr;
+      }
+      /* v8 ignore stop */
+
+      const methods: string[] = [];
+      if (authConfig.totp) methods.push("TOTP");
+      if (authConfig.apiKey) methods.push("API key");
+      deps.formatter.success(`Agent server started on ${host}:${port} (node: ${nodeName}, auth: ${methods.join(" + ")})`);
 
       // Auto-register on signaling WebSocket for P2P presence
       /* v8 ignore start -- signaling registration requires live server */

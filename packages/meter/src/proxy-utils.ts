@@ -40,7 +40,9 @@ export function buildUpstreamHeaders(
   const dynamicHop = new Set(HOP_BY_HOP);
   const connValue = incoming["connection"];
   if (connValue) {
+    /* v8 ignore start -- Array.isArray branch: HTTP Connection header is always string in Node */
     const tokens = (Array.isArray(connValue) ? connValue.join(", ") : connValue);
+    /* v8 ignore stop */
     for (const token of tokens.split(",")) {
       const trimmed = token.trim().toLowerCase();
       if (trimmed) dynamicHop.add(trimmed);
@@ -185,13 +187,25 @@ export function parseModelAndStream(body: Buffer): { model: string; stream: bool
   }
 }
 
-/** Strip hop-by-hop headers from upstream response headers (case-insensitive). */
+/** Strip hop-by-hop headers from upstream response headers (case-insensitive + Connection-declared). */
 export function stripHopByHop(
   headers: Record<string, string | string[] | undefined>,
 ): Record<string, string | string[] | undefined> {
+  // Build dynamic deny-list from Connection header tokens (RFC 7230 §6.1)
+  const deny = new Set(HOP_BY_HOP);
+  const connValue = headers["connection"];
+  if (connValue) {
+    /* v8 ignore start -- Array.isArray branch: HTTP Connection header is always string */
+    const tokens = Array.isArray(connValue) ? connValue.join(", ") : connValue;
+    /* v8 ignore stop */
+    for (const token of tokens.split(",")) {
+      const trimmed = token.trim().toLowerCase();
+      if (trimmed) deny.add(trimmed);
+    }
+  }
   const out: Record<string, string | string[] | undefined> = {};
   for (const [key, value] of Object.entries(headers)) {
-    if (!HOP_BY_HOP.has(key.toLowerCase())) {
+    if (!deny.has(key.toLowerCase())) {
       out[key] = value;
     }
   }

@@ -1,10 +1,18 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { Command } from "commander";
 import { executeDashboardServe, registerDashboardServeCommand } from "../src/commands/dashboard-serve.js";
 import { createFormatter } from "../src/formatter.js";
 import type { CommandDeps } from "../src/types.js";
 import type { ProcessManager } from "@mecha/process";
 import type { AclEngine } from "@mecha/core";
+
+let dir: string;
+
+beforeEach(() => { dir = mkdtempSync(join(tmpdir(), "dash-serve-")); });
+afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
 
 const mockServer = {
   listen: vi.fn().mockResolvedValue(undefined),
@@ -31,11 +39,19 @@ vi.mock("../src/spa-resolve.js", () => ({
   resolveSpaDir: vi.fn().mockReturnValue("/fake/spa/dist"),
 }));
 
+vi.mock("../src/totp-display.js", () => ({
+  displayTotpSetup: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("node:child_process", () => ({
+  execFile: vi.fn(),
+}));
+
 function makeDeps(overrides?: Partial<CommandDeps>): CommandDeps {
   return {
     formatter: createFormatter({ quiet: true }),
     processManager: {} as unknown as ProcessManager,
-    mechaDir: "/tmp/mecha-test",
+    mechaDir: dir,
     acl: {} as unknown as AclEngine,
     sandbox: {} as never,
     registerShutdownHook: vi.fn(),
@@ -47,7 +63,6 @@ describe("executeDashboardServe", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.exitCode = undefined;
-    process.env.MECHA_AGENT_API_KEY = "test-key";
   });
 
   afterEach(() => {
@@ -58,21 +73,33 @@ describe("executeDashboardServe", () => {
     const deps = makeDeps();
     const errorSpy = vi.spyOn(deps.formatter, "error");
 
-    await executeDashboardServe({ port: "not-a-port", host: "127.0.0.1", open: false }, deps);
+    await executeDashboardServe({ port: "not-a-port", host: "127.0.0.1", open: false, totp: true }, deps);
 
     expect(process.exitCode).toBe(1);
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("Invalid port"));
   });
 
-  it("errors without API key", async () => {
-    delete process.env.MECHA_AGENT_API_KEY;
+  it("starts with TOTP by default (no API key needed)", async () => {
+    const deps = makeDeps();
+    const successSpy = vi.spyOn(deps.formatter, "success");
+
+    await executeDashboardServe({ port: "3457", host: "127.0.0.1", open: false, totp: true }, deps);
+
+    expect(process.exitCode).toBeUndefined();
+    expect(successSpy).toHaveBeenCalledWith(expect.stringContaining("TOTP"));
+  });
+
+  it("errors when api-key enabled but no key provided", async () => {
+    const { writeAuthConfig } = await import("@mecha/core");
+    writeAuthConfig(dir, { totp: false, apiKey: true });
+
     const deps = makeDeps();
     const errorSpy = vi.spyOn(deps.formatter, "error");
 
-    await executeDashboardServe({ port: "7660", host: "127.0.0.1", open: false }, deps);
+    await executeDashboardServe({ port: "7660", host: "127.0.0.1", open: false, totp: false }, deps);
 
     expect(process.exitCode).toBe(1);
-    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("API key required"));
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("API key auth enabled but no key provided"));
   });
 
   it("errors when SPA not found", async () => {
@@ -82,7 +109,7 @@ describe("executeDashboardServe", () => {
     const deps = makeDeps();
     const errorSpy = vi.spyOn(deps.formatter, "error");
 
-    await executeDashboardServe({ port: "7660", host: "127.0.0.1", open: false }, deps);
+    await executeDashboardServe({ port: "7660", host: "127.0.0.1", open: false, totp: true }, deps);
 
     expect(process.exitCode).toBe(1);
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("SPA not found"));
@@ -92,7 +119,7 @@ describe("executeDashboardServe", () => {
     const deps = makeDeps();
     const successSpy = vi.spyOn(deps.formatter, "success");
 
-    await executeDashboardServe({ port: "3457", host: "127.0.0.1", open: false }, deps);
+    await executeDashboardServe({ port: "3457", host: "127.0.0.1", open: false, totp: true }, deps);
 
     expect(deps.registerShutdownHook).toHaveBeenCalled();
     expect(successSpy).toHaveBeenCalledWith(expect.stringContaining("3457"));
@@ -101,7 +128,7 @@ describe("executeDashboardServe", () => {
   it("works when registerShutdownHook is undefined", async () => {
     const deps = makeDeps({ registerShutdownHook: undefined });
 
-    await executeDashboardServe({ port: "3457", host: "127.0.0.1", open: false }, deps);
+    await executeDashboardServe({ port: "3457", host: "127.0.0.1", open: false, totp: true }, deps);
 
     expect(process.exitCode).toBeUndefined();
   });
@@ -109,7 +136,7 @@ describe("executeDashboardServe", () => {
   it("calls openBrowser when open is true", async () => {
     const deps = makeDeps();
 
-    await executeDashboardServe({ port: "3457", host: "127.0.0.1", open: true }, deps);
+    await executeDashboardServe({ port: "3457", host: "127.0.0.1", open: true, totp: true }, deps);
 
     expect(deps.registerShutdownHook).toHaveBeenCalled();
   });

@@ -2,9 +2,13 @@ import type { FastifyRequest, FastifyReply } from "fastify";
 import { safeCompare } from "@mecha/core";
 import type { verifySignature as VerifySignatureFn } from "@mecha/core";
 import { consumeTicket } from "./ws-tickets.js";
+import { verifySessionToken, parseSessionCookie } from "./session.js";
 
 export interface AuthOpts {
-  apiKey: string;
+  /** API key for Bearer token auth. Omit to disable API key auth. */
+  apiKey?: string;
+  /** Session signing key (derived from TOTP secret). Omit to disable session auth. */
+  sessionKey?: string;
   /**
    * Optional: map of node name → public key PEM.
    * When provided, routing requests must include a valid X-Mecha-Signature.
@@ -17,20 +21,24 @@ export interface AuthOpts {
 }
 
 /** Known API path prefixes that always require auth. */
-const API_PREFIXES = [
+export const API_PREFIXES = [
   "/casas", "/acl", "/audit", "/mesh", "/meter",
   "/settings/", "/events", "/discover", "/ws",
 ];
 
+/** Paths that are always public (no auth required). */
+const PUBLIC_PATHS = ["/healthz", "/auth/status", "/auth/login", "/auth/logout"];
+
 /**
- * Fastify onRequest hook that validates Bearer token.
+ * Fastify onRequest hook that validates auth via session cookie or Bearer token.
+ * At least one of apiKey or sessionKey must be provided.
  */
 export function createAuthHook(opts: AuthOpts) {
   return async (request: FastifyRequest, reply: FastifyReply) => {
     const pathname = request.url.split("?")[0]!;
 
-    // Healthz is always public
-    if (pathname === "/healthz") return;
+    // Public paths — always skip auth
+    if (PUBLIC_PATHS.includes(pathname)) return;
 
     // When SPA is served, skip auth for static asset requests (non-API paths)
     if (opts.spaDir && !API_PREFIXES.some((p) => pathname.startsWith(p))) {
@@ -38,7 +46,7 @@ export function createAuthHook(opts: AuthOpts) {
     }
 
     // WS paths: accept ticket-based auth (browser WS can't set headers)
-    // Exclude /ws/ticket itself — it uses Bearer auth to issue tickets
+    // Exclude /ws/ticket itself — it uses Bearer/session auth to issue tickets
     if (pathname.startsWith("/ws/") && pathname !== "/ws/ticket") {
       const url = new URL(request.url, "http://localhost");
       const ticket = url.searchParams.get("ticket");
@@ -47,16 +55,33 @@ export function createAuthHook(opts: AuthOpts) {
       return;
     }
 
-    const auth = request.headers.authorization;
-    if (!auth || !auth.startsWith("Bearer ") || !safeCompare(auth.slice(7), opts.apiKey)) {
-      reply.code(401).send({ error: "Unauthorized" });
-      return;
+    // Try session cookie auth first (TOTP-based sessions)
+    if (opts.sessionKey) {
+      /* v8 ignore start -- cookie header is always string or undefined in Fastify */
+      const cookieHeader = request.headers.cookie ?? null;
+      const token = parseSessionCookie(typeof cookieHeader === "string" ? cookieHeader : null);
+      /* v8 ignore stop */
+      if (token) {
+        const result = verifySessionToken(opts.sessionKey, token);
+        if (result.valid) return;
+      }
     }
+
+    // Try Bearer token auth (API key)
+    if (opts.apiKey) {
+      const auth = request.headers.authorization;
+      if (auth && auth.startsWith("Bearer ") && safeCompare(auth.slice(7), opts.apiKey)) {
+        return;
+      }
+    }
+
+    reply.code(401).send({ error: "Unauthorized" });
   };
 }
 
 /** Nonce cache to prevent replay attacks within the timestamp window. */
 const usedNonces = new Map<string, number>();
+const MAX_NONCE_CACHE_SIZE = 10_000;
 const NONCE_PURGE_INTERVAL_MS = 60_000;
 let lastNoncePurge = Date.now();
 /* v8 ignore start -- nonce purge runs on a timer-like check */
@@ -93,7 +118,6 @@ export function createSignatureHook(opts: AuthOpts) {
     }
 
     // Extract node name from source (e.g. "coder@alice" → "alice")
-    // Use lastIndexOf to handle edge cases with multiple @ characters
     const atIdx = source.lastIndexOf("@");
     const nodeName = atIdx >= 0 ? source.slice(atIdx + 1) : undefined;
     if (!nodeName) {
@@ -119,7 +143,7 @@ export function createSignatureHook(opts: AuthOpts) {
       return;
     }
 
-    // Nonce-based replay defense: require nonce to prevent in-window replays
+    // Nonce-based replay defense
     purgeExpiredNonces();
     const nonce = request.headers["x-mecha-nonce"];
     if (typeof nonce !== "string" || !nonce) {
@@ -131,7 +155,7 @@ export function createSignatureHook(opts: AuthOpts) {
       return;
     }
 
-    // Verify signature BEFORE marking nonce as used — prevents nonce-cache poisoning
+    // Verify signature BEFORE marking nonce as used
     try {
       const bodyStr = JSON.stringify((request as FastifyRequest & { body: unknown }).body ?? "");
       const nonceStr = typeof nonce === "string" ? nonce : "";
@@ -145,8 +169,15 @@ export function createSignatureHook(opts: AuthOpts) {
       reply.code(401).send({ error: "Malformed signature" });
       return;
     }
-    // Only mark nonce used after successful signature verification
     usedNonces.set(nonce, tsNum);
+    // Evict oldest entries if cache exceeds size limit
+    if (usedNonces.size > MAX_NONCE_CACHE_SIZE) {
+      const it = usedNonces.keys();
+      for (let i = 0; i < 1000; i++) {
+        const key = it.next().value;
+        if (key) usedNonces.delete(key);
+      }
+    }
     /* v8 ignore stop */
   };
 }

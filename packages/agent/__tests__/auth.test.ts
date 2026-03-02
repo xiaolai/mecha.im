@@ -1,13 +1,22 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import Fastify, { type FastifyInstance } from "fastify";
 import { createAuthHook, createSignatureHook, getSource } from "../src/auth.js";
+import { createSessionToken, deriveSessionKey } from "../src/session.js";
 
 /** Build a Fastify app with auth hook and test routes */
-async function buildAuthApp(apiKey = "secret"): Promise<FastifyInstance> {
+async function buildAuthApp(opts?: { apiKey?: string; sessionKey?: string; spaDir?: string }): Promise<FastifyInstance> {
   const app = Fastify();
-  app.addHook("onRequest", createAuthHook({ apiKey }));
+  app.addHook("onRequest", createAuthHook({
+    apiKey: opts?.apiKey ?? "secret",
+    sessionKey: opts?.sessionKey,
+    spaDir: opts?.spaDir,
+  }));
   app.get("/healthz", async () => ({ status: "ok" }));
   app.get("/test", async () => ({ ok: true }));
+  app.get("/casas", async () => []);
+  app.get("/auth/status", async () => ({ methods: {} }));
+  app.post("/auth/login", async () => ({ ok: true }));
+  app.post("/auth/logout", async () => ({ ok: true }));
   await app.ready();
   return app;
 }
@@ -44,6 +53,17 @@ describe("agent auth", () => {
       const app = await buildAuthApp();
       const res = await app.inject({ method: "GET", url: "/healthz?x=1" });
       expect(res.statusCode).toBe(200);
+      await app.close();
+    });
+
+    it("allows /auth/* paths without auth", async () => {
+      const app = await buildAuthApp();
+      const res1 = await app.inject({ method: "GET", url: "/auth/status" });
+      expect(res1.statusCode).toBe(200);
+      const res2 = await app.inject({ method: "POST", url: "/auth/login" });
+      expect(res2.statusCode).toBe(200);
+      const res3 = await app.inject({ method: "POST", url: "/auth/logout" });
+      expect(res3.statusCode).toBe(200);
       await app.close();
     });
 
@@ -87,30 +107,63 @@ describe("agent auth", () => {
       await app.close();
     });
 
+    it("accepts valid session cookie", async () => {
+      const sessionKey = deriveSessionKey("TESTSECRET");
+      const token = createSessionToken(sessionKey, 1);
+      const app = await buildAuthApp({ sessionKey });
+      const res = await app.inject({
+        method: "GET",
+        url: "/casas",
+        headers: { cookie: `mecha-session=${token}` },
+      });
+      expect(res.statusCode).toBe(200);
+      await app.close();
+    });
+
+    it("rejects invalid session cookie and falls through to bearer check", async () => {
+      const sessionKey = deriveSessionKey("TESTSECRET");
+      const app = await buildAuthApp({ sessionKey });
+      const res = await app.inject({
+        method: "GET",
+        url: "/casas",
+        headers: { cookie: "mecha-session=invalid.token.here" },
+      });
+      expect(res.statusCode).toBe(401);
+      await app.close();
+    });
+
+    it("accepts bearer when session cookie is invalid", async () => {
+      const sessionKey = deriveSessionKey("TESTSECRET");
+      const app = await buildAuthApp({ apiKey: "mykey", sessionKey });
+      const res = await app.inject({
+        method: "GET",
+        url: "/casas",
+        headers: {
+          cookie: "mecha-session=bad",
+          authorization: "Bearer mykey",
+        },
+      });
+      expect(res.statusCode).toBe(200);
+      await app.close();
+    });
+
     it("skips auth for non-API paths when spaDir is set", async () => {
       const app = Fastify();
       app.addHook("onRequest", createAuthHook({ apiKey: "secret", spaDir: "/fake/spa" }));
-      app.get("/some-page", async () => ({ page: true }));
-      app.get("/casas", async () => ({ casas: [] }));
+      app.get("/casas", async () => []);
+      // Catch-all for SPA routes (mimics real server behavior)
+      app.setNotFoundHandler(async () => ({ spa: true }));
       await app.ready();
 
-      // Non-API path should bypass auth
       const res1 = await app.inject({ method: "GET", url: "/some-page" });
       expect(res1.statusCode).toBe(200);
-
-      // API path should still require auth
       const res2 = await app.inject({ method: "GET", url: "/casas" });
       expect(res2.statusCode).toBe(401);
-
       await app.close();
     });
 
     it("requires auth for all paths when spaDir is not set", async () => {
-      const app = Fastify();
-      app.addHook("onRequest", createAuthHook({ apiKey: "secret" }));
-      app.get("/some-page", async () => ({ page: true }));
-      await app.ready();
-
+      const app = await buildAuthApp();
       const res = await app.inject({ method: "GET", url: "/some-page" });
       expect(res.statusCode).toBe(401);
       await app.close();
@@ -157,7 +210,6 @@ describe("agent auth", () => {
       app.post("/ws/ticket", async () => ({ ticket: "abc" }));
       await app.ready();
 
-      // Bearer auth should work for /ws/ticket
       const res = await app.inject({
         method: "POST",
         url: "/ws/ticket",
@@ -166,10 +218,15 @@ describe("agent auth", () => {
       expect(res.statusCode).toBe(200);
       expect(res.json()).toEqual({ ticket: "abc" });
 
-      // No auth should be rejected with 401 (falls through to Bearer check)
       const res2 = await app.inject({ method: "POST", url: "/ws/ticket" });
       expect(res2.statusCode).toBe(401);
+      await app.close();
+    });
 
+    it("rejects everything when no auth methods configured", async () => {
+      const app = await buildAuthApp({ apiKey: undefined, sessionKey: undefined });
+      const res = await app.inject({ method: "GET", url: "/casas" });
+      expect(res.statusCode).toBe(401);
       await app.close();
     });
   });
@@ -317,7 +374,6 @@ describe("agent auth", () => {
       const keys = new Map([["remote", "pk"]]);
       const verify = vi.fn().mockReturnValue(true);
       const app = await buildSigApp({ keys, verify });
-      // First request succeeds
       const res1 = await app.inject({
         method: "POST",
         url: "/casas/alice/query",
@@ -330,7 +386,6 @@ describe("agent auth", () => {
         payload: { message: "hi" },
       });
       expect(res1.statusCode).toBe(200);
-      // Same nonce rejected
       const res2 = await app.inject({
         method: "POST",
         url: "/casas/alice/query",

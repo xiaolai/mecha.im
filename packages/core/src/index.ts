@@ -181,6 +181,22 @@ export type {
 } from "./plugin-registry.js";
 export { resolveEnvVars, resolveEnvString } from "./plugin-resolve.js";
 
+// TOTP Storage
+export {
+  readTotpSecret,
+  writeTotpSecret,
+  generateTotpSecret,
+  ensureTotpSecret,
+} from "./totp-storage.js";
+
+// Auth Config
+export {
+  readAuthConfig,
+  writeAuthConfig,
+  resolveAuthConfig,
+} from "./auth-config.js";
+export type { AuthConfig, AuthConfigOverrides } from "./auth-config.js";
+
 // Schedule Engine
 export {
   parseInterval,
