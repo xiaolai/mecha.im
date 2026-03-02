@@ -1,13 +1,16 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
-import { DEFAULTS, parsePort } from "@mecha/core";
+import { DEFAULTS, parsePort, resolveAuthConfig, ensureTotpSecret } from "@mecha/core";
 import { withErrorHandler } from "../error-handler.js";
 import { resolveSpaDir } from "../spa-resolve.js";
+import { displayTotpSetup } from "../totp-display.js";
 
 interface StartOpts {
   port: string;
   host: string;
   open: boolean;
+  totp: boolean;
+  apiKey?: string | false;
 }
 
 export function registerStartCommand(program: Command, deps: CommandDeps): void {
@@ -17,6 +20,9 @@ export function registerStartCommand(program: Command, deps: CommandDeps): void 
     .option("--port <port>", "Agent server port", String(DEFAULTS.AGENT_PORT))
     .option("--host <host>", "Bind address", "127.0.0.1")
     .option("--open", "Open browser after starting", false)
+    .option("--no-totp", "Disable TOTP authentication")
+    .option("--api-key <key>", "Enable API key authentication")
+    .option("--no-api-key", "Disable API key authentication")
     .action(async (opts: StartOpts) => withErrorHandler(deps, async () => {
       const port = parsePort(opts.port);
       if (port === undefined) {
@@ -25,11 +31,28 @@ export function registerStartCommand(program: Command, deps: CommandDeps): void 
         return;
       }
 
-      const apiKey = (process.env.MECHA_AGENT_API_KEY ?? "").trim();
-      if (!apiKey) {
-        deps.formatter.error("API key required: set MECHA_AGENT_API_KEY");
+      // Resolve auth config from file + CLI flags
+      const rawApiKey = typeof opts.apiKey === "string" ? opts.apiKey.trim() : undefined;
+      const explicitApiKey = rawApiKey || ((process.env.MECHA_AGENT_API_KEY ?? "").trim() || undefined);
+      const authConfig = resolveAuthConfig(deps.mechaDir, {
+        totp: opts.totp === false ? false : undefined,
+        apiKey: opts.apiKey === false ? false : explicitApiKey ? true : undefined,
+      });
+
+      if (authConfig.apiKey && !explicitApiKey) {
+        deps.formatter.error("API key auth enabled but no key provided: use --api-key or set MECHA_AGENT_API_KEY");
         process.exitCode = 1;
         return;
+      }
+
+      // Ensure TOTP secret exists if TOTP is enabled
+      let totpSecret: string | undefined;
+      if (authConfig.totp) {
+        const { secret, isNew } = await ensureTotpSecret(deps.mechaDir);
+        totpSecret = secret;
+        if (isNew) {
+          await displayTotpSetup(secret, deps.formatter);
+        }
       }
 
       // Start agent server
@@ -44,7 +67,10 @@ export function registerStartCommand(program: Command, deps: CommandDeps): void 
       const spaDir = resolveSpaDir();
       const server = createAgentServer({
         port,
-        apiKey,
+        auth: {
+          apiKey: authConfig.apiKey ? explicitApiKey : undefined,
+          totpSecret,
+        },
         processManager: deps.processManager,
         acl: deps.acl,
         mechaDir: deps.mechaDir,
@@ -59,11 +85,15 @@ export function registerStartCommand(program: Command, deps: CommandDeps): void 
 
       await server.listen({ port, host: opts.host });
 
+      const methods: string[] = [];
+      if (authConfig.totp) methods.push("TOTP");
+      if (authConfig.apiKey) methods.push("API key");
+
       if (spaDir) {
-        deps.formatter.success(`Mecha started on http://${opts.host}:${port} (node: ${nodeName})`);
+        deps.formatter.success(`Mecha started on http://${opts.host}:${port} (node: ${nodeName}, auth: ${methods.join(" + ")})`);
       } else {
-        deps.formatter.success(`Agent server started on ${opts.host}:${port} (node: ${nodeName})`);
-        deps.formatter.warn?.("SPA not found — dashboard not available. Run pnpm --filter @mecha/spa build");
+        deps.formatter.success(`Agent server started on ${opts.host}:${port} (node: ${nodeName}, auth: ${methods.join(" + ")})`);
+        deps.formatter.warn("SPA not found — dashboard not available. Run pnpm --filter @mecha/spa build");
       }
 
       /* v8 ignore start -- browser open is platform-specific */

@@ -50,6 +50,10 @@ mecha.im/
 └── .mcp.json              ← MCP server configuration
 ```
 
+## Testing Environment
+
+For multi-machine testing, deployment targets, SSH access, and runtime configuration, refer to `CLAUDE.local.md`.
+
 ## Known Limitations
 
 ### Security Trust Boundary

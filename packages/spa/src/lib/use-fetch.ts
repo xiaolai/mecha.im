@@ -33,7 +33,7 @@ export function useFetch<T>(url: string, opts: UseFetchOptions = {}): UseFetchRe
     abortRef.current = controller;
     setLoading(true);
     try {
-      const res = await fetch(url, { signal: controller.signal, headers: authHeaders });
+      const res = await fetch(url, { signal: controller.signal, headers: authHeaders, credentials: "include" });
       if (controller.signal.aborted) return;
       if (res.status === 401) {
         logout();

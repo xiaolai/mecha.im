@@ -11,9 +11,11 @@ import { SettingsPage } from "@/pages/settings";
 import { LoginPage } from "@/pages/login";
 
 export function App() {
-  const { apiKey } = useAuth();
+  const { authenticated, loading } = useAuth();
 
-  if (!apiKey) {
+  if (loading) return null;
+
+  if (!authenticated) {
     return <LoginPage />;
   }
 

@@ -32,12 +32,14 @@ export interface ConnectState {
 /** Wait for a signaling answer from a peer within the timeout window. */
 export function waitForAnswer(state: ConnectState, peer: string): Promise<Candidate[]> {
   // Reject any existing waiter for this peer to prevent orphaned timers/promises
+  /* v8 ignore start -- race: concurrent connect calls for same peer */
   const existing = state.pendingAnswers.get(peer);
   if (existing) {
     clearTimeout(existing.timer);
     existing.reject(new ConnectError(`Answer superseded for "${peer}"`));
     state.pendingAnswers.delete(peer);
   }
+  /* v8 ignore stop */
 
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
