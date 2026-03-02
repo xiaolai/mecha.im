@@ -5,11 +5,7 @@
       "dependsOn": ["^build"],
       "outputs": ["dist/**"]
     },
-    "@mecha/dashboard#build": {
-      "dependsOn": ["^build"],
-      "outputs": [".next/**"]
-    },
-    "@mecha/website#build": {
+"@mecha/website#build": {
       "dependsOn": [],
       "outputs": ["docs/.vitepress/dist/**"]
     },
