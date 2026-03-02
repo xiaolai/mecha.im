@@ -12,12 +12,18 @@ import type { ProcessInfo } from "@mecha/process";
 import { writeCasaConfig, makeAcl } from "../../core/__tests__/test-utils.js";
 import { makePm } from "../../service/__tests__/test-utils.js";
 
-vi.mock("@mecha/service", () => ({
-  checkCasaBusy: vi.fn().mockResolvedValue({ busy: false, activeSessions: 0 }),
-}));
+vi.mock("@mecha/service", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@mecha/service")>();
+  return {
+    ...actual,
+    checkCasaBusy: vi.fn().mockResolvedValue({ busy: false, activeSessions: 0 }),
+    getCachedSnapshot: vi.fn().mockReturnValue(null),
+  };
+});
 
-import { checkCasaBusy } from "@mecha/service";
+import { checkCasaBusy, getCachedSnapshot } from "@mecha/service";
 const mockCheckBusy = vi.mocked(checkCasaBusy);
+const mockGetSnapshot = vi.mocked(getCachedSnapshot);
 
 describe("agent routes", () => {
   let mechaDir: string;
@@ -176,11 +182,15 @@ describe("agent routes", () => {
       await app.close();
     });
 
-    it("returns CASA list with name, state, port", async () => {
+    it("returns enriched CASA list with projection", async () => {
       const list: ProcessInfo[] = [
-        { name: "a" as CasaName, state: "running", port: 7700, workspacePath: "/ws" },
+        { name: "a" as CasaName, state: "running", port: 7700, workspacePath: "/home/user/project", token: "secret", pid: 1234 },
         { name: "b" as CasaName, state: "stopped", workspacePath: "/ws2" },
       ];
+      writeCasaConfig(mechaDir, "a", {
+        port: 7700, token: "tok", workspace: "/home/user/project",
+        model: "claude-sonnet-4-20250514", tags: ["coder"],
+      });
       const app = Fastify();
       registerCasaRoutes(app, makePm(list), mechaDir);
       await app.ready();
@@ -188,9 +198,37 @@ describe("agent routes", () => {
       const res = await app.inject({ method: "GET", url: "/casas" });
       const body = res.json();
       expect(body).toHaveLength(2);
-      expect(body[0]).toEqual({ name: "a", state: "running", port: 7700 });
-      // token and workspacePath should NOT be exposed
+      expect(body[0].name).toBe("a");
+      expect(body[0].state).toBe("running");
+      expect(body[0].port).toBe(7700);
+      expect(body[0].workspacePath).toBe("project");
+      expect(body[0].model).toBe("claude-sonnet-4-20250514");
+      expect(body[0].tags).toEqual(["coder"]);
       expect(body[0].token).toBeUndefined();
+      expect(body[0].pid).toBeUndefined();
+      await app.close();
+    });
+
+    it("includes costToday when snapshot has data", async () => {
+      const list: ProcessInfo[] = [
+        { name: "a" as CasaName, state: "running", port: 7700, workspacePath: "/ws" },
+      ];
+      const emptySummary = {
+        requests: 0, errors: 0, inputTokens: 0, outputTokens: 0,
+        cacheCreationTokens: 0, cacheReadTokens: 0, costUsd: 0, avgLatencyMs: 0,
+      };
+      mockGetSnapshot.mockReturnValueOnce({
+        ts: "2026-03-02T12:00:00Z", date: "2026-03-02",
+        global: { today: emptySummary, thisMonth: emptySummary },
+        byCasa: { a: { today: { ...emptySummary, costUsd: 2.50 }, thisMonth: emptySummary } },
+        byAuth: {}, byTag: {},
+      });
+      const app = Fastify();
+      registerCasaRoutes(app, makePm(list), mechaDir);
+      await app.ready();
+
+      const res = await app.inject({ method: "GET", url: "/casas" });
+      expect(res.json()[0].costToday).toBe(2.50);
       await app.close();
     });
 
