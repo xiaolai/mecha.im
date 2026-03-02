@@ -22,7 +22,7 @@ const resultBadge = {
 export function AuditView() {
   const { data: entries, loading, error } = useFetch<AuditEntry[]>("/audit?limit=100", { interval: 10000 });
 
-  if (loading) {
+  if (loading && !entries) {
     return <Skeleton className="h-48 rounded-lg" />;
   }
 

@@ -29,7 +29,7 @@ function formatTokens(n: number): string {
 export function MeterSummary() {
   const { data, loading, error } = useFetch<CostQueryResult>("/meter/cost", { interval: 30000 });
 
-  if (loading) {
+  if (loading && !data) {
     return (
       <div className="grid gap-4 sm:grid-cols-4">
         {Array.from({ length: 4 }, (_, i) => (

@@ -22,7 +22,7 @@ export function SessionList({ name, node }: SessionListProps) {
     { deps: [name, node] },
   );
 
-  if (loading) {
+  if (loading && !sessions) {
     return <Skeleton className="h-32 rounded-lg" />;
   }
 

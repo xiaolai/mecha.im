@@ -12,7 +12,7 @@ interface AclRule {
 export function AclView() {
   const { data: rules, loading, error } = useFetch<AclRule[]>("/acl");
 
-  if (loading) {
+  if (loading && !rules) {
     return <Skeleton className="h-48 rounded-lg" />;
   }
 
