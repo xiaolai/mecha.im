@@ -1,194 +1,44 @@
 import { request as httpsRequest } from "node:https";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { MeterEvent, PricingTable, BudgetConfig } from "./types.js";
 import type { CasaRegistryEntry } from "./types.js";
-import type { HotCounters } from "./hot-counters.js";
-import { ingestEvent } from "./hot-counters.js";
 import { parseSSEChunk, createSSEParseState, extractNonStreamUsage } from "./stream.js";
-import { computeCost, resolvePricing } from "./pricing.js";
-import { ulid } from "./ulid.js";
-import { appendEvent } from "./events.js";
 import { lookupCasa } from "./registry.js";
-import { readBudgets, checkBudgets } from "./budgets.js";
-import type { BudgetCheckResult } from "./budgets.js";
 import { createLogger } from "@mecha/core";
+
+import {
+  parseCasaPath,
+  buildUpstreamHeaders,
+  buildMeterEvent,
+  enforceBudget,
+  recordEvent,
+  parseModelAndStream,
+  stripHopByHop,
+  MAX_BODY_BYTES,
+  MAX_RESPONSE_BYTES,
+} from "./proxy-utils.js";
+import type { ProxyContext } from "./proxy-utils.js";
+
+// Re-export everything from proxy-utils for backward compatibility
+export {
+  parseCasaPath,
+  buildUpstreamHeaders,
+  buildMeterEvent,
+  enforceBudget,
+  reloadBudgets,
+  recordEvent,
+  getDroppedEventCount,
+  resetDroppedEventCount,
+  parseModelAndStream,
+  stripHopByHop,
+  ESTIMATED_REQUEST_COST_USD,
+  MAX_BODY_BYTES,
+  MAX_RESPONSE_BYTES,
+} from "./proxy-utils.js";
+export type { ProxyContext } from "./proxy-utils.js";
 
 const log = createLogger("mecha:meter");
 
 const UPSTREAM_HOST = "api.anthropic.com";
-
-const HOP_BY_HOP = new Set([
-  "connection", "keep-alive", "proxy-authenticate",
-  "proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade",
-]);
-
-export interface ProxyContext {
-  meterDir: string;
-  pricing: PricingTable;
-  registry: Map<string, CasaRegistryEntry>;
-  counters: HotCounters;
-  budgets: BudgetConfig;
-  /** Number of in-flight requests per CASA (for budget pre-accounting). */
-  pendingRequests: Map<string, number>;
-}
-
-/** Parse the CASA name from the request URL path: /casa/{name}/... */
-export function parseCasaPath(url: string): { casa: string; upstreamPath: string } | null {
-  const match = /^\/casa\/([a-z0-9-]+)(\/.*)$/.exec(url);
-  if (!match) return null;
-  return { casa: match[1]!, upstreamPath: match[2]! };
-}
-
-/** Build upstream headers: set Host, strip hop-by-hop */
-export function buildUpstreamHeaders(
-  incoming: Record<string, string | string[] | undefined>,
-): Record<string, string> {
-  const headers: Record<string, string> = {};
-  for (const [key, value] of Object.entries(incoming)) {
-    if (HOP_BY_HOP.has(key.toLowerCase())) continue;
-    if (value === undefined) continue;
-    headers[key] = Array.isArray(value) ? value.join(", ") : value;
-  }
-  headers["host"] = UPSTREAM_HOST;
-  return headers;
-}
-
-/** Build a MeterEvent from proxy usage data and compute cost */
-export function buildMeterEvent(
-  ctx: ProxyContext,
-  startMs: number,
-  casa: string,
-  casaInfo: CasaRegistryEntry,
-  model: string,
-  stream: boolean,
-  status: number,
-  usage: {
-    inputTokens: number; outputTokens: number;
-    cacheCreationTokens: number; cacheReadTokens: number;
-    modelActual: string; ttftMs: number | null;
-  },
-): MeterEvent {
-  const pricing = resolvePricing(ctx.pricing, usage.modelActual || model);
-  // Compute cost for 200 and -1 (client disconnect with partial usage consumed)
-  const costUsd = (status === 200 || status === -1) ? computeCost(pricing, usage) : 0;
-
-  return {
-    id: ulid(),
-    ts: new Date().toISOString(),
-    casa,
-    authProfile: casaInfo.authProfile,
-    workspace: casaInfo.workspace,
-    tags: casaInfo.tags,
-    model,
-    stream,
-    status,
-    modelActual: usage.modelActual || model,
-    latencyMs: Date.now() - startMs,
-    ttftMs: usage.ttftMs,
-    inputTokens: usage.inputTokens,
-    outputTokens: usage.outputTokens,
-    cacheCreationTokens: usage.cacheCreationTokens,
-    cacheReadTokens: usage.cacheReadTokens,
-    costUsd,
-  };
-}
-
-/**
- * Estimated cost per in-flight request ($0.03) for budget pre-accounting.
- * Prevents concurrent requests from bypassing budget limits.
- */
-export const ESTIMATED_REQUEST_COST_USD = 0.03;
-
-/** Run budget check for a CASA request. Returns null if allowed. */
-export function enforceBudget(
-  ctx: ProxyContext,
-  casa: string,
-  casaInfo: CasaRegistryEntry,
-): BudgetCheckResult {
-  const counters = ctx.counters;
-  const casaBucket = counters.byCasa[casa];
-  const authBucket = counters.byAuth[casaInfo.authProfile];
-  const tagSummaries: Record<string, { today: import("./types.js").CostSummary; month: import("./types.js").CostSummary }> = {};
-  for (const tag of casaInfo.tags) {
-    const bucket = counters.byTag[tag];
-    if (bucket) tagSummaries[tag] = { today: bucket.today, month: bucket.thisMonth };
-  }
-
-  // Add estimated cost for in-flight requests to prevent concurrent budget bypass
-  const pending = ctx.pendingRequests.get(casa) ?? 0;
-  const pendingCostUsd = pending * ESTIMATED_REQUEST_COST_USD;
-
-  return checkBudgets({
-    config: ctx.budgets,
-    casa,
-    authProfile: casaInfo.authProfile,
-    tags: casaInfo.tags,
-    global: { today: counters.global.today, month: counters.global.thisMonth },
-    perCasa: casaBucket ? { today: casaBucket.today, month: casaBucket.thisMonth } : undefined,
-    perAuth: authBucket ? { today: authBucket.today, month: authBucket.thisMonth } : undefined,
-    perTag: tagSummaries,
-    pendingCostUsd,
-  });
-}
-
-/** Reload budgets from disk (called on SIGHUP) */
-export function reloadBudgets(ctx: ProxyContext): void {
-  ctx.budgets = readBudgets(ctx.meterDir);
-}
-
-/** Counter for events that failed to persist (observable via snapshot and logs). */
-let droppedEvents = 0;
-
-/** Get the number of dropped events since process start. */
-export function getDroppedEventCount(): number {
-  return droppedEvents;
-}
-
-/** Reset dropped event counter (for testing). */
-export function resetDroppedEventCount(): void {
-  droppedEvents = 0;
-}
-
-/** Record a meter event: append to disk + update hot counters */
-export function recordEvent(ctx: ProxyContext, event: MeterEvent): void {
-  try {
-    appendEvent(ctx.meterDir, event);
-    ingestEvent(ctx.counters, event);
-  /* v8 ignore start -- disk write failure logging */
-  } catch (err) {
-    droppedEvents++;
-    log.error("Failed to write event", { eventId: event.id, droppedEvents, error: err instanceof Error ? err.message : String(err) });
-  }
-  /* v8 ignore stop */
-}
-
-/** Max request body size (32 MB) to prevent memory DoS */
-export const MAX_BODY_BYTES = 32 * 1024 * 1024;
-
-/** Max response body size (128 MB) to prevent memory DoS on non-stream responses */
-export const MAX_RESPONSE_BYTES = 128 * 1024 * 1024;
-
-/** Extract model name and stream flag from a request body JSON. */
-export function parseModelAndStream(body: Buffer): { model: string; stream: boolean } {
-  try {
-    const parsed = JSON.parse(body.toString()) as Record<string, unknown>;
-    return {
-      model: (typeof parsed.model === "string" ? parsed.model : ""),
-      stream: (typeof parsed.stream === "boolean" ? parsed.stream : false),
-    };
-  } catch {
-    return { model: "", stream: false };
-  }
-}
-
-/** Strip hop-by-hop headers from upstream response headers. */
-export function stripHopByHop(
-  headers: Record<string, string | string[] | undefined>,
-): Record<string, string | string[] | undefined> {
-  const out: Record<string, string | string[] | undefined> = { ...headers };
-  for (const h of HOP_BY_HOP) delete out[h];
-  return out;
-}
 
 /* v8 ignore start -- integration code: wires Node.js HTTP streams to/from api.anthropic.com */
 
@@ -213,7 +63,7 @@ export function handleProxyRequest(
   const parsed = parseCasaPath(url);
   if (!parsed) {
     res.writeHead(404, { "content-type": "application/json" });
-    res.end(JSON.stringify({ error: `Invalid path: ${url}. Expected /casa/{name}/...` }));
+    res.end(JSON.stringify({ error: "Invalid path. Expected /casa/{name}/..." }));
     return;
   }
 
@@ -292,8 +142,15 @@ export function handleProxyRequest(
       }
     });
 
-    upstreamReq.on("error", () => {
-      res.writeHead(502, { "content-type": "application/json" });
+    upstreamReq.setTimeout(60_000, () => {
+      upstreamReq.destroy(new Error("Upstream timeout after 60s"));
+    });
+
+    upstreamReq.on("error", (err) => {
+      log.error("Upstream request failed", { casa, path: upstreamPath, error: err instanceof Error ? err.message : String(err) });
+      if (!res.headersSent) {
+        res.writeHead(502, { "content-type": "application/json" });
+      }
       res.end(JSON.stringify({ error: "Upstream unreachable" }));
       endPending(ctx, casa);
       const event = buildMeterEvent(ctx, startMs, casa, casaInfo, model, stream, 0, {
@@ -336,14 +193,23 @@ function handleStreamResponse(
     }
   });
 
-  upstreamRes.on("error", () => { clientDisconnected = true; });
+  let finalized = false;
+  function finalizeStream(status: number): void {
+    if (finalized) return;
+    finalized = true;
+    if (!res.writableEnded) res.end();
+    endPending(ctx, casa);
+    const event = buildMeterEvent(ctx, startMs, casa, casaInfo, model, true, status, state);
+    recordEvent(ctx, event);
+  }
+
+  upstreamRes.on("error", () => {
+    clientDisconnected = true;
+    finalizeStream(-1);
+  });
 
   upstreamRes.on("end", () => {
-    res.end();
-    endPending(ctx, casa);
-    const event = buildMeterEvent(ctx, startMs, casa, casaInfo, model, true,
-      clientDisconnected ? -1 : 200, state);
-    recordEvent(ctx, event);
+    finalizeStream(clientDisconnected ? -1 : 200);
   });
 }
 
@@ -361,6 +227,24 @@ function handleNonStreamResponse(
   const chunks: Buffer[] = [];
   let responseSize = 0;
   let oversized = false;
+  let errorHandled = false;
+
+  upstreamRes.on("error", () => {
+    if (errorHandled || oversized) return;
+    errorHandled = true;
+    if (!res.headersSent) {
+      res.writeHead(502, { "content-type": "application/json" });
+    }
+    res.end(JSON.stringify({ error: "Upstream connection error" }));
+    endPending(ctx, casa);
+    const event = buildMeterEvent(ctx, startMs, casa, casaInfo, model, stream, 502, {
+      inputTokens: 0, outputTokens: 0,
+      cacheCreationTokens: 0, cacheReadTokens: 0,
+      modelActual: model, ttftMs: null,
+    });
+    recordEvent(ctx, event);
+  });
+
   upstreamRes.on("data", (chunk: Buffer) => {
     responseSize += chunk.length;
     if (responseSize <= MAX_RESPONSE_BYTES) {
@@ -380,7 +264,7 @@ function handleNonStreamResponse(
     }
   });
   upstreamRes.on("end", () => {
-    if (oversized) return;
+    if (oversized || errorHandled) return;
     const body = Buffer.concat(chunks).toString();
 
     res.writeHead(status, stripHopByHop(upstreamRes.headers));
