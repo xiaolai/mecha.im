@@ -206,10 +206,14 @@ function registerSpaRoutes(app: FastifyInstance, spaDir: string): void {
   });
 
   app.setNotFoundHandler(async (request, reply) => {
-    // SPA fallback: non-API GET requests → index.html for client-side routing
+    // SPA fallback: GET requests → index.html for client-side routing.
+    // Browser navigations (Accept: text/html) to SPA routes like /mesh or /casas
+    // must serve the SPA even though the path overlaps with API prefixes.
     if (request.method === "GET") {
+      const accept = request.headers.accept ?? "";
       const p = request.url.split("?")[0]!;
-      if (!isApiOrAuthPath(p)) {
+      const isBrowserNav = accept.includes("text/html");
+      if (isBrowserNav || !isApiOrAuthPath(p)) {
         return reply.type("text/html").send(indexHtml);
       }
     }

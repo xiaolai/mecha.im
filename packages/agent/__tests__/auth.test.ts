@@ -162,6 +162,34 @@ describe("agent auth", () => {
       await app.close();
     });
 
+    it("skips auth for browser navigation to API-prefixed SPA routes", async () => {
+      const app = Fastify();
+      app.addHook("onRequest", createAuthHook({ apiKey: "secret", spaDir: "/fake/spa" }));
+      app.get("/casas", async () => []);
+      app.get("/mesh/nodes", async () => []);
+      app.setNotFoundHandler(async () => ({ spa: true }));
+      await app.ready();
+
+      // Browser navigation (Accept: text/html) to /mesh → skip auth
+      const res1 = await app.inject({
+        method: "GET", url: "/mesh",
+        headers: { accept: "text/html,application/xhtml+xml" },
+      });
+      expect(res1.statusCode).toBe(200);
+
+      // API fetch (no text/html) to /mesh/nodes → still requires auth
+      const res2 = await app.inject({
+        method: "GET", url: "/mesh/nodes",
+        headers: { accept: "application/json" },
+      });
+      expect(res2.statusCode).toBe(401);
+
+      // API fetch to /casas without auth → 401
+      const res3 = await app.inject({ method: "GET", url: "/casas" });
+      expect(res3.statusCode).toBe(401);
+      await app.close();
+    });
+
     it("requires auth for all paths when spaDir is not set", async () => {
       const app = await buildAuthApp();
       const res = await app.inject({ method: "GET", url: "/some-page" });
