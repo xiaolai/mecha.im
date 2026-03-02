@@ -1,8 +1,9 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { type CasaName, isValidName, readCasaConfig, CasaNotRunningError } from "@mecha/core";
 import type { ProcessManager } from "@mecha/process";
-import { checkCasaBusy } from "@mecha/service";
-import { join } from "node:path";
+import { checkCasaBusy, enrichCasaInfo, buildEnrichContext, getCachedSnapshot } from "@mecha/service";
+import type { EnrichedCasaInfo } from "@mecha/service";
+import { join, basename } from "node:path";
 
 function validateName(name: string, reply: FastifyReply): CasaName | null {
   if (!isValidName(name)) {
@@ -30,14 +31,23 @@ function spawnOptsFromConfig(name: CasaName, config: ReturnType<typeof readCasaC
   };
 }
 
+/** List endpoint projection — omit pid/exitCode, shorten workspacePath to basename. */
+function listProjection(info: EnrichedCasaInfo) {
+  const { pid: _pid, exitCode: _exitCode, stoppedAt: _stoppedAt, ...rest } = info;
+  return { ...rest, workspacePath: basename(info.workspacePath) };
+}
+
 export function registerCasaRoutes(app: FastifyInstance, pm: ProcessManager, mechaDir: string): void {
+  const meterDir = join(mechaDir, "meter");
+
   app.get("/casas", async () => {
     const list = pm.list();
-    return list.map((p) => ({
-      name: p.name,
-      state: p.state,
-      port: p.port,
-    }));
+    const snapshot = getCachedSnapshot(meterDir);
+    const ctx = buildEnrichContext(mechaDir, snapshot, list.map((p) => p.name));
+    return list.map((p) => {
+      const enriched = enrichCasaInfo(p, ctx);
+      return listProjection(enriched);
+    });
   });
 
   app.get("/casas/:name/status", async (request: FastifyRequest<{ Params: { name: string } }>, reply: FastifyReply) => {
@@ -48,7 +58,9 @@ export function registerCasaRoutes(app: FastifyInstance, pm: ProcessManager, mec
       reply.code(404).send({ error: `CASA not found: ${casaName}` });
       return;
     }
-    return { name: info.name, state: info.state, port: info.port };
+    const snapshot = getCachedSnapshot(meterDir);
+    const ctx = buildEnrichContext(mechaDir, snapshot, [casaName]);
+    return enrichCasaInfo(info, ctx);
   });
 
   // --- Start a stopped CASA from its persisted config ---

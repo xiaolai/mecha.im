@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { useFetch } from "@/lib/use-fetch";
 import { useCasaAction } from "@/lib/use-casa-action";
 import { stateStyles } from "@/lib/casa-styles";
+import { shortModelName, formatCost } from "@/lib/format";
 import type { CasaInfo } from "./casa-card";
 
 interface CasaDetailProps {
@@ -138,7 +139,32 @@ export function CasaDetail({ name, node }: CasaDetailProps) {
         <div className="rounded-lg border border-border bg-card p-4">
           <div className="text-xs font-medium text-muted-foreground mb-1">STARTED</div>
           <div className="text-sm text-card-foreground">
-            {casa.startedAt ? new Date(casa.startedAt).toLocaleString() : "—"}
+            {(() => {
+              if (!casa.startedAt) return "—";
+              const d = new Date(casa.startedAt);
+              return Number.isFinite(d.getTime()) ? d.toLocaleString() : "—";
+            })()}
+          </div>
+        </div>
+        <div className="rounded-lg border border-border bg-card p-4">
+          <div className="text-xs font-medium text-muted-foreground mb-1">MODEL</div>
+          <div className="text-sm font-mono text-card-foreground">
+            {casa.model ? shortModelName(casa.model) : "—"}
+          </div>
+        </div>
+        <div className="rounded-lg border border-border bg-card p-4">
+          <div className="text-xs font-medium text-muted-foreground mb-1">AUTH</div>
+          <div className="text-sm text-card-foreground">
+            {casa.auth ?? "—"}
+            {casa.authType && (
+              <Badge variant="outline" className="ml-2 text-xs">{casa.authType}</Badge>
+            )}
+          </div>
+        </div>
+        <div className="rounded-lg border border-border bg-card p-4">
+          <div className="text-xs font-medium text-muted-foreground mb-1">COST TODAY</div>
+          <div className="text-sm font-semibold text-card-foreground">
+            {casa.costToday != null ? formatCost(casa.costToday) : "—"}
           </div>
         </div>
       </div>
