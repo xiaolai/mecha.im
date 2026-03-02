@@ -1,13 +1,22 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { KeyRoundIcon, ShieldCheckIcon, LoaderIcon } from "lucide-react";
 import { useAuth } from "@/auth-context";
 
 type Tab = "totp" | "apikey";
 
+const TOTP_LENGTH = 6;
+const API_KEY_MIN_LENGTH = 32;
+const API_KEY_DEBOUNCE_MS = 300;
+
+const EMPTY_DIGITS = Array.from({ length: TOTP_LENGTH }, () => "");
+
 export function LoginPage() {
   const { setApiKey, setTotpAuthenticated, availableMethods, loading: authLoading } = useAuth();
   const [tab, setTab] = useState<Tab | null>(null);
-  const [code, setCode] = useState("");
+  const [digits, setDigits] = useState<string[]>(EMPTY_DIGITS);
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const submittingRef = useRef(false);
+  const lastSubmittedKeyRef = useRef("");
 
   // Sync tab to server-reported methods once fetched
   useEffect(() => {
@@ -18,10 +27,20 @@ export function LoginPage() {
   const [key, setKey] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [authUnavailable, setAuthUnavailable] = useState(false);
 
-  const submitTotp = useCallback(async () => {
-    const trimmed = code.trim();
-    if (!trimmed) return;
+  // Detect when auth methods loaded but none available
+  useEffect(() => {
+    if (authLoading || tab !== null) return;
+    if (!availableMethods.totp && !availableMethods.apiKey) {
+      setAuthUnavailable(true);
+    }
+  }, [authLoading, availableMethods, tab]);
+
+  const submitTotp = useCallback(async (code: string) => {
+    if (!code || code.length !== TOTP_LENGTH) return;
+    if (submittingRef.current) return;
+    submittingRef.current = true;
 
     setLoading(true);
     setError(null);
@@ -31,7 +50,7 @@ export function LoginPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ code: trimmed }),
+        body: JSON.stringify({ code }),
       });
 
       if (res.ok) {
@@ -41,20 +60,29 @@ export function LoginPage() {
 
       const body = await res.json().catch(() => ({ error: "Request failed" }));
       if (res.status === 429) {
-        const retry = body.retryAfterMs ? ` (retry in ${Math.ceil(body.retryAfterMs / 1000)}s)` : "";
+        const retryMs = body.retryAfterMs;
+        const retry = typeof retryMs === "number" && Number.isFinite(retryMs)
+          ? ` (retry in ${Math.ceil(retryMs / 1000)}s)`
+          : "";
         setError(`Too many attempts${retry}`);
       } else {
-        setError(body.error ?? "Invalid code");
+        setError("Invalid code");
       }
+      // Clear digits and refocus first input on error
+      setDigits([...EMPTY_DIGITS]);
+      setTimeout(() => inputRefs.current[0]?.focus(), 0);
     } catch {
       setError("Cannot connect to server. Is the agent running?");
+      setDigits([...EMPTY_DIGITS]);
+      setTimeout(() => inputRefs.current[0]?.focus(), 0);
     } finally {
       setLoading(false);
+      submittingRef.current = false;
     }
-  }, [code, setTotpAuthenticated]);
+  }, [setTotpAuthenticated]);
 
-  const submitApiKey = useCallback(async () => {
-    const trimmed = key.trim();
+  const submitApiKey = useCallback(async (apiKey: string) => {
+    const trimmed = apiKey.trim();
     if (!trimmed) return;
 
     setLoading(true);
@@ -73,16 +101,90 @@ export function LoginPage() {
       if (res.status === 401) {
         setError("Invalid API key");
       } else {
-        setError(`Server returned ${res.status}`);
+        setError("Authentication failed");
       }
     } catch {
       setError("Cannot connect to server. Is the agent running?");
     } finally {
       setLoading(false);
     }
-  }, [key, setApiKey]);
+  }, [setApiKey]);
+
+  // API key auto-submit: debounce after reaching min length, only on key change
+  useEffect(() => {
+    const trimmed = key.trim();
+    if (tab !== "apikey" || trimmed.length < API_KEY_MIN_LENGTH) return;
+    if (trimmed === lastSubmittedKeyRef.current) return;
+
+    const timer = setTimeout(() => {
+      lastSubmittedKeyRef.current = trimmed;
+      submitApiKey(key);
+    }, API_KEY_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [key, tab, submitApiKey]);
+
+  const handleDigitChange = (index: number, value: string) => {
+    const digit = value.replace(/\D/g, "").slice(-1);
+    setError(null);
+    const next = [...digits];
+    next[index] = digit;
+    setDigits(next);
+
+    if (digit && index < TOTP_LENGTH - 1) {
+      inputRefs.current[index + 1]?.focus();
+    }
+
+    // Auto-submit when all digits filled
+    if (digit) {
+      const code = next.join("");
+      if (code.length === TOTP_LENGTH) submitTotp(code);
+    }
+  };
+
+  const handleDigitKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Backspace" && !digits[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, TOTP_LENGTH);
+    if (!pasted) return;
+
+    const next = [...EMPTY_DIGITS];
+    for (let i = 0; i < pasted.length; i++) {
+      next[i] = pasted[i];
+    }
+    setDigits(next);
+    setError(null);
+
+    const focusIndex = Math.min(pasted.length, TOTP_LENGTH - 1);
+    setTimeout(() => inputRefs.current[focusIndex]?.focus(), 0);
+
+    if (pasted.length === TOTP_LENGTH) {
+      submitTotp(pasted);
+    }
+  };
 
   const bothAvailable = availableMethods.totp && availableMethods.apiKey;
+
+  // Show error state when no auth methods available
+  if (authUnavailable) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center p-4">
+        <div className="flex flex-col items-center gap-3">
+          <p className="text-sm text-destructive">No authentication methods available</p>
+          <button
+            onClick={() => { setAuthUnavailable(false); window.location.reload(); }}
+            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (authLoading || tab === null) {
     return (
@@ -115,7 +217,7 @@ export function LoginPage() {
         {bothAvailable && (
           <div className="mb-4 flex rounded-md border border-border overflow-hidden">
             <button
-              onClick={() => { setTab("totp"); setError(null); }}
+              onClick={() => { setTab("totp"); setError(null); setDigits([...EMPTY_DIGITS]); }}
               className={`flex-1 px-3 py-1.5 text-sm font-medium ${tab === "totp" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
             >
               TOTP
@@ -131,26 +233,30 @@ export function LoginPage() {
 
         <div className="mb-4">
           {tab === "totp" ? (
-            <input
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              maxLength={6}
-              placeholder="000000"
-              value={code}
-              onChange={(e) => { setCode(e.target.value.replace(/\D/g, "")); setError(null); }}
-              onKeyDown={(e) => { if (e.key === "Enter") submitTotp(); }}
-              className="h-11 w-full rounded-md border border-input bg-background px-3 text-center text-lg font-mono tracking-widest text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring sm:h-9"
-              disabled={loading}
-              autoFocus
-            />
+            <div className="flex items-center justify-center gap-2">
+              {digits.map((digit, i) => (
+                <input
+                  key={i}
+                  ref={(el) => { inputRefs.current[i] = el; }}
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={1}
+                  value={digit}
+                  onChange={(e) => handleDigitChange(i, e.target.value)}
+                  onKeyDown={(e) => handleDigitKeyDown(i, e)}
+                  onPaste={handlePaste}
+                  className="size-11 rounded-md border border-input bg-background text-center text-lg font-mono text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring sm:size-9 disabled:opacity-50"
+                  disabled={loading}
+                  autoFocus={i === 0}
+                />
+              ))}
+            </div>
           ) : (
             <input
               type="password"
               placeholder="API Key"
               value={key}
               onChange={(e) => { setKey(e.target.value); setError(null); }}
-              onKeyDown={(e) => { if (e.key === "Enter") submitApiKey(); }}
               className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm font-mono text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring sm:h-9"
               disabled={loading}
               autoFocus
@@ -162,14 +268,11 @@ export function LoginPage() {
           <p className="mb-4 text-center text-sm text-destructive">{error}</p>
         )}
 
-        <button
-          onClick={tab === "totp" ? submitTotp : submitApiKey}
-          disabled={(tab === "totp" ? !code.trim() : !key.trim()) || loading}
-          className="flex w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50 sm:w-auto sm:ml-auto"
-        >
-          {loading && <LoaderIcon className="size-4 animate-spin" />}
-          {loading ? "Verifying..." : "Connect"}
-        </button>
+        {loading && (
+          <div className="flex justify-center">
+            <LoaderIcon className="size-5 animate-spin text-muted-foreground" />
+          </div>
+        )}
       </div>
     </div>
   );
