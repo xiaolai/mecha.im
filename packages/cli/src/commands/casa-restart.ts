@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
-import { casaName, readCasaConfig, CasaNotFoundError } from "@mecha/core";
+import { casaName, readCasaConfig, CasaNotFoundError, CasaBusyError } from "@mecha/core";
+import { checkCasaBusy } from "@mecha/service";
 import { join } from "node:path";
 import { withErrorHandler } from "../error-handler.js";
 
@@ -23,6 +24,13 @@ export function registerCasaRestartCommand(parent: Command, deps: CommandDeps): 
       // Stop if running
       const existing = deps.processManager.get(validated);
       if (existing?.state === "running") {
+        if (!opts.force) {
+          const check = await checkCasaBusy(deps.processManager, validated);
+          if (check.busy) {
+            throw new CasaBusyError(validated, check.activeSessions);
+          }
+        }
+
         if (opts.force) {
           await deps.processManager.kill(validated);
         } else {

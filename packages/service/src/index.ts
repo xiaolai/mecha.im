@@ -42,6 +42,8 @@ export { agentFetch } from "./agent-fetch.js";
 export type { AgentFetchOpts, SecureChannelLike } from "./agent-fetch.js";
 export { createLocator } from "./locator.js";
 export type { MechaLocator, LocateResult, CreateLocatorOpts } from "./locator.js";
+export { checkCasaBusy } from "./task-check.js";
+export type { TaskCheckResult } from "./task-check.js";
 export {
   casaScheduleAdd,
   casaScheduleRemove,

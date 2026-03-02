@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -12,11 +12,19 @@ import type { ProcessInfo } from "@mecha/process";
 import { writeCasaConfig, makeAcl } from "../../core/__tests__/test-utils.js";
 import { makePm } from "../../service/__tests__/test-utils.js";
 
+vi.mock("@mecha/service", () => ({
+  checkCasaBusy: vi.fn().mockResolvedValue({ busy: false, activeSessions: 0 }),
+}));
+
+import { checkCasaBusy } from "@mecha/service";
+const mockCheckBusy = vi.mocked(checkCasaBusy);
+
 describe("agent routes", () => {
   let mechaDir: string;
   afterEach(() => {
     if (mechaDir) rmSync(mechaDir, { recursive: true, force: true });
     vi.restoreAllMocks();
+    mockCheckBusy.mockResolvedValue({ busy: false, activeSessions: 0 });
   });
 
   describe("health routes", () => {
@@ -153,9 +161,13 @@ describe("agent routes", () => {
   });
 
   describe("casa routes", () => {
+    beforeEach(() => {
+      mechaDir = mkdtempSync(join(tmpdir(), "agent-casas-"));
+    });
+
     it("returns empty list", async () => {
       const app = Fastify();
-      registerCasaRoutes(app, makePm());
+      registerCasaRoutes(app, makePm(), mechaDir);
       await app.ready();
 
       const res = await app.inject({ method: "GET", url: "/casas" });
@@ -170,7 +182,7 @@ describe("agent routes", () => {
         { name: "b" as CasaName, state: "stopped", workspacePath: "/ws2" },
       ];
       const app = Fastify();
-      registerCasaRoutes(app, makePm(list));
+      registerCasaRoutes(app, makePm(list), mechaDir);
       await app.ready();
 
       const res = await app.inject({ method: "GET", url: "/casas" });
@@ -180,6 +192,262 @@ describe("agent routes", () => {
       // token and workspacePath should NOT be exposed
       expect(body[0].token).toBeUndefined();
       await app.close();
+    });
+
+    describe("POST /casas/:name/start", () => {
+      it("starts a stopped CASA from config", async () => {
+        writeCasaConfig(mechaDir, "alice", {
+          port: 7700, token: "tok", workspace: "/ws",
+        });
+        const pm = makePm([
+          { name: "alice" as CasaName, state: "stopped", workspacePath: "/ws" },
+        ]);
+        vi.mocked(pm.spawn).mockResolvedValue({
+          name: "alice" as CasaName, state: "running", port: 7700, workspacePath: "/ws",
+        });
+        const app = Fastify();
+        registerCasaRoutes(app, pm, mechaDir);
+        await app.ready();
+
+        const res = await app.inject({ method: "POST", url: "/casas/alice/start" });
+        expect(res.statusCode).toBe(200);
+        expect(res.json()).toEqual({ ok: true, name: "alice", port: 7700 });
+        expect(pm.spawn).toHaveBeenCalled();
+        await app.close();
+      });
+
+      it("returns 409 when CASA is already running", async () => {
+        writeCasaConfig(mechaDir, "alice", {
+          port: 7700, token: "tok", workspace: "/ws",
+        });
+        const pm = makePm([
+          { name: "alice" as CasaName, state: "running", port: 7700, workspacePath: "/ws" },
+        ]);
+        const app = Fastify();
+        registerCasaRoutes(app, pm, mechaDir);
+        await app.ready();
+
+        const res = await app.inject({ method: "POST", url: "/casas/alice/start" });
+        expect(res.statusCode).toBe(409);
+        expect(res.json().code).toBe("CASA_ALREADY_RUNNING");
+        await app.close();
+      });
+
+      it("returns 404 when no config exists", async () => {
+        const app = Fastify();
+        registerCasaRoutes(app, makePm(), mechaDir);
+        await app.ready();
+
+        const res = await app.inject({ method: "POST", url: "/casas/ghost/start" });
+        expect(res.statusCode).toBe(404);
+        await app.close();
+      });
+
+      it("returns 400 for invalid name", async () => {
+        const app = Fastify();
+        registerCasaRoutes(app, makePm(), mechaDir);
+        await app.ready();
+
+        const res = await app.inject({ method: "POST", url: "/casas/INVALID/start" });
+        expect(res.statusCode).toBe(400);
+        await app.close();
+      });
+    });
+
+    describe("POST /casas/:name/restart", () => {
+      it("restarts a running CASA that is not busy", async () => {
+        writeCasaConfig(mechaDir, "alice", {
+          port: 7700, token: "tok", workspace: "/ws",
+        });
+        const pm = makePm([
+          { name: "alice" as CasaName, state: "running", port: 7700, workspacePath: "/ws" },
+        ]);
+        vi.mocked(pm.spawn).mockResolvedValue({
+          name: "alice" as CasaName, state: "running", port: 7700, workspacePath: "/ws",
+        });
+        const app = Fastify();
+        registerCasaRoutes(app, pm, mechaDir);
+        await app.ready();
+
+        const res = await app.inject({ method: "POST", url: "/casas/alice/restart" });
+        expect(res.statusCode).toBe(200);
+        expect(res.json()).toEqual({ ok: true, name: "alice", port: 7700 });
+        expect(pm.stop).toHaveBeenCalledWith("alice");
+        expect(pm.spawn).toHaveBeenCalled();
+        await app.close();
+      });
+
+      it("returns 409 when CASA is busy and force not set", async () => {
+        writeCasaConfig(mechaDir, "alice", {
+          port: 7700, token: "tok", workspace: "/ws",
+        });
+        const pm = makePm([
+          { name: "alice" as CasaName, state: "running", port: 7700, workspacePath: "/ws" },
+        ]);
+        mockCheckBusy.mockResolvedValue({
+          busy: true, activeSessions: 2, lastActivity: "2026-03-02T12:00:00Z",
+        });
+        const app = Fastify();
+        registerCasaRoutes(app, pm, mechaDir);
+        await app.ready();
+
+        const res = await app.inject({ method: "POST", url: "/casas/alice/restart" });
+        expect(res.statusCode).toBe(409);
+        const body = res.json();
+        expect(body.code).toBe("CASA_BUSY");
+        expect(body.activeSessions).toBe(2);
+        expect(body.lastActivity).toBe("2026-03-02T12:00:00Z");
+        await app.close();
+      });
+
+      it("restarts busy CASA when force=true", async () => {
+        writeCasaConfig(mechaDir, "alice", {
+          port: 7700, token: "tok", workspace: "/ws",
+        });
+        const pm = makePm([
+          { name: "alice" as CasaName, state: "running", port: 7700, workspacePath: "/ws" },
+        ]);
+        mockCheckBusy.mockResolvedValue({
+          busy: true, activeSessions: 2, lastActivity: "2026-03-02T12:00:00Z",
+        });
+        vi.mocked(pm.spawn).mockResolvedValue({
+          name: "alice" as CasaName, state: "running", port: 7700, workspacePath: "/ws",
+        });
+        const app = Fastify();
+        registerCasaRoutes(app, pm, mechaDir);
+        await app.ready();
+
+        const res = await app.inject({
+          method: "POST",
+          url: "/casas/alice/restart",
+          payload: { force: true },
+        });
+        expect(res.statusCode).toBe(200);
+        expect(pm.kill).toHaveBeenCalledWith("alice");
+        await app.close();
+      });
+
+      it("starts a stopped CASA via restart", async () => {
+        writeCasaConfig(mechaDir, "alice", {
+          port: 7700, token: "tok", workspace: "/ws",
+        });
+        const pm = makePm([
+          { name: "alice" as CasaName, state: "stopped", workspacePath: "/ws" },
+        ]);
+        vi.mocked(pm.spawn).mockResolvedValue({
+          name: "alice" as CasaName, state: "running", port: 7700, workspacePath: "/ws",
+        });
+        const app = Fastify();
+        registerCasaRoutes(app, pm, mechaDir);
+        await app.ready();
+
+        const res = await app.inject({ method: "POST", url: "/casas/alice/restart" });
+        expect(res.statusCode).toBe(200);
+        expect(pm.stop).not.toHaveBeenCalled();
+        expect(pm.spawn).toHaveBeenCalled();
+        await app.close();
+      });
+
+      it("returns 404 when no config exists", async () => {
+        const app = Fastify();
+        registerCasaRoutes(app, makePm(), mechaDir);
+        await app.ready();
+
+        const res = await app.inject({ method: "POST", url: "/casas/ghost/restart" });
+        expect(res.statusCode).toBe(404);
+        await app.close();
+      });
+    });
+
+    describe("POST /casas/:name/stop (task check)", () => {
+      it("stops a non-busy CASA", async () => {
+        const pm = makePm([
+          { name: "alice" as CasaName, state: "running", port: 7700, workspacePath: "/ws" },
+        ]);
+        const app = Fastify();
+        registerCasaRoutes(app, pm, mechaDir);
+        await app.ready();
+
+        const res = await app.inject({ method: "POST", url: "/casas/alice/stop" });
+        expect(res.statusCode).toBe(200);
+        expect(pm.stop).toHaveBeenCalledWith("alice");
+        await app.close();
+      });
+
+      it("returns 409 when busy and force not set", async () => {
+        const pm = makePm([
+          { name: "alice" as CasaName, state: "running", port: 7700, workspacePath: "/ws" },
+        ]);
+        mockCheckBusy.mockResolvedValue({
+          busy: true, activeSessions: 1, lastActivity: "2026-03-02T12:00:00Z",
+        });
+        const app = Fastify();
+        registerCasaRoutes(app, pm, mechaDir);
+        await app.ready();
+
+        const res = await app.inject({ method: "POST", url: "/casas/alice/stop" });
+        expect(res.statusCode).toBe(409);
+        expect(res.json().code).toBe("CASA_BUSY");
+        expect(pm.stop).not.toHaveBeenCalled();
+        await app.close();
+      });
+
+      it("stops busy CASA when force=true", async () => {
+        const pm = makePm([
+          { name: "alice" as CasaName, state: "running", port: 7700, workspacePath: "/ws" },
+        ]);
+        mockCheckBusy.mockResolvedValue({
+          busy: true, activeSessions: 1,
+        });
+        const app = Fastify();
+        registerCasaRoutes(app, pm, mechaDir);
+        await app.ready();
+
+        const res = await app.inject({
+          method: "POST",
+          url: "/casas/alice/stop",
+          payload: { force: true },
+        });
+        expect(res.statusCode).toBe(200);
+        expect(pm.stop).toHaveBeenCalledWith("alice");
+        await app.close();
+      });
+
+      it("returns 409 when CASA is not running", async () => {
+        const pm = makePm([
+          { name: "alice" as CasaName, state: "stopped", workspacePath: "/ws" },
+        ]);
+        const app = Fastify();
+        registerCasaRoutes(app, pm, mechaDir);
+        await app.ready();
+
+        const res = await app.inject({ method: "POST", url: "/casas/alice/stop" });
+        expect(res.statusCode).toBe(409);
+        expect(res.json().code).toBe("CASA_NOT_RUNNING");
+        await app.close();
+      });
+
+      it("treats non-boolean force as false", async () => {
+        const pm = makePm([
+          { name: "alice" as CasaName, state: "running", port: 7700, workspacePath: "/ws" },
+        ]);
+        mockCheckBusy.mockResolvedValue({
+          busy: true, activeSessions: 1, lastActivity: "2026-03-02T12:00:00Z",
+        });
+        const app = Fastify();
+        registerCasaRoutes(app, pm, mechaDir);
+        await app.ready();
+
+        const res = await app.inject({
+          method: "POST",
+          url: "/casas/alice/stop",
+          payload: { force: "yes" },
+        });
+        expect(res.statusCode).toBe(409);
+        expect(res.json().code).toBe("CASA_BUSY");
+        expect(pm.stop).not.toHaveBeenCalled();
+        await app.close();
+      });
     });
   });
 
