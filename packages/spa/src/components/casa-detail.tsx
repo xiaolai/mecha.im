@@ -42,7 +42,7 @@ export function CasaDetail({ name, node }: CasaDetailProps) {
     prevStartedAt.current = casa.startedAt;
   }, [casa?.state, casa?.startedAt]);
 
-  if (loading) {
+  if (loading && !casa) {
     return (
       <div className="flex flex-col gap-4">
         <Skeleton className="h-8 w-48" />
