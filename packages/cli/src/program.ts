@@ -20,6 +20,8 @@ import { registerPluginCommand } from "./commands/plugin.js";
 import { registerMcpCommand } from "./commands/mcp.js";
 import { registerAuditCommand } from "./commands/audit.js";
 import { registerDashboardCommand } from "./commands/dashboard.js";
+import { registerTotpCommand } from "./commands/totp.js";
+import { registerAuthConfigCommand } from "./commands/auth-config.js";
 
 /**
  * Commands that mutate state and need the CLI singleton lock.
@@ -53,6 +55,10 @@ export const MUTATING_COMMANDS = new Set([
   "audit clear",
   // dashboard subcommands
   "dashboard serve",
+  // totp subcommands (verify, status are read-only)
+  "totp setup",
+  // auth-config
+  "auth-config",
 ]);
 
 /**
@@ -113,6 +119,8 @@ export function createProgram(deps: CommandDeps): Command {
   registerPluginCommand(program, deps);
   registerMcpCommand(program, deps);
   registerAuditCommand(program, deps);
+  registerTotpCommand(program, deps);
+  registerAuthConfigCommand(program, deps);
 
   return program;
 }

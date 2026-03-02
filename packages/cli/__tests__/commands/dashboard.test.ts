@@ -1,6 +1,11 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { createProgram } from "../../src/program.js";
 import { makeDeps } from "../test-utils.js";
+
+let dir: string;
 
 const mockServer = {
   listen: vi.fn().mockResolvedValue(undefined),
@@ -29,7 +34,15 @@ vi.mock("../../src/spa-resolve.js", () => ({
   resolveSpaDir: vi.fn().mockReturnValue("/fake/spa/dist"),
 }));
 
+vi.mock("../../src/totp-display.js", () => ({
+  displayTotpSetup: vi.fn().mockResolvedValue(undefined),
+}));
+
 describe("dashboard commands", () => {
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "dash-test-"));
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
     mockCreateAgentServer.mockClear();
@@ -37,12 +50,12 @@ describe("dashboard commands", () => {
     mockServer.listen.mockClear();
     process.exitCode = undefined as unknown as number;
     delete process.env.MECHA_AGENT_API_KEY;
+    rmSync(dir, { recursive: true, force: true });
   });
 
   describe("dashboard serve", () => {
     it("starts the dashboard with default port", async () => {
-      process.env.MECHA_AGENT_API_KEY = "test-key";
-      const deps = makeDeps();
+      const deps = makeDeps({ mechaDir: dir });
       const program = createProgram(deps);
       program.exitOverride();
 
@@ -58,8 +71,7 @@ describe("dashboard commands", () => {
     });
 
     it("accepts custom port", async () => {
-      process.env.MECHA_AGENT_API_KEY = "test-key";
-      const deps = makeDeps();
+      const deps = makeDeps({ mechaDir: dir });
       const program = createProgram(deps);
       program.exitOverride();
 
@@ -73,8 +85,7 @@ describe("dashboard commands", () => {
     });
 
     it("accepts custom host", async () => {
-      process.env.MECHA_AGENT_API_KEY = "test-key";
-      const deps = makeDeps();
+      const deps = makeDeps({ mechaDir: dir });
       const program = createProgram(deps);
       program.exitOverride();
 
@@ -85,8 +96,7 @@ describe("dashboard commands", () => {
     });
 
     it("passes processManager, mechaDir, and acl to createAgentServer", async () => {
-      process.env.MECHA_AGENT_API_KEY = "test-key";
-      const deps = makeDeps({ mechaDir: "/custom/dir" });
+      const deps = makeDeps({ mechaDir: dir });
       const program = createProgram(deps);
       program.exitOverride();
 
@@ -94,15 +104,14 @@ describe("dashboard commands", () => {
       expect(mockCreateAgentServer).toHaveBeenCalledWith(
         expect.objectContaining({
           processManager: deps.processManager,
-          mechaDir: "/custom/dir",
+          mechaDir: dir,
           acl: deps.acl,
         }),
       );
     });
 
     it("reports invalid port", async () => {
-      process.env.MECHA_AGENT_API_KEY = "test-key";
-      const deps = makeDeps();
+      const deps = makeDeps({ mechaDir: dir });
       const program = createProgram(deps);
       program.exitOverride();
 
@@ -115,8 +124,7 @@ describe("dashboard commands", () => {
     });
 
     it("reports invalid port for out-of-range values", async () => {
-      process.env.MECHA_AGENT_API_KEY = "test-key";
-      const deps = makeDeps();
+      const deps = makeDeps({ mechaDir: dir });
       const program = createProgram(deps);
       program.exitOverride();
 
@@ -127,24 +135,23 @@ describe("dashboard commands", () => {
       expect(process.exitCode).toBe(1);
     });
 
-    it("errors without API key", async () => {
-      const deps = makeDeps();
+    it("errors when --no-totp without --api-key", async () => {
+      const deps = makeDeps({ mechaDir: dir });
       const program = createProgram(deps);
       program.exitOverride();
 
-      await program.parseAsync(["node", "mecha", "dashboard", "serve"]);
+      await program.parseAsync(["node", "mecha", "dashboard", "serve", "--no-totp"]);
       expect(deps.formatter.error).toHaveBeenCalledWith(
-        expect.stringContaining("API key required"),
+        expect.stringContaining("At least one auth method"),
       );
       expect(process.exitCode).toBe(1);
     });
 
     it("errors when SPA not found", async () => {
-      process.env.MECHA_AGENT_API_KEY = "test-key";
       const { resolveSpaDir } = await import("../../src/spa-resolve.js");
       vi.mocked(resolveSpaDir).mockReturnValueOnce(undefined);
 
-      const deps = makeDeps();
+      const deps = makeDeps({ mechaDir: dir });
       const program = createProgram(deps);
       program.exitOverride();
 

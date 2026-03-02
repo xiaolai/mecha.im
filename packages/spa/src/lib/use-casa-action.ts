@@ -29,6 +29,7 @@ export function useCasaAction(name: string, onDone?: () => void, node?: string):
       const res = await fetch(`/casas/${encodeURIComponent(name)}/${action}${nodeQuery}`, {
         method: "POST",
         headers: authHeaders,
+        credentials: "include",
       });
       if (res.status === 401) { logout(); return; }
       if (!res.ok) {
