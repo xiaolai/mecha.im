@@ -1,5 +1,7 @@
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeftIcon, PlayIcon, RefreshCwIcon, SquareIcon, OctagonXIcon, TerminalSquareIcon } from "lucide-react";
+import { AuthSwitcher } from "@/components/auth-switcher";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -27,6 +29,18 @@ export function CasaDetail({ name, node }: CasaDetailProps) {
   );
 
   const { acting, actionError, busyWarning, handleAction, confirmForce, dismissBusy } = useCasaAction(name, refetch, node);
+  const [restartPending, setRestartPending] = useState(false);
+  const prevState = useRef(casa?.state);
+  const prevStartedAt = useRef(casa?.startedAt);
+  useEffect(() => {
+    if (!casa) return;
+    const stateChanged = prevState.current !== casa.state;
+    const restarted = prevStartedAt.current !== casa.startedAt && casa.state === "running";
+    if (stateChanged && prevState.current === "running" && casa.state !== "running") setRestartPending(false);
+    if (restarted) setRestartPending(false);
+    prevState.current = casa.state;
+    prevStartedAt.current = casa.startedAt;
+  }, [casa?.state, casa?.startedAt]);
 
   if (loading) {
     return (
@@ -50,7 +64,7 @@ export function CasaDetail({ name, node }: CasaDetailProps) {
     );
   }
 
-  const style = stateStyles[casa.state];
+  const style = stateStyles[casa.state] ?? stateStyles.error;
 
   return (
     <div className="flex flex-col gap-4">
@@ -124,6 +138,21 @@ export function CasaDetail({ name, node }: CasaDetailProps) {
         />
       )}
 
+      {/* Restart pending after auth change */}
+      {restartPending && casa.state === "running" && (
+        <div className="rounded-lg border border-warning/50 bg-warning/10 p-3">
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-foreground font-medium">Auth profile changed. Restart to apply.</span>
+            <Button variant="outline" size="xs" onClick={() => handleAction("restart")}>
+              Restart Now
+            </Button>
+            <Button variant="ghost" size="xs" onClick={() => setRestartPending(false)}>
+              Later
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Overview cards */}
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-lg border border-border bg-card p-4">
@@ -152,15 +181,15 @@ export function CasaDetail({ name, node }: CasaDetailProps) {
             {casa.model ? shortModelName(casa.model) : "—"}
           </div>
         </div>
-        <div className="rounded-lg border border-border bg-card p-4">
-          <div className="text-xs font-medium text-muted-foreground mb-1">AUTH</div>
-          <div className="text-sm text-card-foreground">
-            {casa.auth ?? "—"}
-            {casa.authType && (
-              <Badge variant="outline" className="ml-2 text-xs">{casa.authType}</Badge>
-            )}
-          </div>
-        </div>
+        <AuthSwitcher
+          casaName={name}
+          currentAuth={casa.auth}
+          currentAuthType={casa.authType}
+          casaState={casa.state}
+          node={node}
+          onSwitched={refetch}
+          onRestartNeeded={() => setRestartPending(true)}
+        />
         <div className="rounded-lg border border-border bg-card p-4">
           <div className="text-xs font-medium text-muted-foreground mb-1">COST TODAY</div>
           <div className="text-sm font-semibold text-card-foreground">
@@ -188,13 +217,20 @@ export function CasaDetail({ name, node }: CasaDetailProps) {
           <SessionList name={name} node={node} />
         </TabsContent>
         <TabsContent value="config">
-          <div className="rounded-lg border border-border bg-card p-4">
-            <pre className="text-xs font-mono text-card-foreground whitespace-pre-wrap">
-              {JSON.stringify(casa, null, 2)}
-            </pre>
-          </div>
+          <CasaConfigView casa={casa} />
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function CasaConfigView({ casa }: { casa: CasaInfo }) {
+  const json = useMemo(() => JSON.stringify(casa, null, 2), [casa]);
+  return (
+    <div className="rounded-lg border border-border bg-card p-4">
+      <pre className="text-xs font-mono text-card-foreground whitespace-pre-wrap">
+        {json}
+      </pre>
     </div>
   );
 }
