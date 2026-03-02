@@ -40,9 +40,16 @@ export function createAuthHook(opts: AuthOpts) {
     // Public paths — always skip auth
     if (PUBLIC_PATHS.includes(pathname)) return;
 
-    // When SPA is served, skip auth for static asset requests (non-API paths)
-    if (opts.spaDir && !API_PREFIXES.some((p) => pathname.startsWith(p))) {
-      return;
+    // When SPA is served, skip auth for static assets and browser page navigations.
+    // Browser refreshes on SPA routes like /mesh or /casas send GET with Accept: text/html —
+    // these must reach the SPA fallback handler, not be blocked by API auth.
+    if (opts.spaDir) {
+      const isApiPath = API_PREFIXES.some((p) => pathname.startsWith(p));
+      if (!isApiPath) return;
+      if (isApiPath && request.method === "GET") {
+        const accept = request.headers.accept ?? "";
+        if (accept.includes("text/html")) return;
+      }
     }
 
     // WS paths: accept ticket-based auth (browser WS can't set headers)
