@@ -1,13 +1,20 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { KeyRoundIcon, ShieldCheckIcon, LoaderIcon } from "lucide-react";
 import { useAuth } from "@/auth-context";
 
 type Tab = "totp" | "apikey";
 
 export function LoginPage() {
-  const { setApiKey, setTotpAuthenticated, availableMethods } = useAuth();
-  const [tab, setTab] = useState<Tab>(availableMethods.totp ? "totp" : "apikey");
+  const { setApiKey, setTotpAuthenticated, availableMethods, loading: authLoading } = useAuth();
+  const [tab, setTab] = useState<Tab | null>(null);
   const [code, setCode] = useState("");
+
+  // Sync tab to server-reported methods once fetched
+  useEffect(() => {
+    if (tab !== null) return;
+    if (availableMethods.totp) setTab("totp");
+    else if (availableMethods.apiKey) setTab("apikey");
+  }, [availableMethods, tab]);
   const [key, setKey] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -76,6 +83,14 @@ export function LoginPage() {
   }, [key, setApiKey]);
 
   const bothAvailable = availableMethods.totp && availableMethods.apiKey;
+
+  if (authLoading || tab === null) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center p-4">
+        <LoaderIcon className="size-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-dvh items-center justify-center p-4">
