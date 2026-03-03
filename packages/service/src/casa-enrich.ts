@@ -52,8 +52,17 @@ export function enrichCasaInfo(
   const config = ctx.configs.get(info.name);
 
   let authType: "oauth" | "api-key" | undefined;
-  if (config?.auth && Object.hasOwn(ctx.authStore.profiles, config.auth)) {
-    authType = ctx.authStore.profiles[config.auth]?.type;
+  if (config?.auth) {
+    // $env: sentinel profiles have known types based on their name
+    const envTypeMap: Record<string, "oauth" | "api-key"> = {
+      "$env:api-key": "api-key",
+      "$env:oauth": "oauth",
+    };
+    if (config.auth in envTypeMap) {
+      authType = envTypeMap[config.auth];
+    } else if (Object.hasOwn(ctx.authStore.profiles, config.auth)) {
+      authType = ctx.authStore.profiles[config.auth]?.type;
+    }
   }
 
   const casaCost = ctx.snapshot?.byCasa[info.name];
