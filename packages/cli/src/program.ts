@@ -43,7 +43,9 @@ export const MUTATING_COMMANDS = new Set([
   "schedule add", "schedule remove", "schedule pause", "schedule resume", "schedule run",
   // acl subcommands
   "acl grant", "acl revoke",
-  // node subcommands — node add/rm write to nodes.json only, safe while server runs
+  // node subcommands — node add/rm write to nodes.json only, safe while server runs.
+  // Not locked: concurrent node add/rm has a theoretical read-modify-write race,
+  // but these are manual CLI ops that a single user runs sequentially.
   // auth subcommands (auth ls, auth test are read-only)
   "auth add", "auth rm", "auth default", "auth tag", "auth switch", "auth renew",
   // budget subcommands
