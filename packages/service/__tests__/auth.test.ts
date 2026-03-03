@@ -22,14 +22,26 @@ import type { ProcessManager, ProcessInfo } from "@mecha/process";
 
 describe("auth service", () => {
   let tempDir: string;
+  let savedApiKey: string | undefined;
+  let savedOauth: string | undefined;
 
   afterEach(() => {
     if (tempDir) rmSync(tempDir, { recursive: true, force: true });
+    // Restore env vars cleared during setup
+    if (savedApiKey !== undefined) process.env.ANTHROPIC_API_KEY = savedApiKey;
+    else delete process.env.ANTHROPIC_API_KEY;
+    if (savedOauth !== undefined) process.env.CLAUDE_CODE_OAUTH_TOKEN = savedOauth;
+    else delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
   });
 
   function setup(): string {
     tempDir = mkdtempSync(join(tmpdir(), "mecha-auth-test-"));
     mkdirSync(join(tempDir, "auth"), { recursive: true });
+    // Clear env vars so synthetic env profiles don't interfere with counts
+    savedApiKey = process.env.ANTHROPIC_API_KEY;
+    savedOauth = process.env.CLAUDE_CODE_OAUTH_TOKEN;
+    delete process.env.ANTHROPIC_API_KEY;
+    delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
     return tempDir;
   }
 
@@ -296,12 +308,20 @@ describe("auth service", () => {
   describe("readStore resilience", () => {
     it("handles missing auth dir gracefully", () => {
       tempDir = mkdtempSync(join(tmpdir(), "mecha-auth-test-"));
+      savedApiKey = process.env.ANTHROPIC_API_KEY;
+      savedOauth = process.env.CLAUDE_CODE_OAUTH_TOKEN;
+      delete process.env.ANTHROPIC_API_KEY;
+      delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
       // No auth dir at all
       expect(mechaAuthLs(tempDir)).toEqual([]);
     });
 
     it("handles malformed profiles.json", () => {
       tempDir = mkdtempSync(join(tmpdir(), "mecha-auth-test-"));
+      savedApiKey = process.env.ANTHROPIC_API_KEY;
+      savedOauth = process.env.CLAUDE_CODE_OAUTH_TOKEN;
+      delete process.env.ANTHROPIC_API_KEY;
+      delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
       mkdirSync(join(tempDir, "auth"), { recursive: true });
       writeFileSync(join(tempDir, "auth", "profiles.json"), "not-json{{{");
       expect(mechaAuthLs(tempDir)).toEqual([]);

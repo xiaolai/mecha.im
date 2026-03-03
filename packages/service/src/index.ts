@@ -3,7 +3,7 @@
 export { resolveCasaEndpoint, runtimeFetch, assertOk } from "./helpers.js";
 export type { RuntimeFetchOpts, RuntimeFetchResult } from "./helpers.js";
 export { casaStatus, casaFind, casaConfigure } from "./casa.js";
-export type { FindResult } from "./casa.js";
+export type { FindResult, CasaConfigUpdates } from "./casa.js";
 export { casaChat } from "./chat.js";
 export type { ChatOpts, ChatEvent } from "./chat.js";
 export {
@@ -44,6 +44,9 @@ export { createLocator } from "./locator.js";
 export type { MechaLocator, LocateResult, CreateLocatorOpts } from "./locator.js";
 export { checkCasaBusy } from "./task-check.js";
 export type { TaskCheckResult } from "./task-check.js";
+export { enrichCasaInfo, buildEnrichContext } from "./casa-enrich.js";
+export type { EnrichedCasaInfo, EnrichContext } from "./casa-enrich.js";
+export { getCachedSnapshot, invalidateSnapshotCache } from "./snapshot-cache.js";
 export {
   casaScheduleAdd,
   casaScheduleRemove,

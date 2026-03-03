@@ -148,7 +148,7 @@ function NodeCard({ node, isLocal }: { node: NodeHealth; isLocal: boolean }) {
 export function MeshView() {
   const { data: nodes, loading, error } = useFetch<NodeHealth[]>("/mesh/nodes", { interval: 30_000 });
 
-  if (loading) {
+  if (loading && !nodes) {
     return (
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: 2 }, (_, i) => (

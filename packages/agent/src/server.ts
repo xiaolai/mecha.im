@@ -97,6 +97,12 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
     : undefined;
 
   /* v8 ignore start -- auth wiring tested via auth.test.ts + server.test.ts */
+  // Pre-read SPA index.html for browser navigation handling in auth hook
+  let spaIndexHtml: string | undefined;
+  if (opts.spaDir) {
+    try { spaIndexHtml = readFileSync(join(opts.spaDir, "index.html"), "utf-8"); } catch { /* no SPA */ }
+  }
+
   const authOpts = {
     apiKey: opts.auth.apiKey,
     sessionKey,
@@ -107,6 +113,7 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
     },
     verifySignature: initialKeys.size > 0 ? verifySignature : undefined,
     spaDir: opts.spaDir,
+    spaIndexHtml,
   };
 
   app.addHook("onRequest", createAuthHook(authOpts));
@@ -206,10 +213,14 @@ function registerSpaRoutes(app: FastifyInstance, spaDir: string): void {
   });
 
   app.setNotFoundHandler(async (request, reply) => {
-    // SPA fallback: non-API GET requests → index.html for client-side routing
+    // SPA fallback: GET requests → index.html for client-side routing.
+    // Browser navigations (Accept: text/html) to SPA routes like /mesh or /casas
+    // must serve the SPA even though the path overlaps with API prefixes.
     if (request.method === "GET") {
+      const accept = request.headers.accept ?? "";
       const p = request.url.split("?")[0]!;
-      if (!isApiOrAuthPath(p)) {
+      const isBrowserNav = accept.includes("text/html");
+      if (isBrowserNav || !isApiOrAuthPath(p)) {
         return reply.type("text/html").send(indexHtml);
       }
     }

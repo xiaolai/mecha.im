@@ -56,14 +56,14 @@ describe("agent createPtyManager", () => {
   it("spawns PTY with correct args", () => {
     const pm = createPtyManager({ processManager: createMockPm(), mechaDir: "/m", spawnFn });
     const session = pm.spawn("coder", "sess-1", 80, 24);
-    expect(spawnFn).toHaveBeenCalledWith("claude", ["--resume", "sess-1"], expect.objectContaining({ cwd: "/workspace" }));
+    expect(spawnFn).toHaveBeenCalledWith(expect.stringContaining("claude"), ["--resume", "sess-1"], expect.objectContaining({ cwd: "/workspace" }));
     expect(session.id).toBe("coder:sess-1");
   });
 
   it("spawns new session without sessionId", () => {
     const pm = createPtyManager({ processManager: createMockPm(), mechaDir: "/m", spawnFn });
     const session = pm.spawn("coder", undefined, 80, 24);
-    expect(spawnFn).toHaveBeenCalledWith("claude", [], expect.any(Object));
+    expect(spawnFn).toHaveBeenCalledWith(expect.stringContaining("claude"), [], expect.any(Object));
     expect(session.id).toMatch(/^coder:new-/);
   });
 

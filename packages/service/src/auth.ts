@@ -146,9 +146,31 @@ export function mechaAuthAddFull(mechaDir: string, opts: AuthAddOpts): AuthProfi
 
 export function mechaAuthLs(mechaDir: string): AuthProfile[] {
   const store = readAuthProfiles(mechaDir);
-  return Object.entries(store.profiles).map(([name, meta]) =>
+  const result = Object.entries(store.profiles).map(([name, meta]) =>
     toPublicProfile(name, meta, store.default),
   );
+
+  // Append synthetic profiles for env vars
+  const envEntries = [
+    { name: "$env:api-key", type: "api-key" as const, envVar: "ANTHROPIC_API_KEY", label: "ANTHROPIC_API_KEY (env)" },
+    { name: "$env:oauth", type: "oauth" as const, envVar: "CLAUDE_CODE_OAUTH_TOKEN", label: "CLAUDE_CODE_OAUTH_TOKEN (env)" },
+  ];
+  for (const e of envEntries) {
+    if (process.env[e.envVar]) {
+      result.push({
+        name: e.name,
+        type: e.type,
+        account: null,
+        label: e.label,
+        isDefault: false,
+        tags: ["env"],
+        expiresAt: null,
+        createdAt: "",
+      });
+    }
+  }
+
+  return result;
 }
 
 export function mechaAuthDefault(mechaDir: string, name: string): void {
@@ -250,7 +272,32 @@ export function mechaAuthSwitchCasa(
   casaName: CasaName,
   profileName: string,
 ): AuthProfile {
-  // Validate profile exists
+  // Env sentinel profiles — skip store lookup
+  if (profileName.startsWith("$env:")) {
+    const envMap: Record<string, { type: "oauth" | "api-key"; envVar: string; label: string }> = {
+      "$env:api-key": { type: "api-key", envVar: "ANTHROPIC_API_KEY", label: "ANTHROPIC_API_KEY (env)" },
+      "$env:oauth": { type: "oauth", envVar: "CLAUDE_CODE_OAUTH_TOKEN", label: "CLAUDE_CODE_OAUTH_TOKEN (env)" },
+    };
+    const entry = envMap[profileName];
+    if (!entry || !process.env[entry.envVar]) throw new AuthProfileNotFoundError(profileName);
+
+    const info = pm.get(casaName);
+    if (!info) throw new CasaNotFoundError(casaName);
+
+    updateCasaConfig(join(mechaDir, casaName), { auth: profileName });
+    return {
+      name: profileName,
+      type: entry.type,
+      account: null,
+      label: entry.label,
+      isDefault: false,
+      tags: ["env"],
+      expiresAt: null,
+      createdAt: "",
+    };
+  }
+
+  // Validate stored profile exists
   const store = readAuthProfiles(mechaDir);
   const meta = store.profiles[profileName];
   if (!meta) throw new AuthProfileNotFoundError(profileName);
