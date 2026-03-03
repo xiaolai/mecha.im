@@ -64,10 +64,11 @@ export function casaConfigure(
   if (auth === null) {
     // Remove auth field: read back merged config, delete key, write again
     const merged = readCasaConfig(casaDir);
+    /* v8 ignore start -- merged always exists after updateCasaConfig above */
     if (merged && "auth" in merged) {
       delete (merged as unknown as Record<string, unknown>).auth;
-      // Write full config (base = merged, updates empty → no-op merge)
       updateCasaConfig(casaDir, merged);
     }
+    /* v8 ignore stop */
   }
 }

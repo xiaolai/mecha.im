@@ -175,6 +175,54 @@ describe("auth-resolve", () => {
       expect(() => resolveAuth(dir, "personal")).toThrow(AuthTokenInvalidError);
       expect(() => resolveAuth(dir, "personal")).toThrow(/invalid/);
     });
+
+    describe("$env: sentinel profiles", () => {
+      const origApiKey = process.env.ANTHROPIC_API_KEY;
+      const origOauth = process.env.CLAUDE_CODE_OAUTH_TOKEN;
+
+      afterEach(() => {
+        if (origApiKey !== undefined) process.env.ANTHROPIC_API_KEY = origApiKey;
+        else delete process.env.ANTHROPIC_API_KEY;
+        if (origOauth !== undefined) process.env.CLAUDE_CODE_OAUTH_TOKEN = origOauth;
+        else delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
+      });
+
+      it("resolves $env:api-key when ANTHROPIC_API_KEY is set", () => {
+        process.env.ANTHROPIC_API_KEY = "sk-test-key-123";
+        const dir = setup();
+        const result = resolveAuth(dir, "$env:api-key");
+        expect(result).toEqual({
+          profileName: "$env:api-key",
+          type: "api-key",
+          envVar: "ANTHROPIC_API_KEY",
+          token: "sk-test-key-123",
+        });
+      });
+
+      it("resolves $env:oauth when CLAUDE_CODE_OAUTH_TOKEN is set", () => {
+        process.env.CLAUDE_CODE_OAUTH_TOKEN = "oat-test-token";
+        const dir = setup();
+        const result = resolveAuth(dir, "$env:oauth");
+        expect(result).toEqual({
+          profileName: "$env:oauth",
+          type: "oauth",
+          envVar: "CLAUDE_CODE_OAUTH_TOKEN",
+          token: "oat-test-token",
+        });
+      });
+
+      it("throws AuthTokenInvalidError when env var not set", () => {
+        delete process.env.ANTHROPIC_API_KEY;
+        const dir = setup();
+        expect(() => resolveAuth(dir, "$env:api-key")).toThrow(AuthTokenInvalidError);
+        expect(() => resolveAuth(dir, "$env:api-key")).toThrow(/ANTHROPIC_API_KEY not set/);
+      });
+
+      it("throws AuthProfileNotFoundError for unknown $env: sentinel", () => {
+        const dir = setup();
+        expect(() => resolveAuth(dir, "$env:unknown")).toThrow(AuthProfileNotFoundError);
+      });
+    });
   });
 
   describe("listAuthProfiles", () => {

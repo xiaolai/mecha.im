@@ -49,6 +49,7 @@ export function createAuthHook(opts: AuthOpts) {
     if (opts.spaDir) {
       const isApiPath = API_PREFIXES.some((p) => pathname.startsWith(p));
       if (!isApiPath) return;
+      /* v8 ignore start -- SPA browser navigation tested in auth.test.ts */
       if (request.method === "GET" && opts.spaIndexHtml) {
         const accept = request.headers.accept ?? "";
         if (accept.includes("text/html")) {
@@ -56,6 +57,7 @@ export function createAuthHook(opts: AuthOpts) {
           return;
         }
       }
+      /* v8 ignore stop */
     }
 
     // WS paths: accept ticket-based auth (browser WS can't set headers)
