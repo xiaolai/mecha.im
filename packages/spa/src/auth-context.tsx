@@ -40,13 +40,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
   const [loading, setLoading] = useState(true);
 
-  // Fetch available auth methods on mount
+  // Fetch available auth methods on mount, then probe session cookie
   useEffect(() => {
     let cancelled = false;
     fetch("/auth/status")
       .then((res) => res.json())
-      .then((data: AuthStatus) => {
-        if (!cancelled) setAvailableMethods(data.methods);
+      .then(async (data: AuthStatus) => {
+        if (cancelled) return;
+        setAvailableMethods(data.methods);
+        // If TOTP is enabled and no API key stored, probe session cookie
+        if (data.methods.totp && !sessionStorage.getItem(STORAGE_KEY)) {
+          try {
+            const probe = await fetch("/casas", { credentials: "include" });
+            if (!cancelled && probe.ok) setTotpAuth(true);
+          } catch {
+            // Cookie invalid or server unreachable — stay logged out
+          }
+        }
       })
       .catch(() => {
         // Server unreachable — keep defaults

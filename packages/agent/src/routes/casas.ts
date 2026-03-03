@@ -1,8 +1,9 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { type CasaName, isValidName, readCasaConfig, CasaNotRunningError } from "@mecha/core";
+import { type CasaName, isValidName, readCasaConfig, readAuthProfiles, CasaNotRunningError } from "@mecha/core";
 import type { ProcessManager } from "@mecha/process";
-import { checkCasaBusy } from "@mecha/service";
-import { join } from "node:path";
+import { casaConfigure, checkCasaBusy, enrichCasaInfo, buildEnrichContext, getCachedSnapshot, mechaAuthLs } from "@mecha/service";
+import type { CasaConfigUpdates, EnrichedCasaInfo } from "@mecha/service";
+import { join, basename } from "node:path";
 
 function validateName(name: string, reply: FastifyReply): CasaName | null {
   if (!isValidName(name)) {
@@ -30,14 +31,23 @@ function spawnOptsFromConfig(name: CasaName, config: ReturnType<typeof readCasaC
   };
 }
 
+/** List endpoint projection — omit pid/exitCode, shorten workspacePath to basename. */
+function listProjection(info: EnrichedCasaInfo) {
+  const { pid: _pid, exitCode: _exitCode, stoppedAt: _stoppedAt, ...rest } = info;
+  return { ...rest, workspacePath: basename(info.workspacePath) };
+}
+
 export function registerCasaRoutes(app: FastifyInstance, pm: ProcessManager, mechaDir: string): void {
+  const meterDir = join(mechaDir, "meter");
+
   app.get("/casas", async () => {
     const list = pm.list();
-    return list.map((p) => ({
-      name: p.name,
-      state: p.state,
-      port: p.port,
-    }));
+    const snapshot = getCachedSnapshot(meterDir);
+    const ctx = buildEnrichContext(mechaDir, snapshot, list.map((p) => p.name));
+    return list.map((p) => {
+      const enriched = enrichCasaInfo(p, ctx);
+      return listProjection(enriched);
+    });
   });
 
   app.get("/casas/:name/status", async (request: FastifyRequest<{ Params: { name: string } }>, reply: FastifyReply) => {
@@ -48,7 +58,9 @@ export function registerCasaRoutes(app: FastifyInstance, pm: ProcessManager, mec
       reply.code(404).send({ error: `CASA not found: ${casaName}` });
       return;
     }
-    return { name: info.name, state: info.state, port: info.port };
+    const snapshot = getCachedSnapshot(meterDir);
+    const ctx = buildEnrichContext(mechaDir, snapshot, [casaName]);
+    return enrichCasaInfo(info, ctx);
   });
 
   // --- Start a stopped CASA from its persisted config ---
@@ -175,5 +187,94 @@ export function registerCasaRoutes(app: FastifyInstance, pm: ProcessManager, mec
     }
     const result = await pm.spawn({ name: casaName, workspacePath: body.workspacePath });
     return { ok: true, name: casaName, port: result.port };
+  });
+
+  // --- Update CASA config fields, optionally restart ---
+  interface ConfigPatchBody extends CasaConfigUpdates {
+    restart?: boolean;
+    force?: boolean;
+  }
+
+  app.patch("/casas/:name/config", async (
+    request: FastifyRequest<{ Params: { name: string }; Body: ConfigPatchBody }>,
+    reply: FastifyReply,
+  ) => {
+    const casaName = validateName(request.params.name, reply);
+    if (!casaName) return;
+    const info = pm.get(casaName);
+    if (!info) {
+      reply.code(404).send({ error: `CASA not found: ${casaName}` });
+      return;
+    }
+    /* v8 ignore start -- Fastify always parses body for PATCH */
+    const body = (request.body ?? {}) as ConfigPatchBody;
+    /* v8 ignore stop */
+
+    // Validate auth profile exists if specified
+    if (body.auth !== undefined && body.auth !== null) {
+      // $env: sentinel profiles are validated by checking environment variable presence
+      if (body.auth.startsWith("$env:")) {
+        const envMap: Record<string, string> = { "$env:api-key": "ANTHROPIC_API_KEY", "$env:oauth": "CLAUDE_CODE_OAUTH_TOKEN" };
+        const envVar = envMap[body.auth];
+        if (!envVar || !process.env[envVar]) {
+          reply.code(400).send({ error: `Auth profile not found: ${body.auth}` });
+          return;
+        }
+      } else {
+        const store = readAuthProfiles(mechaDir);
+        if (!store.profiles[body.auth]) {
+          reply.code(400).send({ error: `Auth profile not found: ${body.auth}` });
+          return;
+        }
+      }
+    }
+
+    // Extract only allowed config fields — reject unknown fields to prevent
+    // persisting arbitrary data (e.g. token, workspace, port overrides).
+    const { restart, force, auth, model, tags, expose, sandboxMode, permissionMode } = body;
+    const configUpdates: CasaConfigUpdates = {
+      ...(auth !== undefined && { auth }),
+      ...(model !== undefined && { model }),
+      ...(tags !== undefined && { tags }),
+      ...(expose !== undefined && { expose }),
+      ...(sandboxMode !== undefined && { sandboxMode }),
+      ...(permissionMode !== undefined && { permissionMode }),
+    };
+    casaConfigure(mechaDir, pm, casaName, configUpdates);
+
+    let restarted = false;
+    if (restart === true && info.state === "running") {
+      if (force !== true) {
+        const check = await checkCasaBusy(pm, casaName);
+        if (check.busy) {
+          reply.code(409).send({
+            error: `CASA has ${check.activeSessions} active session(s)`,
+            code: "CASA_BUSY",
+            activeSessions: check.activeSessions,
+            lastActivity: check.lastActivity,
+          });
+          return;
+        }
+      }
+      if (force === true) {
+        await pm.kill(casaName);
+      } else {
+        await pm.stop(casaName);
+      }
+      const config = readCasaConfig(join(mechaDir, casaName));
+      /* v8 ignore start -- config always exists after casaConfigure */
+      if (config) {
+        await pm.spawn(spawnOptsFromConfig(casaName, config));
+      }
+      /* v8 ignore stop */
+      restarted = true;
+    }
+
+    return { ok: true, restarted };
+  });
+
+  // --- List auth profiles (for UI dropdowns) ---
+  app.get("/auth/profiles", async () => {
+    return mechaAuthLs(mechaDir);
   });
 }

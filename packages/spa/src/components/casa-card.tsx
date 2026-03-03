@@ -5,6 +5,7 @@ import { TooltipIconButton } from "@/components/ui/tooltip-icon-button";
 import { cn } from "@/lib/utils";
 import { stateStyles } from "@/lib/casa-styles";
 import { useCasaAction } from "@/lib/use-casa-action";
+import { shortModelName, formatCost, relativeTime } from "@/lib/format";
 import { BusyWarningBanner } from "@/components/busy-warning-banner";
 
 export interface CasaInfo {
@@ -14,8 +15,16 @@ export interface CasaInfo {
   port?: number;
   workspacePath?: string;
   startedAt?: string;
+  stoppedAt?: string;
+  exitCode?: number;
   tags?: string[];
   node?: string;
+  model?: string;
+  sandboxMode?: string;
+  permissionMode?: string;
+  auth?: string;
+  authType?: "oauth" | "api-key";
+  costToday?: number;
 }
 
 interface CasaCardProps {
@@ -52,11 +61,24 @@ export function CasaCard({ casa }: CasaCardProps) {
             Port: <span className="font-mono">{casa.port}</span>
           </span>
         )}
-        {casa.workspacePath && (
-          <span className="truncate" title={casa.workspacePath}>
-            {casa.workspacePath}
+        {(casa.model || casa.auth || (casa.costToday != null && casa.costToday > 0)) && (
+          <span className="truncate">
+            {[
+              casa.model && <span key="model" className="font-mono">{shortModelName(casa.model)}</span>,
+              casa.auth && <span key="auth">{casa.auth}{casa.authType ? ` (${casa.authType})` : ""}</span>,
+              casa.costToday != null && casa.costToday > 0 && <span key="cost">{formatCost(casa.costToday)} today</span>,
+            ].filter(Boolean).reduce<React.ReactNode[]>((acc, el, i) => {
+              if (i > 0) acc.push(<span key={`sep-${i}`}> · </span>);
+              acc.push(el);
+              return acc;
+            }, [])}
           </span>
         )}
+        <span className="truncate">
+          {casa.workspacePath && <span title={casa.workspacePath}>{casa.workspacePath}</span>}
+          {casa.workspacePath && casa.startedAt && casa.state === "running" && <span> · </span>}
+          {casa.startedAt && casa.state === "running" && <span>{relativeTime(casa.startedAt)}</span>}
+        </span>
       </div>
 
       {/* Tags */}

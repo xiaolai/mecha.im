@@ -12,12 +12,30 @@ import type { ProcessInfo } from "@mecha/process";
 import { writeCasaConfig, makeAcl } from "../../core/__tests__/test-utils.js";
 import { makePm } from "../../service/__tests__/test-utils.js";
 
-vi.mock("@mecha/service", () => ({
-  checkCasaBusy: vi.fn().mockResolvedValue({ busy: false, activeSessions: 0 }),
-}));
+vi.mock("@mecha/core", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@mecha/core")>();
+  return {
+    ...actual,
+    readAuthProfiles: vi.fn().mockReturnValue({ default: null, profiles: {} }),
+  };
+});
 
-import { checkCasaBusy } from "@mecha/service";
+vi.mock("@mecha/service", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@mecha/service")>();
+  return {
+    ...actual,
+    casaConfigure: vi.fn(),
+    checkCasaBusy: vi.fn().mockResolvedValue({ busy: false, activeSessions: 0 }),
+    getCachedSnapshot: vi.fn().mockReturnValue(null),
+  };
+});
+
+import { readAuthProfiles } from "@mecha/core";
+import { casaConfigure, checkCasaBusy, getCachedSnapshot } from "@mecha/service";
+const mockReadAuthProfiles = vi.mocked(readAuthProfiles);
+const mockCasaConfigure = vi.mocked(casaConfigure);
 const mockCheckBusy = vi.mocked(checkCasaBusy);
+const mockGetSnapshot = vi.mocked(getCachedSnapshot);
 
 describe("agent routes", () => {
   let mechaDir: string;
@@ -25,6 +43,8 @@ describe("agent routes", () => {
     if (mechaDir) rmSync(mechaDir, { recursive: true, force: true });
     vi.restoreAllMocks();
     mockCheckBusy.mockResolvedValue({ busy: false, activeSessions: 0 });
+    mockReadAuthProfiles.mockReturnValue({ default: null, profiles: {} });
+    mockCasaConfigure.mockReset();
   });
 
   describe("health routes", () => {
@@ -176,11 +196,15 @@ describe("agent routes", () => {
       await app.close();
     });
 
-    it("returns CASA list with name, state, port", async () => {
+    it("returns enriched CASA list with projection", async () => {
       const list: ProcessInfo[] = [
-        { name: "a" as CasaName, state: "running", port: 7700, workspacePath: "/ws" },
+        { name: "a" as CasaName, state: "running", port: 7700, workspacePath: "/home/user/project", token: "secret", pid: 1234 },
         { name: "b" as CasaName, state: "stopped", workspacePath: "/ws2" },
       ];
+      writeCasaConfig(mechaDir, "a", {
+        port: 7700, token: "tok", workspace: "/home/user/project",
+        model: "claude-sonnet-4-20250514", tags: ["coder"],
+      });
       const app = Fastify();
       registerCasaRoutes(app, makePm(list), mechaDir);
       await app.ready();
@@ -188,9 +212,37 @@ describe("agent routes", () => {
       const res = await app.inject({ method: "GET", url: "/casas" });
       const body = res.json();
       expect(body).toHaveLength(2);
-      expect(body[0]).toEqual({ name: "a", state: "running", port: 7700 });
-      // token and workspacePath should NOT be exposed
+      expect(body[0].name).toBe("a");
+      expect(body[0].state).toBe("running");
+      expect(body[0].port).toBe(7700);
+      expect(body[0].workspacePath).toBe("project");
+      expect(body[0].model).toBe("claude-sonnet-4-20250514");
+      expect(body[0].tags).toEqual(["coder"]);
       expect(body[0].token).toBeUndefined();
+      expect(body[0].pid).toBeUndefined();
+      await app.close();
+    });
+
+    it("includes costToday when snapshot has data", async () => {
+      const list: ProcessInfo[] = [
+        { name: "a" as CasaName, state: "running", port: 7700, workspacePath: "/ws" },
+      ];
+      const emptySummary = {
+        requests: 0, errors: 0, inputTokens: 0, outputTokens: 0,
+        cacheCreationTokens: 0, cacheReadTokens: 0, costUsd: 0, avgLatencyMs: 0,
+      };
+      mockGetSnapshot.mockReturnValueOnce({
+        ts: "2026-03-02T12:00:00Z", date: "2026-03-02",
+        global: { today: emptySummary, thisMonth: emptySummary },
+        byCasa: { a: { today: { ...emptySummary, costUsd: 2.50 }, thisMonth: emptySummary } },
+        byAuth: {}, byTag: {},
+      });
+      const app = Fastify();
+      registerCasaRoutes(app, makePm(list), mechaDir);
+      await app.ready();
+
+      const res = await app.inject({ method: "GET", url: "/casas" });
+      expect(res.json()[0].costToday).toBe(2.50);
       await app.close();
     });
 
@@ -446,6 +498,177 @@ describe("agent routes", () => {
         expect(res.statusCode).toBe(409);
         expect(res.json().code).toBe("CASA_BUSY");
         expect(pm.stop).not.toHaveBeenCalled();
+        await app.close();
+      });
+    });
+
+    describe("PATCH /casas/:name/config", () => {
+      it("updates config fields without restart", async () => {
+        const pm = makePm([
+          { name: "alice" as CasaName, state: "running", port: 7700, workspacePath: "/ws" },
+        ]);
+        const app = Fastify();
+        registerCasaRoutes(app, pm, mechaDir);
+        await app.ready();
+
+        const res = await app.inject({
+          method: "PATCH",
+          url: "/casas/alice/config",
+          payload: { model: "claude-haiku-4-5-20251001", tags: ["coder"] },
+        });
+        expect(res.statusCode).toBe(200);
+        expect(res.json()).toEqual({ ok: true, restarted: false });
+        expect(mockCasaConfigure).toHaveBeenCalledWith(
+          mechaDir, pm, "alice",
+          { model: "claude-haiku-4-5-20251001", tags: ["coder"] },
+        );
+        await app.close();
+      });
+
+      it("updates and restarts when restart=true", async () => {
+        writeCasaConfig(mechaDir, "alice", {
+          port: 7700, token: "tok", workspace: "/ws",
+        });
+        const pm = makePm([
+          { name: "alice" as CasaName, state: "running", port: 7700, workspacePath: "/ws" },
+        ]);
+        vi.mocked(pm.spawn).mockResolvedValue({
+          name: "alice" as CasaName, state: "running", port: 7700, workspacePath: "/ws",
+        });
+        const app = Fastify();
+        registerCasaRoutes(app, pm, mechaDir);
+        await app.ready();
+
+        const res = await app.inject({
+          method: "PATCH",
+          url: "/casas/alice/config",
+          payload: { model: "claude-haiku-4-5-20251001", restart: true },
+        });
+        expect(res.statusCode).toBe(200);
+        expect(res.json()).toEqual({ ok: true, restarted: true });
+        expect(pm.stop).toHaveBeenCalledWith("alice");
+        expect(pm.spawn).toHaveBeenCalled();
+        await app.close();
+      });
+
+      it("force-restarts with kill when force=true", async () => {
+        writeCasaConfig(mechaDir, "alice", {
+          port: 7700, token: "tok", workspace: "/ws",
+        });
+        const pm = makePm([
+          { name: "alice" as CasaName, state: "running", port: 7700, workspacePath: "/ws" },
+        ]);
+        mockCheckBusy.mockResolvedValue({
+          busy: true, activeSessions: 1, lastActivity: "2026-03-02T12:00:00Z",
+        });
+        vi.mocked(pm.spawn).mockResolvedValue({
+          name: "alice" as CasaName, state: "running", port: 7700, workspacePath: "/ws",
+        });
+        const app = Fastify();
+        registerCasaRoutes(app, pm, mechaDir);
+        await app.ready();
+
+        const res = await app.inject({
+          method: "PATCH",
+          url: "/casas/alice/config",
+          payload: { model: "claude-haiku-4-5-20251001", restart: true, force: true },
+        });
+        expect(res.statusCode).toBe(200);
+        expect(res.json()).toEqual({ ok: true, restarted: true });
+        expect(pm.kill).toHaveBeenCalledWith("alice");
+        await app.close();
+      });
+
+      it("returns 400 for invalid CASA name", async () => {
+        const app = Fastify();
+        registerCasaRoutes(app, makePm(), mechaDir);
+        await app.ready();
+
+        const res = await app.inject({
+          method: "PATCH",
+          url: "/casas/INVALID/config",
+          payload: { model: "claude-haiku-4-5-20251001" },
+        });
+        expect(res.statusCode).toBe(400);
+        await app.close();
+      });
+
+      it("returns 404 when CASA not found", async () => {
+        const app = Fastify();
+        registerCasaRoutes(app, makePm(), mechaDir);
+        await app.ready();
+
+        const res = await app.inject({
+          method: "PATCH",
+          url: "/casas/ghost/config",
+          payload: { model: "claude-haiku-4-5-20251001" },
+        });
+        expect(res.statusCode).toBe(404);
+        await app.close();
+      });
+
+      it("returns 400 for invalid auth profile", async () => {
+        const pm = makePm([
+          { name: "alice" as CasaName, state: "running", port: 7700, workspacePath: "/ws" },
+        ]);
+        mockReadAuthProfiles.mockReturnValue({
+          default: null,
+          profiles: { existing: { type: "oauth", addedAt: "2026-01-01T00:00:00Z" } },
+        });
+        const app = Fastify();
+        registerCasaRoutes(app, pm, mechaDir);
+        await app.ready();
+
+        const res = await app.inject({
+          method: "PATCH",
+          url: "/casas/alice/config",
+          payload: { auth: "nonexistent" },
+        });
+        expect(res.statusCode).toBe(400);
+        expect(res.json().error).toContain("Auth profile not found");
+        await app.close();
+      });
+
+      it("returns 409 when busy CASA + restart without force", async () => {
+        const pm = makePm([
+          { name: "alice" as CasaName, state: "running", port: 7700, workspacePath: "/ws" },
+        ]);
+        mockCheckBusy.mockResolvedValue({
+          busy: true, activeSessions: 2, lastActivity: "2026-03-02T12:00:00Z",
+        });
+        const app = Fastify();
+        registerCasaRoutes(app, pm, mechaDir);
+        await app.ready();
+
+        const res = await app.inject({
+          method: "PATCH",
+          url: "/casas/alice/config",
+          payload: { model: "claude-haiku-4-5-20251001", restart: true },
+        });
+        expect(res.statusCode).toBe(409);
+        expect(res.json().code).toBe("CASA_BUSY");
+        // Config should still have been updated before the busy check
+        expect(mockCasaConfigure).toHaveBeenCalled();
+        await app.close();
+      });
+
+      it("skips restart when CASA is stopped", async () => {
+        const pm = makePm([
+          { name: "alice" as CasaName, state: "stopped", workspacePath: "/ws" },
+        ]);
+        const app = Fastify();
+        registerCasaRoutes(app, pm, mechaDir);
+        await app.ready();
+
+        const res = await app.inject({
+          method: "PATCH",
+          url: "/casas/alice/config",
+          payload: { model: "claude-haiku-4-5-20251001", restart: true },
+        });
+        expect(res.statusCode).toBe(200);
+        expect(res.json()).toEqual({ ok: true, restarted: false });
+        expect(pm.stop).not.toHaveBeenCalled();
+        expect(pm.spawn).not.toHaveBeenCalled();
         await app.close();
       });
     });

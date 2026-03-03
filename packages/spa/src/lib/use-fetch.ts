@@ -25,13 +25,18 @@ export function useFetch<T>(url: string, opts: UseFetchOptions = {}): UseFetchRe
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const hasDataRef = useRef(false);
   const { authHeaders, logout } = useAuth();
+
+  // Stabilize deps as a JSON string to avoid recreating fetchData on every render
+  const depsKey = JSON.stringify(deps);
 
   const fetchData = useCallback(async () => {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
-    setLoading(true);
+    // Only show loading spinner on initial fetch, not on background polls
+    if (!hasDataRef.current) setLoading(true);
     try {
       const res = await fetch(url, { signal: controller.signal, headers: authHeaders, credentials: "include" });
       if (controller.signal.aborted) return;
@@ -48,6 +53,7 @@ export function useFetch<T>(url: string, opts: UseFetchOptions = {}): UseFetchRe
       if (!controller.signal.aborted) {
         setData(result);
         setError(null);
+        hasDataRef.current = true;
       }
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
@@ -56,10 +62,11 @@ export function useFetch<T>(url: string, opts: UseFetchOptions = {}): UseFetchRe
       if (!controller.signal.aborted) setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [url, authHeaders, logout, ...deps]);
+  }, [url, authHeaders, logout, depsKey]);
 
   useEffect(() => {
     let cancelled = false;
+    hasDataRef.current = false;
     fetchData();
 
     let timer: ReturnType<typeof setTimeout> | undefined;
