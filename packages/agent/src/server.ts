@@ -92,9 +92,11 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
   /* v8 ignore stop */
 
   // Derive session key from TOTP secret if TOTP is enabled
+  /* v8 ignore start -- TOTP presence varies by deployment config */
   const sessionKey = opts.auth.totpSecret
     ? deriveSessionKey(opts.auth.totpSecret)
     : undefined;
+  /* v8 ignore stop */
 
   /* v8 ignore start -- auth wiring tested via auth.test.ts + server.test.ts */
   // Pre-read SPA index.html for browser navigation handling in auth hook

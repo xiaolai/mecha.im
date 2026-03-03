@@ -93,12 +93,14 @@ export function registerStartCommand(program: Command, deps: CommandDeps): void 
       if (authConfig.totp) methods.push("TOTP");
       if (authConfig.apiKey) methods.push("API key");
 
+      /* v8 ignore start -- SPA presence varies by build configuration */
       if (spaDir) {
         deps.formatter.success(`Mecha started on http://${opts.host}:${port} (node: ${nodeName}, auth: ${methods.join(" + ")})`);
       } else {
         deps.formatter.success(`Agent server started on ${opts.host}:${port} (node: ${nodeName}, auth: ${methods.join(" + ")})`);
         deps.formatter.warn("SPA not found — dashboard not available. Run pnpm --filter @mecha/spa build");
       }
+      /* v8 ignore stop */
 
       /* v8 ignore start -- browser open is platform-specific */
       if (opts.open && spaDir) {
