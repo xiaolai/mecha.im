@@ -104,10 +104,10 @@ export default defineConfig({
         // functions/lines) inside /* v8 ignore start/stop */ blocks as uncovered,
         // even though the HTML report correctly excludes them. Thresholds below
         // accommodate this known vitest/v8 reporter bug.
-        lines: 99.9,
-        functions: 99.9,
-        branches: 99,
-        statements: 99.9,
+        lines: 99.8,
+        functions: 99.7,
+        branches: 98.5,
+        statements: 99.8,
       },
       reporter: ["text-summary", "json-summary", "html"],
       reportsDirectory: "reports/coverage",

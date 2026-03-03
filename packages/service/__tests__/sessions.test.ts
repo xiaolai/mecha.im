@@ -10,6 +10,7 @@ import type { CasaName } from "@mecha/core";
 import {
   casaSessionList,
   casaSessionGet,
+  casaSessionDelete,
 } from "../src/sessions.js";
 
 const CASA = "test" as CasaName;
@@ -84,6 +85,26 @@ describe("session service (read-only)", () => {
     const result = await casaSessionGet(pm, CASA, "nonexistent");
     expect(result).toBeUndefined();
   });
+
+  it("deletes an existing session", async () => {
+    writeFileSync(
+      join(projectsDir, "to-delete.meta.json"),
+      JSON.stringify({ id: "to-delete", title: "Delete Me", starred: false, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" }),
+    );
+    writeFileSync(join(projectsDir, "to-delete.jsonl"), '{"type":"user","content":"bye"}\n');
+
+    const result = await casaSessionDelete(pm, CASA, "to-delete");
+    expect(result).toBe(true);
+
+    // Verify session is gone
+    const sessions = await casaSessionList(pm, CASA);
+    expect(sessions).toEqual([]);
+  });
+
+  it("returns false for nonexistent session delete", async () => {
+    const result = await casaSessionDelete(pm, CASA, "nonexistent");
+    expect(result).toBe(false);
+  });
 });
 
 describe("session service error paths", () => {
@@ -122,5 +143,9 @@ describe("session service error paths", () => {
 
   it("throws on unexpected get status", async () => {
     await expect(casaSessionGet(pm, CASA, "x")).rejects.toThrow("Failed to get sessions: 500");
+  });
+
+  it("throws on unexpected delete status", async () => {
+    await expect(casaSessionDelete(pm, CASA, "x")).rejects.toThrow("Failed to delete sessions: 500");
   });
 });

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeftIcon, PlayIcon, RefreshCwIcon, SquareIcon, OctagonXIcon, TerminalSquareIcon } from "lucide-react";
 import { AuthSwitcher } from "@/components/auth-switcher";
@@ -29,18 +29,6 @@ export function CasaDetail({ name, node }: CasaDetailProps) {
   );
 
   const { acting, actionError, busyWarning, handleAction, confirmForce, dismissBusy } = useCasaAction(name, refetch, node);
-  const [restartPending, setRestartPending] = useState(false);
-  const prevState = useRef(casa?.state);
-  const prevStartedAt = useRef(casa?.startedAt);
-  useEffect(() => {
-    if (!casa) return;
-    const stateChanged = prevState.current !== casa.state;
-    const restarted = prevStartedAt.current !== casa.startedAt && casa.state === "running";
-    if (stateChanged && prevState.current === "running" && casa.state !== "running") setRestartPending(false);
-    if (restarted) setRestartPending(false);
-    prevState.current = casa.state;
-    prevStartedAt.current = casa.startedAt;
-  }, [casa?.state, casa?.startedAt]);
 
   if (loading && !casa) {
     return (
@@ -86,7 +74,7 @@ export function CasaDetail({ name, node }: CasaDetailProps) {
             <Button
               variant="outline"
               size="sm"
-              className="text-success border-success"
+              className="min-h-11 sm:min-h-0 text-success border-success"
               disabled={acting}
               onClick={() => handleAction("start")}
             >
@@ -95,15 +83,15 @@ export function CasaDetail({ name, node }: CasaDetailProps) {
           )}
           {casa.state === "running" && (
             <>
-              <Button variant="default" size="sm" asChild>
+              <Button variant="default" size="sm" className="min-h-11 sm:min-h-0" asChild>
                 <Link to={`/casa/${encodeURIComponent(name)}/terminal${nodeQuery}`}>
                   <TerminalSquareIcon className="size-4" /> Terminal
                 </Link>
               </Button>
-              <Button variant="outline" size="sm" disabled={acting} onClick={() => handleAction("restart")}>
+              <Button variant="outline" size="sm" className="min-h-11 sm:min-h-0" disabled={acting} onClick={() => handleAction("restart")}>
                 <RefreshCwIcon className="size-4" /> Restart
               </Button>
-              <Button variant="outline" size="sm" disabled={acting} onClick={() => handleAction("stop")}>
+              <Button variant="outline" size="sm" className="min-h-11 sm:min-h-0" disabled={acting} onClick={() => handleAction("stop")}>
                 <SquareIcon className="size-4" /> Stop
               </Button>
               <TooltipIconButton
@@ -136,21 +124,6 @@ export function CasaDetail({ name, node }: CasaDetailProps) {
           onCancel={dismissBusy}
           acting={acting}
         />
-      )}
-
-      {/* Restart pending after auth change */}
-      {restartPending && casa.state === "running" && (
-        <div className="rounded-lg border border-warning/50 bg-warning/10 p-3">
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-foreground font-medium">Auth profile changed. Restart to apply.</span>
-            <Button variant="outline" size="xs" onClick={() => handleAction("restart")}>
-              Restart Now
-            </Button>
-            <Button variant="ghost" size="xs" onClick={() => setRestartPending(false)}>
-              Later
-            </Button>
-          </div>
-        </div>
       )}
 
       {/* Overview cards */}
@@ -188,7 +161,6 @@ export function CasaDetail({ name, node }: CasaDetailProps) {
           casaState={casa.state}
           node={node}
           onSwitched={refetch}
-          onRestartNeeded={() => setRestartPending(true)}
         />
         <div className="rounded-lg border border-border bg-card p-4">
           <div className="text-xs font-medium text-muted-foreground mb-1">COST TODAY</div>
@@ -210,11 +182,11 @@ export function CasaDetail({ name, node }: CasaDetailProps) {
       {/* Tabs */}
       <Tabs defaultValue="sessions">
         <TabsList>
-          <TabsTrigger value="sessions">Sessions</TabsTrigger>
-          <TabsTrigger value="config">Config</TabsTrigger>
+          <TabsTrigger value="sessions" className="min-h-11 sm:min-h-0">Sessions</TabsTrigger>
+          <TabsTrigger value="config" className="min-h-11 sm:min-h-0">Config</TabsTrigger>
         </TabsList>
         <TabsContent value="sessions">
-          <SessionList name={name} node={node} />
+          <SessionList name={name} node={node} casaState={casa.state} />
         </TabsContent>
         <TabsContent value="config">
           <CasaConfigView casa={casa} />
@@ -224,8 +196,20 @@ export function CasaDetail({ name, node }: CasaDetailProps) {
   );
 }
 
+const SAFE_CONFIG_KEYS: (keyof CasaInfo)[] = [
+  "name", "state", "port", "workspacePath", "startedAt", "stoppedAt",
+  "exitCode", "tags", "node", "model", "sandboxMode", "permissionMode",
+  "auth", "authType", "costToday",
+];
+
 function CasaConfigView({ casa }: { casa: CasaInfo }) {
-  const json = useMemo(() => JSON.stringify(casa, null, 2), [casa]);
+  const json = useMemo(() => {
+    const safe: Partial<CasaInfo> = {};
+    for (const key of SAFE_CONFIG_KEYS) {
+      if (key in casa) (safe as Record<string, unknown>)[key] = casa[key];
+    }
+    return JSON.stringify(safe, null, 2);
+  }, [casa]);
   return (
     <div className="rounded-lg border border-border bg-card p-4">
       <pre className="text-xs font-mono text-card-foreground whitespace-pre-wrap">

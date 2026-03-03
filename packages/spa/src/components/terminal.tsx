@@ -33,6 +33,9 @@ const LIGHT_THEME = {
 /** Debounce resize events to prevent excessive fit/resize calls. */
 const RESIZE_DEBOUNCE_MS = 100;
 
+/** Reuse one encoder for all keystroke sends to avoid per-keystroke allocation. */
+const textEncoder = new TextEncoder();
+
 export function Terminal({ casaName, sessionId, node, onSessionCreated, onExit }: TerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -43,6 +46,8 @@ export function Terminal({ casaName, sessionId, node, onSessionCreated, onExit }
   const { resolvedTheme } = useTheme();
   const { authHeaders } = useAuth();
   const [status, setStatus] = useState<"connecting" | "connected" | "disconnected">("connecting");
+  const [exitCode, setExitCode] = useState<number | null>(null);
+  const [reconnectKey, setReconnectKey] = useState(0);
 
   const onSessionCreatedRef = useRef(onSessionCreated);
   onSessionCreatedRef.current = onSessionCreated;
@@ -60,6 +65,8 @@ export function Terminal({ casaName, sessionId, node, onSessionCreated, onExit }
   useEffect(() => {
     if (!containerRef.current) return;
 
+    setStatus("connecting");
+    setExitCode(null);
     let disposed = false;
 
     (async () => {
@@ -115,36 +122,50 @@ export function Terminal({ casaName, sessionId, node, onSessionCreated, onExit }
       wsRef.current = ws;
 
       ws.onopen = () => {
+        if (disposed) return;
         setStatus("connected");
         sendResize();
       };
 
-      ws.onmessage = (event) => {
+      ws.onmessage = (event: MessageEvent) => {
+        if (disposed) return;
         if (event.data instanceof ArrayBuffer) {
+          // Legacy binary frames (should not occur with current server)
           term.write(new Uint8Array(event.data));
         } else {
-          try {
-            const msg = JSON.parse(event.data as string) as { type: string; id?: string; code?: number; message?: string };
-            if (msg.type === "session" && msg.id) {
-              onSessionCreatedRef.current?.(msg.id);
-            } else if (msg.type === "exit" && typeof msg.code === "number") {
-              onExitRef.current?.(msg.code);
-              setStatus("disconnected");
-            } else if (msg.type === "error") {
-              term.writeln(`\r\n\x1b[31mError: ${msg.message ?? "Unknown error"}\x1b[0m`);
-            }
-          } catch {
-            term.write(event.data as string);
+          const text = event.data as string;
+          // Only parse as control message if it starts with our exact framing prefix.
+          // PTY output cannot accidentally match this exact prefix + valid JSON
+          // with __mecha: true, making spoofing impractical.
+          if (text.startsWith('{"__mecha":true,')) {
+            try {
+              const msg = JSON.parse(text) as { __mecha?: boolean; type: string; id?: string; code?: number; message?: string };
+              if (msg.__mecha) {
+                if (msg.type === "session" && msg.id) {
+                  onSessionCreatedRef.current?.(msg.id);
+                } else if (msg.type === "exit" && typeof msg.code === "number") {
+                  setExitCode(msg.code);
+                  onExitRef.current?.(msg.code);
+                  setStatus("disconnected");
+                } else if (msg.type === "error") {
+                  term.writeln(`\r\n\x1b[31mError: ${msg.message ?? "Unknown error"}\x1b[0m`);
+                }
+                return;
+              }
+            } catch { /* not valid JSON — write as terminal data */ }
           }
+          term.write(text);
         }
       };
 
       ws.onclose = () => {
+        if (disposed) return;
         setStatus("disconnected");
         term.writeln("\r\n\x1b[2m[Connection closed]\x1b[0m");
       };
 
       ws.onerror = () => {
+        if (disposed) return;
         setStatus("disconnected");
       };
 
@@ -152,7 +173,7 @@ export function Terminal({ casaName, sessionId, node, onSessionCreated, onExit }
       // and only fires onData with the final committed text, not intermediate composition.
       term.onData((data) => {
         if (ws.readyState === WebSocket.OPEN) {
-          ws.send(new TextEncoder().encode(data));
+          ws.send(textEncoder.encode(data));
         }
       });
 
@@ -185,7 +206,7 @@ export function Terminal({ casaName, sessionId, node, onSessionCreated, onExit }
   // Including it would cause an infinite loop: server returns session ID → parent
   // updates state → effect re-runs → spawns new PTY → repeat.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [casaName, node, sendResize, authHeaders]);
+  }, [casaName, node, sendResize, authHeaders, reconnectKey]);
 
   useEffect(() => {
     const term = termRef.current;
@@ -201,10 +222,20 @@ export function Terminal({ casaName, sessionId, node, onSessionCreated, onExit }
         </div>
       )}
       {status === "disconnected" && (
-        <div className="absolute top-2 right-2 z-10">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-destructive/15 text-destructive">
-            Disconnected
+        <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
+          <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${
+            exitCode === 0
+              ? "bg-success/15 text-success"
+              : "bg-destructive/15 text-destructive"
+          }`}>
+            {exitCode !== null ? `Exited (${exitCode})` : "Disconnected"}
           </span>
+          <button
+            onClick={() => setReconnectKey((k) => k + 1)}
+            className="h-7 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent"
+          >
+            Reconnect
+          </button>
         </div>
       )}
       <div ref={containerRef} className="flex-1 min-h-0 overflow-hidden" />

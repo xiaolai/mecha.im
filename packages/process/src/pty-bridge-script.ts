@@ -73,9 +73,9 @@ function handleMessage(msg: { type: string; [k: string]: unknown }): void {
             rows: opts.rows,
             name: opts.name,
             data(_t: BunTerminal, data: Uint8Array) {
-              // Base64-encode binary PTY output for safe JSON transport
-              const b64 = Buffer.from(data).toString("base64");
-              send({ type: "data", data: b64 });
+              // Use streaming TextDecoder to handle multi-byte chars split across chunks
+              const str = decoder.decode(data, { stream: true });
+              if (str) send({ type: "data", data: Buffer.from(str).toString("base64") });
             },
             exit(_t: BunTerminal, exitCode: number, signal: string | null) {
               send({ type: "exit", exitCode, signal });
@@ -102,6 +102,7 @@ function handleMessage(msg: { type: string; [k: string]: unknown }): void {
     }
     case "kill": {
       if (terminal) {
+        send({ type: "exit", exitCode: 0, signal: "SIGTERM" });
         terminal.close();
         terminal = null;
       }

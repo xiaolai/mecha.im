@@ -22,4 +22,23 @@ export function registerSessionRoutes(
       return session;
     },
   );
+
+  // Delete session
+  app.delete<{ Params: { id: string } }>(
+    "/api/sessions/:id",
+    async (request, reply) => {
+      try {
+        const removed = sm.delete(request.params.id);
+        if (!removed) {
+          reply.code(404).send({ error: "Session not found" });
+          return;
+        }
+        return { ok: true };
+      /* v8 ignore start -- filesystem error during delete */
+      } catch (err) {
+        reply.code(500).send({ error: `Delete failed: ${err instanceof Error ? err.message : String(err)}` });
+      }
+      /* v8 ignore stop */
+    },
+  );
 }

@@ -4,18 +4,9 @@ import { join } from "node:path";
 import { homedir } from "node:os";
 import type { WebSocket } from "@fastify/websocket";
 import type { ProcessManager, MechaPty, PtySpawnFn } from "@mecha/process";
+import { buildCasaEnv, encodeProjectPath } from "@mecha/process";
 import { readCasaConfig } from "@mecha/core";
 import type { CasaName } from "@mecha/core";
-
-/** Allowlist of env var names safe to pass to PTY sessions. */
-const PTY_ENV_ALLOWLIST = new Set([
-  "PATH", "HOME", "USER", "SHELL", "TERM", "LANG", "EDITOR", "VISUAL",
-  "TMPDIR", "NODE_ENV", "MECHA_DIR",
-  // SDK auth credentials — required for Claude Code to work in PTY
-  "ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN",
-]);
-
-const PTY_ENV_PREFIX_ALLOWLIST = ["LC_", "XDG_"];
 
 /** Resolve absolute path to `claude` binary, checking common install locations. */
 function resolveClaudeBin(): string {
@@ -36,10 +27,8 @@ function resolveClaudeBin(): string {
   /* v8 ignore stop */
 }
 
-function isPtyEnvAllowed(key: string): boolean {
-  if (PTY_ENV_ALLOWLIST.has(key)) return true;
-  return PTY_ENV_PREFIX_ALLOWLIST.some(prefix => key.startsWith(prefix));
-}
+/** Max chunks retained for scrollback replay on reattach. */
+const SCROLLBACK_LIMIT = 200;
 
 export interface PtySession {
   id: string;
@@ -48,6 +37,7 @@ export interface PtySession {
   clients: Set<WebSocket>;
   createdAt: Date;
   lastActivity: Date;
+  scrollback: string[];
 }
 
 export interface PtyManager {
@@ -56,6 +46,8 @@ export interface PtyManager {
   detach(sessionKey: string, ws: WebSocket): void;
   resize(sessionKey: string, cols: number, rows: number): void;
   getSession(sessionKey: string): PtySession | null;
+  /** Find all PTY sessions for a given CASA, sorted by most recently active first. */
+  findByCasa(casaName: string): PtySession[];
   shutdown(): void;
 }
 
@@ -68,7 +60,7 @@ export interface CreatePtyManagerOpts {
 }
 
 const DEFAULT_MAX_SESSIONS = 10;
-const DEFAULT_IDLE_TIMEOUT_MS = 1_800_000;
+const DEFAULT_IDLE_TIMEOUT_MS = 300_000;
 
 export function createPtyManager(opts: CreatePtyManagerOpts): PtyManager {
   const {
@@ -122,27 +114,34 @@ export function createPtyManager(opts: CreatePtyManagerOpts): PtyManager {
         throw new Error(`Cannot read config for CASA "${casaName}"`);
       }
 
-      const key = sessionId ? `${casaName}:${sessionId}` : `${casaName}:new-${randomBytes(8).toString("hex")}`;
-      const args: string[] = sessionId ? ["--resume", sessionId] : [];
+      // new-* IDs are mecha-internal (not real Claude Code session IDs).
+      // Treat them as new sessions — don't pass --resume with a fake ID.
+      const isNewSession = !sessionId || sessionId.startsWith("new-");
+      const key = isNewSession
+        ? `${casaName}:new-${randomBytes(8).toString("hex")}`
+        : `${casaName}:${sessionId}`;
+      const args: string[] = isNewSession ? [] : ["--resume", sessionId];
 
-      // Build env from allowlist — only pass known-safe vars to PTY
-      const casaEnv: Record<string, string> = { TERM: "xterm-256color" };
-      for (const [k, v] of Object.entries(process.env)) {
-        /* v8 ignore start -- Object.entries filters out undefined values */
-        if (v !== undefined && isPtyEnvAllowed(k)) {
-          casaEnv[k] = v;
-        }
-        /* v8 ignore stop */
-      }
+      // CASA filesystem paths — mirrors prepareCasaFilesystem() layout
+      const homeDir = join(casaDir, "home");
+      const tmpDir = join(casaDir, "tmp");
+      const logsDir = join(casaDir, "logs");
+      const projectsDir = join(homeDir, ".claude", "projects", encodeProjectPath(config.workspace));
+
+      // Build sandboxed env via shared function (single source of truth with spawn)
+      const casaEnv = buildCasaEnv({
+        casaDir, homeDir, tmpDir, logsDir, projectsDir,
+        workspacePath: config.workspace, port: config.port,
+        token: config.token, name: casaName, mechaDir,
+        auth: config.auth,
+      });
+      // PTY needs TERM for proper terminal rendering
+      casaEnv.TERM = "xterm-256color";
       // Ensure ~/.local/bin is on PATH (common claude install location)
       const localBin = join(homedir(), ".local", "bin");
       if (casaEnv.PATH && !casaEnv.PATH.split(":").includes(localBin)) {
         casaEnv.PATH = `${localBin}:${casaEnv.PATH}`;
       }
-      casaEnv.MECHA_CASA_NAME = casaName;
-      casaEnv.MECHA_WORKSPACE = config.workspace;
-      casaEnv.MECHA_PORT = String(config.port);
-      casaEnv.MECHA_AUTH_TOKEN = config.token;
 
       const claudeBin = resolveClaudeBin();
       const pty = spawnFn(claudeBin, args, {
@@ -153,11 +152,19 @@ export function createPtyManager(opts: CreatePtyManagerOpts): PtyManager {
         env: casaEnv,
       });
 
+      const scrollback: string[] = [];
       const session: PtySession = {
         id: key, casaName, pty, clients: new Set(),
         createdAt: new Date(), lastActivity: new Date(),
+        scrollback,
       };
       sessions.set(key, session);
+
+      // Capture PTY output into scrollback ring buffer for replay on reattach
+      pty.onData((data) => {
+        scrollback.push(data);
+        if (scrollback.length > SCROLLBACK_LIMIT) scrollback.shift();
+      });
 
       /* v8 ignore start -- PTY exit cleanup tested via mock emitter in pty-manager.test.ts */
       pty.onExit(() => {
@@ -196,6 +203,16 @@ export function createPtyManager(opts: CreatePtyManagerOpts): PtyManager {
 
     getSession(sessionKey) {
       return sessions.get(sessionKey) ?? null;
+    },
+
+    findByCasa(name) {
+      const matches: PtySession[] = [];
+      for (const s of sessions.values()) {
+        if (s.casaName === name) matches.push(s);
+      }
+      // Most recently active first
+      matches.sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime());
+      return matches;
     },
 
     shutdown() {

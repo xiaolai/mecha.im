@@ -25,3 +25,14 @@ export async function casaSessionGet(
   if (result.status !== 200) throw new SessionFetchError("get", result.status);
   return result.body;
 }
+
+export async function casaSessionDelete(
+  pm: ProcessManager,
+  name: CasaName,
+  sessionId: string,
+): Promise<boolean> {
+  const result = await runtimeFetch(pm, name, sessionPath(sessionId), { method: "DELETE" });
+  if (result.status === 404) return false;
+  if (result.status !== 200) throw new SessionFetchError("delete", result.status);
+  return true;
+}

@@ -86,4 +86,32 @@ describe("session routes (read-only)", () => {
       expect(res.statusCode).toBe(404);
     });
   });
+
+  describe("DELETE /api/sessions/:id", () => {
+    it("deletes an existing session", async () => {
+      writeFileSync(
+        join(projectsDir, "doomed.meta.json"),
+        JSON.stringify({ id: "doomed", title: "Doomed", starred: false, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" }),
+      );
+      writeFileSync(join(projectsDir, "doomed.jsonl"), '{"type":"user","content":"bye"}\n');
+
+      const res = await app.inject({ method: "DELETE", url: "/api/sessions/doomed" });
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({ ok: true });
+
+      // Verify it's actually gone
+      const listRes = await app.inject({ method: "GET", url: "/api/sessions" });
+      expect(listRes.json()).toEqual([]);
+    });
+
+    it("returns 404 for nonexistent session", async () => {
+      const res = await app.inject({ method: "DELETE", url: "/api/sessions/nonexistent" });
+      expect(res.statusCode).toBe(404);
+    });
+
+    it("returns 404 for invalid ID (path traversal)", async () => {
+      const res = await app.inject({ method: "DELETE", url: "/api/sessions/..%2F..%2Fetc%2Fpasswd" });
+      expect(res.statusCode).toBe(404);
+    });
+  });
 });

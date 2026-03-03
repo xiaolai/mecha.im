@@ -23,7 +23,7 @@ function createMockPtyManager(): PtyManager & { _sessions: Map<string, PtySessio
     spawn: vi.fn().mockImplementation((casaName: string, sessionId: string | undefined) => {
       const id = sessionId ? `${casaName}:${sessionId}` : `${casaName}:new-test`;
       const pty = createMockPty();
-      const session: PtySession = { id, casaName, pty, clients: new Set(), createdAt: new Date(), lastActivity: new Date() };
+      const session: PtySession = { id, casaName, pty, clients: new Set(), createdAt: new Date(), lastActivity: new Date(), scrollback: [] };
       sessions.set(id, session);
       return session;
     }),
@@ -35,6 +35,14 @@ function createMockPtyManager(): PtyManager & { _sessions: Map<string, PtySessio
     detach: vi.fn(),
     resize: vi.fn(),
     getSession: vi.fn().mockImplementation((key: string) => sessions.get(key) ?? null),
+    findByCasa: vi.fn().mockImplementation((name: string) => {
+      const matches: PtySession[] = [];
+      for (const s of sessions.values()) {
+        if (s.casaName === name) matches.push(s);
+      }
+      matches.sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime());
+      return matches;
+    }),
     shutdown: vi.fn(),
   };
 }
@@ -73,16 +81,29 @@ describe("registerTerminalRoutes", () => {
     };
   }
 
-  it("spawns new PTY and sends session ID", () => {
+  it("spawns new PTY and sends session ID with __mecha marker", () => {
     const socket = createSocket();
     routeHandler(socket, createReq("coder"));
 
     expect(ptyManager.spawn).toHaveBeenCalledWith("coder", undefined, 80, 24);
     expect(ptyManager.attach).toHaveBeenCalled();
     const sessionMsg = socket.send.mock.calls.find(([data]: [string]) => {
-      try { return JSON.parse(data).type === "session"; } catch { return false; }
+      try { const m = JSON.parse(data); return m.type === "session" && m.__mecha === true; } catch { return false; }
     });
     expect(sessionMsg).toBeDefined();
+  });
+
+  it("sends session ID without casaName prefix", () => {
+    const socket = createSocket();
+    routeHandler(socket, createReq("coder"));
+
+    const sessionMsg = socket.send.mock.calls.find(([data]: [string]) => {
+      try { return JSON.parse(data).type === "session"; } catch { return false; }
+    });
+    const parsed = JSON.parse(sessionMsg![0]);
+    // Session ID should be just "new-test", not "coder:new-test"
+    expect(parsed.id).toBe("new-test");
+    expect(parsed.id).not.toContain("coder:");
   });
 
   it("spawns PTY with client-provided dimensions", () => {
@@ -95,7 +116,7 @@ describe("registerTerminalRoutes", () => {
   it("reattaches to existing session", () => {
     // Pre-populate a session
     const pty = createMockPty();
-    const existing: PtySession = { id: "coder:s1", casaName: "coder", pty, clients: new Set(), createdAt: new Date(), lastActivity: new Date() };
+    const existing: PtySession = { id: "coder:s1", casaName: "coder", pty, clients: new Set(), createdAt: new Date(), lastActivity: new Date(), scrollback: [] };
     ptyManager._sessions.set("coder:s1", existing);
 
     const socket = createSocket();
@@ -105,14 +126,89 @@ describe("registerTerminalRoutes", () => {
     expect(ptyManager.attach).toHaveBeenCalledWith("coder:s1", socket);
   });
 
-  it("sends error on spawn failure", () => {
+  it("strips casaName: prefix from stale session IDs", () => {
+    // Client sends composite key "coder:s1" from stale URL — should be stripped to "s1"
+    const pty = createMockPty();
+    const existing: PtySession = { id: "coder:s1", casaName: "coder", pty, clients: new Set(), createdAt: new Date(), lastActivity: new Date(), scrollback: [] };
+    ptyManager._sessions.set("coder:s1", existing);
+
+    const socket = createSocket();
+    routeHandler(socket, createReq("coder", "coder:s1"));
+
+    // Should strip "coder:" prefix and look up "coder:s1" (not "coder:coder:s1")
+    expect(ptyManager.getSession).toHaveBeenCalledWith("coder:s1");
+    expect(ptyManager.spawn).not.toHaveBeenCalled();
+  });
+
+  it("falls back to findByCasa when no sessionId is provided", () => {
+    // Pre-populate a session
+    const pty = createMockPty();
+    const existing: PtySession = { id: "coder:new-abc123", casaName: "coder", pty, clients: new Set(), createdAt: new Date(), lastActivity: new Date(), scrollback: [] };
+    ptyManager._sessions.set("coder:new-abc123", existing);
+
+    const socket = createSocket();
+    // No session ID — should fallback to findByCasa to reuse existing PTY
+    routeHandler(socket, createReq("coder"));
+
+    expect(ptyManager.findByCasa).toHaveBeenCalledWith("coder");
+    expect(ptyManager.spawn).not.toHaveBeenCalled();
+    expect(ptyManager.attach).toHaveBeenCalledWith("coder:new-abc123", socket);
+  });
+
+  it("spawns new PTY when specific sessionId not found (no findByCasa fallback)", () => {
+    // Pre-populate a session with a different key
+    const pty = createMockPty();
+    const existing: PtySession = { id: "coder:new-abc123", casaName: "coder", pty, clients: new Set(), createdAt: new Date(), lastActivity: new Date(), scrollback: [] };
+    ptyManager._sessions.set("coder:new-abc123", existing);
+
+    const socket = createSocket();
+    // Client provides a specific session ID — should NOT fall back to another session
+    routeHandler(socket, createReq("coder", "specific-session"));
+
+    // findByCasa should NOT be called when a specific sessionId is provided
+    expect(ptyManager.findByCasa).not.toHaveBeenCalled();
+    expect(ptyManager.spawn).toHaveBeenCalled();
+  });
+
+  it("replays scrollback on reattach", () => {
+    const pty = createMockPty();
+    const existing: PtySession = {
+      id: "coder:s1", casaName: "coder", pty, clients: new Set(),
+      createdAt: new Date(), lastActivity: new Date(),
+      scrollback: ["chunk1", "chunk2", "chunk3"],
+    };
+    ptyManager._sessions.set("coder:s1", existing);
+
+    const socket = createSocket();
+    routeHandler(socket, createReq("coder", "s1"));
+
+    // Should replay scrollback chunks after the session message
+    const calls = socket.send.mock.calls.map(([d]: [string]) => d);
+    expect(calls).toContain("chunk1");
+    expect(calls).toContain("chunk2");
+    expect(calls).toContain("chunk3");
+  });
+
+  it("rejects invalid session IDs", () => {
+    const socket = createSocket();
+    routeHandler(socket, createReq("coder", "../../../etc/passwd"));
+
+    const errorMsg = socket.send.mock.calls.find(([data]: [string]) => {
+      try { const m = JSON.parse(data); return m.type === "error" && m.__mecha === true; } catch { return false; }
+    });
+    expect(errorMsg).toBeDefined();
+    expect(socket.close).toHaveBeenCalledWith(4400, "Invalid session ID");
+    expect(ptyManager.spawn).not.toHaveBeenCalled();
+  });
+
+  it("sends error on spawn failure with __mecha marker", () => {
     (ptyManager.spawn as ReturnType<typeof vi.fn>).mockImplementation(() => { throw new Error("CASA not running"); });
 
     const socket = createSocket();
     routeHandler(socket, createReq("ghost"));
 
     const errorMsg = socket.send.mock.calls.find(([data]: [string]) => {
-      try { return JSON.parse(data).type === "error"; } catch { return false; }
+      try { const m = JSON.parse(data); return m.type === "error" && m.__mecha === true; } catch { return false; }
     });
     expect(errorMsg).toBeDefined();
     expect(socket.close).toHaveBeenCalledWith(4500, "Spawn failed");
@@ -135,17 +231,18 @@ describe("registerTerminalRoutes", () => {
     expect(ptyManager.resize).toHaveBeenCalledWith("coder:new-test", 120, 40);
   });
 
-  it("sends PTY output as binary", () => {
+  it("sends PTY output as text string", () => {
     const socket = createSocket();
     routeHandler(socket, createReq("coder"));
 
     const session = (ptyManager.spawn as ReturnType<typeof vi.fn>).mock.results[0].value;
     const pty = session.pty as ReturnType<typeof createMockPty>;
     pty._emitData("hello");
-    expect(socket.send).toHaveBeenCalledWith(expect.any(Buffer), { binary: true });
+    // PTY data sent as text (not binary) to preserve UTF-8 character boundaries
+    expect(socket.send).toHaveBeenCalledWith("hello");
   });
 
-  it("sends exit event when PTY exits", () => {
+  it("sends exit event with __mecha marker when PTY exits", () => {
     const socket = createSocket();
     routeHandler(socket, createReq("coder"));
 
@@ -154,7 +251,7 @@ describe("registerTerminalRoutes", () => {
     pty._emitExit(0);
 
     const exitMsg = socket.send.mock.calls.find(([data]: [string]) => {
-      try { return JSON.parse(data).type === "exit"; } catch { return false; }
+      try { const m = JSON.parse(data); return m.type === "exit" && m.__mecha === true; } catch { return false; }
     });
     expect(exitMsg).toBeDefined();
     expect(socket.close).toHaveBeenCalledWith(1000, "PTY exited");
@@ -214,5 +311,30 @@ describe("registerTerminalRoutes", () => {
     const sendCountBefore = socket.send.mock.calls.length;
     pty._emitData("not sent");
     expect(socket.send.mock.calls.length).toBe(sendCountBefore);
+  });
+
+  it("clamps resize dimensions to safe bounds", () => {
+    const socket = createSocket();
+    routeHandler(socket, createReq("coder"));
+
+    // Send extreme dimensions — should be clamped
+    socket.emit("message", Buffer.from(JSON.stringify({ type: "resize", cols: -5, rows: 99999 })), false);
+    expect(ptyManager.resize).toHaveBeenCalledWith("coder:new-test", 1, 200);
+
+    // Send fractional dimensions — should be floored
+    socket.emit("message", Buffer.from(JSON.stringify({ type: "resize", cols: 120.7, rows: 40.3 })), false);
+    expect(ptyManager.resize).toHaveBeenCalledWith("coder:new-test", 120, 40);
+  });
+
+  it("rejects invalid CASA name", () => {
+    const socket = createSocket();
+    routeHandler(socket, createReq("../etc/passwd"));
+
+    const errorMsg = socket.send.mock.calls.find(([data]: [string]) => {
+      try { const m = JSON.parse(data); return m.type === "error" && m.__mecha === true; } catch { return false; }
+    });
+    expect(errorMsg).toBeDefined();
+    expect(socket.close).toHaveBeenCalledWith(4400, "Invalid CASA name");
+    expect(ptyManager.spawn).not.toHaveBeenCalled();
   });
 });

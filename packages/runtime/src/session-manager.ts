@@ -3,6 +3,7 @@ import {
   readdirSync,
   readFileSync,
   statSync,
+  unlinkSync,
 } from "node:fs";
 import { join } from "node:path";
 import { DEFAULTS, createLogger } from "@mecha/core";
@@ -30,10 +31,12 @@ export interface Session extends SessionMeta {
   events: TranscriptEvent[];
 }
 
-/** Read-only session manager — reads what Claude Code writes to the projects dir. */
+/** Session manager — reads what Claude Code writes to the projects dir. */
 export interface SessionManager {
   list(): SessionMeta[];
   get(id: string): Promise<Session | undefined>;
+  /** Delete a session's meta and transcript files. Returns true if anything was removed. */
+  delete(id: string): boolean;
 }
 
 interface StoredMeta {
@@ -68,7 +71,24 @@ export function createSessionManager(
     const path = _metaPath(id);
     if (!existsSync(path)) return undefined;
     try {
-      return JSON.parse(readFileSync(path, "utf-8")) as StoredMeta;
+      const raw = JSON.parse(readFileSync(path, "utf-8")) as Record<string, unknown>;
+      // Validate required fields to prevent corrupt metadata from crashing sort/display
+      if (
+        typeof raw.id !== "string" ||
+        typeof raw.title !== "string" ||
+        typeof raw.createdAt !== "string" ||
+        typeof raw.updatedAt !== "string"
+      ) {
+        log.warn("Invalid session metadata shape", { path });
+        return undefined;
+      }
+      return {
+        id: raw.id,
+        title: raw.title,
+        starred: typeof raw.starred === "boolean" ? raw.starred : false,
+        createdAt: raw.createdAt,
+        updatedAt: raw.updatedAt,
+      };
     } catch {
       log.warn("Corrupt session metadata", { path });
       return undefined;
@@ -87,11 +107,15 @@ export function createSessionManager(
     /* v8 ignore stop */
 
     const metas: SessionMeta[] = [];
+    const seenIds = new Set<string>();
+
+    // First pass: sessions with .meta.json (full metadata)
     for (const file of files) {
       if (!file.endsWith(".meta.json")) continue;
       const id = file.slice(0, -".meta.json".length);
       const meta = _readMeta(id);
       if (meta) {
+        seenIds.add(id);
         metas.push({
           id: meta.id,
           title: meta.title,
@@ -100,6 +124,30 @@ export function createSessionManager(
           updatedAt: meta.updatedAt,
         });
       }
+    }
+
+    // Second pass: .jsonl files with no corresponding .meta.json
+    // Claude Code creates .jsonl immediately but .meta.json only later.
+    // Synthesize minimal metadata so active sessions are visible immediately.
+    for (const file of files) {
+      if (!file.endsWith(".jsonl")) continue;
+      const id = file.slice(0, -".jsonl".length);
+      if (seenIds.has(id)) continue;
+      if (!_validateId(id)) continue;
+      try {
+        const st = statSync(join(projectsDir, file));
+        metas.push({
+          id,
+          title: "(active session)",
+          starred: false,
+          createdAt: st.birthtime.toISOString(),
+          updatedAt: st.mtime.toISOString(),
+        });
+      /* v8 ignore start -- stat failure for orphan .jsonl */
+      } catch {
+        // Skip files we can't stat
+      }
+      /* v8 ignore stop */
     }
 
     // Sort by updatedAt DESC (most recent first)
@@ -115,7 +163,26 @@ export function createSessionManager(
 
   async function get(id: string): Promise<Session | undefined> {
     if (!_validateId(id)) return undefined;
-    const meta = _readMeta(id);
+    let meta = _readMeta(id);
+
+    // Support .jsonl-only sessions (synthesize metadata like list() does)
+    if (!meta && existsSync(_transcriptPath(id))) {
+      try {
+        const st = statSync(_transcriptPath(id));
+        meta = {
+          id,
+          title: "(active session)",
+          starred: false,
+          createdAt: st.birthtime.toISOString(),
+          updatedAt: st.mtime.toISOString(),
+        };
+      /* v8 ignore start -- stat failure for orphan .jsonl in get() */
+      } catch {
+        return undefined;
+      }
+      /* v8 ignore stop */
+    }
+
     if (!meta) return undefined;
 
     const events = await _readTranscript(id);
@@ -162,8 +229,28 @@ export function createSessionManager(
     return events;
   }
 
+  function del(id: string): boolean {
+    if (!_validateId(id)) return false;
+    let removed = false;
+    for (const path of [_metaPath(id), _transcriptPath(id)]) {
+      try {
+        unlinkSync(path);
+        removed = true;
+      } catch (err: unknown) {
+        // ENOENT is expected (file may not exist); surface other errors
+        /* v8 ignore start -- non-ENOENT errors are rare filesystem failures */
+        if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+          log.error("Failed to delete session file", { path, error: (err as Error).message });
+        }
+        /* v8 ignore stop */
+      }
+    }
+    return removed;
+  }
+
   return {
     list,
     get,
+    delete: del,
   };
 }
