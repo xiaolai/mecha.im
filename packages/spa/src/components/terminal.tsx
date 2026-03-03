@@ -1,6 +1,10 @@
-import { useEffect, useRef, useCallback, useState, type MutableRefObject } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { useTheme } from "next-themes";
 import { useAuth } from "@/auth-context";
+
+// xterm.js CSS — required for correct layout, cursor, selection, and scrollbar rendering.
+// Without this import the terminal renders with broken positioning and no scrollbar.
+import "@xterm/xterm/css/xterm.css";
 
 interface TerminalProps {
   casaName: string;
@@ -26,12 +30,16 @@ const LIGHT_THEME = {
   selectionBackground: "rgba(0,0,0,0.1)",
 };
 
+/** Debounce resize events to prevent excessive fit/resize calls. */
+const RESIZE_DEBOUNCE_MS = 100;
+
 export function Terminal({ casaName, sessionId, node, onSessionCreated, onExit }: TerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const termRef = useRef<import("@xterm/xterm").Terminal | null>(null);
   const fitRef = useRef<import("@xterm/addon-fit").FitAddon | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { resolvedTheme } = useTheme();
   const { authHeaders } = useAuth();
   const [status, setStatus] = useState<"connecting" | "connected" | "disconnected">("connecting");
@@ -140,15 +148,23 @@ export function Terminal({ casaName, sessionId, node, onSessionCreated, onExit }
         setStatus("disconnected");
       };
 
+      // Use onData for terminal input — xterm.js handles IME composition internally
+      // and only fires onData with the final committed text, not intermediate composition.
       term.onData((data) => {
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(new TextEncoder().encode(data));
         }
       });
 
+      // Debounced resize observer — prevents excessive fit/resize calls during
+      // continuous resizing (e.g. dragging window edge).
       const resizeObserver = new ResizeObserver(() => {
-        fit.fit();
-        sendResize();
+        if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current);
+        resizeTimerRef.current = setTimeout(() => {
+          if (disposed) return;
+          fit.fit();
+          sendResize();
+        }, RESIZE_DEBOUNCE_MS);
       });
       resizeObserver.observe(containerRef.current!);
       resizeObserverRef.current = resizeObserver;
@@ -156,6 +172,7 @@ export function Terminal({ casaName, sessionId, node, onSessionCreated, onExit }
 
     return () => {
       disposed = true;
+      if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current);
       resizeObserverRef.current?.disconnect();
       resizeObserverRef.current = null;
       wsRef.current?.close();
@@ -190,7 +207,7 @@ export function Terminal({ casaName, sessionId, node, onSessionCreated, onExit }
           </span>
         </div>
       )}
-      <div ref={containerRef} className="flex-1 min-h-0" />
+      <div ref={containerRef} className="flex-1 min-h-0 overflow-hidden" />
     </div>
   );
 }
