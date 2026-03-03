@@ -101,11 +101,9 @@ export async function spawnCasa(ctx: SpawnContext, spawnOpts: SpawnOpts): Promis
         const persisted: PersistedSandboxProfile = {
           platform: ctx.sandbox.platform, profile, createdAt: new Date().toISOString(),
         };
-        writeFileSync(
-          join(casaDir, "sandbox-profile.json"),
-          JSON.stringify(persisted, null, 2) + "\n",
-          { mode: 0o600 },
-        );
+        const sandboxProfilePath = join(casaDir, "sandbox-profile.json");
+        writeFileSync(sandboxProfilePath, JSON.stringify(persisted, null, 2) + "\n", { mode: 0o600 });
+        chmodSync(sandboxProfilePath, 0o600);
       }
     } else if (sandboxMode === "auto") {
       emitter.emit({ type: "warning", name, message: "Kernel sandbox not available, running without sandbox" });
@@ -115,12 +113,23 @@ export async function spawnCasa(ctx: SpawnContext, spawnOpts: SpawnOpts): Promis
 
   // Open log files as FDs and enforce 0o600 permissions (owner-only read/write).
   // openSync mode only applies on creation; chmodSync ensures existing files are hardened too.
+  // Guard FD acquisition to prevent leaks if chmodSync or second openSync fails.
   const stdoutPath = join(logsDir, "stdout.log");
   const stderrPath = join(logsDir, "stderr.log");
-  const stdoutFd = openSync(stdoutPath, "a", 0o600);
-  chmodSync(stdoutPath, 0o600);
-  const stderrFd = openSync(stderrPath, "a", 0o600);
-  chmodSync(stderrPath, 0o600);
+  let stdoutFd = -1;
+  let stderrFd = -1;
+  try {
+    stdoutFd = openSync(stdoutPath, "a", 0o600);
+    chmodSync(stdoutPath, 0o600);
+    stderrFd = openSync(stderrPath, "a", 0o600);
+    chmodSync(stderrPath, 0o600);
+  } catch (err) {
+    /* v8 ignore start -- FD cleanup on log open failure */
+    if (stdoutFd !== -1) closeSync(stdoutFd);
+    if (stderrFd !== -1) closeSync(stderrFd);
+    throw new ProcessSpawnError(err instanceof Error ? err.message : String(err), { cause: err });
+    /* v8 ignore stop */
+  }
 
   // Spawn child process
   let child: ChildProcess;
@@ -137,26 +146,33 @@ export async function spawnCasa(ctx: SpawnContext, spawnOpts: SpawnOpts): Promis
     throw new ProcessSpawnError(err instanceof Error ? err.message : String(err), { cause: err });
   }
 
+  // Register error handler IMMEDIATELY after spawn, before anything else.
+  // Node.js queues an async 'error' event on next tick for ENOENT failures;
+  // if we throw (e.g. at the !child.pid guard) before attaching a listener,
+  // the queued event becomes an unhandled 'error' that crashes the process.
+  /* v8 ignore start -- async spawn error handler: requires binary to fail after initial spawn */
+  child.on("error", (err) => {
+    try {
+      live.delete(name);
+      const errorState: CasaState = {
+        name, state: "error", pid: child.pid ?? undefined, port, workspacePath,
+        startedAt: new Date().toISOString(), stoppedAt: new Date().toISOString(),
+      };
+      writeState(casaDir, errorState);
+      ctx.onStateChange?.();
+      emitter.emit({ type: "error", name, error: err.message });
+    } catch (writeErr) {
+      console.error(`[mecha:process] Failed to handle spawn error for ${name}: ${writeErr instanceof Error ? writeErr.message : String(writeErr)}`);
+    }
+  });
+  /* v8 ignore stop */
+
   closeSync(stdoutFd);
   closeSync(stderrFd);
 
   if (!child.pid) {
     throw new ProcessSpawnError("Failed to get child PID");
   }
-
-  // Handle async spawn errors (e.g. EACCES, binary not found after initial spawn)
-  /* v8 ignore start -- async spawn error handler: requires binary to fail after initial spawn */
-  child.on("error", (err) => {
-    live.delete(name);
-    const errorState: CasaState = {
-      name, state: "error", pid: child.pid ?? undefined, port, workspacePath,
-      startedAt: new Date().toISOString(), stoppedAt: new Date().toISOString(),
-    };
-    writeState(casaDir, errorState);
-    ctx.onStateChange?.();
-    emitter.emit({ type: "error", name, error: err.message });
-  });
-  /* v8 ignore stop */
 
   child.unref();
   const startedAt = new Date().toISOString();
@@ -200,7 +216,14 @@ export async function spawnCasa(ctx: SpawnContext, spawnOpts: SpawnOpts): Promis
       name, state: "error", pid: child.pid, port, workspacePath, startedAt,
       stoppedAt: new Date().toISOString(),
     };
-    writeState(casaDir, failState);
+    /* v8 ignore start -- disk-full guard: prevent crash masking original health error */
+    try {
+      writeState(casaDir, failState);
+    } catch (writeErr) {
+      console.error(`[mecha:process] Failed to write error state for ${name}: ${writeErr instanceof Error ? writeErr.message : String(writeErr)}`);
+    }
+    /* v8 ignore stop */
+    ctx.onStateChange?.();
     /* v8 ignore start -- waitForHealthy always throws Error */
     emitter.emit({ type: "error", name, error: err instanceof Error ? err.message : String(err) });
     /* v8 ignore stop */
@@ -211,7 +234,24 @@ export async function spawnCasa(ctx: SpawnContext, spawnOpts: SpawnOpts): Promis
     name, state: "running", pid: child.pid, port, workspacePath, startedAt,
     sandboxPlatform, sandboxMode,
   };
-  writeState(casaDir, state);
+  /* v8 ignore start -- disk-full guard: prevent orphaned child on state write failure */
+  try {
+    writeState(casaDir, state);
+  } catch (err) {
+    live.delete(name);
+    child.kill("SIGKILL");
+    const errState: CasaState = {
+      name, state: "error", pid: child.pid, port, workspacePath, startedAt,
+      stoppedAt: new Date().toISOString(),
+    };
+    try { writeState(casaDir, errState); } catch { /* best-effort */ }
+    ctx.onStateChange?.();
+    throw new ProcessSpawnError(
+      `Failed to write running state: ${err instanceof Error ? err.message : String(err)}`,
+      { cause: err },
+    );
+  }
+  /* v8 ignore stop */
 
   emitter.emit({ type: "spawned", name, pid: child.pid, port });
 

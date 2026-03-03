@@ -7,6 +7,7 @@ import { createServer, type Server, type IncomingMessage, type ServerResponse } 
 import { createProcessManager } from "../src/process-manager.js";
 import { writeState } from "../src/state-store.js";
 import type { CasaState } from "../src/state-store.js";
+import type { ProcessEvent } from "../src/events.js";
 import type { CasaName } from "@mecha/core";
 
 const testName = "test-casa" as CasaName;
@@ -499,7 +500,7 @@ describe("createProcessManager", () => {
       runtimeEntrypoint: "/fake/runtime.js",
     });
 
-    const events: any[] = [];
+    const events: ProcessEvent[] = [];
     pm.onEvent((e) => events.push(e));
 
     await pm.spawn({
@@ -663,6 +664,60 @@ describe("createProcessManager", () => {
         port: healthPort,
       }),
     ).rejects.toThrow("Failed to get child PID");
+  });
+
+  it("handles async ENOENT error without crashing the process", async () => {
+    const child = new EventEmitter() as EventEmitter & {
+      pid: undefined;
+      killed: boolean;
+      kill: ReturnType<typeof vi.fn>;
+      unref: ReturnType<typeof vi.fn>;
+      stdout: EventEmitter | null;
+      stderr: EventEmitter | null;
+    };
+    child.pid = undefined;
+    child.killed = false;
+    child.kill = vi.fn();
+    child.unref = vi.fn();
+    child.stdout = null;
+    child.stderr = null;
+
+    // Simulate real Node.js behavior: spawn returns child with pid=undefined
+    // and queues an async 'error' event for the next tick
+    const mockSpawn = vi.fn().mockImplementation(() => {
+      process.nextTick(() => {
+        child.emit("error", Object.assign(new Error("spawn ENOENT"), { code: "ENOENT" }));
+      });
+      return child;
+    });
+
+    const pm = createProcessManager({
+      mechaDir: tempDir,
+      healthTimeoutMs: 3000,
+      spawnFn: mockSpawn as any,
+      runtimeEntrypoint: "/fake/runtime.js",
+    });
+
+    // Should reject with ProcessSpawnError, not crash the process
+    await expect(
+      pm.spawn({
+        name: testName,
+        workspacePath: tempDir,
+        port: healthPort,
+      }),
+    ).rejects.toThrow("Failed to get child PID");
+
+    // Wait for the queued error event to fire and write state — if the error
+    // handler was NOT registered before the throw, this would crash with
+    // "unhandled 'error' event"
+    const casaDir = join(tempDir, testName);
+    const stateFile = join(casaDir, "state.json");
+    await vi.waitFor(() => {
+      expect(existsSync(stateFile)).toBe(true);
+    });
+    const state = JSON.parse(readFileSync(stateFile, "utf-8"));
+    expect(state.state).toBe("error");
+    expect(state.name).toBe(testName);
   });
 
   it("passes log file FDs as stdio to child process", async () => {
@@ -956,7 +1011,7 @@ describe("createProcessManager", () => {
     expect(info2.pid).toBe(222);
   });
 
-  it("collects used ports from live processes on spawn", async () => {
+  it("tracks multiple concurrent CASAs in live map", async () => {
     const mockChild1 = createMockChild(111);
     const mockChild2 = createMockChild(222);
     let callCount = 0;
@@ -973,22 +1028,29 @@ describe("createProcessManager", () => {
     });
 
     // Spawn first CASA
-    await pm.spawn({
+    const info1 = await pm.spawn({
       name: testName,
       workspacePath: tempDir,
       port: healthPort,
     });
 
-    // Spawn second CASA with a different name and same health port
-    const secondPort = healthPort; // reuse same health server
+    // Spawn second CASA
     const info2 = await pm.spawn({
       name: "second-casa" as CasaName,
       workspacePath: tempDir,
-      port: secondPort,
+      port: healthPort,
     });
 
+    // Both CASAs are live and tracked
+    expect(info1.port).toBe(healthPort);
     expect(info2.name).toBe("second-casa");
     expect(info2.pid).toBe(222);
+    expect(info2.port).toBe(healthPort);
+
+    // Verify both are in the live list
+    const list = pm.list();
+    expect(list).toHaveLength(2);
+    expect(list.map((c) => c.name).sort()).toEqual(["second-casa", testName].sort());
   });
 
   it("auto-allocates port when not provided", async () => {
@@ -1236,7 +1298,7 @@ describe("createProcessManager", () => {
       runtimeEntrypoint: "/fake/runtime.js",
     });
 
-    const events: any[] = [];
+    const events: ProcessEvent[] = [];
     pm.onEvent((e) => events.push(e));
 
     await pm.spawn({
@@ -1248,12 +1310,14 @@ describe("createProcessManager", () => {
     // Emit exit with null code (simulates signal termination)
     mockChild.emit("exit", null);
 
-    // Wait for next tick
-    await new Promise((r) => setTimeout(r, 50));
+    // Wait for the stopped event to be emitted
+    await vi.waitFor(() => {
+      expect(events.find((e) => e.type === "stopped")).toBeDefined();
+    });
 
-    const stopEvent = events.find((e) => e.type === "stopped");
+    const stopEvent = events.find((e): e is Extract<ProcessEvent, { type: "stopped" }> => e.type === "stopped");
     expect(stopEvent).toBeDefined();
-    expect(stopEvent.exitCode).toBeUndefined();
+    expect(stopEvent!.exitCode).toBeUndefined();
   });
 
   it("stop handles running state without live handle and dead PID", async () => {
