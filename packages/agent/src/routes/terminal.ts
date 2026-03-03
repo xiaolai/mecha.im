@@ -1,7 +1,11 @@
 import type { FastifyInstance } from "fastify";
+import { isValidName } from "@mecha/core";
 import type { PtyManager } from "../pty-manager.js";
 
 const BACKPRESSURE_LIMIT = 1_048_576; // 1 MB
+
+/** Only allow alphanumeric, hyphens, and underscores in session IDs. */
+const SESSION_ID_RE = /^[a-zA-Z0-9_-]+$/;
 
 export function registerTerminalRoutes(
   app: FastifyInstance,
@@ -15,10 +19,32 @@ export function registerTerminalRoutes(
     const casaName = (req.params as { name?: string } | undefined)?.name
       ?? rawUrl.match(/\/ws\/terminal\/([^/?]+)/)?.[1]
       ?? "";
-    const sessionId = (req.query as { session?: string } | undefined)?.session
+    let sessionId = (req.query as { session?: string } | undefined)?.session
       ?? new URL(rawUrl || "/", "http://localhost").searchParams.get("session")
       ?? undefined;
     /* v8 ignore stop */
+
+    // Validate CASA name consistently with other routes
+    if (!casaName || !isValidName(casaName)) {
+      socket.send(JSON.stringify({ __mecha: true, type: "error", message: `Invalid CASA name: ${casaName}` }));
+      socket.close(4400, "Invalid CASA name");
+      return;
+    }
+
+    // Defensive: strip casaName: prefix if client sent composite key from stale URL
+    if (sessionId?.startsWith(`${casaName}:`)) {
+      sessionId = sessionId.slice(casaName.length + 1);
+    }
+
+    // Validate session ID format (allow new-* mecha-internal IDs)
+    if (sessionId && !SESSION_ID_RE.test(sessionId)) {
+      socket.send(JSON.stringify({
+        __mecha: true, type: "error",
+        message: `Invalid session ID: ${sessionId}`,
+      }));
+      socket.close(4400, "Invalid session ID");
+      return;
+    }
 
     // Use client-provided initial dimensions to avoid size mismatch artifacts.
     /* v8 ignore start -- fallback for missing query params */
@@ -28,7 +54,13 @@ export function registerTerminalRoutes(
     const initRows = Number(queryObj.rows ?? parsedUrl.searchParams.get("rows")) || 24;
     /* v8 ignore stop */
 
+    // Look up existing PTY: try exact key first, then fall back to findByCasa
+    // ONLY when no specific sessionId was requested (prevents cross-session leaks).
     let session = sessionId ? ptyManager.getSession(`${casaName}:${sessionId}`) : null;
+    if (!session && !sessionId) {
+      const casaSessions = ptyManager.findByCasa(casaName);
+      if (casaSessions.length > 0) session = casaSessions[0] ?? null;
+    }
 
     try {
       if (session) {
@@ -39,6 +71,7 @@ export function registerTerminalRoutes(
       }
     } catch (err) {
       socket.send(JSON.stringify({
+        __mecha: true,
         type: "error",
         /* v8 ignore start -- non-Error throw guard */
         message: err instanceof Error ? err.message : String(err),
@@ -50,14 +83,26 @@ export function registerTerminalRoutes(
 
     const sessionKey = session.id;
 
-    // Send session ID
-    socket.send(JSON.stringify({ type: "session", id: sessionKey }));
+    // Send session ID — strip casaName: prefix so client stores only the session part
+    const clientSessionId = sessionKey.startsWith(`${casaName}:`)
+      ? sessionKey.slice(casaName.length + 1)
+      : sessionKey;
+    socket.send(JSON.stringify({ __mecha: true, type: "session", id: clientSessionId }));
 
-    // PTY output → WS (binary)
+    // Replay scrollback buffer so reattaching clients see recent output
+    for (const chunk of session.scrollback) {
+      if (socket.readyState === socket.OPEN) socket.send(chunk);
+    }
+
+    // PTY output → WS (text)
+    // Send as text string — the PTY onData callback already delivers properly
+    // decoded strings (via streaming TextDecoder). Sending as binary would
+    // re-encode to UTF-8 bytes, but if xterm.js receives partial multi-byte
+    // sequences across WebSocket frames it renders U+FFFD replacement chars.
     const dataDisposable = session.pty.onData((data) => {
       if (socket.readyState === socket.OPEN) {
         if (socket.bufferedAmount > BACKPRESSURE_LIMIT) return;
-        socket.send(Buffer.from(data), { binary: true });
+        socket.send(data);
       }
     });
 
@@ -66,7 +111,7 @@ export function registerTerminalRoutes(
       /* v8 ignore start -- defensive: socket may close before PTY exits */
       if (socket.readyState !== socket.OPEN) return;
       /* v8 ignore stop */
-      socket.send(JSON.stringify({ type: "exit", code: exitCode }));
+      socket.send(JSON.stringify({ __mecha: true, type: "exit", code: exitCode }));
       socket.close(1000, "PTY exited");
     });
 
@@ -81,7 +126,9 @@ export function registerTerminalRoutes(
         try {
           const msg = JSON.parse(data.toString()) as { type: string; cols?: number; rows?: number };
           if (msg.type === "resize" && typeof msg.cols === "number" && typeof msg.rows === "number") {
-            ptyManager.resize(sessionKey, msg.cols, msg.rows);
+            const cols = Math.max(1, Math.min(500, Math.floor(msg.cols)));
+            const rows = Math.max(1, Math.min(200, Math.floor(msg.rows)));
+            ptyManager.resize(sessionKey, cols, rows);
           }
         } catch {
           // Invalid JSON — ignore

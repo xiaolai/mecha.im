@@ -13,14 +13,15 @@ import type { WebSocket } from "ws";
 
 const mockReadCasaConfig = vi.mocked(readCasaConfig);
 
-function createMockPty(): MechaPty & { _emitExit: (code: number) => void } {
+function createMockPty(): MechaPty & { _emitData: (d: string) => void; _emitExit: (code: number) => void } {
   const emitter = new EventEmitter();
   return {
     onData: (cb: (d: string) => void) => { emitter.on("data", cb); return { dispose: () => emitter.removeListener("data", cb) }; },
     onExit: (cb: (e: { exitCode: number }) => void) => { emitter.on("exit", cb); return { dispose: () => emitter.removeListener("exit", cb) }; },
     write: vi.fn(), resize: vi.fn(), kill: vi.fn(),
+    _emitData(d: string) { emitter.emit("data", d); },
     _emitExit(code: number) { emitter.emit("exit", { exitCode: code }); },
-  } as unknown as MechaPty & { _emitExit: (code: number) => void };
+  } as unknown as MechaPty & { _emitData: (d: string) => void; _emitExit: (code: number) => void };
 }
 
 function createMockPm(running = true): ProcessManager {
@@ -64,6 +65,15 @@ describe("agent createPtyManager", () => {
     const pm = createPtyManager({ processManager: createMockPm(), mechaDir: "/m", spawnFn });
     const session = pm.spawn("coder", undefined, 80, 24);
     expect(spawnFn).toHaveBeenCalledWith(expect.stringContaining("claude"), [], expect.any(Object));
+    expect(session.id).toMatch(/^coder:new-/);
+  });
+
+  it("treats new-* session IDs as new sessions (no --resume)", () => {
+    const pm = createPtyManager({ processManager: createMockPm(), mechaDir: "/m", spawnFn });
+    const session = pm.spawn("coder", "new-abc123", 80, 24);
+    // Should NOT pass --resume with a new-* ID (it's mecha-internal, not a real Claude session)
+    expect(spawnFn).toHaveBeenCalledWith(expect.stringContaining("claude"), [], expect.any(Object));
+    // Should generate a fresh key (not reuse the new-abc123)
     expect(session.id).toMatch(/^coder:new-/);
   });
 
@@ -174,5 +184,70 @@ describe("agent createPtyManager", () => {
     (mockPm.get as ReturnType<typeof vi.fn>).mockReturnValue({ name: "coder", state: "stopped", workspacePath: "/ws" });
     const pm = createPtyManager({ processManager: mockPm, mechaDir: "/m", spawnFn });
     expect(() => pm.spawn("coder", undefined, 80, 24)).toThrow("not running");
+  });
+
+  describe("findByCasa", () => {
+    it("returns sessions for a given CASA sorted by lastActivity DESC", () => {
+      const pty1 = createMockPty();
+      const pty2 = createMockPty();
+      let call = 0;
+      const multiSpawn = vi.fn().mockImplementation(() => ++call === 1 ? pty1 : pty2);
+
+      const pm = createPtyManager({ processManager: createMockPm(), mechaDir: "/m", spawnFn: multiSpawn });
+      const s1 = pm.spawn("coder", "s1", 80, 24);
+      vi.advanceTimersByTime(100);
+      const s2 = pm.spawn("coder", "s2", 80, 24);
+
+      const results = pm.findByCasa("coder");
+      expect(results).toHaveLength(2);
+      // s2 was spawned later (more recent lastActivity)
+      expect(results[0]).toBe(s2);
+      expect(results[1]).toBe(s1);
+    });
+
+    it("returns empty array when no sessions match", () => {
+      const pm = createPtyManager({ processManager: createMockPm(), mechaDir: "/m", spawnFn });
+      pm.spawn("coder", "s1", 80, 24);
+      expect(pm.findByCasa("other")).toEqual([]);
+    });
+  });
+
+  describe("scrollback buffer", () => {
+    it("captures PTY output into scrollback", () => {
+      const pm = createPtyManager({ processManager: createMockPm(), mechaDir: "/m", spawnFn });
+      const session = pm.spawn("coder", "s1", 80, 24);
+      mockPty._emitData("line1");
+      mockPty._emitData("line2");
+      expect(session.scrollback).toEqual(["line1", "line2"]);
+    });
+
+    it("limits scrollback to SCROLLBACK_LIMIT chunks", () => {
+      const pm = createPtyManager({ processManager: createMockPm(), mechaDir: "/m", spawnFn });
+      const session = pm.spawn("coder", "s1", 80, 24);
+      // Emit 250 chunks (limit is 200)
+      for (let i = 0; i < 250; i++) {
+        mockPty._emitData(`chunk-${i}`);
+      }
+      expect(session.scrollback).toHaveLength(200);
+      // Oldest chunks should be dropped
+      expect(session.scrollback[0]).toBe("chunk-50");
+      expect(session.scrollback[199]).toBe("chunk-249");
+    });
+  });
+
+  it("uses default idle timeout of 5 minutes", () => {
+    const pm = createPtyManager({ processManager: createMockPm(), mechaDir: "/m", spawnFn });
+    const session = pm.spawn("coder", "s1", 80, 24);
+    const ws = createMockWs();
+    pm.attach(session.id, ws);
+    pm.detach(session.id, ws);
+
+    // Should still be alive at 4 minutes
+    vi.advanceTimersByTime(4 * 60 * 1000);
+    expect(pm.getSession(session.id)).toBe(session);
+
+    // Should be killed at 5 minutes
+    vi.advanceTimersByTime(1 * 60 * 1000);
+    expect(pm.getSession(session.id)).toBeNull();
   });
 });

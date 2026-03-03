@@ -27,7 +27,7 @@ function writeTranscript(dir: string, id: string, events: Array<{ type: string; 
   writeFileSync(join(dir, `${id}.jsonl`), content);
 }
 
-describe("createSessionManager (read-only)", () => {
+describe("createSessionManager", () => {
   let tempDir: string;
   let projectsDir: string;
   let sm: SessionManager;
@@ -71,7 +71,6 @@ describe("createSessionManager (read-only)", () => {
 
     it("skips non-meta files", () => {
       writeMeta(projectsDir, "real-session", { title: "Real" });
-      writeFileSync(join(projectsDir, "random.jsonl"), "data");
       writeFileSync(join(projectsDir, "notes.txt"), "text");
 
       const sessions = sm.list();
@@ -91,6 +90,38 @@ describe("createSessionManager (read-only)", () => {
     it("returns empty for nonexistent directory", () => {
       const sm2 = createSessionManager(join(tempDir, "nonexistent"));
       expect(sm2.list()).toEqual([]);
+    });
+
+    it("includes .jsonl-only sessions without .meta.json", () => {
+      writeMeta(projectsDir, "has-meta", { title: "Has Meta", updatedAt: "2026-01-01T00:00:00.000Z" });
+      // Create a .jsonl file without a corresponding .meta.json (active session)
+      writeTranscript(projectsDir, "no-meta-session", [
+        { type: "user", message: "hello" },
+      ]);
+
+      const sessions = sm.list();
+      expect(sessions).toHaveLength(2);
+      // The .jsonl-only session should have synthesized metadata
+      const orphan = sessions.find((s) => s.id === "no-meta-session");
+      expect(orphan).toBeDefined();
+      expect(orphan!.title).toBe("(active session)");
+      expect(orphan!.starred).toBe(false);
+    });
+
+    it("does not duplicate sessions that have both .meta.json and .jsonl", () => {
+      writeMeta(projectsDir, "full-session", { title: "Full" });
+      writeTranscript(projectsDir, "full-session", [{ type: "user", message: "hi" }]);
+
+      const sessions = sm.list();
+      expect(sessions).toHaveLength(1);
+      expect(sessions[0]!.title).toBe("Full");
+    });
+
+    it("skips .jsonl files with invalid IDs", () => {
+      writeFileSync(join(projectsDir, "../../../bad.jsonl"), "data");
+      // Only valid IDs pass the filter
+      const sessions = sm.list();
+      expect(sessions).toEqual([]);
     });
   });
 
@@ -147,6 +178,26 @@ describe("createSessionManager (read-only)", () => {
       expect(await sm.get("corrupt")).toBeUndefined();
     });
 
+    it("returns synthesized metadata for .jsonl-only session", async () => {
+      writeTranscript(projectsDir, "jsonl-only-get", [
+        { type: "user", message: "hello" },
+      ]);
+
+      const session = await sm.get("jsonl-only-get");
+      expect(session).toBeDefined();
+      expect(session!.title).toBe("(active session)");
+      expect(session!.starred).toBe(false);
+      expect(session!.events).toHaveLength(1);
+    });
+
+    it("returns undefined for meta.json with invalid field types", async () => {
+      writeFileSync(
+        join(projectsDir, "bad-types.meta.json"),
+        JSON.stringify({ id: 123, title: null, createdAt: true, updatedAt: 0 }),
+      );
+      expect(await sm.get("bad-types")).toBeUndefined();
+    });
+
     it("returns empty events when transcript exceeds 10 MB", async () => {
       writeMeta(projectsDir, "huge", { title: "Huge" });
       // Create a file just over the 10 MB limit
@@ -156,6 +207,47 @@ describe("createSessionManager (read-only)", () => {
       const session = await sm.get("huge");
       expect(session).toBeDefined();
       expect(session!.events).toEqual([]);
+    });
+  });
+
+  describe("delete", () => {
+    it("deletes both .meta.json and .jsonl files", () => {
+      writeMeta(projectsDir, "to-delete", { title: "Delete Me" });
+      writeTranscript(projectsDir, "to-delete", [{ type: "user", message: "bye" }]);
+
+      const result = sm.delete("to-delete");
+      expect(result).toBe(true);
+      expect(existsSync(join(projectsDir, "to-delete.meta.json"))).toBe(false);
+      expect(existsSync(join(projectsDir, "to-delete.jsonl"))).toBe(false);
+    });
+
+    it("returns true when only .meta.json exists", () => {
+      writeMeta(projectsDir, "meta-only", { title: "Meta Only" });
+      expect(sm.delete("meta-only")).toBe(true);
+      expect(existsSync(join(projectsDir, "meta-only.meta.json"))).toBe(false);
+    });
+
+    it("returns true when only .jsonl exists", () => {
+      writeTranscript(projectsDir, "jsonl-only", [{ type: "user", message: "hi" }]);
+      expect(sm.delete("jsonl-only")).toBe(true);
+      expect(existsSync(join(projectsDir, "jsonl-only.jsonl"))).toBe(false);
+    });
+
+    it("returns false for nonexistent session", () => {
+      expect(sm.delete("nonexistent")).toBe(false);
+    });
+
+    it("returns false for invalid session ID", () => {
+      expect(sm.delete("../../../etc/passwd")).toBe(false);
+    });
+
+    it("session is no longer listed after deletion", () => {
+      writeMeta(projectsDir, "doomed", { title: "Doomed" });
+      writeTranscript(projectsDir, "doomed", [{ type: "user", message: "gone" }]);
+
+      expect(sm.list()).toHaveLength(1);
+      sm.delete("doomed");
+      expect(sm.list()).toHaveLength(0);
     });
   });
 });
