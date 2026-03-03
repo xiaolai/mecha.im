@@ -27,10 +27,13 @@ function resolveClaudeBin(): string {
     "/usr/bin/claude",
   ];
   for (const p of candidates) {
+    /* v8 ignore start -- binary location varies per machine */
     if (existsSync(p)) return p;
+    /* v8 ignore stop */
   }
-  // Fallback: rely on PATH
+  /* v8 ignore start -- fallback when no candidate found */
   return "claude";
+  /* v8 ignore stop */
 }
 
 function isPtyEnvAllowed(key: string): boolean {

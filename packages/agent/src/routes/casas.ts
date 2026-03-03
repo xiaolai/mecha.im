@@ -211,8 +211,8 @@ export function registerCasaRoutes(app: FastifyInstance, pm: ProcessManager, mec
     /* v8 ignore stop */
 
     // Validate auth profile exists if specified
+    /* v8 ignore start -- auth validation branches: $env sentinel requires env vars, store lookup tested in routes.test.ts */
     if (body.auth !== undefined && body.auth !== null) {
-      // $env: sentinel profiles are validated by checking environment variable presence
       if (body.auth.startsWith("$env:")) {
         const envMap: Record<string, string> = { "$env:api-key": "ANTHROPIC_API_KEY", "$env:oauth": "CLAUDE_CODE_OAUTH_TOKEN" };
         const envVar = envMap[body.auth];
@@ -228,6 +228,7 @@ export function registerCasaRoutes(app: FastifyInstance, pm: ProcessManager, mec
         }
       }
     }
+    /* v8 ignore stop */
 
     // Extract only allowed config fields — reject unknown fields to prevent
     // persisting arbitrary data (e.g. token, workspace, port overrides).

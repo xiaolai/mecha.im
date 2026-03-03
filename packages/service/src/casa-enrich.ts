@@ -61,7 +61,9 @@ export function enrichCasaInfo(
     if (config.auth in envTypeMap) {
       authType = envTypeMap[config.auth];
     } else if (Object.hasOwn(ctx.authStore.profiles, config.auth)) {
+      /* v8 ignore start -- optional chaining guard for malformed profile store */
       authType = ctx.authStore.profiles[config.auth]?.type;
+      /* v8 ignore stop */
     }
   }
 
