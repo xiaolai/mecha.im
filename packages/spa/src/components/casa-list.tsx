@@ -5,7 +5,7 @@ import { useFetch } from "@/lib/use-fetch";
 export function CasaList() {
   const { data, loading, error } = useFetch<CasaInfo[]>("/casas", { interval: 5000 });
 
-  if (loading) {
+  if (loading && !data) {
     return (
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: 3 }, (_, i) => (

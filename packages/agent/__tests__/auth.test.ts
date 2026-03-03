@@ -162,6 +162,47 @@ describe("agent auth", () => {
       await app.close();
     });
 
+    it("serves SPA for browser navigation to API-prefixed paths without auth", async () => {
+      const spaHtml = "<html><body>SPA</body></html>";
+      const app = Fastify();
+      app.addHook("onRequest", createAuthHook({
+        apiKey: "secret", spaDir: "/fake/spa", spaIndexHtml: spaHtml,
+      }));
+      app.get("/casas", async () => []);
+      app.get("/mesh/nodes", async () => []);
+      await app.ready();
+
+      // Browser navigation (Accept: text/html) to /mesh → serves SPA HTML
+      const res1 = await app.inject({
+        method: "GET", url: "/mesh",
+        headers: { accept: "text/html,application/xhtml+xml" },
+      });
+      expect(res1.statusCode).toBe(200);
+      expect(res1.headers["content-type"]).toContain("text/html");
+      expect(res1.body).toBe(spaHtml);
+
+      // Browser navigation to /casas with text/html → serves SPA, NOT API data
+      const res2 = await app.inject({
+        method: "GET", url: "/casas",
+        headers: { accept: "text/html,application/xhtml+xml" },
+      });
+      expect(res2.statusCode).toBe(200);
+      expect(res2.body).toBe(spaHtml);
+      expect(res2.body).not.toBe("[]"); // Must NOT leak API data
+
+      // API fetch (no text/html) to /mesh/nodes → still requires auth
+      const res3 = await app.inject({
+        method: "GET", url: "/mesh/nodes",
+        headers: { accept: "application/json" },
+      });
+      expect(res3.statusCode).toBe(401);
+
+      // API fetch to /casas without auth → 401
+      const res4 = await app.inject({ method: "GET", url: "/casas" });
+      expect(res4.statusCode).toBe(401);
+      await app.close();
+    });
+
     it("requires auth for all paths when spaDir is not set", async () => {
       const app = await buildAuthApp();
       const res = await app.inject({ method: "GET", url: "/some-page" });
