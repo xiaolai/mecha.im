@@ -55,8 +55,19 @@ export function casaConfigure(
     workspace: info.workspacePath ?? "",
   };
   /* v8 ignore stop */
-  // Convert null auth to undefined to clear the field; strip null from type
+  // When auth is explicitly null, clear auth from config.
+  // When auth is a string, set it. When undefined, leave unchanged.
   const { auth, ...rest } = updates;
-  const configUpdates: Partial<CasaConfig> = { ...rest, ...(auth !== null && auth !== undefined ? { auth } : {}) };
-  updateCasaConfig(join(mechaDir, name), configUpdates, fallback);
+  const casaDir = join(mechaDir, name);
+  const configUpdates: Partial<CasaConfig> = { ...rest, ...(auth != null ? { auth } : {}) };
+  updateCasaConfig(casaDir, configUpdates, fallback);
+  if (auth === null) {
+    // Remove auth field: read back merged config, delete key, write again
+    const merged = readCasaConfig(casaDir);
+    if (merged && "auth" in merged) {
+      delete (merged as unknown as Record<string, unknown>).auth;
+      // Write full config (base = merged, updates empty → no-op merge)
+      updateCasaConfig(casaDir, merged);
+    }
+  }
 }

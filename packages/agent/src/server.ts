@@ -97,6 +97,12 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
     : undefined;
 
   /* v8 ignore start -- auth wiring tested via auth.test.ts + server.test.ts */
+  // Pre-read SPA index.html for browser navigation handling in auth hook
+  let spaIndexHtml: string | undefined;
+  if (opts.spaDir) {
+    try { spaIndexHtml = readFileSync(join(opts.spaDir, "index.html"), "utf-8"); } catch { /* no SPA */ }
+  }
+
   const authOpts = {
     apiKey: opts.auth.apiKey,
     sessionKey,
@@ -107,6 +113,7 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
     },
     verifySignature: initialKeys.size > 0 ? verifySignature : undefined,
     spaDir: opts.spaDir,
+    spaIndexHtml,
   };
 
   app.addHook("onRequest", createAuthHook(authOpts));

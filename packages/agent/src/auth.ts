@@ -18,6 +18,8 @@ export interface AuthOpts {
   verifySignature?: typeof VerifySignatureFn;
   /** When SPA is served, skip auth for static asset requests. */
   spaDir?: string;
+  /** Pre-read SPA index.html content — used to serve SPA for browser navigations. */
+  spaIndexHtml?: string;
 }
 
 /** Known API path prefixes that always require auth. */
@@ -40,15 +42,19 @@ export function createAuthHook(opts: AuthOpts) {
     // Public paths — always skip auth
     if (PUBLIC_PATHS.includes(pathname)) return;
 
-    // When SPA is served, skip auth for static assets and browser page navigations.
-    // Browser refreshes on SPA routes like /mesh or /casas send GET with Accept: text/html —
-    // these must reach the SPA fallback handler, not be blocked by API auth.
+    // When SPA is served, skip auth for non-API paths (static assets, etc.).
+    // For browser navigations (Accept: text/html) to API-prefixed paths like /mesh
+    // or /acl, serve the SPA index.html directly — this prevents API data leakage
+    // while allowing browser refresh on SPA routes that share API prefixes.
     if (opts.spaDir) {
       const isApiPath = API_PREFIXES.some((p) => pathname.startsWith(p));
       if (!isApiPath) return;
-      if (isApiPath && request.method === "GET") {
+      if (request.method === "GET" && opts.spaIndexHtml) {
         const accept = request.headers.accept ?? "";
-        if (accept.includes("text/html")) return;
+        if (accept.includes("text/html")) {
+          reply.type("text/html").send(opts.spaIndexHtml);
+          return;
+        }
       }
     }
 

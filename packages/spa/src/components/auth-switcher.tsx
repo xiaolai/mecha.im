@@ -29,9 +29,12 @@ export function AuthSwitcher({ casaName, currentAuth, currentAuthType, casaState
   const [error, setError] = useState<string | null>(null);
   const { authHeaders, logout } = useAuth();
 
-  const { data: profiles, error: profilesError } = useFetch<AuthProfile[]>("/auth/profiles");
-
   const nodeQuery = node && node !== "local" ? `?node=${encodeURIComponent(node)}` : "";
+
+  const { data: profiles, error: profilesError } = useFetch<AuthProfile[]>(
+    `/auth/profiles${nodeQuery}`,
+    { deps: [node] },
+  );
 
   const handleSwitch = useCallback(async (profileName: string | null) => {
     setSwitching(true);

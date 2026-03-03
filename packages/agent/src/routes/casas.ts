@@ -212,15 +212,34 @@ export function registerCasaRoutes(app: FastifyInstance, pm: ProcessManager, mec
 
     // Validate auth profile exists if specified
     if (body.auth !== undefined && body.auth !== null) {
-      const store = readAuthProfiles(mechaDir);
-      if (!store.profiles[body.auth]) {
-        reply.code(400).send({ error: `Auth profile not found: ${body.auth}` });
-        return;
+      // $env: sentinel profiles are validated by checking environment variable presence
+      if (body.auth.startsWith("$env:")) {
+        const envMap: Record<string, string> = { "$env:api-key": "ANTHROPIC_API_KEY", "$env:oauth": "CLAUDE_CODE_OAUTH_TOKEN" };
+        const envVar = envMap[body.auth];
+        if (!envVar || !process.env[envVar]) {
+          reply.code(400).send({ error: `Auth profile not found: ${body.auth}` });
+          return;
+        }
+      } else {
+        const store = readAuthProfiles(mechaDir);
+        if (!store.profiles[body.auth]) {
+          reply.code(400).send({ error: `Auth profile not found: ${body.auth}` });
+          return;
+        }
       }
     }
 
-    // Extract config fields (exclude restart/force)
-    const { restart, force, ...configUpdates } = body;
+    // Extract only allowed config fields — reject unknown fields to prevent
+    // persisting arbitrary data (e.g. token, workspace, port overrides).
+    const { restart, force, auth, model, tags, expose, sandboxMode, permissionMode } = body;
+    const configUpdates: CasaConfigUpdates = {
+      ...(auth !== undefined && { auth }),
+      ...(model !== undefined && { model }),
+      ...(tags !== undefined && { tags }),
+      ...(expose !== undefined && { expose }),
+      ...(sandboxMode !== undefined && { sandboxMode }),
+      ...(permissionMode !== undefined && { permissionMode }),
+    };
     casaConfigure(mechaDir, pm, casaName, configUpdates);
 
     let restarted = false;
