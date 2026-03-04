@@ -5,11 +5,10 @@ import { withErrorHandler } from "../error-handler.js";
 
 interface AuthConfigOpts {
   totp?: boolean;
-  apiKey?: boolean;
 }
 
 export function executeAuthConfig(opts: AuthConfigOpts, deps: CommandDeps): void {
-  const hasFlags = opts.totp !== undefined || opts.apiKey !== undefined;
+  const hasFlags = opts.totp !== undefined;
 
   if (!hasFlags) {
     // Show current config
@@ -17,8 +16,7 @@ export function executeAuthConfig(opts: AuthConfigOpts, deps: CommandDeps): void
     if (deps.formatter.isJson) {
       deps.formatter.json(config);
     } else {
-      deps.formatter.info(`TOTP:    ${config.totp ? "enabled" : "disabled"}`);
-      deps.formatter.info(`API key: ${config.apiKey ? "enabled" : "disabled"}`);
+      deps.formatter.info(`TOTP: ${config.totp ? "enabled" : "disabled"}`);
     }
     return;
   }
@@ -27,7 +25,6 @@ export function executeAuthConfig(opts: AuthConfigOpts, deps: CommandDeps): void
   const current = readAuthConfig(deps.mechaDir);
   const updated = {
     totp: opts.totp !== undefined ? opts.totp : current.totp,
-    apiKey: opts.apiKey !== undefined ? opts.apiKey : current.apiKey,
   };
 
   writeAuthConfig(deps.mechaDir, updated);
@@ -37,8 +34,7 @@ export function executeAuthConfig(opts: AuthConfigOpts, deps: CommandDeps): void
   } else {
   /* v8 ignore stop */
     deps.formatter.success("Auth config updated");
-    deps.formatter.info(`TOTP:    ${updated.totp ? "enabled" : "disabled"}`);
-    deps.formatter.info(`API key: ${updated.apiKey ? "enabled" : "disabled"}`);
+    deps.formatter.info(`TOTP: ${updated.totp ? "enabled" : "disabled"}`);
   }
 }
 
@@ -49,8 +45,6 @@ export function registerAuthConfigCommand(program: Command, deps: CommandDeps): 
     .description("View or update authentication configuration")
     .option("--totp", "Enable TOTP authentication")
     .option("--no-totp", "Disable TOTP authentication")
-    .option("--api-key", "Enable API key authentication")
-    .option("--no-api-key", "Disable API key authentication")
     .action(async (opts: AuthConfigOpts) => withErrorHandler(deps, async () => executeAuthConfig(opts, deps)));
 }
 /* v8 ignore stop */

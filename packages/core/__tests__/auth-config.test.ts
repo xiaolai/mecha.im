@@ -13,73 +13,73 @@ describe("auth-config", () => {
   describe("readAuthConfig", () => {
     it("returns defaults when no file exists", () => {
       const config = readAuthConfig(dir);
-      expect(config).toEqual({ totp: true, apiKey: false });
+      expect(config).toEqual({ totp: true });
     });
 
     it("reads config from file", () => {
-      writeFileSync(join(dir, "auth-config.json"), JSON.stringify({ totp: false, apiKey: true }));
+      writeFileSync(join(dir, "auth-config.json"), JSON.stringify({ totp: false }));
       const config = readAuthConfig(dir);
-      expect(config).toEqual({ totp: false, apiKey: true });
+      expect(config).toEqual({ totp: false });
     });
 
     it("fills missing fields with defaults", () => {
-      writeFileSync(join(dir, "auth-config.json"), JSON.stringify({ apiKey: true }));
+      writeFileSync(join(dir, "auth-config.json"), JSON.stringify({}));
       const config = readAuthConfig(dir);
-      expect(config).toEqual({ totp: true, apiKey: true });
+      expect(config).toEqual({ totp: true });
     });
 
     it("uses defaults for non-boolean field values", () => {
-      writeFileSync(join(dir, "auth-config.json"), JSON.stringify({ totp: true, apiKey: "yes" }));
+      writeFileSync(join(dir, "auth-config.json"), JSON.stringify({ totp: "yes" }));
       const config = readAuthConfig(dir);
-      expect(config).toEqual({ totp: true, apiKey: false });
+      expect(config).toEqual({ totp: true });
     });
 
     it("handles corrupt JSON", () => {
       writeFileSync(join(dir, "auth-config.json"), "not json");
       const config = readAuthConfig(dir);
-      expect(config).toEqual({ totp: true, apiKey: false });
+      expect(config).toEqual({ totp: true });
     });
   });
 
   describe("writeAuthConfig", () => {
     it("writes config to file", () => {
-      writeAuthConfig(dir, { totp: true, apiKey: true });
+      writeAuthConfig(dir, { totp: true });
       const content = JSON.parse(readFileSync(join(dir, "auth-config.json"), "utf-8"));
-      expect(content).toEqual({ totp: true, apiKey: true });
+      expect(content).toEqual({ totp: true });
     });
 
-    it("throws when both methods disabled", () => {
-      expect(() => writeAuthConfig(dir, { totp: false, apiKey: false })).toThrow(
-        "At least one auth method must be enabled",
+    it("throws when TOTP disabled", () => {
+      expect(() => writeAuthConfig(dir, { totp: false })).toThrow(
+        "TOTP must be enabled",
       );
     });
 
     it("creates parent directory if needed", () => {
       const nested = join(dir, "nested");
-      writeAuthConfig(nested, { totp: true, apiKey: false });
+      writeAuthConfig(nested, { totp: true });
       expect(JSON.parse(readFileSync(join(nested, "auth-config.json"), "utf-8"))).toEqual({
-        totp: true, apiKey: false,
+        totp: true,
       });
     });
   });
 
   describe("resolveAuthConfig", () => {
     it("returns file config when no overrides", () => {
-      writeFileSync(join(dir, "auth-config.json"), JSON.stringify({ totp: true, apiKey: true }));
+      writeFileSync(join(dir, "auth-config.json"), JSON.stringify({ totp: true }));
       const config = resolveAuthConfig(dir);
-      expect(config).toEqual({ totp: true, apiKey: true });
+      expect(config).toEqual({ totp: true });
     });
 
     it("applies overrides over file config", () => {
-      writeFileSync(join(dir, "auth-config.json"), JSON.stringify({ totp: true, apiKey: false }));
-      const config = resolveAuthConfig(dir, { apiKey: true });
-      expect(config).toEqual({ totp: true, apiKey: true });
+      writeFileSync(join(dir, "auth-config.json"), JSON.stringify({ totp: false }));
+      const config = resolveAuthConfig(dir, { totp: true });
+      expect(config).toEqual({ totp: true });
     });
 
-    it("throws when overrides result in both disabled", () => {
-      writeFileSync(join(dir, "auth-config.json"), JSON.stringify({ totp: true, apiKey: false }));
+    it("throws when overrides result in TOTP disabled", () => {
+      writeFileSync(join(dir, "auth-config.json"), JSON.stringify({ totp: true }));
       expect(() => resolveAuthConfig(dir, { totp: false })).toThrow(
-        "At least one auth method must be enabled",
+        "TOTP must be enabled",
       );
     });
   });

@@ -58,6 +58,7 @@ For multi-machine testing, deployment targets, SSH access, and runtime configura
 
 ### Security Trust Boundary
 Secrets (ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN) are passed as process environment variables.
+Dashboard auth uses TOTP only (no API key login).
 Anyone with access to `/proc/<pid>/environ` (root) can read them. This is acceptable for local-first usage.
 
 ### Port Assignment

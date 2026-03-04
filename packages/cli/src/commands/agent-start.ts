@@ -6,7 +6,6 @@ import { displayTotpSetup } from "../totp-display.js";
 
 interface AgentStartOpts {
   port: string;
-  apiKey?: string | false;
   totp: boolean;
   host: string;
   server: boolean;
@@ -20,8 +19,6 @@ export function registerAgentStartCommand(parent: Command, deps: CommandDeps): v
     .command("start")
     .description("Start the agent server for cross-node communication")
     .option("--port <port>", "Agent server port", String(DEFAULTS.AGENT_PORT))
-    .option("--api-key <key>", "API key for authentication (or set MECHA_AGENT_API_KEY)")
-    .option("--no-api-key", "Disable API key authentication")
     .option("--no-totp", "Disable TOTP authentication")
     .option("--host <host>", "Bind address (default: 127.0.0.1)", "127.0.0.1")
     .option("--server", "Enable embedded rendezvous + relay server", false)
@@ -37,18 +34,9 @@ export function registerAgentStartCommand(parent: Command, deps: CommandDeps): v
       }
 
       // Resolve auth config
-      const rawApiKey = typeof opts.apiKey === "string" ? opts.apiKey.trim() : undefined;
-      const explicitApiKey = rawApiKey || ((process.env.MECHA_AGENT_API_KEY ?? "").trim() || undefined);
       const authConfig = resolveAuthConfig(deps.mechaDir, {
         totp: opts.totp === false ? false : undefined,
-        apiKey: opts.apiKey === false ? false : explicitApiKey ? true : undefined,
       });
-
-      if (authConfig.apiKey && !explicitApiKey) {
-        deps.formatter.error("API key auth enabled but no key provided: use --api-key or set MECHA_AGENT_API_KEY");
-        process.exitCode = 1;
-        return;
-      }
 
       // Ensure TOTP secret if TOTP is enabled
       let totpSecret: string | undefined;
@@ -68,11 +56,19 @@ export function registerAgentStartCommand(parent: Command, deps: CommandDeps): v
       const nodeName = readNodeName(deps.mechaDir) ?? "unknown";
       const { fetchPublicIp } = await import("@mecha/core");
       const publicIp = await fetchPublicIp();
+      // Derive internal mesh routing key from TOTP secret (not user-facing)
+      /* v8 ignore start -- mesh key derivation requires TOTP secret */
+      const { createHmac } = await import("node:crypto");
+      const meshKey = totpSecret
+        ? createHmac("sha256", totpSecret).update("mecha-mesh-routing").digest("hex")
+        : undefined;
+      /* v8 ignore stop */
+
       const server = createAgentServer({
         port,
         auth: {
-          apiKey: authConfig.apiKey ? explicitApiKey : undefined,
           totpSecret,
+          apiKey: meshKey,
         },
         processManager: deps.processManager,
         acl: deps.acl,
@@ -136,10 +132,7 @@ export function registerAgentStartCommand(parent: Command, deps: CommandDeps): v
       }
       /* v8 ignore stop */
 
-      const methods: string[] = [];
-      if (authConfig.totp) methods.push("TOTP");
-      if (authConfig.apiKey) methods.push("API key");
-      deps.formatter.success(`Agent server started on ${host}:${port} (node: ${nodeName}, auth: ${methods.join(" + ")})`);
+      deps.formatter.success(`Agent server started on ${host}:${port} (node: ${nodeName}, auth: TOTP)`);
 
       // Auto-register on signaling WebSocket for P2P presence
       /* v8 ignore start -- signaling registration requires live server */

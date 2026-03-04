@@ -20,13 +20,11 @@ function generateCode(secret: string): string {
 
 async function buildApp(opts?: {
   totpSecret?: string | null;
-  apiKey?: string;
   sessionKey?: string | null;
 }): Promise<FastifyInstance> {
   const app = Fastify();
   registerAuthRoutes(app, {
     totpSecret: opts?.totpSecret === null ? undefined : (opts?.totpSecret ?? TEST_SECRET),
-    apiKey: opts?.apiKey,
     sessionKey: opts?.sessionKey === null ? undefined : (opts?.sessionKey ?? TEST_SESSION_KEY),
   });
   await app.ready();
@@ -38,19 +36,19 @@ describe("auth routes", () => {
 
   describe("GET /auth/status", () => {
     it("returns available methods", async () => {
-      const app = await buildApp({ apiKey: "mykey" });
+      const app = await buildApp();
       const res = await app.inject({ method: "GET", url: "/auth/status" });
       expect(res.statusCode).toBe(200);
       expect(res.json()).toEqual({
-        methods: { totp: true, apiKey: true },
+        methods: { totp: true },
       });
       await app.close();
     });
 
-    it("shows totp only when no api key", async () => {
-      const app = await buildApp();
+    it("shows totp false when not configured", async () => {
+      const app = await buildApp({ totpSecret: null });
       const res = await app.inject({ method: "GET", url: "/auth/status" });
-      expect(res.json().methods).toEqual({ totp: true, apiKey: false });
+      expect(res.json().methods).toEqual({ totp: false });
       await app.close();
     });
   });

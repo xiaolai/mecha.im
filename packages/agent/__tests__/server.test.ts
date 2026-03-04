@@ -3,10 +3,19 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createAgentServer } from "../src/server.js";
+import { deriveSessionKey, createSessionToken } from "../src/session.js";
 import type { AclEngine, CasaName } from "@mecha/core";
 import type { ProcessInfo, ProcessManager } from "@mecha/process";
 import { makeAcl, writeCasaConfig } from "../../core/__tests__/test-utils.js";
 import { makePm } from "../../service/__tests__/test-utils.js";
+
+const TEST_TOTP_SECRET = "JBSWY3DPEHPK3PXP";
+const TEST_SESSION_KEY = deriveSessionKey(TEST_TOTP_SECRET);
+
+function authCookie(): string {
+  const token = createSessionToken(TEST_SESSION_KEY, 1);
+  return `mecha-session=${token}`;
+}
 
 describe("AgentServer", () => {
   let mechaDir: string;
@@ -16,7 +25,7 @@ describe("AgentServer", () => {
     mechaDir = mkdtempSync(join(tmpdir(), "agent-"));
     return createAgentServer({
       port: 7660,
-      auth: { apiKey: "test-key" },
+      auth: { totpSecret: TEST_TOTP_SECRET },
       processManager: opts?.pm ?? makePm(),
       acl: opts?.acl ?? makeAcl(),
       mechaDir,
@@ -37,28 +46,28 @@ describe("AgentServer", () => {
   });
 
   describe("auth", () => {
-    it("rejects requests without auth header", async () => {
+    it("rejects requests without session cookie", async () => {
       const app = createServer();
       const res = await app.inject({ method: "GET", url: "/casas" });
       expect(res.statusCode).toBe(401);
     });
 
-    it("rejects requests with wrong key", async () => {
+    it("rejects requests with invalid session cookie", async () => {
       const app = createServer();
       const res = await app.inject({
         method: "GET",
         url: "/casas",
-        headers: { authorization: "Bearer wrong" },
+        headers: { cookie: "mecha-session=invalid" },
       });
       expect(res.statusCode).toBe(401);
     });
 
-    it("accepts requests with correct key", async () => {
+    it("accepts requests with valid session cookie", async () => {
       const app = createServer();
       const res = await app.inject({
         method: "GET",
         url: "/casas",
-        headers: { authorization: "Bearer test-key" },
+        headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(200);
     });
@@ -74,7 +83,7 @@ describe("AgentServer", () => {
       const res = await app.inject({
         method: "GET",
         url: "/casas",
-        headers: { authorization: "Bearer test-key" },
+        headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(200);
       const body = res.json();
@@ -93,7 +102,7 @@ describe("AgentServer", () => {
       const res = await app.inject({
         method: "GET",
         url: "/casas/coder/status",
-        headers: { authorization: "Bearer test-key" },
+        headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(200);
       expect(res.json().state).toBe("running");
@@ -104,7 +113,7 @@ describe("AgentServer", () => {
       const res = await app.inject({
         method: "GET",
         url: "/casas/ghost/status",
-        headers: { authorization: "Bearer test-key" },
+        headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(404);
     });
@@ -114,7 +123,7 @@ describe("AgentServer", () => {
       const res = await app.inject({
         method: "GET",
         url: "/casas/BAD_NAME/status",
-        headers: { authorization: "Bearer test-key" },
+        headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(400);
     });
@@ -131,7 +140,7 @@ describe("AgentServer", () => {
       const res = await app.inject({
         method: "POST",
         url: "/casas/coder/stop",
-        headers: { authorization: "Bearer test-key" },
+        headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(200);
       expect(res.json().ok).toBe(true);
@@ -143,7 +152,7 @@ describe("AgentServer", () => {
       const res = await app.inject({
         method: "POST",
         url: "/casas/ghost/stop",
-        headers: { authorization: "Bearer test-key" },
+        headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(404);
     });
@@ -153,7 +162,7 @@ describe("AgentServer", () => {
       const res = await app.inject({
         method: "POST",
         url: "/casas/BAD_NAME/stop",
-        headers: { authorization: "Bearer test-key" },
+        headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(400);
     });
@@ -167,7 +176,7 @@ describe("AgentServer", () => {
       const res = await app.inject({
         method: "POST",
         url: "/casas/coder/stop",
-        headers: { authorization: "Bearer test-key" },
+        headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(409);
       expect(res.json().code).toBe("CASA_NOT_RUNNING");
@@ -185,7 +194,7 @@ describe("AgentServer", () => {
       const res = await app.inject({
         method: "POST",
         url: "/casas/coder/kill",
-        headers: { authorization: "Bearer test-key" },
+        headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(200);
       expect(res.json().ok).toBe(true);
@@ -197,7 +206,7 @@ describe("AgentServer", () => {
       const res = await app.inject({
         method: "POST",
         url: "/casas/ghost/kill",
-        headers: { authorization: "Bearer test-key" },
+        headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(404);
     });
@@ -207,7 +216,7 @@ describe("AgentServer", () => {
       const res = await app.inject({
         method: "POST",
         url: "/casas/BAD_NAME/kill",
-        headers: { authorization: "Bearer test-key" },
+        headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(400);
     });
@@ -227,7 +236,7 @@ describe("AgentServer", () => {
       const res = await app.inject({
         method: "POST",
         url: "/casas",
-        headers: { authorization: "Bearer test-key" },
+        headers: { cookie: authCookie() },
         payload: { name: "analyst", workspacePath: "/data" },
       });
       expect(res.statusCode).toBe(200);
@@ -242,7 +251,7 @@ describe("AgentServer", () => {
       const res = await app.inject({
         method: "POST",
         url: "/casas",
-        headers: { authorization: "Bearer test-key" },
+        headers: { cookie: authCookie() },
         payload: { workspacePath: "/data" },
       });
       expect(res.statusCode).toBe(400);
@@ -253,7 +262,7 @@ describe("AgentServer", () => {
       const res = await app.inject({
         method: "POST",
         url: "/casas",
-        headers: { authorization: "Bearer test-key" },
+        headers: { cookie: authCookie() },
         payload: { name: "BAD_NAME", workspacePath: "/data" },
       });
       expect(res.statusCode).toBe(400);
@@ -264,7 +273,7 @@ describe("AgentServer", () => {
       const res = await app.inject({
         method: "POST",
         url: "/casas",
-        headers: { authorization: "Bearer test-key" },
+        headers: { cookie: authCookie() },
         payload: { name: "analyst" },
       });
       expect(res.statusCode).toBe(400);
@@ -279,7 +288,7 @@ describe("AgentServer", () => {
       const res = await app.inject({
         method: "POST",
         url: "/casas",
-        headers: { authorization: "Bearer test-key" },
+        headers: { cookie: authCookie() },
         payload: { name: "analyst", workspacePath: "/data" },
       });
       expect(res.statusCode).toBe(409);
@@ -305,7 +314,7 @@ describe("AgentServer", () => {
       const res = await app.inject({
         method: "GET",
         url: "/casas/coder/sessions",
-        headers: { authorization: "Bearer test-key" },
+        headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(200);
       const body = res.json();
@@ -318,7 +327,7 @@ describe("AgentServer", () => {
       const res = await app.inject({
         method: "GET",
         url: "/casas/ghost/sessions",
-        headers: { authorization: "Bearer test-key" },
+        headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(404);
     });
@@ -328,7 +337,7 @@ describe("AgentServer", () => {
       const res = await app.inject({
         method: "GET",
         url: "/casas/BAD_NAME/sessions",
-        headers: { authorization: "Bearer test-key" },
+        headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(400);
     });
@@ -344,7 +353,7 @@ describe("AgentServer", () => {
       const res = await app.inject({
         method: "GET",
         url: "/casas/coder/sessions",
-        headers: { authorization: "Bearer test-key" },
+        headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(502);
     });
@@ -369,7 +378,7 @@ describe("AgentServer", () => {
       const res = await app.inject({
         method: "GET",
         url: "/casas/coder/sessions/s1",
-        headers: { authorization: "Bearer test-key" },
+        headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(200);
       expect(res.json().id).toBe("s1");
@@ -393,7 +402,7 @@ describe("AgentServer", () => {
       const res = await app.inject({
         method: "GET",
         url: "/casas/coder/sessions/ghost",
-        headers: { authorization: "Bearer test-key" },
+        headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(404);
     });
@@ -403,7 +412,7 @@ describe("AgentServer", () => {
       const res = await app.inject({
         method: "GET",
         url: "/casas/ghost/sessions/s1",
-        headers: { authorization: "Bearer test-key" },
+        headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(404);
     });
@@ -413,7 +422,7 @@ describe("AgentServer", () => {
       const res = await app.inject({
         method: "GET",
         url: "/casas/BAD_NAME/sessions/s1",
-        headers: { authorization: "Bearer test-key" },
+        headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(400);
     });
@@ -435,7 +444,7 @@ describe("AgentServer", () => {
         method: "POST",
         url: "/casas/researcher/query",
         headers: {
-          authorization: "Bearer test-key",
+          cookie: authCookie(),
           "x-mecha-source": "coder@remote",
         },
         payload: { message: "find papers" },
@@ -450,7 +459,7 @@ describe("AgentServer", () => {
       const res = await app.inject({
         method: "POST",
         url: "/casas/researcher/query",
-        headers: { authorization: "Bearer test-key" },
+        headers: { cookie: authCookie() },
         payload: { message: "hello" },
       });
       expect(res.statusCode).toBe(400);
@@ -462,7 +471,7 @@ describe("AgentServer", () => {
       const res = await app.inject({
         method: "POST",
         url: "/casas/researcher/query",
-        headers: { authorization: "Bearer test-key", "x-mecha-source": "coder" },
+        headers: { cookie: authCookie(), "x-mecha-source": "coder" },
         payload: {},
       });
       expect(res.statusCode).toBe(400);
@@ -473,7 +482,7 @@ describe("AgentServer", () => {
       const res = await app.inject({
         method: "POST",
         url: "/casas/BAD_NAME/query",
-        headers: { authorization: "Bearer test-key", "x-mecha-source": "coder" },
+        headers: { cookie: authCookie(), "x-mecha-source": "coder" },
         payload: { message: "hello" },
       });
       expect(res.statusCode).toBe(400);
@@ -487,7 +496,7 @@ describe("AgentServer", () => {
         method: "POST",
         url: "/casas/researcher/query",
         headers: {
-          authorization: "Bearer test-key",
+          cookie: authCookie(),
           "x-mecha-source": "coder",
         },
         payload: { message: "hello" },
@@ -500,7 +509,7 @@ describe("AgentServer", () => {
       const res = await app.inject({
         method: "POST",
         url: "/casas/ghost/query",
-        headers: { authorization: "Bearer test-key", "x-mecha-source": "coder" },
+        headers: { cookie: authCookie(), "x-mecha-source": "coder" },
         payload: { message: "hello" },
       });
       expect(res.statusCode).toBe(404);
@@ -516,7 +525,7 @@ describe("AgentServer", () => {
         method: "POST",
         url: "/casas/researcher/query",
         headers: {
-          authorization: "Bearer test-key",
+          cookie: authCookie(),
           "x-mecha-source": "coder@remote",
         },
         payload: { message: "hello" },
@@ -537,7 +546,7 @@ describe("AgentServer", () => {
       const res = await app.inject({
         method: "GET",
         url: "/discover",
-        headers: { authorization: "Bearer test-key" },
+        headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(200);
       const body = res.json();
@@ -558,7 +567,7 @@ describe("AgentServer", () => {
       const res = await app.inject({
         method: "GET",
         url: "/discover?tag=research",
-        headers: { authorization: "Bearer test-key" },
+        headers: { cookie: authCookie() },
       });
       const body = res.json();
       expect(body).toHaveLength(1);
@@ -575,7 +584,7 @@ describe("AgentServer", () => {
       const res = await app.inject({
         method: "GET",
         url: "/discover?capability=execute",
-        headers: { authorization: "Bearer test-key" },
+        headers: { cookie: authCookie() },
       });
       expect(res.json()).toHaveLength(0);
     });

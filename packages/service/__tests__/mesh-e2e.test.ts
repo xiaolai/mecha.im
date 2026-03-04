@@ -4,11 +4,20 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import type { CasaName, NodeEntry } from "@mecha/core";
 import { createAgentServer } from "@mecha/agent";
+import { deriveSessionKey, createSessionToken } from "../../agent/src/session.js";
 import { createCasaRouter } from "../src/router.js";
 import { createLocator } from "../src/locator.js";
 import { agentFetch } from "../src/agent-fetch.js";
 import { makeAcl } from "../../core/__tests__/test-utils.js";
 import { makePm } from "./test-utils.js";
+
+const TEST_TOTP_SECRET = "JBSWY3DPEHPK3PXP";
+
+function makeAuthCookie(secret = TEST_TOTP_SECRET): string {
+  const sessionKey = deriveSessionKey(secret);
+  const token = createSessionToken(sessionKey, 1);
+  return `mecha-session=${token}`;
+}
 
 /**
  * End-to-end mesh integration test.
@@ -39,7 +48,6 @@ describe("mesh e2e: cross-node query", () => {
   let aliceDir: string;
   let bobServer: Awaited<ReturnType<typeof createAgentServer>>;
   let bobPort: number;
-  const bobApiKey = "bob-secret-key";
 
   beforeAll(async () => {
     // Set up bob's mecha dir with an "analyst" CASA config
@@ -57,7 +65,7 @@ describe("mesh e2e: cross-node query", () => {
     // Start bob's agent server
     bobServer = createAgentServer({
       port: 0, // will be overridden by listen
-      auth: { apiKey: bobApiKey },
+      auth: { totpSecret: TEST_TOTP_SECRET, apiKey: "mesh-routing-key" },
       processManager: makePm(),
       acl: makeAcl(),
       mechaDir: bobDir,
@@ -83,7 +91,7 @@ describe("mesh e2e: cross-node query", () => {
       name: "bob" as NodeEntry["name"],
       host: "127.0.0.1",
       port: bobPort,
-      apiKey: bobApiKey,
+      apiKey: "mesh-routing-key",
       addedAt: new Date().toISOString(),
     };
 
@@ -116,7 +124,7 @@ describe("mesh e2e: cross-node query", () => {
       name: "bob" as NodeEntry["name"],
       host: "127.0.0.1",
       port: bobPort,
-      apiKey: bobApiKey,
+      apiKey: "mesh-routing-key",
       addedAt: new Date().toISOString(),
     };
 

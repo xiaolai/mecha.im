@@ -10,7 +10,6 @@ let dir: string;
 beforeEach(() => { dir = mkdtempSync(join(tmpdir(), "start-test-")); });
 afterEach(() => {
   process.exitCode = undefined as unknown as number;
-  delete process.env.MECHA_AGENT_API_KEY;
   rmSync(dir, { recursive: true, force: true });
 });
 
@@ -59,25 +58,6 @@ describe("start command", () => {
     expect(deps.formatter.success).toHaveBeenCalledWith(expect.stringContaining("TOTP"));
   });
 
-  it("starts with API key from env", async () => {
-    process.env.MECHA_AGENT_API_KEY = "test-key";
-    const deps = makeDeps({ mechaDir: dir });
-    const program = createProgram(deps);
-    program.exitOverride();
-
-    await program.parseAsync(["node", "mecha", "start"]);
-    expect(deps.formatter.success).toHaveBeenCalledWith(expect.stringContaining("Mecha started"));
-  });
-
-  it("starts with --api-key flag", async () => {
-    const deps = makeDeps({ mechaDir: dir });
-    const program = createProgram(deps);
-    program.exitOverride();
-
-    await program.parseAsync(["node", "mecha", "start", "--api-key", "mykey"]);
-    expect(deps.formatter.success).toHaveBeenCalledWith(expect.stringContaining("API key"));
-  });
-
   it("warns when SPA not found", async () => {
     const { resolveSpaDir } = await import("../../src/spa-resolve.js");
     vi.mocked(resolveSpaDir).mockReturnValueOnce(undefined);
@@ -91,37 +71,13 @@ describe("start command", () => {
     expect(deps.formatter.warn).toHaveBeenCalledWith(expect.stringContaining("SPA not found"));
   });
 
-  it("starts with --no-api-key (TOTP only)", async () => {
-    const deps = makeDeps({ mechaDir: dir });
-    const program = createProgram(deps);
-    program.exitOverride();
-
-    await program.parseAsync(["node", "mecha", "start", "--no-api-key"]);
-    expect(deps.formatter.success).toHaveBeenCalledWith(expect.stringContaining("TOTP"));
-  });
-
-  it("errors when --no-totp without --api-key", async () => {
+  it("errors when --no-totp disables the only auth method", async () => {
     const deps = makeDeps({ mechaDir: dir });
     const program = createProgram(deps);
     program.exitOverride();
 
     await program.parseAsync(["node", "mecha", "start", "--no-totp"]);
-    expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("At least one auth method"));
-    expect(process.exitCode).toBe(1);
-  });
-
-  it("errors when api-key enabled in config but no key provided", async () => {
-    const { writeAuthConfig } = await import("@mecha/core");
-    writeAuthConfig(dir, { totp: false, apiKey: true });
-
-    const deps = makeDeps({ mechaDir: dir });
-    const program = createProgram(deps);
-    program.exitOverride();
-
-    await program.parseAsync(["node", "mecha", "start", "--no-totp"]);
-    expect(deps.formatter.error).toHaveBeenCalledWith(
-      expect.stringContaining("API key auth enabled but no key provided"),
-    );
+    expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("TOTP must be enabled"));
     expect(process.exitCode).toBe(1);
   });
 

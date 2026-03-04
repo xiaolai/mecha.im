@@ -14,53 +14,30 @@ describe("auth-config command", () => {
   it("shows default config when no file exists", () => {
     const deps = makeDeps({ mechaDir: dir });
     executeAuthConfig({}, deps);
-    expect(deps.formatter.info).toHaveBeenCalledWith("TOTP:    enabled");
-    expect(deps.formatter.info).toHaveBeenCalledWith("API key: disabled");
+    expect(deps.formatter.info).toHaveBeenCalledWith("TOTP: enabled");
   });
 
   it("shows config in JSON mode", () => {
     const deps = makeDeps({ mechaDir: dir });
     (deps.formatter as any).isJson = true;
     executeAuthConfig({}, deps);
-    expect(deps.formatter.json).toHaveBeenCalledWith({ totp: true, apiKey: false });
+    expect(deps.formatter.json).toHaveBeenCalledWith({ totp: true });
   });
 
   it("updates config with --totp flag", () => {
+    // Write config with totp: true, then re-enable (totp is required now)
+    writeFileSync(join(dir, "auth-config.json"), JSON.stringify({ totp: true }));
     const deps = makeDeps({ mechaDir: dir });
-    // First enable API key so we can disable TOTP
-    writeFileSync(join(dir, "auth-config.json"), JSON.stringify({ totp: true, apiKey: true }));
-    executeAuthConfig({ totp: false }, deps);
+    executeAuthConfig({ totp: true }, deps);
     const config = JSON.parse(readFileSync(join(dir, "auth-config.json"), "utf-8"));
-    expect(config).toEqual({ totp: false, apiKey: true });
+    expect(config).toEqual({ totp: true });
     expect(deps.formatter.success).toHaveBeenCalledWith("Auth config updated");
   });
 
-  it("updates config with --api-key flag", () => {
+  it("throws when TOTP would be disabled", () => {
     const deps = makeDeps({ mechaDir: dir });
-    executeAuthConfig({ apiKey: true }, deps);
-    const config = JSON.parse(readFileSync(join(dir, "auth-config.json"), "utf-8"));
-    expect(config).toEqual({ totp: true, apiKey: true });
-  });
-
-  it("shows inverted config (totp disabled, apiKey enabled)", () => {
-    writeFileSync(join(dir, "auth-config.json"), JSON.stringify({ totp: false, apiKey: true }));
-    const deps = makeDeps({ mechaDir: dir });
-    executeAuthConfig({}, deps);
-    expect(deps.formatter.info).toHaveBeenCalledWith("TOTP:    disabled");
-    expect(deps.formatter.info).toHaveBeenCalledWith("API key: enabled");
-  });
-
-  it("shows disabled apiKey after update", () => {
-    writeFileSync(join(dir, "auth-config.json"), JSON.stringify({ totp: true, apiKey: true }));
-    const deps = makeDeps({ mechaDir: dir });
-    executeAuthConfig({ apiKey: false }, deps);
-    expect(deps.formatter.info).toHaveBeenCalledWith("API key: disabled");
-  });
-
-  it("throws when both methods would be disabled", () => {
-    const deps = makeDeps({ mechaDir: dir });
-    expect(() => executeAuthConfig({ totp: false, apiKey: false }, deps)).toThrow(
-      "At least one auth method",
+    expect(() => executeAuthConfig({ totp: false }, deps)).toThrow(
+      "TOTP must be enabled",
     );
   });
 });

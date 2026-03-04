@@ -17,6 +17,7 @@ import { randomBytes } from "node:crypto";
 import type { Capability, NodeEntry } from "@mecha/core";
 import { createAclEngine } from "@mecha/core";
 import { createAgentServer } from "@mecha/agent";
+import { deriveSessionKey, createSessionToken } from "../../agent/src/session.js";
 import {
   createServer,
   nodes,
@@ -26,6 +27,14 @@ import {
 import { createCasaRouter, createLocator, agentFetch } from "@mecha/service";
 import { makePm, writeCasaConfig } from "./helpers/mesh-harness.js";
 import type { FastifyInstance } from "fastify";
+
+const TEST_TOTP_SECRET = "JBSWY3DPEHPK3PXP";
+
+function makeAuthCookie(secret = TEST_TOTP_SECRET): string {
+  const sessionKey = deriveSessionKey(secret);
+  const token = createSessionToken(sessionKey, 1);
+  return `mecha-session=${token}`;
+}
 
 // Mock forwardQueryToCasa
 vi.mock("@mecha/core", async (importOriginal) => {
@@ -129,7 +138,6 @@ describe("mesh failure: agent server validation", () => {
   let bobDir: string;
   let bobServer: ReturnType<typeof createAgentServer>;
   let bobPort: number;
-  const bobApiKey = "fail-bob-key";
 
   beforeAll(async () => {
     bobDir = mkdtempSync(join(tmpdir(), "fail-bob-"));
@@ -144,7 +152,7 @@ describe("mesh failure: agent server validation", () => {
     acl.grant("coder@alice", "analyst", ["query"] as Capability[]);
 
     bobServer = createAgentServer({
-      port: 0, auth: { apiKey: bobApiKey }, processManager: makePm(),
+      port: 0, auth: { totpSecret: TEST_TOTP_SECRET, apiKey: "mesh-routing-key" }, processManager: makePm(),
       acl, mechaDir: bobDir, nodeName: "bob",
     });
     const addr = await bobServer.listen({ port: 0, host: "127.0.0.1" });
@@ -161,7 +169,7 @@ describe("mesh failure: agent server validation", () => {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        authorization: `Bearer ${bobApiKey}`,
+        cookie: makeAuthCookie(),
         "x-mecha-source": "coder@alice",
       },
       body: JSON.stringify({ message: "hello" }),
@@ -176,7 +184,7 @@ describe("mesh failure: agent server validation", () => {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        authorization: `Bearer ${bobApiKey}`,
+        cookie: makeAuthCookie(),
         "x-mecha-source": "coder@alice",
       },
       body: JSON.stringify({}),
@@ -191,7 +199,7 @@ describe("mesh failure: agent server validation", () => {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        authorization: `Bearer ${bobApiKey}`,
+        cookie: makeAuthCookie(),
         "x-mecha-source": "coder@alice",
       },
       body: JSON.stringify({ message: "" }),

@@ -5,7 +5,6 @@ import { createLoginLimiter } from "../login-limiter.js";
 
 export interface AuthRouteOpts {
   totpSecret?: string;
-  apiKey?: string;
   sessionKey?: string;
   sessionTtlHours?: number;
 }
@@ -18,7 +17,6 @@ export function registerAuthRoutes(app: FastifyInstance, opts: AuthRouteOpts): v
   app.get("/auth/status", async () => ({
     methods: {
       totp: !!opts.totpSecret,
-      apiKey: !!opts.apiKey,
     },
   }));
 

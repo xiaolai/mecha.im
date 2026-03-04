@@ -1,42 +1,34 @@
 import { createContext, useContext, useState, useCallback, useMemo, useEffect, type ReactNode } from "react";
 
-type AuthMode = "totp" | "apikey" | null;
+type AuthMode = "totp" | null;
 
 interface AuthStatus {
-  methods: { totp: boolean; apiKey: boolean };
+  methods: { totp: boolean };
 }
 
 interface AuthContextValue {
-  /** True when user has authenticated (session cookie or API key). */
+  /** True when user has authenticated via TOTP session cookie. */
   authenticated: boolean;
   /** Which auth mode is active. */
   authMode: AuthMode;
-  /** Headers to attach to every API request (empty for session-based auth). */
+  /** Headers to attach to every API request (empty — session cookie handles auth). */
   authHeaders: Record<string, string>;
-  /** Set API key and mark as authenticated. */
-  setApiKey: (key: string) => void;
   /** Mark as authenticated via TOTP session cookie. */
   setTotpAuthenticated: () => void;
   /** Log out — clears session and state. */
   logout: () => void;
   /** Available auth methods from server. */
-  availableMethods: { totp: boolean; apiKey: boolean };
+  availableMethods: { totp: boolean };
   /** True while fetching /auth/status. */
   loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const STORAGE_KEY = "mecha_api_key";
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [apiKey, setApiKeyState] = useState<string | null>(
-    () => sessionStorage.getItem(STORAGE_KEY),
-  );
   const [totpAuth, setTotpAuth] = useState(false);
-  const [availableMethods, setAvailableMethods] = useState<{ totp: boolean; apiKey: boolean }>({
+  const [availableMethods, setAvailableMethods] = useState<{ totp: boolean }>({
     totp: false,
-    apiKey: false,
   });
   const [loading, setLoading] = useState(true);
 
@@ -48,8 +40,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .then(async (data: AuthStatus) => {
         if (cancelled) return;
         setAvailableMethods(data.methods);
-        // If TOTP is enabled and no API key stored, probe session cookie
-        if (data.methods.totp && !sessionStorage.getItem(STORAGE_KEY)) {
+        // If TOTP is enabled, probe session cookie
+        if (data.methods.totp) {
           try {
             const probe = await fetch("/casas", { credentials: "include" });
             if (!cancelled && probe.ok) setTotpAuth(true);
@@ -67,18 +59,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => { cancelled = true; };
   }, []);
 
-  const setApiKey = useCallback((key: string) => {
-    sessionStorage.setItem(STORAGE_KEY, key);
-    setApiKeyState(key);
-  }, []);
-
   const setTotpAuthenticated = useCallback(() => {
     setTotpAuth(true);
   }, []);
 
   const logout = useCallback(async () => {
-    sessionStorage.removeItem(STORAGE_KEY);
-    setApiKeyState(null);
     setTotpAuth(false);
     // Clear server session cookie
     try {
@@ -88,21 +73,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const authenticated = totpAuth || !!apiKey;
-
-  const authMode: AuthMode = totpAuth ? "totp" : apiKey ? "apikey" : null;
-
-  const authHeaders = useMemo(
-    (): Record<string, string> => {
-      if (apiKey) return { Authorization: `Bearer ${apiKey}` };
-      return {};
-    },
-    [apiKey],
-  );
+  const authenticated = totpAuth;
+  const authMode: AuthMode = totpAuth ? "totp" : null;
+  const authHeaders = useMemo((): Record<string, string> => ({}), []);
 
   const value = useMemo(
-    () => ({ authenticated, authMode, authHeaders, setApiKey, setTotpAuthenticated, logout, availableMethods, loading }),
-    [authenticated, authMode, authHeaders, setApiKey, setTotpAuthenticated, logout, availableMethods, loading],
+    () => ({ authenticated, authMode, authHeaders, setTotpAuthenticated, logout, availableMethods, loading }),
+    [authenticated, authMode, authHeaders, setTotpAuthenticated, logout, availableMethods, loading],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

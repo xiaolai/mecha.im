@@ -16,8 +16,17 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import type { NodeEntry } from "@mecha/core";
 import { createAgentServer } from "@mecha/agent";
+import { deriveSessionKey, createSessionToken } from "../../agent/src/session.js";
 import { createCasaRouter, createLocator, agentFetch } from "@mecha/service";
 import { makePm, makeMockAcl, writeCasaConfig } from "./helpers/mesh-harness.js";
+
+const TEST_TOTP_SECRET = "JBSWY3DPEHPK3PXP";
+
+function makeAuthCookie(secret = TEST_TOTP_SECRET): string {
+  const sessionKey = deriveSessionKey(secret);
+  const token = createSessionToken(sessionKey, 1);
+  return `mecha-session=${token}`;
+}
 
 // Mock forwardQueryToCasa so we don't need real CASA processes
 vi.mock("@mecha/core", async (importOriginal) => {
@@ -39,7 +48,6 @@ describe("mesh query: cross-node routing", () => {
   let aliceDir: string;
   let bobServer: ReturnType<typeof createAgentServer>;
   let bobPort: number;
-  const bobApiKey = "bob-secret-key";
 
   beforeAll(async () => {
     bobDir = mkdtempSync(join(tmpdir(), "query-bob-"));
@@ -49,7 +57,7 @@ describe("mesh query: cross-node routing", () => {
 
     bobServer = createAgentServer({
       port: 0,
-      auth: { apiKey: bobApiKey },
+      auth: { totpSecret: TEST_TOTP_SECRET, apiKey: "mesh-routing-key" },
       processManager: makePm(),
       acl: makeMockAcl(),
       mechaDir: bobDir,
@@ -72,7 +80,7 @@ describe("mesh query: cross-node routing", () => {
       name: "bob" as NodeEntry["name"],
       host: "127.0.0.1",
       port: bobPort,
-      apiKey: bobApiKey,
+      apiKey: "mesh-routing-key",
       addedAt: new Date().toISOString(),
     };
   }
@@ -147,7 +155,7 @@ describe("mesh query: cross-node routing", () => {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        authorization: `Bearer ${bobApiKey}`,
+        cookie: makeAuthCookie(),
         "x-mecha-source": "coder@alice",
       },
       body: JSON.stringify({ message: "direct query" }),
@@ -163,7 +171,7 @@ describe("mesh query: cross-node routing", () => {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        authorization: `Bearer ${bobApiKey}`,
+        cookie: makeAuthCookie(),
         "x-mecha-source": "coder@alice",
       },
       body: JSON.stringify({ message: "check fields" }),
@@ -181,8 +189,6 @@ describe("mesh query: bidirectional routing", () => {
   let bobServer: ReturnType<typeof createAgentServer>;
   let alicePort: number;
   let bobPort: number;
-  const aliceApiKey = "alice-key";
-  const bobApiKey = "bob-key";
 
   beforeAll(async () => {
     aliceDir = mkdtempSync(join(tmpdir(), "bidir-alice-"));
@@ -192,11 +198,11 @@ describe("mesh query: bidirectional routing", () => {
     writeCasaConfig(bobDir, "analyst", { port: 9999, token: "analyst-token", workspace: "/tmp" });
 
     aliceServer = createAgentServer({
-      port: 0, auth: { apiKey: aliceApiKey }, processManager: makePm(),
+      port: 0, auth: { totpSecret: TEST_TOTP_SECRET, apiKey: "mesh-routing-key" }, processManager: makePm(),
       acl: makeMockAcl(), mechaDir: aliceDir, nodeName: "alice",
     });
     bobServer = createAgentServer({
-      port: 0, auth: { apiKey: bobApiKey }, processManager: makePm(),
+      port: 0, auth: { totpSecret: TEST_TOTP_SECRET, apiKey: "mesh-routing-key" }, processManager: makePm(),
       acl: makeMockAcl(), mechaDir: bobDir, nodeName: "bob",
     });
 
@@ -218,7 +224,7 @@ describe("mesh query: bidirectional routing", () => {
   it("bob can query alice after mutual peer registration", async () => {
     const aliceNode: NodeEntry = {
       name: "alice" as NodeEntry["name"],
-      host: "127.0.0.1", port: alicePort, apiKey: aliceApiKey,
+      host: "127.0.0.1", port: alicePort, apiKey: "mesh-routing-key",
       addedAt: new Date().toISOString(),
     };
 
