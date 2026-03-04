@@ -9,6 +9,7 @@ import { AclPage } from "@/pages/acl";
 import { AuditPage } from "@/pages/audit";
 import { MeshPage } from "@/pages/mesh";
 import { SettingsPage } from "@/pages/settings";
+import { SchedulesPage } from "@/pages/schedules-page";
 import { LoginPage } from "@/pages/login";
 
 export function App() {
@@ -28,6 +29,7 @@ export function App() {
         <Route path="bot/:name/session/:id" element={<SessionDetailPage />} />
         <Route path="bot/:name/terminal" element={<TerminalPage />} />
         <Route path="mesh" element={<MeshPage />} />
+        <Route path="schedules" element={<SchedulesPage />} />
         <Route path="acl" element={<AclPage />} />
         <Route path="audit" element={<AuditPage />} />
         <Route path="settings" element={<SettingsPage />} />
