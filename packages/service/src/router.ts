@@ -1,31 +1,31 @@
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import {
-  type CasaName,
+  type BotName,
   type Capability,
   type AclEngine,
   type ForwardResult,
   AclDeniedError,
-  CasaNotFoundError,
+  BotNotFoundError,
   RemoteRoutingError,
-  readCasaConfig,
-  forwardQueryToCasa,
+  readBotConfig,
+  forwardQueryToBot,
   isValidName,
   parseAddress,
-  isCasaAddress,
+  isBotAddress,
 } from "@mecha/core";
 import type { ProcessManager } from "@mecha/process";
-import { casaFind, type FindResult } from "./casa.js";
+import { botFind, type FindResult } from "./bot.js";
 import type { MechaLocator } from "./locator.js";
 import type { agentFetch as agentFetchType } from "./agent-fetch.js";
 
-export interface CasaRouter {
+export interface BotRouter {
   /** Route a query from source to target, checking ACL. */
   routeQuery(source: string, target: string, message: string, sessionId?: string): Promise<ForwardResult>;
 
-  /** Discover CASAs visible to source (ACL-filtered). */
+  /** Discover bots visible to source (ACL-filtered). */
   routeDiscover(
-    source: CasaName,
+    source: BotName,
     opts: { tags?: string[]; capability?: Capability },
   ): FindResult[];
 }
@@ -42,10 +42,10 @@ export interface CreateRouterOpts {
 }
 
 /**
- * Create a CASA router for mediated inter-CASA communication.
+ * Create a bot router for mediated inter-bot communication.
  * Checks ACL before every request, then routes locally or remotely.
  */
-export function createCasaRouter(opts: CreateRouterOpts): CasaRouter {
+export function createBotRouter(opts: CreateRouterOpts): BotRouter {
   const { mechaDir, acl, pm } = opts;
   /* v8 ignore start -- dev/test-only warning */
   if (opts.allowPrivateHosts) {
@@ -54,10 +54,10 @@ export function createCasaRouter(opts: CreateRouterOpts): CasaRouter {
   /* v8 ignore stop */
 
   /* v8 ignore start -- resolveLocal: only called via locator.locate("local") path */
-  function resolveLocal(name: CasaName): { port: number; token: string } {
-    if (!isValidName(name)) throw new CasaNotFoundError(name);
-    const config = readCasaConfig(join(mechaDir, name));
-    if (!config) throw new CasaNotFoundError(name);
+  function resolveLocal(name: BotName): { port: number; token: string } {
+    if (!isValidName(name)) throw new BotNotFoundError(name);
+    const config = readBotConfig(join(mechaDir, name));
+    if (!config) throw new BotNotFoundError(name);
     return { port: config.port, token: config.token };
   }
   /* v8 ignore stop */
@@ -76,13 +76,13 @@ export function createCasaRouter(opts: CreateRouterOpts): CasaRouter {
       if (opts.locator) {
         const parsed = parseAddress(target);
         /* v8 ignore start -- group addresses not supported yet */
-        if (!isCasaAddress(parsed)) throw new CasaNotFoundError(target);
+        if (!isBotAddress(parsed)) throw new BotNotFoundError(target);
         /* v8 ignore stop */
         const addr = parsed;
         const located = opts.locator.locate(addr);
 
         if (located.location === "local") {
-          return forwardQueryToCasa(located.port, located.token, message, sessionId, requestId);
+          return forwardQueryToBot(located.port, located.token, message, sessionId, requestId);
         }
 
         /* v8 ignore start -- remote-channel routing: tested in mesh E2E integration tests */
@@ -96,7 +96,7 @@ export function createCasaRouter(opts: CreateRouterOpts): CasaRouter {
             : source;
           const res = await opts.agentFetch({
             node: located.node,
-            path: `/casas/${addr.casa}/query`,
+            path: `/bots/${addr.bot}/query`,
             method: "POST",
             body: { message, sessionId, requestId },
             source: sourceAddr,
@@ -127,7 +127,7 @@ export function createCasaRouter(opts: CreateRouterOpts): CasaRouter {
             : source;
           const res = await opts.agentFetch({
             node: located.node,
-            path: `/casas/${addr.casa}/query`,
+            path: `/bots/${addr.bot}/query`,
             method: "POST",
             body: { message, sessionId, requestId },
             source: sourceAddr,
@@ -150,32 +150,32 @@ export function createCasaRouter(opts: CreateRouterOpts): CasaRouter {
           return { text: await res.text() };
         }
 
-        throw new CasaNotFoundError(target);
+        throw new BotNotFoundError(target);
       }
 
       /* v8 ignore start -- locator is required in all production paths */
-      throw new CasaNotFoundError(target);
+      throw new BotNotFoundError(target);
       /* v8 ignore stop */
     },
 
     routeDiscover(source, discoverOpts) {
-      const all = casaFind(mechaDir, pm, { tags: discoverOpts.tags });
+      const all = botFind(mechaDir, pm, { tags: discoverOpts.tags });
 
-      return all.filter((casa) => {
-        if (casa.name === source) return false;
+      return all.filter((bot) => {
+        if (bot.name === source) return false;
         /* v8 ignore start -- defensive name validation + expose/ACL filtering */
-        if (!isValidName(casa.name)) return false;
+        if (!isValidName(bot.name)) return false;
 
         if (discoverOpts.capability) {
-          const config = readCasaConfig(join(mechaDir, casa.name));
+          const config = readBotConfig(join(mechaDir, bot.name));
           const exposed = (config?.expose as string[]) ?? [];
           if (!exposed.includes(discoverOpts.capability)) return false;
           // ACL filter: source must have a grant for the requested capability
-          const aclResult = acl.check(source, casa.name, discoverOpts.capability);
+          const aclResult = acl.check(source, bot.name, discoverOpts.capability);
           if (!aclResult.allowed) return false;
         } else {
-          // Without a specific capability, check if source has any grant to this CASA
-          const aclResult = acl.check(source, casa.name, "query");
+          // Without a specific capability, check if source has any grant to this bot
+          const aclResult = acl.check(source, bot.name, "query");
           if (!aclResult.allowed) return false;
         }
         /* v8 ignore stop */

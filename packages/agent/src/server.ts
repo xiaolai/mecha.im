@@ -7,7 +7,7 @@ import type { ProcessManager, PtySpawnFn } from "@mecha/process";
 import { createAuthHook, createSignatureHook, API_PREFIXES } from "./auth.js";
 import { deriveSessionKey } from "./session.js";
 import { registerHealthRoutes } from "./routes/health.js";
-import { registerCasaRoutes } from "./routes/casas.js";
+import { registerBotRoutes } from "./routes/bots.js";
 import { registerRoutingRoutes } from "./routes/routing.js";
 import { registerDiscoverRoutes } from "./routes/discover.js";
 import { registerSessionRoutes } from "./routes/sessions.js";
@@ -137,7 +137,7 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
     startedAt: opts.startedAt,
     publicIp: opts.publicIp,
   });
-  registerCasaRoutes(app, opts.processManager, opts.mechaDir, opts.nodeName);
+  registerBotRoutes(app, opts.processManager, opts.mechaDir, opts.nodeName);
   registerRoutingRoutes(app, { mechaDir: opts.mechaDir, acl: opts.acl });
   registerDiscoverRoutes(app, { mechaDir: opts.mechaDir, pm: opts.processManager });
   registerSessionRoutes(app, opts.processManager);
@@ -215,7 +215,7 @@ function registerSpaRoutes(app: FastifyInstance, spaDir: string): void {
 
   app.setNotFoundHandler(async (request, reply) => {
     // SPA fallback: GET requests → index.html for client-side routing.
-    // Browser navigations (Accept: text/html) to SPA routes like /mesh or /casas
+    // Browser navigations (Accept: text/html) to SPA routes like /mesh or /bots
     // must serve the SPA even though the path overlaps with API prefixes.
     if (request.method === "GET") {
       const accept = request.headers.accept ?? "";

@@ -9,7 +9,7 @@ function makeEvent(overrides: Partial<MeterEvent> = {}): MeterEvent {
   return {
     id: "01TEST",
     ts: "2026-02-26T12:00:00.000Z",
-    casa: "researcher",
+    bot: "researcher",
     authProfile: "default",
     workspace: "/home/user/project",
     tags: ["research"],
@@ -104,8 +104,8 @@ describe("events", () => {
 
     it("reads events for a date", () => {
       tempDir = mkdtempSync(join(tmpdir(), "meter-events-"));
-      appendEvent(tempDir, makeEvent({ id: "X", casa: "coder" }));
-      appendEvent(tempDir, makeEvent({ id: "Y", casa: "researcher" }));
+      appendEvent(tempDir, makeEvent({ id: "X", bot: "coder" }));
+      appendEvent(tempDir, makeEvent({ id: "Y", bot: "researcher" }));
 
       const events = readEventsForDate(tempDir, "2026-02-26");
       expect(events).toHaveLength(2);

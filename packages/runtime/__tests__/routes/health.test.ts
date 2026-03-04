@@ -8,7 +8,7 @@ describe("health routes", () => {
   beforeEach(async () => {
     app = Fastify();
     registerHealthRoutes(app, {
-      casaName: "test-casa",
+      botName: "test-bot",
       port: 7700,
       startedAt: "2026-01-01T00:00:00Z",
     });
@@ -25,11 +25,11 @@ describe("health routes", () => {
     expect(res.json()).toEqual({ status: "ok" });
   });
 
-  it("GET /info returns CASA info with metrics", async () => {
+  it("GET /info returns bot info with metrics", async () => {
     const res = await app.inject({ method: "GET", url: "/info" });
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    expect(body.name).toBe("test-casa");
+    expect(body.name).toBe("test-bot");
     expect(body.port).toBe(7700);
     expect(body.startedAt).toBe("2026-01-01T00:00:00Z");
     expect(typeof body.uptime).toBe("number");

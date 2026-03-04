@@ -9,7 +9,7 @@ export function wrapFallback(
   runtimeBin: string,
   runtimeArgs: string[],
 ): SandboxWrapResult {
-  console.warn("[mecha:sandbox] WARNING: No kernel sandbox available on this platform. CASA process runs without OS-level isolation. Use macOS (sandbox-exec) or Linux (bubblewrap) for kernel sandboxing.");
+  console.warn("[mecha:sandbox] WARNING: No kernel sandbox available on this platform. bot process runs without OS-level isolation. Use macOS (sandbox-exec) or Linux (bubblewrap) for kernel sandboxing.");
   return {
     bin: runtimeBin,
     args: runtimeArgs,

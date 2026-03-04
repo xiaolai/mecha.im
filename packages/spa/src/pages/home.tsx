@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { RefreshCwIcon, SquareIcon } from "lucide-react";
-import { CasaList } from "@/components/casa-list";
+import { BotList } from "@/components/casa-list";
 import { MeterSummary } from "@/components/meter-summary";
 import { Button } from "@/components/ui/button";
 import { BatchActionDialog } from "@/components/batch-action-dialog";
@@ -13,7 +13,7 @@ export function HomePage() {
       <MeterSummary />
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-lg font-semibold text-foreground">CASAs</h1>
+          <h1 className="text-lg font-semibold text-foreground">bots</h1>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => setBatchAction("restart")}>
               <RefreshCwIcon className="size-4" /> Restart All
@@ -23,7 +23,7 @@ export function HomePage() {
             </Button>
           </div>
         </div>
-        <CasaList />
+        <BotList />
       </div>
 
       {batchAction && (

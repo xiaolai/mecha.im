@@ -12,55 +12,55 @@ describe("RateLimiter", () => {
 
   it("allows requests within limit", () => {
     const limiter = createRateLimiter({
-      mecha_list_casas: { max: 3, windowMs: 60_000 },
+      mecha_list_bots: { max: 3, windowMs: 60_000 },
     });
-    expect(limiter.check("mecha_list_casas")).toBe(true);
-    expect(limiter.check("mecha_list_casas")).toBe(true);
-    expect(limiter.check("mecha_list_casas")).toBe(true);
+    expect(limiter.check("mecha_list_bots")).toBe(true);
+    expect(limiter.check("mecha_list_bots")).toBe(true);
+    expect(limiter.check("mecha_list_bots")).toBe(true);
   });
 
   it("blocks after exceeding limit", () => {
     const limiter = createRateLimiter({
-      mecha_list_casas: { max: 3, windowMs: 60_000 },
+      mecha_list_bots: { max: 3, windowMs: 60_000 },
     });
-    limiter.check("mecha_list_casas");
-    limiter.check("mecha_list_casas");
-    limiter.check("mecha_list_casas");
-    expect(limiter.check("mecha_list_casas")).toBe(false);
+    limiter.check("mecha_list_bots");
+    limiter.check("mecha_list_bots");
+    limiter.check("mecha_list_bots");
+    expect(limiter.check("mecha_list_bots")).toBe(false);
   });
 
   it("reports remaining requests", () => {
     const limiter = createRateLimiter({
-      mecha_list_casas: { max: 3, windowMs: 60_000 },
+      mecha_list_bots: { max: 3, windowMs: 60_000 },
     });
-    expect(limiter.remaining("mecha_list_casas")).toBe(3);
-    limiter.check("mecha_list_casas");
-    expect(limiter.remaining("mecha_list_casas")).toBe(2);
-    limiter.check("mecha_list_casas");
-    limiter.check("mecha_list_casas");
-    expect(limiter.remaining("mecha_list_casas")).toBe(0);
+    expect(limiter.remaining("mecha_list_bots")).toBe(3);
+    limiter.check("mecha_list_bots");
+    expect(limiter.remaining("mecha_list_bots")).toBe(2);
+    limiter.check("mecha_list_bots");
+    limiter.check("mecha_list_bots");
+    expect(limiter.remaining("mecha_list_bots")).toBe(0);
   });
 
   it("resets after window expires", () => {
     const limiter = createRateLimiter({
-      mecha_list_casas: { max: 2, windowMs: 10_000 },
+      mecha_list_bots: { max: 2, windowMs: 10_000 },
     });
-    limiter.check("mecha_list_casas");
-    limiter.check("mecha_list_casas");
-    expect(limiter.check("mecha_list_casas")).toBe(false);
+    limiter.check("mecha_list_bots");
+    limiter.check("mecha_list_bots");
+    expect(limiter.check("mecha_list_bots")).toBe(false);
 
     vi.advanceTimersByTime(11_000);
-    expect(limiter.check("mecha_list_casas")).toBe(true);
-    expect(limiter.remaining("mecha_list_casas")).toBe(1);
+    expect(limiter.check("mecha_list_bots")).toBe(true);
+    expect(limiter.remaining("mecha_list_bots")).toBe(1);
   });
 
   it("tracks tools independently", () => {
     const limiter = createRateLimiter({
-      mecha_list_casas: { max: 1, windowMs: 60_000 },
+      mecha_list_bots: { max: 1, windowMs: 60_000 },
       mecha_discover: { max: 1, windowMs: 60_000 },
     });
-    limiter.check("mecha_list_casas");
-    expect(limiter.check("mecha_list_casas")).toBe(false);
+    limiter.check("mecha_list_bots");
+    expect(limiter.check("mecha_list_bots")).toBe(false);
     expect(limiter.check("mecha_discover")).toBe(true);
   });
 
@@ -68,9 +68,9 @@ describe("RateLimiter", () => {
     const limiter = createRateLimiter();
     // Default read limit is 120/min, query is 30/min
     for (let i = 0; i < 120; i++) {
-      expect(limiter.check("mecha_list_casas")).toBe(true);
+      expect(limiter.check("mecha_list_bots")).toBe(true);
     }
-    expect(limiter.check("mecha_list_casas")).toBe(false);
+    expect(limiter.check("mecha_list_bots")).toBe(false);
   });
 
   it("uses query-specific default for mecha_query", () => {

@@ -8,30 +8,30 @@ vi.mock("@mecha/service", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@mecha/service")>();
   return {
     ...actual,
-    casaScheduleAdd: vi.fn(),
-    casaScheduleRemove: vi.fn(),
-    casaScheduleList: vi.fn().mockResolvedValue([]),
-    casaSchedulePause: vi.fn(),
-    casaScheduleResume: vi.fn(),
-    casaScheduleRun: vi.fn().mockResolvedValue({
+    botScheduleAdd: vi.fn(),
+    botScheduleRemove: vi.fn(),
+    botScheduleList: vi.fn().mockResolvedValue([]),
+    botSchedulePause: vi.fn(),
+    botScheduleResume: vi.fn(),
+    botScheduleRun: vi.fn().mockResolvedValue({
       scheduleId: "test",
       startedAt: "2026-02-25T10:00:00Z",
       completedAt: "2026-02-25T10:00:01Z",
       durationMs: 100,
       outcome: "success",
     }),
-    casaScheduleHistory: vi.fn().mockResolvedValue([]),
+    botScheduleHistory: vi.fn().mockResolvedValue([]),
   };
 });
 
 import {
-  casaScheduleAdd,
-  casaScheduleList,
-  casaScheduleRemove,
-  casaSchedulePause,
-  casaScheduleResume,
-  casaScheduleRun,
-  casaScheduleHistory,
+  botScheduleAdd,
+  botScheduleList,
+  botScheduleRemove,
+  botSchedulePause,
+  botScheduleResume,
+  botScheduleRun,
+  botScheduleHistory,
 } from "@mecha/service";
 
 describe("schedule commands", () => {
@@ -40,15 +40,15 @@ describe("schedule commands", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Re-apply default mock return values after clearAllMocks
-    (casaScheduleList as ReturnType<typeof vi.fn>).mockResolvedValue([]);
-    (casaScheduleRun as ReturnType<typeof vi.fn>).mockResolvedValue({
+    (botScheduleList as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (botScheduleRun as ReturnType<typeof vi.fn>).mockResolvedValue({
       scheduleId: "test",
       startedAt: "2026-02-25T10:00:00Z",
       completedAt: "2026-02-25T10:00:01Z",
       durationMs: 100,
       outcome: "success",
     });
-    (casaScheduleHistory as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (botScheduleHistory as ReturnType<typeof vi.fn>).mockResolvedValue([]);
     deps = makeDeps({
       pm: {
         getPortAndToken: vi.fn().mockReturnValue({ port: 7700, token: "t" }),
@@ -78,9 +78,9 @@ describe("schedule commands", () => {
     expect(subNames).toContain("history");
   });
 
-  it("schedule add calls casaScheduleAdd", async () => {
+  it("schedule add calls botScheduleAdd", async () => {
     await run(["schedule", "add", "alice", "--id", "test", "--every", "5m", "--prompt", "Hello"]);
-    expect(casaScheduleAdd).toHaveBeenCalledWith(
+    expect(botScheduleAdd).toHaveBeenCalledWith(
       deps.processManager,
       "alice",
       { id: "test", every: "5m", prompt: "Hello" },
@@ -90,8 +90,8 @@ describe("schedule commands", () => {
     );
   });
 
-  it("schedule list calls casaScheduleList", async () => {
-    (casaScheduleList as ReturnType<typeof vi.fn>).mockResolvedValue([
+  it("schedule list calls botScheduleList", async () => {
+    (botScheduleList as ReturnType<typeof vi.fn>).mockResolvedValue([
       {
         id: "x",
         trigger: { type: "interval", every: "5m", intervalMs: 300_000 },
@@ -105,7 +105,7 @@ describe("schedule commands", () => {
       },
     ]);
     await run(["schedule", "list", "alice"]);
-    expect(casaScheduleList).toHaveBeenCalledWith(deps.processManager, "alice");
+    expect(botScheduleList).toHaveBeenCalledWith(deps.processManager, "alice");
     const tableCall = (deps.formatter.table as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(tableCall[0]).toEqual(expect.arrayContaining(["ID"]));
     const rows = tableCall[1] as string[][];
@@ -115,47 +115,47 @@ describe("schedule commands", () => {
   });
 
   it("schedule list shows info when empty", async () => {
-    (casaScheduleList as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (botScheduleList as ReturnType<typeof vi.fn>).mockResolvedValue([]);
     await run(["schedule", "list", "alice"]);
     expect(deps.formatter.info).toHaveBeenCalledWith("No schedules configured");
   });
 
-  it("schedule remove calls casaScheduleRemove", async () => {
+  it("schedule remove calls botScheduleRemove", async () => {
     await run(["schedule", "remove", "alice", "test-sched"]);
-    expect(casaScheduleRemove).toHaveBeenCalledWith(deps.processManager, "alice", "test-sched");
+    expect(botScheduleRemove).toHaveBeenCalledWith(deps.processManager, "alice", "test-sched");
     expect(deps.formatter.success).toHaveBeenCalledWith(expect.stringContaining("test-sched"));
   });
 
-  it("schedule pause calls casaSchedulePause", async () => {
+  it("schedule pause calls botSchedulePause", async () => {
     await run(["schedule", "pause", "alice", "test-sched"]);
-    expect(casaSchedulePause).toHaveBeenCalledWith(deps.processManager, "alice", "test-sched");
+    expect(botSchedulePause).toHaveBeenCalledWith(deps.processManager, "alice", "test-sched");
     expect(deps.formatter.success).toHaveBeenCalledWith(expect.stringContaining("test-sched"));
   });
 
-  it("schedule pause all calls casaSchedulePause without id", async () => {
+  it("schedule pause all calls botSchedulePause without id", async () => {
     await run(["schedule", "pause", "alice"]);
-    expect(casaSchedulePause).toHaveBeenCalledWith(deps.processManager, "alice", undefined);
+    expect(botSchedulePause).toHaveBeenCalledWith(deps.processManager, "alice", undefined);
   });
 
-  it("schedule resume calls casaScheduleResume", async () => {
+  it("schedule resume calls botScheduleResume", async () => {
     await run(["schedule", "resume", "alice", "test-sched"]);
-    expect(casaScheduleResume).toHaveBeenCalledWith(deps.processManager, "alice", "test-sched");
+    expect(botScheduleResume).toHaveBeenCalledWith(deps.processManager, "alice", "test-sched");
   });
 
-  it("schedule resume all calls casaScheduleResume without id", async () => {
+  it("schedule resume all calls botScheduleResume without id", async () => {
     await run(["schedule", "resume", "alice"]);
-    expect(casaScheduleResume).toHaveBeenCalledWith(deps.processManager, "alice", undefined);
+    expect(botScheduleResume).toHaveBeenCalledWith(deps.processManager, "alice", undefined);
     expect(deps.formatter.success).toHaveBeenCalledWith(expect.stringContaining("all schedules"));
   });
 
-  it("schedule run calls casaScheduleRun", async () => {
+  it("schedule run calls botScheduleRun", async () => {
     await run(["schedule", "run", "alice", "test-sched"]);
-    expect(casaScheduleRun).toHaveBeenCalledWith(deps.processManager, "alice", "test-sched");
+    expect(botScheduleRun).toHaveBeenCalledWith(deps.processManager, "alice", "test-sched");
     expect(deps.formatter.success).toHaveBeenCalledWith(expect.stringContaining("100ms"));
   });
 
   it("schedule run shows error for failed outcome", async () => {
-    (casaScheduleRun as ReturnType<typeof vi.fn>).mockResolvedValue({
+    (botScheduleRun as ReturnType<typeof vi.fn>).mockResolvedValue({
       outcome: "error",
       error: "API down",
       durationMs: 50,
@@ -165,7 +165,7 @@ describe("schedule commands", () => {
   });
 
   it("schedule run shows warning for skipped outcome", async () => {
-    (casaScheduleRun as ReturnType<typeof vi.fn>).mockResolvedValue({
+    (botScheduleRun as ReturnType<typeof vi.fn>).mockResolvedValue({
       outcome: "skipped",
       error: "Budget exceeded",
       durationMs: 0,
@@ -174,12 +174,12 @@ describe("schedule commands", () => {
     expect(deps.formatter.warn).toHaveBeenCalledWith(expect.stringContaining("Budget exceeded"));
   });
 
-  it("schedule history calls casaScheduleHistory", async () => {
-    (casaScheduleHistory as ReturnType<typeof vi.fn>).mockResolvedValue([
+  it("schedule history calls botScheduleHistory", async () => {
+    (botScheduleHistory as ReturnType<typeof vi.fn>).mockResolvedValue([
       { scheduleId: "s", startedAt: "now", completedAt: "later", durationMs: 100, outcome: "success" },
     ]);
     await run(["schedule", "history", "alice", "test-sched"]);
-    expect(casaScheduleHistory).toHaveBeenCalledWith(deps.processManager, "alice", "test-sched", 20);
+    expect(botScheduleHistory).toHaveBeenCalledWith(deps.processManager, "alice", "test-sched", 20);
     const tableCall = (deps.formatter.table as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(tableCall[0]).toEqual(expect.arrayContaining(["Outcome"]));
     const rows = tableCall[1] as string[][];
@@ -194,7 +194,7 @@ describe("schedule commands", () => {
 
   it("schedule history respects --limit", async () => {
     await run(["schedule", "history", "alice", "test-sched", "--limit", "5"]);
-    expect(casaScheduleHistory).toHaveBeenCalledWith(deps.processManager, "alice", "test-sched", 5);
+    expect(botScheduleHistory).toHaveBeenCalledWith(deps.processManager, "alice", "test-sched", 5);
   });
 
   it("schedule history rejects invalid --limit", async () => {
@@ -202,7 +202,7 @@ describe("schedule commands", () => {
     expect(deps.formatter.error).toHaveBeenCalledWith(
       expect.stringContaining("Invalid limit"),
     );
-    expect(casaScheduleHistory).not.toHaveBeenCalled();
+    expect(botScheduleHistory).not.toHaveBeenCalled();
   });
 
   it("schedule history rejects zero --limit", async () => {

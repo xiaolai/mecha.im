@@ -21,7 +21,7 @@ describe("dashboard routes", () => {
 
   describe("acl routes", () => {
     it("returns rules from acl engine", async () => {
-      const rules = [{ casa: "alice", target: "bob", capability: "query" }];
+      const rules = [{ bot: "alice", target: "bob", capability: "query" }];
       const acl = { listRules: vi.fn().mockReturnValue(rules) } as unknown as AclEngine;
       const app = Fastify();
       registerAclRoutes(app, { acl });
@@ -104,7 +104,7 @@ describe("dashboard routes", () => {
       const res = await app.inject({ method: "GET", url: "/settings/runtime" });
       expect(res.statusCode).toBe(200);
       const body = res.json();
-      expect(body.casaPortRange).toBeDefined();
+      expect(body.botPortRange).toBeDefined();
       expect(body.agentPort).toBeDefined();
       expect(body.mcpPort).toBeDefined();
       await app.close();
@@ -112,7 +112,7 @@ describe("dashboard routes", () => {
   });
 
   describe("meter routes", () => {
-    it("returns cost for today when no casa param", async () => {
+    it("returns cost for today when no bot param", async () => {
       mechaDir = mkdtempSync(join(tmpdir(), "agent-meter-"));
       const meterDir = join(mechaDir, "meter");
       mkdirSync(meterDir, { recursive: true });
@@ -126,7 +126,7 @@ describe("dashboard routes", () => {
       await app.close();
     });
 
-    it("returns cost for specific casa", async () => {
+    it("returns cost for specific bot", async () => {
       mechaDir = mkdtempSync(join(tmpdir(), "agent-meter-"));
       const meterDir = join(mechaDir, "meter");
       mkdirSync(meterDir, { recursive: true });
@@ -135,7 +135,7 @@ describe("dashboard routes", () => {
       registerMeterRoutes(app, { mechaDir });
       await app.ready();
 
-      const res = await app.inject({ method: "GET", url: "/meter/cost?casa=alice" });
+      const res = await app.inject({ method: "GET", url: "/meter/cost?bot=alice" });
       expect(res.statusCode).toBe(200);
       await app.close();
     });
@@ -161,7 +161,7 @@ describe("dashboard routes", () => {
       expect(body[0].status).toBe("online");
       expect(body[0].isLocal).toBe(true);
       expect(body[0].latencyMs).toBe(0);
-      expect(body[0].casaCount).toBe(1);
+      expect(body[0].botCount).toBe(1);
       // New fields from collectNodeInfo
       expect(body[0].hostname).toBeDefined();
       expect(body[0].platform).toBeDefined();

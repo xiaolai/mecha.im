@@ -1,6 +1,6 @@
 import { AlertTriangleIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { BusyWarning } from "@/lib/use-casa-action";
+import type { BusyWarning } from "@/lib/use-bot-action";
 
 interface BusyWarningBannerProps {
   warning: BusyWarning;

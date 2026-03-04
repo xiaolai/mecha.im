@@ -7,7 +7,7 @@ import {
 } from "./lifecycle.js";
 import { initPricing, loadPricing } from "./pricing.js";
 import { handleProxyRequest, reloadBudgets, getDroppedEventCount, type ProxyContext } from "./proxy.js";
-import { scanCasaRegistry } from "./registry.js";
+import { scanBotRegistry } from "./registry.js";
 import { readBudgets } from "./budgets.js";
 import { cleanupOldEvents } from "./events.js";
 import { createHotCounters, fromSnapshot, resetToday, resetMonth, toSnapshot } from "./hot-counters.js";
@@ -77,7 +77,7 @@ export async function startDaemon(opts: DaemonOpts): Promise<DaemonHandle> {
   const ctx: ProxyContext = {
     meterDir,
     pricing: loadPricing(meterDir),
-    registry: scanCasaRegistry(mechaParent),
+    registry: scanBotRegistry(mechaParent),
     counters,
     budgets: readBudgets(meterDir),
     pendingRequests: new Map(),
@@ -125,7 +125,7 @@ export async function startDaemon(opts: DaemonOpts): Promise<DaemonHandle> {
 
   // Periodic registry rescan (every 30 seconds)
   const registryTimer = setInterval(() => {
-    ctx.registry = scanCasaRegistry(mechaParent);
+    ctx.registry = scanBotRegistry(mechaParent);
   }, 30_000);
   registryTimer.unref();
 
@@ -133,7 +133,7 @@ export async function startDaemon(opts: DaemonOpts): Promise<DaemonHandle> {
   const sighupHandler = () => {
     reloadBudgets(ctx);
     ctx.pricing = loadPricing(meterDir);
-    ctx.registry = scanCasaRegistry(mechaParent);
+    ctx.registry = scanBotRegistry(mechaParent);
   };
   process.on("SIGHUP", sighupHandler);
 

@@ -1,15 +1,15 @@
 import { describe, it, expect } from "vitest";
 import {
-  CasaSpawnInput,
-  CasaKillInput,
+  BotSpawnInput,
+  BotKillInput,
   SessionCreateInput,
   SessionMessageInput,
   PermissionMode,
 } from "../src/schemas.js";
 
-describe("CasaSpawnInput", () => {
+describe("BotSpawnInput", () => {
   it("accepts valid minimal input", () => {
-    const result = CasaSpawnInput.parse({
+    const result = BotSpawnInput.parse({
       name: "researcher",
       workspacePath: "/tmp/workspace",
     });
@@ -18,7 +18,7 @@ describe("CasaSpawnInput", () => {
   });
 
   it("accepts full input with all options", () => {
-    const result = CasaSpawnInput.parse({
+    const result = BotSpawnInput.parse({
       name: "gpu-worker",
       workspacePath: "/home/user/project",
       tags: ["dev", "gpu"],
@@ -35,7 +35,7 @@ describe("CasaSpawnInput", () => {
   });
 
   it("accepts input without auth (optional)", () => {
-    const result = CasaSpawnInput.parse({
+    const result = BotSpawnInput.parse({
       name: "researcher",
       workspacePath: "/tmp/workspace",
     });
@@ -44,46 +44,46 @@ describe("CasaSpawnInput", () => {
 
   it("rejects empty name", () => {
     expect(() =>
-      CasaSpawnInput.parse({ name: "", workspacePath: "/tmp" }),
+      BotSpawnInput.parse({ name: "", workspacePath: "/tmp" }),
     ).toThrow();
   });
 
   it("rejects uppercase name", () => {
     expect(() =>
-      CasaSpawnInput.parse({ name: "UPPER", workspacePath: "/tmp" }),
+      BotSpawnInput.parse({ name: "UPPER", workspacePath: "/tmp" }),
     ).toThrow();
   });
 
   it("rejects name with leading hyphen", () => {
     expect(() =>
-      CasaSpawnInput.parse({ name: "-bad", workspacePath: "/tmp" }),
+      BotSpawnInput.parse({ name: "-bad", workspacePath: "/tmp" }),
     ).toThrow();
   });
 
   it("rejects name longer than 32 chars", () => {
     expect(() =>
-      CasaSpawnInput.parse({ name: "a".repeat(33), workspacePath: "/tmp" }),
+      BotSpawnInput.parse({ name: "a".repeat(33), workspacePath: "/tmp" }),
     ).toThrow();
   });
 
   it("rejects empty workspacePath", () => {
     expect(() =>
-      CasaSpawnInput.parse({ name: "ok", workspacePath: "" }),
+      BotSpawnInput.parse({ name: "ok", workspacePath: "" }),
     ).toThrow();
   });
 
   it("rejects invalid port", () => {
     expect(() =>
-      CasaSpawnInput.parse({ name: "ok", workspacePath: "/tmp", port: 0 }),
+      BotSpawnInput.parse({ name: "ok", workspacePath: "/tmp", port: 0 }),
     ).toThrow();
     expect(() =>
-      CasaSpawnInput.parse({ name: "ok", workspacePath: "/tmp", port: 70000 }),
+      BotSpawnInput.parse({ name: "ok", workspacePath: "/tmp", port: 70000 }),
     ).toThrow();
   });
 
   it("rejects invalid permission mode", () => {
     expect(() =>
-      CasaSpawnInput.parse({
+      BotSpawnInput.parse({
         name: "ok",
         workspacePath: "/tmp",
         permissionMode: "invalid",
@@ -92,20 +92,20 @@ describe("CasaSpawnInput", () => {
   });
 });
 
-describe("CasaKillInput", () => {
+describe("BotKillInput", () => {
   it("accepts valid input", () => {
-    const result = CasaKillInput.parse({ name: "researcher" });
+    const result = BotKillInput.parse({ name: "researcher" });
     expect(result.name).toBe("researcher");
     expect(result.force).toBeUndefined();
   });
 
   it("accepts force option", () => {
-    const result = CasaKillInput.parse({ name: "researcher", force: true });
+    const result = BotKillInput.parse({ name: "researcher", force: true });
     expect(result.force).toBe(true);
   });
 
   it("rejects invalid name", () => {
-    expect(() => CasaKillInput.parse({ name: "" })).toThrow();
+    expect(() => BotKillInput.parse({ name: "" })).toThrow();
   });
 });
 

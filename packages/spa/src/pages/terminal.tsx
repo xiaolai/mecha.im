@@ -6,16 +6,16 @@ import { SessionSelector } from "@/components/session-selector";
 import { useFetch } from "@/lib/use-fetch";
 
 export function TerminalPage() {
-  const { name: casaName } = useParams<{ name: string }>();
+  const { name: botName } = useParams<{ name: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const node = searchParams.get("node") ?? undefined;
   // Derive session from URL as source of truth — keeps state in sync with
   // back/forward navigation and manual URL edits.
   const sessionId = searchParams.get("session") ?? undefined;
   const nodeQuery = node && node !== "local" ? `?node=${encodeURIComponent(node)}` : "";
-  const { data: casaStatus } = useFetch<{ state?: string }>(
-    casaName ? `/casas/${encodeURIComponent(casaName)}/status${nodeQuery}` : null,
-    { deps: [casaName, node], interval: 10_000 },
+  const { data: botStatus } = useFetch<{ state?: string }>(
+    botName ? `/bots/${encodeURIComponent(botName)}/status${nodeQuery}` : null,
+    { deps: [botName, node], interval: 10_000 },
   );
   const [exitCode, setExitCode] = useState<number | null>(null);
   // Monotonic counter used as Terminal key — only incremented on explicit user
@@ -39,7 +39,7 @@ export function TerminalPage() {
   const handleNewSession = useCallback(() => {
     setExitCode(null);
     // Use a new-* ID so the server spawns a fresh PTY instead of reattaching
-    // to an existing session via findByCasa() fallback.
+    // to an existing session via findByBot() fallback.
     const newId = `new-${crypto.randomUUID().slice(0, 8)}`;
     setSearchParams((prev) => {
       prev.set("session", newId);
@@ -62,26 +62,26 @@ export function TerminalPage() {
 
   // Stable key for Terminal — changes only on explicit user actions, not on
   // server-assigned session IDs (which would cause infinite remount loop).
-  const terminalKey = useMemo(() => `${casaName}-${terminalGen}`, [casaName, terminalGen]);
+  const terminalKey = useMemo(() => `${botName}-${terminalGen}`, [botName, terminalGen]);
 
-  if (!casaName) return null;
+  if (!botName) return null;
 
   return (
     <div className="flex flex-col h-full gap-3 p-4">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
           <Link
-            to={`/casa/${encodeURIComponent(casaName)}${nodeQuery}`}
+            to={`/bot/${encodeURIComponent(botName)}${nodeQuery}`}
             className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
           >
             <ArrowLeftIcon className="size-4" />
-            <span className="hidden sm:inline">{casaName}</span>
+            <span className="hidden sm:inline">{botName}</span>
           </Link>
           <SessionSelector
-            casaName={casaName}
+            botName={botName}
             node={node}
             currentSessionId={sessionId}
-            casaState={casaStatus?.state}
+            botState={botStatus?.state}
             onSelect={handleSelectSession}
           />
         </div>
@@ -102,7 +102,7 @@ export function TerminalPage() {
       <div className="flex-1 min-h-0 rounded-lg border border-border overflow-hidden">
         <Terminal
           key={terminalKey}
-          casaName={casaName}
+          botName={botName}
           sessionId={sessionId}
           node={node}
           onSessionCreated={handleSessionCreated}

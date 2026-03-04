@@ -3,10 +3,10 @@ import { ALL_CAPABILITIES, type Capability } from "./acl/types.js";
 /** Valid name pattern: lowercase alphanumeric + hyphens, 1-32 chars, no leading/trailing hyphen */
 export const NAME_PATTERN = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
 
-/** Maximum length for a CASA or node name */
+/** Maximum length for a bot or node name */
 export const NAME_MAX_LENGTH = 32;
 
-/** Test if a string is a valid CASA or node name */
+/** Test if a string is a valid bot or node name */
 export function isValidName(input: string): boolean {
   if (input.length === 0 || input.length > NAME_MAX_LENGTH) return false;
   return NAME_PATTERN.test(input);
@@ -19,15 +19,15 @@ export function isValidAddress(input: string): boolean {
   if (atIndex === -1) return isValidName(input);
   // Must have exactly one @
   if (input.indexOf("@", atIndex + 1) !== -1) return false;
-  const casa = input.slice(0, atIndex);
+  const bot = input.slice(0, atIndex);
   const node = input.slice(atIndex + 1);
-  return isValidName(casa) && isValidName(node);
+  return isValidName(bot) && isValidName(node);
 }
 
 /** Valid tag pattern: lowercase alphanumeric + hyphens, 1-32 chars */
 export const TAG_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 
-/** Maximum number of tags per CASA */
+/** Maximum number of tags per bot */
 export const MAX_TAGS = 20;
 
 /** Maximum length of a single tag */

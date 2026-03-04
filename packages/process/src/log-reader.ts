@@ -1,24 +1,24 @@
 import { existsSync, readFileSync, openSync, readSync, closeSync, statSync, watchFile, unwatchFile } from "node:fs";
 import { join } from "node:path";
 import { Readable } from "node:stream";
-import { type CasaName, CasaNotFoundError } from "@mecha/core";
+import { type BotName, BotNotFoundError } from "@mecha/core";
 import { readState } from "./state-store.js";
 import type { LogOpts } from "./types.js";
 
 /**
- * Read logs from a CASA's stdout.log and stderr.log.
+ * Read logs from a bot's stdout.log and stderr.log.
  * Supports --tail (last N lines) and --follow (watch for changes).
  */
 export function readLogs(
-  casaDir: string,
-  name: CasaName,
+  botDir: string,
+  name: BotName,
   logOpts?: LogOpts,
 ): Readable {
-  const state = readState(casaDir);
-  if (!state) throw new CasaNotFoundError(name);
+  const state = readState(botDir);
+  if (!state) throw new BotNotFoundError(name);
 
-  const stdoutPath = join(casaDir, "logs", "stdout.log");
-  const stderrPath = join(casaDir, "logs", "stderr.log");
+  const stdoutPath = join(botDir, "logs", "stdout.log");
+  const stderrPath = join(botDir, "logs", "stderr.log");
   const logPaths = [stdoutPath, stderrPath];
 
   // Read both stdout and stderr

@@ -60,7 +60,7 @@ describe("mecha audit log", () => {
       {
         ts: "2026-02-27T10:00:00Z",
         client: "claude-desktop/1.2",
-        tool: "mecha_list_casas",
+        tool: "mecha_list_bots",
         params: {},
         result: "ok",
         durationMs: 42,
@@ -70,7 +70,7 @@ describe("mecha audit log", () => {
 
     await run(["audit", "log"]);
     expect(deps.formatter.info).toHaveBeenCalledWith(
-      expect.stringContaining("mecha_list_casas"),
+      expect.stringContaining("mecha_list_bots"),
     );
     expect(deps.formatter.info).toHaveBeenCalledWith(
       expect.stringContaining("42ms"),
@@ -100,10 +100,10 @@ describe("mecha audit log", () => {
       {
         ts: "2026-02-27T10:00:00Z",
         client: "unknown",
-        tool: "mecha_casa_status",
+        tool: "mecha_bot_status",
         params: { target: "bob" },
         result: "error",
-        error: "CASA not found",
+        error: "bot not found",
         durationMs: 2,
       },
     ]);
@@ -111,7 +111,7 @@ describe("mecha audit log", () => {
 
     await run(["audit", "log"]);
     expect(deps.formatter.info).toHaveBeenCalledWith(
-      expect.stringContaining("error: CASA not found"),
+      expect.stringContaining("error: bot not found"),
     );
   });
 });

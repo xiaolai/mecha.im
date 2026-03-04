@@ -10,7 +10,7 @@ interface NodeHealth {
   isLocal?: boolean;
   latencyMs?: number;
   error?: string;
-  casaCount?: number;
+  botCount?: number;
   hostname?: string;
   platform?: string;
   arch?: string;
@@ -120,7 +120,7 @@ function NodeCard({ node, isLocal }: { node: NodeHealth; isLocal: boolean }) {
           )}
 
           {/* Resources */}
-          {(node.cpuCount != null || node.totalMemMB != null || node.casaCount != null) && (
+          {(node.cpuCount != null || node.totalMemMB != null || node.botCount != null) && (
             <div className="flex flex-col gap-1">
               <div className="flex items-center gap-1.5 font-medium text-muted-foreground">
                 <HardDriveIcon className="size-3" />
@@ -135,7 +135,7 @@ function NodeCard({ node, isLocal }: { node: NodeHealth; isLocal: boolean }) {
                     mono
                   />
                 )}
-                <InfoRow label="CASAs" value={node.casaCount != null ? `${node.casaCount} running` : undefined} />
+                <InfoRow label="bots" value={node.botCount != null ? `${node.botCount} running` : undefined} />
               </div>
             </div>
           )}

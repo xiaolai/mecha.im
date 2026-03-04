@@ -36,8 +36,8 @@ describe("createScheduleEngine", () => {
     currentTime = new Date("2026-02-25T10:00:00Z").getTime();
     chatFn = vi.fn<ChatFn>().mockResolvedValue({ durationMs: 100 });
     engine = createScheduleEngine({
-      casaDir: tempDir,
-      casaName: "test-casa",
+      botDir: tempDir,
+      botName: "test-bot",
       chatFn,
       now: () => currentTime,
     });
@@ -241,7 +241,7 @@ describe("createScheduleEngine", () => {
         await engine.triggerNow("multi-b");
       }
 
-      // Both should be skipped — CASA-level budget exhausted
+      // Both should be skipped — bot-level budget exhausted
       const resultA = await engine.triggerNow("multi-a");
       const resultB = await engine.triggerNow("multi-b");
       expect(resultA.outcome).toBe("skipped");
@@ -337,8 +337,8 @@ describe("createScheduleEngine", () => {
 
     // Create a new engine and start it — armTimer reads nextRunAt from state
     const engine2 = createScheduleEngine({
-      casaDir: tempDir,
-      casaName: "test-casa",
+      botDir: tempDir,
+      botName: "test-bot",
       chatFn,
       now: () => currentTime,
     });
@@ -363,8 +363,8 @@ describe("createScheduleEngine", () => {
 
       // Create a new engine (simulates restart)
       const engine2 = createScheduleEngine({
-        casaDir: tempDir,
-        casaName: "test-casa",
+        botDir: tempDir,
+        botName: "test-bot",
         chatFn,
         now: () => currentTime,
       });

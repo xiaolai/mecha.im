@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { readState, writeState, listCasaDirs, STATE_VERSION } from "../src/state-store.js";
-import type { CasaState } from "../src/state-store.js";
+import { readState, writeState, listBotDirs, STATE_VERSION } from "../src/state-store.js";
+import type { BotState } from "../src/state-store.js";
 
 describe("state-store", () => {
   let tempDir: string;
@@ -29,7 +29,7 @@ describe("state-store", () => {
     });
 
     it("reads valid state.json", () => {
-      const state: CasaState = {
+      const state: BotState = {
         name: "researcher",
         state: "running",
         pid: 12345,
@@ -46,7 +46,7 @@ describe("state-store", () => {
   describe("writeState", () => {
     it("creates directory if needed", () => {
       const nested = join(tempDir, "deep", "nested");
-      const state: CasaState = {
+      const state: BotState = {
         name: "test",
         state: "stopped",
         workspacePath: "/tmp",
@@ -57,7 +57,7 @@ describe("state-store", () => {
     });
 
     it("round-trips all fields including optional ones", () => {
-      const state: CasaState = {
+      const state: BotState = {
         name: "coder",
         state: "stopped",
         pid: 99999,
@@ -72,13 +72,13 @@ describe("state-store", () => {
     });
 
     it("overwrites existing state", () => {
-      const state1: CasaState = {
+      const state1: BotState = {
         name: "test",
         state: "running",
         pid: 111,
         workspacePath: "/tmp",
       };
-      const state2: CasaState = {
+      const state2: BotState = {
         name: "test",
         state: "stopped",
         exitCode: 1,
@@ -90,16 +90,16 @@ describe("state-store", () => {
     });
   });
 
-  describe("listCasaDirs", () => {
+  describe("listBotDirs", () => {
     it("returns empty array when mechaDir does not exist", () => {
-      const result = listCasaDirs(join(tempDir, "nonexistent"));
+      const result = listBotDirs(join(tempDir, "nonexistent"));
       expect(result).toEqual([]);
     });
 
     it("returns empty array when no dirs have state.json", () => {
       mkdirSync(join(tempDir, "alpha"), { recursive: true });
       mkdirSync(join(tempDir, "beta"), { recursive: true });
-      const result = listCasaDirs(tempDir);
+      const result = listBotDirs(tempDir);
       expect(result).toEqual([]);
     });
 
@@ -108,7 +108,7 @@ describe("state-store", () => {
       mkdirSync(join(tempDir, "beta"), { recursive: true });
       writeFileSync(join(tempDir, "alpha", "state.json"), "{}");
       writeFileSync(join(tempDir, "beta", "state.json"), "{}");
-      const result = listCasaDirs(tempDir);
+      const result = listBotDirs(tempDir);
       expect(result).toHaveLength(2);
       expect(result.sort()).toEqual([
         join(tempDir, "alpha"),
@@ -117,12 +117,12 @@ describe("state-store", () => {
     });
 
     it("ignores files in mechaDir", () => {
-      mkdirSync(join(tempDir, "real-casa"), { recursive: true });
-      writeFileSync(join(tempDir, "real-casa", "state.json"), "{}");
+      mkdirSync(join(tempDir, "real-bot"), { recursive: true });
+      writeFileSync(join(tempDir, "real-bot", "state.json"), "{}");
       writeFileSync(join(tempDir, "not-a-dir.txt"), "ignore me");
-      const result = listCasaDirs(tempDir);
+      const result = listBotDirs(tempDir);
       expect(result).toHaveLength(1);
-      expect(result[0]).toContain("real-casa");
+      expect(result[0]).toContain("real-bot");
     });
   });
 });

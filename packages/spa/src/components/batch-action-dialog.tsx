@@ -42,7 +42,7 @@ export function BatchActionDialog({ action, open, onOpenChange, onComplete }: Ba
   const label = action === "stop" ? "Stop" : "Restart";
 
   const fetchBatch = useCallback(async (opts: { force?: boolean; idleOnly?: boolean; dryRun?: boolean; names?: string[] }) => {
-    const res = await fetch("/casas/batch", {
+    const res = await fetch("/bots/batch", {
       method: "POST",
       headers: { ...authHeaders, "content-type": "application/json" },
       credentials: "include",
@@ -105,11 +105,11 @@ export function BatchActionDialog({ action, open, onOpenChange, onComplete }: Ba
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>{label} All CASAs</AlertDialogTitle>
+          <AlertDialogTitle>{label} All bots</AlertDialogTitle>
           <AlertDialogDescription>
-            {phase === "preflight" && "Checking CASA status..."}
-            {phase === "ready" && `Review which CASAs will be ${action === "stop" ? "stopped" : "restarted"}.`}
-            {phase === "executing" && `${action === "stop" ? "Stopping" : "Restarting"} CASAs...`}
+            {phase === "preflight" && "Checking bot status..."}
+            {phase === "ready" && `Review which bots will be ${action === "stop" ? "stopped" : "restarted"}.`}
+            {phase === "executing" && `${action === "stop" ? "Stopping" : "Restarting"} bots...`}
             {phase === "done" && "Batch operation complete."}
           </AlertDialogDescription>
         </AlertDialogHeader>
@@ -146,7 +146,7 @@ export function BatchActionDialog({ action, open, onOpenChange, onComplete }: Ba
         )}
 
         {displayResult && displayResult.results.length === 0 && phase !== "preflight" && (
-          <p className="text-sm text-muted-foreground text-center py-4">No CASAs to {action}.</p>
+          <p className="text-sm text-muted-foreground text-center py-4">No bots to {action}.</p>
         )}
 
         {/* Error */}

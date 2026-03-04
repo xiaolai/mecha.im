@@ -33,14 +33,14 @@ mecha start
   └── Agent Server (port 7660)
        ├── /healthz           → Health check (public)
        ├── /auth/*            → TOTP login/logout/status
-       ├── /casas             → CASA lifecycle
+       ├── /bots             → bot lifecycle
        ├── /events            → SSE real-time events
        ├── /acl               → ACL rules
        ├── /audit             → Audit log
        ├── /mesh/nodes        → Mesh topology
        ├── /meter/cost        → Metering data
        ├── /settings/runtime  → Runtime config
-       ├── /discover          → CASA discovery
+       ├── /discover          → bot discovery
        ├── /ws/ticket         → WebSocket ticket issuance
        ├── /ws/terminal/:name → WebSocket terminal (PTY)
        └── /*                 → SPA static files + client-side routing
@@ -52,31 +52,31 @@ The agent server is created via `createAgentServer()` from `@mecha/agent`. When 
 
 ## Pages
 
-### CASA List (Home)
+### bot List (Home)
 
-The home page shows all CASAs in a responsive 3-column grid. Each card displays:
+The home page shows all bots in a responsive 3-column grid. Each card displays:
 
 - Name and status badge (running/stopped/error)
 - Port number (monospace)
 - Workspace path (truncated)
 - Tags
-- Stop and Kill buttons (running CASAs only)
-- **Stop All** and **Restart All** buttons in the header (when CASAs exist)
+- Stop and Kill buttons (running bots only)
+- **Stop All** and **Restart All** buttons in the header (when bots exist)
 
 The batch buttons open a confirmation dialog that:
-1. Runs a dry-run pre-flight to show which CASAs will be affected
-2. Highlights busy CASAs (with active session count)
-3. Offers "Force" option for busy CASAs, or "Idle Only" to skip them
-4. Shows per-CASA progress and a summary on completion
-5. Allows retrying only failed CASAs
+1. Runs a dry-run pre-flight to show which bots will be affected
+2. Highlights busy bots (with active session count)
+3. Offers "Force" option for busy bots, or "Idle Only" to skip them
+4. Shows per-bot progress and a summary on completion
+5. Allows retrying only failed bots
 
 Cards auto-refresh every **5 seconds** via polling. Click a card to open the detail view.
 
 The home page also shows a **metering summary** — four cards showing today's request count, cost, token usage, and average latency. This section auto-refreshes every **30 seconds**.
 
-### CASA Detail
+### bot Detail
 
-The detail view shows full information for a single CASA:
+The detail view shows full information for a single bot:
 
 - **Header**: Name, status badge, action buttons (Terminal, Stop, Kill)
 - **Overview cards**: Port, workspace path, start time
@@ -88,7 +88,7 @@ Data auto-refreshes every **5 seconds**.
 
 ### Terminal
 
-Attach to any CASA session in a real terminal emulator powered by xterm.js. The terminal connects to `claude --resume <session>` via a WebSocket-to-PTY bridge, providing the full Claude Code experience in the browser.
+Attach to any bot session in a real terminal emulator powered by xterm.js. The terminal connects to `claude --resume <session>` via a WebSocket-to-PTY bridge, providing the full Claude Code experience in the browser.
 
 - **Session selector**: Dropdown of existing sessions or "New Session" button
 - **Full PTY**: ANSI colors, cursor movement, progress bars — everything works
@@ -97,9 +97,9 @@ Attach to any CASA session in a real terminal emulator powered by xterm.js. The 
 - **Theme**: Matches dashboard dark/light mode
 - **Detach/Reattach**: Close the tab without killing the session. Reopen to reconnect.
 - **Multi-tab**: Multiple browser tabs can attach to the same PTY session
-- **Remote CASAs**: Terminal works for CASAs on remote nodes via WebSocket relay through the agent server
+- **Remote bots**: Terminal works for bots on remote nodes via WebSocket relay through the agent server
 
-The WebSocket endpoint is `ws://host:port/ws/terminal/<casa-name>?session=<id>&node=<node>`. Session auth is validated during the HTTP upgrade handshake.
+The WebSocket endpoint is `ws://host:port/ws/terminal/<bot-name>?session=<id>&node=<node>`. Session auth is validated during the HTTP upgrade handshake.
 
 ### Mesh Topology
 
@@ -108,19 +108,19 @@ View all registered peer nodes in a 3-column grid with live health status. Each 
 - Status dot (green for online, red for offline)
 - Node name and status badge
 - Latency in ms (online nodes)
-- CASA count (online nodes)
+- bot count (online nodes)
 - Error message (offline nodes)
 
 Health data auto-refreshes every **30 seconds** via the `fetchAllNodes` mesh proxy.
 
 ### Mesh-Wide Management
 
-The dashboard manages CASAs across all mesh nodes from a single interface:
+The dashboard manages bots across all mesh nodes from a single interface:
 
-- **Unified CASA list**: The home page shows local and remote CASAs together. Remote CASAs display a `@ node-name` badge.
-- **Node dispatch**: All CASA API routes accept `?node=X` to proxy requests to remote nodes. Local operations use the in-process ProcessManager.
-- **Remote actions**: Stop, Kill, and session listing work on remote CASAs through the agent server proxy.
-- **Detail view**: The CASA detail page shows a node badge and routes actions through `?node=X` for remote CASAs. Terminal works for both local and remote CASAs via WebSocket relay.
+- **Unified bot list**: The home page shows local and remote bots together. Remote bots display a `@ node-name` badge.
+- **Node dispatch**: All bot API routes accept `?node=X` to proxy requests to remote nodes. Local operations use the in-process ProcessManager.
+- **Remote actions**: Stop, Kill, and session listing work on remote bots through the agent server proxy.
+- **Detail view**: The bot detail page shows a node badge and routes actions through `?node=X` for remote bots. Terminal works for both local and remote bots via WebSocket relay.
 
 ### ACL Rules
 
@@ -128,8 +128,8 @@ Browse all access control rules in a table:
 
 | Column | Description |
 |--------|-------------|
-| Source | Principal identifier (CASA name) |
-| Target | Resource identifier (CASA name) |
+| Source | Principal identifier (bot name) |
+| Target | Resource identifier (bot name) |
 | Capabilities | Granted capabilities displayed as badges |
 
 ### Audit Log
@@ -149,7 +149,7 @@ View the last 100 audit entries. Auto-refreshes every **10 seconds**.
 Two sections:
 
 - **Node Configuration**: Count of registered peers with a name-to-host:port listing
-- **Runtime**: CASA port range, agent port, and MCP port (fetched from the runtime API, not hardcoded)
+- **Runtime**: bot port range, agent port, and MCP port (fetched from the runtime API, not hardcoded)
 
 ### Dark Mode
 
@@ -157,7 +157,7 @@ Toggle between light and dark themes using the button in the top bar. The dashbo
 
 ## Real-time Events
 
-The dashboard subscribes to runtime events via SSE at `/events`. Events include CASA state changes (spawn, stop, exit, error).
+The dashboard subscribes to runtime events via SSE at `/events`. Events include bot state changes (spawn, stop, exit, error).
 
 | Parameter | Value |
 |-----------|-------|
@@ -176,22 +176,22 @@ For the complete API specification including request/response formats, see the [
 
 | Endpoint | Dashboard Feature |
 |----------|-------------------|
-| `GET /casas` | Home page CASA list |
-| `GET /casas/:name/status` | CASA detail view |
-| `POST /casas/:name/start` | Start button |
-| `POST /casas/:name/stop` | Stop button (with busy check) |
-| `POST /casas/:name/kill` | Kill button |
-| `POST /casas/batch` | Stop All / Restart All dialog |
-| `PATCH /casas/:name/config` | Config editor |
-| `GET /casas/:name/sessions` | Sessions tab |
-| `DELETE /casas/:name/sessions/:id` | Session delete |
+| `GET /bots` | Home page bot list |
+| `GET /bots/:name/status` | bot detail view |
+| `POST /bots/:name/start` | Start button |
+| `POST /bots/:name/stop` | Stop button (with busy check) |
+| `POST /bots/:name/kill` | Kill button |
+| `POST /bots/batch` | Stop All / Restart All dialog |
+| `PATCH /bots/:name/config` | Config editor |
+| `GET /bots/:name/sessions` | Sessions tab |
+| `DELETE /bots/:name/sessions/:id` | Session delete |
 | `GET /events` | Real-time SSE updates |
 | `GET /acl` | ACL rules page |
 | `GET /audit` | Audit log page |
 | `GET /mesh/nodes` | Mesh topology page |
 | `GET /meter/cost` | Metering summary cards |
 | `GET /settings/runtime` | Settings page |
-| `GET /discover` | CASA discovery |
+| `GET /discover` | bot discovery |
 | `POST /ws/ticket` | Terminal ticket issuance |
 | `WS /ws/terminal/:name` | Terminal emulator |
 | `GET /auth/status` | Login page (check auth methods) |
@@ -239,8 +239,8 @@ The dashboard uses client-side polling for data freshness. WebSocket connections
 
 | View | Interval | Endpoint |
 |------|----------|----------|
-| CASA List | 5s | `GET /casas` |
-| CASA Detail | 5s | `GET /casas/[name]` |
+| bot List | 5s | `GET /bots` |
+| bot Detail | 5s | `GET /bots/[name]` |
 | Audit Log | 10s | `GET /audit?limit=100` |
 | Meter Summary | 30s | `GET /meter/cost` |
 | Mesh Nodes | 30s | `GET /mesh/nodes` |
@@ -253,7 +253,7 @@ All polling uses `AbortController` to cancel in-flight requests when a new poll 
 The dashboard is mobile-first:
 
 - **Sidebar**: Collapsible drawer on mobile, fixed on desktop (`md:` breakpoint)
-- **CASA grid**: Single column on mobile, 3 columns on desktop
+- **bot grid**: Single column on mobile, 3 columns on desktop
 - **Touch targets**: All interactive elements meet 44px minimum tap size on mobile
 - **Buttons**: Full-width on mobile, auto-width on desktop
 - **Action buttons**: Use tooltip icon buttons with `aria-label` for accessibility
@@ -267,8 +267,8 @@ All API routes log events as structured JSON to stdout/stderr:
   "ts": "2026-02-28T10:00:00.000Z",
   "level": "info",
   "ns": "dashboard",
-  "route": "GET /casas",
-  "msg": "Listed 3 CASAs"
+  "route": "GET /bots",
+  "msg": "Listed 3 bots"
 }
 ```
 

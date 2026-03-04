@@ -7,7 +7,7 @@ interface HealthResult {
   name: string;
   status: "online" | "offline";
   latencyMs?: number;
-  casaCount?: number;
+  botCount?: number;
   type: string;
   error?: string;
 }
@@ -47,22 +47,22 @@ async function checkNodeHealth(
       return { name: node.name, status: "offline", type: "http", error: `HTTP ${healthRes.status}` };
     }
 
-    // Fetch CASA count
-    let casaCount: number | undefined;
+    // Fetch bot count
+    let botCount: number | undefined;
     try {
-      const casaRes = await fetch(`${url}/casas`, {
+      const botRes = await fetch(`${url}/bots`, {
         headers: { authorization: `Bearer placeholder` },
         signal: AbortSignal.timeout(DEFAULTS.AGENT_STATUS_TIMEOUT_MS),
       });
-      if (casaRes.ok) {
-        const casas = await casaRes.json() as unknown[];
-        casaCount = casas.length;
+      if (botRes.ok) {
+        const bots = await botRes.json() as unknown[];
+        botCount = bots.length;
       }
     } catch {
-      // CASA count is best-effort
+      // bot count is best-effort
     }
 
-    return { name: node.name, status: "online", latencyMs, casaCount, type: "http" };
+    return { name: node.name, status: "online", latencyMs, botCount, type: "http" };
   } catch {
     return { name: node.name, status: "offline", type: "http", error: "unreachable" };
   }
@@ -76,7 +76,7 @@ export async function executeNodeHealth(name: string | undefined, deps: CommandD
     const result = await checkNodeHealth(node, DEFAULTS.RENDEZVOUS_URL);
     if (result.status === "online") {
       const parts = [`${result.name}: ${result.latencyMs}ms`];
-      if (result.casaCount !== undefined) parts.push(`${result.casaCount} CASAs running`);
+      if (result.botCount !== undefined) parts.push(`${result.botCount} bots running`);
       parts.push(`(${result.type})`);
       deps.formatter.success(parts.join(" — "));
     } else {
@@ -100,7 +100,7 @@ export async function executeNodeHealth(name: string | undefined, deps: CommandD
   for (const result of results) {
     if (result.status === "online") {
       const parts = [`${result.name}: ${result.latencyMs}ms`];
-      if (result.casaCount !== undefined) parts.push(`${result.casaCount} CASAs running`);
+      if (result.botCount !== undefined) parts.push(`${result.botCount} bots running`);
       parts.push(`(${result.type})`);
       deps.formatter.success(parts.join(" — "));
     } else {

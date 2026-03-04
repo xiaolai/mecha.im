@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { createProgram } from "../../src/program.js";
 import { makeDeps } from "../test-utils.js";
 import type { ProcessManager, ProcessInfo } from "@mecha/process";
-import type { CasaName } from "@mecha/core";
+import type { BotName } from "@mecha/core";
 
 afterEach(() => { process.exitCode = undefined as unknown as number; });
 
@@ -15,7 +15,7 @@ vi.mock("@mecha/core", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@mecha/core")>();
   return {
     ...actual,
-    readCasaConfig: vi.fn().mockReturnValue({
+    readBotConfig: vi.fn().mockReturnValue({
       port: 7700, token: "tok", workspace: "/workspace",
       tags: [], expose: false, sandboxMode: "relaxed",
       model: "sonnet", permissionMode: "default",
@@ -24,7 +24,7 @@ vi.mock("@mecha/core", async (importOriginal) => {
 });
 
 const RUNNING_INFO: ProcessInfo = {
-  name: "alice" as CasaName,
+  name: "alice" as BotName,
   state: "running",
   pid: 12345,
   port: 7700,
@@ -44,7 +44,7 @@ function defaultPm(): Partial<ProcessManager> {
 }
 
 describe("restart command (daemon)", () => {
-  it("stops running CASAs then reports restart", async () => {
+  it("stops running bots then reports restart", async () => {
     const deps = makeDeps({
       pm: {
         ...defaultPm(),
@@ -74,7 +74,7 @@ describe("restart command (daemon)", () => {
     expect(deps.processManager.stop).not.toHaveBeenCalled();
   });
 
-  it("succeeds with no running CASAs", async () => {
+  it("succeeds with no running bots", async () => {
     const deps = makeDeps({ pm: defaultPm() });
     const program = createProgram(deps);
     program.exitOverride();
@@ -83,7 +83,7 @@ describe("restart command (daemon)", () => {
     expect(deps.formatter.success).toHaveBeenCalledWith("Daemon stopped");
   });
 
-  it("collects and respawns CASAs with --restart-casas", async () => {
+  it("collects and respawns bots with --restart-bots", async () => {
     const deps = makeDeps({
       pm: {
         ...defaultPm(),
@@ -93,7 +93,7 @@ describe("restart command (daemon)", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "restart", "--restart-casas"]);
+    await program.parseAsync(["node", "mecha", "restart", "--restart-bots"]);
     expect(deps.processManager.stop).toHaveBeenCalledWith("alice");
     expect(deps.processManager.spawn).toHaveBeenCalledWith(
       expect.objectContaining({ name: "alice", workspacePath: "/workspace" }),

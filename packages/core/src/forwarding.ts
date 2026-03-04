@@ -1,6 +1,6 @@
 /**
- * HTTP forwarding utility for inter-CASA communication.
- * Isolated from casa-config.ts to keep config reading pure (no I/O beyond filesystem).
+ * HTTP forwarding utility for inter-bot communication.
+ * Isolated from bot-config.ts to keep config reading pure (no I/O beyond filesystem).
  */
 import { DEFAULTS } from "./constants.js";
 import { ForwardingError } from "./errors.js";
@@ -11,10 +11,10 @@ export interface ForwardResult {
 }
 
 /**
- * Forward a query message to a CASA via HTTP.
+ * Forward a query message to a bot via HTTP.
  * Shared by service/router and runtime/mesh-tools.
  */
-export async function forwardQueryToCasa(
+export async function forwardQueryToBot(
   port: number,
   token: string,
   message: string,

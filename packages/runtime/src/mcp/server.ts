@@ -29,7 +29,7 @@ interface McpToolDef {
 const TOOLS: McpToolDef[] = [
   {
     name: "mecha_workspace_list",
-    description: "List files in the CASA workspace directory",
+    description: "List files in the bot workspace directory",
     inputSchema: {
       type: "object",
       properties: {
@@ -39,7 +39,7 @@ const TOOLS: McpToolDef[] = [
   },
   {
     name: "mecha_workspace_read",
-    description: "Read file content from the CASA workspace",
+    description: "Read file content from the bot workspace",
     inputSchema: {
       type: "object",
       properties: {
@@ -157,7 +157,7 @@ const SAFE_ERROR_PREFIXES: ReadonlyArray<string> = [
   "Directory not found",
   "File not found",
   "Access denied",
-  "CASA not found",
+  "bot not found",
 ];
 
 /* v8 ignore start -- .some() short-circuit creates untestable per-element branches */
@@ -193,7 +193,7 @@ async function handleRequest(
         result: {
           protocolVersion: "2024-11-05",
           capabilities: { tools: {} },
-          serverInfo: { name: "mecha-casa", version: "0.2.0" },
+          serverInfo: { name: "mecha-bot", version: "0.2.0" },
         },
       };
 
@@ -243,14 +243,14 @@ async function handleRequest(
 export interface McpRouteOpts {
   workspacePath: string;
   mechaDir?: string;
-  casaName?: string;
+  botName?: string;
   router?: MeshRouter;
 }
 
 export function registerMcpRoutes(app: FastifyInstance, opts: McpRouteOpts): void {
   const meshOpts: MeshOpts | undefined =
-    opts.mechaDir && opts.casaName
-      ? { mechaDir: opts.mechaDir, casaName: opts.casaName, router: opts.router }
+    opts.mechaDir && opts.botName
+      ? { mechaDir: opts.mechaDir, botName: opts.botName, router: opts.router }
       : undefined;
 
   app.post("/mcp", async (request: FastifyRequest, reply: FastifyReply) => {
