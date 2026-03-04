@@ -41,7 +41,7 @@ mecha start --open
 
 ### `mecha stop`
 
-Stop all running CASAs, meter proxy, and daemon.
+Stop all running bots, meter proxy, and daemon.
 
 ```bash
 mecha stop [options]
@@ -49,9 +49,9 @@ mecha stop [options]
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--force` | Force kill CASAs (SIGKILL) instead of graceful stop (SIGTERM) | `false` |
+| `--force` | Force kill bots (SIGKILL) instead of graceful stop (SIGTERM) | `false` |
 
-Gracefully stops all running CASAs (SIGTERM), then stops the meter proxy and daemon. With `--force`, sends SIGKILL immediately.
+Gracefully stops all running bots (SIGTERM), then stops the meter proxy and daemon. With `--force`, sends SIGKILL immediately.
 
 ```bash
 mecha stop
@@ -60,7 +60,7 @@ mecha stop --force
 
 ### `mecha restart`
 
-Stop all CASAs and meter daemon, then optionally restart previously-running CASAs.
+Stop all bots and meter daemon, then optionally restart previously-running bots.
 
 ```bash
 mecha restart [options]
@@ -68,15 +68,15 @@ mecha restart [options]
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--force` | Force kill CASAs instead of graceful stop | `false` |
-| `--restart-casas` | Also restart CASAs that were running before stop | `false` |
+| `--force` | Force kill bots instead of graceful stop | `false` |
+| `--restart-bots` | Also restart bots that were running before stop | `false` |
 
-When `--restart-casas` is used, the command records which CASAs were running, stops everything, then re-spawns each from its persisted `config.json`.
+When `--restart-bots` is used, the command records which bots were running, stops everything, then re-spawns each from its persisted `config.json`.
 
 ```bash
 mecha restart
 mecha restart --force
-mecha restart --restart-casas
+mecha restart --restart-bots
 ```
 
 ### `mecha init`
@@ -97,21 +97,21 @@ mecha doctor
 
 ---
 
-## CASA Management
+## bot Management
 
-All CASA commands live under `mecha casa`.
+All bot commands live under `mecha bot`.
 
-### `mecha casa spawn`
+### `mecha bot spawn`
 
-Create and start a new CASA process.
+Create and start a new bot process.
 
 ```bash
-mecha casa spawn <name> <path> [options]
+mecha bot spawn <name> <path> [options]
 ```
 
 | Argument | Description |
 |----------|-------------|
-| `<name>` | CASA name (lowercase, alphanumeric, hyphens) |
+| `<name>` | bot name (lowercase, alphanumeric, hyphens) |
 | `<path>` | Workspace directory path |
 
 | Option | Description | Default |
@@ -127,80 +127,80 @@ mecha casa spawn <name> <path> [options]
 | `--meter <mode>` | Meter mode: `on`, `off` | `on` |
 
 ```bash
-mecha casa spawn researcher ~/papers --tags research,ml
-mecha casa spawn coder ~/project --permission-mode full-auto --port 7710
-mecha casa spawn helper ~/docs --no-auth
-mecha casa spawn worker ~/code --meter off
+mecha bot spawn researcher ~/papers --tags research,ml
+mecha bot spawn coder ~/project --permission-mode full-auto --port 7710
+mecha bot spawn helper ~/docs --no-auth
+mecha bot spawn worker ~/code --meter off
 ```
 
-### `mecha casa start`
+### `mecha bot start`
 
-Start a stopped CASA from its persisted `config.json`.
+Start a stopped bot from its persisted `config.json`.
 
 ```bash
-mecha casa start <name>
+mecha bot start <name>
 ```
 
 | Argument | Description |
 |----------|-------------|
-| `<name>` | CASA name |
+| `<name>` | bot name |
 
-Re-reads the CASA's `config.json` and spawns a new process from it. Allocates a fresh port. Errors if the CASA is already running or if no config exists.
+Re-reads the bot's `config.json` and spawns a new process from it. Allocates a fresh port. Errors if the bot is already running or if no config exists.
 
 ```bash
-mecha casa start researcher
+mecha bot start researcher
 ```
 
-### `mecha casa stop`
+### `mecha bot stop`
 
-Gracefully stop a CASA (SIGTERM).
+Gracefully stop a bot (SIGTERM).
 
 ```bash
-mecha casa stop <name> [options]
+mecha bot stop <name> [options]
 ```
 
 | Argument | Description |
 |----------|-------------|
-| `<name>` | CASA name |
+| `<name>` | bot name |
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--force` | Stop even if CASA has active sessions | `false` |
+| `--force` | Stop even if bot has active sessions | `false` |
 
-Without `--force`, the command checks for active sessions and refuses to stop a busy CASA.
+Without `--force`, the command checks for active sessions and refuses to stop a busy bot.
 
 ```bash
-mecha casa stop researcher
-mecha casa stop researcher --force
+mecha bot stop researcher
+mecha bot stop researcher --force
 ```
 
-### `mecha casa kill`
+### `mecha bot kill`
 
-Immediately kill a CASA process (SIGKILL). Keeps data on disk.
-
-```bash
-mecha casa kill <name>
-```
-
-| Argument | Description |
-|----------|-------------|
-| `<name>` | CASA name |
+Immediately kill a bot process (SIGKILL). Keeps data on disk.
 
 ```bash
-mecha casa kill stuck-agent
-```
-
-### `mecha casa restart`
-
-Stop and re-spawn a CASA from its persisted configuration.
-
-```bash
-mecha casa restart <name> [options]
+mecha bot kill <name>
 ```
 
 | Argument | Description |
 |----------|-------------|
-| `<name>` | CASA name |
+| `<name>` | bot name |
+
+```bash
+mecha bot kill stuck-agent
+```
+
+### `mecha bot restart`
+
+Stop and re-spawn a bot from its persisted configuration.
+
+```bash
+mecha bot restart <name> [options]
+```
+
+| Argument | Description |
+|----------|-------------|
+| `<name>` | bot name |
 
 | Option | Description | Default |
 |--------|-------------|---------|
@@ -209,67 +209,112 @@ mecha casa restart <name> [options]
 Reads `config.json` before stopping (fails fast if missing). Without `--force`, checks for active sessions before stopping. Then re-spawns from config with a fresh port.
 
 ```bash
-mecha casa restart researcher
-mecha casa restart researcher --force
+mecha bot restart researcher
+mecha bot restart researcher --force
 ```
 
-### `mecha casa remove`
+### `mecha bot stop-all`
 
-Stop a CASA and delete its entire directory (config, logs, sessions).
+Batch stop all running bots with busy-safety checks.
 
 ```bash
-mecha casa remove <name> [options]
+mecha bot stop-all [options]
+```
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--force` | Bypass busy check entirely | `false` |
+| `--idle-only` | Skip busy bots instead of failing | `false` |
+| `--dry-run` | Show what would happen without executing | `false` |
+
+By default, the command **fails** on bots with active sessions. Use `--idle-only` to silently skip busy bots, or `--force` to stop all regardless.
+
+```bash
+mecha bot stop-all
+mecha bot stop-all --idle-only
+mecha bot stop-all --force
+mecha bot stop-all --dry-run
+```
+
+### `mecha bot restart-all`
+
+Batch restart all bots (stop + re-spawn from config).
+
+```bash
+mecha bot restart-all [options]
+```
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--force` | Force kill instead of graceful stop, bypass busy check | `false` |
+| `--idle-only` | Skip busy bots instead of failing | `false` |
+| `--dry-run` | Show what would happen without executing | `false` |
+
+Reads each bot's `config.json` before acting. Fails for bots with missing config.
+
+```bash
+mecha bot restart-all
+mecha bot restart-all --force
+mecha bot restart-all --dry-run
+```
+
+### `mecha bot remove`
+
+Stop a bot and delete its entire directory (config, logs, sessions).
+
+```bash
+mecha bot remove <name> [options]
 ```
 
 | Argument | Description |
 |----------|-------------|
-| `<name>` | CASA name |
+| `<name>` | bot name |
 
 | Option | Description | Default |
 |--------|-------------|---------|
 | `--force` | Force kill instead of graceful stop | `false` |
 
 ```bash
-mecha casa remove old-agent
-mecha casa remove stuck-agent --force
+mecha bot remove old-agent
+mecha bot remove stuck-agent --force
 ```
 
-### `mecha casa ls`
+### `mecha bot ls`
 
-List all CASAs with state, port, PID, and tags. Displays a tree view grouped by workspace hierarchy.
+List all bots with state, port, PID, and tags. Displays a tree view grouped by workspace hierarchy.
 
 ```bash
-mecha casa ls
+mecha bot ls
 ```
 
-### `mecha casa status`
+### `mecha bot status`
 
-Show detailed status of a CASA including identity fingerprint, auth profile, sandbox mode, parent CASA, and exposed capabilities.
+Show detailed status of a bot including identity fingerprint, auth profile, sandbox mode, parent bot, and exposed capabilities.
 
 ```bash
-mecha casa status <name>
+mecha bot status <name>
 ```
 
 | Argument | Description |
 |----------|-------------|
-| `<name>` | CASA name |
+| `<name>` | bot name |
 
 ```bash
-mecha casa status researcher
-mecha casa status researcher --json
+mecha bot status researcher
+mecha bot status researcher --json
 ```
 
-### `mecha casa logs`
+### `mecha bot logs`
 
-View CASA logs (stdout/stderr).
+View bot logs (stdout/stderr).
 
 ```bash
-mecha casa logs <name> [options]
+mecha bot logs <name> [options]
 ```
 
 | Argument | Description |
 |----------|-------------|
-| `<name>` | CASA name |
+| `<name>` | bot name |
 
 | Option | Description |
 |--------|-------------|
@@ -277,22 +322,22 @@ mecha casa logs <name> [options]
 | `-n, --tail <lines>` | Number of lines to show (must be a positive integer) |
 
 ```bash
-mecha casa logs researcher
-mecha casa logs researcher -f
-mecha casa logs researcher -n 50
+mecha bot logs researcher
+mecha bot logs researcher -f
+mecha bot logs researcher -n 50
 ```
 
-### `mecha casa configure`
+### `mecha bot configure`
 
-Update CASA configuration (tags, capabilities, auth profile). Takes effect on next restart.
+Update bot configuration (tags, capabilities, auth profile). Takes effect on next restart.
 
 ```bash
-mecha casa configure <name> [options]
+mecha bot configure <name> [options]
 ```
 
 | Argument | Description |
 |----------|-------------|
-| `<name>` | CASA name |
+| `<name>` | bot name |
 
 | Option | Description |
 |--------|-------------|
@@ -301,17 +346,17 @@ mecha casa configure <name> [options]
 | `--auth <profile>` | Auth profile name to use |
 
 ```bash
-mecha casa configure researcher --tags research,ml,papers
-mecha casa configure coder --expose query,read_workspace
-mecha casa configure worker --auth mykey
+mecha bot configure researcher --tags research,ml,papers
+mecha bot configure coder --expose query,read_workspace
+mecha bot configure worker --auth mykey
 ```
 
-### `mecha casa find`
+### `mecha bot find`
 
-Find CASAs, optionally filtered by tag.
+Find bots, optionally filtered by tag.
 
 ```bash
-mecha casa find [options]
+mecha bot find [options]
 ```
 
 | Option | Description |
@@ -321,22 +366,22 @@ mecha casa find [options]
 Multiple `--tag` flags use AND logic.
 
 ```bash
-mecha casa find
-mecha casa find --tag research
-mecha casa find --tag code --tag typescript
+mecha bot find
+mecha bot find --tag research
+mecha bot find --tag code --tag typescript
 ```
 
-### `mecha casa chat`
+### `mecha bot chat`
 
-Send a message to a CASA and stream the response.
+Send a message to a bot and stream the response.
 
 ```bash
-mecha casa chat <name> <message> [options]
+mecha bot chat <name> <message> [options]
 ```
 
 | Argument | Description |
 |----------|-------------|
-| `<name>` | CASA name |
+| `<name>` | bot name |
 | `<message>` | Message to send |
 
 | Option | Description |
@@ -344,35 +389,35 @@ mecha casa chat <name> <message> [options]
 | `-s, --session <id>` | Resume a specific session |
 
 ```bash
-mecha casa chat researcher "What files are in my workspace?"
-mecha casa chat researcher "Continue where we left off" --session abc123
+mecha bot chat researcher "What files are in my workspace?"
+mecha bot chat researcher "Continue where we left off" --session abc123
 ```
 
-### `mecha casa sessions list`
+### `mecha bot sessions list`
 
-List all sessions for a CASA.
+List all sessions for a bot.
 
 ```bash
-mecha casa sessions list <name>
+mecha bot sessions list <name>
 ```
 
-Alias: `mecha casa sessions ls`
+Alias: `mecha bot sessions ls`
 
 | Argument | Description |
 |----------|-------------|
-| `<name>` | CASA name |
+| `<name>` | bot name |
 
-### `mecha casa sessions show`
+### `mecha bot sessions show`
 
 Show a session transcript.
 
 ```bash
-mecha casa sessions show <name> <session-id>
+mecha bot sessions show <name> <session-id>
 ```
 
 | Argument | Description |
 |----------|-------------|
-| `<name>` | CASA name |
+| `<name>` | bot name |
 | `<session-id>` | Session ID |
 
 ---
@@ -381,7 +426,7 @@ mecha casa sessions show <name> <session-id>
 
 ### `mecha acl grant`
 
-Grant a capability from source to target. Addresses can be a CASA name or `name@node`.
+Grant a capability from source to target. Addresses can be a bot name or `name@node`.
 
 ```bash
 mecha acl grant <source> <cap> <target>
@@ -389,9 +434,9 @@ mecha acl grant <source> <cap> <target>
 
 | Argument | Description |
 |----------|-------------|
-| `<source>` | Source CASA name or address (`name@node`) |
+| `<source>` | Source bot name or address (`name@node`) |
 | `<cap>` | Capability to grant |
-| `<target>` | Target CASA name or address (`name@node`) |
+| `<target>` | Target bot name or address (`name@node`) |
 
 ```bash
 mecha acl grant coder query reviewer
@@ -408,13 +453,13 @@ mecha acl revoke <source> <cap> <target>
 
 | Argument | Description |
 |----------|-------------|
-| `<source>` | Source CASA name or address (`name@node`) |
+| `<source>` | Source bot name or address (`name@node`) |
 | `<cap>` | Capability to revoke |
-| `<target>` | Target CASA name or address (`name@node`) |
+| `<target>` | Target bot name or address (`name@node`) |
 
 ### `mecha acl show`
 
-Show ACL rules. Optionally filter by a CASA name (matches as source or target).
+Show ACL rules. Optionally filter by a bot name (matches as source or target).
 
 ```bash
 mecha acl show [name]
@@ -422,7 +467,7 @@ mecha acl show [name]
 
 | Argument | Description |
 |----------|-------------|
-| `[name]` | Filter by CASA name (optional) |
+| `[name]` | Filter by bot name (optional) |
 
 ```bash
 mecha acl show
@@ -566,7 +611,7 @@ mecha node ping bob --server wss://my-rendezvous.example.com
 
 ### `mecha node health`
 
-Check health of mesh nodes with latency and CASA count.
+Check health of mesh nodes with latency and bot count.
 
 ```bash
 mecha node health [name]
@@ -576,7 +621,7 @@ mecha node health [name]
 |----------|-------------|
 | `[name]` | Specific node name (omit for all) |
 
-For **HTTP** nodes, checks `/healthz` and fetches CASA count from `/casas`. For **managed** nodes, checks online status via the rendezvous server.
+For **HTTP** nodes, checks `/healthz` and fetches bot count from `/bots`. For **managed** nodes, checks online status via the rendezvous server.
 
 ```bash
 mecha node health
@@ -585,7 +630,7 @@ mecha node health bob
 
 ### `mecha node info`
 
-Show local node system information (hostname, OS, network IPs, CPU, memory, running CASA count).
+Show local node system information (hostname, OS, network IPs, CPU, memory, running bot count).
 
 ```bash
 mecha node info
@@ -646,15 +691,15 @@ mecha node join mecha://invite/eyJ... --force
 
 ### `mecha schedule add`
 
-Add a periodic schedule to a CASA.
+Add a periodic schedule to a bot.
 
 ```bash
-mecha schedule add <casa> --id <id> --every <interval> --prompt <prompt>
+mecha schedule add <bot> --id <id> --every <interval> --prompt <prompt>
 ```
 
 | Argument | Description |
 |----------|-------------|
-| `<casa>` | CASA name |
+| `<bot>` | bot name |
 
 | Option | Description | Required |
 |--------|-------------|----------|
@@ -668,42 +713,42 @@ mecha schedule add researcher --id check-papers --every 1h --prompt "Check for n
 
 ### `mecha schedule list`
 
-List all schedules for a CASA.
+List all schedules for a bot.
 
 ```bash
-mecha schedule list <casa>
+mecha schedule list <bot>
 ```
 
 Alias: `mecha schedule ls`
 
 | Argument | Description |
 |----------|-------------|
-| `<casa>` | CASA name |
+| `<bot>` | bot name |
 
 ### `mecha schedule pause`
 
-Pause a schedule (or all schedules on a CASA).
+Pause a schedule (or all schedules on a bot).
 
 ```bash
-mecha schedule pause <casa> [schedule-id]
+mecha schedule pause <bot> [schedule-id]
 ```
 
 | Argument | Description |
 |----------|-------------|
-| `<casa>` | CASA name |
+| `<bot>` | bot name |
 | `[schedule-id]` | Schedule ID (omit to pause all) |
 
 ### `mecha schedule resume`
 
-Resume a paused schedule (or all schedules on a CASA).
+Resume a paused schedule (or all schedules on a bot).
 
 ```bash
-mecha schedule resume <casa> [schedule-id]
+mecha schedule resume <bot> [schedule-id]
 ```
 
 | Argument | Description |
 |----------|-------------|
-| `<casa>` | CASA name |
+| `<bot>` | bot name |
 | `[schedule-id]` | Schedule ID (omit to resume all) |
 
 ### `mecha schedule run`
@@ -711,27 +756,27 @@ mecha schedule resume <casa> [schedule-id]
 Trigger a schedule to run immediately.
 
 ```bash
-mecha schedule run <casa> <schedule-id>
+mecha schedule run <bot> <schedule-id>
 ```
 
 | Argument | Description |
 |----------|-------------|
-| `<casa>` | CASA name |
+| `<bot>` | bot name |
 | `<schedule-id>` | Schedule ID to trigger |
 
 ### `mecha schedule remove`
 
-Remove a schedule from a CASA.
+Remove a schedule from a bot.
 
 ```bash
-mecha schedule remove <casa> <schedule-id>
+mecha schedule remove <bot> <schedule-id>
 ```
 
 Alias: `mecha schedule rm`
 
 | Argument | Description |
 |----------|-------------|
-| `<casa>` | CASA name |
+| `<bot>` | bot name |
 | `<schedule-id>` | Schedule ID to remove |
 
 ### `mecha schedule history`
@@ -739,12 +784,12 @@ Alias: `mecha schedule rm`
 View past runs for a schedule.
 
 ```bash
-mecha schedule history <casa> <schedule-id> [options]
+mecha schedule history <bot> <schedule-id> [options]
 ```
 
 | Argument | Description |
 |----------|-------------|
-| `<casa>` | CASA name |
+| `<bot>` | bot name |
 | `<schedule-id>` | Schedule ID |
 
 | Option | Description | Default |
@@ -800,12 +845,12 @@ mecha meter stop
 Show API cost summary for today (UTC).
 
 ```bash
-mecha cost [casa]
+mecha cost [bot]
 ```
 
 | Argument | Description |
 |----------|-------------|
-| `[casa]` | CASA name (omit for all CASAs) |
+| `[bot]` | bot name (omit for all bots) |
 
 ```bash
 mecha cost
@@ -823,7 +868,7 @@ mecha budget set [name] [options]
 
 | Argument | Description |
 |----------|-------------|
-| `[name]` | CASA name (omit with `--global`, `--auth`, or `--tag`) |
+| `[name]` | bot name (omit with `--global`, `--auth`, or `--tag`) |
 
 | Option | Description |
 |--------|-------------|
@@ -860,7 +905,7 @@ mecha budget rm [name] [options]
 
 | Argument | Description |
 |----------|-------------|
-| `[name]` | CASA name (omit with `--global`, `--auth`, or `--tag`) |
+| `[name]` | bot name (omit with `--global`, `--auth`, or `--tag`) |
 
 | Option | Description |
 |--------|-------------|
@@ -959,20 +1004,20 @@ mecha auth tag mykey work production
 
 ### `mecha auth switch`
 
-Switch active auth profile (global default or per-CASA).
+Switch active auth profile (global default or per-bot).
 
 ```bash
 # Switch global default
 mecha auth switch <name>
 
-# Switch per-CASA
-mecha auth switch <casa> <profile>
+# Switch per-bot
+mecha auth switch <bot> <profile>
 ```
 
 | Argument | Description |
 |----------|-------------|
-| `<name>` | Profile name (global switch) or CASA name (per-CASA switch) |
-| `[profile]` | Profile name (when first arg is CASA name) |
+| `<name>` | Profile name (global switch) or bot name (per-bot switch) |
+| `[profile]` | Profile name (when first arg is bot name) |
 
 ```bash
 mecha auth switch mykey
@@ -1158,7 +1203,7 @@ mecha audit clear
 
 ### `mecha sandbox show`
 
-Show the sandbox profile for a CASA (reads `sandbox-profile.json`).
+Show the sandbox profile for a bot (reads `sandbox-profile.json`).
 
 ```bash
 mecha sandbox show <name>
@@ -1166,7 +1211,7 @@ mecha sandbox show <name>
 
 | Argument | Description |
 |----------|-------------|
-| `<name>` | CASA name |
+| `<name>` | bot name |
 
 ---
 

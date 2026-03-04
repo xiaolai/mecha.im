@@ -4,13 +4,13 @@ import {
   toSafeMessage,
 } from "../src/mapping.js";
 import {
-  CasaNotFoundError,
+  BotNotFoundError,
 } from "../src/errors.js";
 
 describe("toUserMessage", () => {
   it("returns message from MechaError", () => {
-    const err = new CasaNotFoundError("researcher");
-    expect(toUserMessage(err)).toBe('CASA "researcher" not found');
+    const err = new BotNotFoundError("researcher");
+    expect(toUserMessage(err)).toBe('bot "researcher" not found');
   });
 
   it("returns message from plain Error", () => {
@@ -25,8 +25,8 @@ describe("toUserMessage", () => {
 
 describe("toSafeMessage", () => {
   it("returns message from MechaError", () => {
-    const err = new CasaNotFoundError("researcher");
-    expect(toSafeMessage(err)).toBe('CASA "researcher" not found');
+    const err = new BotNotFoundError("researcher");
+    expect(toSafeMessage(err)).toBe('bot "researcher" not found');
   });
 
   it('returns "Internal error" for plain Error', () => {

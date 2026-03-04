@@ -8,14 +8,14 @@ import {
   readAuthProfiles,
   readAuthCredentials,
   isValidProfileName,
-  CasaNotFoundError,
-  updateCasaConfig,
+  BotNotFoundError,
+  updateBotConfig,
 } from "@mecha/core";
 import type {
   AuthProfileStore,
   AuthCredentialStore,
   AuthProfileMeta,
-  CasaName,
+  BotName,
 } from "@mecha/core";
 import type { ProcessManager } from "@mecha/process";
 
@@ -268,10 +268,10 @@ export function mechaAuthGetDefault(mechaDir: string): AuthProfile | undefined {
   return toPublicProfile(store.default, meta, store.default);
 }
 
-export function mechaAuthSwitchCasa(
+export function mechaAuthSwitchBot(
   mechaDir: string,
   pm: ProcessManager,
-  casaName: CasaName,
+  botName: BotName,
   profileName: string,
 ): AuthProfile {
   // Env sentinel profiles — skip store lookup
@@ -284,10 +284,10 @@ export function mechaAuthSwitchCasa(
     const entry = envMap[profileName];
     if (!entry || !process.env[entry.envVar]) throw new AuthProfileNotFoundError(profileName);
 
-    const info = pm.get(casaName);
-    if (!info) throw new CasaNotFoundError(casaName);
+    const info = pm.get(botName);
+    if (!info) throw new BotNotFoundError(botName);
 
-    updateCasaConfig(join(mechaDir, casaName), { auth: profileName });
+    updateBotConfig(join(mechaDir, botName), { auth: profileName });
     return {
       name: profileName,
       type: entry.type,
@@ -306,12 +306,12 @@ export function mechaAuthSwitchCasa(
   const meta = store.profiles[profileName];
   if (!meta) throw new AuthProfileNotFoundError(profileName);
 
-  // Validate CASA exists
-  const info = pm.get(casaName);
-  if (!info) throw new CasaNotFoundError(casaName);
+  // Validate bot exists
+  const info = pm.get(botName);
+  if (!info) throw new BotNotFoundError(botName);
 
-  // Update CASA config.json with auth field
-  updateCasaConfig(join(mechaDir, casaName), { auth: profileName });
+  // Update bot config.json with auth field
+  updateBotConfig(join(mechaDir, botName), { auth: profileName });
 
   return toPublicProfile(profileName, meta, store.default);
 }

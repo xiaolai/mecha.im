@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { handleMeshTool, type MeshOpts, type MeshRouter } from "../../src/mcp/mesh-tools.js";
-import { AclDeniedError, CasaNotFoundError } from "@mecha/core";
+import { AclDeniedError, BotNotFoundError } from "@mecha/core";
 
 describe("mesh_discover", () => {
   let mechaDir: string;
@@ -13,14 +13,14 @@ describe("mesh_discover", () => {
   });
   afterEach(() => { rmSync(mechaDir, { recursive: true, force: true }); });
 
-  /** Write a discovery.json index with the given CASA entries */
+  /** Write a discovery.json index with the given bot entries */
   function writeDiscoveryIndex(
-    casas: Array<{ name: string; tags?: string[]; expose?: string[]; state?: string }>,
+    bots: Array<{ name: string; tags?: string[]; expose?: string[]; state?: string }>,
   ): void {
     const index = {
       version: 1,
       updatedAt: new Date().toISOString(),
-      casas: casas.map((c) => ({
+      bots: bots.map((c) => ({
         name: c.name,
         tags: c.tags ?? [],
         expose: c.expose ?? [],
@@ -30,13 +30,13 @@ describe("mesh_discover", () => {
     writeFileSync(join(mechaDir, "discovery.json"), JSON.stringify(index));
   }
 
-  it("discovers other CASAs excluding self", async () => {
+  it("discovers other bots excluding self", async () => {
     writeDiscoveryIndex([
       { name: "alice", tags: ["research"] },
       { name: "bob", tags: ["code"] },
     ]);
 
-    const opts: MeshOpts = { mechaDir, casaName: "alice" };
+    const opts: MeshOpts = { mechaDir, botName: "alice" };
     const result = await handleMeshTool(opts, "mesh_discover", {});
 
     expect(result.content[0].text).toContain("bob");
@@ -50,7 +50,7 @@ describe("mesh_discover", () => {
       { name: "bob", tags: ["code"] },
     ]);
 
-    const opts: MeshOpts = { mechaDir, casaName: "caller" };
+    const opts: MeshOpts = { mechaDir, botName: "caller" };
     const result = await handleMeshTool(opts, "mesh_discover", { tag: "research" });
 
     expect(result.content[0].text).toContain("alice");
@@ -63,7 +63,7 @@ describe("mesh_discover", () => {
       { name: "bob", expose: ["execute"] },
     ]);
 
-    const opts: MeshOpts = { mechaDir, casaName: "caller" };
+    const opts: MeshOpts = { mechaDir, botName: "caller" };
     const result = await handleMeshTool(opts, "mesh_discover", { capability: "query" });
 
     expect(result.content[0].text).toContain("alice");
@@ -71,39 +71,39 @@ describe("mesh_discover", () => {
   });
 
   it("returns message when no matches", async () => {
-    const opts: MeshOpts = { mechaDir, casaName: "caller" };
+    const opts: MeshOpts = { mechaDir, botName: "caller" };
     const result = await handleMeshTool(opts, "mesh_discover", {});
 
-    expect(result.content[0].text).toBe("No matching CASAs found");
+    expect(result.content[0].text).toBe("No matching bots found");
   });
 
   it("rejects invalid capability", async () => {
-    const opts: MeshOpts = { mechaDir, casaName: "caller" };
+    const opts: MeshOpts = { mechaDir, botName: "caller" };
     const result = await handleMeshTool(opts, "mesh_discover", { capability: "bogus" });
 
     expect(result.content[0].text).toContain("Invalid capability");
     expect(result.isError).toBe(true);
   });
 
-  it("skips non-CASA directories listed in index", async () => {
+  it("skips non-bot directories listed in index", async () => {
     writeDiscoveryIndex([
       { name: "alice" },
     ]);
 
-    const opts: MeshOpts = { mechaDir, casaName: "caller" };
+    const opts: MeshOpts = { mechaDir, botName: "caller" };
     const result = await handleMeshTool(opts, "mesh_discover", {});
 
     expect(result.content[0].text).toContain("alice");
   });
 
-  it("filters out non-running CASAs", async () => {
+  it("filters out non-running bots", async () => {
     writeDiscoveryIndex([
       { name: "alive", tags: ["code"], state: "running" },
       { name: "dead", tags: ["code"], state: "stopped" },
       { name: "broken", tags: ["code"], state: "error" },
     ]);
 
-    const opts: MeshOpts = { mechaDir, casaName: "caller" };
+    const opts: MeshOpts = { mechaDir, botName: "caller" };
     const result = await handleMeshTool(opts, "mesh_discover", {});
 
     expect(result.content[0].text).toContain("alive");
@@ -114,10 +114,10 @@ describe("mesh_discover", () => {
   it("returns empty when discovery.json is corrupt", async () => {
     writeFileSync(join(mechaDir, "discovery.json"), "not-json{");
 
-    const opts: MeshOpts = { mechaDir, casaName: "caller" };
+    const opts: MeshOpts = { mechaDir, botName: "caller" };
     const result = await handleMeshTool(opts, "mesh_discover", {});
 
-    expect(result.content[0].text).toBe("No matching CASAs found");
+    expect(result.content[0].text).toBe("No matching bots found");
   });
 });
 
@@ -136,7 +136,7 @@ describe("mesh_query", () => {
   it("delegates to router on success", async () => {
     vi.mocked(mockRouter.routeQuery).mockResolvedValue({ text: "Found papers", sessionId: undefined });
 
-    const opts: MeshOpts = { mechaDir, casaName: "coder", router: mockRouter };
+    const opts: MeshOpts = { mechaDir, botName: "coder", router: mockRouter };
     const result = await handleMeshTool(opts, "mesh_query", { target: "researcher", message: "find papers" });
 
     expect(result.content[0].text).toBe("Found papers");
@@ -147,7 +147,7 @@ describe("mesh_query", () => {
   it("threads sessionId through and returns it as _meta", async () => {
     vi.mocked(mockRouter.routeQuery).mockResolvedValue({ text: "Continued", sessionId: "sess-123" });
 
-    const opts: MeshOpts = { mechaDir, casaName: "coder", router: mockRouter };
+    const opts: MeshOpts = { mechaDir, botName: "coder", router: mockRouter };
     const result = await handleMeshTool(opts, "mesh_query", {
       target: "researcher", message: "continue", sessionId: "sess-123",
     });
@@ -161,7 +161,7 @@ describe("mesh_query", () => {
   it("does not include _meta when sessionId not returned", async () => {
     vi.mocked(mockRouter.routeQuery).mockResolvedValue({ text: "One-shot answer", sessionId: undefined });
 
-    const opts: MeshOpts = { mechaDir, casaName: "coder", router: mockRouter };
+    const opts: MeshOpts = { mechaDir, botName: "coder", router: mockRouter };
     const result = await handleMeshTool(opts, "mesh_query", { target: "researcher", message: "hello" });
 
     expect(result.content[0].text).toBe("One-shot answer");
@@ -173,29 +173,29 @@ describe("mesh_query", () => {
       new AclDeniedError("coder", "query", "researcher"),
     );
 
-    const opts: MeshOpts = { mechaDir, casaName: "coder", router: mockRouter };
+    const opts: MeshOpts = { mechaDir, botName: "coder", router: mockRouter };
     const result = await handleMeshTool(opts, "mesh_query", { target: "researcher", message: "hello" });
 
     expect(result.content[0].text).toContain("Access denied");
     expect(result.isError).toBe(true);
   });
 
-  it("returns CASA not found on CasaNotFoundError", async () => {
+  it("returns bot not found on BotNotFoundError", async () => {
     vi.mocked(mockRouter.routeQuery).mockRejectedValue(
-      new CasaNotFoundError("ghost"),
+      new BotNotFoundError("ghost"),
     );
 
-    const opts: MeshOpts = { mechaDir, casaName: "coder", router: mockRouter };
+    const opts: MeshOpts = { mechaDir, botName: "coder", router: mockRouter };
     const result = await handleMeshTool(opts, "mesh_query", { target: "ghost", message: "hello" });
 
-    expect(result.content[0].text).toContain("CASA not found");
+    expect(result.content[0].text).toContain("bot not found");
     expect(result.isError).toBe(true);
   });
 
   it("returns error on generic failure", async () => {
     vi.mocked(mockRouter.routeQuery).mockRejectedValue(new Error("HTTP 500"));
 
-    const opts: MeshOpts = { mechaDir, casaName: "coder", router: mockRouter };
+    const opts: MeshOpts = { mechaDir, botName: "coder", router: mockRouter };
     const result = await handleMeshTool(opts, "mesh_query", { target: "researcher", message: "hello" });
 
     expect(result.content[0].text).toBe("Mesh query failed");
@@ -203,7 +203,7 @@ describe("mesh_query", () => {
   });
 
   it("returns error when missing required fields", async () => {
-    const opts: MeshOpts = { mechaDir, casaName: "coder", router: mockRouter };
+    const opts: MeshOpts = { mechaDir, botName: "coder", router: mockRouter };
     const result = await handleMeshTool(opts, "mesh_query", {});
 
     expect(result.content[0].text).toContain("Missing required");
@@ -211,7 +211,7 @@ describe("mesh_query", () => {
   });
 
   it("returns error when target is empty string", async () => {
-    const opts: MeshOpts = { mechaDir, casaName: "coder", router: mockRouter };
+    const opts: MeshOpts = { mechaDir, botName: "coder", router: mockRouter };
     const result = await handleMeshTool(opts, "mesh_query", { target: "", message: "hello" });
 
     expect(result.content[0].text).toContain("Missing required: target");
@@ -219,7 +219,7 @@ describe("mesh_query", () => {
   });
 
   it("returns error when message is empty string", async () => {
-    const opts: MeshOpts = { mechaDir, casaName: "coder", router: mockRouter };
+    const opts: MeshOpts = { mechaDir, botName: "coder", router: mockRouter };
     const result = await handleMeshTool(opts, "mesh_query", { target: "researcher", message: "" });
 
     expect(result.content[0].text).toContain("Missing required: message");
@@ -227,7 +227,7 @@ describe("mesh_query", () => {
   });
 
   it("returns error when sessionId is not a string", async () => {
-    const opts: MeshOpts = { mechaDir, casaName: "coder", router: mockRouter };
+    const opts: MeshOpts = { mechaDir, botName: "coder", router: mockRouter };
     const result = await handleMeshTool(opts, "mesh_query", {
       target: "researcher", message: "hello", sessionId: 123,
     });
@@ -237,7 +237,7 @@ describe("mesh_query", () => {
   });
 
   it("returns error when router not available", async () => {
-    const opts: MeshOpts = { mechaDir, casaName: "coder" };
+    const opts: MeshOpts = { mechaDir, botName: "coder" };
     const result = await handleMeshTool(opts, "mesh_query", { target: "researcher", message: "hello" });
 
     expect(result.content[0].text).toBe("Mesh routing not available");
@@ -248,7 +248,7 @@ describe("mesh_query", () => {
 describe("unknown mesh tool", () => {
   it("returns error for unknown tool name", async () => {
     const mechaDir = mkdtempSync(join(tmpdir(), "mesh-test-"));
-    const opts: MeshOpts = { mechaDir, casaName: "test" };
+    const opts: MeshOpts = { mechaDir, botName: "test" };
     const result = await handleMeshTool(opts, "mesh_unknown", {});
 
     expect(result.content[0].text).toContain("Unknown mesh tool");

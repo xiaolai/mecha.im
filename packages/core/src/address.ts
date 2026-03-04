@@ -1,4 +1,4 @@
-import type { CasaName, NodeName, CasaAddress, Address } from "./types.js";
+import type { BotName, NodeName, BotAddress, Address } from "./types.js";
 import { isValidName } from "./validation.js";
 import { InvalidNameError, InvalidAddressError, GroupAddressNotSupportedError } from "./errors.js";
 
@@ -6,14 +6,14 @@ import { InvalidNameError, InvalidAddressError, GroupAddressNotSupportedError } 
 const LOCAL_NODE = "local" as NodeName;
 
 /**
- * Validate and brand a string as a CasaName.
+ * Validate and brand a string as a BotName.
  * @throws Error if the input is not a valid name
  */
-export function casaName(input: string): CasaName {
+export function botName(input: string): BotName {
   if (!isValidName(input)) {
     throw new InvalidNameError(input);
   }
-  return input as CasaName;
+  return input as BotName;
 }
 
 /**
@@ -30,8 +30,8 @@ export function nodeName(input: string): NodeName {
 /**
  * Parse an address string into a structured Address.
  *
- * - "researcher"       → { casa: "researcher", node: "local" }
- * - "researcher@alice" → { casa: "researcher", node: "alice" }
+ * - "researcher"       → { bot: "researcher", node: "local" }
+ * - "researcher@alice" → { bot: "researcher", node: "alice" }
  * - "+group"           → throws (groups not supported until Phase 2)
  *
  * @throws Error on invalid input
@@ -51,26 +51,26 @@ export function parseAddress(input: string): Address {
   }
 
   if (atCount === 1) {
-    const [casaPart, nodePart] = input.split("@") as [string, string];
+    const [botPart, nodePart] = input.split("@") as [string, string];
     return {
-      casa: casaName(casaPart),
+      bot: botName(botPart),
       node: nodeName(nodePart),
     };
   }
 
   return {
-    casa: casaName(input),
+    bot: botName(input),
     node: LOCAL_NODE,
   };
 }
 
 /**
- * Format a CasaAddress back to a string.
+ * Format a BotAddress back to a string.
  * Returns "researcher@alice" or "researcher" if node is "local".
  */
-export function formatAddress(addr: CasaAddress): string {
+export function formatAddress(addr: BotAddress): string {
   if (addr.node === LOCAL_NODE) {
-    return addr.casa;
+    return addr.bot;
   }
-  return `${addr.casa}@${addr.node}`;
+  return `${addr.bot}@${addr.node}`;
 }

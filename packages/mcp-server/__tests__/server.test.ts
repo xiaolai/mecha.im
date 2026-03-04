@@ -26,8 +26,8 @@ describe("createMeshMcpServer", () => {
     const toolNames = Object.keys(tools);
     expect(toolNames).toHaveLength(9);
     expect(toolNames).toContain("mecha_list_nodes");
-    expect(toolNames).toContain("mecha_list_casas");
-    expect(toolNames).toContain("mecha_casa_status");
+    expect(toolNames).toContain("mecha_list_bots");
+    expect(toolNames).toContain("mecha_bot_status");
     expect(toolNames).toContain("mecha_discover");
     expect(toolNames).toContain("mecha_list_sessions");
     expect(toolNames).toContain("mecha_get_session");

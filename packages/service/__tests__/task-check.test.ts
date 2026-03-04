@@ -5,13 +5,13 @@ import { tmpdir } from "node:os";
 import Fastify, { type FastifyInstance } from "fastify";
 import { createSessionManager, registerSessionRoutes } from "@mecha/runtime";
 import type { ProcessManager } from "@mecha/process";
-import type { CasaName } from "@mecha/core";
-import { checkCasaBusy } from "../src/task-check.js";
+import type { BotName } from "@mecha/core";
+import { checkBotBusy } from "../src/task-check.js";
 
-const CASA = "test" as CasaName;
+const BOT = "test" as BotName;
 const TOKEN = "test-token";
 
-describe("checkCasaBusy", () => {
+describe("checkBotBusy", () => {
   let app: FastifyInstance;
   let tempDir: string;
   let projectsDir: string;
@@ -21,7 +21,7 @@ describe("checkCasaBusy", () => {
   function makePm(state: "running" | "stopped" = "running"): ProcessManager {
     return {
       spawn: vi.fn(),
-      get: vi.fn().mockReturnValue({ name: CASA, state }),
+      get: vi.fn().mockReturnValue({ name: BOT, state }),
       list: vi.fn().mockReturnValue([]),
       stop: vi.fn(),
       kill: vi.fn(),
@@ -50,13 +50,13 @@ describe("checkCasaBusy", () => {
     rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it("returns busy: false when CASA is not running", async () => {
+  it("returns busy: false when bot is not running", async () => {
     const stoppedPm = makePm("stopped");
-    const result = await checkCasaBusy(stoppedPm, CASA);
+    const result = await checkBotBusy(stoppedPm, BOT);
     expect(result).toEqual({ busy: false, activeSessions: 0 });
   });
 
-  it("returns busy: false when CASA is not found", async () => {
+  it("returns busy: false when bot is not found", async () => {
     const emptyPm: ProcessManager = {
       spawn: vi.fn(),
       get: vi.fn().mockReturnValue(undefined),
@@ -67,12 +67,12 @@ describe("checkCasaBusy", () => {
       getPortAndToken: vi.fn(),
       onEvent: vi.fn().mockReturnValue(() => {}),
     } as ProcessManager;
-    const result = await checkCasaBusy(emptyPm, CASA);
+    const result = await checkBotBusy(emptyPm, BOT);
     expect(result).toEqual({ busy: false, activeSessions: 0 });
   });
 
   it("returns busy: false when no sessions exist", async () => {
-    const result = await checkCasaBusy(pm, CASA);
+    const result = await checkBotBusy(pm, BOT);
     expect(result).toEqual({ busy: false, activeSessions: 0 });
   });
 
@@ -88,7 +88,7 @@ describe("checkCasaBusy", () => {
         updatedAt: staleTime,
       }),
     );
-    const result = await checkCasaBusy(pm, CASA);
+    const result = await checkBotBusy(pm, BOT);
     expect(result.busy).toBe(false);
     expect(result.activeSessions).toBe(0);
   });
@@ -105,7 +105,7 @@ describe("checkCasaBusy", () => {
         updatedAt: recentTime,
       }),
     );
-    const result = await checkCasaBusy(pm, CASA);
+    const result = await checkBotBusy(pm, BOT);
     expect(result.busy).toBe(true);
     expect(result.activeSessions).toBe(1);
     expect(result.lastActivity).toBe(recentTime);
@@ -126,11 +126,11 @@ describe("checkCasaBusy", () => {
     );
 
     // With default 60s → busy
-    const result1 = await checkCasaBusy(pm, CASA);
+    const result1 = await checkBotBusy(pm, BOT);
     expect(result1.busy).toBe(true);
 
     // With 10s threshold → not busy
-    const result2 = await checkCasaBusy(pm, CASA, 10_000);
+    const result2 = await checkBotBusy(pm, BOT, 10_000);
     expect(result2.busy).toBe(false);
   });
 
@@ -138,7 +138,7 @@ describe("checkCasaBusy", () => {
     // Point to a port that nothing is listening on
     const badPm: ProcessManager = {
       spawn: vi.fn(),
-      get: vi.fn().mockReturnValue({ name: CASA, state: "running" }),
+      get: vi.fn().mockReturnValue({ name: BOT, state: "running" }),
       list: vi.fn().mockReturnValue([]),
       stop: vi.fn(),
       kill: vi.fn(),
@@ -146,7 +146,7 @@ describe("checkCasaBusy", () => {
       getPortAndToken: vi.fn().mockReturnValue({ port: 1, token: TOKEN }),
       onEvent: vi.fn().mockReturnValue(() => {}),
     } as ProcessManager;
-    const result = await checkCasaBusy(badPm, CASA);
+    const result = await checkBotBusy(badPm, BOT);
     expect(result).toEqual({ busy: false, activeSessions: 0 });
   });
 });

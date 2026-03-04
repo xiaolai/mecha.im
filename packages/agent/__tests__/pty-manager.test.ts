@@ -3,15 +3,15 @@ import { EventEmitter } from "node:events";
 
 vi.mock("@mecha/core", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@mecha/core")>();
-  return { ...actual, readCasaConfig: vi.fn() };
+  return { ...actual, readBotConfig: vi.fn() };
 });
 
-import { readCasaConfig } from "@mecha/core";
+import { readBotConfig } from "@mecha/core";
 import { createPtyManager } from "../src/pty-manager.js";
 import type { ProcessManager, MechaPty } from "@mecha/process";
 import type { WebSocket } from "ws";
 
-const mockReadCasaConfig = vi.mocked(readCasaConfig);
+const mockReadBotConfig = vi.mocked(readBotConfig);
 
 function createMockPty(): MechaPty & { _emitData: (d: string) => void; _emitExit: (code: number) => void } {
   const emitter = new EventEmitter();
@@ -46,7 +46,7 @@ describe("agent createPtyManager", () => {
     vi.useFakeTimers();
     mockPty = createMockPty();
     spawnFn = vi.fn().mockReturnValue(mockPty);
-    mockReadCasaConfig.mockReturnValue({ port: 7700, token: "tok", workspace: "/workspace" });
+    mockReadBotConfig.mockReturnValue({ port: 7700, token: "tok", workspace: "/workspace" });
   });
 
   afterEach(() => {
@@ -77,13 +77,13 @@ describe("agent createPtyManager", () => {
     expect(session.id).toMatch(/^coder:new-/);
   });
 
-  it("throws when CASA not running", () => {
+  it("throws when bot not running", () => {
     const pm = createPtyManager({ processManager: createMockPm(false), mechaDir: "/m", spawnFn });
     expect(() => pm.spawn("ghost", undefined, 80, 24)).toThrow("not running");
   });
 
   it("throws when config unreadable", () => {
-    mockReadCasaConfig.mockReturnValue(undefined);
+    mockReadBotConfig.mockReturnValue(undefined);
     const pm = createPtyManager({ processManager: createMockPm(), mechaDir: "/m", spawnFn });
     expect(() => pm.spawn("coder", undefined, 80, 24)).toThrow("Cannot read config");
   });
@@ -179,15 +179,15 @@ describe("agent createPtyManager", () => {
     expect(pm.getSession(session.id)).toBe(session); // still alive
   });
 
-  it("throws when CASA is stopped", () => {
+  it("throws when bot is stopped", () => {
     const mockPm = createMockPm();
     (mockPm.get as ReturnType<typeof vi.fn>).mockReturnValue({ name: "coder", state: "stopped", workspacePath: "/ws" });
     const pm = createPtyManager({ processManager: mockPm, mechaDir: "/m", spawnFn });
     expect(() => pm.spawn("coder", undefined, 80, 24)).toThrow("not running");
   });
 
-  describe("findByCasa", () => {
-    it("returns sessions for a given CASA sorted by lastActivity DESC", () => {
+  describe("findByBot", () => {
+    it("returns sessions for a given bot sorted by lastActivity DESC", () => {
       const pty1 = createMockPty();
       const pty2 = createMockPty();
       let call = 0;
@@ -198,7 +198,7 @@ describe("agent createPtyManager", () => {
       vi.advanceTimersByTime(100);
       const s2 = pm.spawn("coder", "s2", 80, 24);
 
-      const results = pm.findByCasa("coder");
+      const results = pm.findByBot("coder");
       expect(results).toHaveLength(2);
       // s2 was spawned later (more recent lastActivity)
       expect(results[0]).toBe(s2);
@@ -208,7 +208,7 @@ describe("agent createPtyManager", () => {
     it("returns empty array when no sessions match", () => {
       const pm = createPtyManager({ processManager: createMockPm(), mechaDir: "/m", spawnFn });
       pm.spawn("coder", "s1", 80, 24);
-      expect(pm.findByCasa("other")).toEqual([]);
+      expect(pm.findByBot("other")).toEqual([]);
     });
   });
 

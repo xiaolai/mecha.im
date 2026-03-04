@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
-import { readCasaConfig, isValidName } from "@mecha/core";
+import { readBotConfig, isValidName } from "@mecha/core";
 import type { ProcessManager } from "@mecha/process";
 import { join } from "node:path";
 
@@ -18,7 +18,7 @@ export function registerDiscoverRoutes(app: FastifyInstance, opts: DiscoverRoute
       const results = list
         .filter((p) => isValidName(p.name))
         .map((p) => {
-          const config = readCasaConfig(join(opts.mechaDir, p.name));
+          const config = readBotConfig(join(opts.mechaDir, p.name));
           const rawTags = config?.tags;
           const rawExpose = config?.expose;
           const tags = Array.isArray(rawTags) ? rawTags.filter((t): t is string => typeof t === "string") : [];

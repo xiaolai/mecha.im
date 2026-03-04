@@ -16,7 +16,7 @@ export function registerTerminalRoutes(
     // Use raw request URL as fallback for robust param extraction.
     /* v8 ignore start -- fallback branches for runtimes where req.url/params are missing */
     const rawUrl = req.url ?? req.raw?.url ?? "";
-    const casaName = (req.params as { name?: string } | undefined)?.name
+    const botName = (req.params as { name?: string } | undefined)?.name
       ?? rawUrl.match(/\/ws\/terminal\/([^/?]+)/)?.[1]
       ?? "";
     let sessionId = (req.query as { session?: string } | undefined)?.session
@@ -24,16 +24,16 @@ export function registerTerminalRoutes(
       ?? undefined;
     /* v8 ignore stop */
 
-    // Validate CASA name consistently with other routes
-    if (!casaName || !isValidName(casaName)) {
-      socket.send(JSON.stringify({ __mecha: true, type: "error", message: `Invalid CASA name: ${casaName}` }));
-      socket.close(4400, "Invalid CASA name");
+    // Validate bot name consistently with other routes
+    if (!botName || !isValidName(botName)) {
+      socket.send(JSON.stringify({ __mecha: true, type: "error", message: `Invalid bot name: ${botName}` }));
+      socket.close(4400, "Invalid bot name");
       return;
     }
 
-    // Defensive: strip casaName: prefix if client sent composite key from stale URL
-    if (sessionId?.startsWith(`${casaName}:`)) {
-      sessionId = sessionId.slice(casaName.length + 1);
+    // Defensive: strip botName: prefix if client sent composite key from stale URL
+    if (sessionId?.startsWith(`${botName}:`)) {
+      sessionId = sessionId.slice(botName.length + 1);
     }
 
     // Validate session ID format (allow new-* mecha-internal IDs)
@@ -54,19 +54,19 @@ export function registerTerminalRoutes(
     const initRows = Number(queryObj.rows ?? parsedUrl.searchParams.get("rows")) || 24;
     /* v8 ignore stop */
 
-    // Look up existing PTY: try exact key first, then fall back to findByCasa
+    // Look up existing PTY: try exact key first, then fall back to findByBot
     // ONLY when no specific sessionId was requested (prevents cross-session leaks).
-    let session = sessionId ? ptyManager.getSession(`${casaName}:${sessionId}`) : null;
+    let session = sessionId ? ptyManager.getSession(`${botName}:${sessionId}`) : null;
     if (!session && !sessionId) {
-      const casaSessions = ptyManager.findByCasa(casaName);
-      if (casaSessions.length > 0) session = casaSessions[0] ?? null;
+      const botSessions = ptyManager.findByBot(botName);
+      if (botSessions.length > 0) session = botSessions[0] ?? null;
     }
 
     try {
       if (session) {
         ptyManager.attach(session.id, socket);
       } else {
-        session = ptyManager.spawn(casaName, sessionId, initCols, initRows);
+        session = ptyManager.spawn(botName, sessionId, initCols, initRows);
         ptyManager.attach(session.id, socket);
       }
     } catch (err) {
@@ -83,9 +83,9 @@ export function registerTerminalRoutes(
 
     const sessionKey = session.id;
 
-    // Send session ID — strip casaName: prefix so client stores only the session part
-    const clientSessionId = sessionKey.startsWith(`${casaName}:`)
-      ? sessionKey.slice(casaName.length + 1)
+    // Send session ID — strip botName: prefix so client stores only the session part
+    const clientSessionId = sessionKey.startsWith(`${botName}:`)
+      ? sessionKey.slice(botName.length + 1)
       : sessionKey;
     socket.send(JSON.stringify({ __mecha: true, type: "session", id: clientSessionId }));
 

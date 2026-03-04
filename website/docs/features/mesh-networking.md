@@ -131,7 +131,7 @@ By default, the agent server binds to `127.0.0.1` (localhost only). Use `--host 
 Once nodes are connected (either mode), queries route automatically:
 
 ```bash
-mecha casa chat coder "Ask analyst@bob about the sales data"
+mecha bot chat coder "Ask analyst@bob about the sales data"
 ```
 
 ### Routing: Managed Nodes
@@ -168,7 +168,7 @@ sequenceDiagram
 
     coder->>router: mesh_query(analyst@bob, ...)
     router->>router: ACL check
-    router->>agent: POST /casas/analyst/query (authenticated)
+    router->>agent: POST /bots/analyst/query (authenticated)
     agent->>agent: Validate auth + ACL
     agent->>analyst: Forward query
     analyst-->>agent: Response
@@ -262,15 +262,15 @@ The `mesh_query` MCP tool supports an optional `sessionId` parameter for multi-t
 mesh_query({ target: "analyst@bob", message: "Analyze the data", sessionId: "abc123" })
 ```
 
-When a mesh query creates a new session on the target, the response includes `_meta.sessionId`. Passing this ID in subsequent queries continues the same conversation on the remote CASA — the target retains full context from prior turns.
+When a mesh query creates a new session on the target, the response includes `_meta.sessionId`. Passing this ID in subsequent queries continues the same conversation on the remote bot — the target retains full context from prior turns.
 
 ## Addressing
 
 | Format | Meaning |
 |--------|---------|
-| `analyst` | Local CASA on this node |
-| `analyst@bob` | CASA on remote node "bob" |
-| `+research` | All CASAs tagged "research" (local + remote) |
+| `analyst` | Local bot on this node |
+| `analyst@bob` | bot on remote node "bob" |
+| `+research` | All bots tagged "research" (local + remote) |
 
 ## Infrastructure Services
 

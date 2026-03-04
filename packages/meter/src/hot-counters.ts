@@ -8,7 +8,7 @@ export function createHotCounters(date: string): HotCounters {
   return {
     date,
     global: { today: emptySummary(), thisMonth: emptySummary() },
-    byCasa: {},
+    byBot: {},
     byAuth: {},
     byTag: {},
   };
@@ -29,9 +29,9 @@ export function ingestEvent(counters: HotCounters, event: MeterEvent): void {
   accumulateEvent(counters.global.today, event);
   accumulateEvent(counters.global.thisMonth, event);
 
-  const casa = ensureBucket(counters.byCasa, event.casa);
-  accumulateEvent(casa.today, event);
-  accumulateEvent(casa.thisMonth, event);
+  const bot = ensureBucket(counters.byBot, event.bot);
+  accumulateEvent(bot.today, event);
+  accumulateEvent(bot.thisMonth, event);
 
   const auth = ensureBucket(counters.byAuth, event.authProfile);
   accumulateEvent(auth.today, event);
@@ -48,7 +48,7 @@ export function ingestEvent(counters: HotCounters, event: MeterEvent): void {
 export function resetToday(counters: HotCounters, newDate: string): void {
   counters.date = newDate;
   counters.global.today = emptySummary();
-  for (const map of [counters.byCasa, counters.byAuth, counters.byTag]) {
+  for (const map of [counters.byBot, counters.byAuth, counters.byTag]) {
     for (const [key, bucket] of Object.entries(map)) {
       bucket.today = emptySummary();
       // Prune buckets with no monthly activity to prevent unbounded growth
@@ -64,7 +64,7 @@ export function resetMonth(counters: HotCounters, newDate: string): void {
   counters.date = newDate;
   counters.global.today = emptySummary();
   counters.global.thisMonth = emptySummary();
-  for (const map of [counters.byCasa, counters.byAuth, counters.byTag]) {
+  for (const map of [counters.byBot, counters.byAuth, counters.byTag]) {
     for (const key of Object.keys(map)) {
       delete map[key];
     }
@@ -81,7 +81,7 @@ export function fromSnapshot(snapshot: HotSnapshot): HotCounters {
   return {
     date: snapshot.date,
     global: snapshot.global,
-    byCasa: { ...snapshot.byCasa },
+    byBot: { ...snapshot.byBot },
     byAuth: { ...snapshot.byAuth },
     byTag: { ...snapshot.byTag },
   };

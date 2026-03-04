@@ -34,7 +34,7 @@ export function mechaInit(mechaDir: string): InitResult {
   // Create empty discovery index if missing
   const discoveryPath = join(mechaDir, "discovery.json");
   if (!existsSync(discoveryPath)) {
-    writeFileSync(discoveryPath, JSON.stringify({ version: 1, updatedAt: new Date().toISOString(), casas: [] }, null, 2) + "\n", { mode: 0o600 });
+    writeFileSync(discoveryPath, JSON.stringify({ version: 1, updatedAt: new Date().toISOString(), bots: [] }, null, 2) + "\n", { mode: 0o600 });
   }
 
   // Generate or read node-id

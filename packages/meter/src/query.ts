@@ -42,7 +42,7 @@ export function accumulateEvent(summary: CostSummary, event: MeterEvent): void {
 export interface CostQueryResult {
   period: string;
   total: CostSummary;
-  byCasa: Record<string, CostSummary>;
+  byBot: Record<string, CostSummary>;
 }
 
 /** Query cost from raw event files for today (initial implementation) */
@@ -52,25 +52,25 @@ export function queryCostToday(meterDir: string): CostQueryResult {
   return aggregateEvents(events, `today (${date} UTC)`);
 }
 
-/** Query cost from raw event files for a specific CASA today */
-export function queryCostForCasa(meterDir: string, casa: string): CostQueryResult {
+/** Query cost from raw event files for a specific bot today */
+export function queryCostForBot(meterDir: string, bot: string): CostQueryResult {
   const date = todayUTC();
-  const events = readEventsForDate(meterDir, date).filter(e => e.casa === casa);
-  return aggregateEvents(events, `${casa} — today (${date} UTC)`);
+  const events = readEventsForDate(meterDir, date).filter(e => e.bot === bot);
+  return aggregateEvents(events, `${bot} — today (${date} UTC)`);
 }
 
 /** Aggregate a list of events into a CostQueryResult */
 export function aggregateEvents(events: MeterEvent[], period: string): CostQueryResult {
   const total = emptySummary();
-  const byCasa: Record<string, CostSummary> = {};
+  const byBot: Record<string, CostSummary> = {};
 
   for (const event of events) {
     accumulateEvent(total, event);
-    if (!byCasa[event.casa]) {
-      byCasa[event.casa] = emptySummary();
+    if (!byBot[event.bot]) {
+      byBot[event.bot] = emptySummary();
     }
-    accumulateEvent(byCasa[event.casa]!, event);
+    accumulateEvent(byBot[event.bot]!, event);
   }
 
-  return { period, total, byCasa };
+  return { period, total, byBot };
 }

@@ -1,24 +1,24 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import Fastify, { type FastifyInstance } from "fastify";
 import type { ProcessManager } from "@mecha/process";
-import { type CasaName, CasaNotFoundError, CasaNotRunningError } from "@mecha/core";
+import { type BotName, BotNotFoundError, BotNotRunningError } from "@mecha/core";
 import {
-  casaScheduleAdd,
-  casaScheduleRemove,
-  casaScheduleList,
-  casaSchedulePause,
-  casaScheduleResume,
-  casaScheduleRun,
-  casaScheduleHistory,
+  botScheduleAdd,
+  botScheduleRemove,
+  botScheduleList,
+  botSchedulePause,
+  botScheduleResume,
+  botScheduleRun,
+  botScheduleHistory,
 } from "../src/schedule.js";
 
-const CASA = "test" as CasaName;
+const BOT = "test" as BotName;
 const TOKEN = "test-token";
 
 function createMockPM(port: number): ProcessManager {
   return {
     spawn: vi.fn(),
-    get: vi.fn().mockReturnValue({ name: CASA, state: "running" }),
+    get: vi.fn().mockReturnValue({ name: BOT, state: "running" }),
     list: vi.fn().mockReturnValue([]),
     stop: vi.fn(),
     kill: vi.fn(),
@@ -28,7 +28,7 @@ function createMockPM(port: number): ProcessManager {
   } as ProcessManager;
 }
 
-describe("casaSchedule*", () => {
+describe("botSchedule*", () => {
   let app: FastifyInstance;
   let port: number;
   let pm: ProcessManager;
@@ -123,113 +123,113 @@ describe("casaSchedule*", () => {
     await app.close();
   });
 
-  it("casaScheduleAdd adds a schedule", async () => {
-    await casaScheduleAdd(pm, CASA, { id: "test-sched", every: "5m", prompt: "Hello" });
+  it("botScheduleAdd adds a schedule", async () => {
+    await botScheduleAdd(pm, BOT, { id: "test-sched", every: "5m", prompt: "Hello" });
     expect(schedules).toHaveLength(1);
     expect(schedules[0]!.id).toBe("test-sched");
   });
 
-  it("casaScheduleAdd rejects invalid interval client-side", async () => {
+  it("botScheduleAdd rejects invalid interval client-side", async () => {
     await expect(
-      casaScheduleAdd(pm, CASA, { id: "bad", every: "2s", prompt: "test" }),
+      botScheduleAdd(pm, BOT, { id: "bad", every: "2s", prompt: "test" }),
     ).rejects.toThrow("Invalid interval");
   });
 
-  it("casaScheduleAdd throws on server error", async () => {
-    await casaScheduleAdd(pm, CASA, { id: "first", every: "5m", prompt: "x" });
+  it("botScheduleAdd throws on server error", async () => {
+    await botScheduleAdd(pm, BOT, { id: "first", every: "5m", prompt: "x" });
     await expect(
-      casaScheduleAdd(pm, CASA, { id: "first", every: "5m", prompt: "y" }),
+      botScheduleAdd(pm, BOT, { id: "first", every: "5m", prompt: "y" }),
     ).rejects.toThrow("already exists");
   });
 
-  it("casaScheduleList lists schedules", async () => {
-    await casaScheduleAdd(pm, CASA, { id: "a", every: "5m", prompt: "x" });
-    const list = await casaScheduleList(pm, CASA);
+  it("botScheduleList lists schedules", async () => {
+    await botScheduleAdd(pm, BOT, { id: "a", every: "5m", prompt: "x" });
+    const list = await botScheduleList(pm, BOT);
     expect(list).toHaveLength(1);
   });
 
-  it("casaScheduleRemove removes schedule", async () => {
-    await casaScheduleAdd(pm, CASA, { id: "rm", every: "5m", prompt: "x" });
-    await casaScheduleRemove(pm, CASA, "rm");
+  it("botScheduleRemove removes schedule", async () => {
+    await botScheduleAdd(pm, BOT, { id: "rm", every: "5m", prompt: "x" });
+    await botScheduleRemove(pm, BOT, "rm");
     expect(schedules).toHaveLength(0);
   });
 
-  it("casaScheduleRemove throws for unknown", async () => {
-    await expect(casaScheduleRemove(pm, CASA, "nope")).rejects.toThrow();
+  it("botScheduleRemove throws for unknown", async () => {
+    await expect(botScheduleRemove(pm, BOT, "nope")).rejects.toThrow();
   });
 
-  it("casaSchedulePause pauses schedule", async () => {
-    await casaScheduleAdd(pm, CASA, { id: "p", every: "5m", prompt: "x" });
-    await casaSchedulePause(pm, CASA, "p");
+  it("botSchedulePause pauses schedule", async () => {
+    await botScheduleAdd(pm, BOT, { id: "p", every: "5m", prompt: "x" });
+    await botSchedulePause(pm, BOT, "p");
     expect(schedules[0]!.paused).toBe(true);
   });
 
-  it("casaSchedulePause pauses all", async () => {
-    await casaScheduleAdd(pm, CASA, { id: "a", every: "5m", prompt: "x" });
-    await casaScheduleAdd(pm, CASA, { id: "b", every: "10m", prompt: "y" });
-    await casaSchedulePause(pm, CASA);
+  it("botSchedulePause pauses all", async () => {
+    await botScheduleAdd(pm, BOT, { id: "a", every: "5m", prompt: "x" });
+    await botScheduleAdd(pm, BOT, { id: "b", every: "10m", prompt: "y" });
+    await botSchedulePause(pm, BOT);
     expect(schedules.every((s) => s.paused)).toBe(true);
   });
 
-  it("casaScheduleResume resumes schedule", async () => {
-    await casaScheduleAdd(pm, CASA, { id: "r", every: "5m", prompt: "x" });
-    await casaSchedulePause(pm, CASA, "r");
-    await casaScheduleResume(pm, CASA, "r");
+  it("botScheduleResume resumes schedule", async () => {
+    await botScheduleAdd(pm, BOT, { id: "r", every: "5m", prompt: "x" });
+    await botSchedulePause(pm, BOT, "r");
+    await botScheduleResume(pm, BOT, "r");
     expect(schedules[0]!.paused).toBe(false);
   });
 
-  it("casaScheduleResume resumes all schedules", async () => {
-    await casaScheduleAdd(pm, CASA, { id: "r1", every: "5m", prompt: "x" });
-    await casaScheduleAdd(pm, CASA, { id: "r2", every: "10m", prompt: "y" });
-    await casaSchedulePause(pm, CASA);
-    await casaScheduleResume(pm, CASA);
+  it("botScheduleResume resumes all schedules", async () => {
+    await botScheduleAdd(pm, BOT, { id: "r1", every: "5m", prompt: "x" });
+    await botScheduleAdd(pm, BOT, { id: "r2", every: "10m", prompt: "y" });
+    await botSchedulePause(pm, BOT);
+    await botScheduleResume(pm, BOT);
     expect(schedules.every((s) => !s.paused)).toBe(true);
   });
 
-  it("casaScheduleRun triggers immediate run", async () => {
-    await casaScheduleAdd(pm, CASA, { id: "run", every: "5m", prompt: "x" });
-    const result = await casaScheduleRun(pm, CASA, "run");
+  it("botScheduleRun triggers immediate run", async () => {
+    await botScheduleAdd(pm, BOT, { id: "run", every: "5m", prompt: "x" });
+    const result = await botScheduleRun(pm, BOT, "run");
     expect(result.outcome).toBe("success");
     expect(result.durationMs).toBe(100);
   });
 
-  it("casaScheduleRun throws for unknown", async () => {
-    await expect(casaScheduleRun(pm, CASA, "nope")).rejects.toThrow();
+  it("botScheduleRun throws for unknown", async () => {
+    await expect(botScheduleRun(pm, BOT, "nope")).rejects.toThrow();
   });
 
-  it("casaScheduleHistory returns history", async () => {
-    await casaScheduleAdd(pm, CASA, { id: "h", every: "5m", prompt: "x" });
-    await casaScheduleRun(pm, CASA, "h");
-    const hist = await casaScheduleHistory(pm, CASA, "h");
+  it("botScheduleHistory returns history", async () => {
+    await botScheduleAdd(pm, BOT, { id: "h", every: "5m", prompt: "x" });
+    await botScheduleRun(pm, BOT, "h");
+    const hist = await botScheduleHistory(pm, BOT, "h");
     expect(hist).toHaveLength(1);
   });
 
-  it("casaScheduleHistory passes limit parameter", async () => {
-    await casaScheduleAdd(pm, CASA, { id: "hl", every: "5m", prompt: "x" });
-    await casaScheduleRun(pm, CASA, "hl");
-    const hist = await casaScheduleHistory(pm, CASA, "hl", 5);
+  it("botScheduleHistory passes limit parameter", async () => {
+    await botScheduleAdd(pm, BOT, { id: "hl", every: "5m", prompt: "x" });
+    await botScheduleRun(pm, BOT, "hl");
+    const hist = await botScheduleHistory(pm, BOT, "hl", 5);
     expect(hist).toHaveLength(1);
   });
 
-  it("casaScheduleHistory throws for unknown schedule", async () => {
-    await expect(casaScheduleHistory(pm, CASA, "ghost")).rejects.toThrow();
+  it("botScheduleHistory throws for unknown schedule", async () => {
+    await expect(botScheduleHistory(pm, BOT, "ghost")).rejects.toThrow();
   });
 
-  it("throws CasaNotFoundError for unknown CASA", async () => {
+  it("throws BotNotFoundError for unknown bot", async () => {
     const badPm = {
       ...pm,
       getPortAndToken: vi.fn().mockReturnValue(undefined),
       get: vi.fn().mockReturnValue(undefined),
     } as unknown as ProcessManager;
-    await expect(casaScheduleList(badPm, CASA)).rejects.toThrow(CasaNotFoundError);
+    await expect(botScheduleList(badPm, BOT)).rejects.toThrow(BotNotFoundError);
   });
 
-  it("throws CasaNotRunningError for stopped CASA", async () => {
+  it("throws BotNotRunningError for stopped bot", async () => {
     const badPm = {
       ...pm,
       getPortAndToken: vi.fn().mockReturnValue(undefined),
-      get: vi.fn().mockReturnValue({ name: CASA, state: "stopped" }),
+      get: vi.fn().mockReturnValue({ name: BOT, state: "stopped" }),
     } as unknown as ProcessManager;
-    await expect(casaScheduleList(badPm, CASA)).rejects.toThrow(CasaNotRunningError);
+    await expect(botScheduleList(badPm, BOT)).rejects.toThrow(BotNotRunningError);
   });
 });

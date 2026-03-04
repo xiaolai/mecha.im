@@ -34,7 +34,7 @@ describe("waitForHealthy", () => {
     });
 
     await expect(
-      waitForHealthy(port, "test-token", 5000, "test-casa"),
+      waitForHealthy(port, "test-token", 5000, "test-bot"),
     ).resolves.toBeUndefined();
   });
 
@@ -59,7 +59,7 @@ describe("waitForHealthy", () => {
     });
 
     await expect(
-      waitForHealthy(port, "test-token", 5000, "test-casa"),
+      waitForHealthy(port, "test-token", 5000, "test-bot"),
     ).resolves.toBeUndefined();
     expect(requestCount).toBeGreaterThanOrEqual(3);
   });
@@ -67,8 +67,8 @@ describe("waitForHealthy", () => {
   it("throws ProcessHealthTimeoutError after timeout", async () => {
     // No server listening on this port — connection refused every time
     await expect(
-      waitForHealthy(19999, "test-token", 500, "my-casa"),
-    ).rejects.toThrow('CASA "my-casa" failed health check');
+      waitForHealthy(19999, "test-token", 500, "my-bot"),
+    ).rejects.toThrow('bot "my-bot" failed health check');
   });
 
   it("uses exponential backoff", async () => {

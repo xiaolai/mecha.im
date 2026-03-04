@@ -1,18 +1,18 @@
-import { type CasaName, CasaNotFoundError, CasaNotRunningError, MechaError, DEFAULTS } from "@mecha/core";
+import { type BotName, BotNotFoundError, BotNotRunningError, MechaError, DEFAULTS } from "@mecha/core";
 import type { ProcessManager } from "@mecha/process";
 
 /**
- * Resolves a running CASA's port and auth token, or throws a typed error.
+ * Resolves a running bot's port and auth token, or throws a typed error.
  */
-export function resolveCasaEndpoint(
+export function resolveBotEndpoint(
   pm: ProcessManager,
-  name: CasaName,
+  name: BotName,
 ): { port: number; token: string } {
   const info = pm.getPortAndToken(name);
   if (!info) {
     const processInfo = pm.get(name);
-    if (processInfo) throw new CasaNotRunningError(name);
-    throw new CasaNotFoundError(name);
+    if (processInfo) throw new BotNotRunningError(name);
+    throw new BotNotFoundError(name);
   }
   return info;
 }
@@ -46,16 +46,16 @@ export function assertOk(result: RuntimeFetchResult, code: string): void {
 }
 
 /**
- * Makes an HTTP request to a running CASA's runtime server.
+ * Makes an HTTP request to a running bot's runtime server.
  * Resolves port and auth token from the ProcessManager.
  */
 export async function runtimeFetch(
   pm: ProcessManager,
-  name: CasaName,
+  name: BotName,
   path: string,
   opts: RuntimeFetchOpts = {},
 ): Promise<RuntimeFetchResult> {
-  const info = resolveCasaEndpoint(pm, name);
+  const info = resolveBotEndpoint(pm, name);
 
   const url = `http://127.0.0.1:${info.port}${path}`;
   const headers: Record<string, string> = {

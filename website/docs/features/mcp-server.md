@@ -1,6 +1,6 @@
 # MCP Server
 
-Mecha exposes its control plane as an [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server, allowing any MCP-compatible client — Claude Desktop, Cursor, Claude Code — to discover, inspect, and query your CASAs.
+Mecha exposes its control plane as an [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server, allowing any MCP-compatible client — Claude Desktop, Cursor, Claude Code — to discover, inspect, and query your bots.
 
 ## Quick Start
 
@@ -33,29 +33,29 @@ mecha mcp serve --mode read-only   # read-only mode
 | Tool | Description |
 |------|-------------|
 | `mecha_list_nodes` | List all mesh nodes with health status |
-| `mecha_list_casas` | List CASAs (local or from a remote node) |
-| `mecha_casa_status` | Get detailed status for a specific CASA |
-| `mecha_discover` | Find CASAs by tag or capability |
+| `mecha_list_bots` | List bots (local or from a remote node) |
+| `mecha_bot_status` | Get detailed status for a specific bot |
+| `mecha_discover` | Find bots by tag or capability |
 
 ### Sessions
 
 | Tool | Description |
 |------|-------------|
-| `mecha_list_sessions` | List sessions for a local CASA |
+| `mecha_list_sessions` | List sessions for a local bot |
 | `mecha_get_session` | Get session detail with optional message content |
 
 ### Workspace
 
 | Tool | Description |
 |------|-------------|
-| `mecha_workspace_list` | List files in a CASA's workspace |
-| `mecha_workspace_read` | Read a file from a CASA's workspace |
+| `mecha_workspace_list` | List files in a bot's workspace |
+| `mecha_workspace_read` | Read a file from a bot's workspace |
 
 ### Query (query mode only)
 
 | Tool | Description |
 |------|-------------|
-| `mecha_query` | Send a message to a CASA (wave 2 — currently stubbed) |
+| `mecha_query` | Send a message to a bot (wave 2 — currently stubbed) |
 
 ## Tool Reference
 
@@ -75,35 +75,35 @@ cloud-node: unreachable (192.168.1.100:7660, n/a)
 p2p-peer: p2p (no http) (p2p:0, n/a)
 ```
 
-### `mecha_list_casas`
+### `mecha_list_bots`
 
-Lists CASAs on the local machine or on a specified remote node.
+Lists bots on the local machine or on a specified remote node.
 
 **Parameters:**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `node` | `string` | No | Remote node name to query. Omit for local CASAs. |
+| `node` | `string` | No | Remote node name to query. Omit for local bots. |
 | `limit` | `number` | No | Maximum number of results to return. |
 
-**Returns:** One line per CASA in the format `<name>: <state> (port <port>) [tags]`. State is `running`, `stopped`, or `error`.
+**Returns:** One line per bot in the format `<name>: <state> (port <port>) [tags]`. State is `running`, `stopped`, or `error`.
 
 ```
 alice: running (port 7700) [backend, api]
 bob: stopped
 ```
 
-### `mecha_casa_status`
+### `mecha_bot_status`
 
-Returns detailed status for a single CASA, either local or remote.
+Returns detailed status for a single bot, either local or remote.
 
 **Parameters:**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `target` | `string` | Yes | CASA name for local, or `name@node` for remote. |
+| `target` | `string` | Yes | bot name for local, or `name@node` for remote. |
 
-**Returns:** Multi-line status report with name, state, PID, port, and workspace path. Remote targets return the raw JSON from the remote node's `/casas/<name>/status` endpoint.
+**Returns:** Multi-line status report with name, state, PID, port, and workspace path. Remote targets return the raw JSON from the remote node's `/bots/<name>/status` endpoint.
 
 ```
 Name: alice
@@ -115,17 +115,17 @@ Workspace: /home/user/my-project
 
 ### `mecha_discover`
 
-Finds CASAs matching tag and/or capability filters. Local only.
+Finds bots matching tag and/or capability filters. Local only.
 
 **Parameters:**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `tag` | `string` | No | Filter by tag. |
-| `capability` | `string` | No | Filter by exposed capability (from CASA config `expose` array). |
+| `capability` | `string` | No | Filter by exposed capability (from bot config `expose` array). |
 | `limit` | `number` | No | Maximum number of results to return. |
 
-**Returns:** One line per matching CASA with name, state, and tags.
+**Returns:** One line per matching bot with name, state, and tags.
 
 ```
 alice: running [backend, api]
@@ -134,13 +134,13 @@ charlie: running [frontend]
 
 ### `mecha_list_sessions`
 
-Lists sessions for a local CASA, returning metadata (ID, title, timestamps).
+Lists sessions for a local bot, returning metadata (ID, title, timestamps).
 
 **Parameters:**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `target` | `string` | Yes | CASA name. |
+| `target` | `string` | Yes | bot name. |
 | `limit` | `number` | No | Maximum number of sessions to return. |
 
 **Returns:** JSON array of session metadata objects.
@@ -153,50 +153,50 @@ Returns full detail for a specific session, including message content.
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `target` | `string` | Yes | CASA name. |
+| `target` | `string` | Yes | bot name. |
 | `sessionId` | `string` | Yes | Session ID. |
 
 **Returns:** JSON object with session metadata and messages. Returns an error if the session is not found.
 
 ### `mecha_workspace_list`
 
-Lists files in a local CASA's workspace directory. Delegates to the CASA runtime's embedded MCP tool.
+Lists files in a local bot's workspace directory. Delegates to the bot runtime's embedded MCP tool.
 
 **Parameters:**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `target` | `string` | Yes | CASA name. |
+| `target` | `string` | Yes | bot name. |
 | `path` | `string` | No | Subdirectory path relative to workspace root. Defaults to root. |
 
-**Returns:** File listing from the CASA's workspace.
+**Returns:** File listing from the bot's workspace.
 
 ### `mecha_workspace_read`
 
-Reads a file from a local CASA's workspace. Delegates to the CASA runtime's embedded MCP tool.
+Reads a file from a local bot's workspace. Delegates to the bot runtime's embedded MCP tool.
 
 **Parameters:**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `target` | `string` | Yes | CASA name. |
+| `target` | `string` | Yes | bot name. |
 | `path` | `string` | Yes | File path relative to workspace root. |
 
 **Returns:** File contents as text.
 
 ### `mecha_query`
 
-Sends a message to a CASA and returns the response. Currently stubbed (wave 2).
+Sends a message to a bot and returns the response. Currently stubbed (wave 2).
 
 **Parameters:**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `target` | `string` | Yes | CASA name (or `name@node` for remote). |
+| `target` | `string` | Yes | bot name (or `name@node` for remote). |
 | `message` | `string` | Yes | Message to send. |
 | `sessionId` | `string` | No | Session ID to continue an existing conversation. |
 
-**Returns:** Currently returns a stub message directing users to `mecha casa chat <casa>`.
+**Returns:** Currently returns a stub message directing users to `mecha bot chat <bot>`.
 
 ## Audit Log
 
@@ -223,7 +223,7 @@ Each line in `audit.jsonl` is a JSON object with the following fields:
 |-------|------|-------------|
 | `ts` | `string` | ISO 8601 timestamp. |
 | `client` | `string` | Client identifier in `name/version` format (e.g., `claude-desktop/1.2.3`), or `unknown`. |
-| `tool` | `string` | Tool name (e.g., `mecha_list_casas`). |
+| `tool` | `string` | Tool name (e.g., `mecha_list_bots`). |
 | `params` | `object` | Tool parameters. Truncated to 1024 bytes if larger. |
 | `result` | `string` | One of `ok`, `error`, or `rate-limited`. |
 | `error` | `string` | Error message, present only when `result` is `error`. |
@@ -265,12 +265,12 @@ You can override default limits by passing a `Record<string, RateLimitConfig>`:
 import { createRateLimiter } from "@mecha/mcp-server";
 
 const limiter = createRateLimiter({
-  mecha_list_casas: { max: 60, windowMs: 60_000 },   // 60/min
+  mecha_list_bots: { max: 60, windowMs: 60_000 },   // 60/min
   mecha_query:      { max: 10, windowMs: 60_000 },   // 10/min
 });
 
-limiter.check("mecha_list_casas"); // true (allowed)
-limiter.remaining("mecha_list_casas"); // 59
+limiter.check("mecha_list_bots"); // true (allowed)
+limiter.remaining("mecha_list_bots"); // 59
 ```
 
 ## Tool Annotations
@@ -278,7 +278,7 @@ limiter.remaining("mecha_list_casas"); // 59
 All tools include [MCP tool annotations](https://spec.modelcontextprotocol.io/specification/2025-03-26/server/tools/#annotations) so clients can display appropriate UI:
 
 - **Read-only tools**: marked `readOnlyHint: true`, `destructiveHint: false`
-- **Query tool**: marked `readOnlyHint: false` (sends messages to CASAs)
+- **Query tool**: marked `readOnlyHint: false` (sends messages to bots)
 
 The annotation map is exported as the `TOOL_ANNOTATIONS` constant:
 
@@ -287,8 +287,8 @@ import { TOOL_ANNOTATIONS } from "@mecha/mcp-server";
 
 // {
 //   mecha_list_nodes:     { readOnlyHint: true,  destructiveHint: false },
-//   mecha_list_casas:     { readOnlyHint: true,  destructiveHint: false },
-//   mecha_casa_status:    { readOnlyHint: true,  destructiveHint: false },
+//   mecha_list_bots:     { readOnlyHint: true,  destructiveHint: false },
+//   mecha_bot_status:    { readOnlyHint: true,  destructiveHint: false },
 //   mecha_discover:       { readOnlyHint: true,  destructiveHint: false },
 //   mecha_list_sessions:  { readOnlyHint: true,  destructiveHint: false },
 //   mecha_get_session:    { readOnlyHint: true,  destructiveHint: false },
@@ -369,7 +369,7 @@ The `MeshMcpContext` interface defines the dependencies injected into the MCP se
 ```typescript
 interface MeshMcpContext {
   mechaDir: string;                        // Path to ~/.mecha
-  pm: ProcessManager;                      // CASA process manager
+  pm: ProcessManager;                      // bot process manager
   getNodes: () => NodeEntry[];             // Mesh node registry reader
   agentFetch: typeof agentFetch;           // HTTP client for remote agent calls
   mode: "read-only" | "query";            // Operating mode
@@ -383,7 +383,7 @@ interface MeshMcpContext {
 
 The `createMeshMcpServer(ctx)` function creates a configured `McpServer` instance:
 
-1. Registers discovery tools (`mecha_list_nodes`, `mecha_list_casas`, `mecha_casa_status`, `mecha_discover`)
+1. Registers discovery tools (`mecha_list_nodes`, `mecha_list_bots`, `mecha_bot_status`, `mecha_discover`)
 2. Registers session tools (`mecha_list_sessions`, `mecha_get_session`)
 3. Registers workspace tools (`mecha_workspace_list`, `mecha_workspace_read`)
 4. Conditionally registers query tools (`mecha_query`) only when `mode` is `query`
@@ -421,7 +421,7 @@ It validates all inputs (mode, transport, port range 1-65535), ensures `MECHA_DI
 └─────────────────┘                └─────────────────┘
 ```
 
-The MCP server runs as a stdio process launched by the client, or as an HTTP server for remote access. It connects to the same local infrastructure as the CLI — ProcessManager for CASA lifecycle, NodeRegistry for mesh nodes, and service functions for sessions and workspace access.
+The MCP server runs as a stdio process launched by the client, or as an HTTP server for remote access. It connects to the same local infrastructure as the CLI — ProcessManager for bot lifecycle, NodeRegistry for mesh nodes, and service functions for sessions and workspace access.
 
 ## Package Exports
 

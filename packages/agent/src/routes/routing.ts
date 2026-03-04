@@ -3,9 +3,9 @@ import {
   type AclEngine,
   type Capability,
   AclDeniedError,
-  CasaNotFoundError,
-  readCasaConfig,
-  forwardQueryToCasa,
+  BotNotFoundError,
+  readBotConfig,
+  forwardQueryToBot,
   isValidName,
 } from "@mecha/core";
 import { join } from "node:path";
@@ -20,7 +20,7 @@ export function registerRoutingRoutes(app: FastifyInstance, opts: RoutingRouteOp
   const { mechaDir, acl } = opts;
 
   app.post(
-    "/casas/:name/query",
+    "/bots/:name/query",
     async (
       request: FastifyRequest<{ Params: { name: string }; Body: { message: string; sessionId?: string } }>,
       reply: FastifyReply,
@@ -42,7 +42,7 @@ export function registerRoutingRoutes(app: FastifyInstance, opts: RoutingRouteOp
       }
 
       if (!isValidName(target)) {
-        reply.code(400).send({ error: `Invalid CASA name: ${target}` });
+        reply.code(400).send({ error: `Invalid bot name: ${target}` });
         return;
       }
 
@@ -53,21 +53,21 @@ export function registerRoutingRoutes(app: FastifyInstance, opts: RoutingRouteOp
         return;
       }
 
-      const config = readCasaConfig(join(mechaDir, target));
+      const config = readBotConfig(join(mechaDir, target));
       if (!config) {
-        reply.code(404).send({ error: new CasaNotFoundError(target).message });
+        reply.code(404).send({ error: new BotNotFoundError(target).message });
         return;
       }
 
       try {
-        const fwd = await forwardQueryToCasa(config.port, config.token, message, sessionId);
+        const fwd = await forwardQueryToBot(config.port, config.token, message, sessionId);
         return { response: fwd.text, sessionId: fwd.sessionId };
       } catch (err) {
         /* v8 ignore start -- upstream connection errors are runtime-only */
         const detail = err instanceof Error ? err.message : String(err);
-        request.log.error(`Routing to CASA "${target}" failed: ${detail}`);
+        request.log.error(`Routing to bot "${target}" failed: ${detail}`);
         const code = err instanceof Error && "code" in err && (err as { code: string }).code === "UND_ERR_CONNECT_TIMEOUT" ? 504 : 502;
-        reply.code(code).send({ error: `Upstream CASA unavailable: ${detail}` });
+        reply.code(code).send({ error: `Upstream bot unavailable: ${detail}` });
         /* v8 ignore stop */
       }
     },

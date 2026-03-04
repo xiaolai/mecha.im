@@ -36,7 +36,7 @@ mecha acl revoke coder query reviewer
 # Show all ACL rules
 mecha acl show
 
-# Show rules for a specific CASA
+# Show rules for a specific bot
 mecha acl show coder
 ```
 
@@ -80,7 +80,7 @@ The file is written atomically (tmp + rename) to prevent corruption.
 
 ## Expose
 
-CASAs can declare which capabilities they expose to the mesh for discovery:
+bots can declare which capabilities they expose to the mesh for discovery:
 
 ```json
 {
@@ -88,4 +88,4 @@ CASAs can declare which capabilities they expose to the mesh for discovery:
 }
 ```
 
-When another agent discovers CASAs via the mesh, only those with matching exposed capabilities appear in results — and only if the ACL allows the requesting agent to use that capability.
+When another agent discovers bots via the mesh, only those with matching exposed capabilities appear in results — and only if the ACL allows the requesting agent to use that capability.

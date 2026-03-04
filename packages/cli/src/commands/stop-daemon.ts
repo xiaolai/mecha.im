@@ -6,14 +6,14 @@ import { stopDaemon, meterDir } from "@mecha/meter";
 export function registerStopDaemonCommand(program: Command, deps: CommandDeps): void {
   program
     .command("stop")
-    .description("Stop all running CASAs, meter, and daemon")
-    .option("--force", "Force kill CASAs instead of graceful stop", false)
+    .description("Stop all running bots, meter, and daemon")
+    .option("--force", "Force kill bots instead of graceful stop", false)
     .action(async (opts: { force: boolean }) => withErrorHandler(deps, async () => {
-      // Stop all running CASAs
+      // Stop all running bots
       const running = deps.processManager.list().filter((p) => p.state === "running");
 
       if (running.length > 0) {
-        deps.formatter.info(`Stopping ${running.length} running CASA(s)...`);
+        deps.formatter.info(`Stopping ${running.length} running bot(s)...`);
         const results = await Promise.allSettled(
           running.map((p) =>
             opts.force

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { casaName } from "@mecha/core";
-import type { CasaName } from "@mecha/core";
+import { botName } from "@mecha/core";
+import type { BotName } from "@mecha/core";
 import type { ProcessManager } from "@mecha/process";
 import { runtimeFetch } from "@mecha/service";
 import type { MeshMcpContext } from "../types.js";
@@ -9,7 +9,7 @@ import { textResult, errorResult, withAuditAndRateLimit, annotationsFor } from "
 
 async function callRuntimeMcpTool(
   pm: ProcessManager,
-  name: CasaName,
+  name: BotName,
   toolName: string,
   toolArgs: Record<string, unknown>,
 ): Promise<{ content: Array<{ type: string; text: string }>; isError?: boolean }> {
@@ -40,9 +40,9 @@ export function registerWorkspaceTools(server: McpServer, ctx: MeshMcpContext): 
   server.registerTool(
     "mecha_workspace_list",
     {
-      description: "List files in a local CASA's workspace",
+      description: "List files in a local bot's workspace",
       inputSchema: {
-        target: z.string().describe("CASA name"),
+        target: z.string().describe("bot name"),
         path: z.string().optional().describe("Subdirectory path (default: root)"),
       },
       annotations: annotationsFor("mecha_workspace_list"),
@@ -52,7 +52,7 @@ export function registerWorkspaceTools(server: McpServer, ctx: MeshMcpContext): 
       const path = (args.path as string | undefined) ?? "";
 
       try {
-        const result = await callRuntimeMcpTool(ctx.pm, casaName(target), "mecha_workspace_list", { path });
+        const result = await callRuntimeMcpTool(ctx.pm, botName(target), "mecha_workspace_list", { path });
         if (result.isError) {
           /* v8 ignore start -- content always has at least one entry */
           return errorResult(result.content[0]?.text ?? "Unknown error");
@@ -73,9 +73,9 @@ export function registerWorkspaceTools(server: McpServer, ctx: MeshMcpContext): 
   server.registerTool(
     "mecha_workspace_read",
     {
-      description: "Read a file from a local CASA's workspace",
+      description: "Read a file from a local bot's workspace",
       inputSchema: {
-        target: z.string().describe("CASA name"),
+        target: z.string().describe("bot name"),
         path: z.string().describe("File path within workspace"),
       },
       annotations: annotationsFor("mecha_workspace_read"),
@@ -85,7 +85,7 @@ export function registerWorkspaceTools(server: McpServer, ctx: MeshMcpContext): 
       const path = args.path as string;
 
       try {
-        const result = await callRuntimeMcpTool(ctx.pm, casaName(target), "mecha_workspace_read", { path });
+        const result = await callRuntimeMcpTool(ctx.pm, botName(target), "mecha_workspace_read", { path });
         if (result.isError) {
           /* v8 ignore start -- content always has at least one entry */
           return errorResult(result.content[0]?.text ?? "Unknown error");

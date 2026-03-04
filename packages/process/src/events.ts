@@ -1,13 +1,13 @@
-import { type CasaName, createLogger } from "@mecha/core";
+import { type BotName, createLogger } from "@mecha/core";
 
 const log = createLogger("mecha:process");
 
 /** Lifecycle events emitted by ProcessManager */
 export type ProcessEvent =
-  | { type: "spawned"; name: CasaName; pid: number; port: number }
-  | { type: "stopped"; name: CasaName; exitCode?: number }
-  | { type: "error"; name: CasaName; error: string }
-  | { type: "warning"; name: CasaName; message: string };
+  | { type: "spawned"; name: BotName; pid: number; port: number }
+  | { type: "stopped"; name: BotName; exitCode?: number }
+  | { type: "error"; name: BotName; error: string }
+  | { type: "warning"; name: BotName; message: string };
 
 export type ProcessEventHandler = (event: ProcessEvent) => void;
 

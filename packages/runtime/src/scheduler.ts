@@ -36,8 +36,8 @@ export interface ChatFn {
 }
 
 export interface CreateScheduleEngineOpts {
-  casaDir: string;
-  casaName: string;
+  botDir: string;
+  botName: string;
   chatFn: ChatFn;
   now?: () => number;
   log?: ScheduleLog;
@@ -48,7 +48,7 @@ const noopLog: ScheduleLog = () => {};
 /* v8 ignore stop */
 
 export function createScheduleEngine(opts: CreateScheduleEngineOpts): ScheduleEngine {
-  const { casaDir, chatFn } = opts;
+  const { botDir, chatFn } = opts;
   const now = opts.now ?? Date.now;
   const log = opts.log ?? noopLog;
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -56,7 +56,7 @@ export function createScheduleEngine(opts: CreateScheduleEngineOpts): ScheduleEn
   let activeRun: string | undefined;
 
   const runDeps: RunDeps = {
-    casaDir,
+    botDir,
     chatFn,
     now,
     log,
@@ -80,7 +80,7 @@ export function createScheduleEngine(opts: CreateScheduleEngineOpts): ScheduleEn
     if (entry.paused || !running) return;
     /* v8 ignore stop */
 
-    const state = getState(casaDir, entry.id, now);
+    const state = getState(botDir, entry.id, now);
     const delayMs = entry.trigger.intervalMs;
 
     let nextDelay: number;
@@ -98,7 +98,7 @@ export function createScheduleEngine(opts: CreateScheduleEngineOpts): ScheduleEn
     }
 
     const nextRunAt = new Date(now() + nextDelay).toISOString();
-    saveState(casaDir, entry.id, { ...state, nextRunAt });
+    saveState(botDir, entry.id, { ...state, nextRunAt });
 
     log("info", `Arming timer for "${entry.id}"`, { nextRunAt, delayMs: nextDelay });
 
@@ -109,7 +109,7 @@ export function createScheduleEngine(opts: CreateScheduleEngineOpts): ScheduleEn
       /* v8 ignore stop */
 
       // Re-read config in case it was modified
-      const currentConfig = getConfig(casaDir);
+      const currentConfig = getConfig(botDir);
       const currentEntry = currentConfig.schedules.find((s) => s.id === entry.id);
       /* v8 ignore start -- race guard: schedule removed/paused between arm and fire */
       if (!currentEntry || currentEntry.paused) return;
@@ -126,7 +126,7 @@ export function createScheduleEngine(opts: CreateScheduleEngineOpts): ScheduleEn
       // Schedule next (chained setTimeout, not setInterval — prevents overlap)
       /* v8 ignore start -- re-arm guard: check running + schedule still exists */
       if (running) {
-        const freshConfig = getConfig(casaDir);
+        const freshConfig = getConfig(botDir);
         const freshEntry = freshConfig.schedules.find((s) => s.id === entry.id);
         if (freshEntry && !freshEntry.paused) {
           armTimer(freshEntry);
@@ -141,7 +141,7 @@ export function createScheduleEngine(opts: CreateScheduleEngineOpts): ScheduleEn
   return {
     start() {
       running = true;
-      const config = getConfig(casaDir);
+      const config = getConfig(botDir);
       log("info", `Starting scheduler: ${config.schedules.length} schedule(s)`);
       for (const entry of config.schedules) {
         if (!entry.paused) {
@@ -159,7 +159,7 @@ export function createScheduleEngine(opts: CreateScheduleEngineOpts): ScheduleEn
     },
 
     addSchedule(entry: ScheduleEntry) {
-      const config = getConfig(casaDir);
+      const config = getConfig(botDir);
       if (config.schedules.some((s) => s.id === entry.id)) {
         throw new DuplicateScheduleError(entry.id);
       }
@@ -171,7 +171,7 @@ export function createScheduleEngine(opts: CreateScheduleEngineOpts): ScheduleEn
       }
 
       config.schedules.push(entry);
-      saveConfig(casaDir, config);
+      saveConfig(botDir, config);
 
       if (running && !entry.paused) {
         armTimer(entry);
@@ -179,18 +179,18 @@ export function createScheduleEngine(opts: CreateScheduleEngineOpts): ScheduleEn
     },
 
     removeSchedule(scheduleId: string) {
-      const config = getConfig(casaDir);
+      const config = getConfig(botDir);
       const idx = config.schedules.findIndex((s) => s.id === scheduleId);
       if (idx === -1) throw new ScheduleNotFoundError(scheduleId);
 
       config.schedules.splice(idx, 1);
-      saveConfig(casaDir, config);
+      saveConfig(botDir, config);
       clearTimer(scheduleId);
-      removeScheduleData(casaDir, scheduleId);
+      removeScheduleData(botDir, scheduleId);
     },
 
     pauseSchedule(scheduleId?: string) {
-      const config = getConfig(casaDir);
+      const config = getConfig(botDir);
       if (scheduleId) {
         const entry = config.schedules.find((s) => s.id === scheduleId);
         if (!entry) throw new ScheduleNotFoundError(scheduleId);
@@ -202,11 +202,11 @@ export function createScheduleEngine(opts: CreateScheduleEngineOpts): ScheduleEn
           clearTimer(entry.id);
         }
       }
-      saveConfig(casaDir, config);
+      saveConfig(botDir, config);
     },
 
     resumeSchedule(scheduleId?: string) {
-      const config = getConfig(casaDir);
+      const config = getConfig(botDir);
       if (scheduleId) {
         const entry = config.schedules.find((s) => s.id === scheduleId);
         if (!entry) throw new ScheduleNotFoundError(scheduleId);
@@ -220,23 +220,23 @@ export function createScheduleEngine(opts: CreateScheduleEngineOpts): ScheduleEn
           /* v8 ignore stop */
         }
       }
-      saveConfig(casaDir, config);
+      saveConfig(botDir, config);
     },
 
     listSchedules() {
-      return getConfig(casaDir).schedules;
+      return getConfig(botDir).schedules;
     },
 
     getHistory(scheduleId: string, limit?: number) {
-      const config = getConfig(casaDir);
+      const config = getConfig(botDir);
       if (!config.schedules.some((s) => s.id === scheduleId)) {
         throw new ScheduleNotFoundError(scheduleId);
       }
-      return readRunHistory(casaDir, scheduleId, limit);
+      return readRunHistory(botDir, scheduleId, limit);
     },
 
     async triggerNow(scheduleId: string) {
-      const config = getConfig(casaDir);
+      const config = getConfig(botDir);
       const entry = config.schedules.find((s) => s.id === scheduleId);
       if (!entry) throw new ScheduleNotFoundError(scheduleId);
       return executeRun(entry, runDeps);

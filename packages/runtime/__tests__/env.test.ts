@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { parseRuntimeEnv } from "../src/env.js";
 
 const validEnv = {
-  MECHA_CASA_NAME: "test-casa",
+  MECHA_BOT_NAME: "test-bot",
   MECHA_PORT: "7700",
   MECHA_AUTH_TOKEN: "mecha_abc123",
   MECHA_PROJECTS_DIR: "/projects",
@@ -12,7 +12,7 @@ const validEnv = {
 describe("parseRuntimeEnv", () => {
   it("parses valid environment", () => {
     const result = parseRuntimeEnv(validEnv);
-    expect(result.MECHA_CASA_NAME).toBe("test-casa");
+    expect(result.MECHA_BOT_NAME).toBe("test-bot");
     expect(result.MECHA_PORT).toBe(7700);
     expect(result.MECHA_AUTH_TOKEN).toBe("mecha_abc123");
     expect(result.MECHA_PROJECTS_DIR).toBe("/projects");
@@ -33,11 +33,11 @@ describe("parseRuntimeEnv", () => {
 
   it("throws on missing required fields", () => {
     expect(() => parseRuntimeEnv({})).toThrow("Invalid runtime environment");
-    expect(() => parseRuntimeEnv({})).toThrow("MECHA_CASA_NAME");
+    expect(() => parseRuntimeEnv({})).toThrow("MECHA_BOT_NAME");
   });
 
-  it("throws on empty CASA name", () => {
-    expect(() => parseRuntimeEnv({ ...validEnv, MECHA_CASA_NAME: "" })).toThrow("MECHA_CASA_NAME");
+  it("throws on empty bot name", () => {
+    expect(() => parseRuntimeEnv({ ...validEnv, MECHA_BOT_NAME: "" })).toThrow("MECHA_BOT_NAME");
   });
 
   it("throws on non-numeric port", () => {

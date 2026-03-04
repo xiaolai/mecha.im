@@ -1,11 +1,11 @@
 import type { ChildProcess } from "node:child_process";
 import type { Readable } from "node:stream";
-import type { CasaName, SandboxMode } from "@mecha/core";
+import type { BotName, SandboxMode } from "@mecha/core";
 import type { Sandbox } from "@mecha/sandbox";
 import type { ProcessEvent } from "./events.js";
 
 export interface SpawnOpts {
-  name: CasaName;
+  name: BotName;
   workspacePath: string;
   port?: number;
   env?: Record<string, string>;
@@ -20,7 +20,7 @@ export interface SpawnOpts {
 }
 
 export interface ProcessInfo {
-  name: CasaName;
+  name: BotName;
   state: "running" | "stopped" | "error";
   pid?: number;
   port?: number;
@@ -38,12 +38,12 @@ export interface LogOpts {
 
 export interface ProcessManager {
   spawn(opts: SpawnOpts): Promise<ProcessInfo>;
-  get(name: CasaName): ProcessInfo | undefined;
+  get(name: BotName): ProcessInfo | undefined;
   list(): ProcessInfo[];
-  stop(name: CasaName): Promise<void>;
-  kill(name: CasaName): Promise<void>;
-  logs(name: CasaName, opts?: LogOpts): Readable;
-  getPortAndToken(name: CasaName): { port: number; token: string } | undefined;
+  stop(name: BotName): Promise<void>;
+  kill(name: BotName): Promise<void>;
+  logs(name: BotName, opts?: LogOpts): Readable;
+  getPortAndToken(name: BotName): { port: number; token: string } | undefined;
   onEvent(handler: (event: ProcessEvent) => void): () => void;
 }
 
@@ -51,7 +51,7 @@ export interface LiveProcess {
   child: ChildProcess;
   port: number;
   token: string;
-  name: CasaName;
+  name: BotName;
 }
 
 export interface CreateProcessManagerOpts {

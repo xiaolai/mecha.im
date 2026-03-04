@@ -10,8 +10,8 @@ export type {
   BudgetConfig,
   HourlyRollup,
   DailyRollup,
-  CasaRollup,
-  CasaRegistryEntry,
+  BotRollup,
+  BotRegistryEntry,
 } from "./types.js";
 
 export { loadPricing, initPricing, computeCost, resolvePricing, getFallbackPricing, DEFAULT_PRICING } from "./pricing.js";
@@ -23,18 +23,18 @@ export { ulid } from "./ulid.js";
 export { parseSSEChunk, createSSEParseState, extractNonStreamUsage } from "./stream.js";
 export type { ExtractedUsage, SSEParseState } from "./stream.js";
 export { appendEvent, readEventsForDate, listEventDates, utcDate, eventsDir } from "./events.js";
-export { queryCostToday, queryCostForCasa, aggregateEvents, emptySummary, accumulateEvent, todayUTC } from "./query.js";
+export { queryCostToday, queryCostForBot, aggregateEvents, emptySummary, accumulateEvent, todayUTC } from "./query.js";
 export type { CostQueryResult } from "./query.js";
-export { parseCasaPath, buildUpstreamHeaders, buildMeterEvent, enforceBudget, reloadBudgets, recordEvent, handleProxyRequest } from "./proxy.js";
+export { parseBotPath, buildUpstreamHeaders, buildMeterEvent, enforceBudget, reloadBudgets, recordEvent, handleProxyRequest } from "./proxy.js";
 export type { ProxyContext } from "./proxy.js";
-export { scanCasaRegistry, lookupCasa } from "./registry.js";
+export { scanBotRegistry, lookupBot } from "./registry.js";
 export { createHotCounters, ingestEvent, resetToday, toSnapshot, fromSnapshot } from "./hot-counters.js";
 export type { HotCounters } from "./hot-counters.js";
 export { readSnapshot, writeSnapshot, snapshotPath } from "./snapshot.js";
 export {
-  readHourlyRollup, readDailyRollup, readCasaRollup,
-  writeHourlyRollup, writeDailyRollup, writeCasaRollup,
-  updateHourlyRollup, updateDailyRollup, updateCasaRollup,
+  readHourlyRollup, readDailyRollup, readBotRollup,
+  writeHourlyRollup, writeDailyRollup, writeBotRollup,
+  updateHourlyRollup, updateDailyRollup, updateBotRollup,
   flushRollups,
 } from "./rollups.js";
 export {

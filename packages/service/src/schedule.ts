@@ -1,5 +1,5 @@
 import {
-  type CasaName,
+  type BotName,
   type ScheduleEntry,
   type ScheduleRunResult,
   parseInterval,
@@ -8,9 +8,9 @@ import {
 import type { ProcessManager } from "@mecha/process";
 import { runtimeFetch, assertOk } from "./helpers.js";
 
-export async function casaScheduleAdd(
+export async function botScheduleAdd(
   pm: ProcessManager,
-  name: CasaName,
+  name: BotName,
   opts: { id: string; every: string; prompt: string },
 ): Promise<void> {
   // Validate interval client-side for fast feedback
@@ -24,9 +24,9 @@ export async function casaScheduleAdd(
   assertOk(result, "SCHEDULE_ADD_FAILED");
 }
 
-export async function casaScheduleRemove(
+export async function botScheduleRemove(
   pm: ProcessManager,
-  name: CasaName,
+  name: BotName,
   scheduleId: string,
 ): Promise<void> {
   const result = await runtimeFetch(pm, name, `/api/schedules/${encodeURIComponent(scheduleId)}`, {
@@ -35,18 +35,18 @@ export async function casaScheduleRemove(
   assertOk(result, "SCHEDULE_REMOVE_FAILED");
 }
 
-export async function casaScheduleList(
+export async function botScheduleList(
   pm: ProcessManager,
-  name: CasaName,
+  name: BotName,
 ): Promise<ScheduleEntry[]> {
   const result = await runtimeFetch(pm, name, "/api/schedules");
   assertOk(result, "SCHEDULE_LIST_FAILED");
   return result.body as ScheduleEntry[];
 }
 
-export async function casaSchedulePause(
+export async function botSchedulePause(
   pm: ProcessManager,
-  name: CasaName,
+  name: BotName,
   scheduleId?: string,
 ): Promise<void> {
   const path = scheduleId
@@ -56,9 +56,9 @@ export async function casaSchedulePause(
   assertOk(result, "SCHEDULE_PAUSE_FAILED");
 }
 
-export async function casaScheduleResume(
+export async function botScheduleResume(
   pm: ProcessManager,
-  name: CasaName,
+  name: BotName,
   scheduleId?: string,
 ): Promise<void> {
   const path = scheduleId
@@ -68,9 +68,9 @@ export async function casaScheduleResume(
   assertOk(result, "SCHEDULE_RESUME_FAILED");
 }
 
-export async function casaScheduleRun(
+export async function botScheduleRun(
   pm: ProcessManager,
-  name: CasaName,
+  name: BotName,
   scheduleId: string,
 ): Promise<ScheduleRunResult> {
   const result = await runtimeFetch(pm, name, `/api/schedules/${encodeURIComponent(scheduleId)}/run`, {
@@ -80,9 +80,9 @@ export async function casaScheduleRun(
   return result.body as ScheduleRunResult;
 }
 
-export async function casaScheduleHistory(
+export async function botScheduleHistory(
   pm: ProcessManager,
-  name: CasaName,
+  name: BotName,
   scheduleId: string,
   limit?: number,
 ): Promise<ScheduleRunResult[]> {

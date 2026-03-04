@@ -88,7 +88,7 @@ describe("isValidAddress", () => {
     expect(isValidAddress("a@b@c")).toBe(false);
   });
 
-  it("rejects invalid casa part", () => {
+  it("rejects invalid bot part", () => {
     expect(isValidAddress("UPPER@node")).toBe(false);
   });
 
@@ -100,7 +100,7 @@ describe("isValidAddress", () => {
     expect(isValidAddress("@")).toBe(false);
   });
 
-  it("rejects empty casa before @", () => {
+  it("rejects empty bot before @", () => {
     expect(isValidAddress("@node")).toBe(false);
   });
 

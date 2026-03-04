@@ -1,6 +1,6 @@
 import type { AclRule, AclResult, Capability } from "./types.js";
 import { loadAcl, saveAcl } from "./persistence.js";
-import { readCasaConfig } from "../casa-config.js";
+import { readBotConfig } from "../bot-config.js";
 import { isValidAddress } from "../validation.js";
 import { InvalidAddressError } from "../errors.js";
 import { join } from "node:path";
@@ -18,7 +18,7 @@ export interface AclEngine {
   /** List all connect rules. */
   listRules(): AclRule[];
 
-  /** List what a CASA can connect to. */
+  /** List what a bot can connect to. */
   listConnections(source: string): { target: string; caps: Capability[] }[];
 
   /** Persist current state to disk. */
@@ -33,7 +33,7 @@ export interface CreateAclEngineOpts {
 
 /**
  * Create an ACL engine backed by mechaDir/acl.json.
- * The engine reads connect rules from acl.json and expose from each CASA's config.json.
+ * The engine reads connect rules from acl.json and expose from each bot's config.json.
  */
 export function createAclEngine(opts: CreateAclEngineOpts): AclEngine {
   const { mechaDir } = opts;
@@ -41,9 +41,9 @@ export function createAclEngine(opts: CreateAclEngineOpts): AclEngine {
 
   /* v8 ignore start -- default getExpose always overridden in tests */
   const getExpose = opts.getExpose ?? ((name: string): Capability[] => {
-    // Extract CASA name from address (strip @node suffix)
-    const casaPart = name.includes("@") ? name.slice(0, name.indexOf("@")) : name;
-    const config = readCasaConfig(join(mechaDir, casaPart));
+    // Extract bot name from address (strip @node suffix)
+    const botPart = name.includes("@") ? name.slice(0, name.indexOf("@")) : name;
+    const config = readBotConfig(join(mechaDir, botPart));
     return (config?.expose as Capability[]) ?? [];
   });
   /* v8 ignore stop */

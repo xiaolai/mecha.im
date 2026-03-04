@@ -7,7 +7,7 @@ const SYSTEM_RO_BINDS = ["/usr", "/lib", "/lib64", "/etc"];
  * Generate bwrap (bubblewrap) arguments from a SandboxProfile.
  * Pure function — no I/O.
  *
- * Critical: NO --die-with-parent (CASAs are long-lived detached processes).
+ * Critical: NO --die-with-parent (bots are long-lived detached processes).
  * Uses --ro-bind for read paths, --bind for write paths.
  * Note: allowedProcesses is advisory-only on Linux (not enforced by bwrap).
  */
@@ -45,7 +45,7 @@ export function wrapLinux(
   // Mask sensitive /proc entries to prevent secret exfiltration via /proc/self/environ
   args.push("--ro-bind", "/dev/null", "/proc/self/environ");
 
-  // Tmpfs for /tmp (separate from CASA tmp)
+  // Tmpfs for /tmp (separate from bot tmp)
   args.push("--tmpfs", "/tmp");
 
   if (profile.allowNetwork) {

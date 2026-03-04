@@ -1,7 +1,7 @@
 export { checkPort, allocatePort } from "./port.js";
 export { waitForHealthy } from "./health.js";
-export { readState, writeState, listCasaDirs } from "./state-store.js";
-export type { CasaState } from "./state-store.js";
+export { readState, writeState, listBotDirs } from "./state-store.js";
+export type { BotState } from "./state-store.js";
 export { ProcessEventEmitter } from "./events.js";
 export type { ProcessEvent, ProcessEventHandler } from "./events.js";
 export { createProcessManager } from "./process-manager.js";
@@ -13,8 +13,8 @@ export type {
   CreateProcessManagerOpts,
 } from "./types.js";
 export { isPidAlive, waitForChildExit, waitForPidExit } from "./process-lifecycle.js";
-export { prepareCasaFilesystem, encodeProjectPath, buildCasaEnv } from "./sandbox-setup.js";
-export type { CasaFilesystemOpts, CasaFilesystemResult, BuildCasaEnvOpts } from "./sandbox-setup.js";
+export { prepareBotFilesystem, encodeProjectPath, buildBotEnv } from "./sandbox-setup.js";
+export type { BotFilesystemOpts, BotFilesystemResult, BuildBotEnvOpts } from "./sandbox-setup.js";
 export { readLogs } from "./log-reader.js";
 export type { MechaPty, PtySpawnOpts, PtySpawnFn, PtyDisposable } from "./pty-types.js";
 export { createBunPtySpawn } from "./bun-pty.js";

@@ -9,8 +9,8 @@ Mecha is a TypeScript monorepo with 13 packages:
 ```
 @mecha/core        ← Types, schemas, validation, ACL engine, identity (Ed25519)
 @mecha/process     ← ProcessManager: spawn/kill/stop, port allocation, sandbox hooks
-@mecha/runtime     ← Fastify server per CASA: sessions, chat SSE, MCP tools
-@mecha/service     ← High-level API: casaSpawn, casaChat, casaFind, routing
+@mecha/runtime     ← Fastify server per bot: sessions, chat SSE, MCP tools
+@mecha/service     ← High-level API: botSpawn, botChat, botFind, routing
 @mecha/agent       ← Inter-node HTTP server for mesh routing
 @mecha/connect     ← P2P connectivity: Noise IK handshake, SecureChannel, invite codes
 @mecha/server      ← Rendezvous + relay server + gossip protocol for P2P peer discovery
@@ -18,7 +18,7 @@ Mecha is a TypeScript monorepo with 13 packages:
 @mecha/meter       ← Metering proxy: cost tracking, budgets, events
 @mecha/mcp-server  ← MCP server: stdio + HTTP transport, audit logging, rate limiting
 @mecha/cli         ← Commander-based CLI: 40+ commands
-@mecha/dashboard   ← Next.js web UI: CASA management, terminal, mesh, ACL, audit, metering
+@mecha/dashboard   ← Next.js web UI: bot management, terminal, mesh, ACL, audit, metering
 ```
 
 ### Dependency Graph
@@ -59,7 +59,7 @@ graph LR
 
 ## Process Model
 
-Each CASA is a child process of the `mecha` CLI:
+Each bot is a child process of the `mecha` CLI:
 
 ```mermaid
 graph TD
@@ -83,13 +83,13 @@ This is how the bun single-binary distribution works — no separate runtime bin
 sequenceDiagram
   participant User as User (terminal)
   participant CLI as mecha CLI
-  participant CASA as coder CASA (:7700)
+  participant bot as coder bot (:7700)
 
-  User->>CLI: mecha casa chat coder "refactor auth"
+  User->>CLI: mecha bot chat coder "refactor auth"
   CLI->>CLI: Parse args, read config.json
-  CLI->>CASA: POST /api/chat (Bearer token)
-  CASA-->>CLI: SSE stream
-  Note right of CASA: progress, assistant events
+  CLI->>bot: POST /api/chat (Bearer token)
+  bot-->>CLI: SSE stream
+  Note right of bot: progress, assistant events
   CLI-->>User: Print streamed response
 ```
 
@@ -126,7 +126,7 @@ sequenceDiagram
   coder->>router: mesh_query(analyst@bob, ...)
   router->>router: ACL check
   router->>router: Resolve bob from node registry
-  router->>agent: POST /casas/analyst/query (authenticated + signed)
+  router->>agent: POST /bots/analyst/query (authenticated + signed)
   agent->>agent: Validate auth + signature + ACL
   agent->>analyst: Forward query
   analyst-->>agent: Response
@@ -150,23 +150,23 @@ All routes except those listed as **Public** require authentication (session coo
 | `POST` | `/auth/login` | Public | TOTP login (rate-limited) |
 | `POST` | `/auth/logout` | Public | Clear session cookie |
 | `GET` | `/auth/profiles` | Required | List auth profiles |
-| `GET` | `/casas` | Required | List all CASAs |
-| `GET` | `/casas/:name/status` | Required | Get CASA status (enriched) |
-| `POST` | `/casas/:name/start` | Required | Start a stopped CASA from config |
-| `POST` | `/casas/:name/stop` | Required | Graceful stop (supports `force` body param) |
-| `POST` | `/casas/:name/restart` | Required | Restart CASA (supports `force` body param) |
-| `POST` | `/casas/:name/kill` | Required | Force kill |
-| `PATCH` | `/casas/:name/config` | Required | Update CASA config fields, optionally restart |
-| `POST` | `/casas` | Required | Spawn a new CASA |
-| `GET` | `/casas/:name/sessions` | Required | List CASA sessions |
-| `GET` | `/casas/:name/sessions/:id` | Required | Get specific session |
-| `DELETE` | `/casas/:name/sessions/:id` | Required | Delete a session |
-| `POST` | `/casas/:name/query` | Required | Forward a mesh query (requires `X-Mecha-Source`) |
-| `GET` | `/discover` | Required | Discover CASAs (filterable by `?tag=` and `?capability=`) |
+| `GET` | `/bots` | Required | List all bots |
+| `GET` | `/bots/:name/status` | Required | Get bot status (enriched) |
+| `POST` | `/bots/:name/start` | Required | Start a stopped bot from config |
+| `POST` | `/bots/:name/stop` | Required | Graceful stop (supports `force` body param) |
+| `POST` | `/bots/:name/restart` | Required | Restart bot (supports `force` body param) |
+| `POST` | `/bots/:name/kill` | Required | Force kill |
+| `PATCH` | `/bots/:name/config` | Required | Update bot config fields, optionally restart |
+| `POST` | `/bots` | Required | Spawn a new bot |
+| `GET` | `/bots/:name/sessions` | Required | List bot sessions |
+| `GET` | `/bots/:name/sessions/:id` | Required | Get specific session |
+| `DELETE` | `/bots/:name/sessions/:id` | Required | Delete a session |
+| `POST` | `/bots/:name/query` | Required | Forward a mesh query (requires `X-Mecha-Source`) |
+| `GET` | `/discover` | Required | Discover bots (filterable by `?tag=` and `?capability=`) |
 | `GET` | `/acl` | Required | List ACL rules |
 | `GET` | `/audit` | Required | Read audit log (supports `?limit=`) |
 | `GET` | `/mesh/nodes` | Required | List mesh nodes with health status |
-| `GET` | `/meter/cost` | Required | Query metering data (supports `?casa=`) |
+| `GET` | `/meter/cost` | Required | Query metering data (supports `?bot=`) |
 | `GET` | `/settings/runtime` | Required | Runtime port configuration |
 | `GET` | `/events` | Required | SSE stream for real-time process events |
 | `POST` | `/ws/ticket` | Required | Issue a single-use WebSocket ticket |
@@ -202,7 +202,7 @@ await app.listen({ port: 7660, host: "0.0.0.0" });
 |-------|------|----------|-------------|
 | `port` | `number` | Yes | Port the server binds to |
 | `auth` | `AgentServerAuth` | Yes | Authentication configuration |
-| `processManager` | `ProcessManager` | Yes | Process manager for CASA lifecycle |
+| `processManager` | `ProcessManager` | Yes | Process manager for bot lifecycle |
 | `acl` | `AclEngine` | Yes | ACL engine for access control checks |
 | `mechaDir` | `string` | Yes | Path to `~/.mecha` data directory |
 | `nodeName` | `string` | Yes | Name of this node in the mesh |
@@ -236,15 +236,15 @@ Two Fastify hooks enforce authentication:
 2. **SPA static assets** — When `spaDir` is set, non-API paths skip auth. Browser navigations (`Accept: text/html`) to API-prefixed paths serve the SPA index.html
 3. **WebSocket paths** — `/ws/*` (except `/ws/ticket`) accept single-use ticket auth via `?ticket=` query parameter
 4. **Session cookie** — `mecha-session` cookie containing a signed JWT (HS256)
-5. **Bearer token** — `Authorization: Bearer <apiKey>`, restricted to mesh routing requests only (POST `/casas/:name/query` with `X-Mecha-Source` header)
+5. **Bearer token** — `Authorization: Bearer <apiKey>`, restricted to mesh routing requests only (POST `/bots/:name/query` with `X-Mecha-Source` header)
 
 **Signature verification** (mesh routing only):
 
-Routing requests (`POST /casas/:name/query`) from remote nodes must include:
+Routing requests (`POST /bots/:name/query`) from remote nodes must include:
 
 | Header | Description |
 |--------|-------------|
-| `X-Mecha-Source` | Source identifier (`casa@node`) |
+| `X-Mecha-Source` | Source identifier (`bot@node`) |
 | `X-Mecha-Signature` | Ed25519 signature over the request envelope |
 | `X-Mecha-Timestamp` | Unix timestamp (must be within 5-minute window) |
 | `X-Mecha-Nonce` | Unique nonce (prevents replay attacks) |
@@ -304,7 +304,7 @@ The PTY manager handles terminal sessions for the WebSocket terminal feature. Cr
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `processManager` | `ProcessManager` | (required) | For looking up CASA state and config |
+| `processManager` | `ProcessManager` | (required) | For looking up bot state and config |
 | `mechaDir` | `string` | (required) | Path to `~/.mecha` |
 | `spawnFn` | `PtySpawnFn` | (required) | Function to spawn PTY processes |
 | `maxSessions` | `number` | `10` | Maximum concurrent PTY sessions |
@@ -314,12 +314,12 @@ The PTY manager handles terminal sessions for the WebSocket terminal feature. Cr
 
 | Method | Description |
 |--------|-------------|
-| `spawn(casaName, sessionId, cols, rows)` | Spawn a new PTY running `claude` (or `claude --resume <id>`). Returns `PtySession` |
+| `spawn(botName, sessionId, cols, rows)` | Spawn a new PTY running `claude` (or `claude --resume <id>`). Returns `PtySession` |
 | `attach(sessionKey, ws)` | Attach a WebSocket client to an existing PTY session |
 | `detach(sessionKey, ws)` | Detach a client. Starts idle timer if no clients remain |
 | `resize(sessionKey, cols, rows)` | Resize the PTY |
-| `getSession(sessionKey)` | Look up a session by key (`casaName:sessionId`) |
-| `findByCasa(casaName)` | Find all PTY sessions for a CASA, sorted by most recently active first |
+| `getSession(sessionKey)` | Look up a session by key (`botName:sessionId`) |
+| `findByBot(botName)` | Find all PTY sessions for a bot, sorted by most recently active first |
 | `shutdown()` | Kill all PTY processes and clear idle timers |
 
 PTY sessions maintain a scrollback ring buffer (200 chunks) that is replayed when a client reattaches, so reconnecting users see recent output.
@@ -338,7 +338,7 @@ Minimal health check.
 
 **`GET /node/info`** (Authenticated)
 
-Full system telemetry: hostname, platform, arch, memory, CPU count, uptime, CASA count, and network IPs.
+Full system telemetry: hostname, platform, arch, memory, CPU count, uptime, bot count, and network IPs.
 
 #### Auth Routes
 
@@ -372,42 +372,67 @@ Clears the session cookie by setting `Max-Age=0`.
 
 **`GET /auth/profiles`** (Authenticated)
 
-Lists available auth profiles for the UI CASA config dropdown.
+Lists available auth profiles for the UI bot config dropdown.
 
-#### CASA Routes
+#### bot Routes
 
-**`GET /casas`** — List all CASAs with enriched info (metering snapshot, tags, expose, model). Response uses a list projection that omits `pid`, `exitCode`, and shortens `workspacePath` to its basename.
+**`GET /bots`** — List all bots with enriched info (metering snapshot, tags, expose, model). Response uses a list projection that omits `pid`, `exitCode`, and shortens `workspacePath` to its basename.
 
-**`GET /casas/:name/status`** — Full enriched status for a single CASA.
+**`GET /bots/:name/status`** — Full enriched status for a single bot.
 
-**`POST /casas`** — Spawn a new CASA.
+**`POST /bots`** — Spawn a new bot.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `name` | `string` | Yes | CASA name (validated via `isValidName`) |
+| `name` | `string` | Yes | bot name (validated via `isValidName`) |
 | `workspacePath` | `string` | Yes | Absolute path to workspace directory |
 
-**`POST /casas/:name/start`** — Start a stopped CASA from its persisted `config.json`.
+**`POST /bots/:name/start`** — Start a stopped bot from its persisted `config.json`.
 
 | Status | Condition |
 |--------|-----------|
 | 200 | Started successfully |
-| 404 | CASA not found |
-| 409 | CASA already running |
+| 404 | bot not found |
+| 409 | bot already running |
 
-**`POST /casas/:name/stop`** — Graceful stop with task safety check.
+**`POST /bots/:name/stop`** — Graceful stop with task safety check.
 
 | Body Field | Type | Default | Description |
 |------------|------|---------|-------------|
 | `force` | `boolean` | `false` | Skip busy check and stop immediately |
 
-Returns `409 CASA_BUSY` with `activeSessions` and `lastActivity` if the CASA has active sessions and `force` is not set.
+Returns `409 BOT_BUSY` with `activeSessions` and `lastActivity` if the bot has active sessions and `force` is not set.
 
-**`POST /casas/:name/restart`** — Stop and re-spawn. Same `force` semantics as stop.
+**`POST /bots/:name/restart`** — Stop and re-spawn. Same `force` semantics as stop.
 
-**`POST /casas/:name/kill`** — Force kill (SIGKILL).
+**`POST /bots/:name/kill`** — Force kill (SIGKILL).
 
-**`PATCH /casas/:name/config`** — Update CASA configuration fields.
+**`POST /bots/batch`** — Batch stop or restart all bots.
+
+| Body Field | Type | Default | Description |
+|------------|------|---------|-------------|
+| `action` | `"stop" \| "restart"` | — | Required. The batch action to perform |
+| `force` | `boolean` | `false` | Bypass busy check entirely |
+| `idleOnly` | `boolean` | `false` | Skip busy bots instead of failing |
+| `dryRun` | `boolean` | `false` | Check status without executing |
+| `names` | `string[]` | — | Optional filter to target specific bots |
+
+Always returns HTTP 200 with per-bot results (partial completion model):
+
+```json
+{
+  "results": [
+    { "name": "alice", "status": "succeeded" },
+    { "name": "bob", "status": "skipped_busy", "activeSessions": 2 },
+    { "name": "charlie", "status": "failed", "error": "Config not found" }
+  ],
+  "summary": { "succeeded": 1, "skipped": 1, "failed": 1 }
+}
+```
+
+Status values: `succeeded`, `skipped_busy`, `skipped_stopped`, `failed`.
+
+**`PATCH /bots/:name/config`** — Update bot configuration fields.
 
 | Body Field | Type | Description |
 |------------|------|-------------|
@@ -417,28 +442,28 @@ Returns `409 CASA_BUSY` with `activeSessions` and `lastActivity` if the CASA has
 | `expose` | `string[]` | Exposed capabilities |
 | `sandboxMode` | `string` | Sandbox mode |
 | `permissionMode` | `string` | Permission mode |
-| `restart` | `boolean` | Restart the CASA after config update |
+| `restart` | `boolean` | Restart the bot after config update |
 | `force` | `boolean` | Force restart (skip busy check) |
 
 Only allowlisted fields are persisted. Auth profiles are validated before saving (checks `$env:` sentinel env vars or profile store).
 
 #### Session Routes
 
-**`GET /casas/:name/sessions`** — List all sessions for a CASA. Proxies to the CASA's runtime API.
+**`GET /bots/:name/sessions`** — List all sessions for a bot. Proxies to the bot's runtime API.
 
-**`GET /casas/:name/sessions/:id`** — Get a specific session transcript.
+**`GET /bots/:name/sessions/:id`** — Get a specific session transcript.
 
-**`DELETE /casas/:name/sessions/:id`** — Delete a session.
+**`DELETE /bots/:name/sessions/:id`** — Delete a session.
 
-All session routes return `502` if the upstream CASA is unreachable.
+All session routes return `502` if the upstream bot is unreachable.
 
 #### Routing Routes
 
-**`POST /casas/:name/query`** — Forward a mesh query to a local CASA.
+**`POST /bots/:name/query`** — Forward a mesh query to a local bot.
 
 | Header | Required | Description |
 |--------|----------|-------------|
-| `X-Mecha-Source` | Yes | Source identifier (`casa` or `casa@node`) |
+| `X-Mecha-Source` | Yes | Source identifier (`bot` or `bot@node`) |
 
 | Body Field | Type | Required | Description |
 |------------|------|----------|-------------|
@@ -449,7 +474,7 @@ ACL is always enforced. Returns `403` if the source lacks `query` capability on 
 
 #### Discovery Routes
 
-**`GET /discover`** — Discover CASAs by tag or capability.
+**`GET /discover`** — Discover bots by tag or capability.
 
 | Query Param | Description |
 |-------------|-------------|
@@ -484,14 +509,14 @@ ACL is always enforced. Returns `403` if the source lacks `query` capability on 
 
 | Query Param | Description |
 |-------------|-------------|
-| `casa` | Optional CASA name for per-CASA breakdown |
+| `bot` | Optional bot name for per-bot breakdown |
 
 #### Settings Routes
 
 **`GET /settings/runtime`** — Runtime port configuration sourced from `@mecha/core` defaults.
 
 ```json
-{ "casaPortRange": "7700-7799", "agentPort": 7660, "mcpPort": 7680 }
+{ "botPortRange": "7700-7799", "agentPort": 7660, "mcpPort": 7680 }
 ```
 
 #### Events Routes
@@ -508,7 +533,7 @@ Events are emitted by the ProcessManager (spawn, stop, exit, error) and streamed
 
 #### Terminal WebSocket
 
-**`WS /ws/terminal/:name`** — Attach to a CASA terminal via WebSocket-to-PTY bridge.
+**`WS /ws/terminal/:name`** — Attach to a bot terminal via WebSocket-to-PTY bridge.
 
 | Query Param | Required | Description |
 |-------------|----------|-------------|
@@ -517,7 +542,7 @@ Events are emitted by the ProcessManager (spawn, stop, exit, error) and streamed
 | `rows` | No | Initial terminal rows (default: 24) |
 | `ticket` | Yes | Single-use auth ticket from `POST /ws/ticket` |
 
-When no `session` is specified, the server attempts to reattach to the most recently active PTY for that CASA before spawning a new one.
+When no `session` is specified, the server attempts to reattach to the most recently active PTY for that bot before spawning a new one.
 
 #### WebSocket Ticket
 
@@ -533,12 +558,12 @@ When `spaDir` is provided, the server serves the SPA:
 
 - Static files are served from `spaDir` via `@fastify/static`
 - Browser navigations (GET with `Accept: text/html`) to any path serve `index.html` for client-side routing
-- API paths (`/casas`, `/acl`, `/audit`, `/mesh`, `/meter`, `/settings/`, `/events`, `/discover`, `/ws`) are not intercepted by the SPA fallback for non-browser requests
+- API paths (`/bots`, `/acl`, `/audit`, `/mesh`, `/meter`, `/settings/`, `/events`, `/discover`, `/ws`) are not intercepted by the SPA fallback for non-browser requests
 - The auth hook skips authentication for static asset requests when SPA is enabled
 
 ## Runtime API
 
-Each CASA exposes these HTTP endpoints (localhost only):
+Each bot exposes these HTTP endpoints (localhost only):
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -563,23 +588,23 @@ All routes except `/healthz` require `Authorization: Bearer <token>` (the token 
 
 ### Runtime Package API Reference (`@mecha/runtime`)
 
-The `@mecha/runtime` package provides the Fastify-based HTTP server that runs inside each CASA process. It is the per-CASA runtime — one instance per spawned agent.
+The `@mecha/runtime` package provides the Fastify-based HTTP server that runs inside each bot process. It is the per-bot runtime — one instance per spawned agent.
 
 #### `createServer(opts): ServerResult`
 
-Creates a fully configured Fastify server for a CASA, wiring up authentication, session management, scheduling, MCP tools, and all HTTP routes.
+Creates a fully configured Fastify server for a bot, wiring up authentication, session management, scheduling, MCP tools, and all HTTP routes.
 
 ```ts
 import { createServer } from "@mecha/runtime";
 
 const { app, scheduler } = createServer({
-  casaName: "researcher",
+  botName: "researcher",
   port: 7700,
   authToken: "secret-token",
   projectsDir: "/home/.claude/projects/-Users-you-workspace",
   workspacePath: "/Users/you/workspace",
   mechaDir: "/Users/you/.mecha",
-  casaDir: "/Users/you/.mecha/researcher",
+  botDir: "/Users/you/.mecha/researcher",
   chatFn: async (prompt) => {
     // Send prompt to Claude Agent SDK, return result
     return { durationMs: 1200 };
@@ -593,13 +618,13 @@ await app.listen({ port: 7700, host: "127.0.0.1" });
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `casaName` | `string` | Yes | Name of the CASA (e.g., `"researcher"`) |
+| `botName` | `string` | Yes | Name of the bot (e.g., `"researcher"`) |
 | `port` | `number` | Yes | Port the server binds to |
 | `authToken` | `string` | Yes | Bearer token for request authentication |
 | `projectsDir` | `string` | Yes | Path to the workspace-specific Claude projects directory |
-| `workspacePath` | `string` | Yes | Absolute path to the CASA's workspace on disk |
+| `workspacePath` | `string` | Yes | Absolute path to the bot's workspace on disk |
 | `mechaDir` | `string` | No | Path to `~/.mecha` (enables mesh tools) |
-| `casaDir` | `string` | No | Path to the CASA root directory (enables scheduler) |
+| `botDir` | `string` | No | Path to the bot root directory (enables scheduler) |
 | `chatFn` | `ChatFn` | No | Function to execute chat prompts (used by scheduler) |
 
 **`ServerResult`**
@@ -607,32 +632,32 @@ await app.listen({ port: 7700, host: "127.0.0.1" });
 | Field | Type | Description |
 |-------|------|-------------|
 | `app` | `FastifyInstance` | The configured Fastify server (not yet listening) |
-| `scheduler` | `ScheduleEngine \| undefined` | Schedule engine instance, present only when `casaDir` is provided |
+| `scheduler` | `ScheduleEngine \| undefined` | Schedule engine instance, present only when `botDir` is provided |
 
 The scheduler is automatically started when the Fastify server emits `onReady` and stopped on `onClose`.
 
 #### `parseRuntimeEnv(env): RuntimeEnvData`
 
-Parses and validates the environment variables required by the CASA runtime process. Throws a descriptive error if any required variables are missing or invalid.
+Parses and validates the environment variables required by the bot runtime process. Throws a descriptive error if any required variables are missing or invalid.
 
 ```ts
 import { parseRuntimeEnv } from "@mecha/runtime";
 
 const env = parseRuntimeEnv(process.env);
-// env.MECHA_CASA_NAME, env.MECHA_PORT (number), etc.
+// env.MECHA_BOT_NAME, env.MECHA_PORT (number), etc.
 ```
 
 **`RuntimeEnvData`**
 
 | Variable | Type | Required | Description |
 |----------|------|----------|-------------|
-| `MECHA_CASA_NAME` | `string` | Yes | Name of the CASA |
+| `MECHA_BOT_NAME` | `string` | Yes | Name of the bot |
 | `MECHA_PORT` | `number` | Yes | Port number (1--65535, parsed from string) |
 | `MECHA_AUTH_TOKEN` | `string` | Yes | Bearer token for authentication |
 | `MECHA_PROJECTS_DIR` | `string` | Yes | Path to the workspace-encoded projects directory |
-| `MECHA_WORKSPACE` | `string` | Yes | Absolute path to the CASA workspace |
+| `MECHA_WORKSPACE` | `string` | Yes | Absolute path to the bot workspace |
 | `MECHA_DIR` | `string` | No | Path to `~/.mecha` |
-| `MECHA_SANDBOX_ROOT` | `string` | No | CASA root directory (used by sandbox guard scripts; also enables scheduler) |
+| `MECHA_SANDBOX_ROOT` | `string` | No | bot root directory (used by sandbox guard scripts; also enables scheduler) |
 
 #### `createAuthHook(token): FastifyHook`
 
@@ -660,7 +685,7 @@ Each route group is registered independently, allowing selective composition:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `casaName` | `string` | CASA name returned in `/info` |
+| `botName` | `string` | bot name returned in `/info` |
 | `port` | `number` | Port returned in `/info` |
 | `startedAt` | `string` | ISO timestamp of server start |
 
@@ -671,19 +696,19 @@ The `/info` endpoint returns: `name`, `port`, `startedAt`, `uptime` (seconds), a
 | Field | Type | Description |
 |-------|------|-------------|
 | `workspacePath` | `string` | Root path for workspace file tools |
-| `mechaDir` | `string?` | Enables mesh tools when provided with `casaName` |
-| `casaName` | `string?` | CASA identity for mesh operations |
-| `router` | `MeshRouter?` | Router for cross-CASA mesh queries |
+| `mechaDir` | `string?` | Enables mesh tools when provided with `botName` |
+| `botName` | `string?` | bot identity for mesh operations |
+| `router` | `MeshRouter?` | Router for cross-bot mesh queries |
 
 #### `MeshRouter` Interface
 
-The router interface for inter-CASA communication via MCP mesh tools.
+The router interface for inter-bot communication via MCP mesh tools.
 
 ```ts
 interface MeshRouter {
   routeQuery(
-    source: string,    // Source CASA name
-    target: string,    // Target CASA (name or name@node)
+    source: string,    // Source bot name
+    target: string,    // Target bot (name or name@node)
     message: string,   // Message to send
     sessionId?: string // Optional session for multi-turn
   ): Promise<ForwardResult>;
@@ -695,7 +720,7 @@ interface MeshRouter {
 | Field | Type | Description |
 |-------|------|-------------|
 | `mechaDir` | `string` | Path to `~/.mecha` (reads `discovery.json`) |
-| `casaName` | `string` | Identity of the calling CASA |
+| `botName` | `string` | Identity of the calling bot |
 | `router` | `MeshRouter?` | Routing implementation (undefined disables `mesh_query`) |
 
 ## Data Storage
@@ -704,8 +729,8 @@ All state is plain files — no databases:
 
 | Data | Format | Location |
 |------|--------|----------|
-| CASA config | JSON | `~/.mecha/<name>/config.json` |
-| CASA state | JSON | `~/.mecha/<name>/state.json` |
+| bot config | JSON | `~/.mecha/<name>/config.json` |
+| bot state | JSON | `~/.mecha/<name>/state.json` |
 | Sessions | JSONL + JSON | `~/.mecha/<name>/home/.claude/projects/` |
 | Logs | Text | `~/.mecha/<name>/logs/` |
 | ACL rules | JSON | `~/.mecha/acl.json` |
@@ -728,9 +753,9 @@ The ProcessManager emits lifecycle events that CLI commands and integrations can
 
 | Event | Fields | Description |
 |-------|--------|-------------|
-| `spawned` | `name`, `pid`, `port` | CASA process started successfully |
-| `stopped` | `name`, `exitCode?` | CASA process exited |
-| `error` | `name`, `error` | CASA encountered an error |
+| `spawned` | `name`, `pid`, `port` | bot process started successfully |
+| `stopped` | `name`, `exitCode?` | bot process exited |
+| `error` | `name`, `error` | bot encountered an error |
 | `warning` | `name`, `message` | Non-fatal warning (e.g., sandbox degradation) |
 
 Subscribe via `processManager.onEvent(handler)`, which returns an unsubscribe function. Handlers are isolated — one failing handler does not affect others.

@@ -17,8 +17,8 @@ export interface MeshMcpContext {
 
 export const TOOL_ANNOTATIONS = {
   mecha_list_nodes:     { readOnlyHint: true,  destructiveHint: false },
-  mecha_list_casas:     { readOnlyHint: true,  destructiveHint: false },
-  mecha_casa_status:    { readOnlyHint: true,  destructiveHint: false },
+  mecha_list_bots:     { readOnlyHint: true,  destructiveHint: false },
+  mecha_bot_status:    { readOnlyHint: true,  destructiveHint: false },
   mecha_discover:       { readOnlyHint: true,  destructiveHint: false },
   mecha_list_sessions:  { readOnlyHint: true,  destructiveHint: false },
   mecha_get_session:    { readOnlyHint: true,  destructiveHint: false },

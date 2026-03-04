@@ -3,9 +3,9 @@ import { openSync, closeSync, chmodSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { randomBytes } from "node:crypto";
 import {
-  CasaAlreadyExistsError,
+  BotAlreadyExistsError,
   ProcessSpawnError,
-  readCasaConfig,
+  readBotConfig,
 } from "@mecha/core";
 import type { Sandbox } from "@mecha/sandbox";
 import { writeFileSync } from "node:fs";
@@ -14,10 +14,10 @@ import type { PersistedSandboxProfile, SandboxPlatform } from "@mecha/sandbox";
 import { allocatePort } from "./port.js";
 import { waitForHealthy } from "./health.js";
 import { readState, writeState } from "./state-store.js";
-import type { CasaState } from "./state-store.js";
+import type { BotState } from "./state-store.js";
 import type { ProcessEventEmitter } from "./events.js";
 import { isPidAlive } from "./process-lifecycle.js";
-import { prepareCasaFilesystem } from "./sandbox-setup.js";
+import { prepareBotFilesystem } from "./sandbox-setup.js";
 import type { SpawnOpts, ProcessInfo, LiveProcess, CreateProcessManagerOpts } from "./types.js";
 
 export interface SpawnContext {
@@ -28,24 +28,24 @@ export interface SpawnContext {
   spawnFn: typeof import("node:child_process").spawn;
   emitter: ProcessEventEmitter;
   live: Map<string, LiveProcess>;
-  casaDir: (name: string) => string;
+  botDir: (name: string) => string;
   /** Called after state changes that affect the discovery index. */
   onStateChange?: () => void;
 }
 
-export async function spawnCasa(ctx: SpawnContext, spawnOpts: SpawnOpts): Promise<ProcessInfo> {
+export async function spawnBot(ctx: SpawnContext, spawnOpts: SpawnOpts): Promise<ProcessInfo> {
   const { name, model, permissionMode, auth, tags } = spawnOpts;
   const workspacePath = resolve(spawnOpts.workspacePath);
-  const casaDir = ctx.casaDir(name);
+  const botDir = ctx.botDir(name);
   const { mechaDir, emitter, live } = ctx;
 
   // Check not already exists and running
   if (live.has(name)) {
-    throw new CasaAlreadyExistsError(name);
+    throw new BotAlreadyExistsError(name);
   }
-  const existing = readState(casaDir);
+  const existing = readState(botDir);
   if (existing && existing.state === "running" && existing.pid && isPidAlive(existing.pid)) {
-    throw new CasaAlreadyExistsError(name);
+    throw new BotAlreadyExistsError(name);
   }
 
   // Allocate port
@@ -55,8 +55,8 @@ export async function spawnCasa(ctx: SpawnContext, spawnOpts: SpawnOpts): Promis
   const token = "mecha_" + randomBytes(24).toString("hex");
 
   // Prepare filesystem and environment
-  const { logsDir, childEnv } = prepareCasaFilesystem({
-    casaDir, workspacePath, port, token, name, mechaDir, model, permissionMode, auth, tags,
+  const { logsDir, childEnv } = prepareBotFilesystem({
+    botDir, workspacePath, port, token, name, mechaDir, model, permissionMode, auth, tags,
     expose: spawnOpts.expose,
     userEnv: spawnOpts.env,
     meterOff: spawnOpts.meterOff,
@@ -89,19 +89,19 @@ export async function spawnCasa(ctx: SpawnContext, spawnOpts: SpawnOpts): Promis
       throw new ProcessSpawnError(`Sandbox required but ${ctx.sandbox.describe()}`);
     }
     if (available) {
-      const config = readCasaConfig(casaDir);
+      const config = readBotConfig(botDir);
       if (config) {
         const profile = profileFromConfig({
-          config, casaDir, mechaDir, runtimeEntrypoint: ctx.opts.runtimeEntrypoint,
+          config, botDir, mechaDir, runtimeEntrypoint: ctx.opts.runtimeEntrypoint,
         });
-        const wrapped = await ctx.sandbox.wrap(profile, spawnBin, spawnArgs, casaDir);
+        const wrapped = await ctx.sandbox.wrap(profile, spawnBin, spawnArgs, botDir);
         spawnBin = wrapped.bin;
         spawnArgs = wrapped.args;
         sandboxPlatform = ctx.sandbox.platform;
         const persisted: PersistedSandboxProfile = {
           platform: ctx.sandbox.platform, profile, createdAt: new Date().toISOString(),
         };
-        const sandboxProfilePath = join(casaDir, "sandbox-profile.json");
+        const sandboxProfilePath = join(botDir, "sandbox-profile.json");
         writeFileSync(sandboxProfilePath, JSON.stringify(persisted, null, 2) + "\n", { mode: 0o600 });
         chmodSync(sandboxProfilePath, 0o600);
       }
@@ -154,11 +154,11 @@ export async function spawnCasa(ctx: SpawnContext, spawnOpts: SpawnOpts): Promis
   child.on("error", (err) => {
     try {
       live.delete(name);
-      const errorState: CasaState = {
+      const errorState: BotState = {
         name, state: "error", pid: child.pid ?? undefined, port, workspacePath,
         startedAt: new Date().toISOString(), stoppedAt: new Date().toISOString(),
       };
-      writeState(casaDir, errorState);
+      writeState(botDir, errorState);
       ctx.onStateChange?.();
       emitter.emit({ type: "error", name, error: err.message });
     } catch (writeErr) {
@@ -183,7 +183,7 @@ export async function spawnCasa(ctx: SpawnContext, spawnOpts: SpawnOpts): Promis
   // Handle child exit
   child.on("exit", (code) => {
     live.delete(name);
-    const state: CasaState = {
+    const state: BotState = {
       name,
       state: "stopped",
       /* v8 ignore start -- pid always set after spawn guard */
@@ -197,7 +197,7 @@ export async function spawnCasa(ctx: SpawnContext, spawnOpts: SpawnOpts): Promis
     };
     /* v8 ignore start -- disk-full guard: prevent crash in event handler */
     try {
-      writeState(ctx.casaDir(name), state);
+      writeState(ctx.botDir(name), state);
     } catch (err) {
       console.error(`[mecha:process] Failed to write exit state for ${name}: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -212,13 +212,13 @@ export async function spawnCasa(ctx: SpawnContext, spawnOpts: SpawnOpts): Promis
   } catch (err) {
     live.delete(name);
     child.kill("SIGKILL");
-    const failState: CasaState = {
+    const failState: BotState = {
       name, state: "error", pid: child.pid, port, workspacePath, startedAt,
       stoppedAt: new Date().toISOString(),
     };
     /* v8 ignore start -- disk-full guard: prevent crash masking original health error */
     try {
-      writeState(casaDir, failState);
+      writeState(botDir, failState);
     } catch (writeErr) {
       console.error(`[mecha:process] Failed to write error state for ${name}: ${writeErr instanceof Error ? writeErr.message : String(writeErr)}`);
     }
@@ -230,21 +230,21 @@ export async function spawnCasa(ctx: SpawnContext, spawnOpts: SpawnOpts): Promis
     throw err;
   }
 
-  const state: CasaState = {
+  const state: BotState = {
     name, state: "running", pid: child.pid, port, workspacePath, startedAt,
     sandboxPlatform, sandboxMode,
   };
   /* v8 ignore start -- disk-full guard: prevent orphaned child on state write failure */
   try {
-    writeState(casaDir, state);
+    writeState(botDir, state);
   } catch (err) {
     live.delete(name);
     child.kill("SIGKILL");
-    const errState: CasaState = {
+    const errState: BotState = {
       name, state: "error", pid: child.pid, port, workspacePath, startedAt,
       stoppedAt: new Date().toISOString(),
     };
-    try { writeState(casaDir, errState); } catch { /* best-effort */ }
+    try { writeState(botDir, errState); } catch { /* best-effort */ }
     ctx.onStateChange?.();
     throw new ProcessSpawnError(
       `Failed to write running state: ${err instanceof Error ? err.message : String(err)}`,

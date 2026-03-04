@@ -1,19 +1,19 @@
 import { z } from "zod";
 import { NAME_PATTERN, NAME_MAX_LENGTH } from "./validation.js";
 
-/** Reusable name schema matching CASA/node naming rules */
+/** Reusable name schema matching bot/node naming rules */
 const nameSchema = z
   .string()
   .min(1)
   .max(NAME_MAX_LENGTH)
   .regex(NAME_PATTERN, "Must be lowercase alphanumeric with hyphens, no leading/trailing hyphen");
 
-/** Permission modes for CASA processes */
+/** Permission modes for bot processes */
 export const PermissionMode = z.enum(["default", "plan", "full-auto"]);
 export type PermissionMode = z.infer<typeof PermissionMode>;
 
 /** mecha spawn NAME PATH [options] */
-export const CasaSpawnInput = z.object({
+export const BotSpawnInput = z.object({
   name: nameSchema,
   workspacePath: z.string().min(1),
   tags: z.array(z.string()).optional(),
@@ -23,14 +23,14 @@ export const CasaSpawnInput = z.object({
   port: z.number().int().min(1).max(65535).optional(),
   auth: z.string().optional(),
 });
-export type CasaSpawnInput = z.infer<typeof CasaSpawnInput>;
+export type BotSpawnInput = z.infer<typeof BotSpawnInput>;
 
 /** mecha kill NAME [options] */
-export const CasaKillInput = z.object({
+export const BotKillInput = z.object({
   name: nameSchema,
   force: z.boolean().optional(),
 });
-export type CasaKillInput = z.infer<typeof CasaKillInput>;
+export type BotKillInput = z.infer<typeof BotKillInput>;
 
 /** Session creation */
 export const SessionCreateInput = z.object({

@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { TooltipIconButton } from "@/components/ui/tooltip-icon-button";
 
 const navItems = [
-  { href: "/", label: "CASAs", icon: BoxIcon },
+  { href: "/", label: "bots", icon: BoxIcon },
   { href: "/mesh", label: "Mesh", icon: NetworkIcon },
   { href: "/acl", label: "ACL", icon: ShieldCheckIcon },
   { href: "/audit", label: "Audit", icon: ScrollTextIcon },

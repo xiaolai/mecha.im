@@ -12,7 +12,7 @@ async function buildAuthApp(opts?: { sessionKey?: string; spaDir?: string }): Pr
   }));
   app.get("/healthz", async () => ({ status: "ok" }));
   app.get("/test", async () => ({ ok: true }));
-  app.get("/casas", async () => []);
+  app.get("/bots", async () => []);
   app.get("/auth/status", async () => ({ methods: {} }));
   app.post("/auth/login", async () => ({ ok: true }));
   app.post("/auth/logout", async () => ({ ok: true }));
@@ -30,8 +30,8 @@ async function buildSigApp(opts: {
     nodePublicKeys: opts.keys,
     verifySignature: opts.verify,
   }));
-  app.post("/casas/:name/query", async () => ({ ok: true }));
-  app.get("/casas", async () => []);
+  app.post("/bots/:name/query", async () => ({ ok: true }));
+  app.get("/bots", async () => []);
   await app.ready();
   return app;
 }
@@ -79,7 +79,7 @@ describe("agent auth", () => {
       const app = await buildAuthApp({ sessionKey });
       const res = await app.inject({
         method: "GET",
-        url: "/casas",
+        url: "/bots",
         headers: { cookie: `mecha-session=${token}` },
       });
       expect(res.statusCode).toBe(200);
@@ -91,7 +91,7 @@ describe("agent auth", () => {
       const app = await buildAuthApp({ sessionKey });
       const res = await app.inject({
         method: "GET",
-        url: "/casas",
+        url: "/bots",
         headers: { cookie: "mecha-session=invalid.token.here" },
       });
       expect(res.statusCode).toBe(401);
@@ -102,14 +102,14 @@ describe("agent auth", () => {
       const sessionKey = deriveSessionKey("TESTSECRET");
       const app = Fastify();
       app.addHook("onRequest", createAuthHook({ sessionKey, spaDir: "/fake/spa" }));
-      app.get("/casas", async () => []);
+      app.get("/bots", async () => []);
       // Catch-all for SPA routes (mimics real server behavior)
       app.setNotFoundHandler(async () => ({ spa: true }));
       await app.ready();
 
       const res1 = await app.inject({ method: "GET", url: "/some-page" });
       expect(res1.statusCode).toBe(200);
-      const res2 = await app.inject({ method: "GET", url: "/casas" });
+      const res2 = await app.inject({ method: "GET", url: "/bots" });
       expect(res2.statusCode).toBe(401);
       await app.close();
     });
@@ -121,7 +121,7 @@ describe("agent auth", () => {
       app.addHook("onRequest", createAuthHook({
         sessionKey, spaDir: "/fake/spa", spaIndexHtml: spaHtml,
       }));
-      app.get("/casas", async () => []);
+      app.get("/bots", async () => []);
       app.get("/mesh/nodes", async () => []);
       await app.ready();
 
@@ -134,9 +134,9 @@ describe("agent auth", () => {
       expect(res1.headers["content-type"]).toContain("text/html");
       expect(res1.body).toBe(spaHtml);
 
-      // Browser navigation to /casas with text/html → serves SPA, NOT API data
+      // Browser navigation to /bots with text/html → serves SPA, NOT API data
       const res2 = await app.inject({
-        method: "GET", url: "/casas",
+        method: "GET", url: "/bots",
         headers: { accept: "text/html,application/xhtml+xml" },
       });
       expect(res2.statusCode).toBe(200);
@@ -150,8 +150,8 @@ describe("agent auth", () => {
       });
       expect(res3.statusCode).toBe(401);
 
-      // API fetch to /casas without auth → 401
-      const res4 = await app.inject({ method: "GET", url: "/casas" });
+      // API fetch to /bots without auth → 401
+      const res4 = await app.inject({ method: "GET", url: "/bots" });
       expect(res4.statusCode).toBe(401);
       await app.close();
     });
@@ -224,7 +224,7 @@ describe("agent auth", () => {
 
     it("rejects everything when no auth methods configured", async () => {
       const app = await buildAuthApp({ sessionKey: undefined });
-      const res = await app.inject({ method: "GET", url: "/casas" });
+      const res = await app.inject({ method: "GET", url: "/bots" });
       expect(res.statusCode).toBe(401);
       await app.close();
     });
@@ -235,7 +235,7 @@ describe("agent auth", () => {
       const app = await buildSigApp();
       const res = await app.inject({
         method: "POST",
-        url: "/casas/alice/query",
+        url: "/bots/alice/query",
         payload: { message: "hi" },
       });
       expect(res.statusCode).toBe(200);
@@ -246,7 +246,7 @@ describe("agent auth", () => {
       const keys = new Map([["remote", "pk"]]);
       const verify = vi.fn().mockReturnValue(true);
       const app = await buildSigApp({ keys, verify });
-      const res = await app.inject({ method: "GET", url: "/casas" });
+      const res = await app.inject({ method: "GET", url: "/bots" });
       expect(res.statusCode).toBe(200);
       expect(verify).not.toHaveBeenCalled();
       await app.close();
@@ -257,7 +257,7 @@ describe("agent auth", () => {
       const app = await buildSigApp({ keys, verify: vi.fn() });
       const res = await app.inject({
         method: "POST",
-        url: "/casas/alice/query",
+        url: "/bots/alice/query",
         payload: { message: "hi" },
       });
       expect(res.statusCode).toBe(401);
@@ -270,7 +270,7 @@ describe("agent auth", () => {
       const app = await buildSigApp({ keys, verify: vi.fn() });
       const res = await app.inject({
         method: "POST",
-        url: "/casas/alice/query",
+        url: "/bots/alice/query",
         headers: { "x-mecha-source": "coder", "x-mecha-signature": "sig" },
         payload: { message: "hi" },
       });
@@ -284,7 +284,7 @@ describe("agent auth", () => {
       const app = await buildSigApp({ keys, verify: vi.fn() });
       const res = await app.inject({
         method: "POST",
-        url: "/casas/alice/query",
+        url: "/bots/alice/query",
         headers: { "x-mecha-source": "coder@unknown", "x-mecha-signature": "sig" },
         payload: { message: "hi" },
       });
@@ -299,7 +299,7 @@ describe("agent auth", () => {
       const app = await buildSigApp({ keys, verify });
       const res = await app.inject({
         method: "POST",
-        url: "/casas/alice/query",
+        url: "/bots/alice/query",
         headers: {
           "x-mecha-source": "coder@remote",
           "x-mecha-signature": "badsig",
@@ -317,7 +317,7 @@ describe("agent auth", () => {
       const app = await buildSigApp({ keys, verify });
       const res = await app.inject({
         method: "POST",
-        url: "/casas/alice/query",
+        url: "/bots/alice/query",
         headers: {
           "x-mecha-source": "coder@remote",
           "x-mecha-signature": "badsig",
@@ -336,7 +336,7 @@ describe("agent auth", () => {
       const app = await buildSigApp({ keys, verify });
       const res = await app.inject({
         method: "POST",
-        url: "/casas/alice/query",
+        url: "/bots/alice/query",
         headers: {
           "x-mecha-source": "coder@remote",
           "x-mecha-signature": "badsig",
@@ -355,7 +355,7 @@ describe("agent auth", () => {
       const app = await buildSigApp({ keys, verify });
       const res = await app.inject({
         method: "POST",
-        url: "/casas/alice/query",
+        url: "/bots/alice/query",
         headers: {
           "x-mecha-source": "coder@remote",
           "x-mecha-signature": "badsig",
@@ -375,7 +375,7 @@ describe("agent auth", () => {
       const app = await buildSigApp({ keys, verify });
       const res1 = await app.inject({
         method: "POST",
-        url: "/casas/alice/query",
+        url: "/bots/alice/query",
         headers: {
           "x-mecha-source": "coder@remote",
           "x-mecha-signature": "validsig",
@@ -387,7 +387,7 @@ describe("agent auth", () => {
       expect(res1.statusCode).toBe(200);
       const res2 = await app.inject({
         method: "POST",
-        url: "/casas/alice/query",
+        url: "/bots/alice/query",
         headers: {
           "x-mecha-source": "coder@remote",
           "x-mecha-signature": "validsig",
@@ -407,7 +407,7 @@ describe("agent auth", () => {
       const app = await buildSigApp({ keys, verify });
       const res = await app.inject({
         method: "POST",
-        url: "/casas/alice/query",
+        url: "/bots/alice/query",
         headers: {
           "x-mecha-source": "coder@remote",
           "x-mecha-signature": "validsig",
@@ -427,7 +427,7 @@ describe("agent auth", () => {
       const app = await buildSigApp({ keys, verify });
       const res = await app.inject({
         method: "POST",
-        url: "/casas/alice/query",
+        url: "/bots/alice/query",
         headers: {
           "x-mecha-source": "coder@remote",
           "x-mecha-signature": "malformed",

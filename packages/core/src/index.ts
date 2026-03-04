@@ -5,14 +5,14 @@ export { isPidAlive } from "./pid.js";
 export { safeCompare } from "./safe-compare.js";
 export type { SafeReadResult } from "./safe-read.js";
 export type {
-  CasaName,
+  BotName,
   NodeName,
-  CasaAddress,
+  BotAddress,
   GroupAddress,
   Address,
 } from "./types.js";
-export { isCasaAddress, isGroupAddress } from "./types.js";
-export { casaName, nodeName, parseAddress, formatAddress } from "./address.js";
+export { isBotAddress, isGroupAddress } from "./types.js";
+export { botName, nodeName, parseAddress, formatAddress } from "./address.js";
 export { NAME_PATTERN, NAME_MAX_LENGTH, isValidName, isValidAddress, TAG_PATTERN, TAG_MAX_LENGTH, MAX_TAGS, validateTags, validateCapabilities, parsePort } from "./validation.js";
 export {
   MECHA_DIR,
@@ -26,11 +26,11 @@ export {
   MechaError,
   InvalidNameError,
   InvalidAddressError,
-  CasaNotFoundError,
-  CasaAlreadyExistsError,
-  CasaNotRunningError,
-  CasaAlreadyRunningError,
-  CasaBusyError,
+  BotNotFoundError,
+  BotAlreadyExistsError,
+  BotNotRunningError,
+  BotAlreadyRunningError,
+  BotBusyError,
   PathNotFoundError,
   PathNotDirectoryError,
   PortConflictError,
@@ -70,8 +70,8 @@ export {
   RendezvousError,
 } from "./errors.js";
 export {
-  CasaSpawnInput,
-  CasaKillInput,
+  BotSpawnInput,
+  BotKillInput,
   SessionCreateInput,
   SessionMessageInput,
   PermissionMode,
@@ -80,9 +80,9 @@ export {
   toUserMessage,
   toSafeMessage,
 } from "./mapping.js";
-export { readCasaConfig, updateCasaConfig, CASA_CONFIG_VERSION } from "./casa-config.js";
-export type { CasaConfig, SandboxMode } from "./casa-config.js";
-export { forwardQueryToCasa } from "./forwarding.js";
+export { readBotConfig, updateBotConfig, BOT_CONFIG_VERSION } from "./bot-config.js";
+export type { BotConfig, SandboxMode } from "./bot-config.js";
+export { forwardQueryToBot } from "./forwarding.js";
 export type { ForwardResult } from "./forwarding.js";
 export { matchesDiscoveryFilter } from "./discovery.js";
 export type { DiscoverableEntry, DiscoveryFilter, DiscoveryIndex, DiscoveryIndexEntry } from "./discovery.js";
@@ -95,9 +95,9 @@ export {
   createNodeIdentity,
   loadNodeIdentity,
   loadNodePrivateKey,
-  createCasaIdentity,
-  loadCasaIdentity,
-  loadCasaIdentityFromDir,
+  createBotIdentity,
+  loadBotIdentity,
+  loadBotIdentityFromDir,
   signMessage,
   verifySignature,
   generateNoiseKeyPair,
@@ -105,7 +105,7 @@ export {
   loadNoiseKeyPair,
   loadNoisePublicKey,
 } from "./identity/index.js";
-export type { KeyPair, NodeIdentity, CasaIdentity, NoiseKeyPairCore } from "./identity/index.js";
+export type { KeyPair, NodeIdentity, BotIdentity, NoiseKeyPairCore } from "./identity/index.js";
 
 // ACL (Phase 3)
 export {

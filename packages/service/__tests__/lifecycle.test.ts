@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import { casaStatus } from "../src/casa.js";
-import { CasaNotFoundError, type CasaName } from "@mecha/core";
+import { botStatus } from "../src/bot.js";
+import { BotNotFoundError, type BotName } from "@mecha/core";
 import type { ProcessManager, ProcessInfo } from "@mecha/process";
 
 function createMockPM(overrides: Partial<ProcessManager> = {}): ProcessManager {
@@ -17,10 +17,10 @@ function createMockPM(overrides: Partial<ProcessManager> = {}): ProcessManager {
   } as ProcessManager;
 }
 
-const CASA_NAME = "test" as CasaName;
+const BOT_NAME = "test" as BotName;
 
 const RUNNING_INFO: ProcessInfo = {
-  name: CASA_NAME,
+  name: BOT_NAME,
   state: "running",
   pid: 12345,
   port: 7700,
@@ -29,18 +29,18 @@ const RUNNING_INFO: ProcessInfo = {
   startedAt: "2026-01-01T00:00:00Z",
 };
 
-describe("casaStatus", () => {
-  it("returns info for existing CASA", () => {
+describe("botStatus", () => {
+  it("returns info for existing bot", () => {
     const pm = createMockPM({
       get: vi.fn().mockReturnValue(RUNNING_INFO),
     });
 
-    const result = casaStatus(pm, CASA_NAME);
+    const result = botStatus(pm, BOT_NAME);
     expect(result).toEqual(RUNNING_INFO);
   });
 
-  it("throws CasaNotFoundError for unknown CASA", () => {
+  it("throws BotNotFoundError for unknown bot", () => {
     const pm = createMockPM();
-    expect(() => casaStatus(pm, CASA_NAME)).toThrow(CasaNotFoundError);
+    expect(() => botStatus(pm, BOT_NAME)).toThrow(BotNotFoundError);
   });
 });

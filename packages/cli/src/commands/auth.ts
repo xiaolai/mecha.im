@@ -9,10 +9,10 @@ import {
   mechaAuthSwitch,
   mechaAuthTest,
   mechaAuthRenew,
-  mechaAuthSwitchCasa,
+  mechaAuthSwitchBot,
   mechaAuthProbe,
 } from "@mecha/service";
-import { casaName, validateTags } from "@mecha/core";
+import { botName, validateTags } from "@mecha/core";
 import { withErrorHandler } from "../error-handler.js";
 
 /* v8 ignore start -- display formatting, tested via auth ls integration */
@@ -135,18 +135,18 @@ export function registerAuthCommand(program: Command, deps: CommandDeps): void {
 
   auth
     .command("switch")
-    .description("Switch auth profile (global default or per-CASA)")
-    .argument("<name>", "Profile name (or CASA name when used with <profile>)")
-    .argument("[profile]", "Profile name (when first arg is CASA name)")
-    .action(async (nameOrCasa: string, profile?: string) => withErrorHandler(deps, async () => {
+    .description("Switch auth profile (global default or per-bot)")
+    .argument("<name>", "Profile name (or bot name when used with <profile>)")
+    .argument("[profile]", "Profile name (when first arg is bot name)")
+    .action(async (nameOrBot: string, profile?: string) => withErrorHandler(deps, async () => {
       if (profile) {
-        // Per-CASA switch: mecha auth switch <casa> <profile>
-        const validated = casaName(nameOrCasa);
-        const result = mechaAuthSwitchCasa(deps.mechaDir, deps.processManager, validated, profile);
+        // Per-bot switch: mecha auth switch <bot> <profile>
+        const validated = botName(nameOrBot);
+        const result = mechaAuthSwitchBot(deps.mechaDir, deps.processManager, validated, profile);
         deps.formatter.success(`${validated} now uses auth profile "${result.name}". Restart to apply.`);
       } else {
         // Global default switch: mecha auth switch <profile>
-        const result = mechaAuthSwitch(deps.mechaDir, nameOrCasa);
+        const result = mechaAuthSwitch(deps.mechaDir, nameOrBot);
         deps.formatter.success(`Switched to "${result.name}"`);
       }
     }));

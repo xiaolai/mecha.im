@@ -6,11 +6,11 @@ import { EventEmitter } from "node:events";
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from "node:http";
 import { createProcessManager } from "../src/process-manager.js";
 import { writeState } from "../src/state-store.js";
-import type { CasaState } from "../src/state-store.js";
+import type { BotState } from "../src/state-store.js";
 import type { ProcessEvent } from "../src/events.js";
-import type { CasaName } from "@mecha/core";
+import type { BotName } from "@mecha/core";
 
-const testName = "test-casa" as CasaName;
+const testName = "test-bot" as BotName;
 
 function createMockSpawn(mockChild: EventEmitter & { pid: number; killed: boolean; kill: ReturnType<typeof vi.fn>; unref: ReturnType<typeof vi.fn>; stdout: EventEmitter | null; stderr: EventEmitter | null }) {
   return vi.fn().mockReturnValue(mockChild);
@@ -77,7 +77,7 @@ describe("createProcessManager", () => {
     });
   });
 
-  it("spawns a CASA and returns ProcessInfo", async () => {
+  it("spawns a bot and returns ProcessInfo", async () => {
     const mockChild = createMockChild();
     const mockSpawn = createMockSpawn(mockChild);
 
@@ -120,13 +120,13 @@ describe("createProcessManager", () => {
       port: healthPort,
     });
 
-    const casaDir = join(tempDir, testName);
-    expect(existsSync(join(casaDir, "home", ".claude", "hooks"))).toBe(true);
-    expect(existsSync(join(casaDir, "tmp"))).toBe(true);
-    expect(existsSync(join(casaDir, "home", ".claude", "projects"))).toBe(true);
-    expect(existsSync(join(casaDir, "logs"))).toBe(true);
-    expect(existsSync(join(casaDir, "config.json"))).toBe(true);
-    expect(existsSync(join(casaDir, "state.json"))).toBe(true);
+    const botDir = join(tempDir, testName);
+    expect(existsSync(join(botDir, "home", ".claude", "hooks"))).toBe(true);
+    expect(existsSync(join(botDir, "tmp"))).toBe(true);
+    expect(existsSync(join(botDir, "home", ".claude", "projects"))).toBe(true);
+    expect(existsSync(join(botDir, "logs"))).toBe(true);
+    expect(existsSync(join(botDir, "config.json"))).toBe(true);
+    expect(existsSync(join(botDir, "state.json"))).toBe(true);
   });
 
   it("sets config.json to mode 0o600 after spawn", async () => {
@@ -146,12 +146,12 @@ describe("createProcessManager", () => {
       port: healthPort,
     });
 
-    const casaDir = join(tempDir, testName);
-    const mode = statSync(join(casaDir, "config.json")).mode & 0o777;
+    const botDir = join(tempDir, testName);
+    const mode = statSync(join(botDir, "config.json")).mode & 0o777;
     expect(mode).toBe(0o600);
   });
 
-  it("sets CASA directories to mode 0o700 after spawn", async () => {
+  it("sets bot directories to mode 0o700 after spawn", async () => {
     const mockChild = createMockChild();
     const mockSpawn = createMockSpawn(mockChild);
 
@@ -168,9 +168,9 @@ describe("createProcessManager", () => {
       port: healthPort,
     });
 
-    const casaDir = join(tempDir, testName);
-    const hooksMode = statSync(join(casaDir, "home", ".claude", "hooks")).mode & 0o777;
-    const tmpMode = statSync(join(casaDir, "tmp")).mode & 0o777;
+    const botDir = join(tempDir, testName);
+    const hooksMode = statSync(join(botDir, "home", ".claude", "hooks")).mode & 0o777;
+    const tmpMode = statSync(join(botDir, "tmp")).mode & 0o777;
     expect(hooksMode).toBe(0o700);
     expect(tmpMode).toBe(0o700);
   });
@@ -192,8 +192,8 @@ describe("createProcessManager", () => {
       port: healthPort,
     });
 
-    const casaDir = join(tempDir, testName);
-    const guardPath = join(casaDir, "home", ".claude", "hooks", "sandbox-guard.sh");
+    const botDir = join(tempDir, testName);
+    const guardPath = join(botDir, "home", ".claude", "hooks", "sandbox-guard.sh");
     const script = readFileSync(guardPath, "utf-8");
 
     // The guard should use strict path matching with "/" separator on canonicalized vars
@@ -220,16 +220,16 @@ describe("createProcessManager", () => {
       port: healthPort,
     });
 
-    const casaDir = join(tempDir, testName);
-    const settings = JSON.parse(readFileSync(join(casaDir, "home", ".claude", "settings.json"), "utf-8"));
+    const botDir = join(tempDir, testName);
+    const settings = JSON.parse(readFileSync(join(botDir, "home", ".claude", "settings.json"), "utf-8"));
     expect(settings.hooks).toBeDefined();
     expect(settings.hooks.PreToolUse).toHaveLength(2);
 
-    expect(existsSync(join(casaDir, "home", ".claude", "hooks", "sandbox-guard.sh"))).toBe(true);
-    expect(existsSync(join(casaDir, "home", ".claude", "hooks", "bash-guard.sh"))).toBe(true);
+    expect(existsSync(join(botDir, "home", ".claude", "hooks", "sandbox-guard.sh"))).toBe(true);
+    expect(existsSync(join(botDir, "home", ".claude", "hooks", "bash-guard.sh"))).toBe(true);
   });
 
-  it("throws CasaAlreadyExistsError for duplicate spawn", async () => {
+  it("throws BotAlreadyExistsError for duplicate spawn", async () => {
     const mockChild = createMockChild();
     const mockSpawn = createMockSpawn(mockChild);
 
@@ -252,10 +252,10 @@ describe("createProcessManager", () => {
         workspacePath: tempDir,
         port: healthPort,
       }),
-    ).rejects.toThrow('CASA "test-casa" already exists');
+    ).rejects.toThrow('bot "test-bot" already exists');
   });
 
-  it("get returns ProcessInfo for spawned CASA", async () => {
+  it("get returns ProcessInfo for spawned bot", async () => {
     const mockChild = createMockChild();
     const mockSpawn = createMockSpawn(mockChild);
 
@@ -278,12 +278,12 @@ describe("createProcessManager", () => {
     expect(info!.state).toBe("running");
   });
 
-  it("get returns undefined for unknown CASA", () => {
+  it("get returns undefined for unknown bot", () => {
     const pm = createProcessManager({ mechaDir: tempDir });
-    expect(pm.get("nonexistent" as CasaName)).toBeUndefined();
+    expect(pm.get("nonexistent" as BotName)).toBeUndefined();
   });
 
-  it("list returns all CASAs", async () => {
+  it("list returns all bots", async () => {
     const mockChild = createMockChild();
     const mockSpawn = createMockSpawn(mockChild);
 
@@ -347,31 +347,31 @@ describe("createProcessManager", () => {
     expect(mockChild.kill).toHaveBeenCalledWith("SIGKILL");
   });
 
-  it("stop throws CasaNotFoundError for unknown CASA", async () => {
+  it("stop throws BotNotFoundError for unknown bot", async () => {
     const pm = createProcessManager({ mechaDir: tempDir });
-    await expect(pm.stop("nope" as CasaName)).rejects.toThrow('CASA "nope" not found');
+    await expect(pm.stop("nope" as BotName)).rejects.toThrow('bot "nope" not found');
   });
 
-  it("kill throws CasaNotFoundError for unknown CASA", async () => {
+  it("kill throws BotNotFoundError for unknown bot", async () => {
     const pm = createProcessManager({ mechaDir: tempDir });
-    await expect(pm.kill("nope" as CasaName)).rejects.toThrow('CASA "nope" not found');
+    await expect(pm.kill("nope" as BotName)).rejects.toThrow('bot "nope" not found');
   });
 
-  it("stop throws CasaNotRunningError for stopped CASA", async () => {
+  it("stop throws BotNotRunningError for stopped bot", async () => {
     // Write a stopped state
-    const casaDir = join(tempDir, "stopped-one");
-    const state: CasaState = {
+    const botDir = join(tempDir, "stopped-one");
+    const state: BotState = {
       name: "stopped-one",
       state: "stopped",
       workspacePath: "/tmp",
     };
-    writeState(casaDir, state);
+    writeState(botDir, state);
 
     const pm = createProcessManager({ mechaDir: tempDir });
-    await expect(pm.stop("stopped-one" as CasaName)).rejects.toThrow('CASA "stopped-one" is not running');
+    await expect(pm.stop("stopped-one" as BotName)).rejects.toThrow('bot "stopped-one" is not running');
   });
 
-  it("getPortAndToken returns port and token for live CASA", async () => {
+  it("getPortAndToken returns port and token for live bot", async () => {
     const mockChild = createMockChild();
     const mockSpawn = createMockSpawn(mockChild);
 
@@ -394,17 +394,17 @@ describe("createProcessManager", () => {
     expect(pt!.token).toBe(info.token);
   });
 
-  it("getPortAndToken returns undefined for non-live CASA", () => {
+  it("getPortAndToken returns undefined for non-live bot", () => {
     const pm = createProcessManager({ mechaDir: tempDir });
-    expect(pm.getPortAndToken("nope" as CasaName)).toBeUndefined();
+    expect(pm.getPortAndToken("nope" as BotName)).toBeUndefined();
   });
 
-  it("getPortAndToken recovers port+token from config.json when CASA is alive but not in live Map", () => {
+  it("getPortAndToken recovers port+token from config.json when bot is alive but not in live Map", () => {
 
-    const casaDir = join(tempDir, "recover-me");
+    const botDir = join(tempDir, "recover-me");
 
     // Write state showing running with current process PID (alive)
-    writeState(casaDir, {
+    writeState(botDir, {
       name: "recover-me",
       state: "running",
       pid: process.pid,
@@ -414,7 +414,7 @@ describe("createProcessManager", () => {
     });
 
     // Write config.json with port+token
-    writeFileSync(join(casaDir, "config.json"), JSON.stringify({
+    writeFileSync(join(botDir, "config.json"), JSON.stringify({
       port: 7777,
       token: "mecha_recovered_token",
       workspace: "/tmp",
@@ -423,17 +423,17 @@ describe("createProcessManager", () => {
     // Create a NEW ProcessManager (simulating CLI restart — empty live Map)
     const pm = createProcessManager({ mechaDir: tempDir });
 
-    const pt = pm.getPortAndToken("recover-me" as CasaName);
+    const pt = pm.getPortAndToken("recover-me" as BotName);
     expect(pt).toBeDefined();
     expect(pt!.port).toBe(7777);
     expect(pt!.token).toBe("mecha_recovered_token");
   });
 
-  it("getPortAndToken returns undefined when CASA state is running but PID is dead", () => {
+  it("getPortAndToken returns undefined when bot state is running but PID is dead", () => {
 
-    const casaDir = join(tempDir, "dead-recover");
+    const botDir = join(tempDir, "dead-recover");
 
-    writeState(casaDir, {
+    writeState(botDir, {
       name: "dead-recover",
       state: "running",
       pid: 999999999,
@@ -442,7 +442,7 @@ describe("createProcessManager", () => {
       startedAt: "2026-01-01T00:00:00Z",
     });
 
-    writeFileSync(join(casaDir, "config.json"), JSON.stringify({
+    writeFileSync(join(botDir, "config.json"), JSON.stringify({
       port: 7778,
       token: "mecha_dead_token",
       workspace: "/tmp",
@@ -450,13 +450,13 @@ describe("createProcessManager", () => {
 
     const pm = createProcessManager({ mechaDir: tempDir });
     // PID is dead, so recovery should not return config data
-    expect(pm.getPortAndToken("dead-recover" as CasaName)).toBeUndefined();
+    expect(pm.getPortAndToken("dead-recover" as BotName)).toBeUndefined();
   });
 
   it("getPortAndToken returns undefined when config.json is missing", () => {
-    const casaDir = join(tempDir, "no-config");
+    const botDir = join(tempDir, "no-config");
 
-    writeState(casaDir, {
+    writeState(botDir, {
       name: "no-config",
       state: "running",
       pid: process.pid,
@@ -467,14 +467,14 @@ describe("createProcessManager", () => {
 
     // No config.json written
     const pm = createProcessManager({ mechaDir: tempDir });
-    expect(pm.getPortAndToken("no-config" as CasaName)).toBeUndefined();
+    expect(pm.getPortAndToken("no-config" as BotName)).toBeUndefined();
   });
 
   it("getPortAndToken returns undefined when config.json is malformed", () => {
 
-    const casaDir = join(tempDir, "bad-config");
+    const botDir = join(tempDir, "bad-config");
 
-    writeState(casaDir, {
+    writeState(botDir, {
       name: "bad-config",
       state: "running",
       pid: process.pid,
@@ -483,10 +483,10 @@ describe("createProcessManager", () => {
       startedAt: "2026-01-01T00:00:00Z",
     });
 
-    writeFileSync(join(casaDir, "config.json"), "not-valid-json{{{");
+    writeFileSync(join(botDir, "config.json"), "not-valid-json{{{");
 
     const pm = createProcessManager({ mechaDir: tempDir });
-    expect(pm.getPortAndToken("bad-config" as CasaName)).toBeUndefined();
+    expect(pm.getPortAndToken("bad-config" as BotName)).toBeUndefined();
   });
 
   it("onEvent fires on spawn", async () => {
@@ -516,8 +516,8 @@ describe("createProcessManager", () => {
 
   it("recovers stopped state on init when PID is dead", () => {
     // Write a "running" state with a PID that doesn't exist
-    const casaDir = join(tempDir, "ghost");
-    const state: CasaState = {
+    const botDir = join(tempDir, "ghost");
+    const state: BotState = {
       name: "ghost",
       state: "running",
       pid: 999999999, // very unlikely to be real
@@ -525,14 +525,14 @@ describe("createProcessManager", () => {
       workspacePath: "/tmp",
       startedAt: "2026-01-01T00:00:00Z",
     };
-    writeState(casaDir, state);
+    writeState(botDir, state);
 
     const pm = createProcessManager({ mechaDir: tempDir });
-    const info = pm.get("ghost" as CasaName);
+    const info = pm.get("ghost" as BotName);
     expect(info?.state).toBe("stopped");
   });
 
-  it("logs returns readable stream for existing CASA", async () => {
+  it("logs returns readable stream for existing bot", async () => {
     const mockChild = createMockChild();
     const mockSpawn = createMockSpawn(mockChild);
 
@@ -555,9 +555,9 @@ describe("createProcessManager", () => {
     await new Promise<void>((resolve) => stream.on("close", resolve));
   });
 
-  it("logs throws CasaNotFoundError for unknown CASA", () => {
+  it("logs throws BotNotFoundError for unknown bot", () => {
     const pm = createProcessManager({ mechaDir: tempDir });
-    expect(() => pm.logs("nope" as CasaName)).toThrow('CASA "nope" not found');
+    expect(() => pm.logs("nope" as BotName)).toThrow('bot "nope" not found');
   });
 
   it("passes custom env to child process", async () => {
@@ -581,7 +581,7 @@ describe("createProcessManager", () => {
     const spawnCall = mockSpawn.mock.calls[0]!;
     const envArg = spawnCall[2]?.env as Record<string, string>;
     expect(envArg.CUSTOM_VAR).toBe("custom_value");
-    expect(envArg.MECHA_CASA_NAME).toBe(testName);
+    expect(envArg.MECHA_BOT_NAME).toBe(testName);
     expect(envArg.MECHA_PORT).toBe(String(healthPort));
   });
 
@@ -608,7 +608,7 @@ describe("createProcessManager", () => {
     expect(envArg.SAFE_KEY).toBe("ok");
     // Security vars applied last — user overrides are stripped
     expect(envArg.MECHA_AUTH_TOKEN).toMatch(/^mecha_/);
-    expect(envArg.HOME).toContain("home"); // casaDir/home, not /evil
+    expect(envArg.HOME).toContain("home"); // botDir/home, not /evil
   });
 
   it("throws ProcessSpawnError when spawnFn throws", async () => {
@@ -710,8 +710,8 @@ describe("createProcessManager", () => {
     // Wait for the queued error event to fire and write state — if the error
     // handler was NOT registered before the throw, this would crash with
     // "unhandled 'error' event"
-    const casaDir = join(tempDir, testName);
-    const stateFile = join(casaDir, "state.json");
+    const botDir = join(tempDir, testName);
+    const stateFile = join(botDir, "state.json");
     await vi.waitFor(() => {
       expect(existsSync(stateFile)).toBe(true);
     });
@@ -748,8 +748,8 @@ describe("createProcessManager", () => {
 
   it("stop handles running state without live handle (dead PID)", async () => {
     // Write a "running" state with a dead PID
-    const casaDir = join(tempDir, "orphan");
-    const state: CasaState = {
+    const botDir = join(tempDir, "orphan");
+    const state: BotState = {
       name: "orphan",
       state: "running",
       pid: 999999999,
@@ -757,18 +757,18 @@ describe("createProcessManager", () => {
       workspacePath: "/tmp",
       startedAt: "2026-01-01T00:00:00Z",
     };
-    writeState(casaDir, state);
+    writeState(botDir, state);
 
     const pm = createProcessManager({ mechaDir: tempDir });
 
-    // After recovery, state should be stopped, so stop should throw CasaNotRunningError
-    await expect(pm.stop("orphan" as CasaName)).rejects.toThrow('CASA "orphan" is not running');
+    // After recovery, state should be stopped, so stop should throw BotNotRunningError
+    await expect(pm.stop("orphan" as BotName)).rejects.toThrow('bot "orphan" is not running');
   });
 
   it("kill handles state without live handle (dead PID)", async () => {
     // Write a "running" state — recovery will mark it stopped
-    const casaDir = join(tempDir, "dead-kill");
-    const state: CasaState = {
+    const botDir = join(tempDir, "dead-kill");
+    const state: BotState = {
       name: "dead-kill",
       state: "running",
       pid: 999999999,
@@ -776,19 +776,19 @@ describe("createProcessManager", () => {
       workspacePath: "/tmp",
       startedAt: "2026-01-01T00:00:00Z",
     };
-    writeState(casaDir, state);
+    writeState(botDir, state);
 
     const pm = createProcessManager({ mechaDir: tempDir });
     // Kill should still work — writes stopped state
-    await pm.kill("dead-kill" as CasaName);
-    const info = pm.get("dead-kill" as CasaName);
+    await pm.kill("dead-kill" as BotName);
+    const info = pm.get("dead-kill" as BotName);
     expect(info?.state).toBe("stopped");
   });
 
   it("kill with live PID but no live handle", async () => {
     // Write a running state with current process PID (which IS alive)
-    const casaDir = join(tempDir, "kill-live-pid");
-    const state: CasaState = {
+    const botDir = join(tempDir, "kill-live-pid");
+    const state: BotState = {
       name: "kill-live-pid",
       state: "running",
       pid: process.pid, // current process — alive
@@ -796,7 +796,7 @@ describe("createProcessManager", () => {
       workspacePath: "/tmp",
       startedAt: "2026-01-01T00:00:00Z",
     };
-    writeState(casaDir, state);
+    writeState(botDir, state);
 
     // Create PM AFTER writing state so recovery sees it alive
     // But we need to mock process.kill to avoid actually sending SIGKILL
@@ -811,7 +811,7 @@ describe("createProcessManager", () => {
 
     try {
       const pm = createProcessManager({ mechaDir: tempDir });
-      await pm.kill("kill-live-pid" as CasaName);
+      await pm.kill("kill-live-pid" as BotName);
       expect(killCalls.some(([, sig]) => sig === "SIGKILL")).toBe(true);
     } finally {
       process.kill = origKill;
@@ -819,8 +819,8 @@ describe("createProcessManager", () => {
   });
 
   it("stop with live PID but no live handle sends SIGTERM then resolves", async () => {
-    const casaDir = join(tempDir, "stop-live-pid");
-    const state: CasaState = {
+    const botDir = join(tempDir, "stop-live-pid");
+    const state: BotState = {
       name: "stop-live-pid",
       state: "running",
       pid: process.pid,
@@ -828,7 +828,7 @@ describe("createProcessManager", () => {
       workspacePath: "/tmp",
       startedAt: "2026-01-01T00:00:00Z",
     };
-    writeState(casaDir, state);
+    writeState(botDir, state);
 
     const origKill = process.kill;
     const killCalls: Array<[number, string | number]> = [];
@@ -847,7 +847,7 @@ describe("createProcessManager", () => {
 
     try {
       const pm = createProcessManager({ mechaDir: tempDir });
-      await pm.stop("stop-live-pid" as CasaName);
+      await pm.stop("stop-live-pid" as BotName);
       expect(killCalls.some(([, sig]) => sig === "SIGTERM")).toBe(true);
     } finally {
       process.kill = origKill;
@@ -856,25 +856,25 @@ describe("createProcessManager", () => {
 
   it("logs returns empty stream when no log file exists", () => {
     // Write state but don't create log files
-    const casaDir = join(tempDir, "no-logs");
-    mkdirSync(casaDir, { recursive: true });
-    const state: CasaState = {
+    const botDir = join(tempDir, "no-logs");
+    mkdirSync(botDir, { recursive: true });
+    const state: BotState = {
       name: "no-logs",
       state: "stopped",
       workspacePath: "/tmp",
     };
-    writeState(casaDir, state);
+    writeState(botDir, state);
 
     const pm = createProcessManager({ mechaDir: tempDir });
-    const stream = pm.logs("no-logs" as CasaName);
+    const stream = pm.logs("no-logs" as BotName);
     expect(stream).toBeDefined();
     stream.destroy();
   });
 
-  it("list recovers dead PID state for non-live CASAs", () => {
+  it("list recovers dead PID state for non-live bots", () => {
     // Write a running state with dead PID
-    const casaDir = join(tempDir, "list-dead");
-    const state: CasaState = {
+    const botDir = join(tempDir, "list-dead");
+    const state: BotState = {
       name: "list-dead",
       state: "running",
       pid: 999999999,
@@ -882,7 +882,7 @@ describe("createProcessManager", () => {
       workspacePath: "/tmp",
       startedAt: "2026-01-01T00:00:00Z",
     };
-    writeState(casaDir, state);
+    writeState(botDir, state);
 
     const pm = createProcessManager({ mechaDir: tempDir });
     const all = pm.list();
@@ -890,9 +890,9 @@ describe("createProcessManager", () => {
     expect(all[0]!.state).toBe("stopped");
   });
 
-  it("get recovers dead PID state for non-live CASA", () => {
-    const casaDir = join(tempDir, "get-dead");
-    const state: CasaState = {
+  it("get recovers dead PID state for non-live bot", () => {
+    const botDir = join(tempDir, "get-dead");
+    const state: BotState = {
       name: "get-dead",
       state: "running",
       pid: 999999999,
@@ -900,17 +900,17 @@ describe("createProcessManager", () => {
       workspacePath: "/tmp",
       startedAt: "2026-01-01T00:00:00Z",
     };
-    writeState(casaDir, state);
+    writeState(botDir, state);
 
     const pm = createProcessManager({ mechaDir: tempDir });
-    const info = pm.get("get-dead" as CasaName);
+    const info = pm.get("get-dead" as BotName);
     expect(info?.state).toBe("stopped");
     expect(info?.stoppedAt).toBeDefined();
   });
 
-  it("throws CasaAlreadyExistsError when state shows running with alive PID", async () => {
-    const casaDir = join(tempDir, testName);
-    const state: CasaState = {
+  it("throws BotAlreadyExistsError when state shows running with alive PID", async () => {
+    const botDir = join(tempDir, testName);
+    const state: BotState = {
       name: testName,
       state: "running",
       pid: process.pid, // current process — alive
@@ -918,7 +918,7 @@ describe("createProcessManager", () => {
       workspacePath: "/tmp",
       startedAt: "2026-01-01T00:00:00Z",
     };
-    writeState(casaDir, state);
+    writeState(botDir, state);
 
     const mockChild = createMockChild();
     const mockSpawn = createMockSpawn(mockChild);
@@ -936,7 +936,7 @@ describe("createProcessManager", () => {
         workspacePath: tempDir,
         port: healthPort,
       }),
-    ).rejects.toThrow('CASA "test-casa" already exists');
+    ).rejects.toThrow('bot "test-bot" already exists');
   });
 
   it("stop escalates to SIGKILL when child does not exit after SIGTERM", async () => {
@@ -977,7 +977,7 @@ describe("createProcessManager", () => {
     expect(mockChild.kill).toHaveBeenCalledWith("SIGKILL");
   });
 
-  it("re-spawns CASA after stop", async () => {
+  it("re-spawns bot after stop", async () => {
     const mockChild1 = createMockChild(111);
     const mockChild2 = createMockChild(222);
     let callCount = 0;
@@ -1011,7 +1011,7 @@ describe("createProcessManager", () => {
     expect(info2.pid).toBe(222);
   });
 
-  it("tracks multiple concurrent CASAs in live map", async () => {
+  it("tracks multiple concurrent bots in live map", async () => {
     const mockChild1 = createMockChild(111);
     const mockChild2 = createMockChild(222);
     let callCount = 0;
@@ -1027,30 +1027,30 @@ describe("createProcessManager", () => {
       runtimeEntrypoint: "/fake/runtime.js",
     });
 
-    // Spawn first CASA
+    // Spawn first bot
     const info1 = await pm.spawn({
       name: testName,
       workspacePath: tempDir,
       port: healthPort,
     });
 
-    // Spawn second CASA
+    // Spawn second bot
     const info2 = await pm.spawn({
-      name: "second-casa" as CasaName,
+      name: "second-bot" as BotName,
       workspacePath: tempDir,
       port: healthPort,
     });
 
-    // Both CASAs are live and tracked
+    // Both bots are live and tracked
     expect(info1.port).toBe(healthPort);
-    expect(info2.name).toBe("second-casa");
+    expect(info2.name).toBe("second-bot");
     expect(info2.pid).toBe(222);
     expect(info2.port).toBe(healthPort);
 
     // Verify both are in the live list
     const list = pm.list();
     expect(list).toHaveLength(2);
-    expect(list.map((c) => c.name).sort()).toEqual(["second-casa", testName].sort());
+    expect(list.map((c) => c.name).sort()).toEqual(["second-bot", testName].sort());
   });
 
   it("auto-allocates port when not provided", async () => {
@@ -1077,23 +1077,23 @@ describe("createProcessManager", () => {
 
     // Verify spawn was called (directory creation happened)
     expect(mockSpawn).toHaveBeenCalledOnce();
-    const casaDir = join(tempDir, testName);
-    expect(existsSync(join(casaDir, "home", ".claude", "hooks"))).toBe(true);
+    const botDir = join(tempDir, testName);
+    expect(existsSync(join(botDir, "home", ".claude", "hooks"))).toBe(true);
   });
 
   it("logs returns existing log file stream", async () => {
-    // Create a CASA with a log file that has content
-    const casaDir = join(tempDir, "with-logs");
-    mkdirSync(join(casaDir, "logs"), { recursive: true });
-    writeFileSync(join(casaDir, "logs", "stdout.log"), "line 1\nline 2\n");
-    writeState(casaDir, {
+    // Create a bot with a log file that has content
+    const botDir = join(tempDir, "with-logs");
+    mkdirSync(join(botDir, "logs"), { recursive: true });
+    writeFileSync(join(botDir, "logs", "stdout.log"), "line 1\nline 2\n");
+    writeState(botDir, {
       name: "with-logs",
       state: "stopped",
       workspacePath: "/tmp",
     });
 
     const pm = createProcessManager({ mechaDir: tempDir });
-    const stream = pm.logs("with-logs" as CasaName);
+    const stream = pm.logs("with-logs" as BotName);
     const chunks: string[] = [];
     for await (const chunk of stream) {
       chunks.push(chunk as string);
@@ -1101,29 +1101,29 @@ describe("createProcessManager", () => {
     expect(chunks.join("")).toContain("line 1");
   });
 
-  it("recovery skips casas with corrupted state file", () => {
-    // Create a casa dir with corrupted state.json (listCasaDirs will find it, readState returns undefined)
-    const casaDir = join(tempDir, "corrupt-casa");
-    mkdirSync(casaDir, { recursive: true });
-    writeFileSync(join(casaDir, "state.json"), "not-valid-json{{{");
+  it("recovery skips bots with corrupted state file", () => {
+    // Create a bot dir with corrupted state.json (listBotDirs will find it, readState returns undefined)
+    const botDir = join(tempDir, "corrupt-bot");
+    mkdirSync(botDir, { recursive: true });
+    writeFileSync(join(botDir, "state.json"), "not-valid-json{{{");
 
     // Should not throw
     const pm = createProcessManager({ mechaDir: tempDir });
-    const info = pm.get("corrupt-casa" as CasaName);
+    const info = pm.get("corrupt-bot" as BotName);
     expect(info).toBeUndefined();
   });
 
-  it("recovery skips stopped casas", () => {
-    const casaDir = join(tempDir, "already-stopped");
-    const state: CasaState = {
+  it("recovery skips stopped bots", () => {
+    const botDir = join(tempDir, "already-stopped");
+    const state: BotState = {
       name: "already-stopped",
       state: "stopped",
       workspacePath: "/tmp",
     };
-    writeState(casaDir, state);
+    writeState(botDir, state);
 
     const pm = createProcessManager({ mechaDir: tempDir });
-    const info = pm.get("already-stopped" as CasaName);
+    const info = pm.get("already-stopped" as BotName);
     expect(info?.state).toBe("stopped");
   });
 
@@ -1245,8 +1245,8 @@ describe("createProcessManager", () => {
     const pm = createProcessManager({ mechaDir: tempDir });
 
     // Write state AFTER PM init (simulating external state change)
-    const casaDir = join(tempDir, "late-dead");
-    writeState(casaDir, {
+    const botDir = join(tempDir, "late-dead");
+    writeState(botDir, {
       name: "late-dead",
       state: "running",
       pid: 999999999,
@@ -1255,7 +1255,7 @@ describe("createProcessManager", () => {
       startedAt: "2026-01-01T00:00:00Z",
     });
 
-    const info = pm.get("late-dead" as CasaName);
+    const info = pm.get("late-dead" as BotName);
     expect(info?.state).toBe("stopped");
     expect(info?.stoppedAt).toBeDefined();
   });
@@ -1264,8 +1264,8 @@ describe("createProcessManager", () => {
     const pm = createProcessManager({ mechaDir: tempDir });
 
     // Write state AFTER PM init
-    const casaDir = join(tempDir, "late-dead-list");
-    writeState(casaDir, {
+    const botDir = join(tempDir, "late-dead-list");
+    writeState(botDir, {
       name: "late-dead-list",
       state: "running",
       pid: 999999999,
@@ -1279,10 +1279,10 @@ describe("createProcessManager", () => {
     expect(all[0]!.state).toBe("stopped");
   });
 
-  it("list skips casas with corrupted state file", () => {
-    const casaDir = join(tempDir, "corrupt-list");
-    mkdirSync(casaDir, { recursive: true });
-    writeFileSync(join(casaDir, "state.json"), "not-valid-json{{{");
+  it("list skips bots with corrupted state file", () => {
+    const botDir = join(tempDir, "corrupt-list");
+    mkdirSync(botDir, { recursive: true });
+    writeFileSync(join(botDir, "state.json"), "not-valid-json{{{");
     const pm = createProcessManager({ mechaDir: tempDir });
     expect(pm.list()).toHaveLength(0);
   });
@@ -1324,8 +1324,8 @@ describe("createProcessManager", () => {
     const pm = createProcessManager({ mechaDir: tempDir });
 
     // Write state AFTER init with running+dead PID
-    const casaDir = join(tempDir, "dead-running");
-    writeState(casaDir, {
+    const botDir = join(tempDir, "dead-running");
+    writeState(botDir, {
       name: "dead-running",
       state: "running",
       pid: 999999999,
@@ -1335,14 +1335,14 @@ describe("createProcessManager", () => {
     });
 
     // stop should succeed — PID is dead, just update state
-    await pm.stop("dead-running" as CasaName);
-    const info = pm.get("dead-running" as CasaName);
+    await pm.stop("dead-running" as BotName);
+    const info = pm.get("dead-running" as BotName);
     expect(info?.state).toBe("stopped");
   });
 
   it("stop with PID still alive after SIGTERM waits then sends SIGKILL", async () => {
-    const casaDir = join(tempDir, "stubborn");
-    writeState(casaDir, {
+    const botDir = join(tempDir, "stubborn");
+    writeState(botDir, {
       name: "stubborn",
       state: "running",
       pid: process.pid,
@@ -1375,7 +1375,7 @@ describe("createProcessManager", () => {
 
     try {
       const pm = createProcessManager({ mechaDir: tempDir });
-      await pm.stop("stubborn" as CasaName);
+      await pm.stop("stubborn" as BotName);
       expect(killCalls.some(([, sig]) => sig === "SIGTERM")).toBe(true);
       expect(killCalls.some(([, sig]) => sig === "SIGKILL")).toBe(true);
     } finally {
@@ -1384,11 +1384,11 @@ describe("createProcessManager", () => {
     }
   });
 
-  it("throws InvalidNameError on invalid CASA name (path traversal)", async () => {
+  it("throws InvalidNameError on invalid bot name (path traversal)", async () => {
     const { InvalidNameError } = await import("@mecha/core");
     const pm = createProcessManager({ mechaDir: tempDir, runtimeEntrypoint: "/fake/runtime.js" });
     await expect(
-      pm.spawn({ name: "../etc" as CasaName, workspacePath: "/ws" }),
+      pm.spawn({ name: "../etc" as BotName, workspacePath: "/ws" }),
     ).rejects.toThrow(InvalidNameError);
   });
 

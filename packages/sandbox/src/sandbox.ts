@@ -79,11 +79,11 @@ export function createSandbox(platformOverride?: SandboxPlatform): Sandbox {
     profile: SandboxProfile,
     runtimeBin: string,
     runtimeArgs: string[],
-    casaDir: string,
+    botDir: string,
   ): Promise<SandboxWrapResult> {
     if (plat === "macos") {
       const sbpl = generateSbpl(profile);
-      const profilePath = writeProfileMacos(casaDir, sbpl);
+      const profilePath = writeProfileMacos(botDir, sbpl);
       /* v8 ignore start -- resolveCommand returns absolute path on macOS */
       const sandboxBin = resolveCommand("sandbox-exec") ?? "sandbox-exec";
       /* v8 ignore stop */

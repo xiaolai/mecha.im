@@ -8,7 +8,7 @@ export async function executeNodeInfo(deps: CommandDeps): Promise<void> {
   const info = collectNodeInfo({
     port: 0,
     startedAt: new Date().toISOString(),
-    casaCount: deps.processManager.list().filter((p) => p.state === "running").length,
+    botCount: deps.processManager.list().filter((p) => p.state === "running").length,
     publicIp,
   });
 
@@ -31,7 +31,7 @@ export async function executeNodeInfo(deps: CommandDeps): Promise<void> {
     "Resources:",
     `  CPUs:       ${info.cpuCount}`,
     `  Memory:     ${info.totalMemMB} MB total / ${info.freeMemMB} MB free`,
-    `  CASAs:      ${info.casaCount} running`,
+    `  bots:      ${info.botCount} running`,
   ];
   for (const line of lines) {
     deps.formatter.info(line);

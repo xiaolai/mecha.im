@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 
 export interface HealthRouteOpts {
-  casaName: string;
+  botName: string;
   port: number;
   startedAt: string;
 }
@@ -17,7 +17,7 @@ export function registerHealthRoutes(
   app.get("/info", async () => {
     const mem = process.memoryUsage();
     return {
-      name: opts.casaName,
+      name: opts.botName,
       port: opts.port,
       startedAt: opts.startedAt,
       uptime: process.uptime(),

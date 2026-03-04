@@ -27,7 +27,7 @@ export interface AuthCredentialStore {
   [name: string]: { token: string };
 }
 
-/** Result of resolving auth for a CASA */
+/** Result of resolving auth for a bot */
 export interface ResolvedAuth {
   profileName: string;
   type: "oauth" | "api-key";
@@ -117,7 +117,7 @@ export function authEnvVar(type: "oauth" | "api-key"): "CLAUDE_CODE_OAUTH_TOKEN"
 }
 
 /**
- * Resolve auth credentials for a CASA.
+ * Resolve auth credentials for a bot.
  *
  * Resolution chain:
  * 1. Explicit profile name → look up → error if not found

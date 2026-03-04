@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { casaName } from "@mecha/core";
-import { casaSessionList, casaSessionGet } from "@mecha/service";
+import { botName } from "@mecha/core";
+import { botSessionList, botSessionGet } from "@mecha/service";
 import type { MeshMcpContext } from "../types.js";
 import { textResult, errorResult, withAuditAndRateLimit, annotationsFor } from "./helpers.js";
 
@@ -10,9 +10,9 @@ export function registerSessionTools(server: McpServer, ctx: MeshMcpContext): vo
   server.registerTool(
     "mecha_list_sessions",
     {
-      description: "List sessions for a local CASA",
+      description: "List sessions for a local bot",
       inputSchema: {
-        target: z.string().describe("CASA name"),
+        target: z.string().describe("bot name"),
         limit: z.number().optional().describe("Max sessions to return"),
       },
       annotations: annotationsFor("mecha_list_sessions"),
@@ -22,10 +22,10 @@ export function registerSessionTools(server: McpServer, ctx: MeshMcpContext): vo
       const limit = args.limit as number | undefined;
 
       try {
-        const sessions = await casaSessionList(ctx.pm, casaName(target));
+        const sessions = await botSessionList(ctx.pm, botName(target));
         const limited = limit !== undefined && limit > 0 ? sessions.slice(0, limit) : sessions;
         if (limited.length === 0) {
-          return textResult(`No sessions found for CASA "${target}".`);
+          return textResult(`No sessions found for bot "${target}".`);
         }
         return textResult(JSON.stringify(limited, null, 2));
       } catch (err: unknown) {
@@ -40,9 +40,9 @@ export function registerSessionTools(server: McpServer, ctx: MeshMcpContext): vo
   server.registerTool(
     "mecha_get_session",
     {
-      description: "Get session detail for a local CASA",
+      description: "Get session detail for a local bot",
       inputSchema: {
-        target: z.string().describe("CASA name"),
+        target: z.string().describe("bot name"),
         sessionId: z.string().describe("Session ID"),
       },
       annotations: annotationsFor("mecha_get_session"),
@@ -52,9 +52,9 @@ export function registerSessionTools(server: McpServer, ctx: MeshMcpContext): vo
       const sessionId = args.sessionId as string;
 
       try {
-        const session = await casaSessionGet(ctx.pm, casaName(target), sessionId);
+        const session = await botSessionGet(ctx.pm, botName(target), sessionId);
         if (!session) {
-          return errorResult(`Session "${sessionId}" not found for CASA "${target}".`);
+          return errorResult(`Session "${sessionId}" not found for bot "${target}".`);
         }
         return textResult(JSON.stringify(session, null, 2));
       } catch (err: unknown) {

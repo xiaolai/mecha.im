@@ -35,8 +35,8 @@ function atomicWrite(filePath: string, data: string): void {
 
 const EMPTY_CONFIG: ScheduleConfig = { schedules: [] };
 
-export function readScheduleConfig(casaDir: string): ScheduleConfig {
-  const configPath = join(casaDir, "schedule.json");
+export function readScheduleConfig(botDir: string): ScheduleConfig {
+  const configPath = join(botDir, "schedule.json");
   const result = safeReadJson(configPath, "schedule config", ScheduleConfigSchema);
   if (!result.ok) {
     /* v8 ignore start -- corrupt/unreadable config fallback */
@@ -49,23 +49,23 @@ export function readScheduleConfig(casaDir: string): ScheduleConfig {
   return result.data;
 }
 
-export function writeScheduleConfig(casaDir: string, config: ScheduleConfig): void {
-  atomicWrite(join(casaDir, "schedule.json"), JSON.stringify(config, null, 2) + "\n");
+export function writeScheduleConfig(botDir: string, config: ScheduleConfig): void {
+  atomicWrite(join(botDir, "schedule.json"), JSON.stringify(config, null, 2) + "\n");
 }
 
 // --- Per-schedule state (schedules/<id>/state.json) ---
 
 const SAFE_ID_RE = /^[a-z0-9][a-z0-9-]*$/;
 
-function scheduleDir(casaDir: string, scheduleId: string): string {
+function scheduleDir(botDir: string, scheduleId: string): string {
   if (!SAFE_ID_RE.test(scheduleId)) {
     throw new Error(`Invalid schedule ID: "${scheduleId}"`);
   }
-  return join(casaDir, "schedules", scheduleId);
+  return join(botDir, "schedules", scheduleId);
 }
 
-export function readScheduleState(casaDir: string, scheduleId: string): ScheduleState | undefined {
-  const statePath = join(scheduleDir(casaDir, scheduleId), "state.json");
+export function readScheduleState(botDir: string, scheduleId: string): ScheduleState | undefined {
+  const statePath = join(scheduleDir(botDir, scheduleId), "state.json");
   const result = safeReadJson(statePath, `schedule "${scheduleId}" state`, ScheduleStateSchema);
   if (!result.ok) {
     /* v8 ignore start -- corrupt/unreadable state fallback */
@@ -78,20 +78,20 @@ export function readScheduleState(casaDir: string, scheduleId: string): Schedule
   return result.data;
 }
 
-export function writeScheduleState(casaDir: string, scheduleId: string, state: ScheduleState): void {
-  atomicWrite(join(scheduleDir(casaDir, scheduleId), "state.json"), JSON.stringify(state, null, 2) + "\n");
+export function writeScheduleState(botDir: string, scheduleId: string, state: ScheduleState): void {
+  atomicWrite(join(scheduleDir(botDir, scheduleId), "state.json"), JSON.stringify(state, null, 2) + "\n");
 }
 
 // --- Run history (schedules/<id>/history.jsonl) ---
 
-export function appendRunHistory(casaDir: string, scheduleId: string, result: ScheduleRunResult): void {
-  const dir = scheduleDir(casaDir, scheduleId);
+export function appendRunHistory(botDir: string, scheduleId: string, result: ScheduleRunResult): void {
+  const dir = scheduleDir(botDir, scheduleId);
   mkdirSync(dir, { recursive: true });
   appendFileSync(join(dir, "history.jsonl"), JSON.stringify(result) + "\n", "utf-8");
 }
 
-export function readRunHistory(casaDir: string, scheduleId: string, limit?: number): ScheduleRunResult[] {
-  const historyPath = join(scheduleDir(casaDir, scheduleId), "history.jsonl");
+export function readRunHistory(botDir: string, scheduleId: string, limit?: number): ScheduleRunResult[] {
+  const historyPath = join(scheduleDir(botDir, scheduleId), "history.jsonl");
   if (!existsSync(historyPath)) return [];
   try {
     const raw = readFileSync(historyPath, "utf-8");
@@ -119,8 +119,8 @@ export function readRunHistory(casaDir: string, scheduleId: string, limit?: numb
 }
 
 /** Remove all state and history for a schedule. */
-export function removeScheduleData(casaDir: string, scheduleId: string): void {
-  const dir = scheduleDir(casaDir, scheduleId);
+export function removeScheduleData(botDir: string, scheduleId: string): void {
+  const dir = scheduleDir(botDir, scheduleId);
   if (!existsSync(dir)) return;
   rmSync(dir, { recursive: true, force: true });
 }

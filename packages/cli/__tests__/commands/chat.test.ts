@@ -2,12 +2,12 @@ import { describe, it, expect, vi } from "vitest";
 import { createProgram } from "../../src/program.js";
 import { makeDeps } from "../test-utils.js";
 
-// Mock casaChat to return an async iterable
+// Mock botChat to return an async iterable
 vi.mock("@mecha/service", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@mecha/service")>();
   return {
     ...actual,
-    casaChat: vi.fn().mockResolvedValue({
+    botChat: vi.fn().mockResolvedValue({
       async *[Symbol.asyncIterator]() {
         yield { type: "text", content: "Hello " };
         yield { type: "text", content: "world" };
@@ -29,7 +29,7 @@ describe("chat command", () => {
     process.stdout.write = ((chunk: string) => { writes.push(chunk); return true; }) as typeof process.stdout.write;
 
     try {
-      await program.parseAsync(["node", "mecha", "casa", "chat", "researcher", "Hello"]);
+      await program.parseAsync(["node", "mecha", "bot", "chat", "researcher", "Hello"]);
     } finally {
       process.stdout.write = origWrite;
     }
@@ -44,13 +44,13 @@ describe("chat command", () => {
     program.exitOverride();
 
     await expect(
-      program.parseAsync(["node", "mecha", "casa", "chat", "researcher"]),
+      program.parseAsync(["node", "mecha", "bot", "chat", "researcher"]),
     ).rejects.toThrow(); // Commander throws on missing required argument <message>
   });
 
   it("handles runtime 501 error from chat endpoint", async () => {
-    const { casaChat } = await import("@mecha/service");
-    vi.mocked(casaChat).mockRejectedValueOnce(
+    const { botChat } = await import("@mecha/service");
+    vi.mocked(botChat).mockRejectedValueOnce(
       new Error("Chat is handled by Claude Agent SDK. Use 'claude' CLI or Agent SDK directly."),
     );
 
@@ -59,7 +59,7 @@ describe("chat command", () => {
     program.exitOverride();
 
     await expect(
-      program.parseAsync(["node", "mecha", "casa", "chat", "researcher", "Hello"]),
+      program.parseAsync(["node", "mecha", "bot", "chat", "researcher", "Hello"]),
     ).rejects.toThrow("Chat is handled by Claude Agent SDK");
   });
 });

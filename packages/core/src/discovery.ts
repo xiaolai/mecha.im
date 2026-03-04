@@ -27,7 +27,7 @@ export interface DiscoveryIndexEntry {
 export interface DiscoveryIndex {
   version: 1;
   updatedAt: string;
-  casas: DiscoveryIndexEntry[];
+  bots: DiscoveryIndexEntry[];
 }
 
 /**
