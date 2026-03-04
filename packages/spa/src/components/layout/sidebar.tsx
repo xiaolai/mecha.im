@@ -1,18 +1,22 @@
 import { Link, useLocation } from "react-router-dom";
 import {
   BoxIcon,
+  CalendarClockIcon,
   NetworkIcon,
   ShieldCheckIcon,
   ScrollTextIcon,
   SettingsIcon,
   XIcon,
+  LogOutIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TooltipIconButton } from "@/components/ui/tooltip-icon-button";
+import { useAuth } from "@/auth-context";
 
 const navItems = [
   { href: "/mesh", label: "Nodes", icon: NetworkIcon },
   { href: "/", label: "Bots", icon: BoxIcon },
+  { href: "/schedules", label: "Schedules", icon: CalendarClockIcon },
   { href: "/acl", label: "ACL", icon: ShieldCheckIcon },
   { href: "/audit", label: "Logs", icon: ScrollTextIcon },
   { href: "/settings", label: "Settings", icon: SettingsIcon },
@@ -25,6 +29,7 @@ interface SidebarProps {
 
 export function Sidebar({ open, onClose }: SidebarProps) {
   const { pathname } = useLocation();
+  const { logout } = useAuth();
 
   return (
     <>
@@ -48,7 +53,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         {/* Header */}
         <div className="flex h-12 items-center justify-between px-4">
           <div className="flex items-center gap-2">
-            <img src="/logo-40.png" alt="" className="size-6" />
+            <img src="/images/logo-40.png" alt="" className="size-6" />
             <span className="text-sm font-semibold text-sidebar-foreground">MECHA</span>
           </div>
           <div className="md:hidden">
@@ -86,6 +91,18 @@ export function Sidebar({ open, onClose }: SidebarProps) {
             );
           })}
         </nav>
+
+        {/* Footer */}
+        <div className="flex flex-col items-center gap-2 px-4 pb-4">
+          <img src="/images/login-bg.png" alt="" className="size-24 opacity-60" />
+          <button
+            onClick={logout}
+            className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          >
+            <LogOutIcon className="size-4" />
+            Log out
+          </button>
+        </div>
       </aside>
     </>
   );
