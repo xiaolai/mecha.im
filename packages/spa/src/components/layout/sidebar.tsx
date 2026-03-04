@@ -11,10 +11,10 @@ import { cn } from "@/lib/utils";
 import { TooltipIconButton } from "@/components/ui/tooltip-icon-button";
 
 const navItems = [
-  { href: "/", label: "bots", icon: BoxIcon },
-  { href: "/mesh", label: "Mesh", icon: NetworkIcon },
+  { href: "/mesh", label: "Nodes", icon: NetworkIcon },
+  { href: "/", label: "Bots", icon: BoxIcon },
   { href: "/acl", label: "ACL", icon: ShieldCheckIcon },
-  { href: "/audit", label: "Audit", icon: ScrollTextIcon },
+  { href: "/audit", label: "Logs", icon: ScrollTextIcon },
   { href: "/settings", label: "Settings", icon: SettingsIcon },
 ] as const;
 
@@ -47,7 +47,10 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       >
         {/* Header */}
         <div className="flex h-12 items-center justify-between px-4">
-          <span className="text-sm font-semibold text-sidebar-foreground">mecha</span>
+          <div className="flex items-center gap-2">
+            <img src="/logo-40.png" alt="" className="size-6" />
+            <span className="text-sm font-semibold text-sidebar-foreground">MECHA</span>
+          </div>
           <div className="md:hidden">
             <TooltipIconButton
               tooltip="Close sidebar"
