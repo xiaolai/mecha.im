@@ -4,6 +4,7 @@ import { DashboardLayout } from "@/pages/dashboard-layout";
 import { HomePage } from "@/pages/home";
 import { CasaDetailPage } from "@/pages/casa-detail";
 import { TerminalPage } from "@/pages/terminal";
+import { SessionDetailPage } from "@/pages/session-detail";
 import { AclPage } from "@/pages/acl";
 import { AuditPage } from "@/pages/audit";
 import { MeshPage } from "@/pages/mesh";
@@ -24,6 +25,7 @@ export function App() {
       <Route element={<DashboardLayout />}>
         <Route index element={<HomePage />} />
         <Route path="casa/:name" element={<CasaDetailPage />} />
+        <Route path="casa/:name/session/:id" element={<SessionDetailPage />} />
         <Route path="casa/:name/terminal" element={<TerminalPage />} />
         <Route path="mesh" element={<MeshPage />} />
         <Route path="acl" element={<AclPage />} />

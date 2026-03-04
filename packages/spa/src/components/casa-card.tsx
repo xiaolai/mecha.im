@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
 import {
   PlayIcon, RefreshCwIcon, SquareIcon, OctagonXIcon,
@@ -11,6 +11,7 @@ import { stateStyles } from "@/lib/casa-styles";
 import { useCasaAction } from "@/lib/use-casa-action";
 import { humanizeProfileName } from "@/lib/auth-utils";
 import { BusyWarningBanner } from "@/components/busy-warning-banner";
+import { ConfirmActionBanner } from "@/components/confirm-action-banner";
 
 export interface CasaInfo {
   name: string;
@@ -42,12 +43,16 @@ interface CasaCardProps {
 /** Tiny inline copy button — shows check icon briefly after copying. */
 function CopyBtn({ value }: { value: string }) {
   const [copied, setCopied] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(null);
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
   const handleCopy = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    navigator.clipboard.writeText(value);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    navigator.clipboard.writeText(value).then(() => {
+      setCopied(true);
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => setCopied(false), 1500);
+    }).catch(() => { /* clipboard denied — no feedback */ });
   }, [value]);
 
   return (
@@ -90,7 +95,7 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 
 export function CasaCard({ casa }: CasaCardProps) {
   const style = stateStyles[casa.state] ?? stateStyles.error;
-  const { acting, actionError, busyWarning, handleAction, confirmForce, dismissBusy } = useCasaAction(casa.name, undefined, casa.node);
+  const { acting, actionError, busyWarning, pendingConfirm, handleAction, confirmAction, dismissConfirm, confirmForce, dismissBusy } = useCasaAction(casa.name, undefined, casa.node);
 
   return (
     <div className="relative flex flex-col gap-3 rounded-lg border border-border bg-card p-4 transition-colors hover:bg-accent/50">
@@ -179,6 +184,17 @@ export function CasaCard({ casa }: CasaCardProps) {
       {/* Action error */}
       {actionError && (
         <div className="text-xs text-destructive">{actionError}</div>
+      )}
+
+      {/* Confirm action */}
+      {pendingConfirm && (
+        <ConfirmActionBanner
+          action={pendingConfirm}
+          name={casa.name}
+          onConfirm={confirmAction}
+          onCancel={dismissConfirm}
+          acting={acting}
+        />
       )}
 
       {/* Busy warning */}

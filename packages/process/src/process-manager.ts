@@ -92,7 +92,7 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
       renameSync(tmp, indexPath);
     /* v8 ignore start -- defensive: discovery index write failure should not crash lifecycle */
     } catch (err) {
-      emitter.emit({ type: "warning", name: "" as CasaName, message: `Failed to update discovery index: ${err instanceof Error ? err.message : String(err)}` });
+      emitter.emit({ type: "warning", name: "_system" as CasaName, message: `Failed to update discovery index: ${err instanceof Error ? err.message : String(err)}` });
     }
     /* v8 ignore stop */
   }
@@ -241,6 +241,29 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
       try { lp.child.kill("SIGKILL"); } catch { /* child already gone */ }
       await waitForChildExit(lp.child, 2000);
     }
+
+    // Defensive: ensure live map is cleaned up even if the "exit" event handler
+    // hasn't fired yet (e.g. SIGKILL timeout, event loop stall). Without this,
+    // a subsequent spawn() would throw CasaAlreadyExistsError.
+    /* v8 ignore start -- defensive cleanup for SIGKILL-surviving edge case */
+    if (live.has(name)) {
+      const pid = lp.child.pid;
+      const stillAlive = pid != null && isPidAlive(pid);
+      live.delete(name);
+      const state = readState(_casaDir(name));
+      if (state && state.state === "running") {
+        state.state = stillAlive ? "error" : "stopped";
+        state.stoppedAt = new Date().toISOString();
+        writeState(_casaDir(name), state);
+        _updateDiscoveryIndex();
+        if (stillAlive) {
+          emitter.emit({ type: "warning", name, message: `Process ${pid} did not exit after SIGKILL` });
+        } else {
+          emitter.emit({ type: "stopped", name });
+        }
+      }
+    }
+    /* v8 ignore stop */
     });
   }
 
@@ -262,7 +285,19 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
     }
 
     try { lp.child.kill("SIGKILL"); } catch { /* child already gone */ }
-    await waitForChildExit(lp.child, DEFAULTS.STOP_GRACE_MS);
+    const killed = await waitForChildExit(lp.child, DEFAULTS.STOP_GRACE_MS);
+    /* v8 ignore start -- SIGKILL-surviving edge case */
+    if (!killed && live.has(name)) {
+      live.delete(name);
+      const state = readState(_casaDir(name));
+      if (state && state.state === "running") {
+        state.state = "error";
+        writeState(_casaDir(name), state);
+        _updateDiscoveryIndex();
+        emitter.emit({ type: "warning", name, message: `Process did not exit after SIGKILL` });
+      }
+    }
+    /* v8 ignore stop */
     });
   }
 

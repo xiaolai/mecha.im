@@ -9,6 +9,7 @@ import { TooltipIconButton } from "@/components/ui/tooltip-icon-button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { SessionList } from "@/components/session-list";
 import { BusyWarningBanner } from "@/components/busy-warning-banner";
+import { ConfirmActionBanner } from "@/components/confirm-action-banner";
 import { cn } from "@/lib/utils";
 import { useFetch } from "@/lib/use-fetch";
 import { useCasaAction } from "@/lib/use-casa-action";
@@ -28,7 +29,7 @@ export function CasaDetail({ name, node }: CasaDetailProps) {
     { interval: 5000, deps: [name, node] },
   );
 
-  const { acting, actionError, busyWarning, handleAction, confirmForce, dismissBusy } = useCasaAction(name, refetch, node);
+  const { acting, actionError, busyWarning, pendingConfirm, handleAction, confirmAction, dismissConfirm, confirmForce, dismissBusy } = useCasaAction(name, refetch, node);
 
   if (loading && !casa) {
     return (
@@ -83,9 +84,9 @@ export function CasaDetail({ name, node }: CasaDetailProps) {
           )}
           {casa.state === "running" && (
             <>
-              <Button variant="default" size="sm" className="min-h-11 sm:min-h-0" asChild>
+              <Button variant="outline" size="sm" className="min-h-11 sm:min-h-0" asChild>
                 <Link to={`/casa/${encodeURIComponent(name)}/terminal${nodeQuery}`}>
-                  <TerminalSquareIcon className="size-4" /> Terminal
+                  <TerminalSquareIcon className="size-4" /> New Session with Terminal
                 </Link>
               </Button>
               <Button variant="outline" size="sm" className="min-h-11 sm:min-h-0" disabled={acting} onClick={() => handleAction("restart")}>
@@ -114,6 +115,17 @@ export function CasaDetail({ name, node }: CasaDetailProps) {
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
           {actionError}
         </div>
+      )}
+
+      {/* Confirm action */}
+      {pendingConfirm && (
+        <ConfirmActionBanner
+          action={pendingConfirm}
+          name={name}
+          onConfirm={confirmAction}
+          onCancel={dismissConfirm}
+          acting={acting}
+        />
       )}
 
       {/* Busy warning */}

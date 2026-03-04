@@ -407,6 +407,31 @@ Returns `409 CASA_BUSY` with `activeSessions` and `lastActivity` if the CASA has
 
 **`POST /casas/:name/kill`** — Force kill (SIGKILL).
 
+**`POST /casas/batch`** — Batch stop or restart all CASAs.
+
+| Body Field | Type | Default | Description |
+|------------|------|---------|-------------|
+| `action` | `"stop" \| "restart"` | — | Required. The batch action to perform |
+| `force` | `boolean` | `false` | Bypass busy check entirely |
+| `idleOnly` | `boolean` | `false` | Skip busy CASAs instead of failing |
+| `dryRun` | `boolean` | `false` | Check status without executing |
+| `names` | `string[]` | — | Optional filter to target specific CASAs |
+
+Always returns HTTP 200 with per-CASA results (partial completion model):
+
+```json
+{
+  "results": [
+    { "name": "alice", "status": "succeeded" },
+    { "name": "bob", "status": "skipped_busy", "activeSessions": 2 },
+    { "name": "charlie", "status": "failed", "error": "Config not found" }
+  ],
+  "summary": { "succeeded": 1, "skipped": 1, "failed": 1 }
+}
+```
+
+Status values: `succeeded`, `skipped_busy`, `skipped_stopped`, `failed`.
+
 **`PATCH /casas/:name/config`** — Update CASA configuration fields.
 
 | Body Field | Type | Description |

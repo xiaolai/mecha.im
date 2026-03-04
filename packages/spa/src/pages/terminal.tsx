@@ -12,7 +12,7 @@ export function TerminalPage() {
   // Derive session from URL as source of truth — keeps state in sync with
   // back/forward navigation and manual URL edits.
   const sessionId = searchParams.get("session") ?? undefined;
-  const nodeQuery = node ? `?node=${encodeURIComponent(node)}` : "";
+  const nodeQuery = node && node !== "local" ? `?node=${encodeURIComponent(node)}` : "";
   const { data: casaStatus } = useFetch<{ state?: string }>(
     casaName ? `/casas/${encodeURIComponent(casaName)}/status${nodeQuery}` : null,
     { deps: [casaName, node], interval: 10_000 },
@@ -38,8 +38,11 @@ export function TerminalPage() {
 
   const handleNewSession = useCallback(() => {
     setExitCode(null);
+    // Use a new-* ID so the server spawns a fresh PTY instead of reattaching
+    // to an existing session via findByCasa() fallback.
+    const newId = `new-${crypto.randomUUID().slice(0, 8)}`;
     setSearchParams((prev) => {
-      prev.delete("session");
+      prev.set("session", newId);
       return prev;
     });
     setTerminalGen((g) => g + 1);
@@ -47,12 +50,11 @@ export function TerminalPage() {
 
   const handleSelectSession = useCallback((id: string | undefined) => {
     setExitCode(null);
+    // When id is undefined (user selected "New Session" from dropdown),
+    // generate a new-* ID so the server spawns fresh PTY.
+    const sessionValue = id ?? `new-${crypto.randomUUID().slice(0, 8)}`;
     setSearchParams((prev) => {
-      if (id) {
-        prev.set("session", id);
-      } else {
-        prev.delete("session");
-      }
+      prev.set("session", sessionValue);
       return prev;
     });
     setTerminalGen((g) => g + 1);
