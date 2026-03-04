@@ -284,6 +284,12 @@ export const InvalidIntervalError = defError<[string]>(
   (interval) => `Invalid interval: "${interval}" (use format like "30s", "5m", "1h"; min 10s, max 24h)`,
 );
 
+export const ScheduleLimitError = defError<[number]>(
+  "ScheduleLimitError",
+  { code: "SCHEDULE_LIMIT", statusCode: 409, exitCode: 1 },
+  (max) => `Maximum schedules per bot (${max}) reached`,
+);
+
 // --- CLI errors ---
 export const CliAlreadyRunningError = defError<[number]>(
   "CliAlreadyRunningError",

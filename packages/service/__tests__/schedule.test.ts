@@ -83,12 +83,12 @@ describe("botSchedule*", () => {
       reply.send({ ok: true });
     });
 
-    app.post("/api/schedules/pause-all", async (_req, reply) => {
+    app.post("/api/schedules/_pause-all", async (_req, reply) => {
       for (const s of schedules) s.paused = true;
       reply.send({ ok: true });
     });
 
-    app.post("/api/schedules/resume-all", async (_req, reply) => {
+    app.post("/api/schedules/_resume-all", async (_req, reply) => {
       for (const s of schedules) s.paused = false;
       reply.send({ ok: true });
     });

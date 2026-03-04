@@ -3,13 +3,16 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createScheduleEngine, type ChatFn, type ScheduleEngine } from "../src/scheduler.js";
+import { executeRun, type RunDeps } from "../src/schedule-runner.js";
 import {
   type ScheduleEntry,
   ScheduleNotFoundError,
   DuplicateScheduleError,
   InvalidIntervalError,
+  ScheduleLimitError,
+  SCHEDULE_DEFAULTS,
 } from "@mecha/core";
-import { readRunHistory, readScheduleConfig } from "@mecha/process";
+import { readRunHistory, readScheduleConfig, writeScheduleConfig } from "@mecha/process";
 
 function makeEntry(id: string, intervalMs: number, prompt = "test prompt"): ScheduleEntry {
   const every = intervalMs >= 3_600_000
@@ -70,6 +73,13 @@ describe("createScheduleEngine", () => {
         prompt: "test",
       };
       expect(() => engine.addSchedule(entry)).toThrow(InvalidIntervalError);
+    });
+
+    it("rejects when schedule limit reached", () => {
+      for (let i = 0; i < SCHEDULE_DEFAULTS.MAX_SCHEDULES_PER_BOT; i++) {
+        engine.addSchedule(makeEntry(`s-${i}`, 60_000));
+      }
+      expect(() => engine.addSchedule(makeEntry("one-too-many", 60_000))).toThrow(ScheduleLimitError);
     });
   });
 
@@ -157,6 +167,27 @@ describe("createScheduleEngine", () => {
     it("throws for unknown schedule", async () => {
       await expect(engine.triggerNow("nope")).rejects.toThrow(ScheduleNotFoundError);
     });
+
+    it("clears pending timer to prevent double-run", async () => {
+      engine.addSchedule(makeEntry("timer-reset", 60_000));
+      engine.start();
+
+      // Manually trigger halfway through the interval
+      currentTime += 30_000;
+      await engine.triggerNow("timer-reset");
+      expect(chatFn).toHaveBeenCalledTimes(1);
+
+      // Advance past original timer time — should NOT double-fire
+      // (only the re-armed timer at +60s from now should fire)
+      currentTime += 30_000;
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(chatFn).toHaveBeenCalledTimes(1);
+
+      // Advance to the re-armed time — should fire
+      currentTime += 30_000;
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(chatFn).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe("timer execution", () => {
@@ -197,60 +228,110 @@ describe("createScheduleEngine", () => {
     });
   });
 
-  describe("budget enforcement", () => {
-    it("skips run when daily budget exceeded", async () => {
-      engine.addSchedule(makeEntry("budget-test", 60_000));
-      engine.start();
+  describe("budget enforcement (automatic runs)", () => {
+    function makeRunDeps(overrides?: Partial<RunDeps>): RunDeps {
+      let activeRun: string | undefined;
+      return {
+        botDir: tempDir,
+        chatFn,
+        now: () => currentTime,
+        log: () => {},
+        getActiveRun: () => activeRun,
+        setActiveRun: (id) => { activeRun = id; },
+        ...overrides,
+      };
+    }
 
-      for (let i = 0; i < 50; i++) {
-        await engine.triggerNow("budget-test");
+    it("skips automatic run when daily budget exceeded", async () => {
+      // Set low budget for fast testing
+      engine.addSchedule(makeEntry("budget-test", 60_000));
+      writeScheduleConfig(tempDir, { schedules: readScheduleConfig(tempDir).schedules, maxRunsPerDay: 3 });
+
+      const deps = makeRunDeps();
+      const entry = makeEntry("budget-test", 60_000);
+
+      for (let i = 0; i < 3; i++) {
+        await executeRun(entry, deps);
       }
 
-      const result = await engine.triggerNow("budget-test");
+      const result = await executeRun(entry, deps);
       expect(result.outcome).toBe("skipped");
       expect(result.error).toContain("budget exceeded");
     });
 
+    it("triggerNow (manual) bypasses budget", async () => {
+      engine.addSchedule(makeEntry("manual-budget", 60_000));
+      writeScheduleConfig(tempDir, { schedules: readScheduleConfig(tempDir).schedules, maxRunsPerDay: 3 });
+
+      const deps = makeRunDeps();
+      const entry = makeEntry("manual-budget", 60_000);
+
+      // Exhaust budget via automatic runs
+      for (let i = 0; i < 3; i++) {
+        await executeRun(entry, deps);
+      }
+
+      // Manual trigger should still work
+      const result = await engine.triggerNow("manual-budget");
+      expect(result.outcome).toBe("success");
+    });
+
     it("resets daily counter when date changes", async () => {
       engine.addSchedule(makeEntry("day-reset", 60_000));
-      engine.start();
+      writeScheduleConfig(tempDir, { schedules: readScheduleConfig(tempDir).schedules, maxRunsPerDay: 3 });
+
+      const deps = makeRunDeps();
+      const entry = makeEntry("day-reset", 60_000);
 
       // Exhaust budget
-      for (let i = 0; i < 50; i++) {
-        await engine.triggerNow("day-reset");
+      for (let i = 0; i < 3; i++) {
+        await executeRun(entry, deps);
       }
-      const skipped = await engine.triggerNow("day-reset");
+      const skipped = await executeRun(entry, deps);
       expect(skipped.outcome).toBe("skipped");
 
       // Advance to next day
       currentTime += 24 * 60 * 60 * 1000;
 
-      // Should succeed again — new day resets counter
-      const result = await engine.triggerNow("day-reset");
+      const result = await executeRun(entry, deps);
       expect(result.outcome).toBe("success");
     });
 
     it("aggregates budget across multiple schedules", async () => {
       engine.addSchedule(makeEntry("multi-a", 60_000));
       engine.addSchedule(makeEntry("multi-b", 60_000));
-      engine.start();
+      writeScheduleConfig(tempDir, { schedules: readScheduleConfig(tempDir).schedules, maxRunsPerDay: 4 });
 
-      // Run 25 times on each schedule (50 total = budget limit)
-      for (let i = 0; i < 25; i++) {
-        await engine.triggerNow("multi-a");
-        await engine.triggerNow("multi-b");
+      const deps = makeRunDeps();
+      const entryA = makeEntry("multi-a", 60_000);
+      const entryB = makeEntry("multi-b", 60_000);
+
+      // Run 2 times on each schedule (4 total = budget limit)
+      for (let i = 0; i < 2; i++) {
+        await executeRun(entryA, deps);
+        await executeRun(entryB, deps);
       }
 
       // Both should be skipped — bot-level budget exhausted
-      const resultA = await engine.triggerNow("multi-a");
-      const resultB = await engine.triggerNow("multi-b");
+      const resultA = await executeRun(entryA, deps);
+      const resultB = await executeRun(entryB, deps);
       expect(resultA.outcome).toBe("skipped");
       expect(resultB.outcome).toBe("skipped");
     });
   });
 
   describe("concurrency guard", () => {
-    it("skips if another run is in progress", async () => {
+    it("skips automatic run if another is in progress", async () => {
+      let activeRun: string | undefined;
+      const deps: RunDeps = {
+        botDir: tempDir,
+        chatFn,
+        now: () => currentTime,
+        log: () => {},
+        getActiveRun: () => activeRun,
+        setActiveRun: (id) => { activeRun = id; },
+      };
+
       // Make chatFn hang
       let resolveChat: ((v: { durationMs: number }) => void) | undefined;
       (chatFn as ReturnType<typeof vi.fn>).mockImplementation(() => {
@@ -262,11 +343,13 @@ describe("createScheduleEngine", () => {
       engine.addSchedule(makeEntry("conc-a", 60_000));
       engine.addSchedule(makeEntry("conc-b", 60_000));
 
-      // Start first run (will hang)
-      const runA = engine.triggerNow("conc-a");
+      // Start first run (will hang) — automatic (non-manual)
+      const entryA = makeEntry("conc-a", 60_000);
+      const runA = executeRun(entryA, deps);
 
-      // Try second run while first is in progress
-      const resultB = await engine.triggerNow("conc-b");
+      // Try second automatic run while first is in progress
+      const entryB = makeEntry("conc-b", 60_000);
+      const resultB = await executeRun(entryB, deps);
       expect(resultB.outcome).toBe("skipped");
       expect(resultB.error).toContain("already running");
 
@@ -285,17 +368,43 @@ describe("createScheduleEngine", () => {
   });
 
   describe("consecutive error auto-pause", () => {
-    it("auto-pauses after MAX_CONSECUTIVE_ERRORS", async () => {
+    it("auto-pauses after MAX_CONSECUTIVE_ERRORS (automatic runs)", async () => {
       (chatFn as ReturnType<typeof vi.fn>).mockResolvedValue({ durationMs: 10, error: "fail" });
       engine.addSchedule(makeEntry("auto-pause", 60_000));
 
-      for (let i = 0; i < 5; i++) {
-        await engine.triggerNow("auto-pause");
+      let activeRun: string | undefined;
+      const deps: RunDeps = {
+        botDir: tempDir,
+        chatFn,
+        now: () => currentTime,
+        log: () => {},
+        getActiveRun: () => activeRun,
+        setActiveRun: (id) => { activeRun = id; },
+      };
+      const entry = makeEntry("auto-pause", 60_000);
+
+      for (let i = 0; i < SCHEDULE_DEFAULTS.MAX_CONSECUTIVE_ERRORS; i++) {
+        await executeRun(entry, deps);
       }
 
       const config = readScheduleConfig(tempDir);
-      const entry = config.schedules.find((s) => s.id === "auto-pause");
-      expect(entry?.paused).toBe(true);
+      const found = config.schedules.find((s) => s.id === "auto-pause");
+      expect(found?.paused).toBe(true);
+    });
+
+    it("triggerNow (manual) does not increment consecutiveErrors", async () => {
+      (chatFn as ReturnType<typeof vi.fn>).mockResolvedValue({ durationMs: 10, error: "fail" });
+      engine.addSchedule(makeEntry("manual-err", 60_000));
+
+      // Run MAX_CONSECUTIVE_ERRORS times via manual trigger
+      for (let i = 0; i < SCHEDULE_DEFAULTS.MAX_CONSECUTIVE_ERRORS; i++) {
+        await engine.triggerNow("manual-err");
+      }
+
+      // Should NOT be auto-paused because manual runs don't count
+      const config = readScheduleConfig(tempDir);
+      const found = config.schedules.find((s) => s.id === "manual-err");
+      expect(found?.paused).toBeUndefined();
     });
   });
 

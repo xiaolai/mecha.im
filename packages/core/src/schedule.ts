@@ -34,7 +34,10 @@ const intervalTriggerSchema = z.object({
   type: z.literal("interval"),
   every: z.string().min(1),
   intervalMs: z.number().int().positive(),
-});
+}).refine(
+  (t) => parseInterval(t.every) === t.intervalMs,
+  { message: "intervalMs must match parsed value of every" },
+);
 
 const scheduleTriggerSchema = intervalTriggerSchema;
 
@@ -88,4 +91,7 @@ export const SCHEDULE_DEFAULTS = {
   MAX_RUNS_PER_DAY: 50,
   MAX_CONCURRENT: 1,
   MAX_CONSECUTIVE_ERRORS: 5,
+  MAX_SCHEDULES_PER_BOT: 20,
+  MAX_HISTORY_ENTRIES: 1000,
+  RUN_TIMEOUT_MS: 600_000, // 10 minutes
 } as const;

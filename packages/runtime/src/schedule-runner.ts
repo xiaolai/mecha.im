@@ -1,8 +1,8 @@
 import {
   type ScheduleEntry,
   type ScheduleRunResult,
-  type ScheduleState,
   type ScheduleConfig,
+  type ScheduleState,
   SCHEDULE_DEFAULTS,
 } from "@mecha/core";
 import {
@@ -24,6 +24,8 @@ export interface RunDeps {
   getActiveRun: () => string | undefined;
   setActiveRun: (id: string | undefined) => void;
   log: ScheduleLog;
+  /** When true, skip budget/concurrency guards and don't count toward consecutiveErrors. */
+  manual?: boolean;
 }
 
 export function todayStr(now: () => number): string {
@@ -55,36 +57,37 @@ export function saveState(botDir: string, scheduleId: string, state: ScheduleSta
 }
 
 export async function executeRun(entry: ScheduleEntry, deps: RunDeps): Promise<ScheduleRunResult> {
-  const { botDir, chatFn, now, log } = deps;
+  const { botDir, chatFn, now, log, manual } = deps;
   const config = getConfig(botDir);
   const maxPerDay = config.maxRunsPerDay ?? SCHEDULE_DEFAULTS.MAX_RUNS_PER_DAY;
 
   const state = getState(botDir, entry.id, now);
 
-  // Budget check — aggregate across all schedules for this bot
+  // Budget check — skip for manual triggers (operator-initiated)
   // NOTE: O(n) disk reads per run; acceptable for MVP (few schedules); cache in future milestone
-  const totalToday = config.schedules.reduce((sum, s) => {
-    const st = getState(botDir, s.id, now);
-    return sum + st.runsToday;
-  }, 0);
+  if (!manual) {
+    const totalToday = config.schedules.reduce((sum, s) => {
+      const st = getState(botDir, s.id, now);
+      return sum + st.runsToday;
+    }, 0);
 
-  if (totalToday >= maxPerDay) {
-    log("warn", `Schedule "${entry.id}" skipped: daily budget exceeded`, { maxPerDay, totalToday });
-    const result: ScheduleRunResult = {
-      scheduleId: entry.id,
-      startedAt: new Date(now()).toISOString(),
-      completedAt: new Date(now()).toISOString(),
-      durationMs: 0,
-      outcome: "skipped",
-      error: `Daily budget exceeded (${maxPerDay} runs/day)`,
-    };
-    appendRunHistory(botDir, entry.id, result);
-    return result;
+    if (totalToday >= maxPerDay) {
+      log("warn", `Schedule "${entry.id}" skipped: daily budget exceeded`, { maxPerDay, totalToday });
+      const result: ScheduleRunResult = {
+        scheduleId: entry.id,
+        startedAt: new Date(now()).toISOString(),
+        completedAt: new Date(now()).toISOString(),
+        durationMs: 0,
+        outcome: "skipped",
+        error: `Daily budget exceeded (${maxPerDay} runs/day)`,
+      };
+      appendRunHistory(botDir, entry.id, result);
+      return result;
+    }
   }
 
-  // Concurrency guard — enforces maxConcurrent for all values, not just <=1
-  const maxConcurrent = config.maxConcurrent ?? SCHEDULE_DEFAULTS.MAX_CONCURRENT;
-  if (deps.getActiveRun()) {
+  // Concurrency guard — skip for manual triggers
+  if (!manual && deps.getActiveRun()) {
     log("warn", `Schedule "${entry.id}" skipped: another schedule is running`, { activeRun: deps.getActiveRun() });
     const result: ScheduleRunResult = {
       scheduleId: entry.id,
@@ -100,11 +103,17 @@ export async function executeRun(entry: ScheduleEntry, deps: RunDeps): Promise<S
 
   const startedAt = new Date(now()).toISOString();
   deps.setActiveRun(entry.id);
-  log("info", `Schedule "${entry.id}" started`, { prompt: entry.prompt });
+  log("info", `Schedule "${entry.id}" started`, { manual });
 
   let result: ScheduleRunResult;
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
   try {
-    const chatResult = await chatFn(entry.prompt);
+    // Timeout guard — prevents a hanging chatFn from blocking the engine
+    const timeoutMs = SCHEDULE_DEFAULTS.RUN_TIMEOUT_MS;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutHandle = setTimeout(() => reject(new Error(`Schedule run timed out after ${timeoutMs / 1000}s`)), timeoutMs);
+    });
+    const chatResult = await Promise.race([chatFn(entry.prompt), timeoutPromise]);
     const completedAt = new Date(now()).toISOString();
 
     if (chatResult.error) {
@@ -136,6 +145,7 @@ export async function executeRun(entry: ScheduleEntry, deps: RunDeps): Promise<S
       error: err instanceof Error ? err.message : String(err),
     };
   } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle);
     deps.setActiveRun(undefined);
   }
 
@@ -152,21 +162,24 @@ export async function executeRun(entry: ScheduleEntry, deps: RunDeps): Promise<S
   }
   /* v8 ignore stop */
 
-  // Update state
+  // Update state — manual triggers don't affect consecutiveErrors
   const consecutiveErrors = state.consecutiveErrors ?? 0;
-  const newConsecutiveErrors = result.outcome === "error" ? consecutiveErrors + 1 : 0;
+  const newConsecutiveErrors = manual ? consecutiveErrors
+    : result.outcome === "error" ? consecutiveErrors + 1 : 0;
 
+  // Append history first (idempotent), then save state — crash-safe ordering
+  appendRunHistory(botDir, entry.id, result);
   saveState(botDir, entry.id, {
+    nextRunAt: undefined, // cleared — armTimer sets the next one
     lastRunAt: result.completedAt,
     runCount: state.runCount + 1,
     todayDate: todayStr(now),
     runsToday: state.runsToday + 1,
     consecutiveErrors: newConsecutiveErrors,
   });
-  appendRunHistory(botDir, entry.id, result);
 
-  // Auto-pause after too many consecutive errors
-  if (newConsecutiveErrors >= SCHEDULE_DEFAULTS.MAX_CONSECUTIVE_ERRORS) {
+  // Auto-pause after too many consecutive errors (not triggered by manual runs)
+  if (!manual && newConsecutiveErrors >= SCHEDULE_DEFAULTS.MAX_CONSECUTIVE_ERRORS) {
     const cfg = getConfig(botDir);
     const idx = cfg.schedules.findIndex((s) => s.id === entry.id);
     /* v8 ignore start -- race guard: schedule removed between check and auto-pause */
