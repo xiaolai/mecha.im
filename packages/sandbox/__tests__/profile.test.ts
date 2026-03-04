@@ -81,7 +81,6 @@ describe("profileFromConfig", () => {
 
     expect(profile.writePaths).toEqual([
       "/mecha/alice",
-      "/mecha/alice/home",
       "/mecha/alice/logs",
       "/mecha/alice/tmp",
       "/home/user/project",

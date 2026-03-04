@@ -151,7 +151,7 @@ describe("sandbox-setup", () => {
         },
       }));
       expect(result.childEnv.MECHA_PORT).toBe("7700");
-      expect(result.childEnv.HOME).toBe(join(botDir, "home"));
+      expect(result.childEnv.HOME).toBe(botDir);
       expect(result.childEnv.SAFE_KEY).toBe("ok");
     });
 
@@ -248,7 +248,7 @@ describe("sandbox-setup", () => {
         // First prepare creates onboarding state
         prepareBotFilesystem(makeOpts());
         // Manually modify it
-        const claudeJsonPath = join(botDir, "home", ".claude.json");
+        const claudeJsonPath = join(botDir, ".claude.json");
         const modified = { numStartups: 42, hasCompletedOnboarding: true };
         writeFileSync(claudeJsonPath, JSON.stringify(modified));
         // Second prepare should preserve the modified file
@@ -273,7 +273,7 @@ describe("sandbox-setup", () => {
         });
         // First spawn with old profile
         prepareBotFilesystem(makeOpts({ auth: "old" }));
-        const credPath = join(botDir, "home", ".claude", ".credentials.json");
+        const credPath = join(botDir, ".claude", ".credentials.json");
         const first = JSON.parse(readFileSync(credPath, "utf-8"));
         expect(first.claudeAiOauth.accessToken).toBe("old-token");
 
