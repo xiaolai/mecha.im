@@ -3,6 +3,8 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { resolve } from "node:path";
 
+const API_TARGET = "http://127.0.0.1:7660";
+
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
@@ -12,15 +14,16 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      "/casas": "http://127.0.0.1:7660",
-      "/acl": "http://127.0.0.1:7660",
-      "/audit": "http://127.0.0.1:7660",
-      "/discover": "http://127.0.0.1:7660",
-      "/healthz": "http://127.0.0.1:7660",
-      "/meter": "http://127.0.0.1:7660",
-      "/mesh": "http://127.0.0.1:7660",
-      "/settings": "http://127.0.0.1:7660",
-      "/events": "http://127.0.0.1:7660",
+      "/auth": API_TARGET,
+      "/casas": API_TARGET,
+      "/acl": API_TARGET,
+      "/audit": API_TARGET,
+      "/discover": API_TARGET,
+      "/healthz": API_TARGET,
+      "/meter": API_TARGET,
+      "/mesh": API_TARGET,
+      "/settings": API_TARGET,
+      "/events": API_TARGET,
       "/ws": {
         target: "ws://127.0.0.1:7660",
         ws: true,

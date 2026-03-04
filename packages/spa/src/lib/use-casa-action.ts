@@ -9,11 +9,18 @@ export interface BusyWarning {
   pendingAction: CasaActionType;
 }
 
+/** Actions that require user confirmation before executing. */
+const CONFIRM_ACTIONS = new Set<CasaActionType>(["stop", "restart", "kill"]);
+
 interface UseCasaActionResult {
   acting: boolean;
   actionError: string | null;
   busyWarning: BusyWarning | null;
+  /** Non-null when waiting for user confirmation (stop/restart/kill). */
+  pendingConfirm: CasaActionType | null;
   handleAction: (action: CasaActionType, opts?: { force?: boolean }) => Promise<void>;
+  confirmAction: () => Promise<void>;
+  dismissConfirm: () => void;
   confirmForce: () => Promise<void>;
   dismissBusy: () => void;
 }
@@ -28,9 +35,10 @@ export function useCasaAction(name: string, onDone?: () => void, node?: string):
   const [acting, setActing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busyWarning, setBusyWarning] = useState<BusyWarning | null>(null);
+  const [pendingConfirm, setPendingConfirm] = useState<CasaActionType | null>(null);
   const { authHeaders, logout } = useAuth();
 
-  const handleAction = useCallback(async (action: CasaActionType, opts?: { force?: boolean }) => {
+  const executeAction = useCallback(async (action: CasaActionType, opts?: { force?: boolean }) => {
     setActing(true);
     setActionError(null);
     setBusyWarning(null);
@@ -70,16 +78,35 @@ export function useCasaAction(name: string, onDone?: () => void, node?: string):
     }
   }, [name, node, onDone, authHeaders, logout]);
 
+  const handleAction = useCallback(async (action: CasaActionType, opts?: { force?: boolean }) => {
+    if (CONFIRM_ACTIONS.has(action) && !opts?.force) {
+      setPendingConfirm(action);
+      return;
+    }
+    await executeAction(action, opts);
+  }, [executeAction]);
+
+  const confirmAction = useCallback(async () => {
+    if (!pendingConfirm) return;
+    const action = pendingConfirm;
+    setPendingConfirm(null);
+    await executeAction(action);
+  }, [pendingConfirm, executeAction]);
+
+  const dismissConfirm = useCallback(() => {
+    setPendingConfirm(null);
+  }, []);
+
   const confirmForce = useCallback(async () => {
     if (!busyWarning) return;
     const action = busyWarning.pendingAction;
     setBusyWarning(null);
-    await handleAction(action, { force: true });
-  }, [busyWarning, handleAction]);
+    await executeAction(action, { force: true });
+  }, [busyWarning, executeAction]);
 
   const dismissBusy = useCallback(() => {
     setBusyWarning(null);
   }, []);
 
-  return { acting, actionError, busyWarning, handleAction, confirmForce, dismissBusy };
+  return { acting, actionError, busyWarning, pendingConfirm, handleAction, confirmAction, dismissConfirm, confirmForce, dismissBusy };
 }
