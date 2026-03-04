@@ -14,8 +14,8 @@ import {
   mechaAuthGet,
   mechaAuthGetDefault,
   mechaAuthSwitchBot,
-  mechaAuthProbe,
 } from "../src/auth.js";
+import { mechaAuthProbe } from "../src/auth-probe.js";
 import { AuthProfileNotFoundError, BotNotFoundError, InvalidNameError, readAuthCredentials } from "@mecha/core";
 import type { BotName } from "@mecha/core";
 import type { ProcessManager, ProcessInfo } from "@mecha/process";
