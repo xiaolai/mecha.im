@@ -62,10 +62,10 @@ export function wrapMacos(
 }
 
 /**
- * Write a .sbpl profile to casaDir/sandbox.sbpl (atomic write).
+ * Write a .sbpl profile to botDir/sandbox.sbpl (atomic write).
  */
-export function writeProfileMacos(casaDir: string, sbpl: string): string {
-  const profilePath = join(casaDir, "sandbox.sbpl");
+export function writeProfileMacos(botDir: string, sbpl: string): string {
+  const profilePath = join(botDir, "sandbox.sbpl");
   const tmp = profilePath + `.${randomBytes(4).toString("hex")}.tmp`;
   writeFileSync(tmp, sbpl, { mode: 0o600 });
   renameSync(tmp, profilePath);

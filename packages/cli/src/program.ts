@@ -5,7 +5,7 @@ import { registerStopDaemonCommand } from "./commands/stop-daemon.js";
 import { registerRestartDaemonCommand } from "./commands/restart-daemon.js";
 import { registerInitCommand } from "./commands/init.js";
 import { registerDoctorCommand } from "./commands/doctor.js";
-import { registerCasaCommand } from "./commands/casa.js";
+import { registerBotCommand } from "./commands/bot.js";
 import { registerToolsCommand } from "./commands/tools.js";
 import { registerAuthCommand } from "./commands/auth.js";
 import { registerAclCommand } from "./commands/acl.js";
@@ -26,15 +26,15 @@ import { registerAuthConfigCommand } from "./commands/auth-config.js";
 /**
  * Commands that mutate state and need the CLI singleton lock.
  * Maintained here alongside command registration as single source of truth.
- * Top-level commands (e.g. "start") and "parent subcommand" pairs (e.g. "casa spawn").
+ * Top-level commands (e.g. "start") and "parent subcommand" pairs (e.g. "bot spawn").
  * Read-only commands NOT listed here run without the lock.
  */
 export const MUTATING_COMMANDS = new Set([
   // Daemon-level mutating commands
   "start", "stop", "restart", "init",
-  // CASA subcommands
-  "casa spawn", "casa start", "casa stop", "casa kill",
-  "casa restart", "casa remove", "casa configure",
+  // bot subcommands
+  "bot spawn", "bot start", "bot stop", "bot kill",
+  "bot restart", "bot remove", "bot configure",
   // agent subcommands (agent status is read-only)
   "agent start",
   // meter subcommands
@@ -100,8 +100,8 @@ export function createProgram(deps: CommandDeps): Command {
   registerInitCommand(program, deps);
   registerDoctorCommand(program, deps);
 
-  // CASA management (subgroup)
-  registerCasaCommand(program, deps);
+  // bot management (subgroup)
+  registerBotCommand(program, deps);
 
   // Infrastructure subgroups
   registerAgentCommand(program, deps);

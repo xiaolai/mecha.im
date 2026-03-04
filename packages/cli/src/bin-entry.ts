@@ -46,18 +46,18 @@ function startRuntime(): void {
   }
 
   const { app } = createServer({
-    casaName: env.MECHA_CASA_NAME,
+    botName: env.MECHA_BOT_NAME,
     port: env.MECHA_PORT,
     authToken: env.MECHA_AUTH_TOKEN,
     projectsDir: env.MECHA_PROJECTS_DIR,
     workspacePath: env.MECHA_WORKSPACE,
     mechaDir: env.MECHA_DIR,
-    casaDir: env.MECHA_SANDBOX_ROOT,
+    botDir: env.MECHA_SANDBOX_ROOT,
   });
 
   app.listen({ port: env.MECHA_PORT, host: "127.0.0.1" }, (err) => {
     if (err) { console.error(err); process.exit(1); }
-    console.log(`CASA ${env.MECHA_CASA_NAME} listening on port ${env.MECHA_PORT}`);
+    console.log(`bot ${env.MECHA_BOT_NAME} listening on port ${env.MECHA_PORT}`);
   });
 
   process.on("SIGTERM", () => { app.close(); });

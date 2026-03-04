@@ -1,27 +1,27 @@
-/** CASA name: lowercase alphanumeric + hyphens, 1-32 chars */
-export type CasaName = string & { readonly __brand: "CasaName" };
+/** bot name: lowercase alphanumeric + hyphens, 1-32 chars */
+export type BotName = string & { readonly __brand: "BotName" };
 
-/** Node name: same rules as CasaName */
+/** Node name: same rules as BotName */
 export type NodeName = string & { readonly __brand: "NodeName" };
 
-/** A resolved CASA address */
-export interface CasaAddress {
-  readonly casa: CasaName;
+/** A resolved bot address */
+export interface BotAddress {
+  readonly bot: BotName;
   readonly node: NodeName;
 }
 
 /** A group address (Phase 2+) */
 export interface GroupAddress {
   readonly group: string;
-  readonly members: CasaAddress[];
+  readonly members: BotAddress[];
 }
 
 /** Union of all address types */
-export type Address = CasaAddress | GroupAddress;
+export type Address = BotAddress | GroupAddress;
 
-/** Type guard for CasaAddress */
-export function isCasaAddress(addr: Address): addr is CasaAddress {
-  return "casa" in addr && "node" in addr;
+/** Type guard for BotAddress */
+export function isBotAddress(addr: Address): addr is BotAddress {
+  return "bot" in addr && "node" in addr;
 }
 
 /** Type guard for GroupAddress */

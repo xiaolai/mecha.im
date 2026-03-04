@@ -43,7 +43,7 @@ describe("node health command", () => {
     });
   }
 
-  it("checks specific HTTP node — online with CASA count", async () => {
+  it("checks specific HTTP node — online with bot count", async () => {
     addHttpNode("bob");
 
     vi.spyOn(globalThis, "fetch")
@@ -62,11 +62,11 @@ describe("node health command", () => {
     await program.parseAsync(["node", "mecha", "node", "health", "bob"]);
 
     expect(deps.formatter.success).toHaveBeenCalledWith(
-      expect.stringMatching(/bob: \d+ms — 2 CASAs running — \(http\)/),
+      expect.stringMatching(/bob: \d+ms — 2 bots running — \(http\)/),
     );
   });
 
-  it("checks specific HTTP node — online without CASA count", async () => {
+  it("checks specific HTTP node — online without bot count", async () => {
     addHttpNode("bob");
 
     vi.spyOn(globalThis, "fetch")
@@ -203,7 +203,7 @@ describe("node health command", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       const url = String(input);
       if (url.includes("/healthz")) return new Response("ok", { status: 200 });
-      if (url.includes("/casas")) return new Response(JSON.stringify([]), {
+      if (url.includes("/bots")) return new Response(JSON.stringify([]), {
         status: 200,
         headers: { "content-type": "application/json" },
       });
@@ -238,7 +238,7 @@ describe("node health command", () => {
       const url = String(input);
       if (url.includes("10.0.0.1") && url.includes("/healthz"))
         return new Response("ok", { status: 200 });
-      if (url.includes("10.0.0.1") && url.includes("/casas"))
+      if (url.includes("10.0.0.1") && url.includes("/bots"))
         return new Response(JSON.stringify([]), {
           status: 200,
           headers: { "content-type": "application/json" },
@@ -275,7 +275,7 @@ describe("node health command", () => {
     expect(deps.formatter.error).toHaveBeenCalledWith("charlie: offline");
   });
 
-  it("handles CASA count fetch error gracefully", async () => {
+  it("handles bot count fetch error gracefully", async () => {
     addHttpNode("bob");
 
     vi.spyOn(globalThis, "fetch")
@@ -288,7 +288,7 @@ describe("node health command", () => {
 
     await program.parseAsync(["node", "mecha", "node", "health", "bob"]);
 
-    // Should still report online — CASA count is best-effort
+    // Should still report online — bot count is best-effort
     expect(deps.formatter.success).toHaveBeenCalledWith(
       expect.stringMatching(/bob: \d+ms — \(http\)/),
     );

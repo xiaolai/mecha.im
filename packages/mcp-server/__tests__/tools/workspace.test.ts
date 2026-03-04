@@ -88,12 +88,12 @@ describe("mecha_workspace_list", () => {
   });
 
   it("handles fetch failures", async () => {
-    (runtimeFetch as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("CASA not running"));
+    (runtimeFetch as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("bot not running"));
 
     const ctx = makeCtx();
     const result = await callTool(ctx, "mecha_workspace_list", { target: "alice" });
     expect(result.isError).toBe(true);
-    expect(getText(result)).toContain("CASA not running");
+    expect(getText(result)).toContain("bot not running");
   });
 });
 
@@ -141,12 +141,12 @@ describe("mecha_workspace_read", () => {
   });
 
   it("handles fetch failures", async () => {
-    (runtimeFetch as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("CASA not running"));
+    (runtimeFetch as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("bot not running"));
 
     const ctx = makeCtx();
     const result = await callTool(ctx, "mecha_workspace_read", { target: "alice", path: "file.ts" });
     expect(result.isError).toBe(true);
-    expect(getText(result)).toContain("CASA not running");
+    expect(getText(result)).toContain("bot not running");
   });
 
   it("handles missing result gracefully", async () => {

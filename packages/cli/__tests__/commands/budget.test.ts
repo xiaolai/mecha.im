@@ -29,7 +29,7 @@ describe("budget command", () => {
       expect(config.global.dailyUsd).toBe(50);
     });
 
-    it("sets a CASA budget", async () => {
+    it("sets a bot budget", async () => {
       tempDir = mkdtempSync(join(tmpdir(), "mecha-cli-budget-"));
       const deps = makeDeps({ mechaDir: tempDir });
       const program = createProgram(deps);
@@ -76,7 +76,7 @@ describe("budget command", () => {
       program.exitOverride();
 
       await program.parseAsync(["node", "mecha", "budget", "set", "--daily", "10"]);
-      expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("CASA name"));
+      expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("bot name"));
     });
 
     it("errors on non-numeric daily amount", async () => {
@@ -120,7 +120,7 @@ describe("budget command", () => {
       mkdirSync(meterDir, { recursive: true });
       writeFileSync(join(meterDir, "budgets.json"), JSON.stringify({
         global: { dailyUsd: 50, monthlyUsd: 500 },
-        byCasa: {}, byAuthProfile: {}, byTag: {},
+        byBot: {}, byAuthProfile: {}, byTag: {},
       }));
 
       const deps = makeDeps({ mechaDir: tempDir });
@@ -141,7 +141,7 @@ describe("budget command", () => {
       expect(deps.formatter.warn).toHaveBeenCalledWith(expect.stringContaining("No daily"));
     });
 
-    it("warns when no limit found (CASA)", async () => {
+    it("warns when no limit found (bot)", async () => {
       tempDir = mkdtempSync(join(tmpdir(), "mecha-cli-budget-"));
       const deps = makeDeps({ mechaDir: tempDir });
       const program = createProgram(deps);
@@ -168,7 +168,7 @@ describe("budget command", () => {
       program.exitOverride();
 
       await program.parseAsync(["node", "mecha", "budget", "rm", "--daily"]);
-      expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("CASA name"));
+      expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("bot name"));
     });
 
     it("removes auth budget", async () => {
@@ -176,7 +176,7 @@ describe("budget command", () => {
       const meterDir = join(tempDir, "meter");
       mkdirSync(meterDir, { recursive: true });
       writeFileSync(join(meterDir, "budgets.json"), JSON.stringify({
-        global: {}, byCasa: {}, byAuthProfile: { work: { dailyUsd: 20 } }, byTag: {},
+        global: {}, byBot: {}, byAuthProfile: { work: { dailyUsd: 20 } }, byTag: {},
       }));
 
       const deps = makeDeps({ mechaDir: tempDir });
@@ -192,7 +192,7 @@ describe("budget command", () => {
       const meterDir = join(tempDir, "meter");
       mkdirSync(meterDir, { recursive: true });
       writeFileSync(join(meterDir, "budgets.json"), JSON.stringify({
-        global: {}, byCasa: {}, byAuthProfile: {}, byTag: { exp: { dailyUsd: 5 } },
+        global: {}, byBot: {}, byAuthProfile: {}, byTag: { exp: { dailyUsd: 5 } },
       }));
 
       const deps = makeDeps({ mechaDir: tempDir });
@@ -203,12 +203,12 @@ describe("budget command", () => {
       expect(deps.formatter.success).toHaveBeenCalledWith(expect.stringContaining("Removed"));
     });
 
-    it("removes CASA budget by name", async () => {
+    it("removes bot budget by name", async () => {
       tempDir = mkdtempSync(join(tmpdir(), "mecha-cli-budget-"));
       const meterDir = join(tempDir, "meter");
       mkdirSync(meterDir, { recursive: true });
       writeFileSync(join(meterDir, "budgets.json"), JSON.stringify({
-        global: {}, byCasa: { researcher: { dailyUsd: 10 } }, byAuthProfile: {}, byTag: {},
+        global: {}, byBot: { researcher: { dailyUsd: 10 } }, byAuthProfile: {}, byTag: {},
       }));
 
       const deps = makeDeps({ mechaDir: tempDir });
@@ -224,7 +224,7 @@ describe("budget command", () => {
       const meterDir = join(tempDir, "meter");
       mkdirSync(meterDir, { recursive: true });
       writeFileSync(join(meterDir, "budgets.json"), JSON.stringify({
-        global: { monthlyUsd: 500 }, byCasa: {}, byAuthProfile: {}, byTag: {},
+        global: { monthlyUsd: 500 }, byBot: {}, byAuthProfile: {}, byTag: {},
       }));
 
       const deps = makeDeps({ mechaDir: tempDir });
@@ -253,7 +253,7 @@ describe("budget command", () => {
       mkdirSync(meterDir, { recursive: true });
       writeFileSync(join(meterDir, "budgets.json"), JSON.stringify({
         global: { dailyUsd: 50, monthlyUsd: 500 },
-        byCasa: { researcher: { dailyUsd: 10, monthlyUsd: 100 } },
+        byBot: { researcher: { dailyUsd: 10, monthlyUsd: 100 } },
         byAuthProfile: { work: { monthlyUsd: 200 } },
         byTag: { experiment: { dailyUsd: 5 } },
       }));
@@ -275,7 +275,7 @@ describe("budget command", () => {
       mkdirSync(meterDir, { recursive: true });
       writeFileSync(join(meterDir, "budgets.json"), JSON.stringify({
         global: { dailyUsd: 50 },
-        byCasa: {}, byAuthProfile: {}, byTag: {},
+        byBot: {}, byAuthProfile: {}, byTag: {},
       }));
 
       const deps = makeDeps({ mechaDir: tempDir });
@@ -292,7 +292,7 @@ describe("budget command", () => {
       mkdirSync(meterDir, { recursive: true });
       writeFileSync(join(meterDir, "budgets.json"), JSON.stringify({
         global: { monthlyUsd: 500 },
-        byCasa: {}, byAuthProfile: {}, byTag: {},
+        byBot: {}, byAuthProfile: {}, byTag: {},
       }));
 
       const deps = makeDeps({ mechaDir: tempDir });

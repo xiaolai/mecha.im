@@ -1,13 +1,13 @@
 /**
- * Integration tests for cross-node CASA queries.
+ * Integration tests for cross-node bot queries.
  *
  * Tests real HTTP routing through agent servers:
  * - alice/coder → bob/analyst query forwarding
  * - SessionId propagation
  * - Bidirectional routing
- * - Error paths (unknown CASA, unknown node)
+ * - Error paths (unknown bot, unknown node)
  *
- * forwardQueryToCasa is mocked — no real Claude processes.
+ * forwardQueryToBot is mocked — no real Claude processes.
  */
 
 import { describe, it, expect, vi, afterEach, afterAll, beforeAll } from "vitest";
@@ -17,8 +17,8 @@ import { tmpdir } from "node:os";
 import type { NodeEntry } from "@mecha/core";
 import { createAgentServer } from "@mecha/agent";
 import { deriveSessionKey, createSessionToken } from "../../agent/src/session.js";
-import { createCasaRouter, createLocator, agentFetch } from "@mecha/service";
-import { makePm, makeMockAcl, writeCasaConfig } from "./helpers/mesh-harness.js";
+import { createBotRouter, createLocator, agentFetch } from "@mecha/service";
+import { makePm, makeMockAcl, writeBotConfig } from "./helpers/mesh-harness.js";
 
 const TEST_TOTP_SECRET = "JBSWY3DPEHPK3PXP";
 
@@ -28,12 +28,12 @@ function makeAuthCookie(secret = TEST_TOTP_SECRET): string {
   return `mecha-session=${token}`;
 }
 
-// Mock forwardQueryToCasa so we don't need real CASA processes
+// Mock forwardQueryToBot so we don't need real bot processes
 vi.mock("@mecha/core", async (importOriginal) => {
   const orig = await importOriginal<Record<string, unknown>>();
   return {
     ...orig,
-    forwardQueryToCasa: vi.fn().mockResolvedValue({
+    forwardQueryToBot: vi.fn().mockResolvedValue({
       text: "analyst says hello",
       sessionId: "sess-123",
     }),
@@ -41,7 +41,7 @@ vi.mock("@mecha/core", async (importOriginal) => {
 });
 
 // Import after mock setup
-const { forwardQueryToCasa } = await import("@mecha/core");
+const { forwardQueryToBot } = await import("@mecha/core");
 
 describe("mesh query: cross-node routing", () => {
   let bobDir: string;
@@ -51,7 +51,7 @@ describe("mesh query: cross-node routing", () => {
 
   beforeAll(async () => {
     bobDir = mkdtempSync(join(tmpdir(), "query-bob-"));
-    writeCasaConfig(bobDir, "analyst", { port: 9999, token: "analyst-token", workspace: "/tmp" });
+    writeBotConfig(bobDir, "analyst", { port: 9999, token: "analyst-token", workspace: "/tmp" });
 
     aliceDir = mkdtempSync(join(tmpdir(), "query-alice-"));
 
@@ -91,7 +91,7 @@ describe("mesh query: cross-node routing", () => {
       pm: makePm(),
       getNodes: () => opts.nodes ?? [makeBobNode()],
     });
-    return createCasaRouter({
+    return createBotRouter({
       mechaDir: aliceDir,
       acl: opts.acl ?? makeMockAcl(),
       pm: makePm(),
@@ -118,7 +118,7 @@ describe("mesh query: cross-node routing", () => {
     expect(r1.sessionId).toBe("sess-123");
 
     // Second turn with sessionId from first
-    vi.mocked(forwardQueryToCasa).mockResolvedValueOnce({
+    vi.mocked(forwardQueryToBot).mockResolvedValueOnce({
       text: "continued response",
       sessionId: "sess-123",
     });
@@ -131,27 +131,27 @@ describe("mesh query: cross-node routing", () => {
     const router = makeAliceRouter();
     await router.routeQuery("coder", "analyst@bob", "hello");
 
-    // The forwardQueryToCasa mock was called on bob's side, verifying the request reached bob
-    expect(forwardQueryToCasa).toHaveBeenCalled();
+    // The forwardQueryToBot mock was called on bob's side, verifying the request reached bob
+    expect(forwardQueryToBot).toHaveBeenCalled();
   });
 
-  it("returns CasaNotFoundError for query to unknown node", async () => {
+  it("returns BotNotFoundError for query to unknown node", async () => {
     const router = makeAliceRouter({ nodes: [] });
     await expect(
       router.routeQuery("coder", "analyst@unknown", "hello"),
     ).rejects.toThrow("not found");
   });
 
-  it("returns 404 for query to non-existent CASA on remote node", async () => {
+  it("returns 404 for query to non-existent bot on remote node", async () => {
     const router = makeAliceRouter();
-    // "nonexistent" CASA doesn't have a config.json on bob
+    // "nonexistent" bot doesn't have a config.json on bob
     await expect(
       router.routeQuery("coder", "nonexistent@bob", "hello"),
     ).rejects.toThrow();
   });
 
   it("works via direct HTTP fetch to agent endpoint", async () => {
-    const res = await fetch(`http://127.0.0.1:${bobPort}/casas/analyst/query`, {
+    const res = await fetch(`http://127.0.0.1:${bobPort}/bots/analyst/query`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -167,7 +167,7 @@ describe("mesh query: cross-node routing", () => {
   });
 
   it("response includes both response text and sessionId", async () => {
-    const res = await fetch(`http://127.0.0.1:${bobPort}/casas/analyst/query`, {
+    const res = await fetch(`http://127.0.0.1:${bobPort}/bots/analyst/query`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -194,8 +194,8 @@ describe("mesh query: bidirectional routing", () => {
     aliceDir = mkdtempSync(join(tmpdir(), "bidir-alice-"));
     bobDir = mkdtempSync(join(tmpdir(), "bidir-bob-"));
 
-    writeCasaConfig(aliceDir, "coder", { port: 8888, token: "coder-token", workspace: "/tmp" });
-    writeCasaConfig(bobDir, "analyst", { port: 9999, token: "analyst-token", workspace: "/tmp" });
+    writeBotConfig(aliceDir, "coder", { port: 8888, token: "coder-token", workspace: "/tmp" });
+    writeBotConfig(bobDir, "analyst", { port: 9999, token: "analyst-token", workspace: "/tmp" });
 
     aliceServer = createAgentServer({
       port: 0, auth: { totpSecret: TEST_TOTP_SECRET, apiKey: "mesh-routing-key" }, processManager: makePm(),
@@ -234,7 +234,7 @@ describe("mesh query: bidirectional routing", () => {
       getNodes: () => [aliceNode],
     });
 
-    const router = createCasaRouter({
+    const router = createBotRouter({
       mechaDir: bobDir,
       acl: makeMockAcl(),
       pm: makePm(),

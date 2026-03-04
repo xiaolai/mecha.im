@@ -2,8 +2,9 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "@/auth-context";
 import { DashboardLayout } from "@/pages/dashboard-layout";
 import { HomePage } from "@/pages/home";
-import { CasaDetailPage } from "@/pages/casa-detail";
+import { BotDetailPage } from "@/pages/bot-detail";
 import { TerminalPage } from "@/pages/terminal";
+import { SessionDetailPage } from "@/pages/session-detail";
 import { AclPage } from "@/pages/acl";
 import { AuditPage } from "@/pages/audit";
 import { MeshPage } from "@/pages/mesh";
@@ -23,8 +24,9 @@ export function App() {
     <Routes>
       <Route element={<DashboardLayout />}>
         <Route index element={<HomePage />} />
-        <Route path="casa/:name" element={<CasaDetailPage />} />
-        <Route path="casa/:name/terminal" element={<TerminalPage />} />
+        <Route path="bot/:name" element={<BotDetailPage />} />
+        <Route path="bot/:name/session/:id" element={<SessionDetailPage />} />
+        <Route path="bot/:name/terminal" element={<TerminalPage />} />
         <Route path="mesh" element={<MeshPage />} />
         <Route path="acl" element={<AclPage />} />
         <Route path="audit" element={<AuditPage />} />

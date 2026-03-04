@@ -9,8 +9,8 @@ vi.mock("@mecha/service", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@mecha/service")>();
   return {
     ...actual,
-    casaSessionList: vi.fn().mockResolvedValue([{ id: "s1", title: "Test" }]),
-    casaSessionGet: vi.fn().mockResolvedValue({ id: "s1", title: "Test", events: [] }),
+    botSessionList: vi.fn().mockResolvedValue([{ id: "s1", title: "Test" }]),
+    botSessionGet: vi.fn().mockResolvedValue({ id: "s1", title: "Test", events: [] }),
   };
 });
 
@@ -20,7 +20,7 @@ describe("sessions commands", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "casa", "sessions", "list", "researcher"]);
+    await program.parseAsync(["node", "mecha", "bot", "sessions", "list", "researcher"]);
     expect(deps.formatter.table).toHaveBeenCalledWith(
       ["Session ID", "Title", "Created", "Updated"],
       [["s1", "Test", "-", "-"]],
@@ -28,14 +28,14 @@ describe("sessions commands", () => {
   });
 
   it("shows message when no sessions", async () => {
-    const { casaSessionList } = await import("@mecha/service");
-    vi.mocked(casaSessionList).mockResolvedValueOnce([]);
+    const { botSessionList } = await import("@mecha/service");
+    vi.mocked(botSessionList).mockResolvedValueOnce([]);
 
     const deps = makeDeps();
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "casa", "sessions", "list", "researcher"]);
+    await program.parseAsync(["node", "mecha", "bot", "sessions", "list", "researcher"]);
     expect(deps.formatter.info).toHaveBeenCalledWith("No sessions");
   });
 
@@ -44,7 +44,7 @@ describe("sessions commands", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "casa", "sessions", "show", "researcher", "s1"]);
+    await program.parseAsync(["node", "mecha", "bot", "sessions", "show", "researcher", "s1"]);
     expect(deps.formatter.json).toHaveBeenCalledWith(expect.objectContaining({ id: "s1" }));
   });
 
@@ -54,7 +54,7 @@ describe("sessions commands", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "casa", "sessions", "list", "researcher"]);
+    await program.parseAsync(["node", "mecha", "bot", "sessions", "list", "researcher"]);
     expect(deps.formatter.json).toHaveBeenCalledWith([{ id: "s1", title: "Test" }]);
     expect(deps.formatter.table).not.toHaveBeenCalled();
   });
@@ -64,7 +64,7 @@ describe("sessions commands", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "casa", "sessions", "ls", "researcher"]);
+    await program.parseAsync(["node", "mecha", "bot", "sessions", "ls", "researcher"]);
     expect(deps.formatter.table).toHaveBeenCalledWith(
       ["Session ID", "Title", "Created", "Updated"],
       expect.any(Array),
@@ -72,14 +72,14 @@ describe("sessions commands", () => {
   });
 
   it("shows dash for missing session fields", async () => {
-    const { casaSessionList } = await import("@mecha/service");
-    vi.mocked(casaSessionList).mockResolvedValueOnce([{ weird: true }]);
+    const { botSessionList } = await import("@mecha/service");
+    vi.mocked(botSessionList).mockResolvedValueOnce([{ weird: true }]);
 
     const deps = makeDeps();
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "casa", "sessions", "list", "researcher"]);
+    await program.parseAsync(["node", "mecha", "bot", "sessions", "list", "researcher"]);
     expect(deps.formatter.table).toHaveBeenCalledWith(
       ["Session ID", "Title", "Created", "Updated"],
       [["-", "-", "-", "-"]],
@@ -87,14 +87,14 @@ describe("sessions commands", () => {
   });
 
   it("handles null/primitive entries gracefully", async () => {
-    const { casaSessionList } = await import("@mecha/service");
-    vi.mocked(casaSessionList).mockResolvedValueOnce([null, "string", 42]);
+    const { botSessionList } = await import("@mecha/service");
+    vi.mocked(botSessionList).mockResolvedValueOnce([null, "string", 42]);
 
     const deps = makeDeps();
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "casa", "sessions", "list", "researcher"]);
+    await program.parseAsync(["node", "mecha", "bot", "sessions", "list", "researcher"]);
     expect(deps.formatter.table).toHaveBeenCalledWith(
       ["Session ID", "Title", "Created", "Updated"],
       [["-", "-", "-", "-"], ["-", "-", "-", "-"], ["-", "-", "-", "-"]],
@@ -102,14 +102,14 @@ describe("sessions commands", () => {
   });
 
   it("shows not found for missing session", async () => {
-    const { casaSessionGet } = await import("@mecha/service");
-    vi.mocked(casaSessionGet).mockResolvedValueOnce(undefined);
+    const { botSessionGet } = await import("@mecha/service");
+    vi.mocked(botSessionGet).mockResolvedValueOnce(undefined);
 
     const deps = makeDeps();
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "casa", "sessions", "show", "researcher", "missing"]);
+    await program.parseAsync(["node", "mecha", "bot", "sessions", "show", "researcher", "missing"]);
     expect(deps.formatter.error).toHaveBeenCalledWith("Session not found");
   });
 });

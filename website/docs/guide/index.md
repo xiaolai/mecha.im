@@ -1,6 +1,6 @@
 # What is Mecha?
 
-Mecha is a **local-first multi-agent runtime** that lets you run multiple Claude agents as isolated processes on your own machine. Each agent — called a **CASA** (Claude Agent SDK App) — gets its own workspace, permissions, and identity.
+Mecha is a **local-first multi-agent runtime** that lets you run multiple Claude agents as isolated processes on your own machine. Each agent — called a **bot** (Claude Agent SDK App) — gets its own workspace, permissions, and identity.
 
 ## Why Mecha?
 
@@ -20,10 +20,10 @@ sequenceDiagram
   participant reviewer
   participant researcher
 
-  You->>researcher: mecha casa spawn researcher ~/papers
-  You->>coder: mecha casa spawn coder ~/project
-  You->>reviewer: mecha casa spawn reviewer ~/project
-  You->>coder: mecha casa chat coder "refactor the auth module"
+  You->>researcher: mecha bot spawn researcher ~/papers
+  You->>coder: mecha bot spawn coder ~/project
+  You->>reviewer: mecha bot spawn reviewer ~/project
+  You->>coder: mecha bot chat coder "refactor the auth module"
   coder->>reviewer: mesh_query: "review this code"
   reviewer->>coder: reads workspace (ACL-gated)
   reviewer-->>coder: code review response
@@ -41,9 +41,9 @@ Agents communicate through **mesh queries** — one agent asks another a questio
 
 ## Key Concepts
 
-### CASA (Claude Agent SDK App)
+### bot (Claude Agent SDK App)
 
-A CASA is the unit of deployment in Mecha. Each CASA is a Fastify server process that wraps the Claude Agent SDK, providing:
+A bot is the unit of deployment in Mecha. Each bot is a Fastify server process that wraps the Claude Agent SDK, providing:
 
 - HTTP API for chat (with SSE streaming)
 - MCP tool server (workspace access + mesh tools)
@@ -51,12 +51,12 @@ A CASA is the unit of deployment in Mecha. Each CASA is a Fastify server process
 
 ### Names and Addresses
 
-Every CASA has a human-readable name:
+Every bot has a human-readable name:
 
 ```
 researcher              ← local name
 researcher@alice        ← fully qualified (name@node)
-+research               ← group address (all CASAs tagged "research")
++research               ← group address (all bots tagged "research")
 ```
 
 ### Permissions (ACL)
@@ -75,7 +75,7 @@ No grant = no access. Every inter-agent interaction is checked against the ACL.
 
 ### Sandbox
 
-Each CASA runs inside an OS-level sandbox:
+Each bot runs inside an OS-level sandbox:
 
 - **macOS**: `sandbox-exec` profiles restrict filesystem and network
 - **Linux**: `bwrap` (bubblewrap) provides namespace isolation

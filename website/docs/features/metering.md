@@ -8,7 +8,7 @@ The metering proxy sits between your agents and the Anthropic API:
 
 ```mermaid
 graph LR
-  CASA --> proxy["metering proxy (:7600)"]
+  bot --> proxy["metering proxy (:7600)"]
   proxy --> api["api.anthropic.com"]
   proxy -. "records tokens, cost, model" .-> events["events log"]
 ```
@@ -21,7 +21,7 @@ Every API call is intercepted, forwarded to Anthropic, and the response is parse
 mecha meter start
 ```
 
-The proxy listens on port 7600 by default. All CASAs spawned after the meter starts will automatically route API calls through it.
+The proxy listens on port 7600 by default. All bots spawned after the meter starts will automatically route API calls through it.
 
 ```bash
 # Check status
@@ -41,7 +41,7 @@ mecha cost
 mecha cost --json
 ```
 
-The cost report shows per-CASA and total spending:
+The cost report shows per-bot and total spending:
 
 ```
 Daily Cost Summary (2026-02-26)
@@ -64,13 +64,13 @@ mecha budget set --global --daily 10.00
 # Set a global monthly budget
 mecha budget set --global --monthly 100.00
 
-# Set a per-CASA budget
+# Set a per-bot budget
 mecha budget set researcher --daily 2.00
 
 # Set a per-auth-profile budget
 mecha budget set --auth mykey --daily 5.00
 
-# Set a per-tag budget (applies to all CASAs with that tag)
+# Set a per-tag budget (applies to all bots with that tag)
 mecha budget set --tag dev --daily 8.00
 
 # List all budgets
@@ -83,19 +83,19 @@ mecha budget rm researcher --daily
 
 ### Budget Enforcement
 
-When a CASA approaches its budget:
+When a bot approaches its budget:
 
 1. **80% threshold** — warning logged
 2. **100% threshold** — API requests blocked with 429 response
 
-The CASA receives an error message explaining the budget limit. Daily budgets reset at midnight UTC. Monthly budgets reset on the first of each month.
+The bot receives an error message explaining the budget limit. Daily budgets reset at midnight UTC. Monthly budgets reset on the first of each month.
 
 ## Event Tracking
 
 Every API call is recorded as a meter event:
 
 - Timestamp
-- CASA name
+- bot name
 - Model used
 - Input/output/cache tokens
 - Estimated cost
@@ -125,7 +125,7 @@ The metering proxy uses several background processes to maintain accuracy and pe
 |-----------|---------|-------------|
 | Snapshot interval | 10s | Hot counters flushed to `snapshot.json` |
 | Rollup interval | 60s | Aggregate counters rolled up |
-| Registry rescan | 30s | Re-scan CASAs for new/removed agents |
+| Registry rescan | 30s | Re-scan bots for new/removed agents |
 | Event buffer max | 100 events | Force flush when buffer is full |
 | Event buffer interval | 5s | Force flush after this delay |
 | Retention | 90 days | Event files older than this are pruned |

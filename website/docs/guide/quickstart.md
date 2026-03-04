@@ -24,19 +24,19 @@ mecha auth test mykey
 ## 3. Spawn an Agent
 
 ```bash
-mecha casa spawn researcher ~/my-research --tags research
+mecha bot spawn researcher ~/my-research --tags research
 ```
 
-This creates a CASA named `researcher` with `~/my-research` as its workspace. The agent starts immediately.
+This creates a bot named `researcher` with `~/my-research` as its workspace. The agent starts immediately.
 
 ## 4. Check Status
 
 ```bash
 # List all agents
-mecha casa ls
+mecha bot ls
 
 # Detailed status
-mecha casa status researcher
+mecha bot status researcher
 ```
 
 You'll see something like:
@@ -53,7 +53,7 @@ researcher
 ## 5. Chat with Your Agent
 
 ```bash
-mecha casa chat researcher "What files are in my workspace?"
+mecha bot chat researcher "What files are in my workspace?"
 ```
 
 The response streams to your terminal in real time.
@@ -61,7 +61,7 @@ The response streams to your terminal in real time.
 ## 6. Spawn a Second Agent
 
 ```bash
-mecha casa spawn coder ~/my-project --tags dev
+mecha bot spawn coder ~/my-project --tags dev
 ```
 
 ## 7. Let Them Talk
@@ -75,7 +75,7 @@ mecha acl grant coder query researcher
 Now when coder needs research help, it can query researcher through the mesh:
 
 ```bash
-mecha casa chat coder "Ask the researcher about recent papers on transformers"
+mecha bot chat coder "Ask the researcher about recent papers on transformers"
 ```
 
 ## 8. Monitor Costs
@@ -102,18 +102,18 @@ mecha budget set --daily 5.00
 
 ```bash
 # Stop one
-mecha casa stop researcher
+mecha bot stop researcher
 
 # Kill one (immediate)
-mecha casa kill coder
+mecha bot kill coder
 
 # List to confirm
-mecha casa ls
+mecha bot ls
 ```
 
 ## What's Next?
 
-- [Core Concepts](/guide/concepts) — understand CASAs, naming, sessions
+- [Core Concepts](/guide/concepts) — understand bots, naming, sessions
 - [Permissions](/features/permissions) — fine-grained access control
 - [Mesh Networking](/features/mesh-networking) — cross-machine agent communication
 - [CLI Reference](/reference/cli) — complete command documentation

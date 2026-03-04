@@ -1,8 +1,8 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { join } from "node:path";
-import { readCasaConfig, DEFAULTS, casaName } from "@mecha/core";
-import { casaFind, casaStatus } from "@mecha/service";
+import { readBotConfig, DEFAULTS, botName } from "@mecha/core";
+import { botFind, botStatus } from "@mecha/service";
 import type { MeshMcpContext } from "../types.js";
 import { textResult, errorResult, withAuditAndRateLimit, annotationsFor } from "./helpers.js";
 
@@ -54,18 +54,18 @@ export function registerDiscoveryTools(server: McpServer, ctx: MeshMcpContext): 
     }),
   );
 
-  // mecha_list_casas
+  // mecha_list_bots
   server.registerTool(
-    "mecha_list_casas",
+    "mecha_list_bots",
     {
-      description: "List CASAs (local, or from a specific remote node)",
+      description: "List bots (local, or from a specific remote node)",
       inputSchema: {
         node: z.string().optional().describe("Remote node name to query (omit for local)"),
         limit: z.number().optional().describe("Max results to return"),
       },
-      annotations: annotationsFor("mecha_list_casas"),
+      annotations: annotationsFor("mecha_list_bots"),
     },
-    withAuditAndRateLimit(ctx, "mecha_list_casas", async (args) => {
+    withAuditAndRateLimit(ctx, "mecha_list_bots", async (args) => {
       const nodeFilter = args.node as string | undefined;
       const limit = args.limit as number | undefined;
 
@@ -75,12 +75,12 @@ export function registerDiscoveryTools(server: McpServer, ctx: MeshMcpContext): 
         if (!node) return errorResult(`Node not found: ${nodeFilter}`);
         if (node.managed) return errorResult("Managed (P2P) nodes do not support remote listing via HTTP");
         try {
-          const res = await ctx.agentFetch({ node, path: "/casas", allowPrivateHosts: true });
+          const res = await ctx.agentFetch({ node, path: "/bots", allowPrivateHosts: true });
           if (!res.ok) return errorResult(`Remote node returned ${res.status}`);
           const remote = await res.json() as Array<{ name: string; state: string; port?: number }>;
           const limited = limit !== undefined && limit > 0 ? remote.slice(0, limit) : remote;
           const lines = limited.map((c) => `${c.name}: ${c.state}${c.port ? ` (port ${c.port})` : ""}`);
-          return textResult(`CASAs on ${nodeFilter}:\n${lines.join("\n")}`);
+          return textResult(`bots on ${nodeFilter}:\n${lines.join("\n")}`);
         } catch (err: unknown) {
           /* v8 ignore start -- non-Error throws are defensive */
           return errorResult(`Failed to reach node ${nodeFilter}: ${err instanceof Error ? err.message : String(err)}`);
@@ -88,10 +88,10 @@ export function registerDiscoveryTools(server: McpServer, ctx: MeshMcpContext): 
         }
       }
 
-      const casas = casaFind(ctx.mechaDir, ctx.pm, {});
-      const limited = limit !== undefined && limit > 0 ? casas.slice(0, limit) : casas;
+      const bots = botFind(ctx.mechaDir, ctx.pm, {});
+      const limited = limit !== undefined && limit > 0 ? bots.slice(0, limit) : bots;
       if (limited.length === 0) {
-        return textResult("No CASAs found. Use `mecha spawn <name>` to create one.");
+        return textResult("No bots found. Use `mecha spawn <name>` to create one.");
       }
       const lines = limited.map((c) => {
         const tags = c.tags.length > 0 ? ` [${c.tags.join(", ")}]` : "";
@@ -101,22 +101,22 @@ export function registerDiscoveryTools(server: McpServer, ctx: MeshMcpContext): 
     }),
   );
 
-  // mecha_casa_status
+  // mecha_bot_status
   server.registerTool(
-    "mecha_casa_status",
+    "mecha_bot_status",
     {
-      description: "Get detailed status for a specific CASA",
+      description: "Get detailed status for a specific bot",
       inputSchema: {
-        target: z.string().describe("CASA name (or name@node for remote)"),
+        target: z.string().describe("bot name (or name@node for remote)"),
       },
-      annotations: annotationsFor("mecha_casa_status"),
+      annotations: annotationsFor("mecha_bot_status"),
     },
-    withAuditAndRateLimit(ctx, "mecha_casa_status", async (args) => {
+    withAuditAndRateLimit(ctx, "mecha_bot_status", async (args) => {
       const target = args.target as string;
       const atIdx = target.indexOf("@");
 
       if (atIdx !== -1) {
-        const casaName = target.slice(0, atIdx);
+        const botName = target.slice(0, atIdx);
         const nodeName = target.slice(atIdx + 1);
         const nodes = ctx.getNodes();
         const node = nodes.find((n) => n.name === nodeName);
@@ -125,7 +125,7 @@ export function registerDiscoveryTools(server: McpServer, ctx: MeshMcpContext): 
         try {
           const res = await ctx.agentFetch({
             node,
-            path: `/casas/${encodeURIComponent(casaName)}/status`,
+            path: `/bots/${encodeURIComponent(botName)}/status`,
             allowPrivateHosts: true,
           });
           if (!res.ok) return errorResult(`Remote node returned ${res.status}`);
@@ -139,7 +139,7 @@ export function registerDiscoveryTools(server: McpServer, ctx: MeshMcpContext): 
       }
 
       try {
-        const info = casaStatus(ctx.pm, casaName(target));
+        const info = botStatus(ctx.pm, botName(target));
         /* v8 ignore start -- null coalescing fallback for optional fields */
         const lines = [
           `Name: ${info.name}`,
@@ -162,7 +162,7 @@ export function registerDiscoveryTools(server: McpServer, ctx: MeshMcpContext): 
   server.registerTool(
     "mecha_discover",
     {
-      description: "Find CASAs by tag or capability (local only)",
+      description: "Find bots by tag or capability (local only)",
       inputSchema: {
         tag: z.string().optional().describe("Filter by tag"),
         capability: z.string().optional().describe("Filter by exposed capability"),
@@ -175,11 +175,11 @@ export function registerDiscoveryTools(server: McpServer, ctx: MeshMcpContext): 
       const capability = args.capability as string | undefined;
       const limit = args.limit as number | undefined;
 
-      let casas = casaFind(ctx.mechaDir, ctx.pm, { tags: tag ? [tag] : undefined });
+      let bots = botFind(ctx.mechaDir, ctx.pm, { tags: tag ? [tag] : undefined });
 
       if (capability) {
-        casas = casas.filter((c) => {
-          const config = readCasaConfig(join(ctx.mechaDir, c.name));
+        bots = bots.filter((c) => {
+          const config = readBotConfig(join(ctx.mechaDir, c.name));
           /* v8 ignore start -- null coalescing for missing config/expose */
           const exposed = (config?.expose as string[] | undefined) ?? [];
           /* v8 ignore stop */
@@ -187,9 +187,9 @@ export function registerDiscoveryTools(server: McpServer, ctx: MeshMcpContext): 
         });
       }
 
-      const limited = limit !== undefined && limit > 0 ? casas.slice(0, limit) : casas;
+      const limited = limit !== undefined && limit > 0 ? bots.slice(0, limit) : bots;
       if (limited.length === 0) {
-        return textResult("No CASAs match the given filters.");
+        return textResult("No bots match the given filters.");
       }
       const lines = limited.map((c) => {
         const tags = c.tags.length > 0 ? ` [${c.tags.join(", ")}]` : "";

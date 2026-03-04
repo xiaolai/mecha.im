@@ -41,7 +41,7 @@ describe("agentFetch", () => {
   it("sends POST with JSON body", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("ok"));
 
-    await agentFetch({ node, path: "/casas/analyst/query", method: "POST", body: { message: "hello" } });
+    await agentFetch({ node, path: "/bots/analyst/query", method: "POST", body: { message: "hello" } });
 
     const call = vi.mocked(fetch).mock.calls[0];
     expect(call[1]!.method).toBe("POST");
@@ -52,7 +52,7 @@ describe("agentFetch", () => {
   it("sets X-Mecha-Source header when source provided", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("ok"));
 
-    await agentFetch({ node, path: "/casas/analyst/query", source: "coder@alice" });
+    await agentFetch({ node, path: "/bots/analyst/query", source: "coder@alice" });
 
     const call = vi.mocked(fetch).mock.calls[0];
     expect((call[1]!.headers as Record<string, string>)["x-mecha-source"]).toBe("coder@alice");

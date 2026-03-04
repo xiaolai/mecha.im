@@ -24,7 +24,7 @@ export interface AuthOpts {
 
 /** Known API path prefixes that always require auth. */
 export const API_PREFIXES = [
-  "/casas", "/acl", "/audit", "/mesh", "/meter",
+  "/bots", "/acl", "/audit", "/mesh", "/meter",
   "/settings/", "/events", "/discover", "/ws",
 ];
 
@@ -124,8 +124,8 @@ export function createSignatureHook(opts: AuthOpts) {
     if (!opts.nodePublicKeys || !opts.verifySignature) return;
 
     const pathname = request.url.split("?")[0];
-    // Only verify signatures on POST /casas/:name/query routing endpoints
-    if (!pathname?.startsWith("/casas/") || !pathname.endsWith("/query") || request.method !== "POST") return;
+    // Only verify signatures on POST /bots/:name/query routing endpoints
+    if (!pathname?.startsWith("/bots/") || !pathname.endsWith("/query") || request.method !== "POST") return;
 
     const source = getSource(request);
     const sigHeader = request.headers["x-mecha-signature"];
@@ -139,7 +139,7 @@ export function createSignatureHook(opts: AuthOpts) {
     const atIdx = source.lastIndexOf("@");
     const nodeName = atIdx >= 0 ? source.slice(atIdx + 1) : undefined;
     if (!nodeName) {
-      reply.code(401).send({ error: "Source must include node name (casa@node)" });
+      reply.code(401).send({ error: "Source must include node name (bot@node)" });
       return;
     }
 
@@ -204,7 +204,7 @@ export function createSignatureHook(opts: AuthOpts) {
 function isMeshRoutingRequest(request: FastifyRequest): boolean {
   const pathname = request.url.split("?")[0]!;
   return request.method === "POST"
-    && pathname.startsWith("/casas/")
+    && pathname.startsWith("/bots/")
     && pathname.endsWith("/query")
     && typeof request.headers["x-mecha-source"] === "string";
 }

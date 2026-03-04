@@ -7,7 +7,7 @@ export interface NodeInfo {
   port: number;
   uptimeSeconds: number;
   startedAt: string;
-  casaCount: number;
+  botCount: number;
   totalMemMB: number;
   freeMemMB: number;
   cpuCount: number;
@@ -63,7 +63,7 @@ export async function fetchPublicIp(): Promise<string | undefined> {
 export function collectNodeInfo(opts: {
   port: number;
   startedAt: string;
-  casaCount: number;
+  botCount: number;
   publicIp?: string;
 }): NodeInfo {
   const { lanIp, tailscaleIp } = getNetworkIps();
@@ -74,7 +74,7 @@ export function collectNodeInfo(opts: {
     port: opts.port,
     uptimeSeconds: Math.floor(process.uptime()),
     startedAt: opts.startedAt,
-    casaCount: opts.casaCount,
+    botCount: opts.botCount,
     totalMemMB: Math.round(totalmem() / (1024 * 1024)),
     freeMemMB: Math.round(freemem() / (1024 * 1024)),
     cpuCount: cpus().length,

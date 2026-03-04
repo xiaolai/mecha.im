@@ -82,7 +82,7 @@ export function registerPluginTestCommand(parent: Command, deps: CommandDeps): v
           return;
         }
         deps.formatter.info(`${name}: stdio plugin config valid (command: ${config.command})`);
-        deps.formatter.info(`  Run "mecha spawn <casa> <workspace> --expose ${name}" to use`);
+        deps.formatter.info(`  Run "mecha spawn <bot> <workspace> --expose ${name}" to use`);
         return;
       }
 

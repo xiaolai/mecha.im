@@ -2,7 +2,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
-import { casaName } from "@mecha/core";
+import { botName } from "@mecha/core";
 import { withErrorHandler } from "../error-handler.js";
 
 export function registerSandboxCommand(program: Command, deps: CommandDeps): void {
@@ -12,10 +12,10 @@ export function registerSandboxCommand(program: Command, deps: CommandDeps): voi
 
   sandbox
     .command("show")
-    .description("Show sandbox profile for a CASA")
-    .argument("<name>", "CASA name")
+    .description("Show sandbox profile for a bot")
+    .argument("<name>", "bot name")
     .action(async (name: string) => withErrorHandler(deps, async () => {
-      const validated = casaName(name);
+      const validated = botName(name);
       const profilePath = join(deps.mechaDir, validated, "sandbox-profile.json");
       if (!existsSync(profilePath)) {
         deps.formatter.warn(`No sandbox profile found for "${validated}"`);

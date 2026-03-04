@@ -6,7 +6,7 @@ Mecha enforces **defense in depth** — five layers of isolation ensure that eac
 
 ### Layer 1: Filesystem
 
-Each CASA can only read and write its own workspace directory. Path traversal attacks are blocked by resolving symlinks and checking canonical paths.
+Each bot can only read and write its own workspace directory. Path traversal attacks are blocked by resolving symlinks and checking canonical paths.
 
 ```
 researcher's workspace: ~/papers/
@@ -17,11 +17,11 @@ researcher's workspace: ~/papers/
 
 ### Layer 2: Network
 
-By default, CASAs can only communicate via localhost. The OS sandbox blocks raw outbound network access. API calls go through the metering proxy, which controls and tracks all Anthropic API usage.
+By default, bots can only communicate via localhost. The OS sandbox blocks raw outbound network access. API calls go through the metering proxy, which controls and tracks all Anthropic API usage.
 
 ### Layer 3: Process Permissions
 
-Each CASA runs with restricted process capabilities. The Claude Agent SDK's permission mode controls what tools the agent can use:
+Each bot runs with restricted process capabilities. The Claude Agent SDK's permission mode controls what tools the agent can use:
 
 | Mode | Description |
 |------|-------------|
@@ -34,14 +34,14 @@ Each CASA runs with restricted process capabilities. The Claude Agent SDK's perm
 The OS-level sandbox provides the strongest isolation:
 
 **macOS** — Uses `sandbox-exec` with a custom profile:
-- Filesystem access restricted to CASA directory + workspace
+- Filesystem access restricted to bot directory + workspace
 - Network restricted to localhost
 - No process spawning outside allowed paths
 
 **Linux** — Uses `bwrap` (bubblewrap):
 - Mount namespace isolation
 - Read-only root filesystem
-- Bind-mount only CASA directory and workspace
+- Bind-mount only bot directory and workspace
 
 **Fallback** — When no sandbox runtime is available:
 - Process-level restrictions only
@@ -49,15 +49,15 @@ The OS-level sandbox provides the strongest isolation:
 
 ### Layer 5: ACL
 
-The access control layer mediates all inter-agent communication. Even if two CASAs are on the same machine, they cannot interact without explicit permission grants.
+The access control layer mediates all inter-agent communication. Even if two bots are on the same machine, they cannot interact without explicit permission grants.
 
-## CASA Home Directory Isolation
+## bot Home Directory Isolation
 
-Each CASA gets its own isolated Claude Code home directory. The host's real `~/.claude/` is never exposed.
+Each bot gets its own isolated Claude Code home directory. The host's real `~/.claude/` is never exposed.
 
 ### How It Works
 
-When Mecha spawns a CASA, it creates a complete `home/.claude/` mirror inside the CASA directory:
+When Mecha spawns a bot, it creates a complete `home/.claude/` mirror inside the bot directory:
 
 ```
 ~/.mecha/researcher/
@@ -76,11 +76,11 @@ When Mecha spawns a CASA, it creates a complete `home/.claude/` mirror inside th
 └── config.json
 ```
 
-The `HOME` environment variable is redirected to `~/.mecha/researcher/home/`, so Claude Code reads settings from the CASA's own directory — not the host's.
+The `HOME` environment variable is redirected to `~/.mecha/researcher/home/`, so Claude Code reads settings from the bot's own directory — not the host's.
 
 ### Settings Are Generated, Not Inherited
 
-The CASA's `settings.json` is generated fresh by Mecha at spawn time with sandbox hooks pre-configured:
+The bot's `settings.json` is generated fresh by Mecha at spawn time with sandbox hooks pre-configured:
 
 ```json
 {
@@ -108,37 +108,37 @@ The CASA's `settings.json` is generated fresh by Mecha at spawn time with sandbo
 ```
 
 ::: warning
-CASAs do **not** inherit settings, rules, or hooks from:
+bots do **not** inherit settings, rules, or hooks from:
 - The host's `~/.claude/` directory
 - The workspace's `.claude/` directory
 - Any parent directory's `.claude/` configuration
 
-This is intentional — each CASA is a clean, isolated environment.
+This is intentional — each bot is a clean, isolated environment.
 :::
 
 ### Hook Scripts
 
 Hook scripts are hardcoded by Mecha during spawn — they are not copied from the workspace or host. This prevents a compromised workspace from tampering with sandbox enforcement.
 
-- **sandbox-guard.sh** — Receives tool input as JSON on stdin, extracts the `path` field, resolves symlinks via `realpath`, and verifies the resolved path is within the CASA's sandbox root or workspace. Exits 0 (allow) or 2 (block).
+- **sandbox-guard.sh** — Receives tool input as JSON on stdin, extracts the `path` field, resolves symlinks via `realpath`, and verifies the resolved path is within the bot's sandbox root or workspace. Exits 0 (allow) or 2 (block).
 - **bash-guard.sh** — Filters shell commands for safety.
 
 These hooks run as `PreToolUse` handlers before every file access and shell command.
 
 ### Environment Isolation
 
-The CASA's child process receives a locked-down environment:
+The bot's child process receives a locked-down environment:
 
 | Variable | Value | Purpose |
 |----------|-------|---------|
-| `HOME` | `casaDir/home` | Redirects Claude Code settings |
-| `TMPDIR` | `casaDir/tmp` | Isolated temp directory |
+| `HOME` | `botDir/home` | Redirects Claude Code settings |
+| `TMPDIR` | `botDir/tmp` | Isolated temp directory |
 | `MECHA_WORKSPACE` | Workspace path | The directory the agent can access |
-| `MECHA_SANDBOX_ROOT` | CASA root directory | Bounds check for sandbox hooks |
-| `MECHA_PROJECTS_DIR` | `casaDir/home/.claude/projects/<encoded>` | Session storage path |
+| `MECHA_SANDBOX_ROOT` | bot root directory | Bounds check for sandbox hooks |
+| `MECHA_PROJECTS_DIR` | `botDir/home/.claude/projects/<encoded>` | Session storage path |
 | `PATH` | Minimal (node, /usr/bin, /bin) | No access to host tools |
 
-Dangerous environment variables are blocked from propagating to the CASA:
+Dangerous environment variables are blocked from propagating to the bot:
 
 - All `MECHA_*` variables (prevents override)
 - `BASH_ENV`, `ENV` (prevents shell injection)
@@ -147,17 +147,17 @@ Dangerous environment variables are blocked from propagating to the CASA:
 
 ### Workspace `.claude/` Files
 
-Since `HOME` is redirected, Claude Code inside a CASA does **not** walk up the filesystem to discover `.claude/` directories. This means:
+Since `HOME` is redirected, Claude Code inside a bot does **not** walk up the filesystem to discover `.claude/` directories. This means:
 
 - **`CLAUDE.md`** in the workspace root is still read by the Agent SDK (it reads relative to the working directory, not `HOME`)
 - **`.claude/rules/`** in the workspace are still loaded (same reason — relative to workspace)
-- **Host-level `~/.claude/settings.json`** is NOT read (the CASA has its own)
-- **Host-level plugins, hooks, MCP servers** are NOT available to the CASA
+- **Host-level `~/.claude/settings.json`** is NOT read (the bot has its own)
+- **Host-level plugins, hooks, MCP servers** are NOT available to the bot
 
 ## Inspecting Sandbox Status
 
 ```bash
-# Show sandbox details for a CASA
+# Show sandbox details for a bot
 mecha sandbox show researcher
 ```
 

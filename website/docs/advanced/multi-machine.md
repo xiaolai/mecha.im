@@ -67,10 +67,10 @@ Both nodes now know each other. Alice is also notified in real-time via the rend
 
 ```bash
 # On alice
-mecha casa spawn coder ~/project --tags dev
+mecha bot spawn coder ~/project --tags dev
 
 # On bob
-mecha casa spawn analyst ~/data --tags data
+mecha bot spawn analyst ~/data --tags data
 ```
 
 ### Step 5: Set Up Permissions
@@ -92,7 +92,7 @@ Both sides must approve — double-check enforcement.
 mecha node ping bob
 
 # On alice — send a cross-node query
-mecha casa chat coder "Ask analyst@bob to summarize the sales data"
+mecha bot chat coder "Ask analyst@bob to summarize the sales data"
 ```
 
 The query routes through an encrypted SecureChannel — no HTTP ports exposed, no API keys exchanged.
@@ -179,10 +179,10 @@ mecha node add alice 192.168.1.100 --port 7660 --api-key <key>
 
 ```bash
 # On alice
-mecha casa spawn coder ~/project --tags dev
+mecha bot spawn coder ~/project --tags dev
 
 # On bob
-mecha casa spawn analyst ~/data --tags data
+mecha bot spawn analyst ~/data --tags data
 ```
 
 ### Step 5: Set Up Permissions
@@ -200,7 +200,7 @@ mecha acl grant coder@alice query analyst
 ```bash
 # On alice
 mecha node ping bob
-mecha casa chat coder "Ask analyst@bob to summarize the sales data"
+mecha bot chat coder "Ask analyst@bob to summarize the sales data"
 ```
 
 ---
@@ -239,7 +239,7 @@ No inbound ports needed. Works behind NAT and firewalls.
 | Direction | Port | Protocol | Purpose |
 |-----------|------|----------|---------|
 | Inbound | 7660 | HTTP | Agent server (mesh queries) |
-| Internal | 7700-7799 | HTTP | CASA runtime APIs (localhost only) |
+| Internal | 7700-7799 | HTTP | bot runtime APIs (localhost only) |
 | Internal | 7600 | HTTP | Metering proxy (localhost only) |
 
 Only port 7660 needs to be accessible between machines.
