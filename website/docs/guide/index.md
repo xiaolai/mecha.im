@@ -20,10 +20,10 @@ sequenceDiagram
   participant reviewer
   participant researcher
 
-  You->>researcher: mecha spawn researcher ~/papers
-  You->>coder: mecha spawn coder ~/project
-  You->>reviewer: mecha spawn reviewer ~/project
-  You->>coder: mecha chat coder "refactor the auth module"
+  You->>researcher: mecha casa spawn researcher ~/papers
+  You->>coder: mecha casa spawn coder ~/project
+  You->>reviewer: mecha casa spawn reviewer ~/project
+  You->>coder: mecha casa chat coder "refactor the auth module"
   coder->>reviewer: mesh_query: "review this code"
   reviewer->>coder: reads workspace (ACL-gated)
   reviewer-->>coder: code review response

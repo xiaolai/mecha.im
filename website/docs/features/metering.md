@@ -10,7 +10,7 @@ The metering proxy sits between your agents and the Anthropic API:
 graph LR
   CASA --> proxy["metering proxy (:7600)"]
   proxy --> api["api.anthropic.com"]
-  proxy -. "records tokens,<br/>cost, model" .-> events["events log"]
+  proxy -. "records tokens, cost, model" .-> events["events log"]
 ```
 
 Every API call is intercepted, forwarded to Anthropic, and the response is parsed for usage data (input tokens, output tokens, cache tokens). Costs are calculated using built-in model pricing.

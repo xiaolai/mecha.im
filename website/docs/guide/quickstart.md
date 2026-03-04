@@ -24,7 +24,7 @@ mecha auth test mykey
 ## 3. Spawn an Agent
 
 ```bash
-mecha spawn researcher ~/my-research --tags research
+mecha casa spawn researcher ~/my-research --tags research
 ```
 
 This creates a CASA named `researcher` with `~/my-research` as its workspace. The agent starts immediately.
@@ -33,10 +33,10 @@ This creates a CASA named `researcher` with `~/my-research` as its workspace. Th
 
 ```bash
 # List all agents
-mecha ls
+mecha casa ls
 
 # Detailed status
-mecha status researcher
+mecha casa status researcher
 ```
 
 You'll see something like:
@@ -53,7 +53,7 @@ researcher
 ## 5. Chat with Your Agent
 
 ```bash
-mecha chat researcher "What files are in my workspace?"
+mecha casa chat researcher "What files are in my workspace?"
 ```
 
 The response streams to your terminal in real time.
@@ -61,7 +61,7 @@ The response streams to your terminal in real time.
 ## 6. Spawn a Second Agent
 
 ```bash
-mecha spawn coder ~/my-project --tags dev
+mecha casa spawn coder ~/my-project --tags dev
 ```
 
 ## 7. Let Them Talk
@@ -75,7 +75,7 @@ mecha acl grant coder query researcher
 Now when coder needs research help, it can query researcher through the mesh:
 
 ```bash
-mecha chat coder "Ask the researcher about recent papers on transformers"
+mecha casa chat coder "Ask the researcher about recent papers on transformers"
 ```
 
 ## 8. Monitor Costs
@@ -102,13 +102,13 @@ mecha budget set --daily 5.00
 
 ```bash
 # Stop one
-mecha stop researcher
+mecha casa stop researcher
 
 # Kill one (immediate)
-mecha kill coder
+mecha casa kill coder
 
 # List to confirm
-mecha ls
+mecha casa ls
 ```
 
 ## What's Next?

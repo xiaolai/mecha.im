@@ -53,7 +53,6 @@ When spawning a CASA, credentials are resolved in this order:
 |----------|-------------|
 | `ANTHROPIC_API_KEY` | Anthropic API key for agent inference |
 | `CLAUDE_CODE_OAUTH_TOKEN` | OAuth token (preferred over API key) |
-| `MECHA_AGENT_API_KEY` | API key for the inter-node agent server |
 | `MECHA_DIR` | Override default `~/.mecha/` directory |
 
 ## CASA Configuration
@@ -83,17 +82,25 @@ Each CASA has a `config.json`:
 | `token` | string | Random Bearer token for API auth |
 | `workspace` | string | Absolute path to the workspace directory |
 | `model` | string? | Model override for this CASA |
-| `permissionMode` | string? | `default`, `plan`, or `full-auto` |
+| `permissionMode` | string? | `default`, `plan`, or `full-auto` (see below) |
 | `auth` | string? | Auth profile name |
 | `tags` | string[]? | Tags for organization and discovery |
 | `expose` | string[]? | Capabilities exposed to the mesh |
 | `sandboxMode` | string? | `auto`, `off`, or `require` |
 | `allowNetwork` | boolean? | Allow outbound network access (reserved) |
 
+### Permission Modes
+
+| Mode | Behavior |
+|------|----------|
+| `default` | Agent asks for approval before executing tools (safest) |
+| `plan` | Agent can read files and search, but asks approval for writes and commands |
+| `full-auto` | Agent executes all tools without asking (use with sandbox enforcement) |
+
 Update configuration with:
 
 ```bash
-mecha configure researcher --tags research,ml
+mecha casa configure researcher --tags research,ml
 ```
 
 ## Port Assignment
@@ -101,7 +108,7 @@ mecha configure researcher --tags research,ml
 Mecha auto-assigns ports from the 7700-7799 range. To use a specific port:
 
 ```bash
-mecha spawn researcher ~/papers --port 7710
+mecha casa spawn researcher ~/papers --port 7710
 ```
 
 ## Sandbox Modes
