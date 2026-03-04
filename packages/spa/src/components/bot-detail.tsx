@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { TooltipIconButton } from "@/components/ui/tooltip-icon-button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { SessionList } from "@/components/session-list";
+import { ScheduleList } from "@/components/schedule-list";
 import { BusyWarningBanner } from "@/components/busy-warning-banner";
 import { ConfirmActionBanner } from "@/components/confirm-action-banner";
 import { cn } from "@/lib/utils";
@@ -15,7 +16,7 @@ import { useFetch } from "@/lib/use-fetch";
 import { useBotAction } from "@/lib/use-bot-action";
 import { stateStyles } from "@/lib/bot-styles";
 import { shortModelName, formatCost } from "@/lib/format";
-import type { BotInfo } from "./casa-card";
+import type { BotInfo } from "./bot-card";
 
 interface BotDetailProps {
   name: string;
@@ -195,10 +196,14 @@ export function BotDetail({ name, node }: BotDetailProps) {
       <Tabs defaultValue="sessions">
         <TabsList>
           <TabsTrigger value="sessions" className="min-h-11 sm:min-h-0">Sessions</TabsTrigger>
+          <TabsTrigger value="schedules" className="min-h-11 sm:min-h-0">Schedules</TabsTrigger>
           <TabsTrigger value="config" className="min-h-11 sm:min-h-0">Config</TabsTrigger>
         </TabsList>
         <TabsContent value="sessions">
           <SessionList name={name} node={node} botState={bot.state} />
+        </TabsContent>
+        <TabsContent value="schedules">
+          <ScheduleList botName={name} node={node} botState={bot.state} />
         </TabsContent>
         <TabsContent value="config">
           <BotConfigView bot={bot} />

@@ -428,6 +428,33 @@ describe("AgentServer", () => {
     });
   });
 
+  describe("GET /bots/:name/schedules (integration)", () => {
+    it("returns schedule list for valid bot via createAgentServer", async () => {
+      const list: ProcessInfo[] = [
+        { name: "coder" as BotName, state: "running", port: 7700, workspacePath: "/ws" },
+      ];
+      const pm = makePm(list);
+      (pm.getPortAndToken as ReturnType<typeof vi.fn>).mockReturnValue({ port: 7700, token: "tok" });
+
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response(JSON.stringify([{ id: "health", trigger: { type: "interval", every: "5m", intervalMs: 300000 }, prompt: "Check health" }]), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+
+      const app = createServer({ pm });
+      const res = await app.inject({
+        method: "GET",
+        url: "/bots/coder/schedules",
+        headers: { cookie: authCookie() },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toHaveLength(1);
+      expect(res.json()[0].id).toBe("health");
+    });
+  });
+
   describe("POST /bots/:name/query", () => {
     it("forwards query to local bot", async () => {
       const app = createServer();
