@@ -174,7 +174,7 @@ function seedClaudeCredentials(
     const onboardingState = {
       numStartups: 1,
       hasCompletedOnboarding: true,
-      installMethod: "native",
+      installMethod: "manual",
       autoUpdates: false,
       firstStartTime: new Date().toISOString(),
     };
