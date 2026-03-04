@@ -2,11 +2,13 @@ import type { FastifyInstance } from "fastify";
 import { verifyTotpCode } from "../totp.js";
 import { createSessionToken, SESSION_COOKIE } from "../session.js";
 import { createLoginLimiter } from "../login-limiter.js";
+import { emitEvent, type EventLog } from "../event-log.js";
 
 export interface AuthRouteOpts {
   totpSecret?: string;
   sessionKey?: string;
   sessionTtlHours?: number;
+  eventLog?: EventLog;
 }
 
 export function registerAuthRoutes(app: FastifyInstance, opts: AuthRouteOpts): void {
@@ -41,11 +43,22 @@ export function registerAuthRoutes(app: FastifyInstance, opts: AuthRouteOpts): v
     }
 
     if (!verifyTotpCode(opts.totpSecret, code)) {
-      limiter.recordFailure();
+      const locked = limiter.recordFailure();
+      if (locked) {
+        app.log.warn("TOTP login locked out after %d failed attempts from %s", 5, request.ip);
+        if (opts.eventLog) {
+          emitEvent(opts.eventLog, "warn", "auth", "totp.lockout",
+            `TOTP lockout triggered from ${request.ip}`, { ip: request.ip });
+        }
+      }
       return reply.code(401).send({ error: "Invalid TOTP code" });
     }
 
     limiter.reset();
+    if (opts.eventLog) {
+      emitEvent(opts.eventLog, "info", "auth", "totp.login_success",
+        `TOTP login from ${request.ip}`, { ip: request.ip });
+    }
     const token = createSessionToken(opts.sessionKey, ttl);
     const maxAge = ttl * 3600;
 
