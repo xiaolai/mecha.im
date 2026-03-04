@@ -76,6 +76,7 @@ export function profileFromConfig(opts: ProfileFromConfigOpts): SandboxProfile {
   readPaths.push(resolve(botDir));
   readPaths.push(resolve(config.workspace));
 
+  // Explicit sub-paths needed: bwrap uses per-path --bind mounts, not subtree grants.
   const writePaths: string[] = [
     resolve(botDir),
     resolve(join(botDir, "logs")),

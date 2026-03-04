@@ -127,6 +127,8 @@ describe("createProcessManager", () => {
     expect(existsSync(join(botDir, "logs"))).toBe(true);
     expect(existsSync(join(botDir, "config.json"))).toBe(true);
     expect(existsSync(join(botDir, "state.json"))).toBe(true);
+    // Old home/ nesting must not exist
+    expect(existsSync(join(botDir, "home"))).toBe(false);
   });
 
   it("sets config.json to mode 0o600 after spawn", async () => {

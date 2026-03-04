@@ -95,6 +95,8 @@ describe("sandbox-setup", () => {
       expect(existsSync(result.tmpDir)).toBe(true);
       expect(existsSync(result.logsDir)).toBe(true);
       expect(existsSync(result.projectsDir)).toBe(true);
+      // Old home/ nesting must not exist
+      expect(existsSync(join(botDir, "home"))).toBe(false);
     });
 
     it("writes config.json with correct content", () => {
