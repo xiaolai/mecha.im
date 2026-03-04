@@ -45,6 +45,8 @@ export { createLocator } from "./locator.js";
 export type { MechaLocator, LocateResult, CreateLocatorOpts } from "./locator.js";
 export { checkCasaBusy } from "./task-check.js";
 export type { TaskCheckResult } from "./task-check.js";
+export { batchCasaAction } from "./casa-batch.js";
+export type { BatchActionOpts, BatchItemResult, BatchResult } from "./casa-batch.js";
 export { enrichCasaInfo, buildEnrichContext } from "./casa-enrich.js";
 export type { EnrichedCasaInfo, EnrichContext } from "./casa-enrich.js";
 export { getCachedSnapshot, invalidateSnapshotCache } from "./snapshot-cache.js";

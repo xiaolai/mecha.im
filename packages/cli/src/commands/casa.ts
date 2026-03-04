@@ -13,6 +13,8 @@ import { registerCasaConfigureCommand } from "./casa-configure.js";
 import { registerCasaFindCommand } from "./casa-find.js";
 import { registerCasaChatCommand } from "./casa-chat.js";
 import { registerCasaSessionsCommand } from "./casa-sessions.js";
+import { registerCasaStopAllCommand } from "./casa-stop-all.js";
+import { registerCasaRestartAllCommand } from "./casa-restart-all.js";
 
 export function registerCasaCommand(program: Command, deps: CommandDeps): void {
   const casa = program
@@ -32,4 +34,6 @@ export function registerCasaCommand(program: Command, deps: CommandDeps): void {
   registerCasaFindCommand(casa, deps);
   registerCasaChatCommand(casa, deps);
   registerCasaSessionsCommand(casa, deps);
+  registerCasaStopAllCommand(casa, deps);
+  registerCasaRestartAllCommand(casa, deps);
 }
