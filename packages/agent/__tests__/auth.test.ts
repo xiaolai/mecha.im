@@ -4,10 +4,9 @@ import { createAuthHook, createSignatureHook, getSource } from "../src/auth.js";
 import { createSessionToken, deriveSessionKey } from "../src/session.js";
 
 /** Build a Fastify app with auth hook and test routes */
-async function buildAuthApp(opts?: { apiKey?: string; sessionKey?: string; spaDir?: string }): Promise<FastifyInstance> {
+async function buildAuthApp(opts?: { sessionKey?: string; spaDir?: string }): Promise<FastifyInstance> {
   const app = Fastify();
   app.addHook("onRequest", createAuthHook({
-    apiKey: opts?.apiKey ?? "secret",
     sessionKey: opts?.sessionKey,
     spaDir: opts?.spaDir,
   }));
@@ -28,7 +27,6 @@ async function buildSigApp(opts: {
 } = {}): Promise<FastifyInstance> {
   const app = Fastify();
   app.addHook("preHandler", createSignatureHook({
-    apiKey: "k",
     nodePublicKeys: opts.keys,
     verifySignature: opts.verify,
   }));
@@ -67,43 +65,11 @@ describe("agent auth", () => {
       await app.close();
     });
 
-    it("rejects missing auth header", async () => {
-      const app = await buildAuthApp();
+    it("rejects requests without session cookie", async () => {
+      const sessionKey = deriveSessionKey("TESTSECRET");
+      const app = await buildAuthApp({ sessionKey });
       const res = await app.inject({ method: "GET", url: "/test" });
       expect(res.statusCode).toBe(401);
-      await app.close();
-    });
-
-    it("rejects wrong bearer token", async () => {
-      const app = await buildAuthApp();
-      const res = await app.inject({
-        method: "GET",
-        url: "/test",
-        headers: { authorization: "Bearer wrong" },
-      });
-      expect(res.statusCode).toBe(401);
-      await app.close();
-    });
-
-    it("rejects non-Bearer scheme", async () => {
-      const app = await buildAuthApp();
-      const res = await app.inject({
-        method: "GET",
-        url: "/test",
-        headers: { authorization: "Basic dXNlcjpwYXNz" },
-      });
-      expect(res.statusCode).toBe(401);
-      await app.close();
-    });
-
-    it("accepts correct bearer token", async () => {
-      const app = await buildAuthApp();
-      const res = await app.inject({
-        method: "GET",
-        url: "/test",
-        headers: { authorization: "Bearer secret" },
-      });
-      expect(res.statusCode).toBe(200);
       await app.close();
     });
 
@@ -120,7 +86,7 @@ describe("agent auth", () => {
       await app.close();
     });
 
-    it("rejects invalid session cookie and falls through to bearer check", async () => {
+    it("rejects invalid session cookie", async () => {
       const sessionKey = deriveSessionKey("TESTSECRET");
       const app = await buildAuthApp({ sessionKey });
       const res = await app.inject({
@@ -132,24 +98,10 @@ describe("agent auth", () => {
       await app.close();
     });
 
-    it("accepts bearer when session cookie is invalid", async () => {
-      const sessionKey = deriveSessionKey("TESTSECRET");
-      const app = await buildAuthApp({ apiKey: "mykey", sessionKey });
-      const res = await app.inject({
-        method: "GET",
-        url: "/casas",
-        headers: {
-          cookie: "mecha-session=bad",
-          authorization: "Bearer mykey",
-        },
-      });
-      expect(res.statusCode).toBe(200);
-      await app.close();
-    });
-
     it("skips auth for non-API paths when spaDir is set", async () => {
+      const sessionKey = deriveSessionKey("TESTSECRET");
       const app = Fastify();
-      app.addHook("onRequest", createAuthHook({ apiKey: "secret", spaDir: "/fake/spa" }));
+      app.addHook("onRequest", createAuthHook({ sessionKey, spaDir: "/fake/spa" }));
       app.get("/casas", async () => []);
       // Catch-all for SPA routes (mimics real server behavior)
       app.setNotFoundHandler(async () => ({ spa: true }));
@@ -164,9 +116,10 @@ describe("agent auth", () => {
 
     it("serves SPA for browser navigation to API-prefixed paths without auth", async () => {
       const spaHtml = "<html><body>SPA</body></html>";
+      const sessionKey = deriveSessionKey("TESTSECRET");
       const app = Fastify();
       app.addHook("onRequest", createAuthHook({
-        apiKey: "secret", spaDir: "/fake/spa", spaIndexHtml: spaHtml,
+        sessionKey, spaDir: "/fake/spa", spaIndexHtml: spaHtml,
       }));
       app.get("/casas", async () => []);
       app.get("/mesh/nodes", async () => []);
@@ -213,8 +166,9 @@ describe("agent auth", () => {
     it("accepts valid ticket for /ws/ paths", async () => {
       const { issueTicket } = await import("../src/ws-tickets.js");
       const ticket = issueTicket();
+      const sessionKey = deriveSessionKey("TESTSECRET");
       const app = Fastify();
-      app.addHook("onRequest", createAuthHook({ apiKey: "secret" }));
+      app.addHook("onRequest", createAuthHook({ sessionKey }));
       app.get("/ws/terminal/alice", async () => ({ ws: true }));
       await app.ready();
 
@@ -224,8 +178,9 @@ describe("agent auth", () => {
     });
 
     it("rejects invalid ticket for /ws/ paths", async () => {
+      const sessionKey = deriveSessionKey("TESTSECRET");
       const app = Fastify();
-      app.addHook("onRequest", createAuthHook({ apiKey: "secret" }));
+      app.addHook("onRequest", createAuthHook({ sessionKey }));
       app.get("/ws/terminal/alice", async () => ({ ws: true }));
       await app.ready();
 
@@ -234,9 +189,10 @@ describe("agent auth", () => {
       await app.close();
     });
 
-    it("rejects /ws/ paths without ticket or bearer", async () => {
+    it("rejects /ws/ paths without ticket", async () => {
+      const sessionKey = deriveSessionKey("TESTSECRET");
       const app = Fastify();
-      app.addHook("onRequest", createAuthHook({ apiKey: "secret" }));
+      app.addHook("onRequest", createAuthHook({ sessionKey }));
       app.get("/ws/terminal/alice", async () => ({ ws: true }));
       await app.ready();
 
@@ -245,16 +201,18 @@ describe("agent auth", () => {
       await app.close();
     });
 
-    it("allows /ws/ticket with Bearer auth (not ticket)", async () => {
+    it("allows /ws/ticket with session cookie auth (not ticket)", async () => {
+      const sessionKey = deriveSessionKey("TESTSECRET");
+      const token = createSessionToken(sessionKey, 1);
       const app = Fastify();
-      app.addHook("onRequest", createAuthHook({ apiKey: "secret" }));
+      app.addHook("onRequest", createAuthHook({ sessionKey }));
       app.post("/ws/ticket", async () => ({ ticket: "abc" }));
       await app.ready();
 
       const res = await app.inject({
         method: "POST",
         url: "/ws/ticket",
-        headers: { authorization: "Bearer secret" },
+        headers: { cookie: `mecha-session=${token}` },
       });
       expect(res.statusCode).toBe(200);
       expect(res.json()).toEqual({ ticket: "abc" });
@@ -265,7 +223,7 @@ describe("agent auth", () => {
     });
 
     it("rejects everything when no auth methods configured", async () => {
-      const app = await buildAuthApp({ apiKey: undefined, sessionKey: undefined });
+      const app = await buildAuthApp({ sessionKey: undefined });
       const res = await app.inject({ method: "GET", url: "/casas" });
       expect(res.statusCode).toBe(401);
       await app.close();

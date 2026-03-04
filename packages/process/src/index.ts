@@ -13,8 +13,8 @@ export type {
   CreateProcessManagerOpts,
 } from "./types.js";
 export { isPidAlive, waitForChildExit, waitForPidExit } from "./process-lifecycle.js";
-export { prepareCasaFilesystem, encodeProjectPath } from "./sandbox-setup.js";
-export type { CasaFilesystemOpts, CasaFilesystemResult } from "./sandbox-setup.js";
+export { prepareCasaFilesystem, encodeProjectPath, buildCasaEnv } from "./sandbox-setup.js";
+export type { CasaFilesystemOpts, CasaFilesystemResult, BuildCasaEnvOpts } from "./sandbox-setup.js";
 export { readLogs } from "./log-reader.js";
 export type { MechaPty, PtySpawnOpts, PtySpawnFn, PtyDisposable } from "./pty-types.js";
 export { createBunPtySpawn } from "./bun-pty.js";

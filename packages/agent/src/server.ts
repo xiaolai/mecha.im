@@ -23,12 +23,12 @@ import { createPtyManager } from "./pty-manager.js";
 import { issueTicket, purgeTickets } from "./ws-tickets.js";
 
 export interface AgentServerAuth {
-  /** API key for Bearer token auth. Omit to disable. */
-  apiKey?: string;
   /** TOTP secret (base32). When set, enables session-based TOTP auth. */
   totpSecret?: string;
   /** Session TTL in hours (default: 24). */
   sessionTtlHours?: number;
+  /** Internal API key for mesh node-to-node routing (Bearer token). */
+  apiKey?: string;
 }
 
 export interface AgentServerOpts {
@@ -106,8 +106,8 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
   }
 
   const authOpts = {
-    apiKey: opts.auth.apiKey,
     sessionKey,
+    apiKey: opts.auth.apiKey,
     // Lazy-loading getter so keys are re-read from disk on each request
     get nodePublicKeys() {
       const keys = loadNodePublicKeys();
@@ -126,7 +126,6 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
   // Auth routes (public: /auth/status, /auth/login, /auth/logout)
   registerAuthRoutes(app, {
     totpSecret: opts.auth.totpSecret,
-    apiKey: opts.auth.apiKey,
     sessionKey,
     sessionTtlHours: opts.auth.sessionTtlHours,
   });

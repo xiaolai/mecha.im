@@ -236,6 +236,88 @@ describe("sandbox-setup", () => {
       });
     });
 
+    describe("credential seeding", () => {
+      it("seeds .claude.json onboarding state", () => {
+        const result = prepareCasaFilesystem(makeOpts());
+        const claudeJson = JSON.parse(readFileSync(join(result.homeDir, ".claude.json"), "utf-8"));
+        expect(claudeJson.hasCompletedOnboarding).toBe(true);
+        expect(claudeJson.numStartups).toBe(1);
+      });
+
+      it("does not overwrite existing .claude.json onboarding state", () => {
+        // First prepare creates onboarding state
+        prepareCasaFilesystem(makeOpts());
+        // Manually modify it
+        const claudeJsonPath = join(casaDir, "home", ".claude.json");
+        const modified = { numStartups: 42, hasCompletedOnboarding: true };
+        writeFileSync(claudeJsonPath, JSON.stringify(modified));
+        // Second prepare should preserve the modified file
+        prepareCasaFilesystem(makeOpts());
+        const claudeJson = JSON.parse(readFileSync(claudeJsonPath, "utf-8"));
+        expect(claudeJson.numStartups).toBe(42);
+      });
+
+      it("writes .credentials.json for oauth auth type", () => {
+        setupAuthProfiles({ personal: { type: "oauth", token: "sk-ant-oat01-aaa" } });
+        const result = prepareCasaFilesystem(makeOpts({ auth: "personal" }));
+        const credPath = join(result.homeDir, ".claude", ".credentials.json");
+        expect(existsSync(credPath)).toBe(true);
+        const creds = JSON.parse(readFileSync(credPath, "utf-8"));
+        expect(creds.claudeAiOauth.accessToken).toBe("sk-ant-oat01-aaa");
+      });
+
+      it("overwrites stale .credentials.json when auth profile changes", () => {
+        setupAuthProfiles({
+          old: { type: "oauth", token: "old-token" },
+          updated: { type: "oauth", token: "new-token" },
+        });
+        // First spawn with old profile
+        prepareCasaFilesystem(makeOpts({ auth: "old" }));
+        const credPath = join(casaDir, "home", ".claude", ".credentials.json");
+        const first = JSON.parse(readFileSync(credPath, "utf-8"));
+        expect(first.claudeAiOauth.accessToken).toBe("old-token");
+
+        // Second spawn with updated profile — must overwrite
+        prepareCasaFilesystem(makeOpts({ auth: "updated" }));
+        const second = JSON.parse(readFileSync(credPath, "utf-8"));
+        expect(second.claudeAiOauth.accessToken).toBe("new-token");
+      });
+
+      it("does not write .credentials.json for api-key auth type", () => {
+        setupAuthProfiles({ team: { type: "api-key", token: "sk-ant-api03-xxx" } });
+        const result = prepareCasaFilesystem(makeOpts({ auth: "team" }));
+        const credPath = join(result.homeDir, ".claude", ".credentials.json");
+        expect(existsSync(credPath)).toBe(false);
+        // But onboarding state should still be seeded
+        const claudeJson = JSON.parse(readFileSync(join(result.homeDir, ".claude.json"), "utf-8"));
+        expect(claudeJson.hasCompletedOnboarding).toBe(true);
+      });
+
+      it("removes stale .credentials.json when switching from oauth to api-key", () => {
+        setupAuthProfiles({
+          oauth_profile: { type: "oauth", token: "sk-ant-oat01-aaa" },
+          apikey_profile: { type: "api-key", token: "sk-ant-api03-xxx" },
+        });
+        // First spawn with OAuth — writes .credentials.json
+        const result = prepareCasaFilesystem(makeOpts({ auth: "oauth_profile" }));
+        const credPath = join(result.homeDir, ".claude", ".credentials.json");
+        expect(existsSync(credPath)).toBe(true);
+
+        // Second spawn with API key — must remove stale OAuth credentials
+        prepareCasaFilesystem(makeOpts({ auth: "apikey_profile" }));
+        expect(existsSync(credPath)).toBe(false);
+      });
+
+      it("seeds onboarding state even when auth resolution fails", () => {
+        // No auth profiles, no host env — auth resolution fails
+        delete process.env.ANTHROPIC_API_KEY;
+        delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
+        const result = prepareCasaFilesystem(makeOpts());
+        const claudeJson = JSON.parse(readFileSync(join(result.homeDir, ".claude.json"), "utf-8"));
+        expect(claudeJson.hasCompletedOnboarding).toBe(true);
+      });
+    });
+
     describe("meter proxy integration", () => {
       function writeMeterProxy(opts: { port: number; pid: number; required: boolean }): void {
         const md = join(mechaDir, "meter");

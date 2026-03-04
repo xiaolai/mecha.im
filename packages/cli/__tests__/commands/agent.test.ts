@@ -34,7 +34,6 @@ describe("agent commands", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     process.exitCode = undefined as unknown as number;
-    delete process.env.MECHA_AGENT_API_KEY;
   });
 
   describe("agent start", () => {
@@ -52,75 +51,25 @@ describe("agent commands", () => {
       );
     });
 
-    it("starts with API key when provided", async () => {
-      const deps = makeDeps({ mechaDir: dir });
-      const program = createProgram(deps);
-      program.exitOverride();
-
-      await program.parseAsync(["node", "mecha", "agent", "start", "--api-key", "test-key"]);
-      expect(deps.formatter.success).toHaveBeenCalledWith(
-        expect.stringContaining("Agent server started on 127.0.0.1:"),
-      );
-    });
-
     it("uses custom port", async () => {
       const deps = makeDeps({ mechaDir: dir });
       const program = createProgram(deps);
       program.exitOverride();
 
-      await program.parseAsync(["node", "mecha", "agent", "start", "--port", "9999", "--api-key", "k"]);
+      await program.parseAsync(["node", "mecha", "agent", "start", "--port", "9999"]);
       expect(deps.formatter.success).toHaveBeenCalledWith(
         expect.stringContaining("127.0.0.1:9999"),
       );
     });
 
-    it("reads api key from MECHA_AGENT_API_KEY env var", async () => {
-      process.env.MECHA_AGENT_API_KEY = "env-key";
-      const deps = makeDeps({ mechaDir: dir });
-      const program = createProgram(deps);
-      program.exitOverride();
-
-      await program.parseAsync(["node", "mecha", "agent", "start"]);
-      expect(deps.formatter.success).toHaveBeenCalledWith(
-        expect.stringContaining("Agent server started"),
-      );
-    });
-
-    it("starts with --no-api-key (TOTP only)", async () => {
-      const deps = makeDeps({ mechaDir: dir });
-      const program = createProgram(deps);
-      program.exitOverride();
-
-      await program.parseAsync(["node", "mecha", "agent", "start", "--no-api-key"]);
-      expect(deps.formatter.success).toHaveBeenCalledWith(
-        expect.stringContaining("TOTP"),
-      );
-    });
-
-    it("errors when --no-totp without --api-key", async () => {
+    it("errors when --no-totp disables auth", async () => {
       const deps = makeDeps({ mechaDir: dir });
       const program = createProgram(deps);
       program.exitOverride();
 
       await program.parseAsync(["node", "mecha", "agent", "start", "--no-totp"]);
       expect(deps.formatter.error).toHaveBeenCalledWith(
-        expect.stringContaining("At least one auth method"),
-      );
-      expect(process.exitCode).toBe(1);
-    });
-
-    it("errors when api-key enabled in config but no key provided", async () => {
-      // Write auth config with apiKey enabled
-      const { writeAuthConfig } = await import("@mecha/core");
-      writeAuthConfig(dir, { totp: false, apiKey: true });
-
-      const deps = makeDeps({ mechaDir: dir });
-      const program = createProgram(deps);
-      program.exitOverride();
-
-      await program.parseAsync(["node", "mecha", "agent", "start", "--no-totp"]);
-      expect(deps.formatter.error).toHaveBeenCalledWith(
-        expect.stringContaining("API key auth enabled but no key provided"),
+        expect.stringContaining("TOTP must be enabled"),
       );
       expect(process.exitCode).toBe(1);
     });
@@ -130,7 +79,7 @@ describe("agent commands", () => {
       const program = createProgram(deps);
       program.exitOverride();
 
-      await program.parseAsync(["node", "mecha", "agent", "start", "--api-key", "k", "--port", "abc"]);
+      await program.parseAsync(["node", "mecha", "agent", "start", "--port", "abc"]);
       expect(deps.formatter.error).toHaveBeenCalledWith(
         expect.stringContaining("Invalid port"),
       );
@@ -144,7 +93,7 @@ describe("agent commands", () => {
       const program = createProgram(deps);
       program.exitOverride();
 
-      await program.parseAsync(["node", "mecha", "agent", "start", "--api-key", "k"]);
+      await program.parseAsync(["node", "mecha", "agent", "start"]);
       expect(deps.formatter.success).toHaveBeenCalledWith(
         expect.stringContaining("node: unknown"),
       );

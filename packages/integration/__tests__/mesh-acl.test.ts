@@ -15,8 +15,17 @@ import { tmpdir } from "node:os";
 import type { Capability, NodeEntry } from "@mecha/core";
 import { createAclEngine } from "@mecha/core";
 import { createAgentServer } from "@mecha/agent";
+import { deriveSessionKey, createSessionToken } from "../../agent/src/session.js";
 import { createCasaRouter, createLocator, agentFetch } from "@mecha/service";
 import { makePm, makeMockAcl, writeCasaConfig } from "./helpers/mesh-harness.js";
+
+const TEST_TOTP_SECRET = "JBSWY3DPEHPK3PXP";
+
+function makeAuthCookie(secret = TEST_TOTP_SECRET): string {
+  const sessionKey = deriveSessionKey(secret);
+  const token = createSessionToken(sessionKey, 1);
+  return `mecha-session=${token}`;
+}
 
 // Mock forwardQueryToCasa
 vi.mock("@mecha/core", async (importOriginal) => {
@@ -35,7 +44,6 @@ describe("mesh ACL: source-side enforcement", () => {
   let bobDir: string;
   let bobServer: ReturnType<typeof createAgentServer>;
   let bobPort: number;
-  const bobApiKey = "bob-acl-key";
 
   beforeAll(async () => {
     aliceDir = mkdtempSync(join(tmpdir(), "acl-alice-"));
@@ -54,7 +62,7 @@ describe("mesh ACL: source-side enforcement", () => {
     bobAcl.grant("coder@alice", "analyst", ["query"] as Capability[]);
 
     bobServer = createAgentServer({
-      port: 0, auth: { apiKey: bobApiKey }, processManager: makePm(),
+      port: 0, auth: { totpSecret: TEST_TOTP_SECRET, apiKey: "mesh-routing-key" }, processManager: makePm(),
       acl: bobAcl, mechaDir: bobDir, nodeName: "bob",
     });
     const addr = await bobServer.listen({ port: 0, host: "127.0.0.1" });
@@ -72,7 +80,7 @@ describe("mesh ACL: source-side enforcement", () => {
   function makeBobNode(): NodeEntry {
     return {
       name: "bob" as NodeEntry["name"],
-      host: "127.0.0.1", port: bobPort, apiKey: bobApiKey,
+      host: "127.0.0.1", port: bobPort, apiKey: "mesh-routing-key",
       addedAt: new Date().toISOString(),
     };
   }
@@ -167,7 +175,7 @@ describe("mesh ACL: destination-side enforcement", () => {
     bobAcl.grant("coder@alice", "analyst", ["query"] as Capability[]);
 
     const bobServer = createAgentServer({
-      port: 0, auth: { apiKey: "bob-key" }, processManager: makePm(),
+      port: 0, auth: { totpSecret: TEST_TOTP_SECRET, apiKey: "mesh-routing-key" }, processManager: makePm(),
       acl: bobAcl, mechaDir: bobDir, nodeName: "bob",
     });
     const addr = await bobServer.listen({ port: 0, host: "127.0.0.1" });
@@ -178,7 +186,7 @@ describe("mesh ACL: destination-side enforcement", () => {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        authorization: "Bearer bob-key",
+        cookie: makeAuthCookie(),
         "x-mecha-source": "coder@alice",
       },
       body: JSON.stringify({ message: "hello" }),
@@ -202,7 +210,7 @@ describe("mesh ACL: destination-side enforcement", () => {
     });
 
     const bobServer = createAgentServer({
-      port: 0, auth: { apiKey: "bob-key" }, processManager: makePm(),
+      port: 0, auth: { totpSecret: TEST_TOTP_SECRET, apiKey: "mesh-routing-key" }, processManager: makePm(),
       acl: bobAcl, mechaDir: bobDir, nodeName: "bob",
     });
     const addr = await bobServer.listen({ port: 0, host: "127.0.0.1" });
@@ -212,7 +220,7 @@ describe("mesh ACL: destination-side enforcement", () => {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        authorization: "Bearer bob-key",
+        cookie: makeAuthCookie(),
         "x-mecha-source": "coder@alice",
       },
       body: JSON.stringify({ message: "hello" }),
@@ -235,7 +243,7 @@ describe("mesh ACL: destination-side enforcement", () => {
     });
 
     const bobServer = createAgentServer({
-      port: 0, auth: { apiKey: "bob-key" }, processManager: makePm(),
+      port: 0, auth: { totpSecret: TEST_TOTP_SECRET, apiKey: "mesh-routing-key" }, processManager: makePm(),
       acl: bobAcl, mechaDir: bobDir, nodeName: "bob",
     });
     const addr = await bobServer.listen({ port: 0, host: "127.0.0.1" });

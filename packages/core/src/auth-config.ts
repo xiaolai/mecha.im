@@ -6,15 +6,13 @@ const AUTH_CONFIG_FILE = "auth-config.json";
 
 export interface AuthConfig {
   totp: boolean;
-  apiKey: boolean;
 }
 
 export interface AuthConfigOverrides {
   totp?: boolean;
-  apiKey?: boolean;
 }
 
-const DEFAULT_CONFIG: AuthConfig = { totp: true, apiKey: false };
+const DEFAULT_CONFIG: AuthConfig = { totp: true };
 
 /** Read auth config from file, returning defaults if missing. */
 export function readAuthConfig(mechaDir: string): AuthConfig {
@@ -24,7 +22,6 @@ export function readAuthConfig(mechaDir: string): AuthConfig {
     const parsed = JSON.parse(content) as Partial<AuthConfig>;
     return {
       totp: typeof parsed.totp === "boolean" ? parsed.totp : DEFAULT_CONFIG.totp,
-      apiKey: typeof parsed.apiKey === "boolean" ? parsed.apiKey : DEFAULT_CONFIG.apiKey,
     };
   } catch (err: unknown) {
     // Missing file → use defaults; malformed/unreadable → propagate
@@ -35,7 +32,7 @@ export function readAuthConfig(mechaDir: string): AuthConfig {
   }
 }
 
-/** Write auth config to file. Throws if both methods are disabled. */
+/** Write auth config to file. Throws if TOTP is disabled. */
 export function writeAuthConfig(mechaDir: string, config: AuthConfig): void {
   validateAuthConfig(config);
   if (!existsSync(mechaDir)) {
@@ -45,21 +42,20 @@ export function writeAuthConfig(mechaDir: string, config: AuthConfig): void {
   writeFileSync(filePath, JSON.stringify(config, null, 2) + "\n");
 }
 
-/** Merge file config with CLI flag overrides. Throws if both disabled. */
+/** Merge file config with CLI flag overrides. Throws if TOTP disabled. */
 export function resolveAuthConfig(mechaDir: string, overrides?: AuthConfigOverrides): AuthConfig {
   const base = readAuthConfig(mechaDir);
   const resolved: AuthConfig = {
     totp: overrides?.totp !== undefined ? overrides.totp : base.totp,
-    apiKey: overrides?.apiKey !== undefined ? overrides.apiKey : base.apiKey,
   };
   validateAuthConfig(resolved);
   return resolved;
 }
 
 function validateAuthConfig(config: AuthConfig): void {
-  if (!config.totp && !config.apiKey) {
+  if (!config.totp) {
     throw new MechaError(
-      "At least one auth method must be enabled (TOTP or API key)",
+      "TOTP must be enabled",
       { code: "AUTH_CONFIG_INVALID", statusCode: 400, exitCode: 1 },
     );
   }
