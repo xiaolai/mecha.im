@@ -30,8 +30,8 @@ export {
   mechaAuthGet,
   mechaAuthGetDefault,
   mechaAuthSwitchBot,
-  mechaAuthProbe,
 } from "./auth.js";
+export { mechaAuthProbe } from "./auth-probe.js";
 export type { AuthProfile, AuthAddOpts } from "./auth.js";
 export { buildHierarchy, flattenHierarchy } from "./hierarchy.js";
 export type { HierarchyNode } from "./hierarchy.js";

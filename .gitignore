@@ -73,5 +73,9 @@ vendor/
 venv/
 .gitnexus
 
+# Playwright MCP
+.playwright-mcp/
+
 # VitePress
+website/.vitepress/
 website/docs/.vitepress/cache/
