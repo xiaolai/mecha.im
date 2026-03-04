@@ -4,7 +4,7 @@ Technical overview of Mecha's internal architecture.
 
 ## Package Structure
 
-Mecha is a TypeScript monorepo with 13 packages:
+Mecha is a TypeScript monorepo with 12 packages:
 
 ```
 @mecha/core        ← Types, schemas, validation, ACL engine, identity (Ed25519)
@@ -158,6 +158,7 @@ All routes except those listed as **Public** require authentication (session coo
 | `POST` | `/bots/:name/kill` | Required | Force kill |
 | `PATCH` | `/bots/:name/config` | Required | Update bot config fields, optionally restart |
 | `POST` | `/bots` | Required | Spawn a new bot |
+| `POST` | `/bots/batch` | Required | Batch stop or restart all bots |
 | `GET` | `/bots/:name/sessions` | Required | List bot sessions |
 | `GET` | `/bots/:name/sessions/:id` | Required | Get specific session |
 | `DELETE` | `/bots/:name/sessions/:id` | Required | Delete a session |
@@ -579,8 +580,8 @@ Each bot exposes these HTTP endpoints (localhost only):
 | `POST` | `/api/schedules/:id/pause` | Pause a schedule |
 | `POST` | `/api/schedules/:id/resume` | Resume a schedule |
 | `POST` | `/api/schedules/:id/run` | Trigger a schedule immediately |
-| `POST` | `/api/schedules/pause-all` | Pause all schedules |
-| `POST` | `/api/schedules/resume-all` | Resume all schedules |
+| `POST` | `/api/schedules/_pause-all` | Pause all schedules |
+| `POST` | `/api/schedules/_resume-all` | Resume all schedules |
 | `GET` | `/api/schedules/:id/history` | Schedule run history (supports `?limit=N`) |
 | `POST` | `/mcp` | JSON-RPC MCP endpoint |
 
@@ -601,7 +602,7 @@ const { app, scheduler } = createServer({
   botName: "researcher",
   port: 7700,
   authToken: "secret-token",
-  projectsDir: "/home/.claude/projects/-Users-you-workspace",
+  projectsDir: "/Users/you/.mecha/researcher/.claude/projects/-Users-you-workspace",
   workspacePath: "/Users/you/workspace",
   mechaDir: "/Users/you/.mecha",
   botDir: "/Users/you/.mecha/researcher",
@@ -731,7 +732,7 @@ All state is plain files — no databases:
 |------|--------|----------|
 | bot config | JSON | `~/.mecha/<name>/config.json` |
 | bot state | JSON | `~/.mecha/<name>/state.json` |
-| Sessions | JSONL + JSON | `~/.mecha/<name>/home/.claude/projects/` |
+| Sessions | JSONL + JSON | `~/.mecha/<name>/.claude/projects/` |
 | Logs | Text | `~/.mecha/<name>/logs/` |
 | ACL rules | JSON | `~/.mecha/acl.json` |
 | Node registry | JSON | `~/.mecha/nodes.json` |

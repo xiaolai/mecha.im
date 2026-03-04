@@ -4,6 +4,8 @@ import {
   ScheduleNotFoundError,
   DuplicateScheduleError,
   InvalidIntervalError,
+  ScheduleLimitError,
+  SCHEDULE_DEFAULTS,
   parseInterval,
 } from "@mecha/core";
 import { readRunHistory, removeScheduleData } from "@mecha/process";
@@ -163,6 +165,9 @@ export function createScheduleEngine(opts: CreateScheduleEngineOpts): ScheduleEn
       if (config.schedules.some((s) => s.id === entry.id)) {
         throw new DuplicateScheduleError(entry.id);
       }
+      if (config.schedules.length >= SCHEDULE_DEFAULTS.MAX_SCHEDULES_PER_BOT) {
+        throw new ScheduleLimitError(SCHEDULE_DEFAULTS.MAX_SCHEDULES_PER_BOT);
+      }
 
       // Validate interval
       const ms = parseInterval(entry.trigger.every);
@@ -239,7 +244,19 @@ export function createScheduleEngine(opts: CreateScheduleEngineOpts): ScheduleEn
       const config = getConfig(botDir);
       const entry = config.schedules.find((s) => s.id === scheduleId);
       if (!entry) throw new ScheduleNotFoundError(scheduleId);
-      return executeRun(entry, runDeps);
+      // Clear pending timer to prevent double-run after manual trigger
+      clearTimer(scheduleId);
+      try {
+        const result = await executeRun(entry, { ...runDeps, manual: true });
+        return result;
+      } finally {
+        // Re-arm for next automatic run (fresh config read guards stale entry)
+        if (running) {
+          const freshConfig = getConfig(botDir);
+          const freshEntry = freshConfig.schedules.find((s) => s.id === scheduleId);
+          if (freshEntry && !freshEntry.paused) armTimer(freshEntry);
+        }
+      }
     },
   };
 }

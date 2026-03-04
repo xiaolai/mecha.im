@@ -90,13 +90,13 @@ export function registerScheduleRoutes(
   );
 
   // Pause all schedules
-  app.post("/api/schedules/pause-all", async (_request, reply) => {
+  app.post("/api/schedules/_pause-all", async (_request, reply) => {
     engine.pauseSchedule();
     reply.code(200).send({ ok: true });
   });
 
   // Resume all schedules
-  app.post("/api/schedules/resume-all", async (_request, reply) => {
+  app.post("/api/schedules/_resume-all", async (_request, reply) => {
     engine.resumeSchedule();
     reply.code(200).send({ ok: true });
   });
@@ -119,10 +119,15 @@ export function registerScheduleRoutes(
     "/api/schedules/:id/history",
     async (request, reply) => {
       try {
-        const rawLimit = request.query.limit ? Number(request.query.limit) : undefined;
-        const limit = rawLimit !== undefined && Number.isFinite(rawLimit) && rawLimit > 0
-          ? Math.floor(rawLimit)
-          : undefined;
+        let limit: number | undefined;
+        if (request.query.limit !== undefined) {
+          const rawLimit = Number(request.query.limit);
+          if (!Number.isFinite(rawLimit) || rawLimit < 1 || !Number.isInteger(rawLimit)) {
+            reply.code(400).send({ error: "limit must be a positive integer" });
+            return;
+          }
+          limit = rawLimit;
+        }
         return engine.getHistory(request.params.id, limit);
       } catch (err) {
         handleError(err, reply);

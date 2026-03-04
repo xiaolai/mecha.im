@@ -6,6 +6,7 @@ import {
   mkdirSync,
   existsSync,
   rmSync,
+  statSync,
 } from "node:fs";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
@@ -15,6 +16,8 @@ import {
   type ScheduleRunResult,
   ScheduleConfigSchema,
   ScheduleStateSchema,
+  ScheduleRunResultSchema,
+  SCHEDULE_DEFAULTS,
   safeReadJson,
   createLogger,
 } from "@mecha/core";
@@ -87,7 +90,26 @@ export function writeScheduleState(botDir: string, scheduleId: string, state: Sc
 export function appendRunHistory(botDir: string, scheduleId: string, result: ScheduleRunResult): void {
   const dir = scheduleDir(botDir, scheduleId);
   mkdirSync(dir, { recursive: true });
-  appendFileSync(join(dir, "history.jsonl"), JSON.stringify(result) + "\n", "utf-8");
+  const historyPath = join(dir, "history.jsonl");
+  appendFileSync(historyPath, JSON.stringify(result) + "\n", "utf-8");
+
+  // Truncate when exceeding max entries (amortized — only reads file when size
+  // suggests it may exceed the limit; ~200 bytes/line heuristic)
+  const maxEntries = SCHEDULE_DEFAULTS.MAX_HISTORY_ENTRIES;
+  try {
+    const fileSize = statSync(historyPath).size;
+    if (fileSize > maxEntries * 200) {
+      const raw = readFileSync(historyPath, "utf-8");
+      const lines = raw.trim().split("\n");
+      if (lines.length > maxEntries) {
+        atomicWrite(historyPath, lines.slice(-maxEntries).join("\n") + "\n");
+      }
+    }
+  /* v8 ignore start -- defensive: truncation failure shouldn't block execution */
+  } catch {
+    // Non-fatal: history will be truncated on next successful append
+  }
+  /* v8 ignore stop */
 }
 
 export function readRunHistory(botDir: string, scheduleId: string, limit?: number): ScheduleRunResult[] {
@@ -99,8 +121,9 @@ export function readRunHistory(botDir: string, scheduleId: string, limit?: numbe
     const results: ScheduleRunResult[] = [];
     for (const line of lines) {
       try {
-        results.push(JSON.parse(line) as ScheduleRunResult);
-      /* v8 ignore start -- skip malformed lines */
+        const parsed = ScheduleRunResultSchema.safeParse(JSON.parse(line));
+        /* v8 ignore start -- skip malformed lines */
+        if (parsed.success) results.push(parsed.data);
       } catch {
         continue;
       }

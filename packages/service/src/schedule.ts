@@ -51,7 +51,7 @@ export async function botSchedulePause(
 ): Promise<void> {
   const path = scheduleId
     ? `/api/schedules/${encodeURIComponent(scheduleId)}/pause`
-    : "/api/schedules/pause-all";
+    : "/api/schedules/_pause-all";
   const result = await runtimeFetch(pm, name, path, { method: "POST" });
   assertOk(result, "SCHEDULE_PAUSE_FAILED");
 }
@@ -63,7 +63,7 @@ export async function botScheduleResume(
 ): Promise<void> {
   const path = scheduleId
     ? `/api/schedules/${encodeURIComponent(scheduleId)}/resume`
-    : "/api/schedules/resume-all";
+    : "/api/schedules/_resume-all";
   const result = await runtimeFetch(pm, name, path, { method: "POST" });
   assertOk(result, "SCHEDULE_RESUME_FAILED");
 }
@@ -86,7 +86,7 @@ export async function botScheduleHistory(
   scheduleId: string,
   limit?: number,
 ): Promise<ScheduleRunResult[]> {
-  const query = limit ? `?limit=${limit}` : "";
+  const query = limit !== undefined ? `?limit=${limit}` : "";
   const result = await runtimeFetch(pm, name, `/api/schedules/${encodeURIComponent(scheduleId)}/history${query}`);
   assertOk(result, "SCHEDULE_HISTORY_FAILED");
   return result.body as ScheduleRunResult[];

@@ -143,7 +143,7 @@ describe("schedule routes", () => {
     expect(res.statusCode).toBe(404);
   });
 
-  it("POST /api/schedules/pause-all pauses all", async () => {
+  it("POST /api/schedules/_pause-all pauses all", async () => {
     await app.inject({
       method: "POST", url: "/api/schedules", headers,
       payload: { id: "a", every: "5m", prompt: "test" },
@@ -152,20 +152,20 @@ describe("schedule routes", () => {
       method: "POST", url: "/api/schedules", headers,
       payload: { id: "b", every: "10m", prompt: "test" },
     });
-    const res = await app.inject({ method: "POST", url: "/api/schedules/pause-all", headers });
+    const res = await app.inject({ method: "POST", url: "/api/schedules/_pause-all", headers });
     expect(res.statusCode).toBe(200);
 
     const list = await app.inject({ method: "GET", url: "/api/schedules", headers });
     expect(list.json().every((s: { paused?: boolean }) => s.paused)).toBe(true);
   });
 
-  it("POST /api/schedules/resume-all resumes all", async () => {
+  it("POST /api/schedules/_resume-all resumes all", async () => {
     await app.inject({
       method: "POST", url: "/api/schedules", headers,
       payload: { id: "c", every: "5m", prompt: "test" },
     });
-    await app.inject({ method: "POST", url: "/api/schedules/pause-all", headers });
-    const res = await app.inject({ method: "POST", url: "/api/schedules/resume-all", headers });
+    await app.inject({ method: "POST", url: "/api/schedules/_pause-all", headers });
+    const res = await app.inject({ method: "POST", url: "/api/schedules/_resume-all", headers });
     expect(res.statusCode).toBe(200);
 
     const list = await app.inject({ method: "GET", url: "/api/schedules", headers });
