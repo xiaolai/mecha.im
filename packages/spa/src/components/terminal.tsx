@@ -101,6 +101,10 @@ export function Terminal({ casaName, sessionId, node, onSessionCreated, onExit }
         if (ticketRes.ok) {
           const data = await ticketRes.json() as { ticket: string };
           ticket = data.ticket;
+        } else if (ticketRes.status === 401) {
+          setStatus("disconnected");
+          term.writeln("\r\n\x1b[31mAuthentication expired. Please re-login.\x1b[0m");
+          return;
         }
       } catch { /* proceed without ticket — server will reject if required */ }
       if (disposed) return;
@@ -115,7 +119,7 @@ export function Terminal({ casaName, sessionId, node, onSessionCreated, onExit }
       params.set("cols", String(term.cols));
       params.set("rows", String(term.rows));
       const query = params.toString();
-      const wsUrl = `${proto}//${window.location.host}/ws/terminal/${casaName}${query ? `?${query}` : ""}`;
+      const wsUrl = `${proto}//${window.location.host}/ws/terminal/${encodeURIComponent(casaName)}${query ? `?${query}` : ""}`;
 
       const ws = new WebSocket(wsUrl);
       ws.binaryType = "arraybuffer";
@@ -238,7 +242,7 @@ export function Terminal({ casaName, sessionId, node, onSessionCreated, onExit }
           </button>
         </div>
       )}
-      <div ref={containerRef} className="flex-1 min-h-0 overflow-hidden" />
+      <div ref={containerRef} className="flex-1 min-h-0 overflow-hidden [&_.xterm-screen]:pl-4" />
     </div>
   );
 }

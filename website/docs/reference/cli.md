@@ -213,6 +213,51 @@ mecha casa restart researcher
 mecha casa restart researcher --force
 ```
 
+### `mecha casa stop-all`
+
+Batch stop all running CASAs with busy-safety checks.
+
+```bash
+mecha casa stop-all [options]
+```
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--force` | Bypass busy check entirely | `false` |
+| `--idle-only` | Skip busy CASAs instead of failing | `false` |
+| `--dry-run` | Show what would happen without executing | `false` |
+
+By default, the command **fails** on CASAs with active sessions. Use `--idle-only` to silently skip busy CASAs, or `--force` to stop all regardless.
+
+```bash
+mecha casa stop-all
+mecha casa stop-all --idle-only
+mecha casa stop-all --force
+mecha casa stop-all --dry-run
+```
+
+### `mecha casa restart-all`
+
+Batch restart all CASAs (stop + re-spawn from config).
+
+```bash
+mecha casa restart-all [options]
+```
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--force` | Force kill instead of graceful stop, bypass busy check | `false` |
+| `--idle-only` | Skip busy CASAs instead of failing | `false` |
+| `--dry-run` | Show what would happen without executing | `false` |
+
+Reads each CASA's `config.json` before acting. Fails for CASAs with missing config.
+
+```bash
+mecha casa restart-all
+mecha casa restart-all --force
+mecha casa restart-all --dry-run
+```
+
 ### `mecha casa remove`
 
 Stop a CASA and delete its entire directory (config, logs, sessions).

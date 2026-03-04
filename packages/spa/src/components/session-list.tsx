@@ -3,6 +3,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { useFetch } from "@/lib/use-fetch";
 
+function safeDate(iso: string): string {
+  const d = new Date(iso);
+  return Number.isFinite(d.getTime()) ? d.toLocaleString() : "—";
+}
+
 interface SessionEntry {
   id: string;
   title?: string;
@@ -53,12 +58,9 @@ export function SessionList({ name, node, casaState }: SessionListProps) {
     );
   }
 
-  const terminalBase = `/casa/${encodeURIComponent(name)}/terminal`;
-
   function sessionLink(id: string): string {
-    const params = new URLSearchParams({ session: id });
-    if (node && node !== "local") params.set("node", node);
-    return `${terminalBase}?${params.toString()}`;
+    const base = `/casa/${encodeURIComponent(name)}/session/${encodeURIComponent(id)}`;
+    return node && node !== "local" ? `${base}?node=${encodeURIComponent(node)}` : base;
   }
 
   return (
@@ -87,12 +89,12 @@ export function SessionList({ name, node, casaState }: SessionListProps) {
               </TableCell>
               <TableCell className="p-0">
                 <Link to={sessionLink(s.id)} className="block px-4 py-2 text-xs text-muted-foreground">
-                  {s.createdAt ? new Date(s.createdAt).toLocaleString() : "—"}
+                  {s.createdAt ? safeDate(s.createdAt) : "—"}
                 </Link>
               </TableCell>
               <TableCell className="p-0">
                 <Link to={sessionLink(s.id)} className="block px-4 py-2 text-xs text-muted-foreground">
-                  {s.updatedAt ? new Date(s.updatedAt).toLocaleString() : "—"}
+                  {s.updatedAt ? safeDate(s.updatedAt) : "—"}
                 </Link>
               </TableCell>
             </TableRow>

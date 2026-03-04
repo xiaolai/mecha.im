@@ -61,6 +61,14 @@ The home page shows all CASAs in a responsive 3-column grid. Each card displays:
 - Workspace path (truncated)
 - Tags
 - Stop and Kill buttons (running CASAs only)
+- **Stop All** and **Restart All** buttons in the header (when CASAs exist)
+
+The batch buttons open a confirmation dialog that:
+1. Runs a dry-run pre-flight to show which CASAs will be affected
+2. Highlights busy CASAs (with active session count)
+3. Offers "Force" option for busy CASAs, or "Idle Only" to skip them
+4. Shows per-CASA progress and a summary on completion
+5. Allows retrying only failed CASAs
 
 Cards auto-refresh every **5 seconds** via polling. Click a card to open the detail view.
 
@@ -173,6 +181,7 @@ For the complete API specification including request/response formats, see the [
 | `POST /casas/:name/start` | Start button |
 | `POST /casas/:name/stop` | Stop button (with busy check) |
 | `POST /casas/:name/kill` | Kill button |
+| `POST /casas/batch` | Stop All / Restart All dialog |
 | `PATCH /casas/:name/config` | Config editor |
 | `GET /casas/:name/sessions` | Sessions tab |
 | `DELETE /casas/:name/sessions/:id` | Session delete |
