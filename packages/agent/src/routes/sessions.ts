@@ -1,33 +1,33 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { type CasaName, isValidName } from "@mecha/core";
+import { type BotName, isValidName } from "@mecha/core";
 import type { ProcessManager } from "@mecha/process";
-import { casaSessionList, casaSessionGet, casaSessionDelete } from "@mecha/service";
+import { botSessionList, botSessionGet, botSessionDelete } from "@mecha/service";
 
-/** Validate + resolve CASA from route params. Returns casaName or sends error reply. */
-function resolveCasa(
+/** Validate + resolve bot from route params. Returns botName or sends error reply. */
+function resolveBot(
   pm: ProcessManager,
   request: FastifyRequest<{ Params: { name: string } }>,
   reply: FastifyReply,
-): CasaName | null {
+): BotName | null {
   const name = request.params.name;
   if (!isValidName(name)) {
-    reply.code(400).send({ error: `Invalid CASA name: ${name}` });
+    reply.code(400).send({ error: `Invalid bot name: ${name}` });
     return null;
   }
-  const casaName = name as CasaName;
-  if (!pm.get(casaName)) {
-    reply.code(404).send({ error: `CASA not found: ${casaName}` });
+  const botName = name as BotName;
+  if (!pm.get(botName)) {
+    reply.code(404).send({ error: `bot not found: ${botName}` });
     return null;
   }
-  return casaName;
+  return botName;
 }
 
 export function registerSessionRoutes(app: FastifyInstance, pm: ProcessManager): void {
-  app.get("/casas/:name/sessions", async (request: FastifyRequest<{ Params: { name: string } }>, reply: FastifyReply) => {
-    const casaName = resolveCasa(pm, request, reply);
-    if (!casaName) return;
+  app.get("/bots/:name/sessions", async (request: FastifyRequest<{ Params: { name: string } }>, reply: FastifyReply) => {
+    const botName = resolveBot(pm, request, reply);
+    if (!botName) return;
     try {
-      return await casaSessionList(pm, casaName);
+      return await botSessionList(pm, botName);
     /* v8 ignore start -- non-Error throw is defensive */
     } catch (err) {
       reply.code(502).send({ error: `Failed to fetch sessions: ${err instanceof Error ? err.message : String(err)}` });
@@ -35,14 +35,14 @@ export function registerSessionRoutes(app: FastifyInstance, pm: ProcessManager):
     /* v8 ignore stop */
   });
 
-  app.get("/casas/:name/sessions/:id", async (
+  app.get("/bots/:name/sessions/:id", async (
     request: FastifyRequest<{ Params: { name: string; id: string } }>,
     reply: FastifyReply,
   ) => {
-    const casaName = resolveCasa(pm, request as FastifyRequest<{ Params: { name: string } }>, reply);
-    if (!casaName) return;
+    const botName = resolveBot(pm, request as FastifyRequest<{ Params: { name: string } }>, reply);
+    if (!botName) return;
     try {
-      const session = await casaSessionGet(pm, casaName, request.params.id);
+      const session = await botSessionGet(pm, botName, request.params.id);
       if (!session) {
         reply.code(404).send({ error: `Session not found: ${request.params.id}` });
         return;
@@ -55,14 +55,14 @@ export function registerSessionRoutes(app: FastifyInstance, pm: ProcessManager):
     /* v8 ignore stop */
   });
 
-  app.delete("/casas/:name/sessions/:id", async (
+  app.delete("/bots/:name/sessions/:id", async (
     request: FastifyRequest<{ Params: { name: string; id: string } }>,
     reply: FastifyReply,
   ) => {
-    const casaName = resolveCasa(pm, request as FastifyRequest<{ Params: { name: string } }>, reply);
-    if (!casaName) return;
+    const botName = resolveBot(pm, request as FastifyRequest<{ Params: { name: string } }>, reply);
+    if (!botName) return;
     try {
-      const deleted = await casaSessionDelete(pm, casaName, request.params.id);
+      const deleted = await botSessionDelete(pm, botName, request.params.id);
       if (!deleted) {
         reply.code(404).send({ error: `Session not found: ${request.params.id}` });
         return;

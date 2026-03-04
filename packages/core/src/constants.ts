@@ -48,7 +48,7 @@ export const DEFAULTS = {
   METER_SNAPSHOT_INTERVAL_MS: 10_000,
   /** Rollup flush interval (ms) */
   METER_ROLLUP_INTERVAL_MS: 60_000,
-  /** CASA registry rescan interval (ms) */
+  /** bot registry rescan interval (ms) */
   METER_REGISTRY_INTERVAL_MS: 30_000,
   /** Event buffer flush: max events before forced flush */
   METER_EVENT_BUFFER_MAX: 100,

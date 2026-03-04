@@ -15,7 +15,7 @@ export function makeAcl(overrides: Partial<AclEngine> = {}): AclEngine {
   } as unknown as AclEngine;
 }
 
-export function writeCasaConfig(mechaDir: string, name: string, cfg: Record<string, unknown>): void {
+export function writeBotConfig(mechaDir: string, name: string, cfg: Record<string, unknown>): void {
   const dir = join(mechaDir, name);
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "config.json"), JSON.stringify(cfg));

@@ -1,13 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import Fastify, { type FastifyInstance } from "fastify";
 import type { ProcessManager } from "@mecha/process";
-import { type CasaName, CasaNotFoundError, CasaNotRunningError } from "@mecha/core";
-import { casaChat } from "../src/chat.js";
+import { type BotName, BotNotFoundError, BotNotRunningError } from "@mecha/core";
+import { botChat } from "../src/chat.js";
 
-const CASA = "test" as CasaName;
+const BOT = "test" as BotName;
 const TOKEN = "test-token";
 
-describe("casaChat", () => {
+describe("botChat", () => {
   let app: FastifyInstance;
   let port: number;
   let pm: ProcessManager;
@@ -31,7 +31,7 @@ describe("casaChat", () => {
 
     pm = {
       spawn: vi.fn(),
-      get: vi.fn().mockReturnValue({ name: CASA, state: "running" }),
+      get: vi.fn().mockReturnValue({ name: BOT, state: "running" }),
       list: vi.fn().mockReturnValue([]),
       stop: vi.fn(),
       kill: vi.fn(),
@@ -46,7 +46,7 @@ describe("casaChat", () => {
   });
 
   it("streams chat events", async () => {
-    const stream = await casaChat(pm, CASA, { message: "Hello world" });
+    const stream = await botChat(pm, BOT, { message: "Hello world" });
     const events: Array<{ type: string }> = [];
 
     for await (const event of stream) {
@@ -62,7 +62,7 @@ describe("casaChat", () => {
 
   it("streams chat events with external AbortSignal", async () => {
     const ac = new AbortController();
-    const stream = await casaChat(pm, CASA, { message: "Hello world" }, ac.signal);
+    const stream = await botChat(pm, BOT, { message: "Hello world" }, ac.signal);
     const events: Array<{ type: string }> = [];
 
     for await (const event of stream) {
@@ -73,24 +73,24 @@ describe("casaChat", () => {
     expect(events.filter((e) => e.type === "done")).toHaveLength(1);
   });
 
-  it("throws CasaNotFoundError for unknown CASA", async () => {
+  it("throws BotNotFoundError for unknown bot", async () => {
     const badPm = {
       ...pm,
       getPortAndToken: vi.fn().mockReturnValue(undefined),
       get: vi.fn().mockReturnValue(undefined),
     } as unknown as ProcessManager;
 
-    await expect(casaChat(badPm, CASA, { message: "Hi" })).rejects.toThrow(CasaNotFoundError);
+    await expect(botChat(badPm, BOT, { message: "Hi" })).rejects.toThrow(BotNotFoundError);
   });
 
-  it("throws CasaNotRunningError for stopped CASA", async () => {
+  it("throws BotNotRunningError for stopped bot", async () => {
     const badPm = {
       ...pm,
       getPortAndToken: vi.fn().mockReturnValue(undefined),
-      get: vi.fn().mockReturnValue({ name: CASA, state: "stopped" }),
+      get: vi.fn().mockReturnValue({ name: BOT, state: "stopped" }),
     } as unknown as ProcessManager;
 
-    await expect(casaChat(badPm, CASA, { message: "Hi" })).rejects.toThrow(CasaNotRunningError);
+    await expect(botChat(badPm, BOT, { message: "Hi" })).rejects.toThrow(BotNotRunningError);
   });
 
   it("throws on HTTP error from runtime", async () => {
@@ -102,7 +102,7 @@ describe("casaChat", () => {
     });
     await app.listen({ port, host: "127.0.0.1" });
 
-    await expect(casaChat(pm, CASA, { message: "Hi" })).rejects.toThrow("Internal error");
+    await expect(botChat(pm, BOT, { message: "Hi" })).rejects.toThrow("Internal error");
   });
 
   it("throws fallback message when error body has no .error field", async () => {
@@ -114,6 +114,6 @@ describe("casaChat", () => {
     });
     await app.listen({ port, host: "127.0.0.1" });
 
-    await expect(casaChat(pm, CASA, { message: "Hi" })).rejects.toThrow("Chat request failed: 503");
+    await expect(botChat(pm, BOT, { message: "Hi" })).rejects.toThrow("Chat request failed: 503");
   });
 });

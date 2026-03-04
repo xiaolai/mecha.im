@@ -35,8 +35,8 @@ After making code changes, check:
 ## Common mistakes to avoid
 
 - Documenting positional arguments as `--option` flags (e.g., `node add <host>` not `--host`)
-- Forgetting `<casa>` argument on schedule subcommands
-- Using `--casa <name>` when the CLI uses positional `[name]`
-- Showing wrong default ports (meter: 7600, agent: 7660, CASAs: 7700-7799)
+- Forgetting `<bot>` argument on schedule subcommands
+- Using `--bot <name>` when the CLI uses positional `[name]`
+- Showing wrong default ports (meter: 7600, agent: 7660, bots: 7700-7799)
 - Using `strict` instead of `require` for sandbox mode
 - Showing capabilities that don't exist in the ACL engine

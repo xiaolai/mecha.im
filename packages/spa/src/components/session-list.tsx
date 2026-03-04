@@ -19,21 +19,21 @@ interface SessionEntry {
 interface SessionListProps {
   name: string;
   node?: string;
-  casaState?: string;
+  botState?: string;
 }
 
-export function SessionList({ name, node, casaState }: SessionListProps) {
-  const isRunning = casaState === "running" || casaState === undefined;
+export function SessionList({ name, node, botState }: SessionListProps) {
+  const isRunning = botState === "running" || botState === undefined;
   const nodeQuery = node && node !== "local" ? `?node=${encodeURIComponent(node)}` : "";
   const { data: sessions, loading, error } = useFetch<SessionEntry[]>(
-    isRunning ? `/casas/${encodeURIComponent(name)}/sessions${nodeQuery}` : null,
+    isRunning ? `/bots/${encodeURIComponent(name)}/sessions${nodeQuery}` : null,
     { deps: [name, node, isRunning] },
   );
 
   if (!isRunning) {
     return (
       <div className="rounded-lg border border-border bg-card p-6 text-center text-sm text-muted-foreground">
-        CASA is not running. Start it to view sessions.
+        bot is not running. Start it to view sessions.
       </div>
     );
   }
@@ -59,7 +59,7 @@ export function SessionList({ name, node, casaState }: SessionListProps) {
   }
 
   function sessionLink(id: string): string {
-    const base = `/casa/${encodeURIComponent(name)}/session/${encodeURIComponent(id)}`;
+    const base = `/bot/${encodeURIComponent(name)}/session/${encodeURIComponent(id)}`;
     return node && node !== "local" ? `${base}?node=${encodeURIComponent(node)}` : base;
   }
 

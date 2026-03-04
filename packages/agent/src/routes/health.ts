@@ -22,7 +22,7 @@ export function registerHealthRoutes(app: FastifyInstance, opts: HealthRouteOpts
     const info = collectNodeInfo({
       port: opts.port,
       startedAt: opts.startedAt,
-      casaCount: opts.processManager.list().filter((p) => p.state === "running").length,
+      botCount: opts.processManager.list().filter((p) => p.state === "running").length,
       publicIp: opts.publicIp,
     });
     return { node: opts.nodeName, ...info };

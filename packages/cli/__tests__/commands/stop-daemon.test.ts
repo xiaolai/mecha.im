@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { createProgram } from "../../src/program.js";
 import { makeDeps } from "../test-utils.js";
 import type { ProcessManager, ProcessInfo } from "@mecha/process";
-import type { CasaName } from "@mecha/core";
+import type { BotName } from "@mecha/core";
 
 afterEach(() => { process.exitCode = undefined as unknown as number; });
 
@@ -12,7 +12,7 @@ vi.mock("@mecha/meter", () => ({
 }));
 
 const RUNNING_INFO: ProcessInfo = {
-  name: "alice" as CasaName,
+  name: "alice" as BotName,
   state: "running",
   pid: 12345,
   port: 7700,
@@ -32,8 +32,8 @@ function defaultPm(): Partial<ProcessManager> {
 }
 
 describe("stop command (daemon)", () => {
-  it("stops all running CASAs", async () => {
-    const bob: ProcessInfo = { ...RUNNING_INFO, name: "bob" as CasaName, port: 7701 };
+  it("stops all running bots", async () => {
+    const bob: ProcessInfo = { ...RUNNING_INFO, name: "bob" as BotName, port: 7701 };
     const deps = makeDeps({
       pm: {
         ...defaultPm(),
@@ -66,7 +66,7 @@ describe("stop command (daemon)", () => {
     expect(deps.processManager.stop).not.toHaveBeenCalled();
   });
 
-  it("succeeds with no running CASAs", async () => {
+  it("succeeds with no running bots", async () => {
     const deps = makeDeps({ pm: defaultPm() });
     const program = createProgram(deps);
     program.exitOverride();

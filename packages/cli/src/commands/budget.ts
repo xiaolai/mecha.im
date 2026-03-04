@@ -11,7 +11,7 @@ export function registerBudgetCommand(program: Command, deps: CommandDeps): void
   budget
     .command("set")
     .description("Set a budget limit")
-    .argument("[name]", "CASA name (omit with --global, --auth, or --tag)")
+    .argument("[name]", "bot name (omit with --global, --auth, or --tag)")
     .option("--global", "Set global budget")
     .option("--auth <profile>", "Set budget for auth profile")
     .option("--tag <tag>", "Set budget for tag")
@@ -38,7 +38,7 @@ export function registerBudgetCommand(program: Command, deps: CommandDeps): void
           return;
         }
 
-        let target: { type: "global" } | { type: "casa"; name: string } | { type: "auth"; name: string } | { type: "tag"; name: string };
+        let target: { type: "global" } | { type: "bot"; name: string } | { type: "auth"; name: string } | { type: "tag"; name: string };
         if (o.global) {
           target = { type: "global" };
         } else if (o.auth) {
@@ -46,9 +46,9 @@ export function registerBudgetCommand(program: Command, deps: CommandDeps): void
         } else if (o.tag) {
           target = { type: "tag", name: o.tag };
         } else if (name) {
-          target = { type: "casa", name };
+          target = { type: "bot", name };
         } else {
-          deps.formatter.error("Specify a CASA name or use --global, --auth <name>, --tag <name>");
+          deps.formatter.error("Specify a bot name or use --global, --auth <name>, --tag <name>");
           process.exitCode = 1;
           return;
         }
@@ -64,7 +64,7 @@ export function registerBudgetCommand(program: Command, deps: CommandDeps): void
   budget
     .command("rm")
     .description("Remove a budget limit")
-    .argument("[name]", "CASA name (omit with --global, --auth, or --tag)")
+    .argument("[name]", "bot name (omit with --global, --auth, or --tag)")
     .option("--global", "Remove global budget")
     .option("--auth <profile>", "Remove budget for auth profile")
     .option("--tag <tag>", "Remove budget for tag")
@@ -82,7 +82,7 @@ export function registerBudgetCommand(program: Command, deps: CommandDeps): void
           return;
         }
 
-        let target: { type: "global" } | { type: "casa"; name: string } | { type: "auth"; name: string } | { type: "tag"; name: string };
+        let target: { type: "global" } | { type: "bot"; name: string } | { type: "auth"; name: string } | { type: "tag"; name: string };
         if (o.global) {
           target = { type: "global" };
         } else if (o.auth) {
@@ -90,9 +90,9 @@ export function registerBudgetCommand(program: Command, deps: CommandDeps): void
         } else if (o.tag) {
           target = { type: "tag", name: o.tag };
         } else if (name) {
-          target = { type: "casa", name };
+          target = { type: "bot", name };
         } else {
-          deps.formatter.error("Specify a CASA name or use --global, --auth <name>, --tag <name>");
+          deps.formatter.error("Specify a bot name or use --global, --auth <name>, --tag <name>");
           process.exitCode = 1;
           return;
         }
@@ -133,7 +133,7 @@ export function registerBudgetCommand(program: Command, deps: CommandDeps): void
         }
 
         for (const [label, map] of [
-          ["casa", config.byCasa],
+          ["bot", config.byBot],
           ["auth", config.byAuthProfile],
           ["tag", config.byTag],
         ] as const) {

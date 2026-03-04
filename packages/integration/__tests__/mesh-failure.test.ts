@@ -4,7 +4,7 @@
  * Tests failure modes in multi-node mesh:
  * - Offline nodes (connection refused)
  * - SSRF protection
- * - Invalid CASA names
+ * - Invalid bot names
  * - Missing fields in query body
  * - REST lookup for unknown peers
  */
@@ -24,8 +24,8 @@ import {
   invites,
   relayPairs,
 } from "@mecha/server";
-import { createCasaRouter, createLocator, agentFetch } from "@mecha/service";
-import { makePm, writeCasaConfig } from "./helpers/mesh-harness.js";
+import { createBotRouter, createLocator, agentFetch } from "@mecha/service";
+import { makePm, writeBotConfig } from "./helpers/mesh-harness.js";
 import type { FastifyInstance } from "fastify";
 
 const TEST_TOTP_SECRET = "JBSWY3DPEHPK3PXP";
@@ -36,12 +36,12 @@ function makeAuthCookie(secret = TEST_TOTP_SECRET): string {
   return `mecha-session=${token}`;
 }
 
-// Mock forwardQueryToCasa
+// Mock forwardQueryToBot
 vi.mock("@mecha/core", async (importOriginal) => {
   const orig = await importOriginal<Record<string, unknown>>();
   return {
     ...orig,
-    forwardQueryToCasa: vi.fn().mockResolvedValue({
+    forwardQueryToBot: vi.fn().mockResolvedValue({
       text: "response",
       sessionId: "sess",
     }),
@@ -80,7 +80,7 @@ describe("mesh failure: offline nodes", () => {
       pm: makePm(),
       getNodes: () => [offlineNode],
     });
-    const router = createCasaRouter({
+    const router = createBotRouter({
       mechaDir: aliceDir, acl, pm: makePm(), locator,
       agentFetch, sourceName: "alice", allowPrivateHosts: true,
     });
@@ -105,7 +105,7 @@ describe("mesh failure: offline nodes", () => {
     await expect(
       agentFetch({
         node: managedNode,
-        path: "/casas/test/query",
+        path: "/bots/test/query",
         method: "POST",
         body: { message: "hello" },
         allowPrivateHosts: true,
@@ -141,7 +141,7 @@ describe("mesh failure: agent server validation", () => {
 
   beforeAll(async () => {
     bobDir = mkdtempSync(join(tmpdir(), "fail-bob-"));
-    writeCasaConfig(bobDir, "analyst", {
+    writeBotConfig(bobDir, "analyst", {
       port: 9999, token: "tok", workspace: "/tmp",
     });
 
@@ -164,8 +164,8 @@ describe("mesh failure: agent server validation", () => {
     rmSync(bobDir, { recursive: true, force: true });
   });
 
-  it("returns 400 for invalid CASA name in query", async () => {
-    const res = await fetch(`http://127.0.0.1:${bobPort}/casas/INVALID_NAME!/query`, {
+  it("returns 400 for invalid bot name in query", async () => {
+    const res = await fetch(`http://127.0.0.1:${bobPort}/bots/INVALID_NAME!/query`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -176,11 +176,11 @@ describe("mesh failure: agent server validation", () => {
     });
     expect(res.status).toBe(400);
     const body = await res.json() as Record<string, unknown>;
-    expect(body.error).toContain("Invalid CASA name");
+    expect(body.error).toContain("Invalid bot name");
   });
 
   it("returns 400 for missing message field in query body", async () => {
-    const res = await fetch(`http://127.0.0.1:${bobPort}/casas/analyst/query`, {
+    const res = await fetch(`http://127.0.0.1:${bobPort}/bots/analyst/query`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -195,7 +195,7 @@ describe("mesh failure: agent server validation", () => {
   });
 
   it("returns 400 for empty message string", async () => {
-    const res = await fetch(`http://127.0.0.1:${bobPort}/casas/analyst/query`, {
+    const res = await fetch(`http://127.0.0.1:${bobPort}/bots/analyst/query`, {
       method: "POST",
       headers: {
         "content-type": "application/json",

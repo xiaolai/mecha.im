@@ -14,17 +14,17 @@ describe("schedule routes", () => {
     tempDir = mkdtempSync(join(tmpdir(), "mecha-schedule-routes-"));
     const projectsDir = join(tempDir, "projects");
     const workspacePath = join(tempDir, "workspace");
-    const casaDir = join(tempDir, "casa");
+    const botDir = join(tempDir, "bot");
     mkdirSync(workspacePath);
-    mkdirSync(casaDir);
+    mkdirSync(botDir);
 
     const result = createServer({
-      casaName: "test-casa",
+      botName: "test-bot",
       port: 7700,
       authToken: "test-token",
       projectsDir,
       workspacePath,
-      casaDir,
+      botDir,
       chatFn: async () => ({ durationMs: 50 }),
     });
     app = result.app;

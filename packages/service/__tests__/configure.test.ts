@@ -2,8 +2,8 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync, readFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { casaConfigure } from "../src/casa.js";
-import { CasaNotFoundError, type CasaName } from "@mecha/core";
+import { botConfigure } from "../src/bot.js";
+import { BotNotFoundError, type BotName } from "@mecha/core";
 import type { ProcessManager, ProcessInfo } from "@mecha/process";
 
 function createMockPM(overrides: Partial<ProcessManager> = {}): ProcessManager {
@@ -20,29 +20,29 @@ function createMockPM(overrides: Partial<ProcessManager> = {}): ProcessManager {
   } as ProcessManager;
 }
 
-describe("casaConfigure", () => {
+describe("botConfigure", () => {
   let mechaDir: string;
   afterEach(() => { if (mechaDir) rmSync(mechaDir, { recursive: true, force: true }); });
 
   it("updates tags", () => {
     mechaDir = mkdtempSync(join(tmpdir(), "mecha-cfg-"));
-    const casaDir = join(mechaDir, "alice");
-    mkdirSync(casaDir, { recursive: true });
-    writeFileSync(join(casaDir, "config.json"), JSON.stringify({ port: 7700, token: "t", workspace: "/ws" }));
+    const botDir = join(mechaDir, "alice");
+    mkdirSync(botDir, { recursive: true });
+    writeFileSync(join(botDir, "config.json"), JSON.stringify({ port: 7700, token: "t", workspace: "/ws" }));
 
-    const info: ProcessInfo = { name: "alice" as CasaName, state: "running", workspacePath: "/ws", port: 7700 };
+    const info: ProcessInfo = { name: "alice" as BotName, state: "running", workspacePath: "/ws", port: 7700 };
     const pm = createMockPM({ get: vi.fn().mockReturnValue(info) });
 
-    casaConfigure(mechaDir, pm, "alice" as CasaName, { tags: ["research", "papers"] });
+    botConfigure(mechaDir, pm, "alice" as BotName, { tags: ["research", "papers"] });
 
-    const cfg = JSON.parse(readFileSync(join(casaDir, "config.json"), "utf-8"));
+    const cfg = JSON.parse(readFileSync(join(botDir, "config.json"), "utf-8"));
     expect(cfg.tags).toEqual(["research", "papers"]);
     expect(cfg.port).toBe(7700);
   });
 
-  it("throws CasaNotFoundError for unknown CASA", () => {
+  it("throws BotNotFoundError for unknown bot", () => {
     mechaDir = mkdtempSync(join(tmpdir(), "mecha-cfg-"));
     const pm = createMockPM();
-    expect(() => casaConfigure(mechaDir, pm, "unknown" as CasaName, { tags: ["x"] })).toThrow(CasaNotFoundError);
+    expect(() => botConfigure(mechaDir, pm, "unknown" as BotName, { tags: ["x"] })).toThrow(BotNotFoundError);
   });
 });

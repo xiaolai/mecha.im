@@ -25,7 +25,7 @@ describe("mechaInit", () => {
     expect(existsSync(join(mechaDir, "discovery.json"))).toBe(true);
     const index = JSON.parse(readFileSync(join(mechaDir, "discovery.json"), "utf-8"));
     expect(index.version).toBe(1);
-    expect(index.casas).toEqual([]);
+    expect(index.bots).toEqual([]);
   });
 
   it("generates node-id and keypair on first run", () => {

@@ -6,7 +6,7 @@ Every conversation with a Mecha agent is a **session** — a persistent thread o
 
 ```bash
 # Send a message and stream the response
-mecha casa chat researcher "Summarize the latest papers in my workspace"
+mecha bot chat researcher "Summarize the latest papers in my workspace"
 ```
 
 The response streams to your terminal via Server-Sent Events (SSE). You'll see the agent's thinking process and final response in real time.
@@ -15,10 +15,10 @@ The response streams to your terminal via Server-Sent Events (SSE). You'll see t
 
 ```bash
 # List all sessions for an agent
-mecha casa sessions list researcher
+mecha bot sessions list researcher
 
 # Show a specific session transcript
-mecha casa sessions show researcher <session-id>
+mecha bot sessions show researcher <session-id>
 ```
 
 ## Session Storage
@@ -55,7 +55,7 @@ Each line is a JSON event — matching the Claude Agent SDK's native format:
 
 ## MCP Tools
 
-Each CASA exposes workspace tools via the MCP (Model Context Protocol) at `POST /mcp` using JSON-RPC 2.0:
+Each bot exposes workspace tools via the MCP (Model Context Protocol) at `POST /mcp` using JSON-RPC 2.0:
 
 ### Workspace Tools
 
@@ -70,18 +70,18 @@ Each CASA exposes workspace tools via the MCP (Model Context Protocol) at `POST 
 
 ### Mesh Tools
 
-Mesh tools are available only when `mechaDir` and `casaName` are configured:
+Mesh tools are available only when `mechaDir` and `botName` are configured:
 
 | Tool | Description |
 |------|-------------|
-| `mesh_query` | Send a message to another CASA and get a response |
-| `mesh_discover` | Find other CASAs by tag or capability |
+| `mesh_query` | Send a message to another bot and get a response |
+| `mesh_discover` | Find other bots by tag or capability |
 
 **`mesh_query`** parameters:
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `target` | `string` | Yes | Target CASA name or address (`name@node`) |
+| `target` | `string` | Yes | Target bot name or address (`name@node`) |
 | `message` | `string` | Yes | Message to send |
 | `sessionId` | `string` | No | Session ID for multi-turn conversations |
 
@@ -94,7 +94,7 @@ Returns the response text. If the target returns a `sessionId`, it is included i
 | `tag` | `string` | No | Filter by tag |
 | `capability` | `string` | No | Filter by exposed capability |
 
-Returns a list of running CASAs matching the filter. Discovery reads from `~/.mecha/discovery.json` (the CASA's own entry is excluded from results).
+Returns a list of running bots matching the filter. Discovery reads from `~/.mecha/discovery.json` (the bot's own entry is excluded from results).
 
 ### MCP Protocol Details
 

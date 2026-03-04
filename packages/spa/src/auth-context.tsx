@@ -43,7 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // If TOTP is enabled, probe session cookie
         if (data.methods.totp) {
           try {
-            const probe = await fetch("/casas", { credentials: "include" });
+            const probe = await fetch("/bots", { credentials: "include" });
             if (!cancelled && probe.ok) setTotpAuth(true);
           } catch {
             // Cookie invalid or server unreachable — stay logged out

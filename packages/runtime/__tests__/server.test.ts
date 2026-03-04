@@ -22,7 +22,7 @@ describe("createServer", () => {
     writeFileSync(join(workspacePath, "README.md"), "# Test");
 
     const result = createServer({
-      casaName: "test-casa",
+      botName: "test-bot",
       port: 7700,
       authToken: "test-token",
       projectsDir,
@@ -62,7 +62,7 @@ describe("createServer", () => {
     expect(res.json()).toEqual([]);
   });
 
-  it("serves /info with CASA details", async () => {
+  it("serves /info with bot details", async () => {
     const server = setup();
     await server.ready();
 
@@ -73,7 +73,7 @@ describe("createServer", () => {
     });
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    expect(body.name).toBe("test-casa");
+    expect(body.name).toBe("test-bot");
     expect(body.port).toBe(7700);
   });
 

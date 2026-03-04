@@ -20,10 +20,10 @@ function createMockPtyManager(): PtyManager & { _sessions: Map<string, PtySessio
   const sessions = new Map<string, PtySession>();
   return {
     _sessions: sessions,
-    spawn: vi.fn().mockImplementation((casaName: string, sessionId: string | undefined) => {
-      const id = sessionId ? `${casaName}:${sessionId}` : `${casaName}:new-test`;
+    spawn: vi.fn().mockImplementation((botName: string, sessionId: string | undefined) => {
+      const id = sessionId ? `${botName}:${sessionId}` : `${botName}:new-test`;
       const pty = createMockPty();
-      const session: PtySession = { id, casaName, pty, clients: new Set(), createdAt: new Date(), lastActivity: new Date(), scrollback: [] };
+      const session: PtySession = { id, botName, pty, clients: new Set(), createdAt: new Date(), lastActivity: new Date(), scrollback: [] };
       sessions.set(id, session);
       return session;
     }),
@@ -35,10 +35,10 @@ function createMockPtyManager(): PtyManager & { _sessions: Map<string, PtySessio
     detach: vi.fn(),
     resize: vi.fn(),
     getSession: vi.fn().mockImplementation((key: string) => sessions.get(key) ?? null),
-    findByCasa: vi.fn().mockImplementation((name: string) => {
+    findByBot: vi.fn().mockImplementation((name: string) => {
       const matches: PtySession[] = [];
       for (const s of sessions.values()) {
-        if (s.casaName === name) matches.push(s);
+        if (s.botName === name) matches.push(s);
       }
       matches.sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime());
       return matches;
@@ -93,7 +93,7 @@ describe("registerTerminalRoutes", () => {
     expect(sessionMsg).toBeDefined();
   });
 
-  it("sends session ID without casaName prefix", () => {
+  it("sends session ID without botName prefix", () => {
     const socket = createSocket();
     routeHandler(socket, createReq("coder"));
 
@@ -116,7 +116,7 @@ describe("registerTerminalRoutes", () => {
   it("reattaches to existing session", () => {
     // Pre-populate a session
     const pty = createMockPty();
-    const existing: PtySession = { id: "coder:s1", casaName: "coder", pty, clients: new Set(), createdAt: new Date(), lastActivity: new Date(), scrollback: [] };
+    const existing: PtySession = { id: "coder:s1", botName: "coder", pty, clients: new Set(), createdAt: new Date(), lastActivity: new Date(), scrollback: [] };
     ptyManager._sessions.set("coder:s1", existing);
 
     const socket = createSocket();
@@ -126,10 +126,10 @@ describe("registerTerminalRoutes", () => {
     expect(ptyManager.attach).toHaveBeenCalledWith("coder:s1", socket);
   });
 
-  it("strips casaName: prefix from stale session IDs", () => {
+  it("strips botName: prefix from stale session IDs", () => {
     // Client sends composite key "coder:s1" from stale URL — should be stripped to "s1"
     const pty = createMockPty();
-    const existing: PtySession = { id: "coder:s1", casaName: "coder", pty, clients: new Set(), createdAt: new Date(), lastActivity: new Date(), scrollback: [] };
+    const existing: PtySession = { id: "coder:s1", botName: "coder", pty, clients: new Set(), createdAt: new Date(), lastActivity: new Date(), scrollback: [] };
     ptyManager._sessions.set("coder:s1", existing);
 
     const socket = createSocket();
@@ -140,40 +140,40 @@ describe("registerTerminalRoutes", () => {
     expect(ptyManager.spawn).not.toHaveBeenCalled();
   });
 
-  it("falls back to findByCasa when no sessionId is provided", () => {
+  it("falls back to findByBot when no sessionId is provided", () => {
     // Pre-populate a session
     const pty = createMockPty();
-    const existing: PtySession = { id: "coder:new-abc123", casaName: "coder", pty, clients: new Set(), createdAt: new Date(), lastActivity: new Date(), scrollback: [] };
+    const existing: PtySession = { id: "coder:new-abc123", botName: "coder", pty, clients: new Set(), createdAt: new Date(), lastActivity: new Date(), scrollback: [] };
     ptyManager._sessions.set("coder:new-abc123", existing);
 
     const socket = createSocket();
-    // No session ID — should fallback to findByCasa to reuse existing PTY
+    // No session ID — should fallback to findByBot to reuse existing PTY
     routeHandler(socket, createReq("coder"));
 
-    expect(ptyManager.findByCasa).toHaveBeenCalledWith("coder");
+    expect(ptyManager.findByBot).toHaveBeenCalledWith("coder");
     expect(ptyManager.spawn).not.toHaveBeenCalled();
     expect(ptyManager.attach).toHaveBeenCalledWith("coder:new-abc123", socket);
   });
 
-  it("spawns new PTY when specific sessionId not found (no findByCasa fallback)", () => {
+  it("spawns new PTY when specific sessionId not found (no findByBot fallback)", () => {
     // Pre-populate a session with a different key
     const pty = createMockPty();
-    const existing: PtySession = { id: "coder:new-abc123", casaName: "coder", pty, clients: new Set(), createdAt: new Date(), lastActivity: new Date(), scrollback: [] };
+    const existing: PtySession = { id: "coder:new-abc123", botName: "coder", pty, clients: new Set(), createdAt: new Date(), lastActivity: new Date(), scrollback: [] };
     ptyManager._sessions.set("coder:new-abc123", existing);
 
     const socket = createSocket();
     // Client provides a specific session ID — should NOT fall back to another session
     routeHandler(socket, createReq("coder", "specific-session"));
 
-    // findByCasa should NOT be called when a specific sessionId is provided
-    expect(ptyManager.findByCasa).not.toHaveBeenCalled();
+    // findByBot should NOT be called when a specific sessionId is provided
+    expect(ptyManager.findByBot).not.toHaveBeenCalled();
     expect(ptyManager.spawn).toHaveBeenCalled();
   });
 
   it("replays scrollback on reattach", () => {
     const pty = createMockPty();
     const existing: PtySession = {
-      id: "coder:s1", casaName: "coder", pty, clients: new Set(),
+      id: "coder:s1", botName: "coder", pty, clients: new Set(),
       createdAt: new Date(), lastActivity: new Date(),
       scrollback: ["chunk1", "chunk2", "chunk3"],
     };
@@ -202,7 +202,7 @@ describe("registerTerminalRoutes", () => {
   });
 
   it("sends error on spawn failure with __mecha marker", () => {
-    (ptyManager.spawn as ReturnType<typeof vi.fn>).mockImplementation(() => { throw new Error("CASA not running"); });
+    (ptyManager.spawn as ReturnType<typeof vi.fn>).mockImplementation(() => { throw new Error("bot not running"); });
 
     const socket = createSocket();
     routeHandler(socket, createReq("ghost"));
@@ -326,7 +326,7 @@ describe("registerTerminalRoutes", () => {
     expect(ptyManager.resize).toHaveBeenCalledWith("coder:new-test", 120, 40);
   });
 
-  it("rejects invalid CASA name", () => {
+  it("rejects invalid bot name", () => {
     const socket = createSocket();
     routeHandler(socket, createReq("../etc/passwd"));
 
@@ -334,7 +334,7 @@ describe("registerTerminalRoutes", () => {
       try { const m = JSON.parse(data); return m.type === "error" && m.__mecha === true; } catch { return false; }
     });
     expect(errorMsg).toBeDefined();
-    expect(socket.close).toHaveBeenCalledWith(4400, "Invalid CASA name");
+    expect(socket.close).toHaveBeenCalledWith(4400, "Invalid bot name");
     expect(ptyManager.spawn).not.toHaveBeenCalled();
   });
 });

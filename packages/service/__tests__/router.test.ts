@@ -2,18 +2,18 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { createCasaRouter } from "../src/router.js";
-import type { CasaName, Capability, NodeEntry } from "@mecha/core";
+import { createBotRouter } from "../src/router.js";
+import type { BotName, Capability, NodeEntry } from "@mecha/core";
 import type { ProcessInfo } from "@mecha/process";
 import type { MechaLocator, LocateResult } from "../src/locator.js";
-import { makeAcl, writeCasaConfig } from "../../core/__tests__/test-utils.js";
+import { makeAcl, writeBotConfig } from "../../core/__tests__/test-utils.js";
 import { makePm } from "./test-utils.js";
 
 function makeLocator(result: LocateResult): MechaLocator {
   return { locate: vi.fn().mockReturnValue(result) };
 }
 
-describe("createCasaRouter", () => {
+describe("createBotRouter", () => {
   let mechaDir: string;
   afterEach(() => { if (mechaDir) rmSync(mechaDir, { recursive: true, force: true }); vi.restoreAllMocks(); });
 
@@ -21,26 +21,26 @@ describe("createCasaRouter", () => {
     it("throws AclDeniedError when ACL denies", async () => {
       mechaDir = mkdtempSync(join(tmpdir(), "router-"));
       const acl = makeAcl({ check: vi.fn().mockReturnValue({ allowed: false, reason: "no_connect" }) });
-      const router = createCasaRouter({ mechaDir, acl, pm: makePm() });
+      const router = createBotRouter({ mechaDir, acl, pm: makePm() });
 
       await expect(
-        router.routeQuery("coder" as CasaName, "researcher" as CasaName, "hello"),
+        router.routeQuery("coder" as BotName, "researcher" as BotName, "hello"),
       ).rejects.toThrow(/Access denied/);
     });
 
-    it("throws CasaNotFoundError when target config missing", async () => {
+    it("throws BotNotFoundError when target config missing", async () => {
       mechaDir = mkdtempSync(join(tmpdir(), "router-"));
       const acl = makeAcl();
-      const router = createCasaRouter({ mechaDir, acl, pm: makePm() });
+      const router = createBotRouter({ mechaDir, acl, pm: makePm() });
 
       await expect(
-        router.routeQuery("coder" as CasaName, "ghost" as CasaName, "hello"),
+        router.routeQuery("coder" as BotName, "ghost" as BotName, "hello"),
       ).rejects.toThrow(/not found/i);
     });
 
     it("makes HTTP request to target on success", async () => {
       mechaDir = mkdtempSync(join(tmpdir(), "router-"));
-      writeCasaConfig(mechaDir, "researcher", { port: 7700, token: "tok123", workspace: "/ws" });
+      writeBotConfig(mechaDir, "researcher", { port: 7700, token: "tok123", workspace: "/ws" });
       const acl = makeAcl();
       const locator = makeLocator({ location: "local", port: 7700, token: "tok123" });
 
@@ -51,8 +51,8 @@ describe("createCasaRouter", () => {
         }),
       );
 
-      const router = createCasaRouter({ mechaDir, acl, pm: makePm(), locator });
-      const result = await router.routeQuery("coder" as CasaName, "researcher" as CasaName, "find papers");
+      const router = createBotRouter({ mechaDir, acl, pm: makePm(), locator });
+      const result = await router.routeQuery("coder" as BotName, "researcher" as BotName, "find papers");
 
       expect(result).toEqual({ text: "I found 3 papers", sessionId: undefined });
       expect(fetch).toHaveBeenCalledWith(
@@ -68,7 +68,7 @@ describe("createCasaRouter", () => {
 
     it("throws when target returns non-OK", async () => {
       mechaDir = mkdtempSync(join(tmpdir(), "router-"));
-      writeCasaConfig(mechaDir, "researcher", { port: 7700, token: "tok", workspace: "/ws" });
+      writeBotConfig(mechaDir, "researcher", { port: 7700, token: "tok", workspace: "/ws" });
       const acl = makeAcl();
       const locator = makeLocator({ location: "local", port: 7700, token: "tok" });
 
@@ -76,15 +76,15 @@ describe("createCasaRouter", () => {
         new Response("error", { status: 500 }),
       );
 
-      const router = createCasaRouter({ mechaDir, acl, pm: makePm(), locator });
+      const router = createBotRouter({ mechaDir, acl, pm: makePm(), locator });
       await expect(
-        router.routeQuery("coder" as CasaName, "researcher" as CasaName, "hello"),
+        router.routeQuery("coder" as BotName, "researcher" as BotName, "hello"),
       ).rejects.toThrow(/returned HTTP 500/);
     });
 
     it("returns JSON stringified when response.response is not a string", async () => {
       mechaDir = mkdtempSync(join(tmpdir(), "router-"));
-      writeCasaConfig(mechaDir, "researcher", { port: 7700, token: "tok", workspace: "/ws" });
+      writeBotConfig(mechaDir, "researcher", { port: 7700, token: "tok", workspace: "/ws" });
       const acl = makeAcl();
       const locator = makeLocator({ location: "local", port: 7700, token: "tok" });
 
@@ -95,14 +95,14 @@ describe("createCasaRouter", () => {
         }),
       );
 
-      const router = createCasaRouter({ mechaDir, acl, pm: makePm(), locator });
-      const result = await router.routeQuery("coder" as CasaName, "researcher" as CasaName, "hello");
+      const router = createBotRouter({ mechaDir, acl, pm: makePm(), locator });
+      const result = await router.routeQuery("coder" as BotName, "researcher" as BotName, "hello");
       expect(result.text).toContain('"data"');
     });
 
     it("returns text when response is not JSON", async () => {
       mechaDir = mkdtempSync(join(tmpdir(), "router-"));
-      writeCasaConfig(mechaDir, "researcher", { port: 7700, token: "tok", workspace: "/ws" });
+      writeBotConfig(mechaDir, "researcher", { port: 7700, token: "tok", workspace: "/ws" });
       const acl = makeAcl();
       const locator = makeLocator({ location: "local", port: 7700, token: "tok" });
 
@@ -110,14 +110,14 @@ describe("createCasaRouter", () => {
         new Response("plain text response", { status: 200, headers: { "content-type": "text/plain" } }),
       );
 
-      const router = createCasaRouter({ mechaDir, acl, pm: makePm(), locator });
-      const result = await router.routeQuery("coder" as CasaName, "researcher" as CasaName, "hello");
+      const router = createBotRouter({ mechaDir, acl, pm: makePm(), locator });
+      const result = await router.routeQuery("coder" as BotName, "researcher" as BotName, "hello");
       expect(result.text).toBe("plain text response");
     });
 
-    it("passes sessionId through to forwardQueryToCasa", async () => {
+    it("passes sessionId through to forwardQueryToBot", async () => {
       mechaDir = mkdtempSync(join(tmpdir(), "router-"));
-      writeCasaConfig(mechaDir, "researcher", { port: 7700, token: "tok", workspace: "/ws" });
+      writeBotConfig(mechaDir, "researcher", { port: 7700, token: "tok", workspace: "/ws" });
       const acl = makeAcl();
       const locator = makeLocator({ location: "local", port: 7700, token: "tok" });
 
@@ -128,9 +128,9 @@ describe("createCasaRouter", () => {
         }),
       );
 
-      const router = createCasaRouter({ mechaDir, acl, pm: makePm(), locator });
+      const router = createBotRouter({ mechaDir, acl, pm: makePm(), locator });
       const result = await router.routeQuery(
-        "coder" as CasaName, "researcher" as CasaName, "continue", "sess-xyz",
+        "coder" as BotName, "researcher" as BotName, "continue", "sess-xyz",
       );
       expect(result).toEqual({ text: "continued", sessionId: "sess-xyz" });
 
@@ -141,19 +141,19 @@ describe("createCasaRouter", () => {
   });
 
   describe("routeDiscover", () => {
-    it("returns CASAs excluding source", () => {
+    it("returns bots excluding source", () => {
       mechaDir = mkdtempSync(join(tmpdir(), "router-"));
-      writeCasaConfig(mechaDir, "coder", { port: 7701, token: "t", workspace: "/a", tags: ["code"] });
-      writeCasaConfig(mechaDir, "researcher", { port: 7702, token: "t", workspace: "/b", tags: ["research"] });
+      writeBotConfig(mechaDir, "coder", { port: 7701, token: "t", workspace: "/a", tags: ["code"] });
+      writeBotConfig(mechaDir, "researcher", { port: 7702, token: "t", workspace: "/b", tags: ["research"] });
 
       const list: ProcessInfo[] = [
-        { name: "coder" as CasaName, state: "running", port: 7701, workspacePath: "/a" },
-        { name: "researcher" as CasaName, state: "running", port: 7702, workspacePath: "/b" },
+        { name: "coder" as BotName, state: "running", port: 7701, workspacePath: "/a" },
+        { name: "researcher" as BotName, state: "running", port: 7702, workspacePath: "/b" },
       ];
 
       const acl = makeAcl();
-      const router = createCasaRouter({ mechaDir, acl, pm: makePm(list) });
-      const results = router.routeDiscover("coder" as CasaName, {});
+      const router = createBotRouter({ mechaDir, acl, pm: makePm(list) });
+      const results = router.routeDiscover("coder" as BotName, {});
 
       expect(results).toHaveLength(1);
       expect(results[0].name).toBe("researcher");
@@ -161,17 +161,17 @@ describe("createCasaRouter", () => {
 
     it("filters by tag", () => {
       mechaDir = mkdtempSync(join(tmpdir(), "router-"));
-      writeCasaConfig(mechaDir, "alice", { port: 7701, token: "t", workspace: "/a", tags: ["research"] });
-      writeCasaConfig(mechaDir, "bob", { port: 7702, token: "t", workspace: "/b", tags: ["code"] });
+      writeBotConfig(mechaDir, "alice", { port: 7701, token: "t", workspace: "/a", tags: ["research"] });
+      writeBotConfig(mechaDir, "bob", { port: 7702, token: "t", workspace: "/b", tags: ["code"] });
 
       const list: ProcessInfo[] = [
-        { name: "alice" as CasaName, state: "running", port: 7701, workspacePath: "/a" },
-        { name: "bob" as CasaName, state: "running", port: 7702, workspacePath: "/b" },
+        { name: "alice" as BotName, state: "running", port: 7701, workspacePath: "/a" },
+        { name: "bob" as BotName, state: "running", port: 7702, workspacePath: "/b" },
       ];
 
       const acl = makeAcl();
-      const router = createCasaRouter({ mechaDir, acl, pm: makePm(list) });
-      const results = router.routeDiscover("caller" as CasaName, { tags: ["research"] });
+      const router = createBotRouter({ mechaDir, acl, pm: makePm(list) });
+      const results = router.routeDiscover("caller" as BotName, { tags: ["research"] });
 
       expect(results).toHaveLength(1);
       expect(results[0].name).toBe("alice");
@@ -179,27 +179,27 @@ describe("createCasaRouter", () => {
 
     it("filters by capability", () => {
       mechaDir = mkdtempSync(join(tmpdir(), "router-"));
-      writeCasaConfig(mechaDir, "alice", { port: 7701, token: "t", workspace: "/a", expose: ["query"] });
-      writeCasaConfig(mechaDir, "bob", { port: 7702, token: "t", workspace: "/b", expose: ["execute"] });
+      writeBotConfig(mechaDir, "alice", { port: 7701, token: "t", workspace: "/a", expose: ["query"] });
+      writeBotConfig(mechaDir, "bob", { port: 7702, token: "t", workspace: "/b", expose: ["execute"] });
 
       const list: ProcessInfo[] = [
-        { name: "alice" as CasaName, state: "running", port: 7701, workspacePath: "/a" },
-        { name: "bob" as CasaName, state: "running", port: 7702, workspacePath: "/b" },
+        { name: "alice" as BotName, state: "running", port: 7701, workspacePath: "/a" },
+        { name: "bob" as BotName, state: "running", port: 7702, workspacePath: "/b" },
       ];
 
       const acl = makeAcl();
-      const router = createCasaRouter({ mechaDir, acl, pm: makePm(list) });
-      const results = router.routeDiscover("caller" as CasaName, { capability: "query" as Capability });
+      const router = createBotRouter({ mechaDir, acl, pm: makePm(list) });
+      const results = router.routeDiscover("caller" as BotName, { capability: "query" as Capability });
 
       expect(results).toHaveLength(1);
       expect(results[0].name).toBe("alice");
     });
 
-    it("returns empty when no matching CASAs", () => {
+    it("returns empty when no matching bots", () => {
       mechaDir = mkdtempSync(join(tmpdir(), "router-"));
       const acl = makeAcl();
-      const router = createCasaRouter({ mechaDir, acl, pm: makePm([]) });
-      const results = router.routeDiscover("coder" as CasaName, {});
+      const router = createBotRouter({ mechaDir, acl, pm: makePm([]) });
+      const results = router.routeDiscover("coder" as BotName, {});
       expect(results).toEqual([]);
     });
   });
@@ -212,7 +212,7 @@ describe("createCasaRouter", () => {
 
     it("routes locally when locator returns local", async () => {
       mechaDir = mkdtempSync(join(tmpdir(), "router-"));
-      writeCasaConfig(mechaDir, "researcher", { port: 7700, token: "tok", workspace: "/ws" });
+      writeBotConfig(mechaDir, "researcher", { port: 7700, token: "tok", workspace: "/ws" });
       const acl = makeAcl();
       const locator = makeLocator({ location: "local", port: 7700, token: "tok" });
 
@@ -223,7 +223,7 @@ describe("createCasaRouter", () => {
         }),
       );
 
-      const router = createCasaRouter({ mechaDir, acl, pm: makePm(), locator });
+      const router = createBotRouter({ mechaDir, acl, pm: makePm(), locator });
       const result = await router.routeQuery("coder", "researcher", "hello");
       expect(result.text).toBe("local result");
     });
@@ -239,7 +239,7 @@ describe("createCasaRouter", () => {
         }),
       );
 
-      const router = createCasaRouter({
+      const router = createBotRouter({
         mechaDir, acl, pm: makePm(), locator,
         agentFetch: mockFetch,
         sourceName: "alice",
@@ -249,7 +249,7 @@ describe("createCasaRouter", () => {
       expect(result.text).toBe("remote result");
       expect(mockFetch).toHaveBeenCalledWith(expect.objectContaining({
         node: bobNode,
-        path: "/casas/analyst/query",
+        path: "/bots/analyst/query",
         method: "POST",
         source: "coder@alice",
       }));
@@ -266,7 +266,7 @@ describe("createCasaRouter", () => {
         }),
       );
 
-      const router = createCasaRouter({ mechaDir, acl, pm: makePm(), locator, agentFetch: mockFetch });
+      const router = createBotRouter({ mechaDir, acl, pm: makePm(), locator, agentFetch: mockFetch });
       const result = await router.routeQuery("coder", "analyst@bob", "hello");
       expect(result.text).toContain('"data"');
     });
@@ -282,7 +282,7 @@ describe("createCasaRouter", () => {
         }),
       );
 
-      const router = createCasaRouter({ mechaDir, acl, pm: makePm(), locator, agentFetch: mockFetch });
+      const router = createBotRouter({ mechaDir, acl, pm: makePm(), locator, agentFetch: mockFetch });
       const result = await router.routeQuery("coder", "analyst@bob", "hello");
       expect(result.sessionId).toBe("sess-1");
     });
@@ -295,18 +295,18 @@ describe("createCasaRouter", () => {
         new Response("error", { status: 500 }),
       );
 
-      const router = createCasaRouter({ mechaDir, acl, pm: makePm(), locator, agentFetch: mockFetch });
+      const router = createBotRouter({ mechaDir, acl, pm: makePm(), locator, agentFetch: mockFetch });
       await expect(
         router.routeQuery("coder", "analyst@bob", "hello"),
       ).rejects.toThrow(/HTTP 500/);
     });
 
-    it("throws CasaNotFoundError when locator returns not_found", async () => {
+    it("throws BotNotFoundError when locator returns not_found", async () => {
       mechaDir = mkdtempSync(join(tmpdir(), "router-"));
       const acl = makeAcl();
       const locator = makeLocator({ location: "not_found" });
 
-      const router = createCasaRouter({ mechaDir, acl, pm: makePm(), locator });
+      const router = createBotRouter({ mechaDir, acl, pm: makePm(), locator });
       await expect(
         router.routeQuery("coder", "ghost@unknown", "hello"),
       ).rejects.toThrow(/not found/i);
@@ -317,7 +317,7 @@ describe("createCasaRouter", () => {
       const acl = makeAcl();
       const locator = makeLocator({ location: "remote", node: bobNode });
 
-      const router = createCasaRouter({ mechaDir, acl, pm: makePm(), locator });
+      const router = createBotRouter({ mechaDir, acl, pm: makePm(), locator });
       await expect(
         router.routeQuery("coder", "analyst@bob", "hello"),
       ).rejects.toThrow(/Remote node/);
@@ -331,7 +331,7 @@ describe("createCasaRouter", () => {
         new Response("plain text", { status: 200, headers: { "content-type": "text/plain" } }),
       );
 
-      const router = createCasaRouter({ mechaDir, acl, pm: makePm(), locator, agentFetch: mockFetch });
+      const router = createBotRouter({ mechaDir, acl, pm: makePm(), locator, agentFetch: mockFetch });
       const result = await router.routeQuery("coder", "analyst@bob", "hello");
       expect(result.text).toBe("plain text");
     });
@@ -347,7 +347,7 @@ describe("createCasaRouter", () => {
         }),
       );
 
-      const router = createCasaRouter({
+      const router = createBotRouter({
         mechaDir, acl, pm: makePm(), locator,
         agentFetch: mockFetch, sourceName: "alice",
       });
@@ -369,7 +369,7 @@ describe("createCasaRouter", () => {
         }),
       );
 
-      const router = createCasaRouter({ mechaDir, acl, pm: makePm(), locator, agentFetch: mockFetch });
+      const router = createBotRouter({ mechaDir, acl, pm: makePm(), locator, agentFetch: mockFetch });
       await router.routeQuery("coder", "analyst@bob", "hello");
 
       expect(mockFetch).toHaveBeenCalledWith(expect.objectContaining({

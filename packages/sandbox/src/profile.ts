@@ -1,11 +1,11 @@
 import { join, resolve, dirname } from "node:path";
 import { existsSync, realpathSync } from "node:fs";
-import type { CasaConfig } from "@mecha/core";
+import type { BotConfig } from "@mecha/core";
 import type { SandboxProfile } from "./types.js";
 
 export interface ProfileFromConfigOpts {
-  config: CasaConfig;
-  casaDir: string;
+  config: BotConfig;
+  botDir: string;
   mechaDir: string;
   runtimeEntrypoint?: string;
 }
@@ -53,16 +53,16 @@ export function findProjectRoot(startPath: string): string {
 }
 
 /**
- * Generate a SandboxProfile from CASA config and paths.
+ * Generate a SandboxProfile from bot config and paths.
  *
  * Read access: Node.js prefix (stdlib + binary), project root (for node_modules),
- *   discovery.json, casaDir, workspace.
- * Write access: casaDir subdirs (home, logs, tmp), workspace.
+ *   discovery.json, botDir, workspace.
+ * Write access: botDir subdirs (home, logs, tmp), workspace.
  * Allowed processes: current node binary.
  * Network: defaults to true unless config.allowNetwork is explicitly false.
  */
 export function profileFromConfig(opts: ProfileFromConfigOpts): SandboxProfile {
-  const { config, casaDir, mechaDir, runtimeEntrypoint } = opts;
+  const { config, botDir, mechaDir, runtimeEntrypoint } = opts;
 
   const readPaths: string[] = [
     // Node.js installation prefix — includes bin/, lib/, and internal modules
@@ -73,14 +73,14 @@ export function profileFromConfig(opts: ProfileFromConfigOpts): SandboxProfile {
     // Include the project root (contains node_modules for dependency resolution)
     readPaths.push(findProjectRoot(runtimeEntrypoint));
   }
-  readPaths.push(resolve(casaDir));
+  readPaths.push(resolve(botDir));
   readPaths.push(resolve(config.workspace));
 
   const writePaths: string[] = [
-    resolve(casaDir),
-    resolve(join(casaDir, "home")),
-    resolve(join(casaDir, "logs")),
-    resolve(join(casaDir, "tmp")),
+    resolve(botDir),
+    resolve(join(botDir, "home")),
+    resolve(join(botDir, "logs")),
+    resolve(join(botDir, "tmp")),
     resolve(config.workspace),
   ];
 

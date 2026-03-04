@@ -3,19 +3,19 @@ import { mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
-  readHourlyRollup, readDailyRollup, readCasaRollup,
-  writeHourlyRollup, writeDailyRollup, writeCasaRollup,
-  updateHourlyRollup, updateDailyRollup, updateCasaRollup,
+  readHourlyRollup, readDailyRollup, readBotRollup,
+  writeHourlyRollup, writeDailyRollup, writeBotRollup,
+  updateHourlyRollup, updateDailyRollup, updateBotRollup,
   flushRollups,
-  hourlyRollupPath, dailyRollupPath, casaRollupPath,
+  hourlyRollupPath, dailyRollupPath, botRollupPath,
 } from "../src/rollups.js";
 import { emptySummary } from "../src/query.js";
-import type { MeterEvent, HourlyRollup, DailyRollup, CasaRollup } from "../src/types.js";
+import type { MeterEvent, HourlyRollup, DailyRollup, BotRollup } from "../src/types.js";
 
 function makeEvent(overrides: Partial<MeterEvent> = {}): MeterEvent {
   return {
     id: "01TEST", ts: "2026-02-26T14:30:00.000Z",
-    casa: "researcher", authProfile: "personal", workspace: "/ws",
+    bot: "researcher", authProfile: "personal", workspace: "/ws",
     tags: ["research"], model: "claude-sonnet-4-6", stream: true, status: 200,
     modelActual: "claude-sonnet-4-6", latencyMs: 500, ttftMs: 50,
     inputTokens: 100, outputTokens: 50, cacheCreationTokens: 0,
@@ -42,17 +42,17 @@ describe("rollups", () => {
       const r: HourlyRollup = { date: "2026-02-26", hours: [] };
       updateHourlyRollup(r, makeEvent({ ts: "2026-02-26T14:00:00Z", costUsd: 0.05 }));
       updateHourlyRollup(r, makeEvent({ ts: "2026-02-26T14:30:00Z", costUsd: 0.10 }));
-      updateHourlyRollup(r, makeEvent({ ts: "2026-02-26T09:00:00Z", costUsd: 0.02, casa: "coder" }));
+      updateHourlyRollup(r, makeEvent({ ts: "2026-02-26T09:00:00Z", costUsd: 0.02, bot: "coder" }));
 
       expect(r.hours).toHaveLength(2);
       const h14 = r.hours.find(h => h.hour === 14)!;
       expect(h14.total.requests).toBe(2);
       expect(h14.total.costUsd).toBeCloseTo(0.15, 5);
-      expect(h14.byCasa["researcher"]!.requests).toBe(2);
+      expect(h14.byBot["researcher"]!.requests).toBe(2);
 
       const h9 = r.hours.find(h => h.hour === 9)!;
       expect(h9.total.requests).toBe(1);
-      expect(h9.byCasa["coder"]!.costUsd).toBeCloseTo(0.02, 5);
+      expect(h9.byBot["coder"]!.costUsd).toBeCloseTo(0.02, 5);
     });
 
     it("falls back to model when modelActual is empty", () => {
@@ -85,14 +85,14 @@ describe("rollups", () => {
     it("updates incrementally with dimensions", () => {
       const r: DailyRollup = { month: "2026-02", days: [] };
       updateDailyRollup(r, makeEvent({ tags: ["research", "ml"] }), "2026-02-26");
-      updateDailyRollup(r, makeEvent({ casa: "coder", tags: [] }), "2026-02-26");
+      updateDailyRollup(r, makeEvent({ bot: "coder", tags: [] }), "2026-02-26");
       updateDailyRollup(r, makeEvent(), "2026-02-27");
 
       expect(r.days).toHaveLength(2);
       const d26 = r.days.find(d => d.date === "2026-02-26")!;
       expect(d26.total.requests).toBe(2);
-      expect(d26.byCasa["researcher"]!.requests).toBe(1);
-      expect(d26.byCasa["coder"]!.requests).toBe(1);
+      expect(d26.byBot["researcher"]!.requests).toBe(1);
+      expect(d26.byBot["coder"]!.requests).toBe(1);
       expect(d26.byTag["research"]!.requests).toBe(1);
       expect(d26.byTag["ml"]!.requests).toBe(1);
       expect(d26.byAuthProfile["personal"]!.requests).toBe(2);
@@ -117,19 +117,19 @@ describe("rollups", () => {
     });
   });
 
-  describe("CASA rollup", () => {
+  describe("bot rollup", () => {
     it("reads empty for non-existent", () => {
       tempDir = mkdtempSync(join(tmpdir(), "meter-rollup-"));
-      const r = readCasaRollup(tempDir, "researcher");
-      expect(r.casa).toBe("researcher");
+      const r = readBotRollup(tempDir, "researcher");
+      expect(r.bot).toBe("researcher");
       expect(r.allTime.requests).toBe(0);
     });
 
     it("updates incrementally", () => {
-      const r: CasaRollup = { casa: "researcher", allTime: emptySummary(), byModel: {}, byDay: [] };
-      updateCasaRollup(r, makeEvent({ costUsd: 0.05 }), "2026-02-26");
-      updateCasaRollup(r, makeEvent({ costUsd: 0.10 }), "2026-02-26");
-      updateCasaRollup(r, makeEvent({ costUsd: 0.02 }), "2026-02-27");
+      const r: BotRollup = { bot: "researcher", allTime: emptySummary(), byModel: {}, byDay: [] };
+      updateBotRollup(r, makeEvent({ costUsd: 0.05 }), "2026-02-26");
+      updateBotRollup(r, makeEvent({ costUsd: 0.10 }), "2026-02-26");
+      updateBotRollup(r, makeEvent({ costUsd: 0.02 }), "2026-02-27");
 
       expect(r.allTime.requests).toBe(3);
       expect(r.allTime.costUsd).toBeCloseTo(0.17, 5);
@@ -139,18 +139,18 @@ describe("rollups", () => {
     });
 
     it("falls back to model when modelActual is empty", () => {
-      const r: CasaRollup = { casa: "researcher", allTime: emptySummary(), byModel: {}, byDay: [] };
-      updateCasaRollup(r, makeEvent({ modelActual: "", model: "claude-opus-4-6" }), "2026-02-26");
+      const r: BotRollup = { bot: "researcher", allTime: emptySummary(), byModel: {}, byDay: [] };
+      updateBotRollup(r, makeEvent({ modelActual: "", model: "claude-opus-4-6" }), "2026-02-26");
       expect(r.byModel["claude-opus-4-6"]!.requests).toBe(1);
     });
 
     it("round-trips through write/read", () => {
       tempDir = mkdtempSync(join(tmpdir(), "meter-rollup-"));
-      const r: CasaRollup = { casa: "researcher", allTime: emptySummary(), byModel: {}, byDay: [] };
-      updateCasaRollup(r, makeEvent(), "2026-02-26");
-      writeCasaRollup(tempDir, r);
+      const r: BotRollup = { bot: "researcher", allTime: emptySummary(), byModel: {}, byDay: [] };
+      updateBotRollup(r, makeEvent(), "2026-02-26");
+      writeBotRollup(tempDir, r);
 
-      const read = readCasaRollup(tempDir, "researcher");
+      const read = readBotRollup(tempDir, "researcher");
       expect(read.allTime.requests).toBe(1);
     });
   });
@@ -164,8 +164,8 @@ describe("rollups", () => {
       expect(() => dailyRollupPath("/tmp", "../../x")).toThrow("Invalid path segment");
     });
 
-    it("rejects invalid casa segment in casaRollupPath", () => {
-      expect(() => casaRollupPath("/tmp", "../../etc")).toThrow("Invalid path segment");
+    it("rejects invalid bot segment in botRollupPath", () => {
+      expect(() => botRollupPath("/tmp", "../../etc")).toThrow("Invalid path segment");
     });
   });
 
@@ -183,16 +183,16 @@ describe("rollups", () => {
       updateDailyRollup(d, makeEvent(), "2026-02-26");
       daily.set("2026-02", d);
 
-      const casa = new Map<string, CasaRollup>();
-      const c: CasaRollup = { casa: "researcher", allTime: emptySummary(), byModel: {}, byDay: [] };
-      updateCasaRollup(c, makeEvent(), "2026-02-26");
-      casa.set("researcher", c);
+      const bot = new Map<string, BotRollup>();
+      const c: BotRollup = { bot: "researcher", allTime: emptySummary(), byModel: {}, byDay: [] };
+      updateBotRollup(c, makeEvent(), "2026-02-26");
+      bot.set("researcher", c);
 
-      flushRollups(tempDir, hourly, daily, casa);
+      flushRollups(tempDir, hourly, daily, bot);
 
       expect(existsSync(join(tempDir, "rollups", "hourly", "2026-02-26.json"))).toBe(true);
       expect(existsSync(join(tempDir, "rollups", "daily", "2026-02.json"))).toBe(true);
-      expect(existsSync(join(tempDir, "rollups", "casa", "researcher.json"))).toBe(true);
+      expect(existsSync(join(tempDir, "rollups", "bot", "researcher.json"))).toBe(true);
     });
   });
 });

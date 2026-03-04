@@ -20,7 +20,7 @@ interface NodeStatus {
   isLocal?: boolean;
   latencyMs?: number;
   error?: string;
-  casaCount?: number;
+  botCount?: number;
   hostname?: string;
   platform?: string;
   arch?: string;
@@ -44,7 +44,7 @@ function parseNodeInfoBody(name: string, body: Record<string, unknown>, latencyM
     name,
     status: "online",
     latencyMs,
-    casaCount: typeof body.casaCount === "number" ? body.casaCount : undefined,
+    botCount: typeof body.botCount === "number" ? body.botCount : undefined,
     hostname: typeof body.hostname === "string" ? body.hostname : undefined,
     platform: typeof body.platform === "string" ? body.platform : undefined,
     arch: typeof body.arch === "string" ? body.arch : undefined,
@@ -109,11 +109,11 @@ async function checkNodesWithConcurrencyLimit(entries: NodeEntry[]): Promise<Nod
 
 export function registerMeshRoutes(app: FastifyInstance, opts: MeshRouteOpts): void {
   app.get("/mesh/nodes", async () => {
-    // Local node: collect full system info (only running CASAs)
+    // Local node: collect full system info (only running bots)
     const info = collectNodeInfo({
       port: opts.port,
       startedAt: opts.startedAt,
-      casaCount: opts.processManager.list().filter((p) => p.state === "running").length,
+      botCount: opts.processManager.list().filter((p) => p.state === "running").length,
       publicIp: opts.publicIp,
     });
 

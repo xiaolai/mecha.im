@@ -15,14 +15,14 @@ describe("sandbox show command", () => {
   it("shows sandbox profile when present", async () => {
     tempDir = mkdtempSync(join(tmpdir(), "mecha-cli-sandbox-"));
     const mechaDir = join(tempDir, ".mecha");
-    const casaDir = join(mechaDir, "alice");
-    mkdirSync(casaDir, { recursive: true });
+    const botDir = join(mechaDir, "alice");
+    mkdirSync(botDir, { recursive: true });
     const profile = {
       platform: "macos",
       profile: { readPaths: ["/usr/bin/node"], writePaths: [], allowedProcesses: [], allowNetwork: true },
       createdAt: "2026-01-01T00:00:00.000Z",
     };
-    writeFileSync(join(casaDir, "sandbox-profile.json"), JSON.stringify(profile));
+    writeFileSync(join(botDir, "sandbox-profile.json"), JSON.stringify(profile));
 
     const deps = makeDeps({ mechaDir });
     const program = createProgram(deps);
@@ -35,9 +35,9 @@ describe("sandbox show command", () => {
   it("handles corrupt sandbox-profile.json gracefully", async () => {
     tempDir = mkdtempSync(join(tmpdir(), "mecha-cli-sandbox-"));
     const mechaDir = join(tempDir, ".mecha");
-    const casaDir = join(mechaDir, "alice");
-    mkdirSync(casaDir, { recursive: true });
-    writeFileSync(join(casaDir, "sandbox-profile.json"), "not-valid-json{");
+    const botDir = join(mechaDir, "alice");
+    mkdirSync(botDir, { recursive: true });
+    writeFileSync(join(botDir, "sandbox-profile.json"), "not-valid-json{");
 
     const deps = makeDeps({ mechaDir });
     const program = createProgram(deps);

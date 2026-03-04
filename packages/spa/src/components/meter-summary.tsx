@@ -13,7 +13,7 @@ interface CostSummary {
 interface CostQueryResult {
   period: string;
   total: CostSummary;
-  byCasa: Record<string, CostSummary>;
+  byBot: Record<string, CostSummary>;
 }
 
 function formatUsd(n: number): string {

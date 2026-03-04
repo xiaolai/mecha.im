@@ -112,7 +112,7 @@ describe("AclEngine", () => {
   });
 
   describe("grant to self", () => {
-    it("allows a CASA to query itself", () => {
+    it("allows a bot to query itself", () => {
       exposeMap["coder"] = ["query"];
       const acl = makeEngine();
       acl.grant("coder", "coder", ["query"]);
