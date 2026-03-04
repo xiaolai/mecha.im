@@ -50,7 +50,7 @@ export function registerBotRoutes(app: FastifyInstance, pm: ProcessManager, mech
     const ctx = buildEnrichContext(mechaDir, snapshot, list.map((p) => p.name));
     return list.map((p) => {
       const enriched = enrichBotInfo(p, ctx);
-      const homeDir = join(mechaDir, p.name, "home");
+      const homeDir = join(mechaDir, p.name);
       return { ...listProjection(enriched), node, hostname: host, lanIp, tailscaleIp, homeDir };
     });
   });

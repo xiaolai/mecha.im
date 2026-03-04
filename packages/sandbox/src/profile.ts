@@ -57,7 +57,7 @@ export function findProjectRoot(startPath: string): string {
  *
  * Read access: Node.js prefix (stdlib + binary), project root (for node_modules),
  *   discovery.json, botDir, workspace.
- * Write access: botDir subdirs (home, logs, tmp), workspace.
+ * Write access: botDir (includes .claude/, logs/, tmp/), workspace.
  * Allowed processes: current node binary.
  * Network: defaults to true unless config.allowNetwork is explicitly false.
  */
@@ -78,7 +78,6 @@ export function profileFromConfig(opts: ProfileFromConfigOpts): SandboxProfile {
 
   const writePaths: string[] = [
     resolve(botDir),
-    resolve(join(botDir, "home")),
     resolve(join(botDir, "logs")),
     resolve(join(botDir, "tmp")),
     resolve(config.workspace),

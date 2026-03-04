@@ -82,16 +82,15 @@ No CI/CD pipeline is configured yet. Add GitHub Actions when merging to a shared
 Each bot's directory structure mirrors the real `~/.claude/` layout:
 
 ```
-alice/                              ← bot root (botDir)
-├── home/
-│   └── .claude/
-│       ├── settings.json           ← hooks config
-│       ├── hooks/                  ← sandbox-guard.sh, bash-guard.sh
-│       └── projects/
-│           └── <workspace-path-encoded>/
-│               ├── <session-id>.meta.json   ← session metadata
-│               ├── <session-id>.jsonl       ← SDK transcript
-│               └── <session-id>/            ← subagent data (future)
+alice/                              ← bot root (botDir = HOME)
+├── .claude/
+│   ├── settings.json               ← hooks config
+│   ├── hooks/                      ← sandbox-guard.sh, bash-guard.sh
+│   └── projects/
+│       └── <workspace-path-encoded>/
+│           ├── <session-id>.meta.json   ← session metadata
+│           ├── <session-id>.jsonl       ← SDK transcript
+│           └── <session-id>/            ← subagent data (future)
 ├── tmp/                            ← TMPDIR
 ├── logs/                           ← stdout.log, stderr.log
 ├── config.json                     ← port, token, workspace
