@@ -10,7 +10,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/scripts/deploy-cli.sh"
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && .claude/scripts/deploy-cli.sh"
           }
         ]
       }
@@ -20,7 +20,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/scripts/docs-sync-check.sh"
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && .claude/scripts/docs-sync-check.sh"
           }
         ]
       }
