@@ -57,6 +57,147 @@ mecha mcp serve --mode read-only   # read-only mode
 |------|-------------|
 | `mecha_query` | Send a message to a CASA (wave 2 — currently stubbed) |
 
+## Tool Reference
+
+Detailed parameter and return documentation for every tool.
+
+### `mecha_list_nodes`
+
+Lists all registered mesh nodes and checks their health by issuing a `/healthz` request.
+
+**Parameters:** None.
+
+**Returns:** One line per node in the format `<name>: <status> (<host>:<port>, <latency>)`. Status is `healthy`, `unreachable`, or `p2p (no http)` for managed nodes. Latency is reported in milliseconds or `n/a` if the node could not be reached.
+
+```
+my-server: healthy (10.0.0.5:7660, 12ms)
+cloud-node: unreachable (192.168.1.100:7660, n/a)
+p2p-peer: p2p (no http) (p2p:0, n/a)
+```
+
+### `mecha_list_casas`
+
+Lists CASAs on the local machine or on a specified remote node.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `node` | `string` | No | Remote node name to query. Omit for local CASAs. |
+| `limit` | `number` | No | Maximum number of results to return. |
+
+**Returns:** One line per CASA in the format `<name>: <state> (port <port>) [tags]`. State is `running`, `stopped`, or `error`.
+
+```
+alice: running (port 7700) [backend, api]
+bob: stopped
+```
+
+### `mecha_casa_status`
+
+Returns detailed status for a single CASA, either local or remote.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `target` | `string` | Yes | CASA name for local, or `name@node` for remote. |
+
+**Returns:** Multi-line status report with name, state, PID, port, and workspace path. Remote targets return the raw JSON from the remote node's `/casas/<name>/status` endpoint.
+
+```
+Name: alice
+State: running
+PID: 12345
+Port: 7700
+Workspace: /home/user/my-project
+```
+
+### `mecha_discover`
+
+Finds CASAs matching tag and/or capability filters. Local only.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `tag` | `string` | No | Filter by tag. |
+| `capability` | `string` | No | Filter by exposed capability (from CASA config `expose` array). |
+| `limit` | `number` | No | Maximum number of results to return. |
+
+**Returns:** One line per matching CASA with name, state, and tags.
+
+```
+alice: running [backend, api]
+charlie: running [frontend]
+```
+
+### `mecha_list_sessions`
+
+Lists sessions for a local CASA, returning metadata (ID, title, timestamps).
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `target` | `string` | Yes | CASA name. |
+| `limit` | `number` | No | Maximum number of sessions to return. |
+
+**Returns:** JSON array of session metadata objects.
+
+### `mecha_get_session`
+
+Returns full detail for a specific session, including message content.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `target` | `string` | Yes | CASA name. |
+| `sessionId` | `string` | Yes | Session ID. |
+
+**Returns:** JSON object with session metadata and messages. Returns an error if the session is not found.
+
+### `mecha_workspace_list`
+
+Lists files in a local CASA's workspace directory. Delegates to the CASA runtime's embedded MCP tool.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `target` | `string` | Yes | CASA name. |
+| `path` | `string` | No | Subdirectory path relative to workspace root. Defaults to root. |
+
+**Returns:** File listing from the CASA's workspace.
+
+### `mecha_workspace_read`
+
+Reads a file from a local CASA's workspace. Delegates to the CASA runtime's embedded MCP tool.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `target` | `string` | Yes | CASA name. |
+| `path` | `string` | Yes | File path relative to workspace root. |
+
+**Returns:** File contents as text.
+
+### `mecha_query`
+
+Sends a message to a CASA and returns the response. Currently stubbed (wave 2).
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `target` | `string` | Yes | CASA name (or `name@node` for remote). |
+| `message` | `string` | Yes | Message to send. |
+| `sessionId` | `string` | No | Session ID to continue an existing conversation. |
+
+**Returns:** Currently returns a stub message directing users to `mecha casa chat <casa>`.
+
 ## Audit Log
 
 Every MCP tool call is logged to `~/.mecha/audit.jsonl` with:
@@ -74,6 +215,30 @@ mecha audit log --json       # JSON output
 mecha audit clear            # Clear the audit log
 ```
 
+### Audit Entry Format
+
+Each line in `audit.jsonl` is a JSON object with the following fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `ts` | `string` | ISO 8601 timestamp. |
+| `client` | `string` | Client identifier in `name/version` format (e.g., `claude-desktop/1.2.3`), or `unknown`. |
+| `tool` | `string` | Tool name (e.g., `mecha_list_casas`). |
+| `params` | `object` | Tool parameters. Truncated to 1024 bytes if larger. |
+| `result` | `string` | One of `ok`, `error`, or `rate-limited`. |
+| `error` | `string` | Error message, present only when `result` is `error`. |
+| `durationMs` | `number` | Execution time in milliseconds. |
+
+### Audit API
+
+The `createAuditLog(mechaDir)` function returns an `AuditLog` object:
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `append` | `(entry: AuditEntry) => void` | Appends an entry to the log file. Parameters exceeding 1024 bytes are truncated. |
+| `read` | `(opts?: { limit?: number }) => AuditEntry[]` | Reads entries in reverse chronological order. Pass `limit` to cap results. |
+| `clear` | `() => void` | Truncates the log file to zero bytes. |
+
 ## Rate Limiting
 
 Built-in sliding-window rate limiting protects against runaway clients:
@@ -85,6 +250,29 @@ Built-in sliding-window rate limiting protects against runaway clients:
 
 Rate limits are per-tool and reset on a sliding window.
 
+### Rate Limiter API
+
+The `createRateLimiter(limits?)` function returns a `RateLimiter` object:
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `check` | `(tool: string) => boolean` | Returns `true` if the request is allowed (and records it), `false` if rate-limited. |
+| `remaining` | `(tool: string) => number` | Returns the number of remaining requests in the current window. |
+
+You can override default limits by passing a `Record<string, RateLimitConfig>`:
+
+```typescript
+import { createRateLimiter } from "@mecha/mcp-server";
+
+const limiter = createRateLimiter({
+  mecha_list_casas: { max: 60, windowMs: 60_000 },   // 60/min
+  mecha_query:      { max: 10, windowMs: 60_000 },   // 10/min
+});
+
+limiter.check("mecha_list_casas"); // true (allowed)
+limiter.remaining("mecha_list_casas"); // 59
+```
+
 ## Tool Annotations
 
 All tools include [MCP tool annotations](https://spec.modelcontextprotocol.io/specification/2025-03-26/server/tools/#annotations) so clients can display appropriate UI:
@@ -92,7 +280,38 @@ All tools include [MCP tool annotations](https://spec.modelcontextprotocol.io/sp
 - **Read-only tools**: marked `readOnlyHint: true`, `destructiveHint: false`
 - **Query tool**: marked `readOnlyHint: false` (sends messages to CASAs)
 
-## HTTP Transport
+The annotation map is exported as the `TOOL_ANNOTATIONS` constant:
+
+```typescript
+import { TOOL_ANNOTATIONS } from "@mecha/mcp-server";
+
+// {
+//   mecha_list_nodes:     { readOnlyHint: true,  destructiveHint: false },
+//   mecha_list_casas:     { readOnlyHint: true,  destructiveHint: false },
+//   mecha_casa_status:    { readOnlyHint: true,  destructiveHint: false },
+//   mecha_discover:       { readOnlyHint: true,  destructiveHint: false },
+//   mecha_list_sessions:  { readOnlyHint: true,  destructiveHint: false },
+//   mecha_get_session:    { readOnlyHint: true,  destructiveHint: false },
+//   mecha_query:          { readOnlyHint: false, destructiveHint: false },
+//   mecha_workspace_list: { readOnlyHint: true,  destructiveHint: false },
+//   mecha_workspace_read: { readOnlyHint: true,  destructiveHint: false },
+// }
+```
+
+## Transports
+
+### Stdio Transport
+
+The default transport for local MCP clients (Claude Desktop, Cursor, Claude Code). The server communicates over stdin/stdout using JSON-RPC.
+
+```bash
+mecha mcp serve                    # stdio (default)
+mecha mcp serve --transport stdio  # explicit
+```
+
+The `runStdio(server)` function connects an `McpServer` instance to a `StdioServerTransport` from the MCP SDK.
+
+### HTTP Transport
 
 For remote MCP clients and web-based tools, the MCP server supports HTTP transport using the Streamable HTTP protocol (MCP 2025-03-26):
 
@@ -114,9 +333,19 @@ The HTTP transport exposes a single `/mcp` endpoint that handles:
 - **GET** — Open an SSE stream for server-initiated messages (requires `mcp-session-id`)
 - **DELETE** — Close a session (requires `mcp-session-id`)
 
-Each HTTP session gets its own transport and server instance. Sessions are tracked by the `mcp-session-id` header returned in the response to the initial `initialize` request. A maximum of 64 concurrent sessions is enforced.
+Each HTTP session gets its own transport and server instance. Sessions are tracked by the `mcp-session-id` header returned in the response to the initial `initialize` request.
 
-> **Security note:** When binding to a non-loopback address (e.g., `0.0.0.0`), you must provide a `--token` for Bearer authentication. All requests must include an `Authorization: Bearer <token>` header. On localhost (`127.0.0.1`), authentication is optional but recommended.
+#### Session Management
+
+| Property | Value |
+|----------|-------|
+| Max concurrent sessions | 64 |
+| Session idle timeout | 30 minutes |
+| Session ID format | UUID v4 |
+
+Idle sessions are automatically expired and cleaned up. When a session is closed (via DELETE or timeout), both the transport and server instances are shut down. On process shutdown (SIGINT/SIGTERM), all sessions are closed gracefully before the HTTP server stops.
+
+> **Security note:** When binding to a non-loopback address (e.g., `0.0.0.0`), you must provide a `--token` for Bearer authentication. All requests must include an `Authorization: Bearer <token>` header. On localhost (`127.0.0.1`), authentication is optional but recommended. Token comparison uses constant-time `safeCompare` to prevent timing attacks.
 
 ```bash
 # Example: Initialize a session (with token)
@@ -132,6 +361,50 @@ curl -X POST http://localhost:7680/mcp \
 mecha mcp serve --transport http --token my-secret-token
 mecha mcp serve --transport http --host 0.0.0.0 --token my-secret-token
 ```
+
+## Server Context
+
+The `MeshMcpContext` interface defines the dependencies injected into the MCP server:
+
+```typescript
+interface MeshMcpContext {
+  mechaDir: string;                        // Path to ~/.mecha
+  pm: ProcessManager;                      // CASA process manager
+  getNodes: () => NodeEntry[];             // Mesh node registry reader
+  agentFetch: typeof agentFetch;           // HTTP client for remote agent calls
+  mode: "read-only" | "query";            // Operating mode
+  audit: AuditLog;                         // Audit log writer
+  rateLimiter: RateLimiter;                // Per-tool rate limiter
+  clientInfo?: { name: string; version: string }; // MCP client identification
+}
+```
+
+## Server Factory
+
+The `createMeshMcpServer(ctx)` function creates a configured `McpServer` instance:
+
+1. Registers discovery tools (`mecha_list_nodes`, `mecha_list_casas`, `mecha_casa_status`, `mecha_discover`)
+2. Registers session tools (`mecha_list_sessions`, `mecha_get_session`)
+3. Registers workspace tools (`mecha_workspace_list`, `mecha_workspace_read`)
+4. Conditionally registers query tools (`mecha_query`) only when `mode` is `query`
+
+All tools are wrapped with `withAuditAndRateLimit`, which records every call to the audit log and enforces rate limits before executing the tool handler.
+
+## Entrypoint
+
+The `main(opts)` function is the CLI entrypoint for `mecha mcp serve`:
+
+```typescript
+await main({
+  mode: "query",           // "read-only" | "query"
+  transport: "stdio",      // "stdio" | "http"
+  port: 7680,              // HTTP port (http transport only)
+  host: "127.0.0.1",       // Bind address (http transport only)
+  token: "my-secret",      // Bearer token (http transport only)
+});
+```
+
+It validates all inputs (mode, transport, port range 1-65535), ensures `MECHA_DIR` exists, creates the process manager, audit log, and rate limiter, then starts the appropriate transport.
 
 ## Architecture
 
@@ -149,3 +422,23 @@ mecha mcp serve --transport http --host 0.0.0.0 --token my-secret-token
 ```
 
 The MCP server runs as a stdio process launched by the client, or as an HTTP server for remote access. It connects to the same local infrastructure as the CLI — ProcessManager for CASA lifecycle, NodeRegistry for mesh nodes, and service functions for sessions and workspace access.
+
+## Package Exports
+
+All public symbols exported from `@mecha/mcp-server`:
+
+| Export | Kind | Description |
+|--------|------|-------------|
+| `createMeshMcpServer` | Function | Creates a configured `McpServer` with all tools registered. |
+| `createAuditLog` | Function | Creates an `AuditLog` bound to a mecha directory. |
+| `createRateLimiter` | Function | Creates a sliding-window `RateLimiter` with optional custom limits. |
+| `runStdio` | Function | Connects an `McpServer` to stdio transport. |
+| `runHttp` | Function | Starts an HTTP server with session management and optional auth. |
+| `main` | Function | CLI entrypoint — validates options and starts the server. |
+| `TOOL_ANNOTATIONS` | Constant | Read-only map of tool names to MCP annotation objects. |
+| `MeshMcpContext` | Type | Context interface for server dependencies. |
+| `ToolName` | Type | Union type of all tool name strings. |
+| `AuditEntry` | Type | Shape of a single audit log entry. |
+| `AuditLog` | Type | Interface for the audit log (append, read, clear). |
+| `RateLimiter` | Type | Interface for the rate limiter (check, remaining). |
+| `RateLimitConfig` | Type | Configuration for a rate limit bucket (`{ max, windowMs }`). |

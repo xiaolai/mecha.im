@@ -4,7 +4,7 @@
 
 A **CASA** (Claude Agent SDK App) is the fundamental unit in Mecha. Each CASA is an isolated process running a Fastify HTTP server that wraps the Claude Agent SDK.
 
-When you run `mecha spawn researcher ~/papers`, Mecha:
+When you run `mecha casa spawn researcher ~/papers`, Mecha:
 
 1. Creates a directory at `~/.mecha/researcher/`
 2. Generates a config file with a random port and auth token
@@ -72,8 +72,8 @@ Each chat conversation is a **session** — stored as two files:
 Sessions persist across CASA restarts. You can list and review them:
 
 ```bash
-mecha sessions list researcher
-mecha sessions show researcher <session-id>
+mecha casa sessions list researcher
+mecha casa sessions show researcher <session-id>
 ```
 
 The JSONL format matches the Claude Agent SDK's native transcript format — user messages, assistant responses, tool calls, and progress events.
@@ -83,7 +83,7 @@ The JSONL format matches the Claude Agent SDK's native transcript format — use
 A workspace is the directory a CASA is allowed to access. When you spawn an agent:
 
 ```bash
-mecha spawn coder ~/my-project
+mecha casa spawn coder ~/my-project
 ```
 
 The agent can read and write files inside `~/my-project/` but nowhere else. The OS sandbox enforces this boundary.
@@ -100,17 +100,17 @@ Tags organize CASAs into logical groups:
 
 ```bash
 # Spawn with tags
-mecha spawn researcher ~/papers --tags research,ml
+mecha casa spawn researcher ~/papers --tags research,ml
 
 # Find by tag
-mecha find --tag research
+mecha casa find --tag research
 
 # Configure tags later
-mecha configure researcher --tags research,nlp
+mecha casa configure researcher --tags research,nlp
 ```
 
 Tags power:
-- **Discovery** — `mecha find --tag dev` lists all dev agents
+- **Discovery** — `mecha casa find --tag dev` lists all dev agents
 - **Group addressing** — `+research` targets all research agents
 - **ACL rules** — grant permissions to groups by tag
 
@@ -128,14 +128,14 @@ stateDiagram-v2
 | State | Meaning |
 |-------|---------|
 | `running` | Healthy and accepting requests |
-| `stopped` | Gracefully stopped via `mecha stop` |
+| `stopped` | Gracefully stopped via `mecha casa stop` |
 | `error` | Crashed or failed health check |
 
 Check state with:
 
 ```bash
-mecha ls              # all CASAs
-mecha status coder    # single CASA detail
+mecha casa ls              # all CASAs
+mecha casa status coder    # single CASA detail
 ```
 
 ## Directory Structure
@@ -179,4 +179,4 @@ Each CASA's `home/` directory is an isolated Claude Code environment — the `HO
 
 ## Parent-Child Workspaces
 
-When one CASA's workspace is a subdirectory of another's, Mecha automatically detects the relationship. For example, if `coder` owns `~/project` and `reviewer` owns `~/project/reviews`, then `mecha status reviewer` will show `coder` as the parent. This is purely informational — no permissions are implied.
+When one CASA's workspace is a subdirectory of another's, Mecha automatically detects the relationship. For example, if `coder` owns `~/project` and `reviewer` owns `~/project/reviews`, then `mecha casa status reviewer` will show `coder` as the parent. This is purely informational — no permissions are implied.

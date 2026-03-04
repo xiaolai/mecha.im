@@ -20,10 +20,10 @@ Another CASA or process is using the port. Either:
 
 ```bash
 # Let Mecha auto-assign a different port
-mecha spawn myagent ~/workspace
+mecha casa spawn myagent ~/workspace
 
 # Or specify an unused port
-mecha spawn myagent ~/workspace --port 7710
+mecha casa spawn myagent ~/workspace --port 7710
 ```
 
 ### "CASA already exists"
@@ -31,8 +31,8 @@ mecha spawn myagent ~/workspace --port 7710
 A CASA with that name already exists. Stop and kill it first, then respawn:
 
 ```bash
-mecha kill myagent
-mecha spawn myagent ~/workspace
+mecha casa kill myagent
+mecha casa spawn myagent ~/workspace
 ```
 
 ### Agent stuck in "spawning" state
@@ -40,7 +40,7 @@ mecha spawn myagent ~/workspace
 The health check may have timed out. Check the logs:
 
 ```bash
-mecha logs myagent --tail 50
+mecha casa logs myagent --tail 50
 ```
 
 Common causes:
@@ -51,8 +51,8 @@ Common causes:
 Kill and respawn:
 
 ```bash
-mecha kill myagent
-mecha spawn myagent ~/workspace
+mecha casa kill myagent
+mecha casa spawn myagent ~/workspace
 ```
 
 ## Chat Issues
@@ -62,9 +62,9 @@ mecha spawn myagent ~/workspace
 The CASA isn't running:
 
 ```bash
-mecha status myagent
+mecha casa status myagent
 # If stopped, restart it
-mecha spawn myagent ~/workspace
+mecha casa spawn myagent ~/workspace
 ```
 
 ### Streaming hangs
@@ -72,7 +72,7 @@ mecha spawn myagent ~/workspace
 The response may be taking a long time. Check the CASA logs for errors:
 
 ```bash
-mecha logs myagent --follow
+mecha casa logs myagent --follow
 ```
 
 ## Permission Issues
@@ -89,14 +89,6 @@ Ensure the source has the right capability granted to the target:
 
 ```bash
 mecha acl grant source query target
-```
-
-### "Unauthorized" on agent server
-
-The API key doesn't match. Verify with:
-
-```bash
-mecha agent status
 ```
 
 ## Sandbox Issues
@@ -144,14 +136,14 @@ Restart CASAs after starting the meter:
 
 ```bash
 mecha meter start
-mecha stop myagent && mecha spawn myagent ~/workspace
+mecha casa stop myagent && mecha casa spawn myagent ~/workspace
 ```
 
 ## Getting Help
 
 If you're stuck:
 
-1. Check logs: `mecha logs <name> --tail 100`
+1. Check logs: `mecha casa logs <name> --tail 100`
 2. Run doctor: `mecha doctor`
-3. Check status: `mecha status <name>`
+3. Check status: `mecha casa status <name>`
 4. Review the [CLI Reference](/reference/cli) for correct syntax
