@@ -8,7 +8,7 @@ The web dashboard provides a graphical interface for managing your mecha runtime
 mecha dashboard serve
 ```
 
-Opens the dashboard at [http://localhost:7660](http://localhost:7660).
+Opens the dashboard at `http://localhost:7660`.
 
 ```bash
 # Custom port
