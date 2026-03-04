@@ -9,17 +9,18 @@ All environment variables recognized by Mecha.
 | `ANTHROPIC_API_KEY` | Anthropic API key for agent inference. Takes precedence over auth profiles. |
 | `CLAUDE_CODE_OAUTH_TOKEN` | OAuth token for Claude Code. Preferred over API keys (longer lifespan). |
 
-## Agent Server
-
-| Variable | Description |
-|----------|-------------|
-| `MECHA_AGENT_API_KEY` | API key for the inter-node agent server. Alternative to `--api-key` flag. |
-
 ## Server
 
 | Variable | Description |
 |----------|-------------|
 | `SERVER_SECRET_PATH` | Path to a file containing the 32-byte HMAC secret for relay tokens. If not set, an ephemeral secret is generated on each server start. |
+
+## Debugging
+
+| Variable | Description |
+|----------|-------------|
+| `MECHA_LOG_LEVEL` | Log verbosity: `debug`, `info`, `warn`, or `error`. Defaults to `info`. |
+| `MECHA_OTP` | TOTP secret supplied via environment (alternative to file-based storage). Useful for CI, containers, and automated deployments. |
 
 ## Directories
 

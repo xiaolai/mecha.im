@@ -53,7 +53,7 @@ graph LR
     agentA <-- "HTTP + Bearer auth" --> agentB
 ```
 
-HTTP nodes communicate directly through agent servers. This requires network connectivity (same LAN, VPN, or open ports) and shared API keys.
+HTTP nodes communicate directly through agent servers. This requires network connectivity (same LAN, VPN, or open ports).
 
 ## Setting Up P2P Nodes (Recommended)
 
@@ -115,17 +115,12 @@ For LAN/VPN environments where you prefer direct connections:
 ### Add a Remote Node
 
 ```bash
-mecha node add bob 192.168.1.50 --port 7660 --api-key secret-key
+mecha node add bob 192.168.1.50 --port 7660 --api-key <key>
 ```
 
 ### Start the Agent Server
 
 ```bash
-# Start with API key
-mecha agent start --api-key my-secret
-
-# Or use environment variable
-export MECHA_AGENT_API_KEY=my-secret
 mecha agent start --host 0.0.0.0 --port 7660
 ```
 
@@ -136,7 +131,7 @@ By default, the agent server binds to `127.0.0.1` (localhost only). Use `--host 
 Once nodes are connected (either mode), queries route automatically:
 
 ```bash
-mecha chat coder "Ask analyst@bob about the sales data"
+mecha casa chat coder "Ask analyst@bob about the sales data"
 ```
 
 ### Routing: Managed Nodes
@@ -149,7 +144,7 @@ sequenceDiagram
     participant agent as Bob Agent
     participant analyst as analyst (bob)
 
-    coder->>router: mesh_query("analyst@bob", ...)
+    coder->>router: mesh_query(analyst@bob, ...)
     router->>router: ACL check
     router->>channel: Tunnel request (encrypted)
     channel->>agent: Decrypt + forward
@@ -171,9 +166,9 @@ sequenceDiagram
     participant agent as Bob Agent Server (:7660)
     participant analyst as analyst (bob)
 
-    coder->>router: mesh_query("analyst@bob", ...)
+    coder->>router: mesh_query(analyst@bob, ...)
     router->>router: ACL check
-    router->>agent: POST /casas/analyst/query<br/>Bearer token + X-Mecha-Source
+    router->>agent: POST /casas/analyst/query (authenticated)
     agent->>agent: Validate auth + ACL
     agent->>analyst: Forward query
     analyst-->>agent: Response
@@ -205,7 +200,6 @@ The canonical envelope format: `method\npath\nsource\ntimestamp\nnonce\nbody`
 
 Every cross-node request includes:
 
-- **Bearer token** — the target node's API key (timing-safe comparison) — HTTP mode only
 - **X-Mecha-Source** — the fully qualified source address (e.g., `coder@alice`)
 
 ### SSRF Protection
@@ -229,9 +223,9 @@ By default, all nodes use the central rendezvous server for discovery. Mecha sup
 Start an embedded rendezvous server alongside the agent:
 
 ```bash
-mecha agent start --api-key my-secret --server
-mecha agent start --api-key my-secret --server --server-port 7681
-mecha agent start --api-key my-secret --server --public-addr wss://my-server.example.com
+mecha agent start --server
+mecha agent start --server --server-port 7681
+mecha agent start --server --public-addr wss://my-server.example.com
 ```
 
 When `--server` is enabled, the agent starts an in-process rendezvous server. Invite codes automatically include both the local server URL and the central fallback, enabling multi-URL failover.

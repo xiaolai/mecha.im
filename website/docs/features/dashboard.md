@@ -8,7 +8,7 @@ The web dashboard provides a graphical interface for managing your mecha runtime
 mecha dashboard serve
 ```
 
-Opens the dashboard at [http://localhost:3457](http://localhost:3457).
+Opens the dashboard at [http://localhost:7660](http://localhost:7660).
 
 ```bash
 # Custom port
@@ -20,31 +20,35 @@ mecha dashboard serve --open
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--port` | 3457 | Dashboard port |
+| `--port` | 7660 | Dashboard port |
 | `--host` | 127.0.0.1 | Bind address |
 | `--open` | false | Open browser after starting |
 
 ## Architecture
 
-The CLI starts a Next.js production server and creates a `ProcessManager` in the same process. All API routes access the runtime directly — no HTTP round-trips to a separate backend.
+The dashboard is a single-page application (SPA) served by the Mecha agent server (`@mecha/agent`). The agent server is a Fastify-based HTTP + WebSocket server that hosts the dashboard UI alongside all API routes in a single process on a single port.
 
 ```
-mecha dashboard serve
+mecha start
+  └── Agent Server (port 7660)
+       ├── /healthz           → Health check (public)
+       ├── /auth/*            → TOTP login/logout/status
+       ├── /casas             → CASA lifecycle
+       ├── /events            → SSE real-time events
+       ├── /acl               → ACL rules
+       ├── /audit             → Audit log
+       ├── /mesh/nodes        → Mesh topology
+       ├── /meter/cost        → Metering data
+       ├── /settings/runtime  → Runtime config
+       ├── /discover          → CASA discovery
+       ├── /ws/ticket         → WebSocket ticket issuance
+       ├── /ws/terminal/:name → WebSocket terminal (PTY)
+       └── /*                 → SPA static files + client-side routing
   └── ProcessManager (in-process)
   └── AclEngine (in-process)
-  └── Next.js (port 3457)
-       ├── /api/casas         → CASA lifecycle
-       ├── /api/events        → SSE real-time events
-       ├── /api/acl           → ACL rules
-       ├── /api/audit         → Audit log
-       ├── /api/mesh/nodes    → Mesh topology
-       ├── /api/meter/cost    → Metering data
-       ├── /api/settings/runtime → Runtime config
-       ├── /ws/terminal/:name → WebSocket terminal (PTY)
-       └── /                  → Dashboard UI
 ```
 
-The server handles fatal socket errors (EMFILE, EADDRINUSE, EACCES) with graceful shutdown — it closes the HTTP server and Next.js app cleanly rather than crashing.
+The agent server is created via `createAgentServer()` from `@mecha/agent`. When `spaDir` is configured, it serves the SPA static files and handles client-side routing fallback. See the [Architecture Reference](/reference/architecture#agent-server-api) for the full API specification.
 
 ## Pages
 
@@ -145,318 +149,70 @@ Toggle between light and dark themes using the button in the top bar. The dashbo
 
 ## Real-time Events
 
-The dashboard subscribes to runtime events via SSE at `/api/events`. Events include CASA state changes (spawn, stop, exit, error).
+The dashboard subscribes to runtime events via SSE at `/events`. Events include CASA state changes (spawn, stop, exit, error).
 
 | Parameter | Value |
 |-----------|-------|
 | Max connections | 10 concurrent |
-| Heartbeat | Every 15 seconds |
+| Heartbeat | Every 10 seconds |
 | Reconnect | Automatic on disconnect |
 | Overflow | 429 Too Many Requests |
 
 ## API Reference
 
-All endpoints are served under `/api/` and protected by the security middleware.
+The dashboard SPA communicates with the agent server's HTTP API. All endpoints are served directly (no `/api/` prefix) and protected by TOTP session authentication.
 
-### CASA Management
+For the complete API specification including request/response formats, see the [Agent Server API](/reference/architecture#agent-server-api) in the Architecture Reference.
 
-#### `GET /api/casas`
+### Key Endpoints Used by the Dashboard
 
-List all CASAs (local + remote). Bearer tokens are redacted from the response.
-
-```json
-// Response 200
-{
-  "casas": [
-    {
-      "name": "researcher",
-      "node": "local",
-      "state": "running",
-      "pid": 12345,
-      "port": 7701,
-      "workspacePath": "/home/user/papers",
-      "startedAt": "2026-02-28T10:00:00Z",
-      "tags": ["research", "prod"]
-    },
-    {
-      "name": "analyst",
-      "node": "bob",
-      "state": "running",
-      "port": 7702
-    }
-  ],
-  "nodeStatus": {
-    "local": { "name": "local", "status": "online" },
-    "bob": { "name": "bob", "status": "online", "latencyMs": 23 }
-  }
-}
-```
-
-#### `GET /api/casas/[name]`
-
-Get status for a single CASA. Token redacted. Supports `?node=X` for remote dispatch.
-
-```json
-// Response 200
-{
-  "name": "researcher",
-  "state": "running",
-  "pid": 12345,
-  "port": 7701,
-  "workspacePath": "/home/user/papers",
-  "startedAt": "2026-02-28T10:00:00Z",
-  "tags": ["research"]
-}
-```
-
-| Query param | Description |
-|-------------|-------------|
-| `node` | Node name for remote dispatch (omit or "local" for local) |
-
-| Status | Condition |
-|--------|-----------|
-| 200 | Success |
-| 400 | Invalid CASA name or node name |
-| 404 | Node not found |
-| 502 | Remote node unreachable |
-| 500 | Internal error |
-
-#### `DELETE /api/casas/[name]`
-
-Force kill a CASA (sends SIGKILL).
-
-```json
-// Response 200
-{ "ok": true }
-```
-
-#### `POST /api/casas/[name]/stop`
-
-Graceful stop (sends SIGTERM, escalates to SIGKILL after timeout).
-
-```json
-// Response 200
-{ "ok": true }
-```
-
-#### `POST /api/casas/[name]/kill`
-
-Force kill (sends SIGKILL immediately).
-
-```json
-// Response 200
-{ "ok": true }
-```
-
-### Terminal WebSocket
-
-#### `WS /ws/terminal/<name>?session=<id>&node=<node>`
-
-Attach to a CASA session via WebSocket. The server spawns (or reattaches to) a `claude --resume <session>` PTY process.
-
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `name` | yes | CASA name |
-| `session` | no | Session ID to resume (omit for new session) |
-| `node` | no | Node name for remote CASAs (omit or "local" for local) |
-
-**Protocol:**
-
-| Direction | Frame Type | Payload | Description |
-|-----------|-----------|---------|-------------|
-| Client to Server | Binary | Raw keystrokes | Terminal input |
-| Client to Server | Text (JSON) | `{ "type": "resize", "cols": N, "rows": N }` | Terminal resize |
-| Server to Client | Binary | PTY output bytes | Terminal output (ANSI preserved) |
-| Server to Client | Text (JSON) | `{ "type": "session", "id": "..." }` | Session ID assigned |
-| Server to Client | Text (JSON) | `{ "type": "error", "message": "..." }` | Error notification |
-| Server to Client | Text (JSON) | `{ "type": "exit", "code": N }` | PTY process exited |
-
-**Auth:** Session cookie is validated during the HTTP upgrade handshake. Unauthenticated upgrades are rejected with 401.
-
-**Backpressure:** If the client falls behind (`bufferedAmount > 1MB`), output frames are dropped until the client catches up.
-
-**Close semantics:**
-- Client closes WebSocket: PTY stays alive (detached). Client can reconnect.
-- PTY exits: Server sends `{ "type": "exit" }` and closes WebSocket.
-- Server shutdown: All PTYs receive SIGHUP.
-
-### Sessions
-
-#### `GET /api/casas/[name]/sessions`
-
-List all sessions for a CASA.
-
-```json
-// Response 200
-[
-  {
-    "id": "sess_abc123",
-    "title": "Paper review",
-    "starred": false,
-    "createdAt": "2026-02-28T10:00:00Z",
-    "updatedAt": "2026-02-28T10:05:00Z"
-  }
-]
-```
-
-#### `GET /api/casas/[name]/sessions/[id]`
-
-Get details for a specific session.
-
-### Events
-
-#### `GET /api/events`
-
-Server-Sent Events stream for real-time runtime events (CASA state changes, etc.).
-
-```
-: heartbeat
-
-data: {"type":"spawn","name":"researcher","port":7701}
-
-: heartbeat
-```
-
-| Status | Condition |
-|--------|-----------|
-| 200 | Stream started |
-| 429 | Max 10 connections exceeded |
-| 503 | Dashboard not initialized |
-
-### ACL
-
-#### `GET /api/acl`
-
-List all ACL rules.
-
-```json
-// Response 200
-[
-  {
-    "source": "researcher",
-    "target": "coder",
-    "capabilities": ["read", "chat"]
-  }
-]
-```
-
-### Audit
-
-#### `GET /api/audit`
-
-Read the audit log.
-
-| Query param | Default | Range | Description |
-|-------------|---------|-------|-------------|
-| `limit` | 50 | 1–1000 | Number of entries |
-
-```json
-// Response 200
-[
-  {
-    "ts": "2026-02-28T10:00:00Z",
-    "client": "researcher",
-    "tool": "file_read",
-    "params": { "path": "/home/user/paper.md" },
-    "result": "ok",
-    "durationMs": 12
-  }
-]
-```
-
-### Mesh
-
-#### `GET /api/mesh/nodes`
-
-List mesh peer nodes with live health status.
-
-```json
-// Response 200
-[
-  {
-    "name": "bob",
-    "status": "online",
-    "latencyMs": 23,
-    "casaCount": 2
-  },
-  {
-    "name": "charlie",
-    "status": "offline",
-    "error": "unreachable"
-  }
-]
-```
-
-### Metering
-
-#### `GET /api/meter/cost`
-
-Query today's metering data. Optionally filter by CASA name.
-
-| Query param | Description |
-|-------------|-------------|
-| `casa` | Optional CASA name for per-CASA breakdown |
-
-```json
-// Response 200 (no filter)
-{
-  "period": "today",
-  "total": {
-    "requests": 42,
-    "errors": 1,
-    "inputTokens": 150000,
-    "outputTokens": 85000,
-    "costUsd": 1.23,
-    "avgLatencyMs": 450
-  },
-  "byCasa": {
-    "researcher": { "requests": 30, "..." : "..." },
-    "coder": { "requests": 12, "..." : "..." }
-  }
-}
-```
-
-### Settings
-
-#### `GET /api/settings/runtime`
-
-Runtime port configuration, sourced from `@mecha/core` defaults.
-
-```json
-// Response 200
-{
-  "casaPortRange": "7700-7799",
-  "agentPort": 7660,
-  "mcpPort": 7680
-}
-```
+| Endpoint | Dashboard Feature |
+|----------|-------------------|
+| `GET /casas` | Home page CASA list |
+| `GET /casas/:name/status` | CASA detail view |
+| `POST /casas/:name/start` | Start button |
+| `POST /casas/:name/stop` | Stop button (with busy check) |
+| `POST /casas/:name/kill` | Kill button |
+| `PATCH /casas/:name/config` | Config editor |
+| `GET /casas/:name/sessions` | Sessions tab |
+| `DELETE /casas/:name/sessions/:id` | Session delete |
+| `GET /events` | Real-time SSE updates |
+| `GET /acl` | ACL rules page |
+| `GET /audit` | Audit log page |
+| `GET /mesh/nodes` | Mesh topology page |
+| `GET /meter/cost` | Metering summary cards |
+| `GET /settings/runtime` | Settings page |
+| `GET /discover` | CASA discovery |
+| `POST /ws/ticket` | Terminal ticket issuance |
+| `WS /ws/terminal/:name` | Terminal emulator |
+| `GET /auth/status` | Login page (check auth methods) |
+| `POST /auth/login` | TOTP login |
+| `POST /auth/logout` | Logout |
+| `GET /auth/profiles` | Auth profile dropdown |
 
 ## Security
 
-The dashboard enforces four layers of security:
+The dashboard is protected by the agent server's authentication system.
 
-### DNS Rebinding Protection
+### TOTP Authentication
 
-Middleware checks the `Host` header on every `/api/*` request. Only localhost addresses are allowed:
+Dashboard access requires a valid TOTP code. On first visit, the SPA prompts for a 6-digit TOTP code. On successful verification, a session cookie (`mecha-session`) is set.
 
-- `localhost`
-- `127.0.0.1`
-- `::1` / `[::1]`
+- **Session cookie**: `HttpOnly`, `SameSite=Strict`, `Secure` (when not on localhost)
+- **Session TTL**: 24 hours by default (configurable via `sessionTtlHours`)
+- **Rate limiting**: 5 failed login attempts within 30 seconds triggers a 60-second lockout
 
-Requests from any other host receive `403 Forbidden`. This prevents DNS rebinding attacks where an external domain resolves to `127.0.0.1` to exploit the local API.
+### WebSocket Authentication
 
-### CSRF Protection
+WebSocket connections (terminal) use single-use tickets because browser WebSocket APIs cannot set custom headers:
 
-State-changing requests (`POST`, `DELETE`, `PUT`, `PATCH`) must include an `Origin` header matching a localhost address. Requests with a non-localhost `Origin` are rejected with `403 Forbidden`.
+1. SPA calls `POST /ws/ticket` (authenticated via session cookie)
+2. Server returns a 30-second single-use ticket
+3. SPA connects to `ws://host/ws/terminal/:name?ticket=<ticket>`
 
-Safe methods (`GET`, `HEAD`, `OPTIONS`) skip the origin check.
+### Mesh Authentication
 
-### Secret Redaction
-
-Sensitive fields are stripped from API responses before they reach the client:
-
-- `token` — Bearer tokens for CASA authentication (all `/api/casas` endpoints)
-- `apiKey` — Node API keys (all `/api/mesh/nodes` endpoints)
+Inter-node routing requests use Bearer token auth plus Ed25519 signatures. See the [Architecture Reference](/reference/architecture#authentication-system) for details.
 
 ### Error Sanitization
 
@@ -466,7 +222,7 @@ Internal error messages and stack traces are never exposed to clients. API error
 { "error": "Internal server error" }
 ```
 
-The full error details are logged server-side via structured JSON logging (timestamp, level, route, message, error details).
+The full error details are logged server-side. Fastify's logger redacts `authorization` and `x-mecha-signature` headers from request logs.
 
 ## Polling Intervals
 
@@ -474,11 +230,11 @@ The dashboard uses client-side polling for data freshness. WebSocket connections
 
 | View | Interval | Endpoint |
 |------|----------|----------|
-| CASA List | 5s | `GET /api/casas` |
-| CASA Detail | 5s | `GET /api/casas/[name]` |
-| Audit Log | 10s | `GET /api/audit?limit=100` |
-| Meter Summary | 30s | `GET /api/meter/cost` |
-| Mesh Nodes | 30s | `GET /api/mesh/nodes` |
+| CASA List | 5s | `GET /casas` |
+| CASA Detail | 5s | `GET /casas/[name]` |
+| Audit Log | 10s | `GET /audit?limit=100` |
+| Meter Summary | 30s | `GET /meter/cost` |
+| Mesh Nodes | 30s | `GET /mesh/nodes` |
 | ACL/Settings | One-shot | Respective endpoints |
 
 All polling uses `AbortController` to cancel in-flight requests when a new poll starts or the component unmounts — preventing race conditions and stale data.
@@ -502,7 +258,7 @@ All API routes log events as structured JSON to stdout/stderr:
   "ts": "2026-02-28T10:00:00.000Z",
   "level": "info",
   "ns": "dashboard",
-  "route": "GET /api/casas",
+  "route": "GET /casas",
   "msg": "Listed 3 CASAs"
 }
 ```

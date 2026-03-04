@@ -7,7 +7,7 @@ Mecha supports two connection modes. Choose based on your network:
 | Mode | Best For | Requirements |
 |------|----------|-------------|
 | **P2P (invite)** | Internet, NAT, no port forwarding | Both machines can reach `rendezvous.mecha.im` |
-| **HTTP (direct)** | LAN, VPN, controlled networks | Network connectivity + shared API keys |
+| **HTTP (direct)** | LAN, VPN, controlled networks | Network connectivity between machines |
 
 ---
 
@@ -67,10 +67,10 @@ Both nodes now know each other. Alice is also notified in real-time via the rend
 
 ```bash
 # On alice
-mecha spawn coder ~/project --tags dev
+mecha casa spawn coder ~/project --tags dev
 
 # On bob
-mecha spawn analyst ~/data --tags data
+mecha casa spawn analyst ~/data --tags data
 ```
 
 ### Step 5: Set Up Permissions
@@ -92,7 +92,7 @@ Both sides must approve — double-check enforcement.
 mecha node ping bob
 
 # On alice — send a cross-node query
-mecha chat coder "Ask analyst@bob to summarize the sales data"
+mecha casa chat coder "Ask analyst@bob to summarize the sales data"
 ```
 
 The query routes through an encrypted SecureChannel — no HTTP ports exposed, no API keys exchanged.
@@ -138,7 +138,6 @@ For LAN/VPN environments where you prefer direct connections with full control.
 
 - Mecha installed on each machine
 - Network connectivity between machines (same LAN, VPN, or public IP)
-- An API key shared between nodes for authentication
 
 ### Step 1: Initialize Nodes
 
@@ -154,11 +153,9 @@ Each machine needs an agent server to accept incoming queries:
 
 ```bash
 # On alice
-export MECHA_AGENT_API_KEY=shared-secret-alice
 mecha agent start --host 0.0.0.0
 
 # On bob
-export MECHA_AGENT_API_KEY=shared-secret-bob
 mecha agent start --host 0.0.0.0
 ```
 
@@ -172,20 +169,20 @@ Each machine registers the other as a known node:
 
 ```bash
 # On alice — register bob
-mecha node add bob 192.168.1.50 --port 7660 --api-key shared-secret-bob
+mecha node add bob 192.168.1.50 --port 7660 --api-key <key>
 
 # On bob — register alice
-mecha node add alice 192.168.1.100 --port 7660 --api-key shared-secret-alice
+mecha node add alice 192.168.1.100 --port 7660 --api-key <key>
 ```
 
 ### Step 4: Spawn Agents
 
 ```bash
 # On alice
-mecha spawn coder ~/project --tags dev
+mecha casa spawn coder ~/project --tags dev
 
 # On bob
-mecha spawn analyst ~/data --tags data
+mecha casa spawn analyst ~/data --tags data
 ```
 
 ### Step 5: Set Up Permissions
@@ -203,7 +200,7 @@ mecha acl grant coder@alice query analyst
 ```bash
 # On alice
 mecha node ping bob
-mecha chat coder "Ask analyst@bob to summarize the sales data"
+mecha casa chat coder "Ask analyst@bob to summarize the sales data"
 ```
 
 ---
@@ -273,10 +270,6 @@ Only port 7660 needs to be accessible between machines.
 - Check that the agent server is running: `mecha agent status`
 - Verify the host/port: `mecha node ls`
 - Check firewall rules for port 7660
-
-**"Unauthorized" from remote node**
-
-- Verify the API key matches: the key in `mecha node add` must match the remote node's `MECHA_AGENT_API_KEY`
 
 ### Both Modes
 

@@ -46,12 +46,12 @@ Every inter-agent interaction goes through the ACL engine:
 
 ```mermaid
 flowchart TD
-  A["coder wants to query reviewer"] --> B{"ACL grant exists?<br/>coder → reviewer → query"}
+  A["coder wants to query reviewer"] --> B{"ACL grant exists?"}
   B -- YES --> C["Forward the query"]
   B -- NO --> D["Reject: Access denied"]
   A --> E{"Cross-node query?"}
-  E -- YES --> F["Source node checks<br/>outbound ACL"]
-  E -- YES --> G["Target node checks<br/>inbound ACL"]
+  E -- YES --> F["Source node checks outbound ACL"]
+  E -- YES --> G["Target node checks inbound ACL"]
   F --> H{"Both approve?"}
   G --> H
   H -- YES --> C
