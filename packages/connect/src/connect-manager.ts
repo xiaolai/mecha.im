@@ -7,7 +7,6 @@ import type {
   InviteOpts,
   InviteCode,
   AcceptResult,
-  PingResult,
   RendezvousClient,
   SignalData,
   Candidate,
@@ -19,10 +18,9 @@ import { stunDiscover } from "./stun.js";
 import { holePunch } from "./hole-punch.js";
 import type { ConnectState } from "./connect-io.js";
 import { waitForAnswer, cacheChannel, connectViaRelay, handleInboundOffer } from "./connect-io.js";
+import { pingPeer } from "./ping.js";
 
 const log = createLogger("mecha:connect");
-const textDecoder = new TextDecoder();
-const textEncoder = new TextEncoder();
 
 /**
  * Create a ConnectManager that orchestrates P2P connectivity.
@@ -320,48 +318,12 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
       return { peer: toNodeName(peerName) };
     },
 
-    async ping(peer: NodeName): Promise<PingResult> {
+    async ping(peer: NodeName) {
       const maybeChannel = channels.get(peer);
       /* v8 ignore start -- ?. null branch: channels.get returns undefined when no connection */
       if (!maybeChannel?.isOpen) throw new PeerOfflineError(peer);
       /* v8 ignore stop */
-      const channel = maybeChannel;
-
-      const nonce = crypto.randomUUID();
-      const start = performance.now();
-      const pingData = textEncoder.encode(JSON.stringify({ type: "ping", nonce }));
-      channel.send(pingData);
-
-      // Wait for pong response to measure actual RTT
-      const latencyMs = await new Promise<number>((resolve, reject) => {
-        /* v8 ignore start -- ping timeout requires 5s wait */
-        const timeout = setTimeout(() => {
-          channel.offMessage(handler);
-          reject(new ConnectError(`Ping timeout for "${peer}"`));
-        }, 5_000);
-        /* v8 ignore stop */
-
-        /* v8 ignore start -- pong handler: non-matching nonce and parse errors are defensive */
-        function handler(data: Uint8Array): void {
-          try {
-            const msg = JSON.parse(textDecoder.decode(data)) as { type?: string; nonce?: string };
-            if (msg.type === "pong" && msg.nonce === nonce) {
-              clearTimeout(timeout);
-              channel.offMessage(handler);
-              resolve(Math.round(performance.now() - start));
-            }
-          } catch { /* not a JSON ping response, ignore */ }
-        }
-        /* v8 ignore stop */
-
-        channel.onMessage(handler);
-      });
-
-      return {
-        peer,
-        latencyMs,
-        connectionType: channel.type,
-      };
+      return pingPeer(peer, maybeChannel);
     },
 
     async close(): Promise<void> {
