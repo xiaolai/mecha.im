@@ -44,16 +44,16 @@ graph LR
   connect --> core
   server --> core
   meter --> core
-  mcp-server --> core
-  mcp-server --> service
-  mcp-server --> process
+  mcpServer["mcp-server"] --> core
+  mcpServer --> service
+  mcpServer --> process
   runtime --> core
   runtime --> process
   dashboard --> core
   dashboard --> process
   dashboard --> service
   dashboard --> meter
-  dashboard --> mcp-server
+  dashboard --> mcpServer
   cli --> dashboard
 ```
 
