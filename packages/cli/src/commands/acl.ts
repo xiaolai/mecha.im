@@ -7,14 +7,14 @@ import { withErrorHandler } from "../error-handler.js";
 export function registerAclCommand(program: Command, deps: CommandDeps): void {
   const acl = program
     .command("acl")
-    .description("Manage inter-CASA permissions");
+    .description("Manage inter-bot permissions");
 
   acl
     .command("grant")
     .description("Grant capability from source to target")
-    .argument("<source>", "Source CASA name or address (name@node)")
+    .argument("<source>", "Source bot name or address (name@node)")
     .argument("<cap>", "Capability to grant")
-    .argument("<target>", "Target CASA name or address (name@node)")
+    .argument("<target>", "Target bot name or address (name@node)")
     .action(async (source: string, cap: string, target: string) => withErrorHandler(deps, async () => {
       if (!isValidAddress(source)) throw new InvalidAddressError(source);
       if (!isValidAddress(target)) throw new InvalidAddressError(target);
@@ -29,9 +29,9 @@ export function registerAclCommand(program: Command, deps: CommandDeps): void {
   acl
     .command("revoke")
     .description("Revoke capability from source to target")
-    .argument("<source>", "Source CASA name or address (name@node)")
+    .argument("<source>", "Source bot name or address (name@node)")
     .argument("<cap>", "Capability to revoke")
-    .argument("<target>", "Target CASA name or address (name@node)")
+    .argument("<target>", "Target bot name or address (name@node)")
     .action(async (source: string, cap: string, target: string) => withErrorHandler(deps, async () => {
       if (!isValidAddress(source)) throw new InvalidAddressError(source);
       if (!isValidAddress(target)) throw new InvalidAddressError(target);
@@ -46,7 +46,7 @@ export function registerAclCommand(program: Command, deps: CommandDeps): void {
   acl
     .command("show")
     .description("Show ACL rules")
-    .argument("[name]", "Filter by CASA name")
+    .argument("[name]", "Filter by bot name")
     .action(async (name?: string) => withErrorHandler(deps, async () => {
       const rules = deps.acl.listRules();
       const filtered = name

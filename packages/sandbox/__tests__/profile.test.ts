@@ -1,7 +1,7 @@
 import { dirname } from "node:path";
 import { describe, it, expect } from "vitest";
 import { profileFromConfig, nodePrefix, findProjectRoot } from "../src/profile.js";
-import type { CasaConfig } from "@mecha/core";
+import type { BotConfig } from "@mecha/core";
 
 describe("nodePrefix", () => {
   it("returns grandparent of process.execPath", () => {
@@ -21,7 +21,7 @@ describe("findProjectRoot", () => {
 });
 
 describe("profileFromConfig", () => {
-  const baseConfig: CasaConfig = {
+  const baseConfig: BotConfig = {
     port: 7700,
     token: "mecha_test",
     workspace: "/home/user/project",
@@ -30,7 +30,7 @@ describe("profileFromConfig", () => {
   it("includes node prefix in read paths and binary in allowed processes", () => {
     const profile = profileFromConfig({
       config: baseConfig,
-      casaDir: "/mecha/alice",
+      botDir: "/mecha/alice",
       mechaDir: "/mecha",
     });
 
@@ -41,7 +41,7 @@ describe("profileFromConfig", () => {
   it("includes discovery.json as a read path", () => {
     const profile = profileFromConfig({
       config: baseConfig,
-      casaDir: "/mecha/alice",
+      botDir: "/mecha/alice",
       mechaDir: "/mecha",
     });
 
@@ -52,7 +52,7 @@ describe("profileFromConfig", () => {
     // Use a real path so findProjectRoot can locate node_modules
     const profile = profileFromConfig({
       config: baseConfig,
-      casaDir: "/mecha/alice",
+      botDir: "/mecha/alice",
       mechaDir: "/mecha",
       runtimeEntrypoint: __filename,
     });
@@ -61,10 +61,10 @@ describe("profileFromConfig", () => {
     expect(profile.readPaths).toContain(projRoot);
   });
 
-  it("includes casaDir and workspace in read paths", () => {
+  it("includes botDir and workspace in read paths", () => {
     const profile = profileFromConfig({
       config: baseConfig,
-      casaDir: "/mecha/alice",
+      botDir: "/mecha/alice",
       mechaDir: "/mecha",
     });
 
@@ -75,7 +75,7 @@ describe("profileFromConfig", () => {
   it("includes correct write paths", () => {
     const profile = profileFromConfig({
       config: baseConfig,
-      casaDir: "/mecha/alice",
+      botDir: "/mecha/alice",
       mechaDir: "/mecha",
     });
 
@@ -91,7 +91,7 @@ describe("profileFromConfig", () => {
   it("allows network access by default", () => {
     const profile = profileFromConfig({
       config: baseConfig,
-      casaDir: "/mecha/alice",
+      botDir: "/mecha/alice",
       mechaDir: "/mecha",
     });
 
@@ -101,7 +101,7 @@ describe("profileFromConfig", () => {
   it("disables network when config.allowNetwork is false", () => {
     const profile = profileFromConfig({
       config: { ...baseConfig, allowNetwork: false },
-      casaDir: "/mecha/alice",
+      botDir: "/mecha/alice",
       mechaDir: "/mecha",
     });
 
@@ -109,10 +109,10 @@ describe("profileFromConfig", () => {
   });
 
   it("deduplicates paths", () => {
-    // If casaDir equals workspace, writePaths should have no duplicates
+    // If botDir equals workspace, writePaths should have no duplicates
     const profile = profileFromConfig({
       config: { ...baseConfig, workspace: "/mecha/alice" },
-      casaDir: "/mecha/alice",
+      botDir: "/mecha/alice",
       mechaDir: "/mecha",
     });
 
@@ -123,11 +123,11 @@ describe("profileFromConfig", () => {
   it("omits project root from read paths when runtimeEntrypoint not provided", () => {
     const profile = profileFromConfig({
       config: baseConfig,
-      casaDir: "/mecha/alice",
+      botDir: "/mecha/alice",
       mechaDir: "/mecha",
     });
 
-    // Only: nodePrefix, discovery.json, casaDir, workspace
+    // Only: nodePrefix, discovery.json, botDir, workspace
     expect(profile.readPaths).toHaveLength(4);
   });
 });

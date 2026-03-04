@@ -41,7 +41,7 @@ mecha auth rm <profile-name>
 
 ### Resolution Priority
 
-When spawning a CASA, credentials are resolved in this order:
+When spawning a bot, credentials are resolved in this order:
 
 1. CLI flag (`--auth <profile>`)
 2. Environment variables (`ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`)
@@ -55,9 +55,9 @@ When spawning a CASA, credentials are resolved in this order:
 | `CLAUDE_CODE_OAUTH_TOKEN` | OAuth token (preferred over API key) |
 | `MECHA_DIR` | Override default `~/.mecha/` directory |
 
-## CASA Configuration
+## bot Configuration
 
-Each CASA has a `config.json`:
+Each bot has a `config.json`:
 
 ```json
 {
@@ -81,7 +81,7 @@ Each CASA has a `config.json`:
 | `port` | number | HTTP port for the runtime API |
 | `token` | string | Random Bearer token for API auth |
 | `workspace` | string | Absolute path to the workspace directory |
-| `model` | string? | Model override for this CASA |
+| `model` | string? | Model override for this bot |
 | `permissionMode` | string? | `default`, `plan`, or `full-auto` (see below) |
 | `auth` | string? | Auth profile name |
 | `tags` | string[]? | Tags for organization and discovery |
@@ -100,7 +100,7 @@ Each CASA has a `config.json`:
 Update configuration with:
 
 ```bash
-mecha casa configure researcher --tags research,ml
+mecha bot configure researcher --tags research,ml
 ```
 
 ## Port Assignment
@@ -108,12 +108,12 @@ mecha casa configure researcher --tags research,ml
 Mecha auto-assigns ports from the 7700-7799 range. To use a specific port:
 
 ```bash
-mecha casa spawn researcher ~/papers --port 7710
+mecha bot spawn researcher ~/papers --port 7710
 ```
 
 ## Sandbox Modes
 
-Control the OS sandbox level per CASA:
+Control the OS sandbox level per bot:
 
 | Mode | Behavior |
 |------|----------|

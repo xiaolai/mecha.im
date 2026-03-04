@@ -38,13 +38,13 @@ describe("withAuditAndRateLimit", () => {
       rateLimiter: { check: vi.fn().mockReturnValue(false), remaining: vi.fn().mockReturnValue(0) },
     });
     const fn = vi.fn();
-    const wrapped = withAuditAndRateLimit(ctx, "mecha_list_casas", fn);
+    const wrapped = withAuditAndRateLimit(ctx, "mecha_list_bots", fn);
     const result = await wrapped({});
     expect(result.isError).toBe(true);
     expect((result.content[0] as { text: string }).text).toContain("Rate limited");
     expect(fn).not.toHaveBeenCalled();
     expect(ctx.audit.append).toHaveBeenCalledWith(
-      expect.objectContaining({ tool: "mecha_list_casas", result: "rate-limited" }),
+      expect.objectContaining({ tool: "mecha_list_bots", result: "rate-limited" }),
     );
   });
 
@@ -53,7 +53,7 @@ describe("withAuditAndRateLimit", () => {
       clientInfo: { name: "claude-desktop", version: "1.2.3" },
     });
     const fn = vi.fn().mockResolvedValue(textResult("ok"));
-    const wrapped = withAuditAndRateLimit(ctx, "mecha_list_casas", fn);
+    const wrapped = withAuditAndRateLimit(ctx, "mecha_list_bots", fn);
     await wrapped({});
     expect(ctx.audit.append).toHaveBeenCalledWith(
       expect.objectContaining({ client: "claude-desktop/1.2.3" }),
@@ -63,7 +63,7 @@ describe("withAuditAndRateLimit", () => {
   it("uses 'unknown' when no clientInfo", async () => {
     const ctx = makeCtx();
     const fn = vi.fn().mockResolvedValue(textResult("ok"));
-    const wrapped = withAuditAndRateLimit(ctx, "mecha_list_casas", fn);
+    const wrapped = withAuditAndRateLimit(ctx, "mecha_list_bots", fn);
     await wrapped({});
     expect(ctx.audit.append).toHaveBeenCalledWith(
       expect.objectContaining({ client: "unknown" }),
@@ -87,7 +87,7 @@ describe("withAuditAndRateLimit", () => {
   it("audits error results from tool", async () => {
     const ctx = makeCtx();
     const fn = vi.fn().mockResolvedValue(errorResult("not found"));
-    const wrapped = withAuditAndRateLimit(ctx, "mecha_casa_status", fn);
+    const wrapped = withAuditAndRateLimit(ctx, "mecha_bot_status", fn);
     await wrapped({ target: "bob" });
     expect(ctx.audit.append).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -100,7 +100,7 @@ describe("withAuditAndRateLimit", () => {
   it("catches thrown errors and returns error result", async () => {
     const ctx = makeCtx();
     const fn = vi.fn().mockRejectedValue(new Error("boom"));
-    const wrapped = withAuditAndRateLimit(ctx, "mecha_list_casas", fn);
+    const wrapped = withAuditAndRateLimit(ctx, "mecha_list_bots", fn);
     const result = await wrapped({});
     expect(result.isError).toBe(true);
     expect((result.content[0] as { text: string }).text).toBe("boom");
@@ -112,7 +112,7 @@ describe("withAuditAndRateLimit", () => {
   it("handles non-Error thrown values", async () => {
     const ctx = makeCtx();
     const fn = vi.fn().mockRejectedValue("string error");
-    const wrapped = withAuditAndRateLimit(ctx, "mecha_list_casas", fn);
+    const wrapped = withAuditAndRateLimit(ctx, "mecha_list_bots", fn);
     const result = await wrapped({});
     expect(result.isError).toBe(true);
     expect((result.content[0] as { text: string }).text).toBe("string error");
@@ -133,7 +133,7 @@ describe("annotationsFor", () => {
   });
 
   it("marks read tools as readOnly", () => {
-    expect(annotationsFor("mecha_list_casas").readOnlyHint).toBe(true);
+    expect(annotationsFor("mecha_list_bots").readOnlyHint).toBe(true);
     expect(annotationsFor("mecha_discover").readOnlyHint).toBe(true);
   });
 });

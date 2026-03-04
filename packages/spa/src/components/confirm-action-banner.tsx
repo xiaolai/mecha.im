@@ -1,14 +1,14 @@
 import { Button } from "@/components/ui/button";
-import type { CasaActionType } from "@/lib/use-casa-action";
+import type { BotActionType } from "@/lib/use-bot-action";
 
-const ACTION_LABELS: Partial<Record<CasaActionType, { verb: string; description: string }>> = {
-  stop: { verb: "Stop", description: "This will gracefully stop the CASA." },
-  restart: { verb: "Restart", description: "This will stop and re-spawn the CASA." },
-  kill: { verb: "Kill", description: "This will force-kill the CASA immediately." },
+const ACTION_LABELS: Partial<Record<BotActionType, { verb: string; description: string }>> = {
+  stop: { verb: "Stop", description: "This will gracefully stop the bot." },
+  restart: { verb: "Restart", description: "This will stop and re-spawn the bot." },
+  kill: { verb: "Kill", description: "This will force-kill the bot immediately." },
 };
 
 interface ConfirmActionBannerProps {
-  action: CasaActionType;
+  action: BotActionType;
   name: string;
   onConfirm: () => void;
   onCancel: () => void;

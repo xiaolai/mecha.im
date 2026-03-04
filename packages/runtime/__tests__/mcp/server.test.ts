@@ -40,7 +40,7 @@ describe("MCP routes", () => {
       expect(res.statusCode).toBe(200);
       const body = res.json();
       expect(body.jsonrpc).toBe("2.0");
-      expect(body.result.serverInfo.name).toBe("mecha-casa");
+      expect(body.result.serverInfo.name).toBe("mecha-bot");
       expect(body.result.capabilities.tools).toBeDefined();
     });
   });
@@ -366,7 +366,7 @@ describe("MCP routes with mesh enabled", () => {
     writeFileSync(join(workDir, "file.txt"), "content");
 
     app = Fastify();
-    registerMcpRoutes(app, { workspacePath: workDir, mechaDir, casaName: "alice" });
+    registerMcpRoutes(app, { workspacePath: workDir, mechaDir, botName: "alice" });
     await app.ready();
   });
 
@@ -401,7 +401,7 @@ describe("MCP routes with mesh enabled", () => {
     });
     expect(res.statusCode).toBe(200);
     const body = res.json().result;
-    expect(body.content[0].text).toBe("No matching CASAs found");
+    expect(body.content[0].text).toBe("No matching bots found");
   });
 
   it("routes mesh_query with missing args", async () => {

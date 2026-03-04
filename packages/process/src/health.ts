@@ -1,7 +1,7 @@
 import { ProcessHealthTimeoutError, DEFAULTS } from "@mecha/core";
 
 /**
- * Poll GET /healthz on a CASA runtime until it responds 200
+ * Poll GET /healthz on a bot runtime until it responds 200
  * or the timeout is reached. Uses exponential backoff starting
  * at 100ms, capped at 1000ms.
  */
@@ -9,7 +9,7 @@ export async function waitForHealthy(
   port: number,
   token: string,
   timeoutMs: number = DEFAULTS.HEALTH_TIMEOUT_MS,
-  casaName: string = "unknown",
+  botName: string = "unknown",
 ): Promise<void> {
   const start = Date.now();
   let delay = 100;
@@ -30,7 +30,7 @@ export async function waitForHealthy(
     delay = Math.min(delay * 2, 1000);
   }
 
-  throw new ProcessHealthTimeoutError(casaName);
+  throw new ProcessHealthTimeoutError(botName);
 }
 
 function sleep(ms: number): Promise<void> {

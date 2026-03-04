@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
-  parseCasaPath, buildUpstreamHeaders,
+  parseBotPath, buildUpstreamHeaders,
   buildMeterEvent, enforceBudget, reloadBudgets, recordEvent,
   parseModelAndStream, stripHopByHop, MAX_BODY_BYTES,
   ESTIMATED_REQUEST_COST_USD,
@@ -15,13 +15,13 @@ import { createHotCounters } from "../src/hot-counters.js";
 import { emptySummary, todayUTC } from "../src/query.js";
 import { readEventsForDate, utcDate } from "../src/events.js";
 import { writeBudgets } from "../src/budgets.js";
-import type { CasaRegistryEntry, BudgetConfig } from "../src/types.js";
+import type { BotRegistryEntry, BudgetConfig } from "../src/types.js";
 
 function emptyBudgets(): BudgetConfig {
-  return { global: {}, byCasa: {}, byAuthProfile: {}, byTag: {} };
+  return { global: {}, byBot: {}, byAuthProfile: {}, byTag: {} };
 }
 
-function makeCasaInfo(overrides: Partial<CasaRegistryEntry> = {}): CasaRegistryEntry {
+function makeBotInfo(overrides: Partial<BotRegistryEntry> = {}): BotRegistryEntry {
   return { name: "researcher", authProfile: "default", workspace: "/tmp/ws", tags: [], ...overrides };
 }
 
@@ -46,27 +46,27 @@ describe("proxy", () => {
     vi.restoreAllMocks();
   });
 
-  describe("parseCasaPath", () => {
-    it("parses /casa/{name}/v1/messages", () => {
-      const result = parseCasaPath("/casa/researcher/v1/messages");
-      expect(result).toEqual({ casa: "researcher", upstreamPath: "/v1/messages" });
+  describe("parseBotPath", () => {
+    it("parses /bot/{name}/v1/messages", () => {
+      const result = parseBotPath("/bot/researcher/v1/messages");
+      expect(result).toEqual({ bot: "researcher", upstreamPath: "/v1/messages" });
     });
 
-    it("parses CASA name with hyphens and numbers", () => {
-      const result = parseCasaPath("/casa/my-bot-3/v1/messages");
-      expect(result).toEqual({ casa: "my-bot-3", upstreamPath: "/v1/messages" });
+    it("parses bot name with hyphens and numbers", () => {
+      const result = parseBotPath("/bot/my-bot-3/v1/messages");
+      expect(result).toEqual({ bot: "my-bot-3", upstreamPath: "/v1/messages" });
     });
 
     it("returns null for non-matching paths", () => {
-      expect(parseCasaPath("/v1/messages")).toBeNull();
-      expect(parseCasaPath("/casa/")).toBeNull();
-      expect(parseCasaPath("/casa/name")).toBeNull();
-      expect(parseCasaPath("/other/path")).toBeNull();
+      expect(parseBotPath("/v1/messages")).toBeNull();
+      expect(parseBotPath("/bot/")).toBeNull();
+      expect(parseBotPath("/bot/name")).toBeNull();
+      expect(parseBotPath("/other/path")).toBeNull();
     });
 
-    it("returns null for invalid CASA names", () => {
-      expect(parseCasaPath("/casa/UPPER/v1/messages")).toBeNull();
-      expect(parseCasaPath("/casa/has_underscore/v1/messages")).toBeNull();
+    it("returns null for invalid bot names", () => {
+      expect(parseBotPath("/bot/UPPER/v1/messages")).toBeNull();
+      expect(parseBotPath("/bot/has_underscore/v1/messages")).toBeNull();
     });
   });
 
@@ -116,17 +116,17 @@ describe("proxy", () => {
     it("builds event with computed cost for 200 status", () => {
       tempDir = mkdtempSync(join(tmpdir(), "meter-proxy-"));
       const ctx = makeCtx(tempDir);
-      const casaInfo = makeCasaInfo({ tags: ["exp"] });
+      const botInfo = makeBotInfo({ tags: ["exp"] });
       const startMs = Date.now() - 100;
 
-      const event = buildMeterEvent(ctx, startMs, "researcher", casaInfo, "claude-sonnet-4-20250514", false, 200, {
+      const event = buildMeterEvent(ctx, startMs, "researcher", botInfo, "claude-sonnet-4-20250514", false, 200, {
         inputTokens: 100, outputTokens: 50,
         cacheCreationTokens: 0, cacheReadTokens: 0,
         modelActual: "claude-sonnet-4-20250514", ttftMs: 42,
       });
 
       expect(event.id).toBeTruthy();
-      expect(event.casa).toBe("researcher");
+      expect(event.bot).toBe("researcher");
       expect(event.authProfile).toBe("default");
       expect(event.tags).toEqual(["exp"]);
       expect(event.model).toBe("claude-sonnet-4-20250514");
@@ -141,9 +141,9 @@ describe("proxy", () => {
     it("sets costUsd to 0 for non-200 status", () => {
       tempDir = mkdtempSync(join(tmpdir(), "meter-proxy-"));
       const ctx = makeCtx(tempDir);
-      const casaInfo = makeCasaInfo();
+      const botInfo = makeBotInfo();
 
-      const event = buildMeterEvent(ctx, Date.now(), "researcher", casaInfo, "claude-sonnet-4-20250514", false, 500, {
+      const event = buildMeterEvent(ctx, Date.now(), "researcher", botInfo, "claude-sonnet-4-20250514", false, 500, {
         inputTokens: 100, outputTokens: 50,
         cacheCreationTokens: 0, cacheReadTokens: 0,
         modelActual: "claude-sonnet-4-20250514", ttftMs: null,
@@ -156,9 +156,9 @@ describe("proxy", () => {
     it("falls back to model when modelActual is empty", () => {
       tempDir = mkdtempSync(join(tmpdir(), "meter-proxy-"));
       const ctx = makeCtx(tempDir);
-      const casaInfo = makeCasaInfo();
+      const botInfo = makeBotInfo();
 
-      const event = buildMeterEvent(ctx, Date.now(), "researcher", casaInfo, "claude-sonnet-4-20250514", true, 200, {
+      const event = buildMeterEvent(ctx, Date.now(), "researcher", botInfo, "claude-sonnet-4-20250514", true, 200, {
         inputTokens: 10, outputTokens: 5,
         cacheCreationTokens: 0, cacheReadTokens: 0,
         modelActual: "", ttftMs: null,
@@ -172,7 +172,7 @@ describe("proxy", () => {
     it("allows when no budgets set", () => {
       tempDir = mkdtempSync(join(tmpdir(), "meter-proxy-"));
       const ctx = makeCtx(tempDir);
-      const result = enforceBudget(ctx, "researcher", makeCasaInfo());
+      const result = enforceBudget(ctx, "researcher", makeBotInfo());
       expect(result.allowed).toBe(true);
       expect(result.warnings).toEqual([]);
     });
@@ -180,37 +180,37 @@ describe("proxy", () => {
     it("blocks when global budget exceeded", () => {
       tempDir = mkdtempSync(join(tmpdir(), "meter-proxy-"));
       const ctx = makeCtx(tempDir, {
-        budgets: { global: { dailyUsd: 1 }, byCasa: {}, byAuthProfile: {}, byTag: {} },
+        budgets: { global: { dailyUsd: 1 }, byBot: {}, byAuthProfile: {}, byTag: {} },
       });
       // Simulate accumulated cost
       ctx.counters.global.today.costUsd = 1.50;
 
-      const result = enforceBudget(ctx, "researcher", makeCasaInfo());
+      const result = enforceBudget(ctx, "researcher", makeBotInfo());
       expect(result.allowed).toBe(false);
       expect(result.exceeded).toContain("exceeded daily limit");
     });
 
-    it("uses perCasa bucket when present", () => {
+    it("uses perBot bucket when present", () => {
       tempDir = mkdtempSync(join(tmpdir(), "meter-proxy-"));
       const ctx = makeCtx(tempDir, {
-        budgets: { global: {}, byCasa: { researcher: { dailyUsd: 2 } }, byAuthProfile: {}, byTag: {} },
+        budgets: { global: {}, byBot: { researcher: { dailyUsd: 2 } }, byAuthProfile: {}, byTag: {} },
       });
-      // Add a CASA bucket
-      ctx.counters.byCasa["researcher"] = { today: { ...emptySummary(), costUsd: 3 }, thisMonth: emptySummary() };
+      // Add a bot bucket
+      ctx.counters.byBot["researcher"] = { today: { ...emptySummary(), costUsd: 3 }, thisMonth: emptySummary() };
 
-      const result = enforceBudget(ctx, "researcher", makeCasaInfo());
+      const result = enforceBudget(ctx, "researcher", makeBotInfo());
       expect(result.allowed).toBe(false);
-      expect(result.exceeded).toContain("CASA researcher");
+      expect(result.exceeded).toContain("bot researcher");
     });
 
     it("uses perAuth bucket when present", () => {
       tempDir = mkdtempSync(join(tmpdir(), "meter-proxy-"));
       const ctx = makeCtx(tempDir, {
-        budgets: { global: {}, byCasa: {}, byAuthProfile: { work: { dailyUsd: 5 } }, byTag: {} },
+        budgets: { global: {}, byBot: {}, byAuthProfile: { work: { dailyUsd: 5 } }, byTag: {} },
       });
       ctx.counters.byAuth["work"] = { today: { ...emptySummary(), costUsd: 6 }, thisMonth: emptySummary() };
 
-      const result = enforceBudget(ctx, "r", makeCasaInfo({ authProfile: "work" }));
+      const result = enforceBudget(ctx, "r", makeBotInfo({ authProfile: "work" }));
       expect(result.allowed).toBe(false);
       expect(result.exceeded).toContain("auth work");
     });
@@ -218,11 +218,11 @@ describe("proxy", () => {
     it("collects tag summaries and enforces tag budgets", () => {
       tempDir = mkdtempSync(join(tmpdir(), "meter-proxy-"));
       const ctx = makeCtx(tempDir, {
-        budgets: { global: {}, byCasa: {}, byAuthProfile: {}, byTag: { exp: { dailyUsd: 1 } } },
+        budgets: { global: {}, byBot: {}, byAuthProfile: {}, byTag: { exp: { dailyUsd: 1 } } },
       });
       ctx.counters.byTag["exp"] = { today: { ...emptySummary(), costUsd: 2 }, thisMonth: emptySummary() };
 
-      const result = enforceBudget(ctx, "r", makeCasaInfo({ tags: ["exp"] }));
+      const result = enforceBudget(ctx, "r", makeBotInfo({ tags: ["exp"] }));
       expect(result.allowed).toBe(false);
       expect(result.exceeded).toContain("tag exp");
     });
@@ -230,26 +230,26 @@ describe("proxy", () => {
     it("skips tags with no counter bucket", () => {
       tempDir = mkdtempSync(join(tmpdir(), "meter-proxy-"));
       const ctx = makeCtx(tempDir, {
-        budgets: { global: {}, byCasa: {}, byAuthProfile: {}, byTag: { exp: { dailyUsd: 1 } } },
+        budgets: { global: {}, byBot: {}, byAuthProfile: {}, byTag: { exp: { dailyUsd: 1 } } },
       });
       // No tag bucket exists
 
-      const result = enforceBudget(ctx, "r", makeCasaInfo({ tags: ["exp"] }));
+      const result = enforceBudget(ctx, "r", makeBotInfo({ tags: ["exp"] }));
       expect(result.allowed).toBe(true);
     });
 
     it("includes pending request cost in budget check", () => {
       tempDir = mkdtempSync(join(tmpdir(), "meter-proxy-"));
       const ctx = makeCtx(tempDir, {
-        budgets: { global: { dailyUsd: 0.10 }, byCasa: {}, byAuthProfile: {}, byTag: {} },
+        budgets: { global: { dailyUsd: 0.10 }, byBot: {}, byAuthProfile: {}, byTag: {} },
       });
       // Cost is under limit
       ctx.counters.global.today.costUsd = 0.05;
-      expect(enforceBudget(ctx, "r", makeCasaInfo()).allowed).toBe(true);
+      expect(enforceBudget(ctx, "r", makeBotInfo()).allowed).toBe(true);
 
       // Add 3 pending requests → 3 * $0.03 = $0.09, total = $0.14 > $0.10
       ctx.pendingRequests.set("r", 3);
-      const result = enforceBudget(ctx, "r", makeCasaInfo());
+      const result = enforceBudget(ctx, "r", makeBotInfo());
       expect(result.allowed).toBe(false);
       expect(result.exceeded).toContain("exceeded daily limit");
     });
@@ -266,7 +266,7 @@ describe("proxy", () => {
       expect(ctx.budgets.global).toEqual({});
 
       // Write budgets to disk then reload
-      writeBudgets(tempDir, { global: { dailyUsd: 42 }, byCasa: {}, byAuthProfile: {}, byTag: {} });
+      writeBudgets(tempDir, { global: { dailyUsd: 42 }, byBot: {}, byAuthProfile: {}, byTag: {} });
 
       reloadBudgets(ctx);
       expect(ctx.budgets.global.dailyUsd).toBe(42);
@@ -278,7 +278,7 @@ describe("proxy", () => {
       tempDir = mkdtempSync(join(tmpdir(), "meter-proxy-"));
       const ctx = makeCtx(tempDir);
 
-      const event = buildMeterEvent(ctx, Date.now(), "researcher", makeCasaInfo(), "claude-sonnet-4-20250514", false, 200, {
+      const event = buildMeterEvent(ctx, Date.now(), "researcher", makeBotInfo(), "claude-sonnet-4-20250514", false, 200, {
         inputTokens: 100, outputTokens: 50,
         cacheCreationTokens: 0, cacheReadTokens: 0,
         modelActual: "claude-sonnet-4-20250514", ttftMs: 10,
@@ -304,7 +304,7 @@ describe("proxy", () => {
 
       const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-      const event = buildMeterEvent(ctx, Date.now(), "r", makeCasaInfo(), "m", false, 200, {
+      const event = buildMeterEvent(ctx, Date.now(), "r", makeBotInfo(), "m", false, 200, {
         inputTokens: 1, outputTokens: 1,
         cacheCreationTokens: 0, cacheReadTokens: 0,
         modelActual: "m", ttftMs: null,
@@ -393,7 +393,7 @@ describe("proxy", () => {
       const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
       const before = getDroppedEventCount();
 
-      const event = buildMeterEvent(ctx, Date.now(), "r", makeCasaInfo(), "m", false, 200, {
+      const event = buildMeterEvent(ctx, Date.now(), "r", makeBotInfo(), "m", false, 200, {
         inputTokens: 1, outputTokens: 1,
         cacheCreationTokens: 0, cacheReadTokens: 0,
         modelActual: "m", ttftMs: null,

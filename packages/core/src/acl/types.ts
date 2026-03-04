@@ -1,4 +1,4 @@
-/** Capabilities that can be granted between CASAs. */
+/** Capabilities that can be granted between bots. */
 export type Capability =
   | "query"
   | "read_workspace"

@@ -5,11 +5,11 @@ import { tmpdir } from "node:os";
 import { createProgram } from "../../src/program.js";
 import { makeDeps } from "../test-utils.js";
 import type { ProcessInfo } from "@mecha/process";
-import type { CasaName } from "@mecha/core";
+import type { BotName } from "@mecha/core";
 
 function makeInfo(name: string, port: number): ProcessInfo {
   return {
-    name: name as CasaName,
+    name: name as BotName,
     state: "running",
     pid: 1000,
     port,
@@ -18,20 +18,20 @@ function makeInfo(name: string, port: number): ProcessInfo {
   };
 }
 
-describe("casa find command", () => {
+describe("bot find command", () => {
   let mechaDir: string;
   afterEach(() => { if (mechaDir) rmSync(mechaDir, { recursive: true, force: true }); });
 
-  function writeCasaConfig(name: string, tags: string[]): void {
+  function writeBotConfig(name: string, tags: string[]): void {
     const dir = join(mechaDir, name);
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, "config.json"), JSON.stringify({ port: 7700, token: "t", workspace: "/ws", tags }));
   }
 
-  it("displays matching CASAs in table", async () => {
+  it("displays matching bots in table", async () => {
     mechaDir = mkdtempSync(join(tmpdir(), "mecha-find-"));
-    writeCasaConfig("alice", ["code", "typescript"]);
-    writeCasaConfig("bob", ["code", "review"]);
+    writeBotConfig("alice", ["code", "typescript"]);
+    writeBotConfig("bob", ["code", "review"]);
 
     const deps = makeDeps({
       mechaDir,
@@ -40,7 +40,7 @@ describe("casa find command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "casa", "find", "--tag", "code"]);
+    await program.parseAsync(["node", "mecha", "bot", "find", "--tag", "code"]);
     expect(deps.formatter.table).toHaveBeenCalledWith(
       ["Name", "State", "Port", "Tags"],
       expect.arrayContaining([
@@ -52,7 +52,7 @@ describe("casa find command", () => {
 
   it("shows message when no matches", async () => {
     mechaDir = mkdtempSync(join(tmpdir(), "mecha-find-"));
-    writeCasaConfig("alice", ["research"]);
+    writeBotConfig("alice", ["research"]);
 
     const deps = makeDeps({
       mechaDir,
@@ -61,11 +61,11 @@ describe("casa find command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "casa", "find", "--tag", "nonexistent"]);
-    expect(deps.formatter.info).toHaveBeenCalledWith(expect.stringContaining("No CASAs found"));
+    await program.parseAsync(["node", "mecha", "bot", "find", "--tag", "nonexistent"]);
+    expect(deps.formatter.info).toHaveBeenCalledWith(expect.stringContaining("No bots found"));
   });
 
-  it("shows generic message when no CASAs and no tag filter", async () => {
+  it("shows generic message when no bots and no tag filter", async () => {
     mechaDir = mkdtempSync(join(tmpdir(), "mecha-find-"));
     const deps = makeDeps({
       mechaDir,
@@ -74,13 +74,13 @@ describe("casa find command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "casa", "find"]);
-    expect(deps.formatter.info).toHaveBeenCalledWith("No CASAs found");
+    await program.parseAsync(["node", "mecha", "bot", "find"]);
+    expect(deps.formatter.info).toHaveBeenCalledWith("No bots found");
   });
 
-  it("lists all CASAs when no tag filter", async () => {
+  it("lists all bots when no tag filter", async () => {
     mechaDir = mkdtempSync(join(tmpdir(), "mecha-find-"));
-    writeCasaConfig("alice", ["research"]);
+    writeBotConfig("alice", ["research"]);
 
     const deps = makeDeps({
       mechaDir,
@@ -89,7 +89,7 @@ describe("casa find command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "casa", "find"]);
+    await program.parseAsync(["node", "mecha", "bot", "find"]);
     expect(deps.formatter.table).toHaveBeenCalledWith(
       ["Name", "State", "Port", "Tags"],
       [["alice", "running", "7701", "research"]],
@@ -102,7 +102,7 @@ describe("casa find command", () => {
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, "config.json"), JSON.stringify({ port: 7700, token: "t", workspace: "/ws" }));
 
-    const info: ProcessInfo = { name: "alice" as CasaName, state: "stopped", workspacePath: "/ws", port: undefined };
+    const info: ProcessInfo = { name: "alice" as BotName, state: "stopped", workspacePath: "/ws", port: undefined };
     const deps = makeDeps({
       mechaDir,
       pm: { list: vi.fn().mockReturnValue([info]) },
@@ -110,7 +110,7 @@ describe("casa find command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "casa", "find"]);
+    await program.parseAsync(["node", "mecha", "bot", "find"]);
     expect(deps.formatter.table).toHaveBeenCalledWith(
       ["Name", "State", "Port", "Tags"],
       [["alice", "stopped", "-", "-"]],
@@ -119,8 +119,8 @@ describe("casa find command", () => {
 
   it("filters with AND logic across multiple --tag flags", async () => {
     mechaDir = mkdtempSync(join(tmpdir(), "mecha-find-"));
-    writeCasaConfig("alice", ["code", "typescript"]);
-    writeCasaConfig("bob", ["code", "review"]);
+    writeBotConfig("alice", ["code", "typescript"]);
+    writeBotConfig("bob", ["code", "review"]);
 
     const deps = makeDeps({
       mechaDir,
@@ -129,7 +129,7 @@ describe("casa find command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "casa", "find", "--tag", "code", "--tag", "review"]);
+    await program.parseAsync(["node", "mecha", "bot", "find", "--tag", "code", "--tag", "review"]);
     expect(deps.formatter.table).toHaveBeenCalledWith(
       ["Name", "State", "Port", "Tags"],
       [["bob", "running", "7702", "code, review"]],

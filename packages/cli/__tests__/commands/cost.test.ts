@@ -10,7 +10,7 @@ function makeEvent(overrides: Partial<MeterEvent> = {}): MeterEvent {
   return {
     id: "01TEST",
     ts: new Date().toISOString(),
-    casa: "researcher",
+    bot: "researcher",
     authProfile: "default",
     workspace: "/ws",
     tags: ["research"],
@@ -60,8 +60,8 @@ describe("cost command", () => {
   it("shows cost summary with events", async () => {
     tempDir = mkdtempSync(join(tmpdir(), "mecha-cli-cost-"));
     writeEvents(tempDir, [
-      makeEvent({ id: "A", casa: "researcher", costUsd: 0.10 }),
-      makeEvent({ id: "B", casa: "coder", costUsd: 0.05 }),
+      makeEvent({ id: "A", bot: "researcher", costUsd: 0.10 }),
+      makeEvent({ id: "B", bot: "coder", costUsd: 0.05 }),
     ]);
 
     const deps = makeDeps({ mechaDir: tempDir });
@@ -72,17 +72,17 @@ describe("cost command", () => {
     expect(deps.formatter.info).toHaveBeenCalledWith(
       expect.stringContaining("$0.15"),
     );
-    // Should show per-casa breakdown
+    // Should show per-bot breakdown
     expect(deps.formatter.info).toHaveBeenCalledWith(
       expect.stringContaining("researcher"),
     );
   });
 
-  it("filters by CASA name", async () => {
+  it("filters by bot name", async () => {
     tempDir = mkdtempSync(join(tmpdir(), "mecha-cli-cost-"));
     writeEvents(tempDir, [
-      makeEvent({ id: "A", casa: "researcher", costUsd: 0.10 }),
-      makeEvent({ id: "B", casa: "coder", costUsd: 0.05 }),
+      makeEvent({ id: "A", bot: "researcher", costUsd: 0.10 }),
+      makeEvent({ id: "B", bot: "coder", costUsd: 0.05 }),
     ]);
 
     const deps = makeDeps({ mechaDir: tempDir });
@@ -114,10 +114,10 @@ describe("cost command", () => {
     );
   });
 
-  it("does not show breakdown for single CASA query", async () => {
+  it("does not show breakdown for single bot query", async () => {
     tempDir = mkdtempSync(join(tmpdir(), "mecha-cli-cost-"));
     writeEvents(tempDir, [
-      makeEvent({ id: "A", casa: "researcher", costUsd: 0.10 }),
+      makeEvent({ id: "A", bot: "researcher", costUsd: 0.10 }),
     ]);
 
     const deps = makeDeps({ mechaDir: tempDir });
@@ -125,7 +125,7 @@ describe("cost command", () => {
     program.exitOverride();
 
     await program.parseAsync(["node", "mecha", "cost", "researcher"]);
-    // The separator line should not appear for single CASA query
+    // The separator line should not appear for single bot query
     const infoCalls = (deps.formatter.info as unknown as { mock: { calls: string[][] } }).mock.calls;
     const hasSeparator = infoCalls.some((args: string[]) => args[0]?.includes("─"));
     expect(hasSeparator).toBe(false);

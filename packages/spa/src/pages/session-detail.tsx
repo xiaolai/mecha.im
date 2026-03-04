@@ -30,17 +30,17 @@ export function SessionDetailPage() {
   const nodeQuery = node && node !== "local" ? `?node=${encodeURIComponent(node)}` : "";
 
   const { data: session, loading, error } = useFetch<Session>(
-    name && id ? `/casas/${encodeURIComponent(name)}/sessions/${encodeURIComponent(id)}${nodeQuery}` : null,
+    name && id ? `/bots/${encodeURIComponent(name)}/sessions/${encodeURIComponent(id)}${nodeQuery}` : null,
     { deps: [name, id, node] },
   );
 
   if (!name || !id) return null;
 
-  const backLink = `/casa/${encodeURIComponent(name)}${nodeQuery}`;
+  const backLink = `/bot/${encodeURIComponent(name)}${nodeQuery}`;
 
   const terminalParams = new URLSearchParams({ session: id });
   if (node && node !== "local") terminalParams.set("node", node);
-  const terminalLink = `/casa/${encodeURIComponent(name)}/terminal?${terminalParams.toString()}`;
+  const terminalLink = `/bot/${encodeURIComponent(name)}/terminal?${terminalParams.toString()}`;
 
   return (
     <div className="flex h-full flex-col">

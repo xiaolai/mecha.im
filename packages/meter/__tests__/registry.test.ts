@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { scanCasaRegistry, lookupCasa } from "../src/registry.js";
+import { scanBotRegistry, lookupBot } from "../src/registry.js";
 
 describe("registry", () => {
   let tempDir: string;
@@ -11,13 +11,13 @@ describe("registry", () => {
     if (tempDir) rmSync(tempDir, { recursive: true, force: true });
   });
 
-  describe("scanCasaRegistry", () => {
+  describe("scanBotRegistry", () => {
     it("returns empty for non-existent directory", () => {
-      const registry = scanCasaRegistry("/nonexistent/path");
+      const registry = scanBotRegistry("/nonexistent/path");
       expect(registry.size).toBe(0);
     });
 
-    it("scans config.json from CASA directories", () => {
+    it("scans config.json from bot directories", () => {
       tempDir = mkdtempSync(join(tmpdir(), "meter-registry-"));
       const researcherDir = join(tempDir, "researcher");
       mkdirSync(researcherDir);
@@ -34,7 +34,7 @@ describe("registry", () => {
         tags: ["code"],
       }));
 
-      const registry = scanCasaRegistry(tempDir);
+      const registry = scanBotRegistry(tempDir);
       expect(registry.size).toBe(2);
 
       const researcher = registry.get("researcher")!;
@@ -67,40 +67,40 @@ describe("registry", () => {
       mkdirSync(join(tempDir, "no-workspace"));
       writeFileSync(join(tempDir, "no-workspace", "config.json"), '{"port":7700}');
 
-      const registry = scanCasaRegistry(tempDir);
+      const registry = scanBotRegistry(tempDir);
       expect(registry.size).toBe(1);
       expect(registry.has("valid")).toBe(true);
     });
 
     it("filters non-string tags", () => {
       tempDir = mkdtempSync(join(tmpdir(), "meter-registry-"));
-      mkdirSync(join(tempDir, "casa"));
-      writeFileSync(join(tempDir, "casa", "config.json"), JSON.stringify({
+      mkdirSync(join(tempDir, "bot"));
+      writeFileSync(join(tempDir, "bot", "config.json"), JSON.stringify({
         workspace: "/ws",
         tags: ["valid", 123, null, "also-valid"],
       }));
 
-      const registry = scanCasaRegistry(tempDir);
-      expect(registry.get("casa")!.tags).toEqual(["valid", "also-valid"]);
+      const registry = scanBotRegistry(tempDir);
+      expect(registry.get("bot")!.tags).toEqual(["valid", "also-valid"]);
     });
   });
 
-  describe("lookupCasa", () => {
-    it("returns entry for known CASA", () => {
+  describe("lookupBot", () => {
+    it("returns entry for known bot", () => {
       const registry = new Map();
       registry.set("researcher", {
         name: "researcher", authProfile: "work",
         workspace: "/ws", tags: ["research"],
       });
 
-      const entry = lookupCasa(registry, "researcher");
+      const entry = lookupBot(registry, "researcher");
       expect(entry.authProfile).toBe("work");
     });
 
-    it("returns defaults for unknown CASA", () => {
+    it("returns defaults for unknown bot", () => {
       const registry = new Map();
-      const entry = lookupCasa(registry, "unknown-casa");
-      expect(entry.name).toBe("unknown-casa");
+      const entry = lookupBot(registry, "unknown-bot");
+      expect(entry.name).toBe("unknown-bot");
       expect(entry.authProfile).toBe("unknown");
       expect(entry.workspace).toBe("unknown");
       expect(entry.tags).toEqual([]);

@@ -13,7 +13,7 @@ vi.mock("@mecha/core", async (importOriginal) => {
       port: 0,
       uptimeSeconds: 8100,
       startedAt: "2026-03-02T12:00:00.000Z",
-      casaCount: 3,
+      botCount: 3,
       totalMemMB: 16384,
       freeMemMB: 8192,
       cpuCount: 10,
@@ -57,7 +57,7 @@ describe("executeNodeInfo", () => {
     expect(output).toContain("Public:     203.0.113.42");
     expect(output).toContain("CPUs:       10");
     expect(output).toContain("Memory:     16384 MB total / 8192 MB free");
-    expect(output).toContain("CASAs:      3 running");
+    expect(output).toContain("bots:      3 running");
   });
 
   it("outputs uptime in formatted string", async () => {
@@ -93,7 +93,7 @@ describe("executeNodeInfo", () => {
       port: 0,
       uptimeSeconds: 60,
       startedAt: "2026-03-02T12:00:00.000Z",
-      casaCount: 0,
+      botCount: 0,
       totalMemMB: 8192,
       freeMemMB: 4096,
       cpuCount: 4,

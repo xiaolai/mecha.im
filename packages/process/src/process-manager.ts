@@ -3,17 +3,17 @@ import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 import { writeFileSync, renameSync } from "node:fs";
 import {
-  type CasaName,
+  type BotName,
   type DiscoveryIndex,
   type DiscoveryIndexEntry,
   DEFAULTS,
   isValidName,
   InvalidNameError,
-  CasaNotFoundError,
-  CasaNotRunningError,
-  readCasaConfig,
+  BotNotFoundError,
+  BotNotRunningError,
+  readBotConfig,
 } from "@mecha/core";
-import { readState, writeState, listCasaDirs } from "./state-store.js";
+import { readState, writeState, listBotDirs } from "./state-store.js";
 import { ProcessEventEmitter } from "./events.js";
 import type { ProcessEvent } from "./events.js";
 import { isPidAlive, waitForChildExit, waitForPidExit } from "./process-lifecycle.js";
@@ -28,7 +28,7 @@ function safePidKill(pid: number, signal: NodeJS.Signals): void {
     /* v8 ignore stop */
   }
 }
-import { spawnCasa, type SpawnContext } from "./spawn-pipeline.js";
+import { spawnBot, type SpawnContext } from "./spawn-pipeline.js";
 import { readLogs } from "./log-reader.js";
 import type {
   SpawnOpts,
@@ -47,52 +47,52 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
   const emitter = new ProcessEventEmitter();
   const live = new Map<string, LiveProcess>();
 
-  // Per-CASA mutex to serialize lifecycle operations (spawn/stop/kill)
-  const casaLocks = new Map<string, Promise<void>>();
-  async function withCasaLock<T>(name: string, fn: () => Promise<T>): Promise<T> {
-    const prev = casaLocks.get(name) ?? Promise.resolve();
+  // Per-bot mutex to serialize lifecycle operations (spawn/stop/kill)
+  const botLocks = new Map<string, Promise<void>>();
+  async function withBotLock<T>(name: string, fn: () => Promise<T>): Promise<T> {
+    const prev = botLocks.get(name) ?? Promise.resolve();
     let resolve: () => void;
     const next = new Promise<void>((r) => { resolve = r; });
-    casaLocks.set(name, next);
+    botLocks.set(name, next);
     await prev;
     try {
       return await fn();
     } finally {
       resolve!();
       /* v8 ignore start -- concurrent lock cleanup: only last enqueued lock deletes entry */
-      if (casaLocks.get(name) === next) casaLocks.delete(name);
+      if (botLocks.get(name) === next) botLocks.delete(name);
       /* v8 ignore stop */
     }
   }
 
-  function _casaDir(name: string): string {
+  function _botDir(name: string): string {
     if (!isValidName(name)) throw new InvalidNameError(name);
     return join(mechaDir, name);
   }
 
   function _updateDiscoveryIndex(): void {
     try {
-      const casas: DiscoveryIndexEntry[] = [];
-      for (const dir of listCasaDirs(mechaDir)) {
+      const bots: DiscoveryIndexEntry[] = [];
+      for (const dir of listBotDirs(mechaDir)) {
         const st = readState(dir);
-        /* v8 ignore start -- defensive: state always exists for listCasaDirs results */
+        /* v8 ignore start -- defensive: state always exists for listBotDirs results */
         if (!st) continue;
         /* v8 ignore stop */
-        const config = readCasaConfig(dir);
+        const config = readBotConfig(dir);
         /* v8 ignore start -- defensive: config shape validation for tags/expose */
         const tags = Array.isArray(config?.tags) ? config.tags.filter((t): t is string => typeof t === "string") : [];
         const expose = Array.isArray(config?.expose) ? config.expose.filter((e): e is string => typeof e === "string") : [];
         /* v8 ignore stop */
-        casas.push({ name: st.name, tags, expose, state: st.state });
+        bots.push({ name: st.name, tags, expose, state: st.state });
       }
-      const index: DiscoveryIndex = { version: 1, updatedAt: new Date().toISOString(), casas };
+      const index: DiscoveryIndex = { version: 1, updatedAt: new Date().toISOString(), bots };
       const indexPath = join(mechaDir, "discovery.json");
       const tmp = indexPath + `.${randomBytes(4).toString("hex")}.tmp`;
       writeFileSync(tmp, JSON.stringify(index, null, 2) + "\n", { mode: 0o600 });
       renameSync(tmp, indexPath);
     /* v8 ignore start -- defensive: discovery index write failure should not crash lifecycle */
     } catch (err) {
-      emitter.emit({ type: "warning", name: "_system" as CasaName, message: `Failed to update discovery index: ${err instanceof Error ? err.message : String(err)}` });
+      emitter.emit({ type: "warning", name: "_system" as BotName, message: `Failed to update discovery index: ${err instanceof Error ? err.message : String(err)}` });
     }
     /* v8 ignore stop */
   }
@@ -102,23 +102,23 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
 
   function _recoverState(): void {
     let changed = false;
-    for (const casaDir of listCasaDirs(mechaDir)) {
-      const state = readState(casaDir);
+    for (const botDir of listBotDirs(mechaDir)) {
+      const state = readState(botDir);
       if (!state) continue;
       if (state.state === "running" && state.pid) {
         if (!isPidAlive(state.pid)) {
           state.state = "stopped";
           state.stoppedAt = new Date().toISOString();
-          writeState(casaDir, state);
+          writeState(botDir, state);
           changed = true;
         }
       }
-      /* v8 ignore start -- error state recovery: requires CASA in error state with dead PID on disk at startup */
+      /* v8 ignore start -- error state recovery: requires bot in error state with dead PID on disk at startup */
       if (state.state === "error" && state.pid) {
         if (!isPidAlive(state.pid)) {
           state.state = "stopped";
           state.stoppedAt = new Date().toISOString();
-          writeState(casaDir, state);
+          writeState(botDir, state);
           changed = true;
         }
       }
@@ -135,21 +135,21 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
     spawnFn: opts.spawnFn ?? cpSpawn,
     emitter,
     live,
-    casaDir: _casaDir,
+    botDir: _botDir,
     onStateChange: _updateDiscoveryIndex,
   };
 
   async function spawn(spawnOpts: SpawnOpts): Promise<ProcessInfo> {
-    return withCasaLock(spawnOpts.name, async () => {
-      const result = await spawnCasa(spawnCtx, spawnOpts);
+    return withBotLock(spawnOpts.name, async () => {
+      const result = await spawnBot(spawnCtx, spawnOpts);
       _updateDiscoveryIndex();
       return result;
     });
   }
 
-  function getCasa(name: CasaName): ProcessInfo | undefined {
-    const casaDir = _casaDir(name);
-    const state = readState(casaDir);
+  function getBot(name: BotName): ProcessInfo | undefined {
+    const botDir = _botDir(name);
+    const state = readState(botDir);
     if (!state) return undefined;
 
     const lp = live.get(name);
@@ -157,12 +157,12 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
     if (!lp && state.state === "running" && state.pid && !isPidAlive(state.pid)) {
       state.state = "stopped";
       state.stoppedAt = new Date().toISOString();
-      writeState(casaDir, state);
+      writeState(botDir, state);
       _updateDiscoveryIndex();
     }
 
     return {
-      name: state.name as CasaName,
+      name: state.name as BotName,
       state: state.state,
       pid: state.pid,
       port: state.port,
@@ -174,21 +174,21 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
     };
   }
 
-  function listCasas(): ProcessInfo[] {
+  function listBots(): ProcessInfo[] {
     const results: ProcessInfo[] = [];
     let livenessChanged = false;
-    for (const casaDir of listCasaDirs(mechaDir)) {
-      const state = readState(casaDir);
+    for (const botDir of listBotDirs(mechaDir)) {
+      const state = readState(botDir);
       if (!state) continue;
       const lp = live.get(state.name);
       if (!lp && state.state === "running" && state.pid && !isPidAlive(state.pid)) {
         state.state = "stopped";
         state.stoppedAt = new Date().toISOString();
-        writeState(casaDir, state);
+        writeState(botDir, state);
         livenessChanged = true;
       }
       results.push({
-        name: state.name as CasaName,
+        name: state.name as BotName,
         state: state.state,
         pid: state.pid,
         port: state.port,
@@ -203,13 +203,13 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
     return results;
   }
 
-  async function stopCasa(name: CasaName): Promise<void> {
-    return withCasaLock(name, async () => {
+  async function stopBot(name: BotName): Promise<void> {
+    return withBotLock(name, async () => {
     const lp = live.get(name);
     if (!lp) {
-      const state = readState(_casaDir(name));
-      if (!state) throw new CasaNotFoundError(name);
-      if (state.state !== "running") throw new CasaNotRunningError(name);
+      const state = readState(_botDir(name));
+      if (!state) throw new BotNotFoundError(name);
+      if (state.state !== "running") throw new BotNotRunningError(name);
       if (state.pid && isPidAlive(state.pid)) {
         safePidKill(state.pid, "SIGTERM");
         await waitForPidExit(state.pid, DEFAULTS.STOP_GRACE_MS);
@@ -219,7 +219,7 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
           await waitForPidExit(state.pid, 5_000);
           if (isPidAlive(state.pid)) {
             state.state = "error";
-            writeState(_casaDir(name), state);
+            writeState(_botDir(name), state);
             _updateDiscoveryIndex();
             emitter.emit({ type: "warning", name, message: `Process ${state.pid} did not exit after SIGKILL` });
             return;
@@ -229,7 +229,7 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
       }
       state.state = "stopped";
       state.stoppedAt = new Date().toISOString();
-      writeState(_casaDir(name), state);
+      writeState(_botDir(name), state);
       _updateDiscoveryIndex();
       emitter.emit({ type: "stopped", name });
       return;
@@ -244,17 +244,17 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
 
     // Defensive: ensure live map is cleaned up even if the "exit" event handler
     // hasn't fired yet (e.g. SIGKILL timeout, event loop stall). Without this,
-    // a subsequent spawn() would throw CasaAlreadyExistsError.
+    // a subsequent spawn() would throw BotAlreadyExistsError.
     /* v8 ignore start -- defensive cleanup for SIGKILL-surviving edge case */
     if (live.has(name)) {
       const pid = lp.child.pid;
       const stillAlive = pid != null && isPidAlive(pid);
       live.delete(name);
-      const state = readState(_casaDir(name));
+      const state = readState(_botDir(name));
       if (state && state.state === "running") {
         state.state = stillAlive ? "error" : "stopped";
         state.stoppedAt = new Date().toISOString();
-        writeState(_casaDir(name), state);
+        writeState(_botDir(name), state);
         _updateDiscoveryIndex();
         if (stillAlive) {
           emitter.emit({ type: "warning", name, message: `Process ${pid} did not exit after SIGKILL` });
@@ -267,18 +267,18 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
     });
   }
 
-  async function killCasa(name: CasaName): Promise<void> {
-    return withCasaLock(name, async () => {
+  async function killBot(name: BotName): Promise<void> {
+    return withBotLock(name, async () => {
     const lp = live.get(name);
     if (!lp) {
-      const state = readState(_casaDir(name));
-      if (!state) throw new CasaNotFoundError(name);
+      const state = readState(_botDir(name));
+      if (!state) throw new BotNotFoundError(name);
       if (state.pid && isPidAlive(state.pid)) {
         safePidKill(state.pid, "SIGKILL");
       }
       state.state = "stopped";
       state.stoppedAt = new Date().toISOString();
-      writeState(_casaDir(name), state);
+      writeState(_botDir(name), state);
       _updateDiscoveryIndex();
       emitter.emit({ type: "stopped", name });
       return;
@@ -289,10 +289,10 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
     /* v8 ignore start -- SIGKILL-surviving edge case */
     if (!killed && live.has(name)) {
       live.delete(name);
-      const state = readState(_casaDir(name));
+      const state = readState(_botDir(name));
       if (state && state.state === "running") {
         state.state = "error";
-        writeState(_casaDir(name), state);
+        writeState(_botDir(name), state);
         _updateDiscoveryIndex();
         emitter.emit({ type: "warning", name, message: `Process did not exit after SIGKILL` });
       }
@@ -301,18 +301,18 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
     });
   }
 
-  function getLogs(name: CasaName, logOpts?: LogOpts): Readable {
-    return readLogs(_casaDir(name), name, logOpts);
+  function getLogs(name: BotName, logOpts?: LogOpts): Readable {
+    return readLogs(_botDir(name), name, logOpts);
   }
 
-  function getPortAndToken(name: CasaName): { port: number; token: string } | undefined {
+  function getPortAndToken(name: BotName): { port: number; token: string } | undefined {
     const lp = live.get(name);
     if (lp) return { port: lp.port, token: lp.token };
 
-    const casaDir = _casaDir(name);
-    const state = readState(casaDir);
+    const botDir = _botDir(name);
+    const state = readState(botDir);
     if (state?.state === "running" && state.pid && isPidAlive(state.pid)) {
-      const config = readCasaConfig(casaDir);
+      const config = readBotConfig(botDir);
       if (config) return { port: config.port, token: config.token };
     }
     return undefined;
@@ -324,10 +324,10 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
 
   return {
     spawn,
-    get: getCasa,
-    list: listCasas,
-    stop: stopCasa,
-    kill: killCasa,
+    get: getBot,
+    list: listBots,
+    stop: stopBot,
+    kill: killBot,
     logs: getLogs,
     getPortAndToken,
     onEvent,

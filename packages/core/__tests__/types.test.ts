@@ -1,31 +1,31 @@
 import { describe, it, expect } from "vitest";
-import { isCasaAddress, isGroupAddress } from "../src/types.js";
-import type { CasaName, NodeName, CasaAddress, GroupAddress } from "../src/types.js";
+import { isBotAddress, isGroupAddress } from "../src/types.js";
+import type { BotName, NodeName, BotAddress, GroupAddress } from "../src/types.js";
 
 describe("type guards", () => {
-  const casaAddr: CasaAddress = {
-    casa: "researcher" as CasaName,
+  const botAddr: BotAddress = {
+    bot: "researcher" as BotName,
     node: "alice" as NodeName,
   };
 
   const groupAddr: GroupAddress = {
     group: "dev-team",
-    members: [casaAddr],
+    members: [botAddr],
   };
 
-  it("isCasaAddress returns true for CasaAddress", () => {
-    expect(isCasaAddress(casaAddr)).toBe(true);
+  it("isBotAddress returns true for BotAddress", () => {
+    expect(isBotAddress(botAddr)).toBe(true);
   });
 
-  it("isCasaAddress returns false for GroupAddress", () => {
-    expect(isCasaAddress(groupAddr)).toBe(false);
+  it("isBotAddress returns false for GroupAddress", () => {
+    expect(isBotAddress(groupAddr)).toBe(false);
   });
 
   it("isGroupAddress returns true for GroupAddress", () => {
     expect(isGroupAddress(groupAddr)).toBe(true);
   });
 
-  it("isGroupAddress returns false for CasaAddress", () => {
-    expect(isGroupAddress(casaAddr)).toBe(false);
+  it("isGroupAddress returns false for BotAddress", () => {
+    expect(isGroupAddress(botAddr)).toBe(false);
   });
 });

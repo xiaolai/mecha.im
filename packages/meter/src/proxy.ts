@@ -1,12 +1,12 @@
 import { request as httpsRequest } from "node:https";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { CasaRegistryEntry } from "./types.js";
+import type { BotRegistryEntry } from "./types.js";
 import { parseSSEChunk, createSSEParseState, extractNonStreamUsage } from "./stream.js";
-import { lookupCasa } from "./registry.js";
+import { lookupBot } from "./registry.js";
 import { createLogger } from "@mecha/core";
 
 import {
-  parseCasaPath,
+  parseBotPath,
   buildUpstreamHeaders,
   buildMeterEvent,
   enforceBudget,
@@ -20,7 +20,7 @@ import type { ProxyContext } from "./proxy-utils.js";
 
 // Re-export everything from proxy-utils for backward compatibility
 export {
-  parseCasaPath,
+  parseBotPath,
   buildUpstreamHeaders,
   buildMeterEvent,
   enforceBudget,
@@ -43,12 +43,12 @@ const UPSTREAM_HOST = "api.anthropic.com";
 /* v8 ignore start -- integration code: wires Node.js HTTP streams to/from api.anthropic.com */
 
 /** Decrement in-flight counter and clean up zero entries to prevent unbounded map growth. */
-function endPending(ctx: ProxyContext, casa: string): void {
-  const count = (ctx.pendingRequests.get(casa) ?? 1) - 1;
+function endPending(ctx: ProxyContext, bot: string): void {
+  const count = (ctx.pendingRequests.get(bot) ?? 1) - 1;
   if (count <= 0) {
-    ctx.pendingRequests.delete(casa);
+    ctx.pendingRequests.delete(bot);
   } else {
-    ctx.pendingRequests.set(casa, count);
+    ctx.pendingRequests.set(bot, count);
   }
 }
 /** Handle a proxied request */
@@ -60,21 +60,21 @@ export function handleProxyRequest(
   const startMs = Date.now();
   const url = req.url ?? "/";
 
-  const parsed = parseCasaPath(url);
+  const parsed = parseBotPath(url);
   if (!parsed) {
     res.writeHead(404, { "content-type": "application/json" });
-    res.end(JSON.stringify({ error: "Invalid path. Expected /casa/{name}/..." }));
+    res.end(JSON.stringify({ error: "Invalid path. Expected /bot/{name}/..." }));
     return;
   }
 
-  const { casa, upstreamPath } = parsed;
-  const casaInfo = lookupCasa(ctx.registry, casa);
+  const { bot, upstreamPath } = parsed;
+  const botInfo = lookupBot(ctx.registry, bot);
 
-  if (casaInfo.workspace === "unknown") {
-    log.warn("Unregistered CASA", { casa });
+  if (botInfo.workspace === "unknown") {
+    log.warn("Unregistered bot", { bot });
   }
 
-  const budgetResult = enforceBudget(ctx, casa, casaInfo);
+  const budgetResult = enforceBudget(ctx, bot, botInfo);
   for (const w of budgetResult.warnings) {
     log.warn("Budget warning", { detail: w });
   }
@@ -85,14 +85,14 @@ export function handleProxyRequest(
   }
 
   // Track in-flight requests for budget pre-accounting
-  ctx.pendingRequests.set(casa, (ctx.pendingRequests.get(casa) ?? 0) + 1);
+  ctx.pendingRequests.set(bot, (ctx.pendingRequests.get(bot) ?? 0) + 1);
 
   // Handle client abort before upstream request is made
   let requestCompleted = false;
   const cleanupPending = () => {
     if (!requestCompleted) {
       requestCompleted = true;
-      endPending(ctx, casa);
+      endPending(ctx, bot);
     }
   };
   req.on("error", cleanupPending);
@@ -110,7 +110,7 @@ export function handleProxyRequest(
       res.writeHead(413, { "content-type": "application/json" });
       res.end(JSON.stringify({ error: "Request body too large" }));
       req.destroy();
-      endPending(ctx, casa);
+      endPending(ctx, bot);
       return;
     }
     bodyChunks.push(chunk);
@@ -136,9 +136,9 @@ export function handleProxyRequest(
       const status = upstreamRes.statusCode ?? 0;
 
       if (stream && status === 200) {
-        handleStreamResponse(res, upstreamRes, ctx, startMs, casa, casaInfo, model);
+        handleStreamResponse(res, upstreamRes, ctx, startMs, bot, botInfo, model);
       } else {
-        handleNonStreamResponse(res, upstreamRes, ctx, startMs, casa, casaInfo, model, stream, status);
+        handleNonStreamResponse(res, upstreamRes, ctx, startMs, bot, botInfo, model, stream, status);
       }
     });
 
@@ -147,13 +147,13 @@ export function handleProxyRequest(
     });
 
     upstreamReq.on("error", (err) => {
-      log.error("Upstream request failed", { casa, path: upstreamPath, error: err instanceof Error ? err.message : String(err) });
+      log.error("Upstream request failed", { bot, path: upstreamPath, error: err instanceof Error ? err.message : String(err) });
       if (!res.headersSent) {
         res.writeHead(502, { "content-type": "application/json" });
       }
       res.end(JSON.stringify({ error: "Upstream unreachable" }));
-      endPending(ctx, casa);
-      const event = buildMeterEvent(ctx, startMs, casa, casaInfo, model, stream, 0, {
+      endPending(ctx, bot);
+      const event = buildMeterEvent(ctx, startMs, bot, botInfo, model, stream, 0, {
         inputTokens: 0, outputTokens: 0,
         cacheCreationTokens: 0, cacheReadTokens: 0,
         modelActual: model, ttftMs: null,
@@ -171,8 +171,8 @@ function handleStreamResponse(
   upstreamRes: IncomingMessage,
   ctx: ProxyContext,
   startMs: number,
-  casa: string,
-  casaInfo: CasaRegistryEntry,
+  bot: string,
+  botInfo: BotRegistryEntry,
   model: string,
 ): void {
   res.writeHead(200, stripHopByHop(upstreamRes.headers));
@@ -198,8 +198,8 @@ function handleStreamResponse(
     if (finalized) return;
     finalized = true;
     if (!res.writableEnded) res.end();
-    endPending(ctx, casa);
-    const event = buildMeterEvent(ctx, startMs, casa, casaInfo, model, true, status, state);
+    endPending(ctx, bot);
+    const event = buildMeterEvent(ctx, startMs, bot, botInfo, model, true, status, state);
     recordEvent(ctx, event);
   }
 
@@ -218,8 +218,8 @@ function handleNonStreamResponse(
   upstreamRes: IncomingMessage,
   ctx: ProxyContext,
   startMs: number,
-  casa: string,
-  casaInfo: CasaRegistryEntry,
+  bot: string,
+  botInfo: BotRegistryEntry,
   model: string,
   stream: boolean,
   status: number,
@@ -236,8 +236,8 @@ function handleNonStreamResponse(
       res.writeHead(502, { "content-type": "application/json" });
     }
     res.end(JSON.stringify({ error: "Upstream connection error" }));
-    endPending(ctx, casa);
-    const event = buildMeterEvent(ctx, startMs, casa, casaInfo, model, stream, 502, {
+    endPending(ctx, bot);
+    const event = buildMeterEvent(ctx, startMs, bot, botInfo, model, stream, 502, {
       inputTokens: 0, outputTokens: 0,
       cacheCreationTokens: 0, cacheReadTokens: 0,
       modelActual: model, ttftMs: null,
@@ -254,8 +254,8 @@ function handleNonStreamResponse(
       upstreamRes.destroy();
       res.writeHead(502, { "content-type": "application/json" });
       res.end(JSON.stringify({ error: "Upstream response too large" }));
-      endPending(ctx, casa);
-      const event = buildMeterEvent(ctx, startMs, casa, casaInfo, model, stream, 502, {
+      endPending(ctx, bot);
+      const event = buildMeterEvent(ctx, startMs, bot, botInfo, model, stream, 502, {
         inputTokens: 0, outputTokens: 0,
         cacheCreationTokens: 0, cacheReadTokens: 0,
         modelActual: model, ttftMs: null,
@@ -274,8 +274,8 @@ function handleNonStreamResponse(
       ? extractNonStreamUsage(body)
       : { inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0, modelActual: model, ttftMs: null };
 
-    endPending(ctx, casa);
-    const event = buildMeterEvent(ctx, startMs, casa, casaInfo, model, stream, status, usage);
+    endPending(ctx, bot);
+    const event = buildMeterEvent(ctx, startMs, bot, botInfo, model, stream, status, usage);
     recordEvent(ctx, event);
   });
 }

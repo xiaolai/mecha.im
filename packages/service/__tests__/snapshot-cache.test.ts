@@ -13,7 +13,7 @@ function writeSnapshot(meterDir: string, costUsd: number): void {
       today: { requests: 1, errors: 0, inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0, costUsd, avgLatencyMs: 0 },
       thisMonth: { requests: 1, errors: 0, inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0, costUsd, avgLatencyMs: 0 },
     },
-    byCasa: {}, byAuth: {}, byTag: {},
+    byBot: {}, byAuth: {}, byTag: {},
   }));
 }
 

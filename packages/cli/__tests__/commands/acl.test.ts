@@ -123,7 +123,7 @@ describe("acl command", () => {
       );
     });
 
-    it("filters by CASA name", async () => {
+    it("filters by bot name", async () => {
       const deps = makeDeps({
         acl: {
           listRules: vi.fn().mockReturnValue([
@@ -151,7 +151,7 @@ describe("acl command", () => {
       expect(deps.formatter.info).toHaveBeenCalledWith("No ACL rules");
     });
 
-    it("shows message when no rules for specific CASA", async () => {
+    it("shows message when no rules for specific bot", async () => {
       const deps = makeDeps();
       const program = createProgram(deps);
       program.exitOverride();

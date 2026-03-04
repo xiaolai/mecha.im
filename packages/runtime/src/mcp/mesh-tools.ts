@@ -6,7 +6,7 @@ import {
   isCapability,
   matchesDiscoveryFilter,
   AclDeniedError,
-  CasaNotFoundError,
+  BotNotFoundError,
   createLogger,
 } from "@mecha/core";
 
@@ -21,11 +21,11 @@ interface McpToolDef {
 export const MESH_TOOLS: McpToolDef[] = [
   {
     name: "mesh_query",
-    description: "Send a message to another CASA and get a response",
+    description: "Send a message to another bot and get a response",
     inputSchema: {
       type: "object",
       properties: {
-        target: { type: "string", description: "Target CASA name or address (name@node)" },
+        target: { type: "string", description: "Target bot name or address (name@node)" },
         message: { type: "string", description: "Message to send" },
         sessionId: { type: "string", description: "Session ID for multi-turn conversations (optional)" },
       },
@@ -34,7 +34,7 @@ export const MESH_TOOLS: McpToolDef[] = [
   },
   {
     name: "mesh_discover",
-    description: "Find other CASAs by tag or capability",
+    description: "Find other bots by tag or capability",
     inputSchema: {
       type: "object",
       properties: {
@@ -45,7 +45,7 @@ export const MESH_TOOLS: McpToolDef[] = [
   },
 ];
 
-/** Router interface — matches CasaRouter.routeQuery signature */
+/** Router interface — matches BotRouter.routeQuery signature */
 export interface MeshRouter {
   routeQuery(
     source: string,
@@ -57,7 +57,7 @@ export interface MeshRouter {
 
 export interface MeshOpts {
   mechaDir: string;
-  casaName: string;
+  botName: string;
   router?: MeshRouter;
 }
 
@@ -67,8 +67,8 @@ interface MeshResult {
   _meta?: Record<string, unknown>;
 }
 
-/** Discover CASAs by reading discovery.json (fast, sandboxed-friendly). */
-async function discoverCasas(
+/** Discover bots by reading discovery.json (fast, sandboxed-friendly). */
+async function discoverBots(
   mechaDir: string,
   source: string,
   opts: { tag?: string; capability?: string },
@@ -85,18 +85,18 @@ async function discoverCasas(
   /* v8 ignore stop */
 
   /* v8 ignore start -- defensive: malformed index shape */
-  if (!Array.isArray(index.casas)) return [];
+  if (!Array.isArray(index.bots)) return [];
   /* v8 ignore stop */
 
   const results: Array<{ name: string; tags: string[]; expose: string[]; state: string }> = [];
-  for (const entry of index.casas) {
+  for (const entry of index.bots) {
     if (entry.name === source) continue;
     /* v8 ignore start -- defensive: normalize tags/expose/state from index */
     const tags = Array.isArray(entry.tags) ? entry.tags : [];
     const expose = Array.isArray(entry.expose) ? entry.expose : [];
     const state = entry.state ?? "unknown";
     /* v8 ignore stop */
-    // Only return running CASAs for discovery
+    // Only return running bots for discovery
     if (state !== "running") continue;
     if (!matchesDiscoveryFilter({ tags, expose }, opts)) continue;
     results.push({ name: entry.name, tags, expose, state });
@@ -110,7 +110,7 @@ export async function handleMeshTool(
   name: string,
   args: Record<string, unknown>,
 ): Promise<MeshResult> {
-  const { mechaDir, casaName } = opts;
+  const { mechaDir, botName } = opts;
 
   switch (name) {
     case "mesh_query": {
@@ -133,7 +133,7 @@ export async function handleMeshTool(
       }
 
       try {
-        const fwd = await opts.router.routeQuery(casaName, target, message, sessionId);
+        const fwd = await opts.router.routeQuery(botName, target, message, sessionId);
         const result: MeshResult = { content: [{ type: "text", text: fwd.text }] };
         if (fwd.sessionId) result._meta = { sessionId: fwd.sessionId };
         return result;
@@ -141,8 +141,8 @@ export async function handleMeshTool(
         if (err instanceof AclDeniedError) {
           return { content: [{ type: "text", text: `Access denied: ${err.message}` }], isError: true };
         }
-        if (err instanceof CasaNotFoundError) {
-          return { content: [{ type: "text", text: `CASA not found: ${target}` }], isError: true };
+        if (err instanceof BotNotFoundError) {
+          return { content: [{ type: "text", text: `bot not found: ${target}` }], isError: true };
         }
         /* v8 ignore start -- generic error fallback for unexpected forwarding failures */
         const detail = err instanceof Error ? err.message : String(err);
@@ -163,13 +163,13 @@ export async function handleMeshTool(
         return { content: [{ type: "text", text: `Invalid capability: "${capability}"` }], isError: true };
       }
 
-      const casas = await discoverCasas(mechaDir, casaName, { tag, capability });
+      const bots = await discoverBots(mechaDir, botName, { tag, capability });
 
-      if (casas.length === 0) {
-        return { content: [{ type: "text", text: "No matching CASAs found" }] };
+      if (bots.length === 0) {
+        return { content: [{ type: "text", text: "No matching bots found" }] };
       }
 
-      const lines = casas.map((c) =>
+      const lines = bots.map((c) =>
         `${c.name}: tags=[${c.tags.join(", ")}] expose=[${c.expose.join(", ")}]`,
       );
       return { content: [{ type: "text", text: lines.join("\n") }] };

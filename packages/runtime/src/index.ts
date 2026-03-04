@@ -1,4 +1,4 @@
-// @mecha/runtime — standalone Fastify server for each CASA process
+// @mecha/runtime — standalone Fastify server for each bot process
 // Phase 1: auth, read-only sessions, workspace MCP (chat via Agent SDK)
 
 export { createSessionManager } from "./session-manager.js";

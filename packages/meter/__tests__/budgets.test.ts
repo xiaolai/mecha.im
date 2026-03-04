@@ -13,7 +13,7 @@ function makeSummary(overrides: Partial<CostSummary> = {}): CostSummary {
 }
 
 function emptyConfig(): BudgetConfig {
-  return { global: {}, byCasa: {}, byAuthProfile: {}, byTag: {} };
+  return { global: {}, byBot: {}, byAuthProfile: {}, byTag: {} };
 }
 
 describe("budgets", () => {
@@ -28,7 +28,7 @@ describe("budgets", () => {
       tempDir = mkdtempSync(join(tmpdir(), "meter-budget-"));
       const config = readBudgets(tempDir);
       expect(config.global).toEqual({});
-      expect(config.byCasa).toEqual({});
+      expect(config.byBot).toEqual({});
       expect(config.byAuthProfile).toEqual({});
       expect(config.byTag).toEqual({});
     });
@@ -40,7 +40,7 @@ describe("budgets", () => {
 
       const config = readBudgets(tempDir);
       expect(config.global).toEqual({});
-      expect(config.byCasa).toEqual({});
+      expect(config.byBot).toEqual({});
       expect(config.byAuthProfile).toEqual({});
       expect(config.byTag).toEqual({});
     });
@@ -49,7 +49,7 @@ describe("budgets", () => {
       tempDir = mkdtempSync(join(tmpdir(), "meter-budget-"));
       const config: BudgetConfig = {
         global: { dailyUsd: 50 },
-        byCasa: { researcher: { dailyUsd: 10, monthlyUsd: 100 } },
+        byBot: { researcher: { dailyUsd: 10, monthlyUsd: 100 } },
         byAuthProfile: {},
         byTag: {},
       };
@@ -58,7 +58,7 @@ describe("budgets", () => {
 
       const read = readBudgets(tempDir);
       expect(read.global.dailyUsd).toBe(50);
-      expect(read.byCasa["researcher"]!.dailyUsd).toBe(10);
+      expect(read.byBot["researcher"]!.dailyUsd).toBe(10);
     });
   });
 
@@ -66,7 +66,7 @@ describe("budgets", () => {
     it("allows when no limits configured", () => {
       const result = checkBudgets({
         config: emptyConfig(),
-        casa: "researcher", authProfile: "default", tags: [],
+        bot: "researcher", authProfile: "default", tags: [],
         global: { today: makeSummary(), month: makeSummary() },
         perTag: {},
       });
@@ -77,7 +77,7 @@ describe("budgets", () => {
     it("blocks when global daily limit exceeded", () => {
       const result = checkBudgets({
         config: { ...emptyConfig(), global: { dailyUsd: 10 } },
-        casa: "researcher", authProfile: "default", tags: [],
+        bot: "researcher", authProfile: "default", tags: [],
         global: { today: makeSummary({ costUsd: 10.50 }), month: makeSummary() },
         perTag: {},
       });
@@ -88,7 +88,7 @@ describe("budgets", () => {
     it("warns at 80% of global daily limit", () => {
       const result = checkBudgets({
         config: { ...emptyConfig(), global: { dailyUsd: 10 } },
-        casa: "researcher", authProfile: "default", tags: [],
+        bot: "researcher", authProfile: "default", tags: [],
         global: { today: makeSummary({ costUsd: 8.50 }), month: makeSummary() },
         perTag: {},
       });
@@ -97,22 +97,22 @@ describe("budgets", () => {
       expect(result.warnings[0]).toContain("85%");
     });
 
-    it("blocks when CASA daily limit exceeded", () => {
+    it("blocks when bot daily limit exceeded", () => {
       const result = checkBudgets({
-        config: { ...emptyConfig(), byCasa: { researcher: { dailyUsd: 5 } } },
-        casa: "researcher", authProfile: "default", tags: [],
+        config: { ...emptyConfig(), byBot: { researcher: { dailyUsd: 5 } } },
+        bot: "researcher", authProfile: "default", tags: [],
         global: { today: makeSummary(), month: makeSummary() },
-        perCasa: { today: makeSummary({ costUsd: 5.10 }), month: makeSummary() },
+        perBot: { today: makeSummary({ costUsd: 5.10 }), month: makeSummary() },
         perTag: {},
       });
       expect(result.allowed).toBe(false);
-      expect(result.exceeded).toContain("CASA researcher");
+      expect(result.exceeded).toContain("bot researcher");
     });
 
     it("blocks when monthly limit exceeded", () => {
       const result = checkBudgets({
         config: { ...emptyConfig(), global: { monthlyUsd: 100 } },
-        casa: "researcher", authProfile: "default", tags: [],
+        bot: "researcher", authProfile: "default", tags: [],
         global: { today: makeSummary(), month: makeSummary({ costUsd: 105 }) },
         perTag: {},
       });
@@ -123,7 +123,7 @@ describe("budgets", () => {
     it("warns at 80% of monthly limit", () => {
       const result = checkBudgets({
         config: { ...emptyConfig(), global: { monthlyUsd: 100 } },
-        casa: "researcher", authProfile: "default", tags: [],
+        bot: "researcher", authProfile: "default", tags: [],
         global: { today: makeSummary(), month: makeSummary({ costUsd: 85 }) },
         perTag: {},
       });
@@ -134,7 +134,7 @@ describe("budgets", () => {
     it("checks auth profile limits", () => {
       const result = checkBudgets({
         config: { ...emptyConfig(), byAuthProfile: { work: { dailyUsd: 20 } } },
-        casa: "researcher", authProfile: "work", tags: [],
+        bot: "researcher", authProfile: "work", tags: [],
         global: { today: makeSummary(), month: makeSummary() },
         perAuth: { today: makeSummary({ costUsd: 22 }), month: makeSummary() },
         perTag: {},
@@ -146,7 +146,7 @@ describe("budgets", () => {
     it("checks tag limits", () => {
       const result = checkBudgets({
         config: { ...emptyConfig(), byTag: { experiment: { dailyUsd: 3 } } },
-        casa: "researcher", authProfile: "default", tags: ["experiment"],
+        bot: "researcher", authProfile: "default", tags: ["experiment"],
         global: { today: makeSummary(), month: makeSummary() },
         perTag: { experiment: { today: makeSummary({ costUsd: 3.50 }), month: makeSummary({ costUsd: 3.50 }) } },
       });
@@ -154,10 +154,10 @@ describe("budgets", () => {
       expect(result.exceeded).toContain("tag experiment");
     });
 
-    it("skips CASA check when no perCasa provided", () => {
+    it("skips bot check when no perBot provided", () => {
       const result = checkBudgets({
-        config: { ...emptyConfig(), byCasa: { r: { dailyUsd: 5 } } },
-        casa: "r", authProfile: "default", tags: [],
+        config: { ...emptyConfig(), byBot: { r: { dailyUsd: 5 } } },
+        bot: "r", authProfile: "default", tags: [],
         global: { today: makeSummary(), month: makeSummary() },
         perTag: {},
       });
@@ -167,7 +167,7 @@ describe("budgets", () => {
     it("skips auth check when no perAuth provided", () => {
       const result = checkBudgets({
         config: { ...emptyConfig(), byAuthProfile: { w: { dailyUsd: 20 } } },
-        casa: "r", authProfile: "w", tags: [],
+        bot: "r", authProfile: "w", tags: [],
         global: { today: makeSummary(), month: makeSummary() },
         perTag: {},
       });
@@ -177,7 +177,7 @@ describe("budgets", () => {
     it("skips tag check when tag summary is missing", () => {
       const result = checkBudgets({
         config: { ...emptyConfig(), byTag: { x: { dailyUsd: 5 } } },
-        casa: "r", authProfile: "default", tags: ["x"],
+        bot: "r", authProfile: "default", tags: ["x"],
         global: { today: makeSummary(), month: makeSummary() },
         perTag: {},
       });
@@ -188,13 +188,13 @@ describe("budgets", () => {
       const result = checkBudgets({
         config: {
           global: { dailyUsd: 50, monthlyUsd: 500 },
-          byCasa: { researcher: { dailyUsd: 10 } },
+          byBot: { researcher: { dailyUsd: 10 } },
           byAuthProfile: {},
           byTag: { exp: { dailyUsd: 20 } },
         },
-        casa: "researcher", authProfile: "default", tags: ["exp"],
+        bot: "researcher", authProfile: "default", tags: ["exp"],
         global: { today: makeSummary({ costUsd: 5 }), month: makeSummary({ costUsd: 50 }) },
-        perCasa: { today: makeSummary({ costUsd: 2 }), month: makeSummary({ costUsd: 2 }) },
+        perBot: { today: makeSummary({ costUsd: 2 }), month: makeSummary({ costUsd: 2 }) },
         perTag: { exp: { today: makeSummary({ costUsd: 1 }), month: makeSummary({ costUsd: 1 }) } },
       });
       expect(result.allowed).toBe(true);
@@ -204,7 +204,7 @@ describe("budgets", () => {
     it("allows when auth profile is under limit", () => {
       const result = checkBudgets({
         config: { ...emptyConfig(), byAuthProfile: { w: { dailyUsd: 50 } } },
-        casa: "r", authProfile: "w", tags: [],
+        bot: "r", authProfile: "w", tags: [],
         global: { today: makeSummary(), month: makeSummary() },
         perAuth: { today: makeSummary({ costUsd: 5 }), month: makeSummary() },
         perTag: {},
@@ -213,22 +213,22 @@ describe("budgets", () => {
       expect(result.warnings).toEqual([]);
     });
 
-    it("blocks when CASA monthly limit exceeded via perCasa month", () => {
+    it("blocks when bot monthly limit exceeded via perBot month", () => {
       const result = checkBudgets({
-        config: { ...emptyConfig(), byCasa: { r: { monthlyUsd: 10 } } },
-        casa: "r", authProfile: "default", tags: [],
+        config: { ...emptyConfig(), byBot: { r: { monthlyUsd: 10 } } },
+        bot: "r", authProfile: "default", tags: [],
         global: { today: makeSummary(), month: makeSummary() },
-        perCasa: { today: makeSummary(), month: makeSummary({ costUsd: 11 }) },
+        perBot: { today: makeSummary(), month: makeSummary({ costUsd: 11 }) },
         perTag: {},
       });
       expect(result.allowed).toBe(false);
-      expect(result.exceeded).toContain("CASA r");
+      expect(result.exceeded).toContain("bot r");
     });
 
     it("blocks when auth monthly limit exceeded via perAuth month", () => {
       const result = checkBudgets({
         config: { ...emptyConfig(), byAuthProfile: { w: { monthlyUsd: 10 } } },
-        casa: "r", authProfile: "w", tags: [],
+        bot: "r", authProfile: "w", tags: [],
         global: { today: makeSummary(), month: makeSummary() },
         perAuth: { today: makeSummary(), month: makeSummary({ costUsd: 11 }) },
         perTag: {},
@@ -237,22 +237,22 @@ describe("budgets", () => {
       expect(result.exceeded).toContain("auth w");
     });
 
-    it("warns at 80% of CASA daily limit", () => {
+    it("warns at 80% of bot daily limit", () => {
       const result = checkBudgets({
-        config: { ...emptyConfig(), byCasa: { r: { dailyUsd: 10 } } },
-        casa: "r", authProfile: "default", tags: [],
+        config: { ...emptyConfig(), byBot: { r: { dailyUsd: 10 } } },
+        bot: "r", authProfile: "default", tags: [],
         global: { today: makeSummary(), month: makeSummary() },
-        perCasa: { today: makeSummary({ costUsd: 8.5 }), month: makeSummary() },
+        perBot: { today: makeSummary({ costUsd: 8.5 }), month: makeSummary() },
         perTag: {},
       });
       expect(result.allowed).toBe(true);
-      expect(result.warnings.some(w => w.includes("CASA r") && w.includes("daily"))).toBe(true);
+      expect(result.warnings.some(w => w.includes("bot r") && w.includes("daily"))).toBe(true);
     });
 
     it("blocks when global daily-only limit is exceeded (no monthlyUsd)", () => {
       const result = checkBudgets({
         config: { ...emptyConfig(), global: { dailyUsd: 5 } },
-        casa: "r", authProfile: "default", tags: [],
+        bot: "r", authProfile: "default", tags: [],
         global: { today: makeSummary({ costUsd: 6 }), month: makeSummary() },
         perTag: {},
       });
@@ -269,10 +269,10 @@ describe("budgets", () => {
       expect(config.global.monthlyUsd).toBe(500);
     });
 
-    it("sets CASA budget", () => {
+    it("sets bot budget", () => {
       const config = emptyConfig();
-      setBudget(config, { type: "casa", name: "researcher" }, 10);
-      expect(config.byCasa["researcher"]!.dailyUsd).toBe(10);
+      setBudget(config, { type: "bot", name: "researcher" }, 10);
+      expect(config.byBot["researcher"]!.dailyUsd).toBe(10);
     });
 
     it("sets auth budget", () => {
@@ -289,25 +289,25 @@ describe("budgets", () => {
 
     it("merges with existing budget", () => {
       const config = emptyConfig();
-      setBudget(config, { type: "casa", name: "test" }, 10);
-      setBudget(config, { type: "casa", name: "test" }, undefined, 100);
-      expect(config.byCasa["test"]!.dailyUsd).toBe(10);
-      expect(config.byCasa["test"]!.monthlyUsd).toBe(100);
+      setBudget(config, { type: "bot", name: "test" }, 10);
+      setBudget(config, { type: "bot", name: "test" }, undefined, 100);
+      expect(config.byBot["test"]!.dailyUsd).toBe(10);
+      expect(config.byBot["test"]!.monthlyUsd).toBe(100);
     });
   });
 
   describe("removeBudget", () => {
     it("removes daily limit", () => {
-      const config: BudgetConfig = { global: { dailyUsd: 50, monthlyUsd: 500 }, byCasa: {}, byAuthProfile: {}, byTag: {} };
+      const config: BudgetConfig = { global: { dailyUsd: 50, monthlyUsd: 500 }, byBot: {}, byAuthProfile: {}, byTag: {} };
       const removed = removeBudget(config, { type: "global" }, "daily");
       expect(removed).toBe(true);
       expect(config.global.dailyUsd).toBeUndefined();
       expect(config.global.monthlyUsd).toBe(500);
     });
 
-    it("removes CASA monthly limit", () => {
-      const config: BudgetConfig = { global: {}, byCasa: { researcher: { monthlyUsd: 100 } }, byAuthProfile: {}, byTag: {} };
-      const removed = removeBudget(config, { type: "casa", name: "researcher" }, "monthly");
+    it("removes bot monthly limit", () => {
+      const config: BudgetConfig = { global: {}, byBot: { researcher: { monthlyUsd: 100 } }, byAuthProfile: {}, byTag: {} };
+      const removed = removeBudget(config, { type: "bot", name: "researcher" }, "monthly");
       expect(removed).toBe(true);
     });
 
@@ -317,18 +317,18 @@ describe("budgets", () => {
     });
 
     it("removes auth budget", () => {
-      const config: BudgetConfig = { global: {}, byCasa: {}, byAuthProfile: { work: { dailyUsd: 20 } }, byTag: {} };
+      const config: BudgetConfig = { global: {}, byBot: {}, byAuthProfile: { work: { dailyUsd: 20 } }, byTag: {} };
       expect(removeBudget(config, { type: "auth", name: "work" }, "daily")).toBe(true);
     });
 
     it("removes tag budget", () => {
-      const config: BudgetConfig = { global: {}, byCasa: {}, byAuthProfile: {}, byTag: { exp: { dailyUsd: 5 } } };
+      const config: BudgetConfig = { global: {}, byBot: {}, byAuthProfile: {}, byTag: { exp: { dailyUsd: 5 } } };
       expect(removeBudget(config, { type: "tag", name: "exp" }, "daily")).toBe(true);
     });
 
-    it("returns false for non-existent CASA entry", () => {
+    it("returns false for non-existent bot entry", () => {
       const config = emptyConfig();
-      expect(removeBudget(config, { type: "casa", name: "nope" }, "daily")).toBe(false);
+      expect(removeBudget(config, { type: "bot", name: "nope" }, "daily")).toBe(false);
     });
   });
 });

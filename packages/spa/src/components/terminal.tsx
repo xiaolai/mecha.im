@@ -7,7 +7,7 @@ import { useAuth } from "@/auth-context";
 import "@xterm/xterm/css/xterm.css";
 
 interface TerminalProps {
-  casaName: string;
+  botName: string;
   sessionId?: string;
   node?: string;
   onSessionCreated?: (id: string) => void;
@@ -36,7 +36,7 @@ const RESIZE_DEBOUNCE_MS = 100;
 /** Reuse one encoder for all keystroke sends to avoid per-keystroke allocation. */
 const textEncoder = new TextEncoder();
 
-export function Terminal({ casaName, sessionId, node, onSessionCreated, onExit }: TerminalProps) {
+export function Terminal({ botName, sessionId, node, onSessionCreated, onExit }: TerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const termRef = useRef<import("@xterm/xterm").Terminal | null>(null);
@@ -119,7 +119,7 @@ export function Terminal({ casaName, sessionId, node, onSessionCreated, onExit }
       params.set("cols", String(term.cols));
       params.set("rows", String(term.rows));
       const query = params.toString();
-      const wsUrl = `${proto}//${window.location.host}/ws/terminal/${encodeURIComponent(casaName)}${query ? `?${query}` : ""}`;
+      const wsUrl = `${proto}//${window.location.host}/ws/terminal/${encodeURIComponent(botName)}${query ? `?${query}` : ""}`;
 
       const ws = new WebSocket(wsUrl);
       ws.binaryType = "arraybuffer";
@@ -210,7 +210,7 @@ export function Terminal({ casaName, sessionId, node, onSessionCreated, onExit }
   // Including it would cause an infinite loop: server returns session ID → parent
   // updates state → effect re-runs → spawns new PTY → repeat.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [casaName, node, sendResize, authHeaders, reconnectKey]);
+  }, [botName, node, sendResize, authHeaders, reconnectKey]);
 
   useEffect(() => {
     const term = termRef.current;

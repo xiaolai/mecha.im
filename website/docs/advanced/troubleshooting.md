@@ -16,23 +16,23 @@ This checks Node.js, Claude Code CLI, sandbox support, and directory structure.
 
 ### "Port already in use"
 
-Another CASA or process is using the port. Either:
+Another bot or process is using the port. Either:
 
 ```bash
 # Let Mecha auto-assign a different port
-mecha casa spawn myagent ~/workspace
+mecha bot spawn myagent ~/workspace
 
 # Or specify an unused port
-mecha casa spawn myagent ~/workspace --port 7710
+mecha bot spawn myagent ~/workspace --port 7710
 ```
 
-### "CASA already exists"
+### "bot already exists"
 
-A CASA with that name already exists. Stop and kill it first, then respawn:
+A bot with that name already exists. Stop and kill it first, then respawn:
 
 ```bash
-mecha casa kill myagent
-mecha casa spawn myagent ~/workspace
+mecha bot kill myagent
+mecha bot spawn myagent ~/workspace
 ```
 
 ### Agent stuck in "spawning" state
@@ -40,7 +40,7 @@ mecha casa spawn myagent ~/workspace
 The health check may have timed out. Check the logs:
 
 ```bash
-mecha casa logs myagent --tail 50
+mecha bot logs myagent --tail 50
 ```
 
 Common causes:
@@ -51,28 +51,28 @@ Common causes:
 Kill and respawn:
 
 ```bash
-mecha casa kill myagent
-mecha casa spawn myagent ~/workspace
+mecha bot kill myagent
+mecha bot spawn myagent ~/workspace
 ```
 
 ## Chat Issues
 
 ### "Connection refused"
 
-The CASA isn't running:
+The bot isn't running:
 
 ```bash
-mecha casa status myagent
+mecha bot status myagent
 # If stopped, restart it
-mecha casa spawn myagent ~/workspace
+mecha bot spawn myagent ~/workspace
 ```
 
 ### Streaming hangs
 
-The response may be taking a long time. Check the CASA logs for errors:
+The response may be taking a long time. Check the bot logs for errors:
 
 ```bash
-mecha casa logs myagent --follow
+mecha bot logs myagent --follow
 ```
 
 ## Permission Issues
@@ -130,20 +130,20 @@ mecha meter start
 
 ### Cost shows $0 despite usage
 
-The meter proxy may not have been running when requests were made. CASAs spawned before `mecha meter start` won't route through the proxy.
+The meter proxy may not have been running when requests were made. bots spawned before `mecha meter start` won't route through the proxy.
 
-Restart CASAs after starting the meter:
+Restart bots after starting the meter:
 
 ```bash
 mecha meter start
-mecha casa stop myagent && mecha casa spawn myagent ~/workspace
+mecha bot stop myagent && mecha bot spawn myagent ~/workspace
 ```
 
 ## Getting Help
 
 If you're stuck:
 
-1. Check logs: `mecha casa logs <name> --tail 100`
+1. Check logs: `mecha bot logs <name> --tail 100`
 2. Run doctor: `mecha doctor`
-3. Check status: `mecha casa status <name>`
+3. Check status: `mecha bot status <name>`
 4. Review the [CLI Reference](/reference/cli) for correct syntax

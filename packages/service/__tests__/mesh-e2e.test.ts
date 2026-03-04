@@ -2,10 +2,10 @@ import { describe, it, expect, vi, afterEach, afterAll, beforeAll } from "vitest
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import type { CasaName, NodeEntry } from "@mecha/core";
+import type { BotName, NodeEntry } from "@mecha/core";
 import { createAgentServer } from "@mecha/agent";
 import { deriveSessionKey, createSessionToken } from "../../agent/src/session.js";
-import { createCasaRouter } from "../src/router.js";
+import { createBotRouter } from "../src/router.js";
 import { createLocator } from "../src/locator.js";
 import { agentFetch } from "../src/agent-fetch.js";
 import { makeAcl } from "../../core/__tests__/test-utils.js";
@@ -24,19 +24,19 @@ function makeAuthCookie(secret = TEST_TOTP_SECRET): string {
  *
  * Simulates two nodes (alice, bob):
  * - bob runs an agent server on a random port
- * - alice uses CasaRouter + locator + agentFetch to route a query
- *   from alice's CASA "coder" → bob's CASA "analyst"
+ * - alice uses BotRouter + locator + agentFetch to route a query
+ *   from alice's bot "coder" → bob's bot "analyst"
  *
- * forwardQueryToCasa is mocked (no real CASA processes), but the HTTP
+ * forwardQueryToBot is mocked (no real bot processes), but the HTTP
  * chain through agentFetch → agent server → routing route is real.
  */
 
-// Mock forwardQueryToCasa so we don't need a real CASA process
+// Mock forwardQueryToBot so we don't need a real bot process
 vi.mock("@mecha/core", async (importOriginal) => {
   const orig = await importOriginal<Record<string, unknown>>();
   return {
     ...orig,
-    forwardQueryToCasa: vi.fn().mockResolvedValue({
+    forwardQueryToBot: vi.fn().mockResolvedValue({
       text: "analyst says hello",
       sessionId: "sess-123",
     }),
@@ -50,7 +50,7 @@ describe("mesh e2e: cross-node query", () => {
   let bobPort: number;
 
   beforeAll(async () => {
-    // Set up bob's mecha dir with an "analyst" CASA config
+    // Set up bob's mecha dir with an "analyst" bot config
     bobDir = mkdtempSync(join(tmpdir(), "mesh-e2e-bob-"));
     const analystDir = join(bobDir, "analyst");
     mkdirSync(analystDir, { recursive: true });
@@ -59,7 +59,7 @@ describe("mesh e2e: cross-node query", () => {
       JSON.stringify({ port: 9999, token: "analyst-token", workspace: "/tmp" }),
     );
 
-    // Set up alice's mecha dir (empty — alice's CASAs don't need to exist for outbound routing)
+    // Set up alice's mecha dir (empty — alice's bots don't need to exist for outbound routing)
     aliceDir = mkdtempSync(join(tmpdir(), "mesh-e2e-alice-"));
 
     // Start bob's agent server
@@ -103,7 +103,7 @@ describe("mesh e2e: cross-node query", () => {
     });
 
     // Alice's router with locator + real agentFetch
-    const router = createCasaRouter({
+    const router = createBotRouter({
       mechaDir: aliceDir,
       acl: makeAcl(),
       pm: makePm(),
@@ -135,7 +135,7 @@ describe("mesh e2e: cross-node query", () => {
     });
 
     // Alice's ACL denies the query
-    const router = createCasaRouter({
+    const router = createBotRouter({
       mechaDir: aliceDir,
       acl: makeAcl({ check: vi.fn().mockReturnValue({ allowed: false, reason: "no_connect" }) }),
       pm: makePm(),
@@ -150,7 +150,7 @@ describe("mesh e2e: cross-node query", () => {
     ).rejects.toThrow("Access denied");
   });
 
-  it("returns CasaNotFoundError when target node is unknown", async () => {
+  it("returns BotNotFoundError when target node is unknown", async () => {
     // No nodes registered — bob is unknown
     const locator = createLocator({
       mechaDir: aliceDir,
@@ -158,7 +158,7 @@ describe("mesh e2e: cross-node query", () => {
       getNodes: () => [],
     });
 
-    const router = createCasaRouter({
+    const router = createBotRouter({
       mechaDir: aliceDir,
       acl: makeAcl(),
       pm: makePm(),

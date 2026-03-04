@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const RuntimeEnv = z.object({
-  MECHA_CASA_NAME: z.string().min(1, "MECHA_CASA_NAME is required"),
+  MECHA_BOT_NAME: z.string().min(1, "MECHA_BOT_NAME is required"),
   MECHA_PORT: z.string().regex(/^\d+$/, "MECHA_PORT must be numeric").transform(Number).pipe(z.number().int().min(1).max(65535)),
   MECHA_AUTH_TOKEN: z.string().min(1, "MECHA_AUTH_TOKEN is required"),
   MECHA_PROJECTS_DIR: z.string().min(1, "MECHA_PROJECTS_DIR is required"),

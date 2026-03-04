@@ -14,7 +14,7 @@ describe("mecha_query", () => {
     const text = getText(result);
     expect(text).toContain("not yet available");
     expect(text).toContain("wave 2");
-    expect(text).toContain("mecha chat");
+    expect(text).toContain("mecha bot chat");
   });
 
   it("is only registered in query mode", () => {

@@ -8,7 +8,7 @@ function makeEntry(overrides: Partial<AuditEntry> = {}): AuditEntry {
   return {
     ts: "2026-02-27T10:00:00Z",
     client: "test-client/1.0",
-    tool: "mecha_list_casas",
+    tool: "mecha_list_bots",
     params: {},
     result: "ok",
     durationMs: 42,
@@ -29,14 +29,14 @@ describe("AuditLog", () => {
 
   it("appends and reads entries", () => {
     const log = createAuditLog(dir);
-    log.append(makeEntry({ tool: "mecha_list_casas" }));
+    log.append(makeEntry({ tool: "mecha_list_bots" }));
     log.append(makeEntry({ tool: "mecha_discover" }));
 
     const entries = log.read();
     expect(entries).toHaveLength(2);
     // newest first
     expect(entries[0]!.tool).toBe("mecha_discover");
-    expect(entries[1]!.tool).toBe("mecha_list_casas");
+    expect(entries[1]!.tool).toBe("mecha_list_bots");
   });
 
   it("respects limit option", () => {
@@ -89,10 +89,10 @@ describe("AuditLog", () => {
 
   it("stores error field for error results", () => {
     const log = createAuditLog(dir);
-    log.append(makeEntry({ result: "error", error: "CASA not found" }));
+    log.append(makeEntry({ result: "error", error: "bot not found" }));
 
     const entries = log.read();
     expect(entries[0]!.result).toBe("error");
-    expect(entries[0]!.error).toBe("CASA not found");
+    expect(entries[0]!.error).toBe("bot not found");
   });
 });

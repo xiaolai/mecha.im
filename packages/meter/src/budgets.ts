@@ -13,7 +13,7 @@ export function readBudgets(meterDir: string): BudgetConfig {
     const raw = JSON.parse(readFileSync(budgetsPath(meterDir), "utf-8")) as Partial<BudgetConfig>;
     return {
       global: raw.global ?? {},
-      byCasa: raw.byCasa ?? {},
+      byBot: raw.byBot ?? {},
       byAuthProfile: raw.byAuthProfile ?? {},
       byTag: raw.byTag ?? {},
     };
@@ -21,7 +21,7 @@ export function readBudgets(meterDir: string): BudgetConfig {
     /* v8 ignore start -- missing or corrupt budgets.json */
     console.error("[mecha:meter] Failed to read budgets.json, using empty config");
     /* v8 ignore stop */
-    return { global: {}, byCasa: {}, byAuthProfile: {}, byTag: {} };
+    return { global: {}, byBot: {}, byAuthProfile: {}, byTag: {} };
   }
 }
 
@@ -42,11 +42,11 @@ export interface BudgetCheckResult {
 
 export interface BudgetCheckInput {
   config: BudgetConfig;
-  casa: string;
+  bot: string;
   authProfile: string;
   tags: string[];
   global: { today: CostSummary; month: CostSummary };
-  perCasa?: { today: CostSummary; month: CostSummary };
+  perBot?: { today: CostSummary; month: CostSummary };
   perAuth?: { today: CostSummary; month: CostSummary };
   perTag: Record<string, { today: CostSummary; month: CostSummary }>;
   /** Estimated cost of in-flight requests (for pre-accounting). */
@@ -55,7 +55,7 @@ export interface BudgetCheckInput {
 
 /** Check all applicable budgets for a request */
 export function checkBudgets(input: BudgetCheckInput): BudgetCheckResult {
-  const { config, casa, authProfile, tags, pendingCostUsd = 0 } = input;
+  const { config, bot, authProfile, tags, pendingCostUsd = 0 } = input;
   const warnings: string[] = [];
   let exceeded: string | null = null;
 
@@ -66,10 +66,10 @@ export function checkBudgets(input: BudgetCheckInput): BudgetCheckResult {
     warnings.push(...r.warnings);
   }
 
-  // Check per-CASA limits
-  const casaBudget = config.byCasa[casa];
-  if (casaBudget && input.perCasa) {
-    const r = checkLimit(casaBudget, `CASA ${casa}`, input.perCasa.today, input.perCasa.month, pendingCostUsd);
+  // Check per-bot limits
+  const casaBudget = config.byBot[bot];
+  if (casaBudget && input.perBot) {
+    const r = checkLimit(casaBudget, `bot ${bot}`, input.perBot.today, input.perBot.month, pendingCostUsd);
     if (r.exceeded) exceeded = r.exceeded;
     warnings.push(...r.warnings);
   }
@@ -131,7 +131,7 @@ function checkLimit(
 
 type BudgetTarget =
   | { type: "global" }
-  | { type: "casa"; name: string }
+  | { type: "bot"; name: string }
   | { type: "auth"; name: string }
   | { type: "tag"; name: string };
 
@@ -148,8 +148,8 @@ export function setBudget(
 
   if (target.type === "global") {
     config.global = { ...config.global, ...limit };
-  } else if (target.type === "casa") {
-    config.byCasa[target.name] = { ...config.byCasa[target.name], ...limit };
+  } else if (target.type === "bot") {
+    config.byBot[target.name] = { ...config.byBot[target.name], ...limit };
   } else if (target.type === "auth") {
     config.byAuthProfile[target.name] = { ...config.byAuthProfile[target.name], ...limit };
   } else {
@@ -168,8 +168,8 @@ export function removeBudget(
 
   if (target.type === "global") {
     bucket = config.global;
-  } else if (target.type === "casa") {
-    bucket = config.byCasa[target.name];
+  } else if (target.type === "bot") {
+    bucket = config.byBot[target.name];
   } else if (target.type === "auth") {
     bucket = config.byAuthProfile[target.name];
   } else {

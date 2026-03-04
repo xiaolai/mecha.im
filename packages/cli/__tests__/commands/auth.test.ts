@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { createProgram } from "../../src/program.js";
 import { makeDeps } from "../test-utils.js";
 import type { ProcessInfo } from "@mecha/process";
-import type { CasaName } from "@mecha/core";
+import type { BotName } from "@mecha/core";
 
 describe("auth commands", () => {
   let tempDir: string;
@@ -139,15 +139,15 @@ describe("auth commands", () => {
     expect(deps.formatter.success).toHaveBeenCalledWith(expect.stringContaining("Switched"));
   });
 
-  it("switches profile per-CASA", async () => {
+  it("switches profile per-bot", async () => {
     const { mechaDir, deps } = setup();
 
-    // Create CASA dir with config
-    const casaDir = join(mechaDir, "alice");
-    mkdirSync(casaDir, { recursive: true });
-    writeFileSync(join(casaDir, "config.json"), JSON.stringify({ port: 7700, token: "t", workspace: "/ws" }));
+    // Create bot dir with config
+    const botDir = join(mechaDir, "alice");
+    mkdirSync(botDir, { recursive: true });
+    writeFileSync(join(botDir, "config.json"), JSON.stringify({ port: 7700, token: "t", workspace: "/ws" }));
 
-    const info: ProcessInfo = { name: "alice" as CasaName, state: "running", workspacePath: "/ws", port: 7700 };
+    const info: ProcessInfo = { name: "alice" as BotName, state: "running", workspacePath: "/ws", port: 7700 };
     const pmDeps = makeDeps({
       mechaDir,
       pm: { get: vi.fn().mockReturnValue(info) },
@@ -160,7 +160,7 @@ describe("auth commands", () => {
     expect(pmDeps.formatter.success).toHaveBeenCalledWith(expect.stringContaining("alice now uses"));
     expect(pmDeps.formatter.success).toHaveBeenCalledWith(expect.stringContaining("Restart"));
 
-    const cfg = JSON.parse(readFileSync(join(casaDir, "config.json"), "utf-8"));
+    const cfg = JSON.parse(readFileSync(join(botDir, "config.json"), "utf-8"));
     expect(cfg.auth).toBe("personal");
   });
 

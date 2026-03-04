@@ -5,11 +5,11 @@ vi.mock("@mecha/core", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@mecha/core")>();
   return {
     ...actual,
-    readCasaConfig: vi.fn().mockReturnValue({ tags: [], expose: [] }),
+    readBotConfig: vi.fn().mockReturnValue({ tags: [], expose: [] }),
   };
 });
 
-import { readCasaConfig } from "@mecha/core";
+import { readBotConfig } from "@mecha/core";
 
 describe("mecha_list_nodes", () => {
   it("returns message when no nodes registered", async () => {
@@ -70,19 +70,19 @@ describe("mecha_list_nodes", () => {
   });
 });
 
-describe("mecha_list_casas", () => {
+describe("mecha_list_bots", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (readCasaConfig as ReturnType<typeof vi.fn>).mockReturnValue({ tags: [], expose: [] });
+    (readBotConfig as ReturnType<typeof vi.fn>).mockReturnValue({ tags: [], expose: [] });
   });
 
-  it("returns message when no CASAs found", async () => {
+  it("returns message when no bots found", async () => {
     const ctx = makeCtx();
-    const result = await callTool(ctx, "mecha_list_casas", {});
-    expect(getText(result)).toContain("No CASAs found");
+    const result = await callTool(ctx, "mecha_list_bots", {});
+    expect(getText(result)).toContain("No bots found");
   });
 
-  it("lists local CASAs with tags", async () => {
+  it("lists local bots with tags", async () => {
     const pm = {
       get: vi.fn(),
       list: vi.fn().mockReturnValue([
@@ -91,13 +91,13 @@ describe("mecha_list_casas", () => {
       ]),
       getPortAndToken: vi.fn(),
     };
-    (readCasaConfig as ReturnType<typeof vi.fn>).mockImplementation((dir: string) => {
+    (readBotConfig as ReturnType<typeof vi.fn>).mockImplementation((dir: string) => {
       if (dir.includes("alice")) return { tags: ["research"] };
       return { tags: [] };
     });
     const ctx = makeCtx({ pm: pm as never });
 
-    const result = await callTool(ctx, "mecha_list_casas", {});
+    const result = await callTool(ctx, "mecha_list_bots", {});
     const text = getText(result);
     expect(text).toContain("alice");
     expect(text).toContain("running");
@@ -118,7 +118,7 @@ describe("mecha_list_casas", () => {
     };
     const ctx = makeCtx({ pm: pm as never });
 
-    const result = await callTool(ctx, "mecha_list_casas", { limit: 2 });
+    const result = await callTool(ctx, "mecha_list_bots", { limit: 2 });
     const text = getText(result);
     expect(text).toContain("a:");
     expect(text).toContain("b:");
@@ -127,7 +127,7 @@ describe("mecha_list_casas", () => {
 
   it("errors on unknown remote node", async () => {
     const ctx = makeCtx();
-    const result = await callTool(ctx, "mecha_list_casas", { node: "unknown" });
+    const result = await callTool(ctx, "mecha_list_bots", { node: "unknown" });
     expect(result.isError).toBe(true);
     expect(getText(result)).toContain("Node not found");
   });
@@ -140,17 +140,17 @@ describe("mecha_list_casas", () => {
       agentFetch: vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
-        json: () => Promise.resolve([{ name: "remote-casa", state: "running", port: 7700 }]),
+        json: () => Promise.resolve([{ name: "remote-bot", state: "running", port: 7700 }]),
       }) as never,
     });
 
-    const result = await callTool(ctx, "mecha_list_casas", { node: "peer1" });
+    const result = await callTool(ctx, "mecha_list_bots", { node: "peer1" });
     const text = getText(result);
-    expect(text).toContain("remote-casa");
+    expect(text).toContain("remote-bot");
     expect(text).toContain("peer1");
   });
 
-  it("lists remote CASAs without port", async () => {
+  it("lists remote bots without port", async () => {
     const ctx = makeCtx({
       getNodes: vi.fn().mockReturnValue([
         { name: "peer1", host: "192.168.1.10", port: 7660, apiKey: "k1", addedAt: "2026-01-01" },
@@ -158,17 +158,17 @@ describe("mecha_list_casas", () => {
       agentFetch: vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
-        json: () => Promise.resolve([{ name: "remote-casa", state: "stopped" }]),
+        json: () => Promise.resolve([{ name: "remote-bot", state: "stopped" }]),
       }) as never,
     });
 
-    const result = await callTool(ctx, "mecha_list_casas", { node: "peer1" });
+    const result = await callTool(ctx, "mecha_list_bots", { node: "peer1" });
     const text = getText(result);
-    expect(text).toContain("remote-casa: stopped");
+    expect(text).toContain("remote-bot: stopped");
     expect(text).not.toContain("port");
   });
 
-  it("limits remote CASAs", async () => {
+  it("limits remote bots", async () => {
     const ctx = makeCtx({
       getNodes: vi.fn().mockReturnValue([
         { name: "peer1", host: "192.168.1.10", port: 7660, apiKey: "k1", addedAt: "2026-01-01" },
@@ -184,7 +184,7 @@ describe("mecha_list_casas", () => {
       }) as never,
     });
 
-    const result = await callTool(ctx, "mecha_list_casas", { node: "peer1", limit: 2 });
+    const result = await callTool(ctx, "mecha_list_bots", { node: "peer1", limit: 2 });
     const text = getText(result);
     expect(text).toContain("a:");
     expect(text).toContain("b:");
@@ -198,7 +198,7 @@ describe("mecha_list_casas", () => {
       ]),
     });
 
-    const result = await callTool(ctx, "mecha_list_casas", { node: "peer2" });
+    const result = await callTool(ctx, "mecha_list_bots", { node: "peer2" });
     expect(result.isError).toBe(true);
     expect(getText(result)).toContain("Managed");
   });
@@ -211,14 +211,14 @@ describe("mecha_list_casas", () => {
       agentFetch: vi.fn().mockRejectedValue(new Error("network error")) as never,
     });
 
-    const result = await callTool(ctx, "mecha_list_casas", { node: "peer1" });
+    const result = await callTool(ctx, "mecha_list_bots", { node: "peer1" });
     expect(result.isError).toBe(true);
     expect(getText(result)).toContain("network error");
   });
 });
 
-describe("mecha_casa_status", () => {
-  it("returns local CASA status", async () => {
+describe("mecha_bot_status", () => {
+  it("returns local bot status", async () => {
     const pm = {
       get: vi.fn().mockReturnValue({
         name: "alice", state: "running", pid: 1234, port: 7700, workspacePath: "/home/user/alice",
@@ -228,7 +228,7 @@ describe("mecha_casa_status", () => {
     };
     const ctx = makeCtx({ pm: pm as never });
 
-    const result = await callTool(ctx, "mecha_casa_status", { target: "alice" });
+    const result = await callTool(ctx, "mecha_bot_status", { target: "alice" });
     const text = getText(result);
     expect(text).toContain("alice");
     expect(text).toContain("running");
@@ -236,13 +236,13 @@ describe("mecha_casa_status", () => {
     expect(text).toContain("7700");
   });
 
-  it("errors on unknown local CASA", async () => {
+  it("errors on unknown local bot", async () => {
     const ctx = makeCtx();
-    const result = await callTool(ctx, "mecha_casa_status", { target: "unknown" });
+    const result = await callTool(ctx, "mecha_bot_status", { target: "unknown" });
     expect(result.isError).toBe(true);
   });
 
-  it("queries remote CASA via name@node", async () => {
+  it("queries remote bot via name@node", async () => {
     const ctx = makeCtx({
       getNodes: vi.fn().mockReturnValue([
         { name: "peer1", host: "192.168.1.10", port: 7660, apiKey: "k1", addedAt: "2026-01-01" },
@@ -254,7 +254,7 @@ describe("mecha_casa_status", () => {
       }) as never,
     });
 
-    const result = await callTool(ctx, "mecha_casa_status", { target: "alice@peer1" });
+    const result = await callTool(ctx, "mecha_bot_status", { target: "alice@peer1" });
     const text = getText(result);
     expect(text).toContain("alice");
     expect(text).toContain("running");
@@ -262,7 +262,7 @@ describe("mecha_casa_status", () => {
 
   it("errors on unknown remote node", async () => {
     const ctx = makeCtx();
-    const result = await callTool(ctx, "mecha_casa_status", { target: "alice@unknown" });
+    const result = await callTool(ctx, "mecha_bot_status", { target: "alice@unknown" });
     expect(result.isError).toBe(true);
     expect(getText(result)).toContain("Node not found");
   });
@@ -274,7 +274,7 @@ describe("mecha_casa_status", () => {
       ]),
     });
 
-    const result = await callTool(ctx, "mecha_casa_status", { target: "alice@peer2" });
+    const result = await callTool(ctx, "mecha_bot_status", { target: "alice@peer2" });
     expect(result.isError).toBe(true);
     expect(getText(result)).toContain("Managed");
   });
@@ -283,13 +283,13 @@ describe("mecha_casa_status", () => {
 describe("mecha_discover", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (readCasaConfig as ReturnType<typeof vi.fn>).mockReturnValue({ tags: [], expose: [] });
+    (readBotConfig as ReturnType<typeof vi.fn>).mockReturnValue({ tags: [], expose: [] });
   });
 
-  it("returns message when no CASAs match", async () => {
+  it("returns message when no bots match", async () => {
     const ctx = makeCtx();
     const result = await callTool(ctx, "mecha_discover", {});
-    expect(getText(result)).toContain("No CASAs match");
+    expect(getText(result)).toContain("No bots match");
   });
 
   it("filters by tag", async () => {
@@ -301,7 +301,7 @@ describe("mecha_discover", () => {
       ]),
       getPortAndToken: vi.fn(),
     };
-    (readCasaConfig as ReturnType<typeof vi.fn>).mockImplementation((dir: string) => {
+    (readBotConfig as ReturnType<typeof vi.fn>).mockImplementation((dir: string) => {
       if (dir.includes("alice")) return { tags: ["research"], expose: [] };
       return { tags: ["coding"], expose: [] };
     });
@@ -322,7 +322,7 @@ describe("mecha_discover", () => {
       ]),
       getPortAndToken: vi.fn(),
     };
-    (readCasaConfig as ReturnType<typeof vi.fn>).mockImplementation((dir: string) => {
+    (readBotConfig as ReturnType<typeof vi.fn>).mockImplementation((dir: string) => {
       if (dir.includes("alice")) return { tags: [], expose: ["query"] };
       return { tags: [], expose: [] };
     });

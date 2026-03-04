@@ -15,7 +15,7 @@ export default defineConfig({
   server: {
     proxy: {
       "/auth": API_TARGET,
-      "/casas": API_TARGET,
+      "/bots": API_TARGET,
       "/acl": API_TARGET,
       "/audit": API_TARGET,
       "/discover": API_TARGET,

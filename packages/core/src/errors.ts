@@ -63,35 +63,35 @@ export const InvalidAddressError = defError<[string]>(
   (input) => `Invalid address: "${input}"`,
 );
 
-// --- CASA lifecycle errors ---
-export const CasaNotFoundError = defError<[string]>(
-  "CasaNotFoundError",
-  { code: "CASA_NOT_FOUND", statusCode: 404, exitCode: 1 },
-  (name) => `CASA "${name}" not found`,
+// --- Bot lifecycle errors ---
+export const BotNotFoundError = defError<[string]>(
+  "BotNotFoundError",
+  { code: "BOT_NOT_FOUND", statusCode: 404, exitCode: 1 },
+  (name) => `bot "${name}" not found`,
 );
 
-export const CasaAlreadyExistsError = defError<[string]>(
-  "CasaAlreadyExistsError",
-  { code: "CASA_ALREADY_EXISTS", statusCode: 409, exitCode: 1 },
-  (name) => `CASA "${name}" already exists`,
+export const BotAlreadyExistsError = defError<[string]>(
+  "BotAlreadyExistsError",
+  { code: "BOT_ALREADY_EXISTS", statusCode: 409, exitCode: 1 },
+  (name) => `bot "${name}" already exists`,
 );
 
-export const CasaNotRunningError = defError<[string]>(
-  "CasaNotRunningError",
-  { code: "CASA_NOT_RUNNING", statusCode: 409, exitCode: 1 },
-  (name) => `CASA "${name}" is not running`,
+export const BotNotRunningError = defError<[string]>(
+  "BotNotRunningError",
+  { code: "BOT_NOT_RUNNING", statusCode: 409, exitCode: 1 },
+  (name) => `bot "${name}" is not running`,
 );
 
-export const CasaAlreadyRunningError = defError<[string]>(
-  "CasaAlreadyRunningError",
-  { code: "CASA_ALREADY_RUNNING", statusCode: 409, exitCode: 1 },
-  (name) => `CASA "${name}" is already running`,
+export const BotAlreadyRunningError = defError<[string]>(
+  "BotAlreadyRunningError",
+  { code: "BOT_ALREADY_RUNNING", statusCode: 409, exitCode: 1 },
+  (name) => `bot "${name}" is already running`,
 );
 
-export const CasaBusyError = defError<[string, number]>(
-  "CasaBusyError",
-  { code: "CASA_BUSY", statusCode: 409, exitCode: 1 },
-  (name, count) => `CASA "${name}" has ${count} active session${count === 1 ? "" : "s"} — use --force to override`,
+export const BotBusyError = defError<[string, number]>(
+  "BotBusyError",
+  { code: "BOT_BUSY", statusCode: 409, exitCode: 1 },
+  (name, count) => `bot "${name}" has ${count} active session${count === 1 ? "" : "s"} — use --force to override`,
 );
 
 // --- Path errors ---
@@ -156,13 +156,13 @@ export const AuthTokenInvalidError = defError<[string]>(
 export const ProcessSpawnError = defError<[string]>(
   "ProcessSpawnError",
   { code: "PROCESS_SPAWN_ERROR", statusCode: 500, exitCode: 2 },
-  (reason) => `Failed to spawn CASA: ${reason}`,
+  (reason) => `Failed to spawn bot: ${reason}`,
 );
 
 export const ProcessHealthTimeoutError = defError<[string]>(
   "ProcessHealthTimeoutError",
   { code: "PROCESS_HEALTH_TIMEOUT", statusCode: 500, exitCode: 2 },
-  (name) => `CASA "${name}" failed health check. Check logs with: mecha logs ${name}`,
+  (name) => `bot "${name}" failed health check. Check logs with: mecha logs ${name}`,
 );
 
 // --- ACL errors (Phase 3) ---
@@ -211,7 +211,7 @@ export const ForwardingError = defError<[number]>(
   { code: "FORWARDING_ERROR", statusCode: 502, exitCode: 2 },
   (status) => {
     if (status === 401) return `Target returned HTTP 401 — check auth token`;
-    if (status === 502 || status === 503) return `Target returned HTTP ${status} — CASA may be starting up, retry shortly`;
+    if (status === 502 || status === 503) return `Target returned HTTP ${status} — bot may be starting up, retry shortly`;
     return `Target returned HTTP ${status}`;
   },
 );

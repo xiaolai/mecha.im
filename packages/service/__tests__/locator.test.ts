@@ -3,9 +3,9 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createLocator } from "../src/locator.js";
-import type { CasaName, NodeName, NodeEntry } from "@mecha/core";
+import type { BotName, NodeName, NodeEntry } from "@mecha/core";
 import type { ProcessInfo } from "@mecha/process";
-import { writeCasaConfig } from "../../core/__tests__/test-utils.js";
+import { writeBotConfig } from "../../core/__tests__/test-utils.js";
 import { makePm } from "./test-utils.js";
 
 describe("createLocator", () => {
@@ -13,25 +13,25 @@ describe("createLocator", () => {
   afterEach(() => { if (mechaDir) rmSync(mechaDir, { recursive: true, force: true }); });
 
   describe("local targets", () => {
-    it("finds running local CASA", () => {
+    it("finds running local bot", () => {
       mechaDir = mkdtempSync(join(tmpdir(), "locator-"));
-      writeCasaConfig(mechaDir, "alice", { port: 7700, token: "tok", workspace: "/ws" });
+      writeBotConfig(mechaDir, "alice", { port: 7700, token: "tok", workspace: "/ws" });
 
-      const pm = makePm([{ name: "alice" as CasaName, state: "running", port: 7700, workspacePath: "/ws" }]);
+      const pm = makePm([{ name: "alice" as BotName, state: "running", port: 7700, workspacePath: "/ws" }]);
       const locator = createLocator({ mechaDir, pm, getNodes: () => [] });
 
-      const result = locator.locate({ casa: "alice" as CasaName, node: "local" as NodeName });
+      const result = locator.locate({ bot: "alice" as BotName, node: "local" as NodeName });
       expect(result).toEqual({ location: "local", port: 7700, token: "tok" });
     });
 
-    it("returns not_found for stopped local CASA (stale port/token)", () => {
+    it("returns not_found for stopped local bot (stale port/token)", () => {
       mechaDir = mkdtempSync(join(tmpdir(), "locator-"));
-      writeCasaConfig(mechaDir, "alice", { port: 7700, token: "tok", workspace: "/ws" });
+      writeBotConfig(mechaDir, "alice", { port: 7700, token: "tok", workspace: "/ws" });
 
       const pm = makePm();
       const locator = createLocator({ mechaDir, pm, getNodes: () => [] });
 
-      const result = locator.locate({ casa: "alice" as CasaName, node: "local" as NodeName });
+      const result = locator.locate({ bot: "alice" as BotName, node: "local" as NodeName });
       expect(result).toEqual({ location: "not_found" });
     });
 
@@ -40,13 +40,13 @@ describe("createLocator", () => {
       const pm = makePm();
       const locator = createLocator({ mechaDir, pm, getNodes: () => [] });
 
-      const result = locator.locate({ casa: "ghost" as CasaName, node: "local" as NodeName });
+      const result = locator.locate({ bot: "ghost" as BotName, node: "local" as NodeName });
       expect(result).toEqual({ location: "not_found" });
     });
   });
 
   describe("remote targets", () => {
-    it("finds remote CASA via node registry", () => {
+    it("finds remote bot via node registry", () => {
       mechaDir = mkdtempSync(join(tmpdir(), "locator-"));
       const bobNode: NodeEntry = {
         name: "bob", host: "192.168.1.10", port: 7660,
@@ -55,7 +55,7 @@ describe("createLocator", () => {
       const pm = makePm();
       const locator = createLocator({ mechaDir, pm, getNodes: () => [bobNode] });
 
-      const result = locator.locate({ casa: "analyst" as CasaName, node: "bob" as NodeName });
+      const result = locator.locate({ bot: "analyst" as BotName, node: "bob" as NodeName });
       expect(result).toEqual({ location: "remote", node: bobNode });
     });
 
@@ -64,7 +64,7 @@ describe("createLocator", () => {
       const pm = makePm();
       const locator = createLocator({ mechaDir, pm, getNodes: () => [] });
 
-      const result = locator.locate({ casa: "analyst" as CasaName, node: "unknown" as NodeName });
+      const result = locator.locate({ bot: "analyst" as BotName, node: "unknown" as NodeName });
       expect(result).toEqual({ location: "not_found" });
     });
 
@@ -78,7 +78,7 @@ describe("createLocator", () => {
       const pm = makePm();
       const locator = createLocator({ mechaDir, pm, getNodes: () => [managedNode] });
 
-      const result = locator.locate({ casa: "coder" as CasaName, node: "charlie" as NodeName });
+      const result = locator.locate({ bot: "coder" as BotName, node: "charlie" as NodeName });
       expect(result).toEqual({ location: "remote-channel", node: managedNode });
     });
   });

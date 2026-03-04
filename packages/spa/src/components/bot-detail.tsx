@@ -1,0 +1,232 @@
+import { useMemo } from "react";
+import { Link } from "react-router-dom";
+import { ArrowLeftIcon, PlayIcon, RefreshCwIcon, SquareIcon, OctagonXIcon, TerminalSquareIcon } from "lucide-react";
+import { AuthSwitcher } from "@/components/auth-switcher";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { TooltipIconButton } from "@/components/ui/tooltip-icon-button";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { SessionList } from "@/components/session-list";
+import { BusyWarningBanner } from "@/components/busy-warning-banner";
+import { ConfirmActionBanner } from "@/components/confirm-action-banner";
+import { cn } from "@/lib/utils";
+import { useFetch } from "@/lib/use-fetch";
+import { useBotAction } from "@/lib/use-bot-action";
+import { stateStyles } from "@/lib/bot-styles";
+import { shortModelName, formatCost } from "@/lib/format";
+import type { BotInfo } from "./casa-card";
+
+interface BotDetailProps {
+  name: string;
+  node?: string;
+}
+
+export function BotDetail({ name, node }: BotDetailProps) {
+  const nodeQuery = node && node !== "local" ? `?node=${encodeURIComponent(node)}` : "";
+  const { data: bot, loading, error, refetch } = useFetch<BotInfo>(
+    `/bots/${encodeURIComponent(name)}/status${nodeQuery}`,
+    { interval: 5000, deps: [name, node] },
+  );
+
+  const { acting, actionError, busyWarning, pendingConfirm, handleAction, confirmAction, dismissConfirm, confirmForce, dismissBusy } = useBotAction(name, refetch, node);
+
+  if (loading && !bot) {
+    return (
+      <div className="flex flex-col gap-4">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-64 rounded-lg" />
+      </div>
+    );
+  }
+
+  if (error || !bot) {
+    return (
+      <div className="flex flex-col gap-4">
+        <Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+          <ArrowLeftIcon className="size-4" /> Back to bots
+        </Link>
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+          {error ?? "bot not found"}
+        </div>
+      </div>
+    );
+  }
+
+  const style = stateStyles[bot.state] ?? stateStyles.error;
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Header */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <Link to="/" className="min-h-11 min-w-11 sm:min-h-0 sm:min-w-0 inline-flex items-center justify-center text-muted-foreground hover:text-foreground" aria-label="Back to bots">
+            <ArrowLeftIcon className="size-4" />
+          </Link>
+          <span className={cn("size-2.5 rounded-full", style.dot)} />
+          <h1 className="text-lg font-semibold text-foreground">{bot.name}</h1>
+          <Badge variant={style.badge}>{bot.state}</Badge>
+          {node && node !== "local" && (
+            <span className="text-xs text-muted-foreground font-mono">@ {node}</span>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          {bot.state === "stopped" && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="min-h-11 sm:min-h-0 text-success border-success"
+              disabled={acting}
+              onClick={() => handleAction("start")}
+            >
+              <PlayIcon className="size-4" /> Start
+            </Button>
+          )}
+          {bot.state === "running" && (
+            <>
+              <Button variant="outline" size="sm" className="min-h-11 sm:min-h-0" asChild>
+                <Link to={`/bot/${encodeURIComponent(name)}/terminal${nodeQuery}`}>
+                  <TerminalSquareIcon className="size-4" /> New Session with Terminal
+                </Link>
+              </Button>
+              <Button variant="outline" size="sm" className="min-h-11 sm:min-h-0" disabled={acting} onClick={() => handleAction("restart")}>
+                <RefreshCwIcon className="size-4" /> Restart
+              </Button>
+              <Button variant="outline" size="sm" className="min-h-11 sm:min-h-0" disabled={acting} onClick={() => handleAction("stop")}>
+                <SquareIcon className="size-4" /> Stop
+              </Button>
+              <TooltipIconButton
+                tooltip="Force kill"
+                variant="ghost"
+                size="icon"
+                className="text-destructive hover:text-destructive sm:size-8"
+                disabled={acting}
+                onClick={() => handleAction("kill")}
+              >
+                <OctagonXIcon className="size-4" />
+              </TooltipIconButton>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Action error */}
+      {actionError && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+          {actionError}
+        </div>
+      )}
+
+      {/* Confirm action */}
+      {pendingConfirm && (
+        <ConfirmActionBanner
+          action={pendingConfirm}
+          name={name}
+          onConfirm={confirmAction}
+          onCancel={dismissConfirm}
+          acting={acting}
+        />
+      )}
+
+      {/* Busy warning */}
+      {busyWarning && (
+        <BusyWarningBanner
+          warning={busyWarning}
+          onConfirm={confirmForce}
+          onCancel={dismissBusy}
+          acting={acting}
+        />
+      )}
+
+      {/* Overview cards */}
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div className="rounded-lg border border-border bg-card p-4">
+          <div className="text-xs font-medium text-muted-foreground mb-1">PORT</div>
+          <div className="text-sm font-semibold font-mono text-card-foreground">{bot.port ?? "—"}</div>
+        </div>
+        <div className="rounded-lg border border-border bg-card p-4">
+          <div className="text-xs font-medium text-muted-foreground mb-1">WORKSPACE</div>
+          <div className="truncate text-sm font-mono text-card-foreground" title={bot.workspacePath}>
+            {bot.workspacePath ?? "—"}
+          </div>
+        </div>
+        <div className="rounded-lg border border-border bg-card p-4">
+          <div className="text-xs font-medium text-muted-foreground mb-1">STARTED</div>
+          <div className="text-sm text-card-foreground">
+            {(() => {
+              if (!bot.startedAt) return "—";
+              const d = new Date(bot.startedAt);
+              return Number.isFinite(d.getTime()) ? d.toLocaleString() : "—";
+            })()}
+          </div>
+        </div>
+        <div className="rounded-lg border border-border bg-card p-4">
+          <div className="text-xs font-medium text-muted-foreground mb-1">MODEL</div>
+          <div className="text-sm font-mono text-card-foreground">
+            {bot.model ? shortModelName(bot.model) : "—"}
+          </div>
+        </div>
+        <AuthSwitcher
+          botName={name}
+          currentAuth={bot.auth}
+          currentAuthType={bot.authType}
+          botState={bot.state}
+          node={node}
+          onSwitched={refetch}
+        />
+        <div className="rounded-lg border border-border bg-card p-4">
+          <div className="text-xs font-medium text-muted-foreground mb-1">COST TODAY</div>
+          <div className="text-sm font-semibold text-card-foreground">
+            {bot.costToday != null ? formatCost(bot.costToday) : "—"}
+          </div>
+        </div>
+      </div>
+
+      {/* Tags */}
+      {bot.tags && bot.tags.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {bot.tags.map((tag) => (
+            <Badge key={tag} variant="outline">{tag}</Badge>
+          ))}
+        </div>
+      )}
+
+      {/* Tabs */}
+      <Tabs defaultValue="sessions">
+        <TabsList>
+          <TabsTrigger value="sessions" className="min-h-11 sm:min-h-0">Sessions</TabsTrigger>
+          <TabsTrigger value="config" className="min-h-11 sm:min-h-0">Config</TabsTrigger>
+        </TabsList>
+        <TabsContent value="sessions">
+          <SessionList name={name} node={node} botState={bot.state} />
+        </TabsContent>
+        <TabsContent value="config">
+          <BotConfigView bot={bot} />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+const SAFE_CONFIG_KEYS: (keyof BotInfo)[] = [
+  "name", "state", "port", "workspacePath", "startedAt", "stoppedAt",
+  "exitCode", "tags", "node", "model", "sandboxMode", "permissionMode",
+  "auth", "authType", "costToday",
+];
+
+function BotConfigView({ bot }: { bot: BotInfo }) {
+  const json = useMemo(() => {
+    const safe: Partial<BotInfo> = {};
+    for (const key of SAFE_CONFIG_KEYS) {
+      if (key in bot) (safe as Record<string, unknown>)[key] = bot[key];
+    }
+    return JSON.stringify(safe, null, 2);
+  }, [bot]);
+  return (
+    <div className="rounded-lg border border-border bg-card p-4">
+      <pre className="text-xs font-mono text-card-foreground whitespace-pre-wrap">
+        {json}
+      </pre>
+    </div>
+  );
+}

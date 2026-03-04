@@ -6,14 +6,14 @@ import { createServer, type Server } from "node:http";
 import Fastify, { type FastifyInstance } from "fastify";
 import { createSessionManager, registerSessionRoutes } from "@mecha/runtime";
 import type { ProcessManager } from "@mecha/process";
-import type { CasaName } from "@mecha/core";
+import type { BotName } from "@mecha/core";
 import {
-  casaSessionList,
-  casaSessionGet,
-  casaSessionDelete,
+  botSessionList,
+  botSessionGet,
+  botSessionDelete,
 } from "../src/sessions.js";
 
-const CASA = "test" as CasaName;
+const BOT = "test" as BotName;
 const TOKEN = "test-token";
 
 describe("session service (read-only)", () => {
@@ -37,7 +37,7 @@ describe("session service (read-only)", () => {
 
     pm = {
       spawn: vi.fn(),
-      get: vi.fn().mockReturnValue({ name: CASA, state: "running" }),
+      get: vi.fn().mockReturnValue({ name: BOT, state: "running" }),
       list: vi.fn().mockReturnValue([]),
       stop: vi.fn(),
       kill: vi.fn(),
@@ -53,7 +53,7 @@ describe("session service (read-only)", () => {
   });
 
   it("lists sessions (empty)", async () => {
-    const result = await casaSessionList(pm, CASA);
+    const result = await botSessionList(pm, BOT);
     expect(result).toEqual([]);
   });
 
@@ -62,7 +62,7 @@ describe("session service (read-only)", () => {
       join(projectsDir, "abc.meta.json"),
       JSON.stringify({ id: "abc", title: "Research", starred: false, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" }),
     );
-    const result = await casaSessionList(pm, CASA);
+    const result = await botSessionList(pm, BOT);
     expect(result).toHaveLength(1);
     expect((result[0] as { title: string }).title).toBe("Research");
   });
@@ -76,13 +76,13 @@ describe("session service (read-only)", () => {
       join(projectsDir, "sess-1.jsonl"),
       '{"type":"user","content":"Hello"}\n',
     );
-    const result = await casaSessionGet(pm, CASA, "sess-1");
+    const result = await botSessionGet(pm, BOT, "sess-1");
     expect((result as { title: string }).title).toBe("Test");
     expect((result as { events: unknown[] }).events).toHaveLength(1);
   });
 
   it("returns undefined for nonexistent session", async () => {
-    const result = await casaSessionGet(pm, CASA, "nonexistent");
+    const result = await botSessionGet(pm, BOT, "nonexistent");
     expect(result).toBeUndefined();
   });
 
@@ -93,16 +93,16 @@ describe("session service (read-only)", () => {
     );
     writeFileSync(join(projectsDir, "to-delete.jsonl"), '{"type":"user","content":"bye"}\n');
 
-    const result = await casaSessionDelete(pm, CASA, "to-delete");
+    const result = await botSessionDelete(pm, BOT, "to-delete");
     expect(result).toBe(true);
 
     // Verify session is gone
-    const sessions = await casaSessionList(pm, CASA);
+    const sessions = await botSessionList(pm, BOT);
     expect(sessions).toEqual([]);
   });
 
   it("returns false for nonexistent session delete", async () => {
-    const result = await casaSessionDelete(pm, CASA, "nonexistent");
+    const result = await botSessionDelete(pm, BOT, "nonexistent");
     expect(result).toBe(false);
   });
 });
@@ -123,7 +123,7 @@ describe("session service error paths", () => {
 
     pm = {
       spawn: vi.fn(),
-      get: vi.fn().mockReturnValue({ name: CASA, state: "running" }),
+      get: vi.fn().mockReturnValue({ name: BOT, state: "running" }),
       list: vi.fn().mockReturnValue([]),
       stop: vi.fn(),
       kill: vi.fn(),
@@ -138,14 +138,14 @@ describe("session service error paths", () => {
   });
 
   it("throws on unexpected list status", async () => {
-    await expect(casaSessionList(pm, CASA)).rejects.toThrow("Failed to list sessions: 500");
+    await expect(botSessionList(pm, BOT)).rejects.toThrow("Failed to list sessions: 500");
   });
 
   it("throws on unexpected get status", async () => {
-    await expect(casaSessionGet(pm, CASA, "x")).rejects.toThrow("Failed to get sessions: 500");
+    await expect(botSessionGet(pm, BOT, "x")).rejects.toThrow("Failed to get sessions: 500");
   });
 
   it("throws on unexpected delete status", async () => {
-    await expect(casaSessionDelete(pm, CASA, "x")).rejects.toThrow("Failed to delete sessions: 500");
+    await expect(botSessionDelete(pm, BOT, "x")).rejects.toThrow("Failed to delete sessions: 500");
   });
 });

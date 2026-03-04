@@ -1,13 +1,13 @@
 /** Platform identifier for sandbox implementations */
 export type SandboxPlatform = "macos" | "linux" | "fallback";
 
-/** Filesystem access paths for a sandboxed CASA */
+/** Filesystem access paths for a sandboxed bot */
 export interface SandboxProfile {
-  /** Paths the CASA can read (files or directories) */
+  /** Paths the bot can read (files or directories) */
   readPaths: string[];
-  /** Paths the CASA can write to */
+  /** Paths the bot can write to */
   writePaths: string[];
-  /** Executables the CASA is allowed to run (enforced on macOS; advisory-only on Linux/fallback) */
+  /** Executables the bot is allowed to run (enforced on macOS; advisory-only on Linux/fallback) */
   allowedProcesses: string[];
   /** Whether network access is permitted */
   allowNetwork: boolean;
@@ -21,7 +21,7 @@ export interface SandboxWrapResult {
   args: string[];
 }
 
-/** Persisted sandbox profile written to casaDir/sandbox-profile.json */
+/** Persisted sandbox profile written to botDir/sandbox-profile.json */
 export interface PersistedSandboxProfile {
   platform: SandboxPlatform;
   profile: SandboxProfile;
@@ -35,7 +35,7 @@ export interface Sandbox {
   /** Whether kernel sandbox is available on this platform */
   isAvailable(): boolean;
   /** Wrap a command with sandbox enforcement */
-  wrap(profile: SandboxProfile, runtimeBin: string, runtimeArgs: string[], casaDir: string): Promise<SandboxWrapResult>;
+  wrap(profile: SandboxProfile, runtimeBin: string, runtimeArgs: string[], botDir: string): Promise<SandboxWrapResult>;
   /** Human-readable description of sandbox state */
   describe(): string;
 }

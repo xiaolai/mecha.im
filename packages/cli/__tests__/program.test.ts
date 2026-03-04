@@ -73,7 +73,7 @@ describe("createProgram", () => {
     expect(commandNames).toContain("restart");
     expect(commandNames).toContain("init");
     expect(commandNames).toContain("doctor");
-    expect(commandNames).toContain("casa");
+    expect(commandNames).toContain("bot");
     expect(commandNames).toContain("tools");
     expect(commandNames).toContain("auth");
     expect(commandNames).toContain("acl");

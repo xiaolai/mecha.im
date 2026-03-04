@@ -48,7 +48,7 @@ describe("ACL scenarios", () => {
     });
   });
 
-  it("isolated CASA: no grants, no expose, no communication", () => {
+  it("isolated bot: no grants, no expose, no communication", () => {
     exposeMap["isolated"] = [];
     exposeMap["coder"] = ["query"];
     const acl = makeEngine();

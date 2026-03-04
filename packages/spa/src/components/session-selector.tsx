@@ -7,21 +7,21 @@ interface Session {
 }
 
 interface SessionSelectorProps {
-  casaName: string;
+  botName: string;
   node?: string;
   currentSessionId?: string;
-  casaState?: string;
+  botState?: string;
   onSelect: (sessionId: string | undefined) => void;
 }
 
 const POLL_INTERVAL_MS = 10_000;
 
-export function SessionSelector({ casaName, node, currentSessionId, casaState, onSelect }: SessionSelectorProps) {
-  const isRunning = casaState === "running" || casaState === undefined;
+export function SessionSelector({ botName, node, currentSessionId, botState, onSelect }: SessionSelectorProps) {
+  const isRunning = botState === "running" || botState === undefined;
   const nodeQuery = node && node !== "local" ? `?node=${encodeURIComponent(node)}` : "";
   const { data: sessions, loading, error } = useFetch<Session[]>(
-    isRunning ? `/casas/${encodeURIComponent(casaName)}/sessions${nodeQuery}` : null,
-    { deps: [casaName, node, isRunning], interval: isRunning ? POLL_INTERVAL_MS : undefined },
+    isRunning ? `/bots/${encodeURIComponent(botName)}/sessions${nodeQuery}` : null,
+    { deps: [botName, node, isRunning], interval: isRunning ? POLL_INTERVAL_MS : undefined },
   );
 
   return (

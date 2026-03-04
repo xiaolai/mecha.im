@@ -17,8 +17,8 @@ const log = createLogger("mecha:process");
 /** Current state schema version — bump when shape changes */
 export const STATE_VERSION = 1;
 
-/** Persisted CASA state — written to ~/.mecha/<name>/state.json */
-export interface CasaState {
+/** Persisted bot state — written to ~/.mecha/<name>/state.json */
+export interface BotState {
   /** Schema version for forward-compatible reads */
   stateVersion?: number;
   name: string;
@@ -33,7 +33,7 @@ export interface CasaState {
   sandboxMode?: SandboxMode;
 }
 
-const CasaStateSchema: z.ZodType<CasaState> = z.object({
+const BotStateSchema: z.ZodType<BotState> = z.object({
   stateVersion: z.number().optional(),
   name: z.string(),
   state: z.enum(["running", "stopped", "error"]),
@@ -47,10 +47,10 @@ const CasaStateSchema: z.ZodType<CasaState> = z.object({
   sandboxMode: z.enum(["auto", "off", "require"]).optional(),
 });
 
-/** Read state.json from a CASA directory. Returns undefined if missing. */
-export function readState(casaDir: string): CasaState | undefined {
-  const statePath = join(casaDir, "state.json");
-  const result = safeReadJson(statePath, "CASA state", CasaStateSchema);
+/** Read state.json from a bot directory. Returns undefined if missing. */
+export function readState(botDir: string): BotState | undefined {
+  const statePath = join(botDir, "state.json");
+  const result = safeReadJson(statePath, "bot state", BotStateSchema);
   if (!result.ok) {
     if (result.reason !== "missing") {
       log.warn(result.detail);
@@ -61,17 +61,17 @@ export function readState(casaDir: string): CasaState | undefined {
 }
 
 /** Write state.json atomically (write to temp, rename). Stamps stateVersion. */
-export function writeState(casaDir: string, state: CasaState): void {
-  mkdirSync(casaDir, { recursive: true });
-  const statePath = join(casaDir, "state.json");
+export function writeState(botDir: string, state: BotState): void {
+  mkdirSync(botDir, { recursive: true });
+  const statePath = join(botDir, "state.json");
   const tmp = statePath + `.${process.pid}.${randomBytes(4).toString("hex")}.tmp`;
   const versioned = { ...state, stateVersion: STATE_VERSION };
   writeFileSync(tmp, JSON.stringify(versioned, null, 2) + "\n", { encoding: "utf-8", mode: 0o600 });
   renameSync(tmp, statePath);
 }
 
-/** List all CASA directories under mechaDir/ (each with a state.json) */
-export function listCasaDirs(mechaDir: string): string[] {
+/** List all bot directories under mechaDir/ (each with a state.json) */
+export function listBotDirs(mechaDir: string): string[] {
   if (!existsSync(mechaDir)) return [];
   return readdirSync(mechaDir, { withFileTypes: true })
     .filter((d) => d.isDirectory())

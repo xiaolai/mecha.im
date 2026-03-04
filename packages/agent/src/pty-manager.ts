@@ -4,9 +4,9 @@ import { join } from "node:path";
 import { homedir } from "node:os";
 import type { WebSocket } from "@fastify/websocket";
 import type { ProcessManager, MechaPty, PtySpawnFn } from "@mecha/process";
-import { buildCasaEnv, encodeProjectPath } from "@mecha/process";
-import { readCasaConfig } from "@mecha/core";
-import type { CasaName } from "@mecha/core";
+import { buildBotEnv, encodeProjectPath } from "@mecha/process";
+import { readBotConfig } from "@mecha/core";
+import type { BotName } from "@mecha/core";
 
 /** Resolve absolute path to `claude` binary, checking common install locations. */
 function resolveClaudeBin(): string {
@@ -32,7 +32,7 @@ const SCROLLBACK_LIMIT = 200;
 
 export interface PtySession {
   id: string;
-  casaName: string;
+  botName: string;
   pty: MechaPty;
   clients: Set<WebSocket>;
   createdAt: Date;
@@ -41,13 +41,13 @@ export interface PtySession {
 }
 
 export interface PtyManager {
-  spawn(casaName: string, sessionId: string | undefined, cols: number, rows: number): PtySession;
+  spawn(botName: string, sessionId: string | undefined, cols: number, rows: number): PtySession;
   attach(sessionKey: string, ws: WebSocket): PtySession | null;
   detach(sessionKey: string, ws: WebSocket): void;
   resize(sessionKey: string, cols: number, rows: number): void;
   getSession(sessionKey: string): PtySession | null;
-  /** Find all PTY sessions for a given CASA, sorted by most recently active first. */
-  findByCasa(casaName: string): PtySession[];
+  /** Find all PTY sessions for a given bot, sorted by most recently active first. */
+  findByBot(botName: string): PtySession[];
   shutdown(): void;
 }
 
@@ -98,49 +98,49 @@ export function createPtyManager(opts: CreatePtyManagerOpts): PtyManager {
   }
 
   return {
-    spawn(casaName, sessionId, cols, rows) {
+    spawn(botName, sessionId, cols, rows) {
       if (sessions.size >= maxSessions) {
         throw new Error(`Max PTY sessions (${maxSessions}) reached`);
       }
 
-      const info = processManager.get(casaName as CasaName);
+      const info = processManager.get(botName as BotName);
       if (!info || info.state !== "running") {
-        throw new Error(`CASA "${casaName}" is not running`);
+        throw new Error(`bot "${botName}" is not running`);
       }
 
-      const casaDir = join(mechaDir, casaName);
-      const config = readCasaConfig(casaDir);
+      const botDir = join(mechaDir, botName);
+      const config = readBotConfig(botDir);
       if (!config) {
-        throw new Error(`Cannot read config for CASA "${casaName}"`);
+        throw new Error(`Cannot read config for bot "${botName}"`);
       }
 
       // new-* IDs are mecha-internal (not real Claude Code session IDs).
       // Treat them as new sessions — don't pass --resume with a fake ID.
       const isNewSession = !sessionId || sessionId.startsWith("new-");
       const key = isNewSession
-        ? `${casaName}:new-${randomBytes(8).toString("hex")}`
-        : `${casaName}:${sessionId}`;
+        ? `${botName}:new-${randomBytes(8).toString("hex")}`
+        : `${botName}:${sessionId}`;
       const args: string[] = isNewSession ? [] : ["--resume", sessionId];
 
-      // CASA filesystem paths — mirrors prepareCasaFilesystem() layout
-      const homeDir = join(casaDir, "home");
-      const tmpDir = join(casaDir, "tmp");
-      const logsDir = join(casaDir, "logs");
+      // bot filesystem paths — mirrors prepareBotFilesystem() layout
+      const homeDir = join(botDir, "home");
+      const tmpDir = join(botDir, "tmp");
+      const logsDir = join(botDir, "logs");
       const projectsDir = join(homeDir, ".claude", "projects", encodeProjectPath(config.workspace));
 
       // Build sandboxed env via shared function (single source of truth with spawn)
-      const casaEnv = buildCasaEnv({
-        casaDir, homeDir, tmpDir, logsDir, projectsDir,
+      const botEnv = buildBotEnv({
+        botDir, homeDir, tmpDir, logsDir, projectsDir,
         workspacePath: config.workspace, port: config.port,
-        token: config.token, name: casaName, mechaDir,
+        token: config.token, name: botName, mechaDir,
         auth: config.auth,
       });
       // PTY needs TERM for proper terminal rendering
-      casaEnv.TERM = "xterm-256color";
+      botEnv.TERM = "xterm-256color";
       // Ensure ~/.local/bin is on PATH (common claude install location)
       const localBin = join(homedir(), ".local", "bin");
-      if (casaEnv.PATH && !casaEnv.PATH.split(":").includes(localBin)) {
-        casaEnv.PATH = `${localBin}:${casaEnv.PATH}`;
+      if (botEnv.PATH && !botEnv.PATH.split(":").includes(localBin)) {
+        botEnv.PATH = `${localBin}:${botEnv.PATH}`;
       }
 
       const claudeBin = resolveClaudeBin();
@@ -149,12 +149,12 @@ export function createPtyManager(opts: CreatePtyManagerOpts): PtyManager {
         cols,
         rows,
         cwd: config.workspace,
-        env: casaEnv,
+        env: botEnv,
       });
 
       const scrollback: string[] = [];
       const session: PtySession = {
-        id: key, casaName, pty, clients: new Set(),
+        id: key, botName, pty, clients: new Set(),
         createdAt: new Date(), lastActivity: new Date(),
         scrollback,
       };
@@ -205,10 +205,10 @@ export function createPtyManager(opts: CreatePtyManagerOpts): PtyManager {
       return sessions.get(sessionKey) ?? null;
     },
 
-    findByCasa(name) {
+    findByBot(name) {
       const matches: PtySession[] = [];
       for (const s of sessions.values()) {
-        if (s.casaName === name) matches.push(s);
+        if (s.botName === name) matches.push(s);
       }
       // Most recently active first
       matches.sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime());

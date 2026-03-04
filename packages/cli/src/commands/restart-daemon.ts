@@ -5,19 +5,19 @@ import { withErrorHandler } from "../error-handler.js";
 export function registerRestartDaemonCommand(program: Command, deps: CommandDeps): void {
   program
     .command("restart")
-    .description("Stop all CASAs and meter daemon")
-    .option("--force", "Force kill CASAs instead of graceful stop", false)
-    .option("--restart-casas", "Also restart CASAs that were running before stop", false)
-    .action(async (opts: { force: boolean; restartCasas: boolean }) => withErrorHandler(deps, async () => {
-      // Collect running CASAs before stopping (for --restart-casas)
-      const wasRunning = opts.restartCasas
+    .description("Stop all bots and meter daemon")
+    .option("--force", "Force kill bots instead of graceful stop", false)
+    .option("--restart-bots", "Also restart bots that were running before stop", false)
+    .action(async (opts: { force: boolean; restartBots: boolean }) => withErrorHandler(deps, async () => {
+      // Collect running bots before stopping (for --restart-bots)
+      const wasRunning = opts.restartBots
         ? deps.processManager.list().filter((p) => p.state === "running").map((p) => p.name)
         : [];
 
-      // Stop all running CASAs
+      // Stop all running bots
       const running = deps.processManager.list().filter((p) => p.state === "running");
       if (running.length > 0) {
-        deps.formatter.info(`Stopping ${running.length} running CASA(s)...`);
+        deps.formatter.info(`Stopping ${running.length} running bot(s)...`);
         const results = await Promise.allSettled(
           running.map((p) =>
             opts.force
@@ -42,14 +42,14 @@ export function registerRestartDaemonCommand(program: Command, deps: CommandDeps
 
       deps.formatter.success("Daemon stopped");
 
-      // Restart CASAs that were running if requested
+      // Restart bots that were running if requested
       if (wasRunning.length > 0) {
-        const { readCasaConfig } = await import("@mecha/core");
+        const { readBotConfig } = await import("@mecha/core");
         const { join } = await import("node:path");
-        deps.formatter.info(`Restarting ${wasRunning.length} CASA(s)...`);
+        deps.formatter.info(`Restarting ${wasRunning.length} bot(s)...`);
         for (const name of wasRunning) {
           try {
-            const config = readCasaConfig(join(deps.mechaDir, name));
+            const config = readBotConfig(join(deps.mechaDir, name));
             /* v8 ignore start -- config-missing fallback */
             if (!config) {
               deps.formatter.warn(`Skipping ${name}: no config found`);

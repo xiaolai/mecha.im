@@ -4,8 +4,8 @@ export type { KeyPair } from "./keys.js";
 export { createNodeIdentity, loadNodeIdentity, loadNodePrivateKey } from "./node-identity.js";
 export type { NodeIdentity } from "./node-identity.js";
 
-export { createCasaIdentity, loadCasaIdentity, loadCasaIdentityFromDir } from "./casa-identity.js";
-export type { CasaIdentity } from "./casa-identity.js";
+export { createBotIdentity, loadBotIdentity, loadBotIdentityFromDir } from "./bot-identity.js";
+export type { BotIdentity } from "./bot-identity.js";
 
 export { signMessage, verifySignature } from "./signing.js";
 

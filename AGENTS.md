@@ -1,6 +1,6 @@
 # Project Instructions
 
-> mecha.im is a local-first multi-agent runtime where each Mecha is a sandboxed CASA (Claude Agent SDK App) process.
+> mecha.im is a local-first multi-agent runtime where each Mecha is a sandboxed bot (Claude Agent SDK App) process.
 
 ## Guidelines
 
@@ -77,12 +77,12 @@ No CI/CD pipeline is configured yet. Add GitHub Actions when merging to a shared
 
 **Use `req.socket.on("close")` instead** — the socket only closes when the TCP connection drops.
 
-### CASA Filesystem: Mirrors Real Claude Code
+### bot Filesystem: Mirrors Real Claude Code
 
-Each CASA's directory structure mirrors the real `~/.claude/` layout:
+Each bot's directory structure mirrors the real `~/.claude/` layout:
 
 ```
-alice/                              ← CASA root (casaDir)
+alice/                              ← bot root (botDir)
 ├── home/
 │   └── .claude/
 │       ├── settings.json           ← hooks config

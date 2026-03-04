@@ -1,14 +1,14 @@
 import { existsSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import type { CasaName } from "@mecha/core";
-import { loadNodeIdentity, loadNodePrivateKey, createCasaIdentity, CASA_CONFIG_VERSION, resolveAuth, MeterProxyRequiredError, createLogger } from "@mecha/core";
+import type { BotName } from "@mecha/core";
+import { loadNodeIdentity, loadNodePrivateKey, createBotIdentity, BOT_CONFIG_VERSION, resolveAuth, MeterProxyRequiredError, createLogger } from "@mecha/core";
 import type { ResolvedAuth } from "@mecha/core";
 import { readProxyInfo, isPidAlive, meterDir } from "@mecha/meter";
 
 const log = createLogger("mecha:process");
 
-export interface CasaFilesystemOpts {
-  casaDir: string;
+export interface BotFilesystemOpts {
+  botDir: string;
   workspacePath: string;
   port: number;
   token: string;
@@ -23,7 +23,7 @@ export interface CasaFilesystemOpts {
   meterOff?: boolean;
 }
 
-export interface CasaFilesystemResult {
+export interface BotFilesystemResult {
   homeDir: string;
   tmpDir: string;
   logsDir: string;
@@ -41,9 +41,9 @@ export function encodeProjectPath(workspacePath: string): string {
   return workspacePath.replace(/[/\\:.]/g, "-");
 }
 
-/** Options for building CASA environment variables. */
-export interface BuildCasaEnvOpts {
-  casaDir: string;
+/** Options for building bot environment variables. */
+export interface BuildBotEnvOpts {
+  botDir: string;
   homeDir: string;
   tmpDir: string;
   logsDir: string;
@@ -59,16 +59,16 @@ export interface BuildCasaEnvOpts {
 }
 
 /**
- * Build the sandboxed environment for a CASA process or PTY session.
- * Single source of truth for CASA env construction — used by both
- * prepareCasaFilesystem (spawn) and the PTY manager (terminal attach).
+ * Build the sandboxed environment for a bot process or PTY session.
+ * Single source of truth for bot env construction — used by both
+ * prepareBotFilesystem (spawn) and the PTY manager (terminal attach).
  */
-export function buildCasaEnv(opts: BuildCasaEnvOpts): Record<string, string> {
-  const { casaDir, homeDir, tmpDir, logsDir, projectsDir, workspacePath, port, token, name, userEnv } = opts;
+export function buildBotEnv(opts: BuildBotEnvOpts): Record<string, string> {
+  const { botDir, homeDir, tmpDir, logsDir, projectsDir, workspacePath, port, token, name, userEnv } = opts;
 
   const resolvedUserEnv = userEnv ?? {};
   const reservedKeys = new Set([
-    "MECHA_CASA_NAME", "MECHA_PORT", "MECHA_WORKSPACE", "MECHA_PROJECTS_DIR",
+    "MECHA_BOT_NAME", "MECHA_PORT", "MECHA_WORKSPACE", "MECHA_PROJECTS_DIR",
     "MECHA_AUTH_TOKEN", "MECHA_LOG_DIR", "MECHA_SANDBOX_ROOT", "MECHA_DIR", "HOME", "TMPDIR",
     // Block PATH (we construct our own), shell startup vars, and dangerous Node.js/linker env vars
     "PATH", "BASH_ENV", "ENV",
@@ -106,13 +106,13 @@ export function buildCasaEnv(opts: BuildCasaEnvOpts): Record<string, string> {
     ...safeUserEnv,
     HOME: homeDir,
     TMPDIR: tmpDir,
-    MECHA_CASA_NAME: name,
+    MECHA_BOT_NAME: name,
     MECHA_PORT: String(port),
     MECHA_WORKSPACE: workspacePath,
     MECHA_PROJECTS_DIR: projectsDir,
     MECHA_AUTH_TOKEN: token,
     MECHA_LOG_DIR: logsDir,
-    MECHA_SANDBOX_ROOT: casaDir,
+    MECHA_SANDBOX_ROOT: botDir,
     MECHA_DIR: opts.mechaDir,
   };
 
@@ -144,7 +144,7 @@ export function buildCasaEnv(opts: BuildCasaEnvOpts): Record<string, string> {
     const proxyInfo = readProxyInfo(md);
     if (proxyInfo) {
       if (isPidAlive(proxyInfo.pid)) {
-        childEnv["ANTHROPIC_BASE_URL"] = `http://127.0.0.1:${proxyInfo.port}/casa/${name}`;
+        childEnv["ANTHROPIC_BASE_URL"] = `http://127.0.0.1:${proxyInfo.port}/bot/${name}`;
       } else if (proxyInfo.required) {
         throw new MeterProxyRequiredError();
       } else {
@@ -187,13 +187,13 @@ function seedClaudeCredentials(
     resolved = resolveAuth(mechaDir, auth);
   } catch {
     // Auth resolution failed — no credentials to seed.
-    // buildCasaEnv will handle the fallback (inherit host env or throw).
+    // buildBotEnv will handle the fallback (inherit host env or throw).
     return;
   }
   if (!resolved) return;
 
   // Seed credentials based on auth type.
-  // Always overwrite — ensures PATCH /casas/:name/config with new auth profile
+  // Always overwrite — ensures PATCH /bots/:name/config with new auth profile
   // takes effect on next spawn instead of using stale credentials.
   const credPath = join(claudeDir, ".credentials.json");
   if (resolved.type === "oauth") {
@@ -214,18 +214,18 @@ function seedClaudeCredentials(
   }
 }
 
-export function prepareCasaFilesystem(opts: CasaFilesystemOpts): CasaFilesystemResult {
-  const { casaDir, workspacePath, port, token, name, model, permissionMode, auth, tags, userEnv } = opts;
+export function prepareBotFilesystem(opts: BotFilesystemOpts): BotFilesystemResult {
+  const { botDir, workspacePath, port, token, name, model, permissionMode, auth, tags, userEnv } = opts;
 
   // Create directory structure mirroring real Claude Code
-  const homeDir = join(casaDir, "home");
+  const homeDir = join(botDir, "home");
   const claudeDir = join(homeDir, ".claude");
   const hooksDir = join(claudeDir, "hooks");
   const projectsBaseDir = join(claudeDir, "projects");
   const encodedPath = encodeProjectPath(workspacePath);
   const projectsDir = join(projectsBaseDir, encodedPath);
-  const tmpDir = join(casaDir, "tmp");
-  const logsDir = join(casaDir, "logs");
+  const tmpDir = join(botDir, "tmp");
+  const logsDir = join(botDir, "logs");
 
   mkdirSync(hooksDir, { recursive: true, mode: 0o700 });
   mkdirSync(projectsDir, { recursive: true, mode: 0o700 });
@@ -233,15 +233,15 @@ export function prepareCasaFilesystem(opts: CasaFilesystemOpts): CasaFilesystemR
   mkdirSync(logsDir, { recursive: true, mode: 0o700 });
 
   // Write config
-  const config = { configVersion: CASA_CONFIG_VERSION, port, token, workspace: workspacePath, model, permissionMode, auth, tags, expose: opts.expose };
-  writeFileSync(join(casaDir, "config.json"), JSON.stringify(config, null, 2) + "\n", { mode: 0o600 });
+  const config = { configVersion: BOT_CONFIG_VERSION, port, token, workspace: workspacePath, model, permissionMode, auth, tags, expose: opts.expose };
+  writeFileSync(join(botDir, "config.json"), JSON.stringify(config, null, 2) + "\n", { mode: 0o600 });
 
-  // Generate CASA identity if node identity exists
+  // Generate bot identity if node identity exists
   const nodeIdentity = loadNodeIdentity(opts.mechaDir);
   const nodePrivateKey = loadNodePrivateKey(opts.mechaDir);
   /* v8 ignore start -- identity creation tested in integration; unit tests lack node keys */
   if (nodeIdentity && nodePrivateKey) {
-    createCasaIdentity(casaDir, name as CasaName, nodeIdentity, nodePrivateKey);
+    createBotIdentity(botDir, name as BotName, nodeIdentity, nodePrivateKey);
   }
   /* v8 ignore stop */
 
@@ -273,7 +273,7 @@ export function prepareCasaFilesystem(opts: CasaFilesystemOpts): CasaFilesystemR
   // Write hook scripts — hooks receive JSON on stdin per Claude Code PreToolUse spec
   // Use Node.js one-liner for JSON parsing (no jq dependency, no grep/sed injection risk)
   const sandboxGuard = `#!/bin/bash
-# Sandbox guard: block file access outside CASA root
+# Sandbox guard: block file access outside bot root
 # Claude Code PreToolUse hooks receive JSON on stdin with tool_name + tool_input
 INPUT=$(cat)
 # Parse JSON structurally via Node.js to extract the path field
@@ -335,8 +335,8 @@ exit 0
   seedClaudeCredentials(homeDir, claudeDir, opts.mechaDir, auth);
 
   // Build environment using shared function
-  const childEnv = buildCasaEnv({
-    casaDir, homeDir, tmpDir, logsDir, projectsDir, workspacePath,
+  const childEnv = buildBotEnv({
+    botDir, homeDir, tmpDir, logsDir, projectsDir, workspacePath,
     port, token, name, mechaDir: opts.mechaDir, auth, userEnv,
     meterOff: opts.meterOff,
   });

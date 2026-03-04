@@ -17,7 +17,7 @@ import type { Capability, NodeEntry } from "@mecha/core";
 import { createAclEngine, writeNodes, signMessage } from "@mecha/core";
 import { createAgentServer } from "@mecha/agent";
 import { deriveSessionKey, createSessionToken } from "../../agent/src/session.js";
-import { makePm, writeCasaConfig } from "./helpers/mesh-harness.js";
+import { makePm, writeBotConfig } from "./helpers/mesh-harness.js";
 
 const TEST_TOTP_SECRET = "JBSWY3DPEHPK3PXP";
 
@@ -27,12 +27,12 @@ function makeAuthCookie(secret = TEST_TOTP_SECRET): string {
   return `mecha-session=${token}`;
 }
 
-// Mock forwardQueryToCasa
+// Mock forwardQueryToBot
 vi.mock("@mecha/core", async (importOriginal) => {
   const orig = await importOriginal<Record<string, unknown>>();
   return {
     ...orig,
-    forwardQueryToCasa: vi.fn().mockResolvedValue({
+    forwardQueryToBot: vi.fn().mockResolvedValue({
       text: "secure response",
       sessionId: "sec-sess",
     }),
@@ -46,7 +46,7 @@ describe("mesh security: authentication", () => {
 
   beforeAll(async () => {
     bobDir = mkdtempSync(join(tmpdir(), "sec-bob-"));
-    writeCasaConfig(bobDir, "analyst", {
+    writeBotConfig(bobDir, "analyst", {
       port: 9999, token: "tok", workspace: "/tmp",
     });
 
@@ -70,7 +70,7 @@ describe("mesh security: authentication", () => {
   });
 
   it("returns 401 when session cookie is missing", async () => {
-    const res = await fetch(`http://127.0.0.1:${bobPort}/casas/analyst/query`, {
+    const res = await fetch(`http://127.0.0.1:${bobPort}/bots/analyst/query`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -82,7 +82,7 @@ describe("mesh security: authentication", () => {
   });
 
   it("returns 401 when session cookie is invalid", async () => {
-    const res = await fetch(`http://127.0.0.1:${bobPort}/casas/analyst/query`, {
+    const res = await fetch(`http://127.0.0.1:${bobPort}/bots/analyst/query`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -95,7 +95,7 @@ describe("mesh security: authentication", () => {
   });
 
   it("returns 400 when X-Mecha-Source header is missing", async () => {
-    const res = await fetch(`http://127.0.0.1:${bobPort}/casas/analyst/query`, {
+    const res = await fetch(`http://127.0.0.1:${bobPort}/bots/analyst/query`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -107,7 +107,7 @@ describe("mesh security: authentication", () => {
   });
 
   it("returns 200 with valid session cookie and source header", async () => {
-    const res = await fetch(`http://127.0.0.1:${bobPort}/casas/analyst/query`, {
+    const res = await fetch(`http://127.0.0.1:${bobPort}/bots/analyst/query`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -136,7 +136,7 @@ describe("mesh security: Ed25519 signatures", () => {
     alicePubPem = aliceKeyPair.publicKey.export({ type: "spki", format: "pem" }) as string;
 
     bobDir = mkdtempSync(join(tmpdir(), "sig-bob-"));
-    writeCasaConfig(bobDir, "analyst", {
+    writeBotConfig(bobDir, "analyst", {
       port: 9999, token: "tok", workspace: "/tmp",
     });
 
@@ -175,7 +175,7 @@ describe("mesh security: Ed25519 signatures", () => {
     opts?: { timestamp?: string; nonce?: string; privateKey?: ReturnType<typeof generateKeyPairSync>["privateKey"] },
   ): Record<string, string> {
     const method = "POST";
-    const path = "/casas/analyst/query";
+    const path = "/bots/analyst/query";
     const source = "coder@alice";
     const timestamp = opts?.timestamp ?? String(Date.now());
     const nonce = opts?.nonce ?? randomUUID();
@@ -198,7 +198,7 @@ describe("mesh security: Ed25519 signatures", () => {
     const body = { message: "signed request" };
     const headers = makeSignedHeaders(body);
 
-    const res = await fetch(`http://127.0.0.1:${bobPort}/casas/analyst/query`, {
+    const res = await fetch(`http://127.0.0.1:${bobPort}/bots/analyst/query`, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
@@ -211,7 +211,7 @@ describe("mesh security: Ed25519 signatures", () => {
     const staleTimestamp = String(Date.now() - 6 * 60 * 1000); // 6 minutes ago
     const headers = makeSignedHeaders(body, { timestamp: staleTimestamp });
 
-    const res = await fetch(`http://127.0.0.1:${bobPort}/casas/analyst/query`, {
+    const res = await fetch(`http://127.0.0.1:${bobPort}/bots/analyst/query`, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
@@ -227,7 +227,7 @@ describe("mesh security: Ed25519 signatures", () => {
     const headers = makeSignedHeaders(body, { nonce });
 
     // First request — should succeed
-    const res1 = await fetch(`http://127.0.0.1:${bobPort}/casas/analyst/query`, {
+    const res1 = await fetch(`http://127.0.0.1:${bobPort}/bots/analyst/query`, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
@@ -236,7 +236,7 @@ describe("mesh security: Ed25519 signatures", () => {
 
     // Second request with same nonce — should be rejected
     const headers2 = makeSignedHeaders(body, { nonce });
-    const res2 = await fetch(`http://127.0.0.1:${bobPort}/casas/analyst/query`, {
+    const res2 = await fetch(`http://127.0.0.1:${bobPort}/bots/analyst/query`, {
       method: "POST",
       headers: headers2,
       body: JSON.stringify(body),
@@ -251,7 +251,7 @@ describe("mesh security: Ed25519 signatures", () => {
     const body = { message: "wrong key" };
     const headers = makeSignedHeaders(body, { privateKey: wrongKey });
 
-    const res = await fetch(`http://127.0.0.1:${bobPort}/casas/analyst/query`, {
+    const res = await fetch(`http://127.0.0.1:${bobPort}/bots/analyst/query`, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
@@ -264,7 +264,7 @@ describe("mesh security: Ed25519 signatures", () => {
     const headers = makeSignedHeaders(signedBody);
 
     // Send different body than what was signed
-    const res = await fetch(`http://127.0.0.1:${bobPort}/casas/analyst/query`, {
+    const res = await fetch(`http://127.0.0.1:${bobPort}/bots/analyst/query`, {
       method: "POST",
       headers,
       body: JSON.stringify({ message: "tampered" }),

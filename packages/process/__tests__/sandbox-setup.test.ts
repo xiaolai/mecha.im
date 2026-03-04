@@ -2,16 +2,16 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync, existsSync, readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { prepareCasaFilesystem, encodeProjectPath, type CasaFilesystemOpts } from "../src/sandbox-setup.js";
+import { prepareBotFilesystem, encodeProjectPath, type BotFilesystemOpts } from "../src/sandbox-setup.js";
 
 describe("sandbox-setup", () => {
   let tempDir: string;
-  let casaDir: string;
+  let botDir: string;
   let mechaDir: string;
 
-  function makeOpts(overrides?: Partial<CasaFilesystemOpts>): CasaFilesystemOpts {
+  function makeOpts(overrides?: Partial<BotFilesystemOpts>): BotFilesystemOpts {
     return {
-      casaDir,
+      botDir,
       workspacePath: "/home/testuser/project",
       port: 7700,
       token: "test-token",
@@ -55,7 +55,7 @@ describe("sandbox-setup", () => {
 
   beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), "mecha-sandbox-test-"));
-    casaDir = join(tempDir, "casa");
+    botDir = join(tempDir, "bot");
     mechaDir = join(tempDir, "mecha");
     mkdirSync(mechaDir, { recursive: true });
   });
@@ -88,9 +88,9 @@ describe("sandbox-setup", () => {
     });
   });
 
-  describe("prepareCasaFilesystem", () => {
+  describe("prepareBotFilesystem", () => {
     it("creates all required directories", () => {
-      const result = prepareCasaFilesystem(makeOpts());
+      const result = prepareBotFilesystem(makeOpts());
       expect(existsSync(result.homeDir)).toBe(true);
       expect(existsSync(result.tmpDir)).toBe(true);
       expect(existsSync(result.logsDir)).toBe(true);
@@ -98,8 +98,8 @@ describe("sandbox-setup", () => {
     });
 
     it("writes config.json with correct content", () => {
-      prepareCasaFilesystem(makeOpts({ tags: ["code"], expose: ["query"] }));
-      const config = JSON.parse(readFileSync(join(casaDir, "config.json"), "utf-8"));
+      prepareBotFilesystem(makeOpts({ tags: ["code"], expose: ["query"] }));
+      const config = JSON.parse(readFileSync(join(botDir, "config.json"), "utf-8"));
       expect(config.configVersion).toBe(1);
       expect(config.port).toBe(7700);
       expect(config.token).toBe("test-token");
@@ -109,7 +109,7 @@ describe("sandbox-setup", () => {
     });
 
     it("writes settings.json with hooks", () => {
-      const result = prepareCasaFilesystem(makeOpts());
+      const result = prepareBotFilesystem(makeOpts());
       const claudeDir = join(result.homeDir, ".claude");
       const settings = JSON.parse(readFileSync(join(claudeDir, "settings.json"), "utf-8"));
       expect(settings.hooks.PreToolUse).toHaveLength(2);
@@ -118,14 +118,14 @@ describe("sandbox-setup", () => {
     });
 
     it("writes executable hook scripts", () => {
-      const result = prepareCasaFilesystem(makeOpts());
+      const result = prepareBotFilesystem(makeOpts());
       const hooksDir = join(result.homeDir, ".claude", "hooks");
       expect(existsSync(join(hooksDir, "sandbox-guard.sh"))).toBe(true);
       expect(existsSync(join(hooksDir, "bash-guard.sh"))).toBe(true);
     });
 
     it("bash guard does not rewrite commands (no echo/stdout)", () => {
-      const result = prepareCasaFilesystem(makeOpts());
+      const result = prepareBotFilesystem(makeOpts());
       const bashGuard = readFileSync(join(result.homeDir, ".claude", "hooks", "bash-guard.sh"), "utf-8");
       expect(bashGuard).not.toContain('echo "cd');
       expect(bashGuard).toContain("exit 0");
@@ -133,15 +133,15 @@ describe("sandbox-setup", () => {
     });
 
     it("sets reserved env vars that cannot be overridden by userEnv", () => {
-      const result = prepareCasaFilesystem(makeOpts({
-        userEnv: { MECHA_CASA_NAME: "evil", CUSTOM_VAR: "hello" },
+      const result = prepareBotFilesystem(makeOpts({
+        userEnv: { MECHA_BOT_NAME: "evil", CUSTOM_VAR: "hello" },
       }));
-      expect(result.childEnv.MECHA_CASA_NAME).toBe("alice");
+      expect(result.childEnv.MECHA_BOT_NAME).toBe("alice");
       expect(result.childEnv.CUSTOM_VAR).toBe("hello");
     });
 
     it("strips all reserved keys from userEnv", () => {
-      const result = prepareCasaFilesystem(makeOpts({
+      const result = prepareBotFilesystem(makeOpts({
         userEnv: {
           MECHA_PORT: "9999",
           HOME: "/evil",
@@ -151,7 +151,7 @@ describe("sandbox-setup", () => {
         },
       }));
       expect(result.childEnv.MECHA_PORT).toBe("7700");
-      expect(result.childEnv.HOME).toBe(join(casaDir, "home"));
+      expect(result.childEnv.HOME).toBe(join(botDir, "home"));
       expect(result.childEnv.SAFE_KEY).toBe("ok");
     });
 
@@ -170,7 +170,7 @@ describe("sandbox-setup", () => {
         DYLD_LIBRARY_PATH: "/evil/lib",
         SAFE_KEY: "allowed",
       };
-      const result = prepareCasaFilesystem(makeOpts({ userEnv: dangerousVars }));
+      const result = prepareBotFilesystem(makeOpts({ userEnv: dangerousVars }));
 
       expect(result.childEnv.NODE_OPTIONS).toBeUndefined();
       expect(result.childEnv.NODE_PATH).toBeUndefined();
@@ -187,7 +187,7 @@ describe("sandbox-setup", () => {
     });
 
     it("blocks BASH_FUNC_* export function env vars from userEnv", () => {
-      const result = prepareCasaFilesystem(makeOpts({
+      const result = prepareBotFilesystem(makeOpts({
         userEnv: {
           "BASH_FUNC_evil%%": "() { /bin/evil; }",
           "BASH_FUNC_another%%": "() { echo pwned; }",
@@ -202,35 +202,35 @@ describe("sandbox-setup", () => {
     describe("auth profile resolution", () => {
       it("resolves OAuth profile to CLAUDE_CODE_OAUTH_TOKEN", () => {
         setupAuthProfiles({ personal: { type: "oauth", token: "sk-ant-oat01-aaa" } });
-        const result = prepareCasaFilesystem(makeOpts({ auth: "personal" }));
+        const result = prepareBotFilesystem(makeOpts({ auth: "personal" }));
         expect(result.childEnv.CLAUDE_CODE_OAUTH_TOKEN).toBe("sk-ant-oat01-aaa");
         expect(result.childEnv.ANTHROPIC_API_KEY).toBeUndefined();
       });
 
       it("resolves API key profile to ANTHROPIC_API_KEY", () => {
         setupAuthProfiles({ team: { type: "api-key", token: "sk-ant-api03-xxx" } });
-        const result = prepareCasaFilesystem(makeOpts({ auth: "team" }));
+        const result = prepareBotFilesystem(makeOpts({ auth: "team" }));
         expect(result.childEnv.ANTHROPIC_API_KEY).toBe("sk-ant-api03-xxx");
         expect(result.childEnv.CLAUDE_CODE_OAUTH_TOKEN).toBeUndefined();
       });
 
       it("uses default profile when --auth not specified", () => {
         setupAuthProfiles({ personal: { type: "oauth", token: "default-tok" } });
-        const result = prepareCasaFilesystem(makeOpts());
+        const result = prepareBotFilesystem(makeOpts());
         expect(result.childEnv.CLAUDE_CODE_OAUTH_TOKEN).toBe("default-tok");
       });
 
       it("falls back to host env when no profiles exist", () => {
         // No auth profiles set up, but host env has a key
         process.env.ANTHROPIC_API_KEY = "sk-ant-host-key";
-        const result = prepareCasaFilesystem(makeOpts());
+        const result = prepareBotFilesystem(makeOpts());
         expect(result.childEnv.ANTHROPIC_API_KEY).toBe("sk-ant-host-key");
       });
 
       it("sets no SDK keys when --no-auth (null) and no host env", () => {
         delete process.env.ANTHROPIC_API_KEY;
         delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
-        const result = prepareCasaFilesystem(makeOpts({ auth: null }));
+        const result = prepareBotFilesystem(makeOpts({ auth: null }));
         expect(result.childEnv.ANTHROPIC_API_KEY).toBeUndefined();
         expect(result.childEnv.CLAUDE_CODE_OAUTH_TOKEN).toBeUndefined();
       });
@@ -238,7 +238,7 @@ describe("sandbox-setup", () => {
 
     describe("credential seeding", () => {
       it("seeds .claude.json onboarding state", () => {
-        const result = prepareCasaFilesystem(makeOpts());
+        const result = prepareBotFilesystem(makeOpts());
         const claudeJson = JSON.parse(readFileSync(join(result.homeDir, ".claude.json"), "utf-8"));
         expect(claudeJson.hasCompletedOnboarding).toBe(true);
         expect(claudeJson.numStartups).toBe(1);
@@ -246,20 +246,20 @@ describe("sandbox-setup", () => {
 
       it("does not overwrite existing .claude.json onboarding state", () => {
         // First prepare creates onboarding state
-        prepareCasaFilesystem(makeOpts());
+        prepareBotFilesystem(makeOpts());
         // Manually modify it
-        const claudeJsonPath = join(casaDir, "home", ".claude.json");
+        const claudeJsonPath = join(botDir, "home", ".claude.json");
         const modified = { numStartups: 42, hasCompletedOnboarding: true };
         writeFileSync(claudeJsonPath, JSON.stringify(modified));
         // Second prepare should preserve the modified file
-        prepareCasaFilesystem(makeOpts());
+        prepareBotFilesystem(makeOpts());
         const claudeJson = JSON.parse(readFileSync(claudeJsonPath, "utf-8"));
         expect(claudeJson.numStartups).toBe(42);
       });
 
       it("writes .credentials.json for oauth auth type", () => {
         setupAuthProfiles({ personal: { type: "oauth", token: "sk-ant-oat01-aaa" } });
-        const result = prepareCasaFilesystem(makeOpts({ auth: "personal" }));
+        const result = prepareBotFilesystem(makeOpts({ auth: "personal" }));
         const credPath = join(result.homeDir, ".claude", ".credentials.json");
         expect(existsSync(credPath)).toBe(true);
         const creds = JSON.parse(readFileSync(credPath, "utf-8"));
@@ -272,20 +272,20 @@ describe("sandbox-setup", () => {
           updated: { type: "oauth", token: "new-token" },
         });
         // First spawn with old profile
-        prepareCasaFilesystem(makeOpts({ auth: "old" }));
-        const credPath = join(casaDir, "home", ".claude", ".credentials.json");
+        prepareBotFilesystem(makeOpts({ auth: "old" }));
+        const credPath = join(botDir, "home", ".claude", ".credentials.json");
         const first = JSON.parse(readFileSync(credPath, "utf-8"));
         expect(first.claudeAiOauth.accessToken).toBe("old-token");
 
         // Second spawn with updated profile — must overwrite
-        prepareCasaFilesystem(makeOpts({ auth: "updated" }));
+        prepareBotFilesystem(makeOpts({ auth: "updated" }));
         const second = JSON.parse(readFileSync(credPath, "utf-8"));
         expect(second.claudeAiOauth.accessToken).toBe("new-token");
       });
 
       it("does not write .credentials.json for api-key auth type", () => {
         setupAuthProfiles({ team: { type: "api-key", token: "sk-ant-api03-xxx" } });
-        const result = prepareCasaFilesystem(makeOpts({ auth: "team" }));
+        const result = prepareBotFilesystem(makeOpts({ auth: "team" }));
         const credPath = join(result.homeDir, ".claude", ".credentials.json");
         expect(existsSync(credPath)).toBe(false);
         // But onboarding state should still be seeded
@@ -299,12 +299,12 @@ describe("sandbox-setup", () => {
           apikey_profile: { type: "api-key", token: "sk-ant-api03-xxx" },
         });
         // First spawn with OAuth — writes .credentials.json
-        const result = prepareCasaFilesystem(makeOpts({ auth: "oauth_profile" }));
+        const result = prepareBotFilesystem(makeOpts({ auth: "oauth_profile" }));
         const credPath = join(result.homeDir, ".claude", ".credentials.json");
         expect(existsSync(credPath)).toBe(true);
 
         // Second spawn with API key — must remove stale OAuth credentials
-        prepareCasaFilesystem(makeOpts({ auth: "apikey_profile" }));
+        prepareBotFilesystem(makeOpts({ auth: "apikey_profile" }));
         expect(existsSync(credPath)).toBe(false);
       });
 
@@ -312,7 +312,7 @@ describe("sandbox-setup", () => {
         // No auth profiles, no host env — auth resolution fails
         delete process.env.ANTHROPIC_API_KEY;
         delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
-        const result = prepareCasaFilesystem(makeOpts());
+        const result = prepareBotFilesystem(makeOpts());
         const claudeJson = JSON.parse(readFileSync(join(result.homeDir, ".claude.json"), "utf-8"));
         expect(claudeJson.hasCompletedOnboarding).toBe(true);
       });
@@ -332,30 +332,30 @@ describe("sandbox-setup", () => {
 
       it("sets ANTHROPIC_BASE_URL when proxy alive", () => {
         writeMeterProxy({ port: 7600, pid: process.pid, required: false });
-        const result = prepareCasaFilesystem(makeOpts());
-        expect(result.childEnv.ANTHROPIC_BASE_URL).toBe(`http://127.0.0.1:7600/casa/alice`);
+        const result = prepareBotFilesystem(makeOpts());
+        expect(result.childEnv.ANTHROPIC_BASE_URL).toBe(`http://127.0.0.1:7600/bot/alice`);
       });
 
       it("skips metering when --meter off", () => {
         writeMeterProxy({ port: 7600, pid: process.pid, required: false });
-        const result = prepareCasaFilesystem(makeOpts({ meterOff: true }));
+        const result = prepareBotFilesystem(makeOpts({ meterOff: true }));
         expect(result.childEnv.ANTHROPIC_BASE_URL).toBeUndefined();
       });
 
       it("skips metering when no proxy.json exists", () => {
-        const result = prepareCasaFilesystem(makeOpts());
+        const result = prepareBotFilesystem(makeOpts());
         expect(result.childEnv.ANTHROPIC_BASE_URL).toBeUndefined();
       });
 
       it("throws MeterProxyRequiredError when proxy dead and required", () => {
         writeMeterProxy({ port: 7600, pid: 999999, required: true });
-        expect(() => prepareCasaFilesystem(makeOpts())).toThrow("Metering proxy required but not running");
+        expect(() => prepareBotFilesystem(makeOpts())).toThrow("Metering proxy required but not running");
       });
 
       it("logs warning when proxy dead and not required", () => {
         writeMeterProxy({ port: 7600, pid: 999999, required: false });
         const spy = vi.spyOn(console, "error").mockImplementation(() => {});
-        const result = prepareCasaFilesystem(makeOpts());
+        const result = prepareBotFilesystem(makeOpts());
         expect(result.childEnv.ANTHROPIC_BASE_URL).toBeUndefined();
         expect(spy).toHaveBeenCalledWith(expect.stringContaining("stale proxy.json"));
         spy.mockRestore();

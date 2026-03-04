@@ -18,7 +18,7 @@ export interface ScheduleLog {
 }
 
 export interface RunDeps {
-  casaDir: string;
+  botDir: string;
   chatFn: (prompt: string) => Promise<{ durationMs: number; error?: string }>;
   now: () => number;
   getActiveRun: () => string | undefined;
@@ -30,16 +30,16 @@ export function todayStr(now: () => number): string {
   return new Date(now()).toISOString().slice(0, 10);
 }
 
-export function getConfig(casaDir: string): ScheduleConfig {
-  return readScheduleConfig(casaDir);
+export function getConfig(botDir: string): ScheduleConfig {
+  return readScheduleConfig(botDir);
 }
 
-export function saveConfig(casaDir: string, config: ScheduleConfig): void {
-  writeScheduleConfig(casaDir, config);
+export function saveConfig(botDir: string, config: ScheduleConfig): void {
+  writeScheduleConfig(botDir, config);
 }
 
-export function getState(casaDir: string, scheduleId: string, now: () => number): ScheduleState {
-  const existing = readScheduleState(casaDir, scheduleId);
+export function getState(botDir: string, scheduleId: string, now: () => number): ScheduleState {
+  const existing = readScheduleState(botDir, scheduleId);
   const today = todayStr(now);
   if (!existing) {
     return { runCount: 0, todayDate: today, runsToday: 0 };
@@ -50,21 +50,21 @@ export function getState(casaDir: string, scheduleId: string, now: () => number)
   return existing;
 }
 
-export function saveState(casaDir: string, scheduleId: string, state: ScheduleState): void {
-  writeScheduleState(casaDir, scheduleId, state);
+export function saveState(botDir: string, scheduleId: string, state: ScheduleState): void {
+  writeScheduleState(botDir, scheduleId, state);
 }
 
 export async function executeRun(entry: ScheduleEntry, deps: RunDeps): Promise<ScheduleRunResult> {
-  const { casaDir, chatFn, now, log } = deps;
-  const config = getConfig(casaDir);
+  const { botDir, chatFn, now, log } = deps;
+  const config = getConfig(botDir);
   const maxPerDay = config.maxRunsPerDay ?? SCHEDULE_DEFAULTS.MAX_RUNS_PER_DAY;
 
-  const state = getState(casaDir, entry.id, now);
+  const state = getState(botDir, entry.id, now);
 
-  // Budget check — aggregate across all schedules for this CASA
+  // Budget check — aggregate across all schedules for this bot
   // NOTE: O(n) disk reads per run; acceptable for MVP (few schedules); cache in future milestone
   const totalToday = config.schedules.reduce((sum, s) => {
-    const st = getState(casaDir, s.id, now);
+    const st = getState(botDir, s.id, now);
     return sum + st.runsToday;
   }, 0);
 
@@ -78,7 +78,7 @@ export async function executeRun(entry: ScheduleEntry, deps: RunDeps): Promise<S
       outcome: "skipped",
       error: `Daily budget exceeded (${maxPerDay} runs/day)`,
     };
-    appendRunHistory(casaDir, entry.id, result);
+    appendRunHistory(botDir, entry.id, result);
     return result;
   }
 
@@ -94,7 +94,7 @@ export async function executeRun(entry: ScheduleEntry, deps: RunDeps): Promise<S
       outcome: "skipped",
       error: "Another schedule is already running",
     };
-    appendRunHistory(casaDir, entry.id, result);
+    appendRunHistory(botDir, entry.id, result);
     return result;
   }
 
@@ -144,7 +144,7 @@ export async function executeRun(entry: ScheduleEntry, deps: RunDeps): Promise<S
     { durationMs: result.durationMs, error: result.error });
 
   // Guard: schedule may have been removed while run was in-flight
-  const postRunConfig = getConfig(casaDir);
+  const postRunConfig = getConfig(botDir);
   /* v8 ignore start -- race guard: schedule removed during in-flight run */
   if (!postRunConfig.schedules.some((s) => s.id === entry.id)) {
     log("warn", `Schedule "${entry.id}" removed during run; skipping state save`);
@@ -156,24 +156,24 @@ export async function executeRun(entry: ScheduleEntry, deps: RunDeps): Promise<S
   const consecutiveErrors = state.consecutiveErrors ?? 0;
   const newConsecutiveErrors = result.outcome === "error" ? consecutiveErrors + 1 : 0;
 
-  saveState(casaDir, entry.id, {
+  saveState(botDir, entry.id, {
     lastRunAt: result.completedAt,
     runCount: state.runCount + 1,
     todayDate: todayStr(now),
     runsToday: state.runsToday + 1,
     consecutiveErrors: newConsecutiveErrors,
   });
-  appendRunHistory(casaDir, entry.id, result);
+  appendRunHistory(botDir, entry.id, result);
 
   // Auto-pause after too many consecutive errors
   if (newConsecutiveErrors >= SCHEDULE_DEFAULTS.MAX_CONSECUTIVE_ERRORS) {
-    const cfg = getConfig(casaDir);
+    const cfg = getConfig(botDir);
     const idx = cfg.schedules.findIndex((s) => s.id === entry.id);
     /* v8 ignore start -- race guard: schedule removed between check and auto-pause */
     const target = idx !== -1 ? cfg.schedules[idx] : undefined;
     if (target) {
       target.paused = true;
-      saveConfig(casaDir, cfg);
+      saveConfig(botDir, cfg);
       log("warn", `Schedule "${entry.id}" auto-paused after ${newConsecutiveErrors} consecutive errors`);
     }
     /* v8 ignore stop */

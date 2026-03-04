@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync, mkdirSync, renameSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { createLogger } from "@mecha/core";
-import type { MeterEvent, CostSummary, HourlyRollup, DailyRollup, CasaRollup } from "./types.js";
+import type { MeterEvent, CostSummary, HourlyRollup, DailyRollup, BotRollup } from "./types.js";
 import { emptySummary, accumulateEvent } from "./query.js";
 
 const log = createLogger("mecha:meter");
@@ -27,8 +27,8 @@ export function dailyRollupPath(meterDir: string, month: string): string {
   return join(meterDir, "rollups", "daily", `${safePath(month, MONTH_SEGMENT)}.json`);
 }
 
-export function casaRollupPath(meterDir: string, casa: string): string {
-  return join(meterDir, "rollups", "casa", `${safePath(casa, SAFE_SEGMENT)}.json`);
+export function botRollupPath(meterDir: string, bot: string): string {
+  return join(meterDir, "rollups", "bot", `${safePath(bot, SAFE_SEGMENT)}.json`);
 }
 
 // ── Generic read/write ───────────────────────────────────────────
@@ -61,8 +61,8 @@ export function readDailyRollup(meterDir: string, month: string): DailyRollup {
   return readJson(dailyRollupPath(meterDir, month), { month, days: [] });
 }
 
-export function readCasaRollup(meterDir: string, casa: string): CasaRollup {
-  return readJson(casaRollupPath(meterDir, casa), { casa, allTime: emptySummary(), byModel: {}, byDay: [] });
+export function readBotRollup(meterDir: string, bot: string): BotRollup {
+  return readJson(botRollupPath(meterDir, bot), { bot, allTime: emptySummary(), byModel: {}, byDay: [] });
 }
 
 // ── Write helpers ─────────────────────────────────────────────────
@@ -75,8 +75,8 @@ export function writeDailyRollup(meterDir: string, rollup: DailyRollup): void {
   writeJson(dailyRollupPath(meterDir, rollup.month), rollup);
 }
 
-export function writeCasaRollup(meterDir: string, rollup: CasaRollup): void {
-  writeJson(casaRollupPath(meterDir, rollup.casa), rollup);
+export function writeBotRollup(meterDir: string, rollup: BotRollup): void {
+  writeJson(botRollupPath(meterDir, rollup.bot), rollup);
 }
 
 // ── Incremental update ──────────────────────────────────────────
@@ -91,11 +91,11 @@ export function updateHourlyRollup(rollup: HourlyRollup, event: MeterEvent): voi
   const hour = new Date(event.ts).getUTCHours();
   let bucket = rollup.hours.find(h => h.hour === hour);
   if (!bucket) {
-    bucket = { hour, total: emptySummary(), byCasa: {}, byModel: {} };
+    bucket = { hour, total: emptySummary(), byBot: {}, byModel: {} };
     rollup.hours.push(bucket);
   }
   accumulateEvent(bucket.total, event);
-  accumulateEvent(ensureMap(bucket.byCasa, event.casa), event);
+  accumulateEvent(ensureMap(bucket.byBot, event.bot), event);
   accumulateEvent(ensureMap(bucket.byModel, event.modelActual || event.model), event);
 }
 
@@ -105,12 +105,12 @@ export function updateDailyRollup(rollup: DailyRollup, event: MeterEvent, date: 
   if (!day) {
     day = {
       date, total: emptySummary(),
-      byCasa: {}, byModel: {}, byAuthProfile: {}, byTag: {}, byWorkspace: {},
+      byBot: {}, byModel: {}, byAuthProfile: {}, byTag: {}, byWorkspace: {},
     };
     rollup.days.push(day);
   }
   accumulateEvent(day.total, event);
-  accumulateEvent(ensureMap(day.byCasa, event.casa), event);
+  accumulateEvent(ensureMap(day.byBot, event.bot), event);
   accumulateEvent(ensureMap(day.byModel, event.modelActual || event.model), event);
   accumulateEvent(ensureMap(day.byAuthProfile, event.authProfile), event);
   accumulateEvent(ensureMap(day.byWorkspace, event.workspace), event);
@@ -119,8 +119,8 @@ export function updateDailyRollup(rollup: DailyRollup, event: MeterEvent, date: 
   }
 }
 
-/** Update per-CASA rollup incrementally */
-export function updateCasaRollup(rollup: CasaRollup, event: MeterEvent, date: string): void {
+/** Update per-bot rollup incrementally */
+export function updateBotRollup(rollup: BotRollup, event: MeterEvent, date: string): void {
   accumulateEvent(rollup.allTime, event);
   accumulateEvent(ensureMap(rollup.byModel, event.modelActual || event.model), event);
   let dayEntry = rollup.byDay.find(d => d.date === date);
@@ -136,9 +136,9 @@ export function flushRollups(
   meterDir: string,
   hourly: Map<string, HourlyRollup>,
   daily: Map<string, DailyRollup>,
-  casa: Map<string, CasaRollup>,
+  bot: Map<string, BotRollup>,
 ): void {
   for (const rollup of hourly.values()) writeHourlyRollup(meterDir, rollup);
   for (const rollup of daily.values()) writeDailyRollup(meterDir, rollup);
-  for (const rollup of casa.values()) writeCasaRollup(meterDir, rollup);
+  for (const rollup of bot.values()) writeBotRollup(meterDir, rollup);
 }
