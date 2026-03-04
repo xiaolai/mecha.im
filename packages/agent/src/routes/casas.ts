@@ -1,9 +1,10 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { type CasaName, isValidName, readCasaConfig, readAuthProfiles, CasaNotRunningError } from "@mecha/core";
+import { type CasaName, isValidName, readCasaConfig, readAuthProfiles, CasaNotRunningError, getNetworkIps } from "@mecha/core";
 import type { ProcessManager } from "@mecha/process";
-import { casaConfigure, checkCasaBusy, enrichCasaInfo, buildEnrichContext, getCachedSnapshot, mechaAuthLs } from "@mecha/service";
+import { casaConfigure, checkCasaBusy, enrichCasaInfo, buildEnrichContext, getCachedSnapshot, mechaAuthLs, batchCasaAction } from "@mecha/service";
 import type { CasaConfigUpdates, EnrichedCasaInfo } from "@mecha/service";
 import { join, basename } from "node:path";
+import { hostname as osHostname } from "node:os";
 
 function validateName(name: string, reply: FastifyReply): CasaName | null {
   if (!isValidName(name)) {
@@ -37,8 +38,11 @@ function listProjection(info: EnrichedCasaInfo) {
   return { ...rest, workspacePath: basename(info.workspacePath) };
 }
 
-export function registerCasaRoutes(app: FastifyInstance, pm: ProcessManager, mechaDir: string): void {
+export function registerCasaRoutes(app: FastifyInstance, pm: ProcessManager, mechaDir: string, nodeName?: string): void {
   const meterDir = join(mechaDir, "meter");
+  const node = nodeName ?? "local";
+  const host = osHostname();
+  const { lanIp, tailscaleIp } = getNetworkIps();
 
   app.get("/casas", async () => {
     const list = pm.list();
@@ -46,8 +50,29 @@ export function registerCasaRoutes(app: FastifyInstance, pm: ProcessManager, mec
     const ctx = buildEnrichContext(mechaDir, snapshot, list.map((p) => p.name));
     return list.map((p) => {
       const enriched = enrichCasaInfo(p, ctx);
-      return listProjection(enriched);
+      const homeDir = join(mechaDir, p.name, "home");
+      return { ...listProjection(enriched), node, hostname: host, lanIp, tailscaleIp, homeDir };
     });
+  });
+
+  // --- Batch stop/restart — registered BEFORE :name routes so "batch" isn't treated as a CASA name ---
+  interface BatchBody { action: string; force?: unknown; idleOnly?: unknown; dryRun?: unknown; names?: unknown }
+  app.post("/casas/batch", async (request: FastifyRequest<{ Body: BatchBody }>, reply: FastifyReply) => {
+    /* v8 ignore start -- Fastify always parses body for POST */
+    const body = (request.body ?? {}) as BatchBody;
+    /* v8 ignore stop */
+    if (body.action !== "stop" && body.action !== "restart") {
+      reply.code(400).send({ error: "action must be 'stop' or 'restart'" });
+      return;
+    }
+    const result = await batchCasaAction({
+      pm, mechaDir, action: body.action as "stop" | "restart",
+      force: body.force === true,
+      idleOnly: body.idleOnly === true,
+      dryRun: body.dryRun === true,
+      names: Array.isArray(body.names) ? body.names.filter((n): n is string => typeof n === "string") : undefined,
+    });
+    return result;
   });
 
   app.get("/casas/:name/status", async (request: FastifyRequest<{ Params: { name: string } }>, reply: FastifyReply) => {
