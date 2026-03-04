@@ -49,7 +49,6 @@ describe("dashboard commands", () => {
     mockCreateAgentServer.mockReturnValue(mockServer);
     mockServer.listen.mockClear();
     process.exitCode = undefined as unknown as number;
-    delete process.env.MECHA_AGENT_API_KEY;
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -135,14 +134,14 @@ describe("dashboard commands", () => {
       expect(process.exitCode).toBe(1);
     });
 
-    it("errors when --no-totp without --api-key", async () => {
+    it("errors when --no-totp disables auth", async () => {
       const deps = makeDeps({ mechaDir: dir });
       const program = createProgram(deps);
       program.exitOverride();
 
       await program.parseAsync(["node", "mecha", "dashboard", "serve", "--no-totp"]);
       expect(deps.formatter.error).toHaveBeenCalledWith(
-        expect.stringContaining("At least one auth method"),
+        expect.stringContaining("TOTP must be enabled"),
       );
       expect(process.exitCode).toBe(1);
     });

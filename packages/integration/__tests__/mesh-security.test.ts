@@ -16,7 +16,16 @@ import { generateKeyPairSync, sign, randomUUID } from "node:crypto";
 import type { Capability, NodeEntry } from "@mecha/core";
 import { createAclEngine, writeNodes, signMessage } from "@mecha/core";
 import { createAgentServer } from "@mecha/agent";
+import { deriveSessionKey, createSessionToken } from "../../agent/src/session.js";
 import { makePm, writeCasaConfig } from "./helpers/mesh-harness.js";
+
+const TEST_TOTP_SECRET = "JBSWY3DPEHPK3PXP";
+
+function makeAuthCookie(secret = TEST_TOTP_SECRET): string {
+  const sessionKey = deriveSessionKey(secret);
+  const token = createSessionToken(sessionKey, 1);
+  return `mecha-session=${token}`;
+}
 
 // Mock forwardQueryToCasa
 vi.mock("@mecha/core", async (importOriginal) => {
@@ -34,7 +43,6 @@ describe("mesh security: authentication", () => {
   let bobDir: string;
   let bobServer: ReturnType<typeof createAgentServer>;
   let bobPort: number;
-  const bobApiKey = "secure-bob-key";
 
   beforeAll(async () => {
     bobDir = mkdtempSync(join(tmpdir(), "sec-bob-"));
@@ -49,7 +57,7 @@ describe("mesh security: authentication", () => {
     acl.grant("coder@alice", "analyst", ["query"] as Capability[]);
 
     bobServer = createAgentServer({
-      port: 0, auth: { apiKey: bobApiKey }, processManager: makePm(),
+      port: 0, auth: { totpSecret: TEST_TOTP_SECRET, apiKey: "mesh-routing-key" }, processManager: makePm(),
       acl, mechaDir: bobDir, nodeName: "bob",
     });
     const addr = await bobServer.listen({ port: 0, host: "127.0.0.1" });
@@ -61,7 +69,7 @@ describe("mesh security: authentication", () => {
     rmSync(bobDir, { recursive: true, force: true });
   });
 
-  it("returns 401 when Authorization header is missing", async () => {
+  it("returns 401 when session cookie is missing", async () => {
     const res = await fetch(`http://127.0.0.1:${bobPort}/casas/analyst/query`, {
       method: "POST",
       headers: {
@@ -73,12 +81,12 @@ describe("mesh security: authentication", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns 401 when Bearer token is wrong", async () => {
+  it("returns 401 when session cookie is invalid", async () => {
     const res = await fetch(`http://127.0.0.1:${bobPort}/casas/analyst/query`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        authorization: "Bearer wrong-token",
+        cookie: "mecha-session=invalid",
         "x-mecha-source": "coder@alice",
       },
       body: JSON.stringify({ message: "hello" }),
@@ -91,19 +99,19 @@ describe("mesh security: authentication", () => {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        authorization: `Bearer ${bobApiKey}`,
+        cookie: makeAuthCookie(),
       },
       body: JSON.stringify({ message: "hello" }),
     });
     expect(res.status).toBe(400);
   });
 
-  it("returns 200 with valid Bearer token and source header", async () => {
+  it("returns 200 with valid session cookie and source header", async () => {
     const res = await fetch(`http://127.0.0.1:${bobPort}/casas/analyst/query`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        authorization: `Bearer ${bobApiKey}`,
+        cookie: makeAuthCookie(),
         "x-mecha-source": "coder@alice",
       },
       body: JSON.stringify({ message: "hello" }),
@@ -116,7 +124,6 @@ describe("mesh security: Ed25519 signatures", () => {
   let bobDir: string;
   let bobServer: ReturnType<typeof createAgentServer>;
   let bobPort: number;
-  const bobApiKey = "sig-bob-key";
   let aliceKeyPair: ReturnType<typeof generateKeyPairSync>;
   let alicePubB64: string;
   let alicePubPem: string;
@@ -151,7 +158,7 @@ describe("mesh security: Ed25519 signatures", () => {
     acl.grant("coder@alice", "analyst", ["query"] as Capability[]);
 
     bobServer = createAgentServer({
-      port: 0, auth: { apiKey: bobApiKey }, processManager: makePm(),
+      port: 0, auth: { totpSecret: TEST_TOTP_SECRET, apiKey: "mesh-routing-key" }, processManager: makePm(),
       acl, mechaDir: bobDir, nodeName: "bob",
     });
     const addr = await bobServer.listen({ port: 0, host: "127.0.0.1" });
@@ -179,7 +186,7 @@ describe("mesh security: Ed25519 signatures", () => {
 
     return {
       "content-type": "application/json",
-      authorization: `Bearer ${bobApiKey}`,
+      cookie: makeAuthCookie(),
       "x-mecha-source": source,
       "x-mecha-timestamp": timestamp,
       "x-mecha-nonce": nonce,

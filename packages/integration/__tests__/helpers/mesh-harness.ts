@@ -19,6 +19,7 @@ import {
   createRelayToken,
 } from "@mecha/server";
 import { createAgentServer } from "@mecha/agent";
+import { deriveSessionKey, createSessionToken } from "../../../agent/src/session.js";
 import {
   type AclEngine,
   type Capability,
@@ -31,6 +32,16 @@ import {
 import type { ProcessManager, ProcessInfo } from "@mecha/process";
 import { createCasaRouter, createLocator, agentFetch } from "@mecha/service";
 import type { CasaRouter, MechaLocator } from "@mecha/service";
+
+const TEST_TOTP_SECRET = "JBSWY3DPEHPK3PXP";
+
+export function makeAuthCookie(secret = TEST_TOTP_SECRET): string {
+  const sessionKey = deriveSessionKey(secret);
+  const token = createSessionToken(sessionKey, 1);
+  return `mecha-session=${token}`;
+}
+
+export { TEST_TOTP_SECRET };
 
 // ─── Types ───────────────────────────────────────────────────────────────
 
@@ -68,7 +79,7 @@ export interface TestNode {
   mechaDir: string;
   agentServer: FastifyInstance;
   agentPort: number;
-  apiKey: string;
+  authCookie: string;
   acl: AclEngine;
   pm: ProcessManager;
   locator: MechaLocator;
@@ -186,14 +197,13 @@ export async function createTestMesh(): Promise<TestMesh> {
       writeNodes(mechaDir, opts.nodeEntries);
     }
 
-    const apiKey = `${name}-api-key-${randomBytes(8).toString("hex")}`;
     const pm = opts.pm ?? makePm();
     const acl = opts.acl ?? makeOpenAcl(mechaDir);
 
     // Start agent server on random port
     const agentServer = createAgentServer({
       port: 0,
-      auth: { apiKey },
+      auth: { totpSecret: TEST_TOTP_SECRET, apiKey: "mesh-routing-key" },
       processManager: pm,
       acl,
       mechaDir,
@@ -216,7 +226,7 @@ export async function createTestMesh(): Promise<TestMesh> {
               name: other.name as NodeEntry["name"],
               host: "127.0.0.1",
               port: other.agentPort,
-              apiKey: other.apiKey,
+              apiKey: "mesh-routing-key",
               publicKey: other.publicKey,
               fingerprint: other.fingerprint,
               addedAt: new Date().toISOString(),
@@ -246,7 +256,7 @@ export async function createTestMesh(): Promise<TestMesh> {
       mechaDir,
       agentServer,
       agentPort,
-      apiKey,
+      authCookie: makeAuthCookie(),
       acl,
       pm,
       locator,
@@ -267,7 +277,7 @@ export async function createTestMesh(): Promise<TestMesh> {
           name: target.name as NodeEntry["name"],
           host: "127.0.0.1",
           port: target.agentPort,
-          apiKey: target.apiKey,
+          apiKey: "mesh-routing-key",
           publicKey: target.publicKey,
           fingerprint: target.fingerprint,
           addedAt: new Date().toISOString(),

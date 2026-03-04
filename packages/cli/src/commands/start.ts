@@ -10,7 +10,6 @@ interface StartOpts {
   host: string;
   open: boolean;
   totp: boolean;
-  apiKey?: string | false;
 }
 
 export function registerStartCommand(program: Command, deps: CommandDeps): void {
@@ -21,8 +20,6 @@ export function registerStartCommand(program: Command, deps: CommandDeps): void 
     .option("--host <host>", "Bind address", "127.0.0.1")
     .option("--open", "Open browser after starting", false)
     .option("--no-totp", "Disable TOTP authentication")
-    .option("--api-key <key>", "Enable API key authentication")
-    .option("--no-api-key", "Disable API key authentication")
     .action(async (opts: StartOpts) => withErrorHandler(deps, async () => {
       const port = parsePort(opts.port);
       if (port === undefined) {
@@ -32,18 +29,9 @@ export function registerStartCommand(program: Command, deps: CommandDeps): void 
       }
 
       // Resolve auth config from file + CLI flags
-      const rawApiKey = typeof opts.apiKey === "string" ? opts.apiKey.trim() : undefined;
-      const explicitApiKey = rawApiKey || ((process.env.MECHA_AGENT_API_KEY ?? "").trim() || undefined);
       const authConfig = resolveAuthConfig(deps.mechaDir, {
         totp: opts.totp === false ? false : undefined,
-        apiKey: opts.apiKey === false ? false : explicitApiKey ? true : undefined,
       });
-
-      if (authConfig.apiKey && !explicitApiKey) {
-        deps.formatter.error("API key auth enabled but no key provided: use --api-key or set MECHA_AGENT_API_KEY");
-        process.exitCode = 1;
-        return;
-      }
 
       // Ensure TOTP secret exists if TOTP is enabled
       let totpSecret: string | undefined;
@@ -67,11 +55,19 @@ export function registerStartCommand(program: Command, deps: CommandDeps): void 
       const spaDir = resolveSpaDir();
       const { fetchPublicIp } = await import("@mecha/core");
       const publicIp = await fetchPublicIp();
+      // Derive internal mesh routing key from TOTP secret (not user-facing)
+      /* v8 ignore start -- mesh key derivation requires TOTP secret */
+      const { createHmac } = await import("node:crypto");
+      const meshKey = totpSecret
+        ? createHmac("sha256", totpSecret).update("mecha-mesh-routing").digest("hex")
+        : undefined;
+      /* v8 ignore stop */
+
       const server = createAgentServer({
         port,
         auth: {
-          apiKey: authConfig.apiKey ? explicitApiKey : undefined,
           totpSecret,
+          apiKey: meshKey,
         },
         processManager: deps.processManager,
         acl: deps.acl,
@@ -89,15 +85,11 @@ export function registerStartCommand(program: Command, deps: CommandDeps): void 
 
       await server.listen({ port, host: opts.host });
 
-      const methods: string[] = [];
-      if (authConfig.totp) methods.push("TOTP");
-      if (authConfig.apiKey) methods.push("API key");
-
       /* v8 ignore start -- SPA presence varies by build configuration */
       if (spaDir) {
-        deps.formatter.success(`Mecha started on http://${opts.host}:${port} (node: ${nodeName}, auth: ${methods.join(" + ")})`);
+        deps.formatter.success(`Mecha started on http://${opts.host}:${port} (node: ${nodeName}, auth: TOTP)`);
       } else {
-        deps.formatter.success(`Agent server started on ${opts.host}:${port} (node: ${nodeName}, auth: ${methods.join(" + ")})`);
+        deps.formatter.success(`Agent server started on ${opts.host}:${port} (node: ${nodeName}, auth: TOTP)`);
         deps.formatter.warn("SPA not found — dashboard not available. Run pnpm --filter @mecha/spa build");
       }
       /* v8 ignore stop */

@@ -65,9 +65,7 @@ describe("executeDashboardServe", () => {
     process.exitCode = undefined;
   });
 
-  afterEach(() => {
-    delete process.env.MECHA_AGENT_API_KEY;
-  });
+  afterEach(() => {});
 
   it("rejects invalid port", async () => {
     const deps = makeDeps();
@@ -89,17 +87,12 @@ describe("executeDashboardServe", () => {
     expect(successSpy).toHaveBeenCalledWith(expect.stringContaining("TOTP"));
   });
 
-  it("errors when api-key enabled but no key provided", async () => {
-    const { writeAuthConfig } = await import("@mecha/core");
-    writeAuthConfig(dir, { totp: false, apiKey: true });
-
+  it("errors when TOTP disabled", async () => {
     const deps = makeDeps();
-    const errorSpy = vi.spyOn(deps.formatter, "error");
 
-    await executeDashboardServe({ port: "7660", host: "127.0.0.1", open: false, totp: false }, deps);
-
-    expect(process.exitCode).toBe(1);
-    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("API key auth enabled but no key provided"));
+    await expect(
+      executeDashboardServe({ port: "7660", host: "127.0.0.1", open: false, totp: false }, deps),
+    ).rejects.toThrow("TOTP must be enabled");
   });
 
   it("errors when SPA not found", async () => {

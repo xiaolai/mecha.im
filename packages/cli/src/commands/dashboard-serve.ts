@@ -9,7 +9,6 @@ interface DashboardServeOpts {
   port: string;
   host: string;
   open: boolean;
-  apiKey?: string | false;
   totp: boolean;
 }
 
@@ -21,23 +20,10 @@ export async function executeDashboardServe(opts: DashboardServeOpts, deps: Comm
     return;
   }
 
-  // Resolve auth config (same pipeline as start/agent-start)
-  /* v8 ignore start -- API key branches tested in start.test.ts and agent.test.ts */
-  const rawApiKey = typeof opts.apiKey === "string" ? opts.apiKey.trim() : undefined;
-  const explicitApiKey = rawApiKey || ((process.env.MECHA_AGENT_API_KEY ?? "").trim() || undefined);
-  /* v8 ignore stop */
+  // Resolve auth config
   const authConfig = resolveAuthConfig(deps.mechaDir, {
     totp: opts.totp === false ? false : undefined,
-    /* v8 ignore start -- API key override branches tested in start.test.ts */
-    apiKey: opts.apiKey === false ? false : explicitApiKey ? true : undefined,
-    /* v8 ignore stop */
   });
-
-  if (authConfig.apiKey && !explicitApiKey) {
-    deps.formatter.error("API key auth enabled but no key provided: use --api-key or set MECHA_AGENT_API_KEY");
-    process.exitCode = 1;
-    return;
-  }
 
   // Ensure TOTP secret if TOTP is enabled
   let totpSecret: string | undefined;
@@ -66,13 +52,19 @@ export async function executeDashboardServe(opts: DashboardServeOpts, deps: Comm
 
   const { fetchPublicIp } = await import("@mecha/core");
   const publicIp = await fetchPublicIp();
+  // Derive internal mesh routing key from TOTP secret (not user-facing)
+  /* v8 ignore start -- mesh key derivation requires TOTP secret */
+  const { createHmac } = await import("node:crypto");
+  const meshKey = totpSecret
+    ? createHmac("sha256", totpSecret).update("mecha-mesh-routing").digest("hex")
+    : undefined;
+  /* v8 ignore stop */
+
   const server = createAgentServer({
     port,
     auth: {
-      /* v8 ignore start -- API key pass-through tested in start.test.ts */
-      apiKey: authConfig.apiKey ? explicitApiKey : undefined,
-      /* v8 ignore stop */
       totpSecret,
+      apiKey: meshKey,
     },
     processManager: deps.processManager,
     acl: deps.acl,
@@ -90,12 +82,7 @@ export async function executeDashboardServe(opts: DashboardServeOpts, deps: Comm
 
   await server.listen({ port, host: opts.host });
 
-  const methods: string[] = [];
-  if (authConfig.totp) methods.push("TOTP");
-  /* v8 ignore start -- API key method display tested in start.test.ts */
-  if (authConfig.apiKey) methods.push("API key");
-  /* v8 ignore stop */
-  deps.formatter.success(`Dashboard started on http://${opts.host}:${port} (auth: ${methods.join(" + ")})`);
+  deps.formatter.success(`Dashboard started on http://${opts.host}:${port} (auth: TOTP)`);
 
   /* v8 ignore start -- platform-specific browser open */
   if (opts.open) {
@@ -120,8 +107,6 @@ export function registerDashboardServeCommand(parent: Command, deps: CommandDeps
     .option("--port <port>", "Dashboard port", String(DEFAULTS.AGENT_PORT))
     .option("--host <host>", "Bind address", "127.0.0.1")
     .option("--open", "Open browser after starting", false)
-    .option("--api-key <key>", "API key for authentication (or set MECHA_AGENT_API_KEY)")
-    .option("--no-api-key", "Disable API key authentication")
     .option("--no-totp", "Disable TOTP authentication")
     .action(async (opts: DashboardServeOpts) => withErrorHandler(deps, () => executeDashboardServe(opts, deps)));
 }

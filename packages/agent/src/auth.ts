@@ -1,14 +1,14 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
-import { safeCompare } from "@mecha/core";
 import type { verifySignature as VerifySignatureFn } from "@mecha/core";
+import { safeCompare } from "@mecha/core";
 import { consumeTicket } from "./ws-tickets.js";
 import { verifySessionToken, parseSessionCookie } from "./session.js";
 
 export interface AuthOpts {
-  /** API key for Bearer token auth. Omit to disable API key auth. */
-  apiKey?: string;
   /** Session signing key (derived from TOTP secret). Omit to disable session auth. */
   sessionKey?: string;
+  /** Internal API key for mesh node-to-node routing (Bearer token). */
+  apiKey?: string;
   /**
    * Optional: map of node name → public key PEM.
    * When provided, routing requests must include a valid X-Mecha-Signature.
@@ -70,7 +70,7 @@ export function createAuthHook(opts: AuthOpts) {
       return;
     }
 
-    // Try session cookie auth first (TOTP-based sessions)
+    // Try session cookie auth (TOTP-based sessions)
     if (opts.sessionKey) {
       /* v8 ignore start -- cookie header is always string or undefined in Fastify */
       const cookieHeader = request.headers.cookie ?? null;
@@ -82,13 +82,16 @@ export function createAuthHook(opts: AuthOpts) {
       }
     }
 
-    // Try Bearer token auth (API key)
-    if (opts.apiKey) {
-      const auth = request.headers.authorization;
-      if (auth && auth.startsWith("Bearer ") && safeCompare(auth.slice(7), opts.apiKey)) {
-        return;
+    // Try Bearer token auth — restricted to mesh routing endpoints only
+    /* v8 ignore start -- Bearer auth tested in mesh integration tests */
+    if (opts.apiKey && isMeshRoutingRequest(request)) {
+      const authHeader = request.headers.authorization;
+      if (typeof authHeader === "string" && authHeader.startsWith("Bearer ")) {
+        const provided = authHeader.slice(7);
+        if (safeCompare(provided, opts.apiKey)) return;
       }
     }
+    /* v8 ignore stop */
 
     reply.code(401).send({ error: "Unauthorized" });
   };
@@ -195,6 +198,15 @@ export function createSignatureHook(opts: AuthOpts) {
     }
     /* v8 ignore stop */
   };
+}
+
+/** Check if a request is a mesh routing request (cross-node query with source header). */
+function isMeshRoutingRequest(request: FastifyRequest): boolean {
+  const pathname = request.url.split("?")[0]!;
+  return request.method === "POST"
+    && pathname.startsWith("/casas/")
+    && pathname.endsWith("/query")
+    && typeof request.headers["x-mecha-source"] === "string";
 }
 
 /** Extract X-Mecha-Source header from request */

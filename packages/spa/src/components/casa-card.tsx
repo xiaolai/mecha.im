@@ -1,11 +1,12 @@
 import { Link } from "react-router-dom";
-import { PlayIcon, RefreshCwIcon, SquareIcon, OctagonXIcon } from "lucide-react";
+import { PlayIcon, RefreshCwIcon, SquareIcon, OctagonXIcon, KeyRoundIcon, ShieldCheckIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { TooltipIconButton } from "@/components/ui/tooltip-icon-button";
 import { cn } from "@/lib/utils";
 import { stateStyles } from "@/lib/casa-styles";
 import { useCasaAction } from "@/lib/use-casa-action";
 import { shortModelName, formatCost, relativeTime } from "@/lib/format";
+import { humanizeProfileName } from "@/lib/auth-utils";
 import { BusyWarningBanner } from "@/components/busy-warning-banner";
 
 export interface CasaInfo {
@@ -32,14 +33,14 @@ interface CasaCardProps {
 }
 
 export function CasaCard({ casa }: CasaCardProps) {
-  const style = stateStyles[casa.state];
+  const style = stateStyles[casa.state] ?? stateStyles.error;
   const { acting, actionError, busyWarning, handleAction, confirmForce, dismissBusy } = useCasaAction(casa.name, undefined, casa.node);
 
   return (
     <div className="relative flex flex-col gap-3 rounded-lg border border-border bg-card p-4 transition-colors hover:bg-accent/50">
       <Link
         to={`/casa/${encodeURIComponent(casa.name)}${casa.node && casa.node !== "local" ? `?node=${encodeURIComponent(casa.node)}` : ""}`}
-        className="absolute inset-0 rounded-lg"
+        className="absolute inset-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         aria-label={`View ${casa.name}`}
       />
       {/* Header */}
@@ -65,7 +66,7 @@ export function CasaCard({ casa }: CasaCardProps) {
           <span className="truncate">
             {[
               casa.model && <span key="model" className="font-mono">{shortModelName(casa.model)}</span>,
-              casa.auth && <span key="auth">{casa.auth}{casa.authType ? ` (${casa.authType})` : ""}</span>,
+              casa.auth && <span key="auth" className="inline-flex items-center gap-1">{casa.authType === "oauth" ? <ShieldCheckIcon className="size-3" /> : <KeyRoundIcon className="size-3" />} {humanizeProfileName(casa.auth)}</span>,
               casa.costToday != null && casa.costToday > 0 && <span key="cost">{formatCost(casa.costToday)} today</span>,
             ].filter(Boolean).reduce<React.ReactNode[]>((acc, el, i) => {
               if (i > 0) acc.push(<span key={`sep-${i}`}> · </span>);
