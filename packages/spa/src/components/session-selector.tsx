@@ -15,6 +15,15 @@ interface SessionSelectorProps {
 }
 
 const POLL_INTERVAL_MS = 10_000;
+const DEFAULT_TITLE = "(active session)";
+
+function formatSessionLabel(s: Session): string {
+  const hasRealTitle = s.title && s.title !== DEFAULT_TITLE;
+  const label = hasRealTitle ? s.title! : s.id.slice(0, 8);
+  if (!s.createdAt) return label;
+  const time = new Date(s.createdAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  return `${label} \u00b7 ${time}`;
+}
 
 export function SessionSelector({ botName, node, currentSessionId, botState, onSelect }: SessionSelectorProps) {
   const isRunning = botState === "running" || botState === undefined;
@@ -40,8 +49,7 @@ export function SessionSelector({ botName, node, currentSessionId, botState, onS
         <option value="__new__">New Session</option>
         {sessions?.map((s) => (
           <option key={s.id} value={s.id}>
-            {s.title ?? s.id}
-            {s.createdAt ? ` (${new Date(s.createdAt).toLocaleDateString()})` : ""}
+            {formatSessionLabel(s)}
           </option>
         ))}
       </select>

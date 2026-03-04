@@ -18,7 +18,9 @@ import { registerMeshRoutes } from "./routes/mesh.js";
 import { registerMeterRoutes } from "./routes/meter.js";
 import { registerSettingsRoutes } from "./routes/settings.js";
 import { registerEventsRoutes } from "./routes/events.js";
+import { registerEventLogRoutes } from "./routes/event-log.js";
 import { registerAuthRoutes } from "./routes/auth.js";
+import { createEventLog, emitEvent, type EventLog } from "./event-log.js";
 import { createPtyManager } from "./pty-manager.js";
 import { issueTicket, purgeTickets } from "./ws-tickets.js";
 
@@ -123,11 +125,48 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
   app.addHook("preHandler", createSignatureHook(authOpts));
   /* v8 ignore stop */
 
+  // --- Event log (persisted system events) ---
+  const eventLog = createEventLog(opts.mechaDir);
+
+  // Subscribe to process lifecycle events → persist as system events
+  opts.processManager.onEvent((event) => {
+    switch (event.type) {
+      case "spawned":
+        emitEvent(eventLog, "info", "process", "bot.spawned",
+          `Bot ${event.name} spawned (pid=${event.pid}, port=${event.port})`,
+          { name: event.name, pid: event.pid, port: event.port });
+        break;
+      case "stopped":
+        emitEvent(eventLog, "info", "process", "bot.stopped",
+          `Bot ${event.name} stopped (exit=${event.exitCode ?? "unknown"})`,
+          { name: event.name, exitCode: event.exitCode });
+        break;
+      case "error":
+        emitEvent(eventLog, "error", "process", "bot.error",
+          `Bot ${event.name}: ${event.error}`,
+          { name: event.name });
+        break;
+      case "warning":
+        emitEvent(eventLog, "warn", "process", "bot.warning",
+          `Bot ${event.name}: ${event.message}`,
+          { name: event.name });
+        break;
+    }
+  });
+
+  emitEvent(eventLog, "info", "server", "server.started",
+    `Server started on port ${opts.port}`, { port: opts.port, nodeName: opts.nodeName });
+
+  app.addHook("onClose", () => {
+    emitEvent(eventLog, "info", "server", "server.shutdown", "Server shutting down");
+  });
+
   // Auth routes (public: /auth/status, /auth/login, /auth/logout)
   registerAuthRoutes(app, {
     totpSecret: opts.auth.totpSecret,
     sessionKey,
     sessionTtlHours: opts.auth.sessionTtlHours,
+    eventLog,
   });
 
   registerHealthRoutes(app, {
@@ -154,6 +193,7 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
   registerMeterRoutes(app, { mechaDir: opts.mechaDir });
   registerSettingsRoutes(app);
   registerEventsRoutes(app, { processManager: opts.processManager });
+  registerEventLogRoutes(app, { eventLog });
 
   /* v8 ignore start -- WS ticket endpoint tested via auth + ws-tickets unit tests */
   app.post("/ws/ticket", async () => {
