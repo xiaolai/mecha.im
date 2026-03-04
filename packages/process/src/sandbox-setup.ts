@@ -218,7 +218,7 @@ export function prepareBotFilesystem(opts: BotFilesystemOpts): BotFilesystemResu
   const { botDir, workspacePath, port, token, name, model, permissionMode, auth, tags, userEnv } = opts;
 
   // Create directory structure mirroring real Claude Code
-  const homeDir = join(botDir, "home");
+  const homeDir = botDir;
   const claudeDir = join(homeDir, ".claude");
   const hooksDir = join(claudeDir, "hooks");
   const projectsBaseDir = join(claudeDir, "projects");

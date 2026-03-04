@@ -123,7 +123,7 @@ export function createPtyManager(opts: CreatePtyManagerOpts): PtyManager {
       const args: string[] = isNewSession ? [] : ["--resume", sessionId];
 
       // bot filesystem paths — mirrors prepareBotFilesystem() layout
-      const homeDir = join(botDir, "home");
+      const homeDir = botDir;
       const tmpDir = join(botDir, "tmp");
       const logsDir = join(botDir, "logs");
       const projectsDir = join(homeDir, ".claude", "projects", encodeProjectPath(config.workspace));

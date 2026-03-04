@@ -121,12 +121,14 @@ describe("createProcessManager", () => {
     });
 
     const botDir = join(tempDir, testName);
-    expect(existsSync(join(botDir, "home", ".claude", "hooks"))).toBe(true);
+    expect(existsSync(join(botDir, ".claude", "hooks"))).toBe(true);
     expect(existsSync(join(botDir, "tmp"))).toBe(true);
-    expect(existsSync(join(botDir, "home", ".claude", "projects"))).toBe(true);
+    expect(existsSync(join(botDir, ".claude", "projects"))).toBe(true);
     expect(existsSync(join(botDir, "logs"))).toBe(true);
     expect(existsSync(join(botDir, "config.json"))).toBe(true);
     expect(existsSync(join(botDir, "state.json"))).toBe(true);
+    // Old home/ nesting must not exist
+    expect(existsSync(join(botDir, "home"))).toBe(false);
   });
 
   it("sets config.json to mode 0o600 after spawn", async () => {
@@ -169,7 +171,7 @@ describe("createProcessManager", () => {
     });
 
     const botDir = join(tempDir, testName);
-    const hooksMode = statSync(join(botDir, "home", ".claude", "hooks")).mode & 0o777;
+    const hooksMode = statSync(join(botDir, ".claude", "hooks")).mode & 0o777;
     const tmpMode = statSync(join(botDir, "tmp")).mode & 0o777;
     expect(hooksMode).toBe(0o700);
     expect(tmpMode).toBe(0o700);
@@ -193,7 +195,7 @@ describe("createProcessManager", () => {
     });
 
     const botDir = join(tempDir, testName);
-    const guardPath = join(botDir, "home", ".claude", "hooks", "sandbox-guard.sh");
+    const guardPath = join(botDir, ".claude", "hooks", "sandbox-guard.sh");
     const script = readFileSync(guardPath, "utf-8");
 
     // The guard should use strict path matching with "/" separator on canonicalized vars
@@ -221,12 +223,12 @@ describe("createProcessManager", () => {
     });
 
     const botDir = join(tempDir, testName);
-    const settings = JSON.parse(readFileSync(join(botDir, "home", ".claude", "settings.json"), "utf-8"));
+    const settings = JSON.parse(readFileSync(join(botDir, ".claude", "settings.json"), "utf-8"));
     expect(settings.hooks).toBeDefined();
     expect(settings.hooks.PreToolUse).toHaveLength(2);
 
-    expect(existsSync(join(botDir, "home", ".claude", "hooks", "sandbox-guard.sh"))).toBe(true);
-    expect(existsSync(join(botDir, "home", ".claude", "hooks", "bash-guard.sh"))).toBe(true);
+    expect(existsSync(join(botDir, ".claude", "hooks", "sandbox-guard.sh"))).toBe(true);
+    expect(existsSync(join(botDir, ".claude", "hooks", "bash-guard.sh"))).toBe(true);
   });
 
   it("throws BotAlreadyExistsError for duplicate spawn", async () => {
@@ -608,7 +610,7 @@ describe("createProcessManager", () => {
     expect(envArg.SAFE_KEY).toBe("ok");
     // Security vars applied last — user overrides are stripped
     expect(envArg.MECHA_AUTH_TOKEN).toMatch(/^mecha_/);
-    expect(envArg.HOME).toContain("home"); // botDir/home, not /evil
+    expect(envArg.HOME).toBe(join(tempDir, testName));
   });
 
   it("throws ProcessSpawnError when spawnFn throws", async () => {
@@ -1078,7 +1080,7 @@ describe("createProcessManager", () => {
     // Verify spawn was called (directory creation happened)
     expect(mockSpawn).toHaveBeenCalledOnce();
     const botDir = join(tempDir, testName);
-    expect(existsSync(join(botDir, "home", ".claude", "hooks"))).toBe(true);
+    expect(existsSync(join(botDir, ".claude", "hooks"))).toBe(true);
   });
 
   it("logs returns existing log file stream", async () => {

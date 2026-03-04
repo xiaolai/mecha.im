@@ -7,7 +7,7 @@ import type { SandboxProfile } from "../src/types.js";
 
 const profile: SandboxProfile = {
   readPaths: ["/usr/bin/node", "/mecha/discovery.json"],
-  writePaths: ["/mecha/alice/home"],
+  writePaths: ["/mecha/alice"],
   allowedProcesses: ["/usr/bin/node"],
   allowNetwork: true,
 };
