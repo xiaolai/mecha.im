@@ -8,7 +8,7 @@ interface NodeEntry {
 }
 
 interface RuntimeConfig {
-  casaPortRange: string;
+  botPortRange: string;
   agentPort: number;
   mcpPort: number;
 }
@@ -51,7 +51,7 @@ export function SettingsView() {
       <div className="rounded-lg border border-border bg-card p-4">
         <h2 className="text-sm font-semibold text-card-foreground mb-3">Runtime</h2>
         <div className="flex flex-col gap-2 text-sm text-muted-foreground">
-          <span>CASA port range: <span className="font-mono text-card-foreground">{runtime?.casaPortRange ?? "7700-7799"}</span></span>
+          <span>bot port range: <span className="font-mono text-card-foreground">{runtime?.botPortRange ?? "7700-7799"}</span></span>
           <span>Agent port: <span className="font-mono text-card-foreground">{runtime?.agentPort ?? 7660}</span></span>
           <span>MCP port: <span className="font-mono text-card-foreground">{runtime?.mcpPort ?? 7680}</span></span>
         </div>

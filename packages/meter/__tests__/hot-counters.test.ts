@@ -6,7 +6,7 @@ function makeEvent(overrides: Partial<MeterEvent> = {}): MeterEvent {
   return {
     id: "01TEST",
     ts: "2026-02-26T14:30:00.000Z",
-    casa: "researcher",
+    bot: "researcher",
     authProfile: "personal",
     workspace: "/ws",
     tags: ["research"],
@@ -36,13 +36,13 @@ describe("hot-counters", () => {
   });
 
   describe("ingestEvent", () => {
-    it("accumulates into global and per-CASA", () => {
+    it("accumulates into global and per-bot", () => {
       const c = createHotCounters("2026-02-26");
       ingestEvent(c, makeEvent({ costUsd: 0.10 }));
       expect(c.global.today.requests).toBe(1);
       expect(c.global.today.costUsd).toBe(0.10);
       expect(c.global.thisMonth.requests).toBe(1);
-      expect(c.byCasa["researcher"]!.today.costUsd).toBe(0.10);
+      expect(c.byBot["researcher"]!.today.costUsd).toBe(0.10);
     });
 
     it("accumulates into per-auth and per-tag", () => {
@@ -55,13 +55,13 @@ describe("hot-counters", () => {
 
     it("accumulates multiple events", () => {
       const c = createHotCounters("2026-02-26");
-      ingestEvent(c, makeEvent({ casa: "a", costUsd: 0.05 }));
-      ingestEvent(c, makeEvent({ casa: "b", costUsd: 0.10 }));
-      ingestEvent(c, makeEvent({ casa: "a", costUsd: 0.03 }));
+      ingestEvent(c, makeEvent({ bot: "a", costUsd: 0.05 }));
+      ingestEvent(c, makeEvent({ bot: "b", costUsd: 0.10 }));
+      ingestEvent(c, makeEvent({ bot: "a", costUsd: 0.03 }));
       expect(c.global.today.requests).toBe(3);
       expect(c.global.today.costUsd).toBeCloseTo(0.18, 5);
-      expect(c.byCasa["a"]!.today.requests).toBe(2);
-      expect(c.byCasa["b"]!.today.requests).toBe(1);
+      expect(c.byBot["a"]!.today.requests).toBe(2);
+      expect(c.byBot["b"]!.today.requests).toBe(1);
     });
   });
 
@@ -82,18 +82,18 @@ describe("hot-counters", () => {
       expect(c.global.today.requests).toBe(0);
       expect(c.global.thisMonth.requests).toBe(1);
       expect(c.global.thisMonth.costUsd).toBe(0.10);
-      expect(c.byCasa["researcher"]!.today.requests).toBe(0);
-      expect(c.byCasa["researcher"]!.thisMonth.requests).toBe(1);
+      expect(c.byBot["researcher"]!.today.requests).toBe(0);
+      expect(c.byBot["researcher"]!.thisMonth.requests).toBe(1);
     });
 
     it("prunes buckets with zero monthly activity", () => {
       const c = createHotCounters("2026-02-26");
-      // Manually create a CASA bucket with zero monthly activity
-      c.byCasa["stale"] = { today: { ...c.global.today }, thisMonth: { ...c.global.thisMonth } };
-      c.byCasa["stale"]!.thisMonth.requests = 0;
+      // Manually create a bot bucket with zero monthly activity
+      c.byBot["stale"] = { today: { ...c.global.today }, thisMonth: { ...c.global.thisMonth } };
+      c.byBot["stale"]!.thisMonth.requests = 0;
 
       resetToday(c, "2026-02-27");
-      expect(c.byCasa["stale"]).toBeUndefined();
+      expect(c.byBot["stale"]).toBeUndefined();
     });
   });
 
@@ -112,16 +112,16 @@ describe("hot-counters", () => {
       expect(c.global.thisMonth.costUsd).toBe(0);
     });
 
-    it("clears all per-CASA, per-auth, and per-tag buckets", () => {
+    it("clears all per-bot, per-auth, and per-tag buckets", () => {
       const c = createHotCounters("2026-02-26");
-      ingestEvent(c, makeEvent({ casa: "a", authProfile: "p1", tags: ["t1"] }));
-      ingestEvent(c, makeEvent({ casa: "b", authProfile: "p2", tags: ["t2"] }));
-      expect(Object.keys(c.byCasa)).toHaveLength(2);
+      ingestEvent(c, makeEvent({ bot: "a", authProfile: "p1", tags: ["t1"] }));
+      ingestEvent(c, makeEvent({ bot: "b", authProfile: "p2", tags: ["t2"] }));
+      expect(Object.keys(c.byBot)).toHaveLength(2);
       expect(Object.keys(c.byAuth)).toHaveLength(2);
       expect(Object.keys(c.byTag)).toHaveLength(2);
 
       resetMonth(c, "2026-03-01");
-      expect(Object.keys(c.byCasa)).toHaveLength(0);
+      expect(Object.keys(c.byBot)).toHaveLength(0);
       expect(Object.keys(c.byAuth)).toHaveLength(0);
       expect(Object.keys(c.byTag)).toHaveLength(0);
     });
@@ -138,7 +138,7 @@ describe("hot-counters", () => {
       const restored = fromSnapshot(snapshot);
       expect(restored.date).toBe("2026-02-26");
       expect(restored.global.today.costUsd).toBe(0.10);
-      expect(restored.byCasa["researcher"]!.today.costUsd).toBe(0.10);
+      expect(restored.byBot["researcher"]!.today.costUsd).toBe(0.10);
     });
   });
 });

@@ -62,7 +62,7 @@ describe("createSandbox", () => {
 
   it("wrap() with fallback returns passthrough", async () => {
     const sandbox = createSandbox("fallback");
-    const result = await sandbox.wrap(profile, "/usr/bin/node", ["app.js"], "/tmp/casa");
+    const result = await sandbox.wrap(profile, "/usr/bin/node", ["app.js"], "/tmp/bot");
     expect(result.bin).toBe("/usr/bin/node");
     expect(result.args).toEqual(["app.js"]);
   });
@@ -85,7 +85,7 @@ describe("createSandbox", () => {
 
   it("wrap() with linux returns bwrap command", async () => {
     const sandbox = createSandbox("linux");
-    const result = await sandbox.wrap(profile, "/usr/bin/node", ["app.js"], "/tmp/casa");
+    const result = await sandbox.wrap(profile, "/usr/bin/node", ["app.js"], "/tmp/bot");
     expect(result.bin).toMatch(/(?:^|\/)?bwrap$/);
     expect(result.args).toContain("--share-net");
   });

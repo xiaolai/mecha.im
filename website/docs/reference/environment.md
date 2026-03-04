@@ -30,21 +30,21 @@ All environment variables recognized by Mecha.
 
 ## Internal (Set by Runtime)
 
-These are set automatically when a CASA process starts. Do not set manually.
+These are set automatically when a bot process starts. Do not set manually.
 
 | Variable | Description |
 |----------|-------------|
-| `MECHA_CASA_NAME` | Name of the current CASA |
-| `MECHA_PORT` | Port the CASA runtime listens on |
-| `MECHA_WORKSPACE` | Path to the CASA's workspace |
-| `MECHA_PROJECTS_DIR` | Workspace-specific projects directory inside the CASA |
-| `MECHA_AUTH_TOKEN` | Bearer token for the CASA API |
-| `MECHA_LOG_DIR` | Path to the CASA's log directory |
-| `MECHA_SANDBOX_ROOT` | Path to the CASA's root directory |
+| `MECHA_BOT_NAME` | Name of the current bot |
+| `MECHA_PORT` | Port the bot runtime listens on |
+| `MECHA_WORKSPACE` | Path to the bot's workspace |
+| `MECHA_PROJECTS_DIR` | Workspace-specific projects directory inside the bot |
+| `MECHA_AUTH_TOKEN` | Bearer token for the bot API |
+| `MECHA_LOG_DIR` | Path to the bot's log directory |
+| `MECHA_SANDBOX_ROOT` | Path to the bot's root directory |
 
 ## Resolution Priority
 
-When spawning a CASA, credentials are resolved in this order:
+When spawning a bot, credentials are resolved in this order:
 
 1. CLI flag (`--auth <profile>`)
 2. Environment variables (`ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`)

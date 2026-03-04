@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { runtimeFetch } from "../src/helpers.js";
-import { CasaNotFoundError, CasaNotRunningError, type CasaName } from "@mecha/core";
+import { BotNotFoundError, BotNotRunningError, type BotName } from "@mecha/core";
 import type { ProcessManager } from "@mecha/process";
 
 function createMockPM(overrides: Partial<ProcessManager> = {}): ProcessManager {
@@ -19,7 +19,7 @@ function createMockPM(overrides: Partial<ProcessManager> = {}): ProcessManager {
   } as ProcessManager;
 }
 
-const CASA_NAME = "test" as CasaName;
+const BOT_NAME = "test" as BotName;
 const TOKEN = "test-token-abc";
 
 function startJsonServer(): Promise<{ server: ReturnType<typeof createServer>; port: number }> {
@@ -57,7 +57,7 @@ describe("runtimeFetch", () => {
         getPortAndToken: vi.fn().mockReturnValue({ port, token: TOKEN }),
       });
 
-      const result = await runtimeFetch(pm, CASA_NAME, "/healthz");
+      const result = await runtimeFetch(pm, BOT_NAME, "/healthz");
       expect(result.status).toBe(200);
       const body = result.body as { method: string; authorization: string; url: string };
       expect(body.method).toBe("GET");
@@ -75,7 +75,7 @@ describe("runtimeFetch", () => {
         getPortAndToken: vi.fn().mockReturnValue({ port, token: TOKEN }),
       });
 
-      const result = await runtimeFetch(pm, CASA_NAME, "/api/sessions", {
+      const result = await runtimeFetch(pm, BOT_NAME, "/api/sessions", {
         method: "POST",
         body: { title: "Test" },
       });
@@ -96,7 +96,7 @@ describe("runtimeFetch", () => {
         getPortAndToken: vi.fn().mockReturnValue({ port, token: TOKEN }),
       });
 
-      const result = await runtimeFetch(pm, CASA_NAME, "/test", {
+      const result = await runtimeFetch(pm, BOT_NAME, "/test", {
         headers: { "x-custom": "value" },
       });
       expect(result.status).toBe(200);
@@ -105,16 +105,16 @@ describe("runtimeFetch", () => {
     }
   });
 
-  it("throws CasaNotFoundError when CASA does not exist", async () => {
+  it("throws BotNotFoundError when bot does not exist", async () => {
     const pm = createMockPM();
-    await expect(runtimeFetch(pm, CASA_NAME, "/test")).rejects.toThrow(CasaNotFoundError);
+    await expect(runtimeFetch(pm, BOT_NAME, "/test")).rejects.toThrow(BotNotFoundError);
   });
 
-  it("throws CasaNotRunningError when CASA exists but is stopped", async () => {
+  it("throws BotNotRunningError when bot exists but is stopped", async () => {
     const pm = createMockPM({
-      get: vi.fn().mockReturnValue({ name: CASA_NAME, state: "stopped" }),
+      get: vi.fn().mockReturnValue({ name: BOT_NAME, state: "stopped" }),
     });
-    await expect(runtimeFetch(pm, CASA_NAME, "/test")).rejects.toThrow(CasaNotRunningError);
+    await expect(runtimeFetch(pm, BOT_NAME, "/test")).rejects.toThrow(BotNotRunningError);
   });
 
   it("handles text response", async () => {
@@ -130,7 +130,7 @@ describe("runtimeFetch", () => {
         getPortAndToken: vi.fn().mockReturnValue({ port: textPort, token: TOKEN }),
       });
 
-      const result = await runtimeFetch(pm, CASA_NAME, "/test");
+      const result = await runtimeFetch(pm, BOT_NAME, "/test");
       expect(result.status).toBe(200);
       expect(result.body).toBe("plain text response");
     } finally {
@@ -151,7 +151,7 @@ describe("runtimeFetch", () => {
         getPortAndToken: vi.fn().mockReturnValue({ port: barePort, token: TOKEN }),
       });
 
-      const result = await runtimeFetch(pm, CASA_NAME, "/test");
+      const result = await runtimeFetch(pm, BOT_NAME, "/test");
       expect(result.status).toBe(200);
       expect(result.body).toBe("bare response");
     } finally {
@@ -166,7 +166,7 @@ describe("runtimeFetch", () => {
         getPortAndToken: vi.fn().mockReturnValue({ port, token: TOKEN }),
       });
 
-      const result = await runtimeFetch(pm, CASA_NAME, "/test");
+      const result = await runtimeFetch(pm, BOT_NAME, "/test");
       expect(result.raw).toBeInstanceOf(Response);
     } finally {
       await closeServer(server);

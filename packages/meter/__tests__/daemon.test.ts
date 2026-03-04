@@ -220,7 +220,7 @@ describe("daemon", () => {
     handle = await startDaemon({ meterDir: tempDir, port: 0, required: false });
 
     // Write budgets to disk
-    writeBudgets(tempDir, { global: { dailyUsd: 99 }, byCasa: {}, byAuthProfile: {}, byTag: {} });
+    writeBudgets(tempDir, { global: { dailyUsd: 99 }, byBot: {}, byAuthProfile: {}, byTag: {} });
 
     // Send SIGHUP to reload
     process.emit("SIGHUP", "SIGHUP");
@@ -252,7 +252,7 @@ describe("daemon", () => {
       const addr = handle.server.address();
       const port = typeof addr === "object" && addr ? addr.port : 0;
 
-      const res = await httpGet(port, "/casa/test/v1/messages");
+      const res = await httpGet(port, "/bot/test/v1/messages");
       expect(res.status).toBe(401);
       expect(JSON.parse(res.body).error).toBe("Unauthorized");
     });
@@ -263,7 +263,7 @@ describe("daemon", () => {
       const addr = handle.server.address();
       const port = typeof addr === "object" && addr ? addr.port : 0;
 
-      const res = await httpGet(port, "/casa/test/v1/messages", { authorization: "Bearer wrong-token" });
+      const res = await httpGet(port, "/bot/test/v1/messages", { authorization: "Bearer wrong-token" });
       expect(res.status).toBe(401);
     });
 
@@ -273,7 +273,7 @@ describe("daemon", () => {
       const addr = handle.server.address();
       const port = typeof addr === "object" && addr ? addr.port : 0;
 
-      // With correct token, request passes auth and hits the proxy handler (404 = invalid CASA path)
+      // With correct token, request passes auth and hits the proxy handler (404 = invalid bot path)
       const res = await httpGet(port, "/", { authorization: "Bearer secret-token" });
       expect(res.status).toBe(404);
     });

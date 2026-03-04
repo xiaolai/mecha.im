@@ -1,4 +1,4 @@
-import type { CasaName } from "@mecha/core";
+import type { BotName } from "@mecha/core";
 import type { ProcessManager } from "@mecha/process";
 import { runtimeFetch } from "./helpers.js";
 
@@ -9,13 +9,13 @@ export interface TaskCheckResult {
 }
 
 /**
- * Check if a CASA has recently active sessions.
+ * Check if a bot has recently active sessions.
  * Returns busy: true when sessions have been updated within `recencyMs`.
- * Fails open (returns busy: false) when the CASA is not running or unreachable.
+ * Fails open (returns busy: false) when the bot is not running or unreachable.
  */
-export async function checkCasaBusy(
+export async function checkBotBusy(
   pm: ProcessManager,
-  name: CasaName,
+  name: BotName,
   recencyMs = 60_000,
 ): Promise<TaskCheckResult> {
   const info = pm.get(name);

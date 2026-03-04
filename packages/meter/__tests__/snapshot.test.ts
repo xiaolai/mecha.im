@@ -9,7 +9,7 @@ import type { MeterEvent } from "../src/types.js";
 function makeEvent(overrides: Partial<MeterEvent> = {}): MeterEvent {
   return {
     id: "01TEST", ts: "2026-02-26T14:00:00.000Z",
-    casa: "researcher", authProfile: "default", workspace: "/ws", tags: [],
+    bot: "researcher", authProfile: "default", workspace: "/ws", tags: [],
     model: "claude-sonnet-4-6", stream: true, status: 200,
     modelActual: "claude-sonnet-4-6", latencyMs: 500, ttftMs: 50,
     inputTokens: 100, outputTokens: 50, cacheCreationTokens: 0,

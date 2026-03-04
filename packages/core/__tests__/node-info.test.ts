@@ -113,7 +113,7 @@ describe("collectNodeInfo", () => {
     const info = collectNodeInfo({
       port: 7660,
       startedAt: "2026-03-02T12:00:00.000Z",
-      casaCount: 3,
+      botCount: 3,
       publicIp: "203.0.113.42",
     });
 
@@ -122,7 +122,7 @@ describe("collectNodeInfo", () => {
     expect(info.arch).toBe(arch());
     expect(info.port).toBe(7660);
     expect(info.startedAt).toBe("2026-03-02T12:00:00.000Z");
-    expect(info.casaCount).toBe(3);
+    expect(info.botCount).toBe(3);
     expect(info.publicIp).toBe("203.0.113.42");
     expect(info.totalMemMB).toBeGreaterThan(0);
     expect(info.freeMemMB).toBeGreaterThanOrEqual(0);
@@ -134,7 +134,7 @@ describe("collectNodeInfo", () => {
     const info = collectNodeInfo({
       port: 7660,
       startedAt: "2026-03-02T12:00:00.000Z",
-      casaCount: 0,
+      botCount: 0,
     });
 
     expect(info.publicIp).toBeUndefined();

@@ -1,4 +1,4 @@
-import type { MeterEvent, PricingTable, BudgetConfig, CasaRegistryEntry, CostSummary } from "./types.js";
+import type { MeterEvent, PricingTable, BudgetConfig, BotRegistryEntry, CostSummary } from "./types.js";
 import type { HotCounters } from "./hot-counters.js";
 import { ingestEvent } from "./hot-counters.js";
 import { computeCost, resolvePricing } from "./pricing.js";
@@ -18,18 +18,18 @@ const HOP_BY_HOP = new Set([
 export interface ProxyContext {
   meterDir: string;
   pricing: PricingTable;
-  registry: Map<string, CasaRegistryEntry>;
+  registry: Map<string, BotRegistryEntry>;
   counters: HotCounters;
   budgets: BudgetConfig;
-  /** Number of in-flight requests per CASA (for budget pre-accounting). */
+  /** Number of in-flight requests per bot (for budget pre-accounting). */
   pendingRequests: Map<string, number>;
 }
 
-/** Parse the CASA name from the request URL path: /casa/{name}/... */
-export function parseCasaPath(url: string): { casa: string; upstreamPath: string } | null {
-  const match = /^\/casa\/([a-z0-9-]+)(\/.*)$/.exec(url);
+/** Parse the bot name from the request URL path: /bot/{name}/... */
+export function parseBotPath(url: string): { bot: string; upstreamPath: string } | null {
+  const match = /^\/bot\/([a-z0-9-]+)(\/.*)$/.exec(url);
   if (!match) return null;
-  return { casa: match[1]!, upstreamPath: match[2]! };
+  return { bot: match[1]!, upstreamPath: match[2]! };
 }
 
 /** Build upstream headers: set Host, strip hop-by-hop (static + Connection-declared) */
@@ -63,8 +63,8 @@ export function buildUpstreamHeaders(
 export function buildMeterEvent(
   ctx: ProxyContext,
   startMs: number,
-  casa: string,
-  casaInfo: CasaRegistryEntry,
+  bot: string,
+  botInfo: BotRegistryEntry,
   model: string,
   stream: boolean,
   status: number,
@@ -81,10 +81,10 @@ export function buildMeterEvent(
   return {
     id: ulid(),
     ts: new Date().toISOString(),
-    casa,
-    authProfile: casaInfo.authProfile,
-    workspace: casaInfo.workspace,
-    tags: casaInfo.tags,
+    bot,
+    authProfile: botInfo.authProfile,
+    workspace: botInfo.workspace,
+    tags: botInfo.tags,
     model,
     stream,
     status,
@@ -105,32 +105,32 @@ export function buildMeterEvent(
  */
 export const ESTIMATED_REQUEST_COST_USD = 0.03;
 
-/** Run budget check for a CASA request. Returns null if allowed. */
+/** Run budget check for a bot request. Returns null if allowed. */
 export function enforceBudget(
   ctx: ProxyContext,
-  casa: string,
-  casaInfo: CasaRegistryEntry,
+  bot: string,
+  botInfo: BotRegistryEntry,
 ): BudgetCheckResult {
   const counters = ctx.counters;
-  const casaBucket = counters.byCasa[casa];
-  const authBucket = counters.byAuth[casaInfo.authProfile];
+  const casaBucket = counters.byBot[bot];
+  const authBucket = counters.byAuth[botInfo.authProfile];
   const tagSummaries: Record<string, { today: CostSummary; month: CostSummary }> = {};
-  for (const tag of casaInfo.tags) {
+  for (const tag of botInfo.tags) {
     const bucket = counters.byTag[tag];
     if (bucket) tagSummaries[tag] = { today: bucket.today, month: bucket.thisMonth };
   }
 
   // Add estimated cost for in-flight requests to prevent concurrent budget bypass
-  const pending = ctx.pendingRequests.get(casa) ?? 0;
+  const pending = ctx.pendingRequests.get(bot) ?? 0;
   const pendingCostUsd = pending * ESTIMATED_REQUEST_COST_USD;
 
   return checkBudgets({
     config: ctx.budgets,
-    casa,
-    authProfile: casaInfo.authProfile,
-    tags: casaInfo.tags,
+    bot,
+    authProfile: botInfo.authProfile,
+    tags: botInfo.tags,
     global: { today: counters.global.today, month: counters.global.thisMonth },
-    perCasa: casaBucket ? { today: casaBucket.today, month: casaBucket.thisMonth } : undefined,
+    perBot: casaBucket ? { today: casaBucket.today, month: casaBucket.thisMonth } : undefined,
     perAuth: authBucket ? { today: authBucket.today, month: authBucket.thisMonth } : undefined,
     perTag: tagSummaries,
     pendingCostUsd,

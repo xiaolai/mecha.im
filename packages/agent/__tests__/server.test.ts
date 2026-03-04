@@ -4,9 +4,9 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createAgentServer } from "../src/server.js";
 import { deriveSessionKey, createSessionToken } from "../src/session.js";
-import type { AclEngine, CasaName } from "@mecha/core";
+import type { AclEngine, BotName } from "@mecha/core";
 import type { ProcessInfo, ProcessManager } from "@mecha/process";
-import { makeAcl, writeCasaConfig } from "../../core/__tests__/test-utils.js";
+import { makeAcl, writeBotConfig } from "../../core/__tests__/test-utils.js";
 import { makePm } from "../../service/__tests__/test-utils.js";
 
 const TEST_TOTP_SECRET = "JBSWY3DPEHPK3PXP";
@@ -48,7 +48,7 @@ describe("AgentServer", () => {
   describe("auth", () => {
     it("rejects requests without session cookie", async () => {
       const app = createServer();
-      const res = await app.inject({ method: "GET", url: "/casas" });
+      const res = await app.inject({ method: "GET", url: "/bots" });
       expect(res.statusCode).toBe(401);
     });
 
@@ -56,7 +56,7 @@ describe("AgentServer", () => {
       const app = createServer();
       const res = await app.inject({
         method: "GET",
-        url: "/casas",
+        url: "/bots",
         headers: { cookie: "mecha-session=invalid" },
       });
       expect(res.statusCode).toBe(401);
@@ -66,23 +66,23 @@ describe("AgentServer", () => {
       const app = createServer();
       const res = await app.inject({
         method: "GET",
-        url: "/casas",
+        url: "/bots",
         headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(200);
     });
   });
 
-  describe("GET /casas", () => {
-    it("returns list of CASAs", async () => {
+  describe("GET /bots", () => {
+    it("returns list of bots", async () => {
       const list: ProcessInfo[] = [
-        { name: "coder" as CasaName, state: "running", port: 7700, workspacePath: "/ws" },
+        { name: "coder" as BotName, state: "running", port: 7700, workspacePath: "/ws" },
       ];
       const app = createServer({ pm: makePm(list) });
 
       const res = await app.inject({
         method: "GET",
-        url: "/casas",
+        url: "/bots",
         headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(200);
@@ -92,54 +92,54 @@ describe("AgentServer", () => {
     });
   });
 
-  describe("GET /casas/:name/status", () => {
-    it("returns CASA status", async () => {
+  describe("GET /bots/:name/status", () => {
+    it("returns bot status", async () => {
       const list: ProcessInfo[] = [
-        { name: "coder" as CasaName, state: "running", port: 7700, workspacePath: "/ws" },
+        { name: "coder" as BotName, state: "running", port: 7700, workspacePath: "/ws" },
       ];
       const app = createServer({ pm: makePm(list) });
 
       const res = await app.inject({
         method: "GET",
-        url: "/casas/coder/status",
+        url: "/bots/coder/status",
         headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(200);
       expect(res.json().state).toBe("running");
     });
 
-    it("returns 404 for unknown CASA", async () => {
+    it("returns 404 for unknown bot", async () => {
       const app = createServer();
       const res = await app.inject({
         method: "GET",
-        url: "/casas/ghost/status",
+        url: "/bots/ghost/status",
         headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(404);
     });
 
-    it("returns 400 for invalid CASA name", async () => {
+    it("returns 400 for invalid bot name", async () => {
       const app = createServer();
       const res = await app.inject({
         method: "GET",
-        url: "/casas/BAD_NAME/status",
+        url: "/bots/BAD_NAME/status",
         headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(400);
     });
   });
 
-  describe("POST /casas/:name/stop", () => {
-    it("stops a running CASA", async () => {
+  describe("POST /bots/:name/stop", () => {
+    it("stops a running bot", async () => {
       const list: ProcessInfo[] = [
-        { name: "coder" as CasaName, state: "running", port: 7700, workspacePath: "/ws" },
+        { name: "coder" as BotName, state: "running", port: 7700, workspacePath: "/ws" },
       ];
       const pm = makePm(list);
       const app = createServer({ pm });
 
       const res = await app.inject({
         method: "POST",
-        url: "/casas/coder/stop",
+        url: "/bots/coder/stop",
         headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(200);
@@ -147,53 +147,53 @@ describe("AgentServer", () => {
       expect(pm.stop).toHaveBeenCalledWith("coder");
     });
 
-    it("returns 404 for unknown CASA", async () => {
+    it("returns 404 for unknown bot", async () => {
       const app = createServer();
       const res = await app.inject({
         method: "POST",
-        url: "/casas/ghost/stop",
+        url: "/bots/ghost/stop",
         headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(404);
     });
 
-    it("returns 400 for invalid CASA name", async () => {
+    it("returns 400 for invalid bot name", async () => {
       const app = createServer();
       const res = await app.inject({
         method: "POST",
-        url: "/casas/BAD_NAME/stop",
+        url: "/bots/BAD_NAME/stop",
         headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(400);
     });
 
-    it("returns 409 for stopped CASA", async () => {
+    it("returns 409 for stopped bot", async () => {
       const list: ProcessInfo[] = [
-        { name: "coder" as CasaName, state: "stopped", workspacePath: "/ws" },
+        { name: "coder" as BotName, state: "stopped", workspacePath: "/ws" },
       ];
       const app = createServer({ pm: makePm(list) });
 
       const res = await app.inject({
         method: "POST",
-        url: "/casas/coder/stop",
+        url: "/bots/coder/stop",
         headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(409);
-      expect(res.json().code).toBe("CASA_NOT_RUNNING");
+      expect(res.json().code).toBe("BOT_NOT_RUNNING");
     });
   });
 
-  describe("POST /casas/:name/kill", () => {
-    it("kills a CASA", async () => {
+  describe("POST /bots/:name/kill", () => {
+    it("kills a bot", async () => {
       const list: ProcessInfo[] = [
-        { name: "coder" as CasaName, state: "running", port: 7700, workspacePath: "/ws" },
+        { name: "coder" as BotName, state: "running", port: 7700, workspacePath: "/ws" },
       ];
       const pm = makePm(list);
       const app = createServer({ pm });
 
       const res = await app.inject({
         method: "POST",
-        url: "/casas/coder/kill",
+        url: "/bots/coder/kill",
         headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(200);
@@ -201,29 +201,29 @@ describe("AgentServer", () => {
       expect(pm.kill).toHaveBeenCalledWith("coder");
     });
 
-    it("returns 404 for unknown CASA", async () => {
+    it("returns 404 for unknown bot", async () => {
       const app = createServer();
       const res = await app.inject({
         method: "POST",
-        url: "/casas/ghost/kill",
+        url: "/bots/ghost/kill",
         headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(404);
     });
 
-    it("returns 400 for invalid CASA name", async () => {
+    it("returns 400 for invalid bot name", async () => {
       const app = createServer();
       const res = await app.inject({
         method: "POST",
-        url: "/casas/BAD_NAME/kill",
+        url: "/bots/BAD_NAME/kill",
         headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(400);
     });
   });
 
-  describe("POST /casas (spawn)", () => {
-    it("spawns a new CASA", async () => {
+  describe("POST /bots (spawn)", () => {
+    it("spawns a new bot", async () => {
       const pm = makePm();
       (pm.spawn as ReturnType<typeof vi.fn>).mockResolvedValue({
         name: "analyst",
@@ -235,7 +235,7 @@ describe("AgentServer", () => {
 
       const res = await app.inject({
         method: "POST",
-        url: "/casas",
+        url: "/bots",
         headers: { cookie: authCookie() },
         payload: { name: "analyst", workspacePath: "/data" },
       });
@@ -250,7 +250,7 @@ describe("AgentServer", () => {
       const app = createServer();
       const res = await app.inject({
         method: "POST",
-        url: "/casas",
+        url: "/bots",
         headers: { cookie: authCookie() },
         payload: { workspacePath: "/data" },
       });
@@ -261,7 +261,7 @@ describe("AgentServer", () => {
       const app = createServer();
       const res = await app.inject({
         method: "POST",
-        url: "/casas",
+        url: "/bots",
         headers: { cookie: authCookie() },
         payload: { name: "BAD_NAME", workspacePath: "/data" },
       });
@@ -272,22 +272,22 @@ describe("AgentServer", () => {
       const app = createServer();
       const res = await app.inject({
         method: "POST",
-        url: "/casas",
+        url: "/bots",
         headers: { cookie: authCookie() },
         payload: { name: "analyst" },
       });
       expect(res.statusCode).toBe(400);
     });
 
-    it("returns 409 for duplicate CASA", async () => {
+    it("returns 409 for duplicate bot", async () => {
       const list: ProcessInfo[] = [
-        { name: "analyst" as CasaName, state: "running", port: 7702, workspacePath: "/data" },
+        { name: "analyst" as BotName, state: "running", port: 7702, workspacePath: "/data" },
       ];
       const app = createServer({ pm: makePm(list) });
 
       const res = await app.inject({
         method: "POST",
-        url: "/casas",
+        url: "/bots",
         headers: { cookie: authCookie() },
         payload: { name: "analyst", workspacePath: "/data" },
       });
@@ -295,10 +295,10 @@ describe("AgentServer", () => {
     });
   });
 
-  describe("GET /casas/:name/sessions", () => {
-    it("returns sessions for valid CASA", async () => {
+  describe("GET /bots/:name/sessions", () => {
+    it("returns sessions for valid bot", async () => {
       const list: ProcessInfo[] = [
-        { name: "coder" as CasaName, state: "running", port: 7700, workspacePath: "/ws" },
+        { name: "coder" as BotName, state: "running", port: 7700, workspacePath: "/ws" },
       ];
       const pm = makePm(list);
       (pm.getPortAndToken as ReturnType<typeof vi.fn>).mockReturnValue({ port: 7700, token: "tok" });
@@ -313,7 +313,7 @@ describe("AgentServer", () => {
       const app = createServer({ pm });
       const res = await app.inject({
         method: "GET",
-        url: "/casas/coder/sessions",
+        url: "/bots/coder/sessions",
         headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(200);
@@ -322,21 +322,21 @@ describe("AgentServer", () => {
       expect(body[0].id).toBe("s1");
     });
 
-    it("returns 404 for unknown CASA", async () => {
+    it("returns 404 for unknown bot", async () => {
       const app = createServer();
       const res = await app.inject({
         method: "GET",
-        url: "/casas/ghost/sessions",
+        url: "/bots/ghost/sessions",
         headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(404);
     });
 
-    it("returns 400 for invalid CASA name", async () => {
+    it("returns 400 for invalid bot name", async () => {
       const app = createServer();
       const res = await app.inject({
         method: "GET",
-        url: "/casas/BAD_NAME/sessions",
+        url: "/bots/BAD_NAME/sessions",
         headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(400);
@@ -344,7 +344,7 @@ describe("AgentServer", () => {
 
     it("returns 502 when session fetch fails", async () => {
       const list: ProcessInfo[] = [
-        { name: "coder" as CasaName, state: "running", port: 7700, workspacePath: "/ws" },
+        { name: "coder" as BotName, state: "running", port: 7700, workspacePath: "/ws" },
       ];
       const pm = makePm(list);
       (pm.getPortAndToken as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
@@ -352,17 +352,17 @@ describe("AgentServer", () => {
       const app = createServer({ pm });
       const res = await app.inject({
         method: "GET",
-        url: "/casas/coder/sessions",
+        url: "/bots/coder/sessions",
         headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(502);
     });
   });
 
-  describe("GET /casas/:name/sessions/:id", () => {
+  describe("GET /bots/:name/sessions/:id", () => {
     it("returns specific session", async () => {
       const list: ProcessInfo[] = [
-        { name: "coder" as CasaName, state: "running", port: 7700, workspacePath: "/ws" },
+        { name: "coder" as BotName, state: "running", port: 7700, workspacePath: "/ws" },
       ];
       const pm = makePm(list);
       (pm.getPortAndToken as ReturnType<typeof vi.fn>).mockReturnValue({ port: 7700, token: "tok" });
@@ -377,7 +377,7 @@ describe("AgentServer", () => {
       const app = createServer({ pm });
       const res = await app.inject({
         method: "GET",
-        url: "/casas/coder/sessions/s1",
+        url: "/bots/coder/sessions/s1",
         headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(200);
@@ -386,7 +386,7 @@ describe("AgentServer", () => {
 
     it("returns 404 for unknown session", async () => {
       const list: ProcessInfo[] = [
-        { name: "coder" as CasaName, state: "running", port: 7700, workspacePath: "/ws" },
+        { name: "coder" as BotName, state: "running", port: 7700, workspacePath: "/ws" },
       ];
       const pm = makePm(list);
       (pm.getPortAndToken as ReturnType<typeof vi.fn>).mockReturnValue({ port: 7700, token: "tok" });
@@ -401,37 +401,37 @@ describe("AgentServer", () => {
       const app = createServer({ pm });
       const res = await app.inject({
         method: "GET",
-        url: "/casas/coder/sessions/ghost",
+        url: "/bots/coder/sessions/ghost",
         headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(404);
     });
 
-    it("returns 404 for unknown CASA", async () => {
+    it("returns 404 for unknown bot", async () => {
       const app = createServer();
       const res = await app.inject({
         method: "GET",
-        url: "/casas/ghost/sessions/s1",
+        url: "/bots/ghost/sessions/s1",
         headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(404);
     });
 
-    it("returns 400 for invalid CASA name", async () => {
+    it("returns 400 for invalid bot name", async () => {
       const app = createServer();
       const res = await app.inject({
         method: "GET",
-        url: "/casas/BAD_NAME/sessions/s1",
+        url: "/bots/BAD_NAME/sessions/s1",
         headers: { cookie: authCookie() },
       });
       expect(res.statusCode).toBe(400);
     });
   });
 
-  describe("POST /casas/:name/query", () => {
-    it("forwards query to local CASA", async () => {
+  describe("POST /bots/:name/query", () => {
+    it("forwards query to local bot", async () => {
       const app = createServer();
-      writeCasaConfig(mechaDir, "researcher", { port: 7700, token: "tok", workspace: "/ws", expose: ["query"] });
+      writeBotConfig(mechaDir, "researcher", { port: 7700, token: "tok", workspace: "/ws", expose: ["query"] });
 
       vi.spyOn(globalThis, "fetch").mockResolvedValue(
         new Response(JSON.stringify({ response: "Found papers" }), {
@@ -442,7 +442,7 @@ describe("AgentServer", () => {
 
       const res = await app.inject({
         method: "POST",
-        url: "/casas/researcher/query",
+        url: "/bots/researcher/query",
         headers: {
           cookie: authCookie(),
           "x-mecha-source": "coder@remote",
@@ -458,7 +458,7 @@ describe("AgentServer", () => {
       const app = createServer();
       const res = await app.inject({
         method: "POST",
-        url: "/casas/researcher/query",
+        url: "/bots/researcher/query",
         headers: { cookie: authCookie() },
         payload: { message: "hello" },
       });
@@ -470,18 +470,18 @@ describe("AgentServer", () => {
       const app = createServer();
       const res = await app.inject({
         method: "POST",
-        url: "/casas/researcher/query",
+        url: "/bots/researcher/query",
         headers: { cookie: authCookie(), "x-mecha-source": "coder" },
         payload: {},
       });
       expect(res.statusCode).toBe(400);
     });
 
-    it("returns 400 for invalid CASA name", async () => {
+    it("returns 400 for invalid bot name", async () => {
       const app = createServer();
       const res = await app.inject({
         method: "POST",
-        url: "/casas/BAD_NAME/query",
+        url: "/bots/BAD_NAME/query",
         headers: { cookie: authCookie(), "x-mecha-source": "coder" },
         payload: { message: "hello" },
       });
@@ -494,7 +494,7 @@ describe("AgentServer", () => {
 
       const res = await app.inject({
         method: "POST",
-        url: "/casas/researcher/query",
+        url: "/bots/researcher/query",
         headers: {
           cookie: authCookie(),
           "x-mecha-source": "coder",
@@ -504,26 +504,26 @@ describe("AgentServer", () => {
       expect(res.statusCode).toBe(403);
     });
 
-    it("returns 404 when CASA config not found", async () => {
+    it("returns 404 when bot config not found", async () => {
       const app = createServer();
       const res = await app.inject({
         method: "POST",
-        url: "/casas/ghost/query",
+        url: "/bots/ghost/query",
         headers: { cookie: authCookie(), "x-mecha-source": "coder" },
         payload: { message: "hello" },
       });
       expect(res.statusCode).toBe(404);
     });
 
-    it("returns 502 when upstream CASA fails", async () => {
+    it("returns 502 when upstream bot fails", async () => {
       const app = createServer();
-      writeCasaConfig(mechaDir, "researcher", { port: 7700, token: "tok", workspace: "/ws", expose: ["query"] });
+      writeBotConfig(mechaDir, "researcher", { port: 7700, token: "tok", workspace: "/ws", expose: ["query"] });
 
       vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("ECONNREFUSED"));
 
       const res = await app.inject({
         method: "POST",
-        url: "/casas/researcher/query",
+        url: "/bots/researcher/query",
         headers: {
           cookie: authCookie(),
           "x-mecha-source": "coder@remote",
@@ -531,17 +531,17 @@ describe("AgentServer", () => {
         payload: { message: "hello" },
       });
       expect(res.statusCode).toBe(502);
-      expect(res.json().error).toContain("Upstream CASA unavailable");
+      expect(res.json().error).toContain("Upstream bot unavailable");
     });
   });
 
   describe("GET /discover", () => {
-    it("returns discovered CASAs", async () => {
+    it("returns discovered bots", async () => {
       const list: ProcessInfo[] = [
-        { name: "coder" as CasaName, state: "running", port: 7700, workspacePath: "/ws" },
+        { name: "coder" as BotName, state: "running", port: 7700, workspacePath: "/ws" },
       ];
       const app = createServer({ pm: makePm(list) });
-      writeCasaConfig(mechaDir, "coder", { port: 7700, token: "t", workspace: "/ws", tags: ["code"], expose: ["query"] });
+      writeBotConfig(mechaDir, "coder", { port: 7700, token: "t", workspace: "/ws", tags: ["code"], expose: ["query"] });
 
       const res = await app.inject({
         method: "GET",
@@ -557,12 +557,12 @@ describe("AgentServer", () => {
 
     it("filters by tag", async () => {
       const list: ProcessInfo[] = [
-        { name: "coder" as CasaName, state: "running", port: 7700, workspacePath: "/a" },
-        { name: "researcher" as CasaName, state: "running", port: 7701, workspacePath: "/b" },
+        { name: "coder" as BotName, state: "running", port: 7700, workspacePath: "/a" },
+        { name: "researcher" as BotName, state: "running", port: 7701, workspacePath: "/b" },
       ];
       const app = createServer({ pm: makePm(list) });
-      writeCasaConfig(mechaDir, "coder", { port: 7700, token: "t", workspace: "/a", tags: ["code"] });
-      writeCasaConfig(mechaDir, "researcher", { port: 7701, token: "t", workspace: "/b", tags: ["research"] });
+      writeBotConfig(mechaDir, "coder", { port: 7700, token: "t", workspace: "/a", tags: ["code"] });
+      writeBotConfig(mechaDir, "researcher", { port: 7701, token: "t", workspace: "/b", tags: ["research"] });
 
       const res = await app.inject({
         method: "GET",
@@ -576,10 +576,10 @@ describe("AgentServer", () => {
 
     it("filters by capability", async () => {
       const list: ProcessInfo[] = [
-        { name: "coder" as CasaName, state: "running", port: 7700, workspacePath: "/a" },
+        { name: "coder" as BotName, state: "running", port: 7700, workspacePath: "/a" },
       ];
       const app = createServer({ pm: makePm(list) });
-      writeCasaConfig(mechaDir, "coder", { port: 7700, token: "t", workspace: "/a", expose: ["query"] });
+      writeBotConfig(mechaDir, "coder", { port: 7700, token: "t", workspace: "/a", expose: ["query"] });
 
       const res = await app.inject({
         method: "GET",

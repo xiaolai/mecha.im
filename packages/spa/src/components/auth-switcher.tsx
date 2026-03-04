@@ -20,10 +20,10 @@ interface AuthProfile {
 }
 
 interface AuthSwitcherProps {
-  casaName: string;
+  botName: string;
   currentAuth: string | undefined;
   currentAuthType: string | undefined;
-  casaState: string;
+  botState: string;
   node?: string;
   onSwitched: () => void;
 }
@@ -31,13 +31,13 @@ interface AuthSwitcherProps {
 /**
  * State machine phases:
  *   list → (select profile) →
- *     stopped CASA:  → switching → success/error → idle
- *     running CASA:  → confirm → switching → success/error → idle
- *     409 CASA_BUSY: → confirm-force → switching → success/error → idle
+ *     stopped bot:  → switching → success/error → idle
+ *     running bot:  → confirm → switching → success/error → idle
+ *     409 BOT_BUSY: → confirm-force → switching → success/error → idle
  */
 type SwitcherPhase = "list" | "confirm" | "confirm-force";
 
-export function AuthSwitcher({ casaName, currentAuth, currentAuthType, casaState, node, onSwitched }: AuthSwitcherProps) {
+export function AuthSwitcher({ botName, currentAuth, currentAuthType, botState, node, onSwitched }: AuthSwitcherProps) {
   const [open, setOpen] = useState(false);
   const [phase, setPhase] = useState<SwitcherPhase>("list");
   const [switching, setSwitching] = useState(false);
@@ -72,7 +72,7 @@ export function AuthSwitcher({ casaName, currentAuth, currentAuthType, casaState
       if (restart) body.restart = true;
       if (force) body.force = true;
 
-      const res = await fetch(`/casas/${encodeURIComponent(casaName)}/config${nodeQuery}`, {
+      const res = await fetch(`/bots/${encodeURIComponent(botName)}/config${nodeQuery}`, {
         method: "PATCH",
         headers: { ...authHeaders, "content-type": "application/json" },
         credentials: "include",
@@ -87,7 +87,7 @@ export function AuthSwitcher({ casaName, currentAuth, currentAuthType, casaState
 
       const data = await res.json().catch(() => ({ error: "Failed to switch auth" }));
 
-      if (res.status === 409 && data.code === "CASA_BUSY") {
+      if (res.status === 409 && data.code === "BOT_BUSY") {
         setPhase("confirm-force");
         setSwitching(false);
         return;
@@ -106,7 +106,7 @@ export function AuthSwitcher({ casaName, currentAuth, currentAuthType, casaState
       setError("Connection error");
       setSwitching(false);
     }
-  }, [casaName, nodeQuery, authHeaders, logout, onSwitched, resetState]);
+  }, [botName, nodeQuery, authHeaders, logout, onSwitched, resetState]);
 
   const handleSelect = useCallback((profileName: string | null) => {
     if (profileName === currentAuth) {
@@ -116,12 +116,12 @@ export function AuthSwitcher({ casaName, currentAuth, currentAuthType, casaState
 
     setPendingProfile(profileName);
 
-    if (casaState === "running") {
+    if (botState === "running") {
       setPhase("confirm");
     } else {
       patchConfig(profileName, false, false);
     }
-  }, [currentAuth, casaState, patchConfig]);
+  }, [currentAuth, botState, patchConfig]);
 
   const handleSwitchAndRestart = useCallback(() => {
     patchConfig(pendingProfile, true, false);
@@ -358,7 +358,7 @@ function ConfirmView({
         Switch to &ldquo;{label}&rdquo;?
       </div>
       <div className="text-xs text-muted-foreground">
-        CASA needs a restart to apply.
+        bot needs a restart to apply.
       </div>
       {error && <div className="text-xs text-destructive">{error}</div>}
       <div className="flex items-center gap-2">

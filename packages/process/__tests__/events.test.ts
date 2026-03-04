@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
 import { ProcessEventEmitter } from "../src/events.js";
 import type { ProcessEvent } from "../src/events.js";
-import type { CasaName } from "@mecha/core";
+import type { BotName } from "@mecha/core";
 
-const name = "researcher" as CasaName;
+const name = "researcher" as BotName;
 
 describe("ProcessEventEmitter", () => {
   it("emits events to subscribers", () => {

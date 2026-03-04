@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   MechaError,
   ProcessSpawnError,
-  CasaNotFoundError,
+  BotNotFoundError,
   AclDeniedError,
 } from "../src/errors.js";
 
@@ -30,13 +30,13 @@ describe("MechaError cause chain", () => {
   it("factory errors accept optional cause as last argument", () => {
     const original = new Error("connection refused");
     const err = new ProcessSpawnError("binary not found", { cause: original });
-    expect(err.message).toBe("Failed to spawn CASA: binary not found");
+    expect(err.message).toBe("Failed to spawn bot: binary not found");
     expect(err.cause).toBe(original);
     expect(err.code).toBe("PROCESS_SPAWN_ERROR");
   });
 
   it("factory errors work without cause (backward compatible)", () => {
-    const err = new CasaNotFoundError("alice");
+    const err = new BotNotFoundError("alice");
     expect(err.message).toContain("alice");
     expect(err.cause).toBeUndefined();
   });

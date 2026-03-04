@@ -10,13 +10,13 @@ import { registerMcpRoutes } from "./mcp/server.js";
 import { createScheduleEngine, type ChatFn, type ScheduleEngine } from "./scheduler.js";
 
 export interface CreateServerOpts {
-  casaName: string;
+  botName: string;
   port: number;
   authToken: string;
   projectsDir: string;
   workspacePath: string;
   mechaDir?: string;
-  casaDir?: string;
+  botDir?: string;
   chatFn?: ChatFn;
 }
 
@@ -50,7 +50,7 @@ export function createServer(opts: CreateServerOpts): ServerResult {
 
   // Routes
   registerHealthRoutes(app, {
-    casaName: opts.casaName,
+    botName: opts.botName,
     port: opts.port,
     startedAt: new Date().toISOString(),
   });
@@ -59,12 +59,12 @@ export function createServer(opts: CreateServerOpts): ServerResult {
   registerMcpRoutes(app, {
     workspacePath: opts.workspacePath,
     mechaDir: opts.mechaDir,
-    casaName: opts.casaName,
+    botName: opts.botName,
   });
 
-  // Schedule engine (requires casaDir)
+  // Schedule engine (requires botDir)
   let scheduler: ScheduleEngine | undefined;
-  if (opts.casaDir) {
+  if (opts.botDir) {
     /* v8 ignore start -- default chatFn when chat not wired */
     const chatFn: ChatFn = opts.chatFn ?? (async () => ({
       durationMs: 0,
@@ -73,8 +73,8 @@ export function createServer(opts: CreateServerOpts): ServerResult {
     /* v8 ignore stop */
 
     scheduler = createScheduleEngine({
-      casaDir: opts.casaDir,
-      casaName: opts.casaName,
+      botDir: opts.botDir,
+      botName: opts.botName,
       chatFn,
     });
 

@@ -1,6 +1,6 @@
-import { type CasaName, DEFAULTS, ChatRequestError } from "@mecha/core";
+import { type BotName, DEFAULTS, ChatRequestError } from "@mecha/core";
 import type { ProcessManager } from "@mecha/process";
-import { resolveCasaEndpoint } from "./helpers.js";
+import { resolveBotEndpoint } from "./helpers.js";
 
 export interface ChatOpts {
   message: string;
@@ -14,15 +14,15 @@ export interface ChatEvent {
 }
 
 /**
- * Sends a chat message to a CASA and returns an async iterator of SSE events.
+ * Sends a chat message to a bot and returns an async iterator of SSE events.
  */
-export async function casaChat(
+export async function botChat(
   pm: ProcessManager,
-  name: CasaName,
+  name: BotName,
   opts: ChatOpts,
   signal?: AbortSignal,
 ): Promise<AsyncIterable<ChatEvent>> {
-  const info = resolveCasaEndpoint(pm, name);
+  const info = resolveBotEndpoint(pm, name);
 
   const url = `http://127.0.0.1:${info.port}/api/chat`;
   const response = await fetch(url, {

@@ -5,7 +5,7 @@ export interface MeterEvent {
   ts: string;
 
   // --- Identity (who) ---
-  casa: string;
+  bot: string;
   authProfile: string;
   workspace: string;
   tags: string[];
@@ -47,7 +47,7 @@ export interface CostSummary {
 export interface HotCounterBuckets {
   date: string;
   global: { today: CostSummary; thisMonth: CostSummary };
-  byCasa: Record<string, { today: CostSummary; thisMonth: CostSummary }>;
+  byBot: Record<string, { today: CostSummary; thisMonth: CostSummary }>;
   byAuth: Record<string, { today: CostSummary; thisMonth: CostSummary }>;
   byTag: Record<string, { today: CostSummary; thisMonth: CostSummary }>;
 }
@@ -84,7 +84,7 @@ export interface BudgetLimit {
 
 export interface BudgetConfig {
   global: BudgetLimit;
-  byCasa: Record<string, BudgetLimit>;
+  byBot: Record<string, BudgetLimit>;
   byAuthProfile: Record<string, BudgetLimit>;
   byTag: Record<string, BudgetLimit>;
 }
@@ -94,7 +94,7 @@ export interface HourlyRollup {
   hours: Array<{
     hour: number;
     total: CostSummary;
-    byCasa: Record<string, CostSummary>;
+    byBot: Record<string, CostSummary>;
     byModel: Record<string, CostSummary>;
   }>;
 }
@@ -104,7 +104,7 @@ export interface DailyRollup {
   days: Array<{
     date: string;
     total: CostSummary;
-    byCasa: Record<string, CostSummary>;
+    byBot: Record<string, CostSummary>;
     byModel: Record<string, CostSummary>;
     byAuthProfile: Record<string, CostSummary>;
     byTag: Record<string, CostSummary>;
@@ -112,14 +112,14 @@ export interface DailyRollup {
   }>;
 }
 
-export interface CasaRollup {
-  casa: string;
+export interface BotRollup {
+  bot: string;
   allTime: CostSummary;
   byModel: Record<string, CostSummary>;
   byDay: Array<{ date: string; summary: CostSummary }>;
 }
 
-export interface CasaRegistryEntry {
+export interface BotRegistryEntry {
   name: string;
   authProfile: string;
   workspace: string;

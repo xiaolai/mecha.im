@@ -31,7 +31,7 @@ Read every file in `website/docs/`:
 - `reference/architecture.md` — runtime API, package structure
 - `reference/environment.md` — environment variables
 - `guide/configuration.md` — config schema, auth profiles, sandbox modes
-- `guide/concepts.md` — CASA states, name rules, directory structure
+- `guide/concepts.md` — bot states, name rules, directory structure
 - `guide/quickstart.md` — getting started examples
 - `guide/installation.md` — setup examples
 - `features/*.md` — all feature docs
@@ -47,7 +47,7 @@ For each CLI command, check:
    - Option names must match exactly (e.g., `--tags` not `--tag`)
 
 2. **Default values** — Do defaults in docs match Commander defaults or code?
-   - Ports: meter=7600, agent=7660, CASAs=7700-7799
+   - Ports: meter=7600, agent=7660, bots=7700-7799
    - Sandbox mode: `auto`
    - Schedule history limit: 20
 

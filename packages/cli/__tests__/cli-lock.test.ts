@@ -149,13 +149,13 @@ describe("cli-lock", () => {
       ["stop", ["node", "mecha", "stop"]],
       ["restart", ["node", "mecha", "restart"]],
       ["init", ["node", "mecha", "init"]],
-      ["casa spawn", ["node", "mecha", "casa", "spawn", "alice", "/path"]],
-      ["casa start", ["node", "mecha", "casa", "start", "alice"]],
-      ["casa stop", ["node", "mecha", "casa", "stop", "alice"]],
-      ["casa kill", ["node", "mecha", "casa", "kill", "alice"]],
-      ["casa restart", ["node", "mecha", "casa", "restart", "alice"]],
-      ["casa remove", ["node", "mecha", "casa", "remove", "alice"]],
-      ["casa configure", ["node", "mecha", "casa", "configure", "alice"]],
+      ["bot spawn", ["node", "mecha", "bot", "spawn", "alice", "/path"]],
+      ["bot start", ["node", "mecha", "bot", "start", "alice"]],
+      ["bot stop", ["node", "mecha", "bot", "stop", "alice"]],
+      ["bot kill", ["node", "mecha", "bot", "kill", "alice"]],
+      ["bot restart", ["node", "mecha", "bot", "restart", "alice"]],
+      ["bot remove", ["node", "mecha", "bot", "remove", "alice"]],
+      ["bot configure", ["node", "mecha", "bot", "configure", "alice"]],
       ["agent start", ["node", "mecha", "agent", "start"]],
       ["meter start", ["node", "mecha", "meter", "start"]],
       ["meter stop", ["node", "mecha", "meter", "stop"]],
@@ -181,12 +181,12 @@ describe("cli-lock", () => {
 
     // Read-only commands skip the lock
     it.each([
-      ["casa ls", ["node", "mecha", "casa", "ls"]],
-      ["casa status", ["node", "mecha", "casa", "status", "alice"]],
-      ["casa logs", ["node", "mecha", "casa", "logs", "alice"]],
-      ["casa find", ["node", "mecha", "casa", "find"]],
-      ["casa chat", ["node", "mecha", "casa", "chat", "alice"]],
-      ["casa sessions", ["node", "mecha", "casa", "sessions", "list", "alice"]],
+      ["bot ls", ["node", "mecha", "bot", "ls"]],
+      ["bot status", ["node", "mecha", "bot", "status", "alice"]],
+      ["bot logs", ["node", "mecha", "bot", "logs", "alice"]],
+      ["bot find", ["node", "mecha", "bot", "find"]],
+      ["bot chat", ["node", "mecha", "bot", "chat", "alice"]],
+      ["bot sessions", ["node", "mecha", "bot", "sessions", "list", "alice"]],
       ["cost", ["node", "mecha", "cost"]],
       ["doctor", ["node", "mecha", "doctor"]],
       ["tools", ["node", "mecha", "tools"]],
@@ -218,8 +218,8 @@ describe("cli-lock", () => {
     });
 
     it("skips flags when finding command", () => {
-      expect(needsLock(["node", "mecha", "--json", "casa", "spawn", "alice", "/path"])).toBe(true);
-      expect(needsLock(["node", "mecha", "--verbose", "casa", "ls"])).toBe(false);
+      expect(needsLock(["node", "mecha", "--json", "bot", "spawn", "alice", "/path"])).toBe(true);
+      expect(needsLock(["node", "mecha", "--verbose", "bot", "ls"])).toBe(false);
     });
   });
 });

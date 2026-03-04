@@ -13,11 +13,11 @@ import {
   mechaAuthRenew,
   mechaAuthGet,
   mechaAuthGetDefault,
-  mechaAuthSwitchCasa,
+  mechaAuthSwitchBot,
   mechaAuthProbe,
 } from "../src/auth.js";
-import { AuthProfileNotFoundError, CasaNotFoundError, InvalidNameError, readAuthCredentials } from "@mecha/core";
-import type { CasaName } from "@mecha/core";
+import { AuthProfileNotFoundError, BotNotFoundError, InvalidNameError, readAuthCredentials } from "@mecha/core";
+import type { BotName } from "@mecha/core";
 import type { ProcessManager, ProcessInfo } from "@mecha/process";
 
 describe("auth service", () => {
@@ -328,7 +328,7 @@ describe("auth service", () => {
     });
   });
 
-  describe("mechaAuthSwitchCasa", () => {
+  describe("mechaAuthSwitchBot", () => {
     function createMockPM(overrides: Partial<ProcessManager> = {}): ProcessManager {
       return {
         spawn: vi.fn(),
@@ -343,36 +343,36 @@ describe("auth service", () => {
       } as ProcessManager;
     }
 
-    it("updates CASA config with auth profile", () => {
+    it("updates bot config with auth profile", () => {
       const dir = setup();
       mechaAuthAdd(dir, "personal", "oauth", "tok-123");
 
-      // Create CASA dir with config
-      const casaDir = join(dir, "alice");
-      mkdirSync(casaDir, { recursive: true });
-      writeFileSync(join(casaDir, "config.json"), JSON.stringify({ port: 7700, token: "t", workspace: "/ws" }));
+      // Create bot dir with config
+      const botDir = join(dir, "alice");
+      mkdirSync(botDir, { recursive: true });
+      writeFileSync(join(botDir, "config.json"), JSON.stringify({ port: 7700, token: "t", workspace: "/ws" }));
 
-      const info: ProcessInfo = { name: "alice" as CasaName, state: "running", workspacePath: "/ws", port: 7700 };
+      const info: ProcessInfo = { name: "alice" as BotName, state: "running", workspacePath: "/ws", port: 7700 };
       const pm = createMockPM({ get: vi.fn().mockReturnValue(info) });
 
-      const result = mechaAuthSwitchCasa(dir, pm, "alice" as CasaName, "personal");
+      const result = mechaAuthSwitchBot(dir, pm, "alice" as BotName, "personal");
       expect(result.name).toBe("personal");
 
-      const cfg = JSON.parse(readFileSync(join(casaDir, "config.json"), "utf-8"));
+      const cfg = JSON.parse(readFileSync(join(botDir, "config.json"), "utf-8"));
       expect(cfg.auth).toBe("personal");
     });
 
     it("throws AuthProfileNotFoundError for unknown profile", () => {
       const dir = setup();
       const pm = createMockPM();
-      expect(() => mechaAuthSwitchCasa(dir, pm, "alice" as CasaName, "nope")).toThrow(AuthProfileNotFoundError);
+      expect(() => mechaAuthSwitchBot(dir, pm, "alice" as BotName, "nope")).toThrow(AuthProfileNotFoundError);
     });
 
-    it("throws CasaNotFoundError for unknown CASA", () => {
+    it("throws BotNotFoundError for unknown bot", () => {
       const dir = setup();
       mechaAuthAdd(dir, "personal", "oauth", "tok-123");
       const pm = createMockPM();
-      expect(() => mechaAuthSwitchCasa(dir, pm, "unknown" as CasaName, "personal")).toThrow(CasaNotFoundError);
+      expect(() => mechaAuthSwitchBot(dir, pm, "unknown" as BotName, "personal")).toThrow(BotNotFoundError);
     });
   });
 

@@ -1,5 +1,5 @@
-import type { CasaAddress, NodeName, NodeEntry } from "@mecha/core";
-import { readCasaConfig, nodeName } from "@mecha/core";
+import type { BotAddress, NodeName, NodeEntry } from "@mecha/core";
+import { readBotConfig, nodeName } from "@mecha/core";
 import { join } from "node:path";
 import type { ProcessManager } from "@mecha/process";
 
@@ -10,7 +10,7 @@ export type LocateResult =
   | { location: "not_found" };
 
 export interface MechaLocator {
-  locate(target: CasaAddress): LocateResult;
+  locate(target: BotAddress): LocateResult;
 }
 
 const LOCAL_NODE = nodeName("local");
@@ -30,16 +30,16 @@ export function createLocator(opts: CreateLocatorOpts): MechaLocator {
 
       if (isLocal) {
         // Check if running via ProcessManager
-        const info = pm.get(target.casa);
+        const info = pm.get(target.bot);
         if (info && info.state === "running" && info.port) {
-          const config = readCasaConfig(join(mechaDir, target.casa));
+          const config = readBotConfig(join(mechaDir, target.bot));
           /* v8 ignore start -- defensive: process running but config missing */
           if (!config) return { location: "not_found" };
           /* v8 ignore stop */
           return { location: "local", port: config.port, token: config.token };
         }
 
-        // CASA exists but is not running — don't return stale port/token
+        // bot exists but is not running — don't return stale port/token
         return { location: "not_found" };
       }
 

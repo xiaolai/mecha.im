@@ -30,8 +30,8 @@ import {
   writeNodes,
 } from "@mecha/core";
 import type { ProcessManager, ProcessInfo } from "@mecha/process";
-import { createCasaRouter, createLocator, agentFetch } from "@mecha/service";
-import type { CasaRouter, MechaLocator } from "@mecha/service";
+import { createBotRouter, createLocator, agentFetch } from "@mecha/service";
+import type { BotRouter, MechaLocator } from "@mecha/service";
 
 const TEST_TOTP_SECRET = "JBSWY3DPEHPK3PXP";
 
@@ -64,8 +64,8 @@ export interface TestMesh {
 export interface AddNodeOpts {
   /** ACL engine override. Defaults to makeOpenAcl() */
   acl?: AclEngine;
-  /** CASA configs to write (name → { port, token, workspace }) */
-  casas?: Record<string, { port: number; token: string; workspace: string }>;
+  /** bot configs to write (name → { port, token, workspace }) */
+  bots?: Record<string, { port: number; token: string; workspace: string }>;
   /** Process manager override */
   pm?: ProcessManager;
   /** Expose override for ACL engine */
@@ -83,7 +83,7 @@ export interface TestNode {
   acl: AclEngine;
   pm: ProcessManager;
   locator: MechaLocator;
-  router: CasaRouter;
+  router: BotRouter;
   /** Public key (base64 DER) */
   publicKey: string;
   /** Private key (crypto KeyObject) */
@@ -183,12 +183,12 @@ export async function createTestMesh(): Promise<TestMesh> {
     // Generate real X25519 noise key pair
     const noiseKeyPair = generateNoiseKeyPair();
 
-    // Write CASA configs if provided
-    if (opts.casas) {
-      for (const [casaName, cfg] of Object.entries(opts.casas)) {
-        const casaDir = join(mechaDir, casaName);
-        mkdirSync(casaDir, { recursive: true });
-        writeFileSync(join(casaDir, "config.json"), JSON.stringify(cfg));
+    // Write bot configs if provided
+    if (opts.bots) {
+      for (const [botName, cfg] of Object.entries(opts.bots)) {
+        const botDir = join(mechaDir, botName);
+        mkdirSync(botDir, { recursive: true });
+        writeFileSync(join(botDir, "config.json"), JSON.stringify(cfg));
       }
     }
 
@@ -237,7 +237,7 @@ export async function createTestMesh(): Promise<TestMesh> {
       },
     });
 
-    const router = createCasaRouter({
+    const router = createBotRouter({
       mechaDir,
       acl,
       pm,
@@ -322,9 +322,9 @@ export function makeRelayToken(secret: Buffer, peer = "test"): string {
 }
 
 /**
- * Write a CASA config.json to the given mechaDir.
+ * Write a bot config.json to the given mechaDir.
  */
-export function writeCasaConfig(
+export function writeBotConfig(
   mechaDir: string,
   name: string,
   cfg: { port: number; token: string; workspace: string; expose?: string[] },
