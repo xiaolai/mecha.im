@@ -72,3 +72,6 @@ tsconfig.tsbuildinfo
 vendor/
 venv/
 .gitnexus
+
+# VitePress
+website/docs/.vitepress/cache/
