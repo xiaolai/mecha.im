@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -96,9 +96,20 @@ describe("dashboard routes", () => {
   });
 
   describe("settings routes", () => {
+    let savedClusterKey: string | undefined;
+    beforeEach(() => {
+      savedClusterKey = process.env.MECHA_CLUSTER_KEY;
+      delete process.env.MECHA_CLUSTER_KEY;
+    });
+    afterEach(() => {
+      if (savedClusterKey !== undefined) process.env.MECHA_CLUSTER_KEY = savedClusterKey;
+      else delete process.env.MECHA_CLUSTER_KEY;
+    });
+
     it("returns runtime settings", async () => {
+      mechaDir = mkdtempSync(join(tmpdir(), "agent-settings-"));
       const app = Fastify();
-      registerSettingsRoutes(app);
+      registerSettingsRoutes(app, { mechaDir });
       await app.ready();
 
       const res = await app.inject({ method: "GET", url: "/settings/runtime" });
@@ -107,6 +118,137 @@ describe("dashboard routes", () => {
       expect(body.botPortRange).toBeDefined();
       expect(body.agentPort).toBeDefined();
       expect(body.mcpPort).toBeDefined();
+      expect(body.discovery).toBeDefined();
+      expect(body.discovery.enabled).toBe(false);
+      expect(body.discovery.discoveredCount).toBe(0);
+      expect(body.discovery.manualCount).toBe(0);
+      await app.close();
+    });
+
+    it("returns TOTP status", async () => {
+      mechaDir = mkdtempSync(join(tmpdir(), "agent-settings-"));
+      const app = Fastify();
+      registerSettingsRoutes(app, { mechaDir });
+      await app.ready();
+
+      const res = await app.inject({ method: "GET", url: "/settings/totp" });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.configured).toBe(false);
+      expect(body.source).toBeNull();
+      await app.close();
+    });
+
+    it("returns TOTP configured from file", async () => {
+      mechaDir = mkdtempSync(join(tmpdir(), "agent-settings-"));
+      writeFileSync(join(mechaDir, "totp-secret"), "JBSWY3DPEHPK3PXP\n");
+      const app = Fastify();
+      registerSettingsRoutes(app, { mechaDir });
+      await app.ready();
+
+      const res = await app.inject({ method: "GET", url: "/settings/totp" });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.configured).toBe(true);
+      expect(body.source).toBe("file");
+      await app.close();
+    });
+
+    it("returns auth profiles (empty)", async () => {
+      mechaDir = mkdtempSync(join(tmpdir(), "agent-settings-"));
+      const app = Fastify();
+      registerSettingsRoutes(app, { mechaDir });
+      await app.ready();
+
+      const res = await app.inject({ method: "GET", url: "/settings/auth-profiles" });
+      expect(res.statusCode).toBe(200);
+      expect(Array.isArray(res.json())).toBe(true);
+      await app.close();
+    });
+
+    it("sets default profile on valid request", async () => {
+      mechaDir = mkdtempSync(join(tmpdir(), "agent-settings-"));
+      const authDir = join(mechaDir, "auth");
+      mkdirSync(authDir, { recursive: true });
+      writeFileSync(join(authDir, "profiles.json"), JSON.stringify({
+        default: "main",
+        profiles: {
+          main: { type: "api-key", account: null, label: "Main", tags: [], expiresAt: null, createdAt: "2026-01-01T00:00:00.000Z" },
+          alt: { type: "api-key", account: null, label: "Alt", tags: [], expiresAt: null, createdAt: "2026-01-01T00:00:00.000Z" },
+        },
+      }));
+      const app = Fastify();
+      registerSettingsRoutes(app, { mechaDir });
+      await app.ready();
+
+      const res = await app.inject({
+        method: "POST",
+        url: "/settings/auth-profiles/default",
+        payload: { name: "alt" },
+        headers: { "content-type": "application/json" },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().ok).toBe(true);
+      await app.close();
+    });
+
+    it("deletes a stored profile", async () => {
+      mechaDir = mkdtempSync(join(tmpdir(), "agent-settings-"));
+      const authDir = join(mechaDir, "auth");
+      mkdirSync(authDir, { recursive: true });
+      writeFileSync(join(authDir, "profiles.json"), JSON.stringify({
+        default: "main",
+        profiles: {
+          main: { type: "api-key", account: null, label: "Main", tags: [], expiresAt: null, createdAt: "2026-01-01T00:00:00.000Z" },
+          removeme: { type: "api-key", account: null, label: "Remove", tags: [], expiresAt: null, createdAt: "2026-01-01T00:00:00.000Z" },
+        },
+      }));
+      writeFileSync(join(authDir, "credentials.json"), JSON.stringify({
+        main: { token: "tok1" },
+        removeme: { token: "tok2" },
+      }));
+      const app = Fastify();
+      registerSettingsRoutes(app, { mechaDir });
+      await app.ready();
+
+      const res = await app.inject({
+        method: "DELETE",
+        url: "/settings/auth-profiles/removeme",
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().ok).toBe(true);
+      await app.close();
+    });
+
+    it("rejects set-default with missing body", async () => {
+      mechaDir = mkdtempSync(join(tmpdir(), "agent-settings-"));
+      const app = Fastify();
+      registerSettingsRoutes(app, { mechaDir });
+      await app.ready();
+
+      const res = await app.inject({
+        method: "POST",
+        url: "/settings/auth-profiles/default",
+        payload: {},
+        headers: { "content-type": "application/json" },
+      });
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error).toMatch(/invalid/i);
+      await app.close();
+    });
+
+    it("rejects delete of env-prefixed profile", async () => {
+      mechaDir = mkdtempSync(join(tmpdir(), "agent-settings-"));
+      const app = Fastify();
+      registerSettingsRoutes(app, { mechaDir });
+      await app.ready();
+
+      const res = await app.inject({
+        method: "DELETE",
+        url: "/settings/auth-profiles/$env:api-key",
+      });
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error).toMatch(/invalid/i);
       await app.close();
     });
   });
