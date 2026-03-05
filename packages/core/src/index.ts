@@ -135,6 +135,7 @@ export {
   writeDiscoveredNode,
   removeDiscoveredNode,
   cleanupExpiredNodes,
+  refreshDiscoveredNodes,
   promoteDiscoveredNode,
 } from "./discovered-registry.js";
 export type { DiscoveredNode } from "./discovered-registry.js";

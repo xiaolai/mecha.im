@@ -3,6 +3,7 @@ import {
   readDiscoveredNodes,
   writeDiscoveredNode,
   cleanupExpiredNodes,
+  refreshDiscoveredNodes,
   readNodes,
   createLogger,
   DEFAULTS,
@@ -131,13 +132,9 @@ export function startDiscoveryLoop(opts: DiscoveryLoopOpts): () => void {
         .filter((p) => !knownHosts.has(p.ip))
         .map((p) => ({ ip: p.ip, port: DEFAULTS.AGENT_PORT, source: "tailscale" as const }));
 
-      // Update lastSeen for already-known discovered nodes that are still visible
+      // Batch-update lastSeen for already-known discovered nodes still visible (single write)
       const tsIps = new Set(tsPeers.map((p) => p.ip));
-      for (const node of discovered) {
-        if (tsIps.has(node.host)) {
-          writeDiscoveredNode(opts.mechaDir, { ...node, lastSeen: new Date().toISOString() });
-        }
-      }
+      refreshDiscoveredNodes(opts.mechaDir, tsIps, new Date().toISOString());
 
       if (candidates.length > 0) {
         await probeCandidates({

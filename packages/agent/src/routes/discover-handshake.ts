@@ -20,6 +20,14 @@ interface HandshakeBody {
   fingerprint?: string;
 }
 
+function isValidBody(body: unknown): body is HandshakeBody {
+  if (!body || typeof body !== "object") return false;
+  const b = body as Record<string, unknown>;
+  return typeof b.clusterKey === "string" && b.clusterKey.length > 0
+    && typeof b.nodeName === "string" && b.nodeName.length > 0 && b.nodeName.length <= 64
+    && typeof b.port === "number" && Number.isInteger(b.port) && b.port >= 1 && b.port <= 65535;
+}
+
 function safeEqual(a: string, b: string): boolean {
   const bufA = Buffer.from(a);
   const bufB = Buffer.from(b);
@@ -31,10 +39,10 @@ export function registerHandshakeRoute(app: FastifyInstance, opts: HandshakeRout
   app.post(
     "/discover/handshake",
     async (request: FastifyRequest<{ Body: HandshakeBody }>, reply) => {
-      const body = request.body;
-      if (!body || !body.clusterKey || !body.nodeName || !body.port) {
+      if (!isValidBody(request.body)) {
         return reply.code(400).send({ error: "Missing required fields" });
       }
+      const body = request.body;
 
       if (!safeEqual(body.clusterKey, opts.clusterKey)) {
         return reply.code(403).send({ error: "Forbidden" });
