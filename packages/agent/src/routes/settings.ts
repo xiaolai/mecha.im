@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { FastifyInstance } from "fastify";
-import { DEFAULTS, readNodes, readDiscoveredNodes, readTotpSecret } from "@mecha/core";
-import { mechaAuthLs, mechaAuthDefault, mechaAuthRm } from "@mecha/service";
+import { DEFAULTS, readNodes, readDiscoveredNodes, readTotpSecret, AuthProfileAlreadyExistsError, AuthProfileNotFoundError } from "@mecha/core";
+import { mechaAuthLs, mechaAuthDefault, mechaAuthRm, mechaAuthAddFull, mechaAuthRenew, mechaAuthProbe } from "@mecha/service";
 
 export interface SettingsRouteOpts {
   mechaDir: string;
@@ -72,6 +72,71 @@ export function registerSettingsRoutes(app: FastifyInstance, opts: SettingsRoute
     }
     mechaAuthDefault(opts.mechaDir, name);
     return { ok: true };
+  });
+
+  /** POST /settings/auth-profiles — create a new auth profile. */
+  app.post<{ Body: { name: string; type: string; token: string } }>("/settings/auth-profiles", async (request, reply) => {
+    const body = request.body as Record<string, unknown> | null;
+    const name = body?.name;
+    const type = body?.type;
+    const token = body?.token;
+    if (!isValidProfileName(name)) {
+      return reply.code(400).send({ error: "Missing or invalid profile name" });
+    }
+    if (type !== "oauth" && type !== "api-key") {
+      return reply.code(400).send({ error: "Type must be 'oauth' or 'api-key'" });
+    }
+    if (typeof token !== "string" || token.length === 0) {
+      return reply.code(400).send({ error: "Token is required" });
+    }
+    try {
+      const profile = mechaAuthAddFull(opts.mechaDir, { name, type, token });
+      return profile;
+    } catch (err) {
+      if (err instanceof AuthProfileAlreadyExistsError) {
+        return reply.code(409).send({ error: `Profile '${name}' already exists` });
+      }
+      throw err;
+    }
+  });
+
+  /** PATCH /settings/auth-profiles/:name — renew token for an existing profile. */
+  app.patch<{ Params: { name: string }; Body: { token: string } }>("/settings/auth-profiles/:name", async (request, reply) => {
+    const { name } = request.params;
+    if (!isValidProfileName(name)) {
+      return reply.code(400).send({ error: "Invalid profile name" });
+    }
+    const body = request.body as Record<string, unknown> | null;
+    const token = body?.token;
+    if (typeof token !== "string" || token.length === 0) {
+      return reply.code(400).send({ error: "Token is required" });
+    }
+    try {
+      const profile = mechaAuthRenew(opts.mechaDir, name, token);
+      return profile;
+    } catch (err) {
+      if (err instanceof AuthProfileNotFoundError) {
+        return reply.code(404).send({ error: `Profile '${name}' not found` });
+      }
+      throw err;
+    }
+  });
+
+  /** POST /settings/auth-profiles/:name/test — probe token validity against Anthropic API. */
+  app.post<{ Params: { name: string } }>("/settings/auth-profiles/:name/test", async (request, reply) => {
+    const { name } = request.params;
+    if (!isValidProfileName(name)) {
+      return reply.code(400).send({ error: "Invalid profile name" });
+    }
+    try {
+      const result = await mechaAuthProbe(opts.mechaDir, name);
+      return { valid: result.valid, error: result.error };
+    } catch (err) {
+      if (err instanceof AuthProfileNotFoundError) {
+        return reply.code(404).send({ error: `Profile '${name}' not found` });
+      }
+      throw err;
+    }
   });
 
   /** DELETE /settings/auth-profiles/:name — remove a stored profile. */
