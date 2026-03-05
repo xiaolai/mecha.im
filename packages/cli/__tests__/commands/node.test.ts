@@ -140,9 +140,9 @@ describe("node commands", () => {
 
       await program.parseAsync(["node", "mecha", "node", "ls"]);
       expect(deps.formatter.table).toHaveBeenCalledWith(
-        ["Name", "Type", "Host", "Port", "Added"],
+        ["Name", "Type", "Source", "Host", "Port", "Last Seen"],
         expect.arrayContaining([
-          expect.arrayContaining(["charlie", "managed", "\u2014", "\u2014"]),
+          expect.arrayContaining(["charlie", "managed", "manual", "\u2014", "\u2014"]),
         ]),
       );
     });
@@ -155,9 +155,9 @@ describe("node commands", () => {
       await program.parseAsync(["node", "mecha", "node", "add", "bob", "192.168.1.10", "--api-key", "k"]);
       await program.parseAsync(["node", "mecha", "node", "ls"]);
       expect(deps.formatter.table).toHaveBeenCalledWith(
-        ["Name", "Type", "Host", "Port", "Added"],
+        ["Name", "Type", "Source", "Host", "Port", "Last Seen"],
         expect.arrayContaining([
-          expect.arrayContaining(["bob", "http", "192.168.1.10"]),
+          expect.arrayContaining(["bob", "http", "manual", "192.168.1.10"]),
         ]),
       );
     });
