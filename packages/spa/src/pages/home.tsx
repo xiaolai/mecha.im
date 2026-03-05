@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { RefreshCwIcon, SquareIcon } from "lucide-react";
-import { BotList } from "@/components/casa-list";
+import { BotList } from "@/components/bot-list";
 import { MeterSummary } from "@/components/meter-summary";
 import { Button } from "@/components/ui/button";
 import { BatchActionDialog } from "@/components/batch-action-dialog";

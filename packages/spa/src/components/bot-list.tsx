@@ -1,4 +1,4 @@
-import { BotCard, type BotInfo } from "./casa-card";
+import { BotCard, type BotInfo } from "./bot-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useFetch } from "@/lib/use-fetch";
 

@@ -1,5 +1,5 @@
 import { useParams, useSearchParams } from "react-router-dom";
-import { BotDetail } from "@/components/casa-detail";
+import { BotDetail } from "@/components/bot-detail";
 
 export function BotDetailPage() {
   const { name } = useParams<{ name: string }>();
