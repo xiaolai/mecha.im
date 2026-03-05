@@ -248,7 +248,7 @@ describe("dashboard routes", () => {
         url: "/settings/auth-profiles/$env:api-key",
       });
       expect(res.statusCode).toBe(400);
-      expect(res.json().error).toMatch(/invalid/i);
+      expect(res.json().error).toMatch(/cannot remove|environment/i);
       await app.close();
     });
   });

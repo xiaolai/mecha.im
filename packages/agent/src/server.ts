@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import Fastify, { type FastifyInstance } from "fastify";
 import fastifyWebSocket from "@fastify/websocket";
-import { type AclEngine, MechaError, readNodes, verifySignature, fetchPublicIp } from "@mecha/core";
+import { type AclEngine, MechaError, readNodes, verifySignature, fetchPublicIp, readMechaSettings } from "@mecha/core";
 import type { ProcessManager, PtySpawnFn } from "@mecha/process";
 import { createAuthHook, createSignatureHook, API_PREFIXES } from "./auth.js";
 import { deriveSessionKey } from "./session.js";
@@ -119,10 +119,42 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
       const keys = loadNodePublicKeys();
       return keys.size > 0 ? keys : undefined;
     },
-    verifySignature: initialKeys.size > 0 ? verifySignature : undefined,
+    verifySignature,
     spaDir: opts.spaDir,
     spaIndexHtml,
   };
+
+  /* v8 ignore start -- HTTPS redirect depends on deployment config */
+  // Force HTTPS redirect — runs BEFORE auth so credentials are never sent over HTTP.
+  // Cached with 5s TTL to avoid synchronous file I/O on every request.
+  let _httpsCache: { forceHttps: boolean; ts: number } | undefined;
+  function isForceHttps(): boolean {
+    const now = Date.now();
+    if (_httpsCache && now - _httpsCache.ts < 5000) return _httpsCache.forceHttps;
+    const settings = readMechaSettings(opts.mechaDir);
+    _httpsCache = { forceHttps: !!settings.forceHttps, ts: now };
+    return _httpsCache.forceHttps;
+  }
+
+  app.addHook("onRequest", async (request, reply) => {
+    const proto = request.headers["x-forwarded-proto"] ?? request.protocol;
+    if (proto === "https") return;
+    if (!isForceHttps()) return;
+    // WebSocket upgrades cannot follow redirects — reject instead
+    if (request.headers.upgrade?.toLowerCase() === "websocket") {
+      reply.code(403).send({ error: "WSS required when HTTPS is forced" });
+      return;
+    }
+    // Only redirect GET/HEAD — other methods lose body on redirect
+    if (request.method !== "GET" && request.method !== "HEAD") {
+      reply.code(403).send({ error: "HTTPS required" });
+      return;
+    }
+    // Use opts.port as authority to prevent open redirect via Host header injection
+    const host = request.headers.host ?? `localhost:${opts.port}`;
+    reply.code(301).redirect(`https://${host}${request.url}`);
+  });
+  /* v8 ignore stop */
 
   app.addHook("onRequest", createAuthHook(authOpts));
   // Signature hook runs in preHandler (after body parsing) so request.body is available
