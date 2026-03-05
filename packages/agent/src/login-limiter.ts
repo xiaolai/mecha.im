@@ -1,6 +1,7 @@
 export interface LoginLimiter {
   check(): { allowed: boolean; retryAfterMs?: number };
-  recordFailure(): void;
+  /** Record a failed attempt. Returns true if lockout was triggered. */
+  recordFailure(): boolean;
   reset(): void;
 }
 
@@ -35,7 +36,7 @@ export function createLoginLimiter(opts?: LoginLimiterOpts): LoginLimiter {
       return { allowed: true };
     },
 
-    recordFailure(): void {
+    recordFailure(): boolean {
       const now = Date.now();
       failures.push(now);
 
@@ -48,7 +49,9 @@ export function createLoginLimiter(opts?: LoginLimiterOpts): LoginLimiter {
       if (failures.length >= maxAttempts) {
         lockoutUntil = now + lockoutMs;
         failures.length = 0;
+        return true;
       }
+      return false;
     },
 
     reset(): void {

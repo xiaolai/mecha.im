@@ -218,8 +218,10 @@ export function Terminal({ botName, sessionId, node, onSessionCreated, onExit }:
     term.options.theme = resolvedTheme === "dark" ? DARK_THEME : LIGHT_THEME;
   }, [resolvedTheme]);
 
+  const termBg = resolvedTheme === "dark" ? DARK_THEME.background : LIGHT_THEME.background;
+
   return (
-    <div className="relative flex flex-col h-full">
+    <div className="relative flex flex-col h-full" style={{ backgroundColor: termBg }}>
       {status === "connecting" && (
         <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
           <span className="text-sm text-muted-foreground">Connecting...</span>
@@ -242,7 +244,7 @@ export function Terminal({ botName, sessionId, node, onSessionCreated, onExit }:
           </button>
         </div>
       )}
-      <div ref={containerRef} className="flex-1 min-h-0 overflow-hidden [&_.xterm-screen]:pl-4" />
+      <div ref={containerRef} className="flex-1 min-h-0 overflow-hidden p-4 [&_.xterm]:overflow-hidden" />
     </div>
   );
 }

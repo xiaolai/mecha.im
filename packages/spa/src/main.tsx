@@ -10,7 +10,7 @@ import "./globals.css";
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <BrowserRouter>
-      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+      <ThemeProvider attribute="class" defaultTheme="light" forcedTheme="light">
         <TooltipProvider delayDuration={300}>
           <AuthProvider>
             <App />
