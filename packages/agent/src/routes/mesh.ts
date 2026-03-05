@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { type NodeEntry, readNodes, collectNodeInfo, createLogger } from "@mecha/core";
+import { type NodeEntry, readNodes, readDiscoveredNodes, collectNodeInfo, createLogger } from "@mecha/core";
 import type { ProcessManager } from "@mecha/process";
 import { agentFetch } from "@mecha/service";
 
@@ -18,6 +18,7 @@ interface NodeStatus {
   name: string;
   status: "online" | "offline";
   isLocal?: boolean;
+  source?: "manual" | "discovered";
   latencyMs?: number;
   error?: string;
   botCount?: number;
@@ -135,8 +136,34 @@ export function registerMeshRoutes(app: FastifyInstance, opts: MeshRouteOpts): v
     }
     /* v8 ignore stop */
 
+    // Merge discovered nodes (exclude names already in manual registry)
+    const manualNames = new Set(entries.map((e) => e.name));
+    let discoveredEntries: NodeEntry[] = [];
+    /* v8 ignore start -- discovered nodes file may not exist */
+    try {
+      discoveredEntries = readDiscoveredNodes(opts.mechaDir)
+        .filter((d) => !manualNames.has(d.name))
+        .map((d): NodeEntry => ({
+          name: d.name,
+          host: d.host,
+          port: d.port,
+          apiKey: d.apiKey,
+          addedAt: d.addedAt,
+        }));
+    } catch {
+      log.warn("Failed to read discovered nodes");
+    }
+    /* v8 ignore stop */
+
     /* v8 ignore start -- health check requires live network to remote nodes */
-    const remoteNodes = await checkNodesWithConcurrencyLimit(entries);
+    const allRemoteEntries = [...entries, ...discoveredEntries];
+    const remoteNodes = await checkNodesWithConcurrencyLimit(allRemoteEntries);
+
+    // Tag source on remote nodes
+    for (const rn of remoteNodes) {
+      rn.source = manualNames.has(rn.name) ? "manual" : "discovered";
+    }
+
     return [localNode, ...remoteNodes];
     /* v8 ignore stop */
   });
