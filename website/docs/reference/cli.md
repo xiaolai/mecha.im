@@ -107,16 +107,17 @@ All bot commands live under `mecha bot`.
 Create and start a new bot process.
 
 ```bash
-mecha bot spawn <name> <path> [options]
+mecha bot spawn <name> [path] [options]
 ```
 
 | Argument | Description |
 |----------|-------------|
 | `<name>` | bot name (lowercase, alphanumeric, hyphens) |
-| `<path>` | Workspace directory path |
+| `[path]` | Workspace directory path (defaults to home directory) |
 
 | Option | Description | Default |
 |--------|-------------|---------|
+| `--home <dir>` | Home directory for the bot | `~/.mecha/<name>/` |
 | `-p, --port <number>` | Port to listen on | auto-assign (7700-7799) |
 | `--auth <profile>` | Auth profile to use (see `mecha auth ls`) | |
 | `--no-auth` | Spawn without Claude API credentials | |
@@ -127,11 +128,15 @@ mecha bot spawn <name> <path> [options]
 | `--permission-mode <mode>` | Permission mode: `default`, `plan`, `full-auto` | |
 | `--meter <mode>` | Meter mode: `on`, `off` | `on` |
 
+When `[path]` is omitted, CWD defaults to `--home` (or `~/.mecha/<name>/` if `--home` is also omitted). A warning is emitted if CWD is not under HOME.
+
 ```bash
 mecha bot spawn researcher ~/papers --tags research,ml
 mecha bot spawn coder ~/project --permission-mode full-auto --port 7710
 mecha bot spawn helper ~/docs --no-auth
 mecha bot spawn worker ~/code --meter off
+mecha bot spawn alice --home /opt/bots/alice   # HOME and CWD both at /opt/bots/alice
+mecha bot spawn alice                           # HOME and CWD both at ~/.mecha/alice/
 ```
 
 ### `mecha bot start`

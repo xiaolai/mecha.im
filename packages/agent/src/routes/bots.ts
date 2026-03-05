@@ -3,6 +3,7 @@ import { type BotName, isValidName, readBotConfig, readAuthProfiles, BotNotRunni
 import type { ProcessManager } from "@mecha/process";
 import { botConfigure, checkBotBusy, enrichBotInfo, buildEnrichContext, getCachedSnapshot, mechaAuthLs, batchBotAction, agentFetch } from "@mecha/service";
 import type { BotConfigUpdates, EnrichedBotInfo } from "@mecha/service";
+import { existsSync, statSync } from "node:fs";
 import { join, basename } from "node:path";
 import { hostname as osHostname } from "node:os";
 import { resolveNodeEntry } from "../node-resolve.js";
@@ -21,6 +22,7 @@ function spawnOptsFromConfig(name: BotName, config: ReturnType<typeof readBotCon
   return {
     name,
     workspacePath: config.workspace,
+    home: config.home,
     port: config.port,
     /* v8 ignore start -- null coalescing fallback for optional auth field */
     auth: config.auth ?? undefined,
@@ -280,9 +282,32 @@ export function registerBotRoutes(app: FastifyInstance, pm: ProcessManager, mech
     }
     /* v8 ignore stop */
 
+    // Validate home path if specified
+    if (body.home !== undefined) {
+      if (typeof body.home !== "string" || body.home.length === 0) {
+        reply.code(400).send({ error: "home must be a non-empty string" });
+        return;
+      }
+      if (!existsSync(body.home) || !statSync(body.home).isDirectory()) {
+        reply.code(400).send({ error: `home directory does not exist: ${body.home}` });
+        return;
+      }
+    }
+    // Validate workspace path if specified
+    if (body.workspace !== undefined) {
+      if (typeof body.workspace !== "string" || body.workspace.length === 0) {
+        reply.code(400).send({ error: "workspace must be a non-empty string" });
+        return;
+      }
+      if (!existsSync(body.workspace) || !statSync(body.workspace).isDirectory()) {
+        reply.code(400).send({ error: `workspace directory does not exist: ${body.workspace}` });
+        return;
+      }
+    }
+
     // Extract only allowed config fields — reject unknown fields to prevent
-    // persisting arbitrary data (e.g. token, workspace, port overrides).
-    const { restart, force, auth, model, tags, expose, sandboxMode, permissionMode } = body;
+    // persisting arbitrary data (e.g. token, port overrides).
+    const { restart, force, auth, model, tags, expose, sandboxMode, permissionMode, home, workspace } = body;
     const configUpdates: BotConfigUpdates = {
       ...(auth !== undefined && { auth }),
       ...(model !== undefined && { model }),
@@ -290,6 +315,8 @@ export function registerBotRoutes(app: FastifyInstance, pm: ProcessManager, mech
       ...(expose !== undefined && { expose }),
       ...(sandboxMode !== undefined && { sandboxMode }),
       ...(permissionMode !== undefined && { permissionMode }),
+      ...(home !== undefined && { home }),
+      ...(workspace !== undefined && { workspace }),
     };
     botConfigure(mechaDir, pm, botName, configUpdates);
 

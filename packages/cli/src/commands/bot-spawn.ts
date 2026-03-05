@@ -1,5 +1,5 @@
 import { existsSync, statSync } from "node:fs";
-import { resolve } from "node:path";
+import { resolve, join } from "node:path";
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { botName, validateTags, validateCapabilities, parsePort, PathNotFoundError, PathNotDirectoryError } from "@mecha/core";
@@ -14,7 +14,8 @@ export function registerBotSpawnCommand(parent: Command, deps: CommandDeps): voi
     .command("spawn")
     .description("Spawn a new bot process")
     .argument("<name>", "bot name")
-    .argument("<path>", "Workspace path")
+    .argument("[path]", "Workspace path (defaults to home directory)")
+    .option("--home <dir>", "Home directory for the bot")
     .option("-p, --port <number>", "Port to listen on")
     .option("--auth <profile>", "Auth profile to use (see: mecha auth ls)")
     .option("--no-auth", "Spawn without Claude API credentials")
@@ -24,7 +25,7 @@ export function registerBotSpawnCommand(parent: Command, deps: CommandDeps): voi
     .option("--model <model>", "Model to use")
     .option("--permission-mode <mode>", "Permission mode (default, plan, full-auto)")
     .option("--meter <mode>", "Meter mode: on (default), off")
-    .action(async (name: string, path: string, opts: { port?: string; auth?: string | boolean; tags?: string; expose?: string; sandbox?: string; model?: string; permissionMode?: string; meter?: string }) => withErrorHandler(deps, async () => {
+    .action(async (name: string, path: string | undefined, opts: { port?: string; auth?: string | boolean; tags?: string; expose?: string; sandbox?: string; model?: string; permissionMode?: string; meter?: string; home?: string }) => withErrorHandler(deps, async () => {
       const validated = botName(name);
       const port = opts.port ? parsePort(opts.port) : undefined;
       if (opts.port && port === undefined) {
@@ -63,13 +64,26 @@ export function registerBotSpawnCommand(parent: Command, deps: CommandDeps): voi
         process.exitCode = 1;
         return;
       }
-      // Validate workspace path exists and is a directory
-      const resolvedPath = resolve(path);
+      // Resolve home directory
+      const resolvedHome = opts.home ? resolve(opts.home) : undefined;
+      if (resolvedHome) {
+        if (!existsSync(resolvedHome)) throw new PathNotFoundError(resolvedHome);
+        if (!statSync(resolvedHome).isDirectory()) throw new PathNotDirectoryError(resolvedHome);
+      }
+      // Resolve workspace path — defaults to home, then botDir
+      const resolvedPath = path
+        ? resolve(path)
+        : resolvedHome ?? join(deps.mechaDir, validated);
       if (!existsSync(resolvedPath)) {
         throw new PathNotFoundError(resolvedPath);
       }
       if (!statSync(resolvedPath).isDirectory()) {
         throw new PathNotDirectoryError(resolvedPath);
+      }
+      // Warn if CWD is not under HOME
+      const effectiveHome = resolvedHome ?? join(deps.mechaDir, validated);
+      if (!resolvedPath.startsWith(effectiveHome + "/") && resolvedPath !== effectiveHome) {
+        deps.formatter.warn(`Workspace ${resolvedPath} is not under home ${effectiveHome}`);
       }
       // Subscribe to warning events before spawn (scoped to this bot)
       /* v8 ignore start -- event handler callback; wiring tested via onEvent call check */
@@ -89,6 +103,7 @@ export function registerBotSpawnCommand(parent: Command, deps: CommandDeps): voi
           model: opts.model,
           permissionMode: opts.permissionMode,
           meterOff: opts.meter === "off",
+          home: resolvedHome,
         });
         deps.formatter.success(`Spawned ${info.name} on port ${info.port}`);
       } finally {
