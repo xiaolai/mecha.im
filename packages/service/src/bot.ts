@@ -37,6 +37,8 @@ export interface BotConfigUpdates {
   expose?: string[];
   sandboxMode?: "auto" | "off" | "require";
   permissionMode?: string;
+  home?: string;
+  workspace?: string;
 }
 
 export function botConfigure(
