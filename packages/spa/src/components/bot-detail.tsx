@@ -147,12 +147,6 @@ export function BotDetail({ name, node }: BotDetailProps) {
           <div className="text-sm font-semibold font-mono text-card-foreground">{bot.port ?? "—"}</div>
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
-          <div className="text-xs font-medium text-muted-foreground mb-1">HOME</div>
-          <div className="truncate text-sm font-mono text-card-foreground" title={bot.homeDir}>
-            {bot.homeDir ?? "—"}
-          </div>
-        </div>
-        <div className="rounded-lg border border-border bg-card p-4">
           <div className="text-xs font-medium text-muted-foreground mb-1">WORKSPACE</div>
           <div className="truncate text-sm font-mono text-card-foreground" title={bot.workspacePath}>
             {bot.workspacePath ?? "—"}
@@ -214,7 +208,7 @@ export function BotDetail({ name, node }: BotDetailProps) {
         </TabsContent>
         <TabsContent value="config">
           <div className="flex flex-col gap-4">
-            <BotPathEditor bot={bot} name={name} node={node} onSaved={refetch} />
+            <BotPathEditor key={`${bot.homeDir}-${bot.workspacePath}`} bot={bot} name={name} node={node} onSaved={refetch} />
             <BotConfigView bot={bot} />
           </div>
         </TabsContent>
@@ -269,8 +263,9 @@ function BotPathEditor({ bot, name, node, onSaved }: { bot: BotInfo; name: strin
   return (
     <div className="rounded-lg border border-border bg-card p-4 flex flex-col gap-3">
       <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-medium text-muted-foreground">HOME DIRECTORY</label>
+        <label htmlFor="bot-home-dir" className="text-xs font-medium text-muted-foreground">HOME DIRECTORY</label>
         <input
+          id="bot-home-dir"
           type="text"
           value={home}
           onChange={(e) => setHome(e.target.value)}
@@ -279,8 +274,9 @@ function BotPathEditor({ bot, name, node, onSaved }: { bot: BotInfo; name: strin
         />
       </div>
       <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-medium text-muted-foreground">WORKSPACE (CWD)</label>
+        <label htmlFor="bot-workspace-cwd" className="text-xs font-medium text-muted-foreground">WORKSPACE (CWD)</label>
         <input
+          id="bot-workspace-cwd"
           type="text"
           value={workspace}
           onChange={(e) => setWorkspace(e.target.value)}
@@ -295,7 +291,7 @@ function BotPathEditor({ bot, name, node, onSaved }: { bot: BotInfo; name: strin
       <div className="flex justify-end">
         <Button size="sm" disabled={!changed || busy} onClick={handleSave}>
           {busy && <Loader2Icon className="size-4 animate-spin" />}
-          Save &amp; Restart
+          Save & Restart
         </Button>
       </div>
     </div>
