@@ -20,6 +20,8 @@ export interface BotConfig {
   port: number;
   token: string;
   workspace: string;
+  /** Custom HOME directory. When undefined, defaults to botDir (~/.mecha/<name>/) */
+  home?: string;
   model?: string;
   permissionMode?: string;
   auth?: string;
@@ -34,6 +36,7 @@ const BotConfigSchema: z.ZodType<BotConfig> = z.object({
   port: z.number(),
   token: z.string(),
   workspace: z.string(),
+  home: z.string().min(1).optional(),
   model: z.string().optional(),
   permissionMode: z.string().optional(),
   auth: z.string().optional(),
