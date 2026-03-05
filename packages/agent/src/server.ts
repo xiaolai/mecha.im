@@ -216,7 +216,7 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
     });
     app.addHook("onClose", stopDiscovery);
   }
-  registerSettingsRoutes(app);
+  registerSettingsRoutes(app, { mechaDir: opts.mechaDir });
   registerEventsRoutes(app, { processManager: opts.processManager });
   registerEventLogRoutes(app, { eventLog });
 
