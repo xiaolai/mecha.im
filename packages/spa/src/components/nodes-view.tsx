@@ -9,6 +9,7 @@ interface NodeHealth {
   name: string;
   status: "online" | "offline";
   isLocal?: boolean;
+  source?: "manual" | "discovered";
   latencyMs?: number;
   error?: string;
   botCount?: number;
@@ -69,6 +70,11 @@ function NodeCard({ node, isLocal, onClick }: { node: NodeHealth; isLocal: boole
           <GlobeIcon className="size-4 text-muted-foreground" />
           <span className="text-sm font-semibold text-card-foreground">{node.name}</span>
           {isLocal && <span className="text-xs text-muted-foreground">(local)</span>}
+          {node.source === "discovered" && (
+            <span className="inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+              discovered
+            </span>
+          )}
         </div>
         <Badge variant={isOnline ? "default" : "destructive"}>
           {node.status}
