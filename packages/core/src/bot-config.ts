@@ -36,7 +36,7 @@ const BotConfigSchema: z.ZodType<BotConfig> = z.object({
   port: z.number(),
   token: z.string(),
   workspace: z.string(),
-  home: z.string().optional(),
+  home: z.string().min(1).optional(),
   model: z.string().optional(),
   permissionMode: z.string().optional(),
   auth: z.string().optional(),
