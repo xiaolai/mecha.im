@@ -4,7 +4,7 @@ import type { ProcessManager } from "@mecha/process";
 import { botConfigure, checkBotBusy, enrichBotInfo, buildEnrichContext, getCachedSnapshot, mechaAuthLs, batchBotAction, agentFetch } from "@mecha/service";
 import type { BotConfigUpdates, EnrichedBotInfo } from "@mecha/service";
 import { existsSync, statSync } from "node:fs";
-import { join, basename } from "node:path";
+import { join, basename, resolve, isAbsolute } from "node:path";
 import { hostname as osHostname } from "node:os";
 import { resolveNodeEntry } from "../node-resolve.js";
 
@@ -77,8 +77,7 @@ export function registerBotRoutes(app: FastifyInstance, pm: ProcessManager, mech
     const ctx = buildEnrichContext(mechaDir, snapshot, list.map((p) => p.name));
     return list.map((p) => {
       const enriched = enrichBotInfo(p, ctx);
-      const homeDir = join(mechaDir, p.name);
-      return { ...listProjection(enriched), node, hostname: host, lanIp, tailscaleIp, homeDir };
+      return { ...listProjection(enriched), node, hostname: host, lanIp, tailscaleIp, homeDir: enriched.homeDir ?? join(mechaDir, p.name) };
     });
   });
 
@@ -282,23 +281,33 @@ export function registerBotRoutes(app: FastifyInstance, pm: ProcessManager, mech
     }
     /* v8 ignore stop */
 
-    // Validate home path if specified
+    // Validate home path if specified — must be absolute
     if (body.home !== undefined) {
       if (typeof body.home !== "string" || body.home.length === 0) {
         reply.code(400).send({ error: "home must be a non-empty string" });
         return;
       }
+      if (!isAbsolute(body.home)) {
+        reply.code(400).send({ error: "home must be an absolute path" });
+        return;
+      }
+      body.home = resolve(body.home);
       if (!existsSync(body.home) || !statSync(body.home).isDirectory()) {
         reply.code(400).send({ error: `home directory does not exist: ${body.home}` });
         return;
       }
     }
-    // Validate workspace path if specified
+    // Validate workspace path if specified — must be absolute
     if (body.workspace !== undefined) {
       if (typeof body.workspace !== "string" || body.workspace.length === 0) {
         reply.code(400).send({ error: "workspace must be a non-empty string" });
         return;
       }
+      if (!isAbsolute(body.workspace)) {
+        reply.code(400).send({ error: "workspace must be an absolute path" });
+        return;
+      }
+      body.workspace = resolve(body.workspace);
       if (!existsSync(body.workspace) || !statSync(body.workspace).isDirectory()) {
         reply.code(400).send({ error: `workspace directory does not exist: ${body.workspace}` });
         return;
