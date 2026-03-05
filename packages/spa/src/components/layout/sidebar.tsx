@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   BoxIcon,
@@ -14,7 +15,7 @@ import { TooltipIconButton } from "@/components/ui/tooltip-icon-button";
 import { useAuth } from "@/auth-context";
 
 const navItems = [
-  { href: "/mesh", label: "Nodes", icon: NetworkIcon },
+  { href: "/nodes", label: "Nodes", icon: NetworkIcon },
   { href: "/", label: "Bots", icon: BoxIcon },
   { href: "/schedules", label: "Schedules", icon: CalendarClockIcon },
   { href: "/acl", label: "ACL", icon: ShieldCheckIcon },
@@ -27,9 +28,35 @@ interface SidebarProps {
   onClose: () => void;
 }
 
+function LogoutButton({ logout }: { logout: () => void }) {
+  const [pending, setPending] = useState(false);
+  return (
+    <button
+      disabled={pending}
+      onClick={() => { setPending(true); logout(); }}
+      className={cn(
+        "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+        pending && "opacity-50 pointer-events-none",
+      )}
+    >
+      <LogOutIcon className="size-4" />
+      {pending ? "Logging out…" : "Log out"}
+    </button>
+  );
+}
+
 export function Sidebar({ open, onClose }: SidebarProps) {
   const { pathname } = useLocation();
   const { logout } = useAuth();
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [open, onClose]);
 
   return (
     <>
@@ -72,7 +99,9 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         {/* Nav */}
         <nav className="flex-1 space-y-1 px-2 py-2">
           {navItems.map(({ href, label, icon: Icon }) => {
-            const active = href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
+            const active = href === "/"
+              ? pathname === "/" || pathname.startsWith("/bot/")
+              : pathname === href || pathname.startsWith(`${href}/`);
             return (
               <Link
                 key={href}
@@ -95,13 +124,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         {/* Footer */}
         <div className="flex flex-col items-center gap-2 px-4 pb-4">
           <img src="/images/login-bg.png" alt="" className="size-24 opacity-60" />
-          <button
-            onClick={logout}
-            className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-          >
-            <LogOutIcon className="size-4" />
-            Log out
-          </button>
+          <LogoutButton logout={logout} />
         </div>
       </aside>
     </>

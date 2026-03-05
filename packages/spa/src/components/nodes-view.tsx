@@ -1,4 +1,5 @@
-import { GlobeIcon, CpuIcon, HardDriveIcon, NetworkIcon, ClockIcon } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { GlobeIcon, CpuIcon, HardDriveIcon, NetworkIcon, ClockIcon, BoxIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -26,12 +27,15 @@ interface NodeHealth {
 }
 
 function formatUptime(s: number): string {
-  const d = Math.floor(s / 86400);
-  const h = Math.floor((s % 86400) / 3600);
-  const m = Math.floor((s % 3600) / 60);
+  const clamped = Math.max(0, Math.floor(s));
+  const d = Math.floor(clamped / 86400);
+  const h = Math.floor((clamped % 86400) / 3600);
+  const m = Math.floor((clamped % 3600) / 60);
+  const sec = clamped % 60;
   if (d > 0) return `${d}d ${h}h`;
   if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
+  if (m > 0) return `${m}m`;
+  return `${sec}s`;
 }
 
 function InfoRow({ label, value, mono }: { label: string; value?: string | number | null; mono?: boolean }) {
@@ -44,11 +48,17 @@ function InfoRow({ label, value, mono }: { label: string; value?: string | numbe
   );
 }
 
-function NodeCard({ node, isLocal }: { node: NodeHealth; isLocal: boolean }) {
+function NodeCard({ node, isLocal, onClick }: { node: NodeHealth; isLocal: boolean; onClick: () => void }) {
   const isOnline = node.status === "online";
 
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4">
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } }}
+      className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4 cursor-pointer transition-colors hover:bg-accent/30"
+    >
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -65,9 +75,18 @@ function NodeCard({ node, isLocal }: { node: NodeHealth; isLocal: boolean }) {
         </Badge>
       </div>
 
+      {/* Bot count — prominent display */}
+      {isOnline && node.botCount != null && (
+        <div className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2">
+          <BoxIcon className="size-4 text-muted-foreground" />
+          <span className="text-sm font-semibold text-card-foreground">{node.botCount}</span>
+          <span className="text-sm text-muted-foreground">bot{node.botCount !== 1 ? "s" : ""} running</span>
+        </div>
+      )}
+
       {/* Offline: show error only */}
       {!isOnline && node.error && (
-        <div className="text-xs text-destructive">{node.error}</div>
+        <div className="text-xs text-destructive">Node unreachable</div>
       )}
 
       {/* Online: show rich details */}
@@ -120,7 +139,7 @@ function NodeCard({ node, isLocal }: { node: NodeHealth; isLocal: boolean }) {
           )}
 
           {/* Resources */}
-          {(node.cpuCount != null || node.totalMemMB != null || node.botCount != null) && (
+          {(node.cpuCount != null || node.totalMemMB != null) && (
             <div className="flex flex-col gap-1">
               <div className="flex items-center gap-1.5 font-medium text-muted-foreground">
                 <HardDriveIcon className="size-3" />
@@ -135,7 +154,6 @@ function NodeCard({ node, isLocal }: { node: NodeHealth; isLocal: boolean }) {
                     mono
                   />
                 )}
-                <InfoRow label="bots" value={node.botCount != null ? `${node.botCount} running` : undefined} />
               </div>
             </div>
           )}
@@ -145,7 +163,8 @@ function NodeCard({ node, isLocal }: { node: NodeHealth; isLocal: boolean }) {
   );
 }
 
-export function MeshView() {
+export function NodesView() {
+  const navigate = useNavigate();
   const { data: nodes, loading, error } = useFetch<NodeHealth[]>("/mesh/nodes", { interval: 30_000 });
 
   if (loading && !nodes) {
@@ -158,15 +177,17 @@ export function MeshView() {
     );
   }
 
-  if (error) {
+  if (error && !nodes) {
     return (
-      <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
-        {error}
+      <div role="alert" className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+        Failed to load nodes.
       </div>
     );
   }
 
-  if (!nodes || nodes.length === 0) {
+  const safeNodes = Array.isArray(nodes) ? nodes : [];
+
+  if (safeNodes.length === 0) {
     return (
       <div className="rounded-lg border border-border bg-card p-8 text-center">
         <p className="text-sm text-muted-foreground">No nodes available.</p>
@@ -175,10 +196,22 @@ export function MeshView() {
   }
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {nodes.map((node) => (
-        <NodeCard key={node.name} node={node} isLocal={node.isLocal === true} />
-      ))}
+    <div className="flex flex-col gap-4">
+      {error && (
+        <div role="alert" className="rounded-lg border border-warning/50 bg-warning/10 p-3 text-sm text-warning">
+          Failed to refresh — showing last known state.
+        </div>
+      )}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {safeNodes.map((node) => (
+          <NodeCard
+            key={`${node.name}-${node.tailscaleIp ?? node.lanIp ?? ""}`}
+            node={node}
+            isLocal={node.isLocal === true}
+            onClick={() => navigate(`/?node=${encodeURIComponent(node.name)}`)}
+          />
+        ))}
+      </div>
     </div>
   );
 }
