@@ -200,13 +200,17 @@ export function createSignatureHook(opts: AuthOpts) {
   };
 }
 
-/** Check if a request is a mesh routing request (cross-node query with source header). */
+/** Inter-node paths that accept Bearer token auth (X-Mecha-Source required). */
+const MESH_BEARER_PATHS = [
+  { method: "GET", match: (p: string) => p === "/bots" },
+  { method: "POST", match: (p: string) => p.startsWith("/bots/") && p.endsWith("/query") },
+];
+
+/** Check if a request is a mesh/inter-node request eligible for Bearer auth. */
 function isMeshRoutingRequest(request: FastifyRequest): boolean {
+  if (typeof request.headers["x-mecha-source"] !== "string") return false;
   const pathname = request.url.split("?")[0]!;
-  return request.method === "POST"
-    && pathname.startsWith("/bots/")
-    && pathname.endsWith("/query")
-    && typeof request.headers["x-mecha-source"] === "string";
+  return MESH_BEARER_PATHS.some((r) => r.method === request.method && r.match(pathname));
 }
 
 /** Extract X-Mecha-Source header from request */

@@ -1,10 +1,11 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { type BotName, isValidName, readBotConfig, readAuthProfiles, BotNotRunningError, getNetworkIps } from "@mecha/core";
 import type { ProcessManager } from "@mecha/process";
-import { botConfigure, checkBotBusy, enrichBotInfo, buildEnrichContext, getCachedSnapshot, mechaAuthLs, batchBotAction } from "@mecha/service";
+import { botConfigure, checkBotBusy, enrichBotInfo, buildEnrichContext, getCachedSnapshot, mechaAuthLs, batchBotAction, agentFetch } from "@mecha/service";
 import type { BotConfigUpdates, EnrichedBotInfo } from "@mecha/service";
 import { join, basename } from "node:path";
 import { hostname as osHostname } from "node:os";
+import { resolveNodeEntry } from "../node-resolve.js";
 
 function validateName(name: string, reply: FastifyReply): BotName | null {
   if (!isValidName(name)) {
@@ -44,7 +45,31 @@ export function registerBotRoutes(app: FastifyInstance, pm: ProcessManager, mech
   const host = osHostname();
   const { lanIp, tailscaleIp } = getNetworkIps();
 
-  app.get("/bots", async () => {
+  app.get("/bots", async (request: FastifyRequest<{ Querystring: { node?: string } }>, reply: FastifyReply) => {
+    const targetNode = (request.query as { node?: string }).node;
+
+    // Proxy to remote node if ?node= is set and doesn't match local
+    /* v8 ignore start -- proxy requires live remote node */
+    if (targetNode && targetNode !== node && targetNode !== "local") {
+      const entry = resolveNodeEntry(mechaDir, targetNode);
+      if (!entry) {
+        reply.code(404).send({ error: `Node not found: ${targetNode}` });
+        return;
+      }
+      try {
+        const res = await agentFetch({ node: entry, path: "/bots", method: "GET", source: node, timeoutMs: 5_000 });
+        if (!res.ok) {
+          reply.code(502).send({ error: `Remote node "${targetNode}" returned ${res.status}` });
+          return;
+        }
+        return res.json();
+      } catch {
+        reply.code(502).send({ error: `Cannot reach node "${targetNode}"` });
+        return;
+      }
+    }
+    /* v8 ignore stop */
+
     const list = pm.list();
     const snapshot = getCachedSnapshot(meterDir);
     const ctx = buildEnrichContext(mechaDir, snapshot, list.map((p) => p.name));
