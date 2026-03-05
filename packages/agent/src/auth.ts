@@ -29,7 +29,7 @@ export const API_PREFIXES = [
 ];
 
 /** Paths that are always public (no auth required). */
-const PUBLIC_PATHS = ["/healthz", "/auth/status", "/auth/login", "/auth/logout"];
+const PUBLIC_PATHS = ["/healthz", "/auth/status", "/auth/login", "/auth/logout", "/discover/handshake"];
 
 /**
  * Fastify onRequest hook that validates auth via session cookie or Bearer token.
