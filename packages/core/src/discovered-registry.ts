@@ -14,8 +14,8 @@ const DiscoveredNodeSchema = z.object({
   apiKey: z.string(),
   fingerprint: z.string().optional(),
   source: z.enum(["tailscale", "mdns"]),
-  lastSeen: z.string(),
-  addedAt: z.string(),
+  lastSeen: z.string().datetime(),
+  addedAt: z.string().datetime(),
 });
 
 export type DiscoveredNode = z.infer<typeof DiscoveredNodeSchema>;
@@ -45,11 +45,25 @@ export function writeDiscoveredNode(mechaDir: string, node: DiscoveredNode): voi
   const nodes = readDiscoveredNodes(mechaDir);
   const idx = nodes.findIndex((n) => n.name === node.name);
   if (idx >= 0) {
-    nodes[idx] = { ...nodes[idx]!, ...node };
+    nodes[idx] = { ...nodes[idx]!, ...node, addedAt: nodes[idx]!.addedAt };
   } else {
     nodes.push(node);
   }
   writeDiscoveredNodes(mechaDir, nodes);
+}
+
+/** Bulk-update lastSeen for nodes matching the given hosts. Single file write. */
+export function refreshDiscoveredNodes(mechaDir: string, hosts: Set<string>, lastSeen: string): number {
+  const nodes = readDiscoveredNodes(mechaDir);
+  let updated = 0;
+  for (const node of nodes) {
+    if (hosts.has(node.host)) {
+      node.lastSeen = lastSeen;
+      updated++;
+    }
+  }
+  if (updated > 0) writeDiscoveredNodes(mechaDir, nodes);
+  return updated;
 }
 
 /** Remove a discovered node. Returns false if not found. */
