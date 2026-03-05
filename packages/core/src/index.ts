@@ -129,6 +129,20 @@ export type {
 export { readNodes, writeNodes, addNode, removeNode, getNode } from "./node-registry.js";
 export type { NodeEntry } from "./node-registry.js";
 
+// Discovered Node Registry (auto-discovery)
+export {
+  readDiscoveredNodes,
+  writeDiscoveredNode,
+  removeDiscoveredNode,
+  cleanupExpiredNodes,
+  promoteDiscoveredNode,
+} from "./discovered-registry.js";
+export type { DiscoveredNode } from "./discovered-registry.js";
+
+// Tailscale Scanner (auto-discovery)
+export { parseTailscaleStatus, scanTailscalePeers } from "./tailscale-scanner.js";
+export type { TailscalePeer } from "./tailscale-scanner.js";
+
 // Server State (Phase 6b)
 export { readServerState, writeServerState, removeServerState } from "./server-state.js";
 export type { ServerState } from "./server-state.js";
