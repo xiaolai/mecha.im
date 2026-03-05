@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { FastifyInstance } from "fastify";
-import { DEFAULTS, readNodes, readDiscoveredNodes, readTotpSecret, AuthProfileAlreadyExistsError, AuthProfileNotFoundError } from "@mecha/core";
+import { DEFAULTS, readNodes, readDiscoveredNodes, readTotpSecret, readMechaSettings, writeMechaSettings, AuthProfileAlreadyExistsError, AuthProfileNotFoundError } from "@mecha/core";
 import { mechaAuthLs, mechaAuthDefault, mechaAuthRm, mechaAuthAddFull, mechaAuthRenew, mechaAuthProbe } from "@mecha/service";
 
 export interface SettingsRouteOpts {
@@ -12,7 +12,7 @@ const RESERVED_NAMES = new Set(["__proto__", "constructor", "prototype", "toStri
 
 /** Profile names must be non-empty alphanumeric/dash/underscore strings, not reserved keys. */
 function isValidProfileName(name: unknown): name is string {
-  return typeof name === "string" && name.length > 0
+  return typeof name === "string" && name.length > 0 && name.length <= 64
     && /^[\w][\w\-.]*$/.test(name)
     && !RESERVED_NAMES.has(name);
 }
@@ -70,7 +70,14 @@ export function registerSettingsRoutes(app: FastifyInstance, opts: SettingsRoute
     if (!isValidProfileName(name)) {
       return reply.code(400).send({ error: "Missing or invalid profile name" });
     }
-    mechaAuthDefault(opts.mechaDir, name);
+    try {
+      mechaAuthDefault(opts.mechaDir, name);
+    } catch (err) {
+      if (err instanceof AuthProfileNotFoundError) {
+        return reply.code(404).send({ error: `Profile '${name}' not found` });
+      }
+      throw err;
+    }
     return { ok: true };
   });
 
@@ -88,6 +95,9 @@ export function registerSettingsRoutes(app: FastifyInstance, opts: SettingsRoute
     }
     if (typeof token !== "string" || token.length === 0) {
       return reply.code(400).send({ error: "Token is required" });
+    }
+    if (token.length > 10_000) {
+      return reply.code(400).send({ error: "Token too long (max 10000 chars)" });
     }
     try {
       const profile = mechaAuthAddFull(opts.mechaDir, { name, type, token });
@@ -110,6 +120,9 @@ export function registerSettingsRoutes(app: FastifyInstance, opts: SettingsRoute
     const token = body?.token;
     if (typeof token !== "string" || token.length === 0) {
       return reply.code(400).send({ error: "Token is required" });
+    }
+    if (token.length > 10_000) {
+      return reply.code(400).send({ error: "Token too long (max 10000 chars)" });
     }
     try {
       const profile = mechaAuthRenew(opts.mechaDir, name, token);
@@ -139,14 +152,38 @@ export function registerSettingsRoutes(app: FastifyInstance, opts: SettingsRoute
     }
   });
 
+  /** GET /settings/network — current network settings (forceHttps). */
+  app.get("/settings/network", async () => {
+    const settings = readMechaSettings(opts.mechaDir);
+    return { forceHttps: settings.forceHttps ?? false };
+  });
+
+  /** PATCH /settings/network — update network settings (forceHttps toggle). */
+  app.patch<{ Body: { forceHttps?: boolean } }>("/settings/network", async (request, reply) => {
+    const body = request.body as Record<string, unknown> | null;
+    if (body == null || typeof body !== "object") {
+      return reply.code(400).send({ error: "Invalid request body" });
+    }
+    if ("forceHttps" in body && typeof body.forceHttps !== "boolean") {
+      return reply.code(400).send({ error: "forceHttps must be a boolean" });
+    }
+    const current = readMechaSettings(opts.mechaDir);
+    const updated = { ...current };
+    if (typeof body.forceHttps === "boolean") {
+      updated.forceHttps = body.forceHttps;
+    }
+    writeMechaSettings(opts.mechaDir, updated);
+    return { forceHttps: updated.forceHttps ?? false };
+  });
+
   /** DELETE /settings/auth-profiles/:name — remove a stored profile. */
   app.delete<{ Params: { name: string } }>("/settings/auth-profiles/:name", async (request, reply) => {
     const { name } = request.params;
+    if (typeof name === "string" && name.startsWith("$env:")) {
+      return reply.code(400).send({ error: "Cannot remove environment-sourced profiles" });
+    }
     if (!isValidProfileName(name)) {
       return reply.code(400).send({ error: "Invalid profile name" });
-    }
-    if (name.startsWith("$env:")) {
-      return reply.code(400).send({ error: "Cannot remove environment-sourced profiles" });
     }
     mechaAuthRm(opts.mechaDir, name);
     return { ok: true };

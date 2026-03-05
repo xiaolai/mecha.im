@@ -65,6 +65,7 @@ Each bot has a `config.json`:
   "port": 7700,
   "token": "random-bearer-token",
   "workspace": "/Users/you/my-project",
+  "home": "/opt/bots/researcher",
   "model": "claude-sonnet-4-20250514",
   "permissionMode": "default",
   "auth": "mykey",
@@ -80,7 +81,8 @@ Each bot has a `config.json`:
 | `configVersion` | number | Schema version (currently `1`) |
 | `port` | number | HTTP port for the runtime API |
 | `token` | string | Random Bearer token for API auth |
-| `workspace` | string | Absolute path to the workspace directory |
+| `workspace` | string | Absolute path to the workspace directory (CWD) |
+| `home` | string? | Custom HOME directory. Defaults to `~/.mecha/<name>/` |
 | `model` | string? | Model override for this bot |
 | `permissionMode` | string? | `default`, `plan`, or `full-auto` (see below) |
 | `auth` | string? | Auth profile name |

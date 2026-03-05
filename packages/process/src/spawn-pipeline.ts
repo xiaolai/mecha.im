@@ -34,7 +34,7 @@ export interface SpawnContext {
 }
 
 export async function spawnBot(ctx: SpawnContext, spawnOpts: SpawnOpts): Promise<ProcessInfo> {
-  const { name, model, permissionMode, auth, tags } = spawnOpts;
+  const { name, model, permissionMode, auth, tags, home } = spawnOpts;
   const workspacePath = resolve(spawnOpts.workspacePath);
   const botDir = ctx.botDir(name);
   const { mechaDir, emitter, live } = ctx;
@@ -60,6 +60,7 @@ export async function spawnBot(ctx: SpawnContext, spawnOpts: SpawnOpts): Promise
     expose: spawnOpts.expose,
     userEnv: spawnOpts.env,
     meterOff: spawnOpts.meterOff,
+    home,
   });
 
   // Determine runtime binary path

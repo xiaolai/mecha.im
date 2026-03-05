@@ -21,6 +21,7 @@ export interface BotFilesystemOpts {
   expose?: string[];
   userEnv?: Record<string, string>;
   meterOff?: boolean;
+  home?: string;
 }
 
 export interface BotFilesystemResult {
@@ -218,7 +219,7 @@ export function prepareBotFilesystem(opts: BotFilesystemOpts): BotFilesystemResu
   const { botDir, workspacePath, port, token, name, model, permissionMode, auth, tags, userEnv } = opts;
 
   // Create directory structure mirroring real Claude Code
-  const homeDir = botDir;
+  const homeDir = opts.home ?? botDir;
   const claudeDir = join(homeDir, ".claude");
   const hooksDir = join(claudeDir, "hooks");
   const projectsBaseDir = join(claudeDir, "projects");
@@ -233,7 +234,7 @@ export function prepareBotFilesystem(opts: BotFilesystemOpts): BotFilesystemResu
   mkdirSync(logsDir, { recursive: true, mode: 0o700 });
 
   // Write config
-  const config = { configVersion: BOT_CONFIG_VERSION, port, token, workspace: workspacePath, model, permissionMode, auth, tags, expose: opts.expose };
+  const config = { configVersion: BOT_CONFIG_VERSION, port, token, workspace: workspacePath, ...(opts.home != null && { home: opts.home }), model, permissionMode, auth, tags, expose: opts.expose };
   writeFileSync(join(botDir, "config.json"), JSON.stringify(config, null, 2) + "\n", { mode: 0o600 });
 
   // Generate bot identity if node identity exists

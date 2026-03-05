@@ -10,6 +10,7 @@ export interface EnrichedBotInfo {
   pid?: number;
   port?: number;
   workspacePath: string;
+  homeDir?: string;
   startedAt?: string;
   stoppedAt?: string;
   exitCode?: number;
@@ -71,6 +72,7 @@ export function enrichBotInfo(
 
   return {
     ...base,
+    ...(config?.home != null && { homeDir: config.home }),
     ...(config?.model != null && { model: config.model }),
     ...(config?.sandboxMode != null && { sandboxMode: config.sandboxMode }),
     ...(config?.permissionMode != null && { permissionMode: config.permissionMode }),
