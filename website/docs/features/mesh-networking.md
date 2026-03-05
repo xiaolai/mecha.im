@@ -55,6 +55,57 @@ graph LR
 
 HTTP nodes communicate directly through agent servers. This requires network connectivity (same LAN, VPN, or open ports).
 
+## Auto-Discovery
+
+Nodes can automatically find each other on the same Tailscale network (or LAN via mDNS in a future release). This eliminates manual `node add` for machines that share a cluster key.
+
+### Enable Auto-Discovery
+
+Set the same `MECHA_CLUSTER_KEY` in `.env` on all machines:
+
+```bash
+MECHA_CLUSTER_KEY=my-secret-cluster-key
+```
+
+When the agent starts with this key set, it:
+
+1. Scans Tailscale peers every 60 seconds via `tailscale status --json`
+2. Probes each peer's port 7660 with `GET /healthz` to check if it's running Mecha
+3. Exchanges cluster keys via `POST /discover/handshake` (timing-safe comparison)
+4. Stores discovered nodes in `nodes-discovered.json` (separate from manual `nodes.json`)
+
+### Discovered vs Manual Nodes
+
+| Property | Manual (`nodes.json`) | Discovered (`nodes-discovered.json`) |
+|----------|----------------------|--------------------------------------|
+| Created by | `node add` or `node join` | Auto-discovery loop |
+| Persistence | Permanent | TTL-based (removed after 1 hour offline) |
+| Priority | Wins on name conflicts | Lower priority |
+| Promote | — | `mecha node promote <name>` |
+
+### View Discovered Nodes
+
+```bash
+mecha node ls
+```
+
+The `Source` column shows `manual` or `discovered` for each node.
+
+### Promote a Discovered Node
+
+To make a discovered node permanent (survives even if auto-discovery is disabled):
+
+```bash
+mecha node promote bob
+```
+
+### Security
+
+- Discovery is **opt-in** — only active when `MECHA_CLUSTER_KEY` is set
+- Cluster key is compared using timing-safe equality
+- Failed handshakes (wrong key) return `403` with no details
+- The handshake endpoint (`/discover/handshake`) bypasses session auth but requires the cluster key in the request body
+
 ## Setting Up P2P Nodes (Recommended)
 
 ### 1. Initialize Both Nodes

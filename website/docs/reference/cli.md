@@ -586,7 +586,27 @@ List registered peer nodes.
 mecha node ls
 ```
 
-Displays a table with columns: Name, Type (`managed` or `http`), Host, Port, Added.
+Displays a table with columns: Name, Type (`managed`, `http`, `tailscale`, `mdns`), Source (`manual` or `discovered`), Host, Port, Last Seen.
+
+Discovered nodes (found via auto-discovery) appear alongside manually added nodes.
+
+### `mecha node promote`
+
+Promote a discovered node to the manual registry (persistent).
+
+```bash
+mecha node promote <name>
+```
+
+| Argument | Description |
+|----------|-------------|
+| `<name>` | Name of the discovered node to promote |
+
+Moves a node from `nodes-discovered.json` to `nodes.json`, making it permanent. Use this when you want a discovered node to persist across restarts even if auto-discovery is disabled.
+
+```bash
+mecha node promote bob
+```
 
 ### `mecha node ping`
 
