@@ -22,6 +22,12 @@ All environment variables recognized by Mecha.
 | `MECHA_LOG_LEVEL` | Log verbosity: `debug`, `info`, `warn`, or `error`. Defaults to `info`. |
 | `MECHA_OTP` | TOTP secret supplied via environment (alternative to file-based storage). Useful for CI, containers, and automated deployments. |
 
+## Discovery
+
+| Variable | Description |
+|----------|-------------|
+| `MECHA_CLUSTER_KEY` | Shared secret for auto-discovery. When set, nodes on the same Tailscale network automatically find and register each other via `POST /discover/handshake`. Nodes without this key ignore discovery requests. |
+
 ## Directories
 
 | Variable | Description |
