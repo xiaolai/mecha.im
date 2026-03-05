@@ -1,6 +1,8 @@
 export { createLogger, resetLogLevel } from "./logger.js";
 export type { Logger } from "./logger.js";
 export { safeReadJson } from "./safe-read.js";
+export { readMechaSettings, writeMechaSettings } from "./mecha-settings.js";
+export type { MechaSettings } from "./mecha-settings.js";
 export { isPidAlive } from "./pid.js";
 export { safeCompare } from "./safe-compare.js";
 export type { SafeReadResult } from "./safe-read.js";

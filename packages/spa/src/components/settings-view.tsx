@@ -1,14 +1,18 @@
+import { useState } from "react";
 import {
   ServerIcon,
   NetworkIcon,
   ShieldCheckIcon,
   CpuIcon,
   RadioIcon,
+  Loader2Icon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useFetch } from "@/lib/use-fetch";
+import { useAuth } from "@/auth-context";
 import { AuthProfilesSection } from "@/components/auth-profiles-section";
 
 interface NodeInfo {
@@ -36,6 +40,10 @@ interface RuntimeConfig {
     discoveredCount: number;
     manualCount: number;
   };
+}
+
+interface NetworkSettings {
+  forceHttps: boolean;
 }
 
 interface TotpStatus {
@@ -86,11 +94,38 @@ function Card({ children, className }: { children: React.ReactNode; className?: 
 }
 
 export function SettingsView() {
+  const { authHeaders } = useAuth();
   const { data: info, loading: infoLoading, error: infoError } = useFetch<NodeInfo>("/node/info", { interval: 30_000 });
   const { data: runtime, loading: runtimeLoading, error: runtimeError } = useFetch<RuntimeConfig>("/settings/runtime");
   const { data: totp, loading: totpLoading, error: totpError } = useFetch<TotpStatus>("/settings/totp");
+  const { data: network, loading: networkLoading, refetch: refetchNetwork } = useFetch<NetworkSettings>("/settings/network");
+  const [httpsToggling, setHttpsToggling] = useState(false);
 
-  if (infoLoading || runtimeLoading || totpLoading) {
+  const [networkError, setNetworkError] = useState<string | null>(null);
+
+  async function toggleForceHttps() {
+    if (!network) return;
+    setHttpsToggling(true);
+    setNetworkError(null);
+    try {
+      const res = await fetch("/settings/network", {
+        method: "PATCH",
+        headers: { "content-type": "application/json", ...authHeaders },
+        credentials: "include",
+        body: JSON.stringify({ forceHttps: !network.forceHttps }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: "Request failed" }));
+        setNetworkError(data.error ?? "Failed to update network settings");
+        return;
+      }
+      refetchNetwork();
+    } finally {
+      setHttpsToggling(false);
+    }
+  }
+
+  if (infoLoading || runtimeLoading || totpLoading || networkLoading) {
     return (
       <div className="grid gap-4 sm:grid-cols-2">
         {Array.from({ length: 4 }, (_, i) => (
@@ -127,11 +162,37 @@ export function SettingsView() {
         {runtimeError ? (
           <p className="text-sm text-destructive">Unable to load network config.</p>
         ) : (
-          <div className="flex flex-col gap-1 text-sm">
-            {runtime && <InfoRow label="Agent Port" value={runtime.agentPort} mono />}
-            {info?.lanIp && <InfoRow label="LAN" value={info.lanIp} mono />}
-            {info?.tailscaleIp && <InfoRow label="Tailscale" value={info.tailscaleIp} mono />}
-            {info?.publicIp && <InfoRow label="Public IP" value={info.publicIp} mono />}
+          <div className="flex flex-col gap-2 text-sm">
+            <div className="flex flex-col gap-1">
+              {runtime && <InfoRow label="Agent Port" value={runtime.agentPort} mono />}
+              {info?.lanIp && <InfoRow label="LAN" value={info.lanIp} mono />}
+              {info?.tailscaleIp && <InfoRow label="Tailscale" value={info.tailscaleIp} mono />}
+              {info?.publicIp && <InfoRow label="Public IP" value={info.publicIp} mono />}
+            </div>
+            {network && (
+              <div className="flex items-center justify-between gap-4 pt-2 border-t border-border">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-sm text-card-foreground">Force HTTPS</span>
+                  <span className="text-xs text-muted-foreground">
+                    Redirect HTTP → HTTPS. Enable when exposed on a public domain.
+                  </span>
+                </div>
+                <Button
+                  variant={network.forceHttps ? "default" : "outline"}
+                  size="sm"
+                  className="min-h-11 sm:min-h-0 shrink-0"
+                  disabled={httpsToggling}
+                  onClick={toggleForceHttps}
+                  aria-pressed={network.forceHttps}
+                >
+                  {httpsToggling && <Loader2Icon className="size-4 animate-spin" />}
+                  {network.forceHttps ? "On" : "Off"}
+                </Button>
+              </div>
+            )}
+            {networkError && (
+              <p className="text-xs text-destructive">{networkError}</p>
+            )}
           </div>
         )}
       </Card>
