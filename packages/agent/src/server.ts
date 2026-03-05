@@ -19,6 +19,8 @@ import { registerMeterRoutes } from "./routes/meter.js";
 import { registerSettingsRoutes } from "./routes/settings.js";
 import { registerEventsRoutes } from "./routes/events.js";
 import { registerEventLogRoutes } from "./routes/event-log.js";
+import { registerHandshakeRoute } from "./routes/discover-handshake.js";
+import { startDiscoveryLoop } from "./discovery-loop.js";
 import { registerScheduleRoutes } from "./routes/schedules.js";
 import { registerScheduleOverviewRoutes } from "./routes/schedule-overview.js";
 import { registerAuthRoutes } from "./routes/auth.js";
@@ -195,6 +197,25 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
     publicIp: opts.publicIp,
   });
   registerMeterRoutes(app, { mechaDir: opts.mechaDir });
+
+  // Auto-discovery handshake + loop (only active when cluster key is set)
+  const clusterKey = process.env.MECHA_CLUSTER_KEY;
+  if (clusterKey) {
+    registerHandshakeRoute(app, {
+      clusterKey,
+      nodeName: opts.nodeName,
+      port: opts.port,
+      mechaDir: opts.mechaDir,
+      meshApiKey: opts.auth.apiKey,
+    });
+    const stopDiscovery = startDiscoveryLoop({
+      clusterKey,
+      nodeName: opts.nodeName,
+      port: opts.port,
+      mechaDir: opts.mechaDir,
+    });
+    app.addHook("onClose", stopDiscovery);
+  }
   registerSettingsRoutes(app);
   registerEventsRoutes(app, { processManager: opts.processManager });
   registerEventLogRoutes(app, { eventLog });
