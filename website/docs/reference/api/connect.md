@@ -555,7 +555,7 @@ Send an HTTP-like request over a `SecureChannel` and wait for the matching respo
 | `method` | `string` | `"GET"` | HTTP method. |
 | `headers` | `Record<string, string>` | `{}` | Request headers. |
 | `body` | `string` | `undefined` | Request body. |
-| `timeoutMs` | `number` | `30000` | Timeout for waiting for the response. |
+| `timeoutMs` | `number` | `60000` | Timeout for waiting for the response. |
 
 **Example:**
 
@@ -589,7 +589,7 @@ Connect to a relay server via WebSocket and establish a `RelayChannel` to a peer
 |-------|------|---------|-------------|
 | `relayUrl` | `string` | (required) | Relay server base URL. |
 | `token` | `string` | (required) | Relay token obtained from `requestRelay()`. |
-| `timeoutMs` | `number` | `10000` | Connection timeout. |
+| `timeoutMs` | `number` | `30000` | Connection timeout. |
 | `createWebSocket` | `(url: string) => WebSocketLike` | native `WebSocket` | Injected WebSocket factory. |
 
 ### `createNoiseCipher(sendKey, recvKey?)`
@@ -627,7 +627,7 @@ Initiate a Noise IK handshake. Exchanges X25519 public keys, computes a shared s
 | `localKeyPair` | `NoiseKeyPair` | (required) | Local X25519 key pair. |
 | `remotePublicKey` | `string` | (required) | Expected remote X25519 public key (base64url). |
 | `expectedFingerprint` | `string` | (required) | Expected SHA-256 fingerprint of the remote peer. |
-| `timeoutMs` | `number` | `5000` | Handshake timeout. |
+| `timeoutMs` | `number` | `10000` | Handshake timeout. |
 
 **Throws:** `HandshakeError` if the remote key does not match the expected key or fingerprint.
 
@@ -649,7 +649,7 @@ Respond to a Noise IK handshake initiated by a peer. Waits for the initiator's p
 | `localKeyPair` | `NoiseKeyPair` | (required) | Local X25519 key pair. |
 | `expectedFingerprint` | `string` | `undefined` | Optional expected fingerprint of the initiator. |
 | `expectedPublicKey` | `string` | `undefined` | Optional expected public key of the initiator. |
-| `timeoutMs` | `number` | `5000` | Handshake timeout. |
+| `timeoutMs` | `number` | `10000` | Handshake timeout. |
 
 ### `holePunch(opts)`
 

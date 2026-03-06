@@ -7,6 +7,8 @@ description: API reference for @mecha/core — types, schemas, validation, ACL e
 
 Shared utility functions, types, and schemas re-exported from the `@mecha/core` barrel.
 
+[[toc]]
+
 ## Logging
 
 ### `createLogger(namespace): Logger`

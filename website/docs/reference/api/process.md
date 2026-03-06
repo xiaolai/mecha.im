@@ -73,7 +73,7 @@ const info = await pm.spawn({ name: "researcher", workspacePath: "/path/to/works
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `mechaDir` | `string` | Yes | — | Path to `~/.mecha` data directory |
-| `healthTimeoutMs` | `number` | No | `30000` | Timeout for bot health check after spawn |
+| `healthTimeoutMs` | `number` | No | `10000` | Timeout for bot health check after spawn |
 | `spawnFn` | `typeof spawn` | No | `child_process.spawn` | Override for testing |
 | `runtimeEntrypoint` | `string` | No | — | Path to the `@mecha/runtime` JS entrypoint (used with `node`) |
 | `runtimeBin` | `string` | No | — | Path to a standalone runtime binary (takes precedence over `runtimeEntrypoint`) |

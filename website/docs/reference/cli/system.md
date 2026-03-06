@@ -7,6 +7,8 @@ description: CLI reference for mecha daemon lifecycle, auth, TOTP, ACL, sandbox,
 
 Daemon lifecycle, authentication, TOTP, ACL, sandbox, audit, tools, MCP server, and dashboard commands.
 
+[[toc]]
+
 ---
 
 ## Daemon Lifecycle
