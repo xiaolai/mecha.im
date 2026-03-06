@@ -224,7 +224,7 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
   registerBotRoutes(app, opts.processManager, opts.mechaDir, opts.nodeName);
   registerRoutingRoutes(app, { mechaDir: opts.mechaDir, acl: opts.acl });
   registerDiscoverRoutes(app, { mechaDir: opts.mechaDir, pm: opts.processManager });
-  registerSessionRoutes(app, opts.processManager);
+  registerSessionRoutes(app, opts.processManager, opts.mechaDir, opts.nodeName);
   registerScheduleRoutes(app, opts.processManager);
   registerScheduleOverviewRoutes(app, opts.processManager, opts.nodeName);
   registerAclRoutes(app, { acl: opts.acl });

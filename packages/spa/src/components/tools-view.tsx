@@ -49,6 +49,8 @@ export function ToolsView() {
       setDescription("");
       setShowForm(false);
       refetch();
+    } catch {
+      setFormError("Connection error");
     } finally {
       setInstalling(false);
     }
@@ -56,17 +58,21 @@ export function ToolsView() {
 
   async function handleRemove(toolName: string) {
     setRemoveError(null);
-    const res = await fetch(`/tools/${encodeURIComponent(toolName)}`, {
-      method: "DELETE",
-      headers: authHeaders,
-      credentials: "include",
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({ error: "Request failed" }));
-      setRemoveError(data.error ?? "Failed to remove tool");
-      return;
+    try {
+      const res = await fetch(`/tools/${encodeURIComponent(toolName)}`, {
+        method: "DELETE",
+        headers: authHeaders,
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: "Request failed" }));
+        setRemoveError(data.error ?? "Failed to remove tool");
+        return;
+      }
+      refetch();
+    } catch {
+      setRemoveError("Connection error");
     }
-    refetch();
   }
 
   if (loading && !tools) {

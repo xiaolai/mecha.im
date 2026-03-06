@@ -64,6 +64,10 @@ export function BotSpawnForm({ open, onOpenChange, onCreated }: Props) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    // Validate regardless of touch state on submit
+    setTouched({ name: true, workspace: true });
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(name)) return;
+    if (workspace.length > 0 && !workspace.startsWith("/")) return;
     setSubmitting(true);
     setServerError(null);
     try {
@@ -105,6 +109,8 @@ export function BotSpawnForm({ open, onOpenChange, onCreated }: Props) {
       onCreated();
       onOpenChange(false);
       resetForm();
+    } catch {
+      setServerError("Connection error");
     } finally {
       setSubmitting(false);
     }

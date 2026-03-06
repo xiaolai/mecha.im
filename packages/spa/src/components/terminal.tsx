@@ -69,7 +69,7 @@ export function Terminal({ botName, sessionId, node, onSessionCreated, onExit }:
     setExitCode(null);
     let disposed = false;
 
-    (async () => {
+    (async () => { try {
       const { Terminal: XTerm } = await import("@xterm/xterm");
       const { FitAddon } = await import("@xterm/addon-fit");
       const { WebLinksAddon } = await import("@xterm/addon-web-links");
@@ -193,7 +193,9 @@ export function Terminal({ botName, sessionId, node, onSessionCreated, onExit }:
       });
       resizeObserver.observe(containerRef.current!);
       resizeObserverRef.current = resizeObserver;
-    })();
+    } catch {
+      if (!disposed) setStatus("disconnected");
+    } })();
 
     return () => {
       disposed = true;

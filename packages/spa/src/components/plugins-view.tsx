@@ -103,6 +103,8 @@ export function PluginsView() {
       }
       resetForm();
       refetch();
+    } catch {
+      setCreateError("Connection error");
     } finally {
       setCreating(false);
     }
@@ -152,6 +154,8 @@ export function PluginsView() {
         return;
       }
       refetch();
+    } catch {
+      setMutationError("Connection error");
     } finally {
       setRemoving((prev) => ({ ...prev, [pluginName]: false }));
     }

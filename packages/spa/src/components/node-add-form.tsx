@@ -57,6 +57,10 @@ export function NodeAddForm({ open, onOpenChange, onAdded }: Props) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    // Validate regardless of touch state on submit
+    setTouched({ name: true, port: true });
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(name)) return;
+    if (!Number.isInteger(portNum) || portNum < 1 || portNum > 65535) return;
     setSubmitting(true);
     setServerError(null);
     try {
@@ -74,13 +78,15 @@ export function NodeAddForm({ open, onOpenChange, onAdded }: Props) {
       onAdded();
       onOpenChange(false);
       resetForm();
+    } catch {
+      setServerError("Connection error");
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={open} onOpenChange={(v) => { if (!v) resetForm(); onOpenChange(v); }}>
       <SheetContent className="overflow-y-auto sm:max-w-lg">
         <SheetHeader>
           <SheetTitle>Add Node</SheetTitle>

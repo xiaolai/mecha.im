@@ -39,9 +39,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .then((res) => res.json())
       .then(async (data: AuthStatus) => {
         if (cancelled) return;
-        setAvailableMethods(data.methods);
+        const methods = data?.methods && typeof data.methods.totp === "boolean"
+          ? data.methods
+          : { totp: false };
+        setAvailableMethods(methods);
         // If TOTP is enabled, probe session cookie
-        if (data.methods.totp) {
+        if (methods.totp) {
           try {
             const probe = await fetch("/bots", { credentials: "include" });
             if (!cancelled && probe.ok) setTotpAuth(true);

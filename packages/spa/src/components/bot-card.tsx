@@ -107,6 +107,8 @@ export function BotCard({ bot }: BotCardProps) {
         return;
       }
       window.location.reload();
+    } catch {
+      setRemoveError("Connection error");
     } finally {
       setRemoving(false);
     }

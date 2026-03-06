@@ -40,6 +40,8 @@ export function DoctorView() {
         return;
       }
       setResult(await res.json());
+    } catch {
+      setError("Connection error");
     } finally {
       setRunning(false);
     }

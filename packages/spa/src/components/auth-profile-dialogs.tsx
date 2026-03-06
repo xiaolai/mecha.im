@@ -86,6 +86,8 @@ export function AddProfileDialog({ open, onOpenChange, onCreated }: {
       }
       onCreated();
       onOpenChange(false);
+    } catch {
+      setError("Connection error");
     } finally {
       setBusy(false);
     }
@@ -213,6 +215,8 @@ export function RenewTokenDialog({ open, onOpenChange, profileName, onRenewed }:
       }
       onRenewed();
       onOpenChange(false);
+    } catch {
+      setError("Connection error");
     } finally {
       setBusy(false);
     }

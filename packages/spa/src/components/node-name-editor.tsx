@@ -17,7 +17,7 @@ export function NodeNameEditor({ currentName }: { currentName: string }) {
   const [error, setError] = useState<string | null>(null);
   const [savedName, setSavedName] = useState(currentName);
 
-  useEffect(() => { if (!editing) setSavedName(currentName); }, [currentName, editing]);
+  useEffect(() => { setSavedName(currentName); }, [currentName]);
 
   async function save() {
     if (!draft.trim() || draft === savedName) {
@@ -41,6 +41,8 @@ export function NodeNameEditor({ currentName }: { currentName: string }) {
       const data = await res.json();
       setSavedName(data.name);
       setEditing(false);
+    } catch {
+      setError("Connection error");
     } finally {
       setSaving(false);
     }

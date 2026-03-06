@@ -211,32 +211,40 @@ export function NodesView() {
 
   async function handleRemove(name: string) {
     setMutationError(null);
-    const res = await fetch(`/nodes/${encodeURIComponent(name)}`, {
-      method: "DELETE",
-      headers: authHeaders,
-      credentials: "include",
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({ error: "Request failed" }));
-      setMutationError(data.error ?? "Failed to remove node");
-      return;
+    try {
+      const res = await fetch(`/nodes/${encodeURIComponent(name)}`, {
+        method: "DELETE",
+        headers: authHeaders,
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: "Request failed" }));
+        setMutationError(data.error ?? "Failed to remove node");
+        return;
+      }
+      refetch();
+    } catch {
+      setMutationError("Connection error");
     }
-    refetch();
   }
 
   async function handlePromote(name: string) {
     setMutationError(null);
-    const res = await fetch(`/nodes/${encodeURIComponent(name)}/promote`, {
-      method: "POST",
-      headers: authHeaders,
-      credentials: "include",
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({ error: "Request failed" }));
-      setMutationError(data.error ?? "Failed to promote node");
-      return;
+    try {
+      const res = await fetch(`/nodes/${encodeURIComponent(name)}/promote`, {
+        method: "POST",
+        headers: authHeaders,
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: "Request failed" }));
+        setMutationError(data.error ?? "Failed to promote node");
+        return;
+      }
+      refetch();
+    } catch {
+      setMutationError("Connection error");
     }
-    refetch();
   }
 
   if (loading && !nodes) {

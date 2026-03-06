@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { BotCard, type BotInfo } from "./bot-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -49,6 +49,12 @@ export function BotList({ node }: BotListProps) {
   }
 
   const allTags = [...new Set(bots.flatMap((b) => b.tags ?? []))].sort();
+
+  // Reset selectedTag when it disappears from the tag set
+  useEffect(() => {
+    if (selectedTag && !allTags.includes(selectedTag)) setSelectedTag(null);
+  }, [selectedTag, allTags]);
+
   const filtered = selectedTag ? bots.filter((b) => b.tags?.includes(selectedTag)) : bots;
 
   return (
