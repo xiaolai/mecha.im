@@ -133,3 +133,219 @@ Check sandbox status:
 ```bash
 mecha sandbox show researcher
 ```
+
+## Global Settings
+
+Mecha stores global runtime settings in `~/.mecha/settings.json`.
+
+### `readMechaSettings(mechaDir): MechaSettings`
+
+Read global settings from disk. Returns an empty object `{}` if the file is missing or invalid.
+
+```ts
+import { readMechaSettings } from "@mecha/core";
+
+const settings = readMechaSettings("/Users/you/.mecha");
+console.log(settings.forceHttps); // boolean | undefined
+```
+
+### `writeMechaSettings(mechaDir, settings): void`
+
+Write global settings to disk (atomic tmp+rename). Validates the settings object before writing.
+
+```ts
+import { writeMechaSettings } from "@mecha/core";
+
+writeMechaSettings("/Users/you/.mecha", { forceHttps: true });
+```
+
+**`MechaSettings`**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `forceHttps` | `boolean?` | Force HTTPS for dashboard connections |
+
+The schema uses `.passthrough()`, so additional fields are preserved when read and written.
+
+## Auth Configuration
+
+Controls which authentication methods are enabled. Stored in `~/.mecha/auth-config.json`.
+
+### `readAuthConfig(mechaDir): AuthConfig`
+
+Read auth config from file. Returns defaults (`{ totp: true }`) if the file is missing or malformed.
+
+```ts
+import { readAuthConfig } from "@mecha/core";
+
+const config = readAuthConfig("/Users/you/.mecha");
+console.log(config.totp); // true (default)
+```
+
+### `writeAuthConfig(mechaDir, config): void`
+
+Write auth config to file. Throws `MechaError` if TOTP is disabled (TOTP is currently required).
+
+```ts
+import { writeAuthConfig } from "@mecha/core";
+
+writeAuthConfig("/Users/you/.mecha", { totp: true });
+```
+
+### `resolveAuthConfig(mechaDir, overrides?): AuthConfig`
+
+Merge file-based config with CLI flag overrides. Throws `MechaError` if the resolved config disables TOTP.
+
+```ts
+import { resolveAuthConfig } from "@mecha/core";
+
+// Uses file defaults, override specific fields from CLI flags
+const config = resolveAuthConfig("/Users/you/.mecha", { totp: true });
+```
+
+**`AuthConfig`**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `totp` | `boolean` | Whether TOTP authentication is enabled (must be `true`) |
+
+**`AuthConfigOverrides`**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `totp` | `boolean?` | Override the TOTP setting from the config file |
+
+## Plugin Registry
+
+Mecha supports MCP plugins that extend bot capabilities. Plugins are registered globally in `~/.mecha/plugins.json` and can be attached to individual bots.
+
+### Plugin Types
+
+#### `PluginName`
+
+```ts
+type PluginName = string & { __brand: "PluginName" };
+```
+
+A branded string type for validated plugin names. Create one with `pluginName()`.
+
+#### `pluginName(input): PluginName`
+
+Validate and brand a string as a `PluginName`. Throws `InvalidNameError` if the name is not valid (lowercase alphanumeric with hyphens), or `PluginNameReservedError` if the name conflicts with a built-in capability or internal name.
+
+```ts
+import { pluginName } from "@mecha/core";
+
+const name = pluginName("my-tool");  // PluginName
+pluginName("query");                 // throws PluginNameReservedError
+pluginName("INVALID");               // throws InvalidNameError
+```
+
+Reserved names include all [ACL capabilities](/features/permissions#capabilities), `"mecha"`, `"mecha-workspace"`, and object prototype keys.
+
+#### `PluginConfigBase`
+
+```ts
+interface PluginConfigBase {
+  description?: string;
+  addedAt: string; // ISO timestamp
+}
+```
+
+Common fields shared by all plugin types.
+
+#### `StdioPluginConfig`
+
+```ts
+interface StdioPluginConfig extends PluginConfigBase {
+  type: "stdio";
+  command: string;
+  args?: string[];
+  env?: Record<string, string>;
+}
+```
+
+Configuration for a stdio-based MCP plugin (spawned as a subprocess).
+
+#### `HttpPluginConfig`
+
+```ts
+interface HttpPluginConfig extends PluginConfigBase {
+  type: "http" | "sse";
+  url: string;
+  headers?: Record<string, string>;
+}
+```
+
+Configuration for an HTTP/SSE-based MCP plugin (connected over network).
+
+#### `PluginConfig`
+
+```ts
+type PluginConfig = StdioPluginConfig | HttpPluginConfig;
+```
+
+Discriminated union of all plugin configuration types. Discriminant field: `type`.
+
+#### `PluginRegistry`
+
+```ts
+interface PluginRegistry {
+  version: 1;
+  plugins: Record<string, PluginConfig>;
+}
+```
+
+The on-disk schema for `plugins.json`.
+
+### Registry Functions
+
+#### `readPluginRegistry(mechaDir): PluginRegistry`
+
+Read the plugin registry from disk. Returns an empty registry if the file does not exist. Throws `CorruptConfigError` if the file exists but is malformed.
+
+#### `writePluginRegistry(mechaDir, registry): void`
+
+Write the plugin registry to disk (atomic tmp+rename).
+
+#### `addPlugin(mechaDir, name, config, force?): void`
+
+Add a plugin to the registry. Throws `PluginAlreadyExistsError` unless `force` is `true`.
+
+```ts
+import { addPlugin, pluginName } from "@mecha/core";
+
+addPlugin("/Users/you/.mecha", pluginName("my-tool"), {
+  type: "stdio",
+  command: "npx",
+  args: ["-y", "my-mcp-tool"],
+  addedAt: new Date().toISOString(),
+});
+```
+
+#### `removePlugin(mechaDir, name): boolean`
+
+Remove a plugin by name. Returns `false` if not found.
+
+#### `getPlugin(mechaDir, name): PluginConfig | undefined`
+
+Get a single plugin's configuration by name.
+
+#### `listPlugins(mechaDir): Array<{ name: string; config: PluginConfig }>`
+
+List all registered plugins with their configurations.
+
+#### `isPluginName(mechaDir, name): boolean`
+
+Check if a name is a registered plugin (not a capability or reserved name).
+
+### Plugin Error Classes
+
+| Error | Code | HTTP | Description |
+|-------|------|------|-------------|
+| `PluginNameReservedError` | `PLUGIN_NAME_RESERVED` | 400 | Name conflicts with a built-in capability or internal name |
+| `PluginNotFoundError` | `PLUGIN_NOT_FOUND` | 404 | No plugin with this name exists |
+| `PluginAlreadyExistsError` | `PLUGIN_ALREADY_EXISTS` | 409 | Plugin already registered (use `--force` to overwrite) |
+| `PluginEnvError` | `PLUGIN_ENV_ERROR` | 400 | Environment variable resolution error |
+
+See [Error Reference](/reference/errors) for the complete error catalog.
