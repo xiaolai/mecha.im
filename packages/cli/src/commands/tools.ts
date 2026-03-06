@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
-import { mechaToolInstall, mechaToolLs } from "@mecha/service";
+import { mechaToolInstall, mechaToolLs, resolveClaudeRuntime } from "@mecha/service";
 import { withErrorHandler } from "../error-handler.js";
 
 export function registerToolsCommand(program: Command, deps: CommandDeps): void {
@@ -35,6 +35,26 @@ export function registerToolsCommand(program: Command, deps: CommandDeps): void 
       deps.formatter.table(
         ["Name", "Version", "Description"],
         list.map((t) => [t.name, t.version, t.description]),
+      );
+    }));
+
+  tools
+    .command("runtime")
+    .description("Show Claude Code runtime binary info")
+    .action(async () => withErrorHandler(deps, async () => {
+      const info = resolveClaudeRuntime();
+      if (!info.binPath) {
+        deps.formatter.error("Claude Code binary not found");
+        deps.formatter.info("Install: npm install -g @anthropic-ai/claude-code");
+        return;
+      }
+      deps.formatter.table(
+        ["Property", "Value"],
+        [
+          ["Binary", info.binPath],
+          ["Version", info.version ?? "unknown"],
+          ["Resolved from", info.resolvedFrom],
+        ],
       );
     }));
 }
