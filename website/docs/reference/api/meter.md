@@ -5,6 +5,8 @@ description: API reference for @mecha/meter — metering proxy, cost tracking, b
 
 # @mecha/meter
 
+[[toc]]
+
 The `@mecha/meter` package provides the metering proxy that tracks API costs per agent in real time, with budgets, rollups, and event persistence.
 
 ## Daemon

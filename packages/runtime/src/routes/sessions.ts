@@ -37,7 +37,8 @@ export function registerSessionRoutes(
         return { ok: true };
       /* v8 ignore start -- filesystem error during delete */
       } catch (err) {
-        reply.code(500).send({ error: `Delete failed: ${err instanceof Error ? err.message : String(err)}` });
+        reply.code(500).send({ error: "Delete failed" });
+        request.server.log.error(err, "Session delete failed");
       }
       /* v8 ignore stop */
     },

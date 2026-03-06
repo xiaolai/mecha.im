@@ -12,8 +12,21 @@ purgeTimer.unref(); // Don't block process exit
 
 /** Issue a single-use, short-lived ticket for WebSocket auth. */
 export function issueTicket(): string {
-  // Evict oldest entries if at capacity
-  if (tickets.size >= MAX_TICKETS) purgeTickets();
+  // Evict expired entries first; if still at capacity, evict oldest
+  if (tickets.size >= MAX_TICKETS) {
+    purgeTickets();
+    if (tickets.size >= MAX_TICKETS) {
+      // Hard cap: evict oldest entries until under limit
+      const iter = tickets.keys();
+      while (tickets.size >= MAX_TICKETS) {
+        const oldest = iter.next();
+        /* v8 ignore start -- iterator always has values when size >= MAX */
+        if (oldest.done) break;
+        /* v8 ignore stop */
+        tickets.delete(oldest.value);
+      }
+    }
+  }
   const ticket = randomBytes(24).toString("base64url");
   tickets.set(ticket, Date.now());
   return ticket;

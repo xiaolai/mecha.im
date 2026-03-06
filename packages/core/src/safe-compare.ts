@@ -5,6 +5,9 @@ import { timingSafeEqual } from "node:crypto";
  * Used for bearer token validation across all servers.
  */
 export function safeCompare(a: string, b: string): boolean {
+  // Reject oversized tokens to prevent memory-amplification DoS
+  const MAX_TOKEN_LEN = 4096;
+  if (a.length > MAX_TOKEN_LEN || b.length > MAX_TOKEN_LEN) return false;
   // Use byte buffers to correctly handle multibyte UTF-8 characters
   const aBuf = Buffer.from(a, "utf8");
   const bBuf = Buffer.from(b, "utf8");

@@ -61,11 +61,11 @@ All routes except those listed as **Public** require authentication (session coo
 | `GET` | `/bots/schedules/overview` | Required | All schedules across all bots |
 | `GET` | `/bots/:name/schedules` | Required | List bot schedules |
 | `POST` | `/bots/:name/schedules` | Required | Add a schedule |
-| `DELETE` | `/bots/:name/schedules/:id` | Required | Remove a schedule |
-| `POST` | `/bots/:name/schedules/:id/pause` | Required | Pause a schedule |
-| `POST` | `/bots/:name/schedules/:id/resume` | Required | Resume a paused schedule |
-| `POST` | `/bots/:name/schedules/:id/run` | Required | Trigger immediate schedule run |
-| `GET` | `/bots/:name/schedules/:id/history` | Required | Schedule run history (supports `?limit=`) |
+| `DELETE` | `/bots/:name/schedules/:scheduleId` | Required | Remove a schedule |
+| `POST` | `/bots/:name/schedules/:scheduleId/pause` | Required | Pause a schedule |
+| `POST` | `/bots/:name/schedules/:scheduleId/resume` | Required | Resume a paused schedule |
+| `POST` | `/bots/:name/schedules/:scheduleId/run` | Required | Trigger immediate schedule run |
+| `GET` | `/bots/:name/schedules/:scheduleId/history` | Required | Schedule run history (supports `?limit=`) |
 | **Discovery** |
 | `GET` | `/discover` | Required | Discover bots (filterable by `?tag=` and `?capability=`) |
 | `POST` | `/discover/handshake` | Cluster Key | Auto-discovery handshake (conditional on `MECHA_CLUSTER_KEY`) |
@@ -194,4 +194,4 @@ All file writes use atomic tmp+rename to prevent corruption on crash.
 
 - [CLI Reference](/reference/cli/) — Command-line interface documentation
 - [Error Reference](/reference/errors) — Error classes and codes
-- [Architecture](/reference/api/) — System architecture overview
+- [Core API](/reference/api/core) — Core library functions and types

@@ -5,6 +5,8 @@ description: Key concepts in the Mecha multi-agent runtime — bots, workspaces,
 
 # Core Concepts
 
+[[toc]]
+
 ## bot
 
 A **bot** (Claude Agent SDK App) is the fundamental unit in Mecha. Each bot is an isolated process running a Fastify HTTP server that wraps the Claude Agent SDK.

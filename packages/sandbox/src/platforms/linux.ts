@@ -1,7 +1,18 @@
 import type { SandboxProfile, SandboxWrapResult } from "../types.js";
 
 /** Essential system paths to bind read-only if they exist. */
-const SYSTEM_RO_BINDS = ["/usr", "/lib", "/lib64", "/etc"];
+const SYSTEM_RO_BINDS = ["/usr", "/lib", "/lib64"];
+
+/** Specific /etc files needed for DNS resolution and NSS (not all of /etc). */
+const ETC_RO_FILES = [
+  "/etc/resolv.conf",
+  "/etc/hosts",
+  "/etc/nsswitch.conf",
+  "/etc/ssl/certs",
+  "/etc/ca-certificates",
+  "/etc/passwd",     // needed by Node.js os.userInfo()
+  "/etc/localtime",  // timezone
+];
 
 /**
  * Generate bwrap (bubblewrap) arguments from a SandboxProfile.
@@ -32,6 +43,13 @@ export function wrapLinux(
 
   // Essential system paths (read-only, only if they exist)
   for (const p of SYSTEM_RO_BINDS) {
+    if (existsFn(p)) {
+      args.push("--ro-bind", p, p);
+    }
+  }
+
+  // Specific /etc files (not all of /etc — prevents host config/secret exposure)
+  for (const p of ETC_RO_FILES) {
     if (existsFn(p)) {
       args.push("--ro-bind", p, p);
     }

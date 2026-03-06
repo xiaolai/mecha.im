@@ -44,8 +44,15 @@ export function acquireCliLock(mechaDir: string): boolean {
     writeFileSync(fd, JSON.stringify(info, null, 2) + "\n");
     closeSync(fd);
     return true;
-  } catch {
-    // File already exists — check if the holder is alive
+  } catch (err) {
+    // EEXIST means lock file exists — check if the holder is alive
+    // Other errors (EACCES, EROFS, etc.) should surface, not be treated as contention
+    /* v8 ignore start -- non-EEXIST errors: requires permission/disk issues */
+    if ((err as NodeJS.ErrnoException).code !== "EEXIST") {
+      console.error("[mecha] Failed to create lock file:", (err as Error).message);
+      return false;
+    }
+    /* v8 ignore stop */
   }
 
   const existing = readCliLock(mechaDir);

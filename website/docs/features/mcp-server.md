@@ -5,6 +5,8 @@ description: Expose the Mecha control plane as an MCP server for Claude Desktop,
 
 # MCP Server
 
+[[toc]]
+
 Mecha exposes its control plane as an [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server, allowing any MCP-compatible client — Claude Desktop, Cursor, Claude Code — to discover, inspect, and query your bots.
 
 ## Quick Start

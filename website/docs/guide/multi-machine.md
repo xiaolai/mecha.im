@@ -5,6 +5,8 @@ description: Run Mecha agents across multiple machines and route queries between
 
 # Multi-Machine Setup
 
+[[toc]]
+
 Run Mecha agents across multiple machines and route queries between them.
 
 Mecha supports two connection modes. Choose based on your network:

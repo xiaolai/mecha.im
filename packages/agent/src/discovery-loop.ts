@@ -95,8 +95,8 @@ export async function probeCandidates(opts: ProbeOpts): Promise<void> {
 
       writeDiscoveredNode(opts.mechaDir, discovered);
       log.info(`Discovered node: ${discovered.name} (${candidate.ip}:${discovered.port})`);
-    } catch {
-      // Probe failed — skip silently
+    } catch (err) {
+      log.debug("Discovery probe failed", { ip: candidate.ip, error: err instanceof Error ? err.message : String(err) });
     }
   }
 }

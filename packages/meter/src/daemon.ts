@@ -1,7 +1,7 @@
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from "node:http";
 import { timingSafeEqual } from "node:crypto";
 import { join } from "node:path";
-import { MeterProxyAlreadyRunningError, PortConflictError, createLogger } from "@mecha/core";
+import { MeterProxyAlreadyRunningError, PortConflictError, createLogger, DEFAULTS } from "@mecha/core";
 import {
   readProxyInfo, isPidAlive, writeProxyInfo, deleteProxyInfo,
 } from "./lifecycle.js";
@@ -120,7 +120,7 @@ export async function startDaemon(opts: DaemonOpts): Promise<DaemonHandle> {
       log.error("Snapshot flush failed", { error: err instanceof Error ? err.message : String(err) });
     }
     /* v8 ignore stop */
-  }, 5_000);
+  }, DEFAULTS.METER_SNAPSHOT_INTERVAL_MS);
   snapshotTimer.unref();
 
   // Periodic registry rescan (every 30 seconds)

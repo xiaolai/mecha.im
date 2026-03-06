@@ -100,7 +100,7 @@ mecha cost
 Set a daily budget:
 
 ```bash
-mecha budget set --daily 5.00
+mecha budget set --global --daily 5.00
 ```
 
 ## 9. Stop Agents

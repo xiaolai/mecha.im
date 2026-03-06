@@ -13,6 +13,15 @@ export function BotList({ node }: BotListProps) {
   const { data, loading, error } = useFetch<BotInfo[]>(url, { interval: 5000 });
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
+  const bots = data ?? [];
+  const allTags = [...new Set(bots.flatMap((b) => b.tags ?? []))].sort();
+
+  // Reset selectedTag when it disappears from the tag set
+  // Hook must be at top level — not after conditional returns
+  useEffect(() => {
+    if (selectedTag && !allTags.includes(selectedTag)) setSelectedTag(null);
+  }, [selectedTag, allTags.join(",")]);
+
   if (loading && !data) {
     return (
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -31,8 +40,6 @@ export function BotList({ node }: BotListProps) {
     );
   }
 
-  const bots = data ?? [];
-
   if (bots.length === 0) {
     return (
       <div className="rounded-lg border border-border bg-card p-8 text-center">
@@ -47,13 +54,6 @@ export function BotList({ node }: BotListProps) {
       </div>
     );
   }
-
-  const allTags = [...new Set(bots.flatMap((b) => b.tags ?? []))].sort();
-
-  // Reset selectedTag when it disappears from the tag set
-  useEffect(() => {
-    if (selectedTag && !allTags.includes(selectedTag)) setSelectedTag(null);
-  }, [selectedTag, allTags]);
 
   const filtered = selectedTag ? bots.filter((b) => b.tags?.includes(selectedTag)) : bots;
 

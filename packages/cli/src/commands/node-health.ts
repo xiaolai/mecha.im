@@ -13,11 +13,13 @@ interface HealthResult {
 }
 
 async function checkNodeHealth(
-  node: { name: string; host?: string; port?: number; managed?: boolean },
+  node: { name: string; host?: string; port?: number; managed?: boolean; serverUrl?: string },
   rendezvousUrl: string,
 ): Promise<HealthResult> {
   if (node.managed) {
-    const serverUrl = rendezvousUrl.replace(/^wss:\/\//, "https://").replace(/^ws:\/\//, "http://");
+    // Use per-node server URL if available, fall back to global rendezvous URL
+    const rvUrl = node.serverUrl ?? rendezvousUrl;
+    const serverUrl = rvUrl.replace(/^wss:\/\//, "https://").replace(/^ws:\/\//, "http://");
     const start = performance.now();
     try {
       const res = await fetch(`${serverUrl}/lookup/${encodeURIComponent(node.name)}`, {
@@ -97,6 +99,7 @@ export async function executeNodeHealth(name: string | undefined, deps: CommandD
     nodes.map((n) => checkNodeHealth(n, DEFAULTS.RENDEZVOUS_URL)),
   );
 
+  let hasFailure = false;
   for (const result of results) {
     if (result.status === "online") {
       const parts = [`${result.name}: ${result.latencyMs}ms`];
@@ -105,8 +108,10 @@ export async function executeNodeHealth(name: string | undefined, deps: CommandD
       deps.formatter.success(parts.join(" — "));
     } else {
       deps.formatter.error(`${result.name}: offline${result.error ? ` — ${result.error}` : ""}`);
+      hasFailure = true;
     }
   }
+  if (hasFailure) process.exitCode = 1;
 }
 
 /* v8 ignore start -- commander wiring tested via executeNodeHealth */

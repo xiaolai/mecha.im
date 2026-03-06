@@ -56,6 +56,8 @@ export function buildUpstreamHeaders(
     headers[key] = Array.isArray(value) ? value.join(", ") : value;
   }
   headers["host"] = "api.anthropic.com";
+  // Strip proxy authorization to prevent leaking proxy tokens upstream
+  delete headers["authorization"];
   return headers;
 }
 

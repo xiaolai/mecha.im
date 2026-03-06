@@ -5,6 +5,8 @@ description: Complete catalog of all MechaError subclasses with error codes, HTT
 
 # Error Reference
 
+[[toc]]
+
 All errors in Mecha extend the `MechaError` base class from `@mecha/core`. Each error carries three properties that enable consistent handling across CLI and HTTP surfaces:
 
 | Property | Type | Description |

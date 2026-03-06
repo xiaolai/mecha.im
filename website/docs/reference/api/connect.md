@@ -5,6 +5,8 @@ description: API reference for @mecha/connect — P2P connectivity, Noise IK han
 
 # @mecha/connect
 
+[[toc]]
+
 The `@mecha/connect` package provides P2P connectivity: Noise IK handshake, SecureChannel, invite codes, STUN discovery, hole-punching, and transport adapters.
 
 ## Type Reference

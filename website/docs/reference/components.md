@@ -5,6 +5,8 @@ description: Complete reference for the Mecha dashboard single-page application 
 
 # Dashboard Components
 
+[[toc]]
+
 The Mecha dashboard is a React single-page application (SPA) embedded in the agent binary. It provides a browser-based interface for managing bots, sessions, schedules, nodes, auth profiles, budgets, plugins, tools, and system settings. Authentication is via TOTP (time-based one-time password).
 
 **Source:** `packages/spa/src/`

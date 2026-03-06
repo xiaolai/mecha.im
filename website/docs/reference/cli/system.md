@@ -26,7 +26,6 @@ mecha start [options]
 | `--port <port>` | Agent server port | `7660` |
 | `--host <host>` | Bind address | `127.0.0.1` |
 | `--open` | Open browser after starting | `false` |
-| `--no-totp` | Disable TOTP authentication (for development/testing) | `false` |
 
 The server ensures a TOTP secret exists in `~/.mecha/` and displays a QR code on first run. The SPA dashboard is served from the same port if a built SPA directory is found.
 
@@ -114,7 +113,6 @@ mecha agent start [options]
 | `--server-port <port>` | Embedded server listen port | `7681` |
 | `--public-addr <url>` | Externally reachable address (e.g., `wss://myhost:7681`) | |
 | `--rendezvous <url>` | Rendezvous server URL for signaling registration | |
-| `--no-totp` | Disable TOTP authentication (for development/testing) | `false` |
 
 ```bash
 mecha agent start
@@ -347,13 +345,11 @@ mecha auth-config [options]
 
 | Option | Description |
 |--------|-------------|
-| `--totp` | Enable TOTP authentication |
-| `--no-totp` | Disable TOTP authentication (for development/testing) |
+| `--totp` | Enable TOTP authentication (always enabled; this is a no-op confirmation) |
 
 ```bash
 mecha auth-config
 mecha auth-config --totp
-mecha auth-config --no-totp
 ```
 
 ---
@@ -534,7 +530,6 @@ mecha dashboard serve [options]
 | `--port <port>` | Dashboard port | `7660` |
 | `--host <host>` | Bind address | `127.0.0.1` |
 | `--open` | Open browser after starting | `false` |
-| `--no-totp` | Disable TOTP authentication (for development/testing) | `false` |
 
 The dashboard creates an agent server with the embedded SPA. Requires a built SPA directory (run `pnpm --filter @mecha/spa build` first).
 
