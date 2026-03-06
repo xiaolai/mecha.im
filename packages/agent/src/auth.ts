@@ -25,8 +25,8 @@ export interface AuthOpts {
 
 /** Known API path prefixes that always require auth. */
 export const API_PREFIXES = [
-  "/bots", "/acl", "/audit", "/mesh", "/meter",
-  "/settings/", "/events", "/discover", "/ws", "/nodes", "/plugins",
+  "/bots", "/acl", "/audit", "/auth/profiles", "/mesh", "/meter",
+  "/settings/", "/events", "/discover", "/ws", "/node/", "/nodes", "/plugins",
   "/tools", "/budgets", "/doctor",
 ];
 
