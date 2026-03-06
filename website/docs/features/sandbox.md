@@ -186,3 +186,105 @@ This displays:
 - Spawn unrestricted child processes
 - Read other agents' sessions or configuration
 - Bypass the metering proxy for API calls
+
+## Sandbox Package API Reference (`@mecha/sandbox`)
+
+The `@mecha/sandbox` package provides OS-level process isolation. It detects the platform, generates sandbox profiles, and wraps spawn arguments.
+
+### Types
+
+#### `SandboxPlatform`
+
+```ts
+type SandboxPlatform = "macos" | "linux" | "fallback";
+```
+
+The detected sandbox backend.
+
+#### `SandboxProfile`
+
+```ts
+interface SandboxProfile {
+  botDir: string;          // Bot root directory (read-write)
+  workspacePath: string;   // Workspace directory (read-write)
+  allowNetwork: boolean;   // Whether outbound network is permitted
+  readOnlyPaths?: string[]; // Additional read-only paths
+  readWritePaths?: string[]; // Additional read-write paths
+}
+```
+
+Describes what a sandboxed process is allowed to access.
+
+#### `SandboxWrapResult`
+
+```ts
+interface SandboxWrapResult {
+  command: string;     // The sandbox wrapper command (e.g., "sandbox-exec")
+  args: string[];      // Arguments including the original command
+  env?: Record<string, string>; // Additional environment variables
+}
+```
+
+The result of wrapping a command with sandbox arguments.
+
+#### `Sandbox`
+
+```ts
+interface Sandbox {
+  platform: SandboxPlatform;
+  available: boolean;
+  wrap(profile: SandboxProfile, cmd: string, args: string[]): SandboxWrapResult;
+}
+```
+
+The sandbox instance returned by `createSandbox()`.
+
+### Functions
+
+#### `detectPlatform(): SandboxPlatform`
+
+Detects the current OS and returns the appropriate sandbox platform. Returns `"macos"` on Darwin, `"linux"` on Linux, and `"fallback"` elsewhere.
+
+#### `checkAvailability(platform): boolean`
+
+Checks whether the sandbox binary is available on the current system (`sandbox-exec` on macOS, `bwrap` on Linux). Always returns `true` for `"fallback"`.
+
+#### `createSandbox(platformOverride?): Sandbox`
+
+Creates a sandbox instance for the current (or overridden) platform.
+
+```ts
+import { createSandbox } from "@mecha/sandbox";
+
+const sandbox = createSandbox();
+if (sandbox.available) {
+  const wrapped = sandbox.wrap(
+    { botDir: "/home/.mecha/coder", workspacePath: "/projects/app", allowNetwork: false },
+    "node",
+    ["runtime.js"]
+  );
+  // Use wrapped.command and wrapped.args to spawn the process
+}
+```
+
+#### `profileFromConfig(opts): SandboxProfile`
+
+Build a `SandboxProfile` from bot configuration values.
+
+```ts
+import { profileFromConfig } from "@mecha/sandbox";
+
+const profile = profileFromConfig({
+  botDir: "/Users/you/.mecha/researcher",
+  workspacePath: "/Users/you/papers",
+  allowNetwork: false,
+});
+```
+
+**`ProfileFromConfigOpts`**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `botDir` | `string` | Yes | Bot root directory |
+| `workspacePath` | `string` | Yes | Workspace directory |
+| `allowNetwork` | `boolean` | No | Allow outbound network (default: `false`) |

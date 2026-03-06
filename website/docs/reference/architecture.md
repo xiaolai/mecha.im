@@ -149,32 +149,89 @@ All routes except those listed as **Public** require authentication (session coo
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
+| **Health & Info** |
 | `GET` | `/healthz` | Public | Health check |
 | `GET` | `/node/info` | Required | Full system telemetry |
+| `GET` | `/doctor` | Required | System health diagnostics |
+| **Auth** |
 | `GET` | `/auth/status` | Public | Available auth methods |
-| `POST` | `/auth/login` | Public | TOTP login (rate-limited) |
+| `POST` | `/auth/login` | Public | TOTP login (per-IP rate-limited) |
 | `POST` | `/auth/logout` | Public | Clear session cookie |
 | `GET` | `/auth/profiles` | Required | List auth profiles |
+| **Bots** |
 | `GET` | `/bots` | Required | List all bots |
+| `POST` | `/bots` | Required | Spawn a new bot |
+| `POST` | `/bots/batch` | Required | Batch stop or restart all bots |
 | `GET` | `/bots/:name/status` | Required | Get bot status (enriched) |
 | `POST` | `/bots/:name/start` | Required | Start a stopped bot from config |
 | `POST` | `/bots/:name/stop` | Required | Graceful stop (supports `force` body param) |
 | `POST` | `/bots/:name/restart` | Required | Restart bot (supports `force` body param) |
 | `POST` | `/bots/:name/kill` | Required | Force kill |
+| `DELETE` | `/bots/:name` | Required | Remove a bot (must be stopped) |
 | `PATCH` | `/bots/:name/config` | Required | Update bot config fields, optionally restart |
-| `POST` | `/bots` | Required | Spawn a new bot |
-| `POST` | `/bots/batch` | Required | Batch stop or restart all bots |
+| `GET` | `/bots/:name/logs` | Required | Read bot stdout/stderr logs |
+| `GET` | `/bots/:name/sandbox` | Required | Get bot sandbox profile |
+| **Sessions** |
 | `GET` | `/bots/:name/sessions` | Required | List bot sessions |
 | `GET` | `/bots/:name/sessions/:id` | Required | Get specific session |
 | `DELETE` | `/bots/:name/sessions/:id` | Required | Delete a session |
+| **Routing** |
 | `POST` | `/bots/:name/query` | Required | Forward a mesh query (requires `X-Mecha-Source`) |
+| **Schedules** |
+| `GET` | `/bots/schedules/overview` | Required | All schedules across all bots |
+| `GET` | `/bots/:name/schedules` | Required | List bot schedules |
+| `POST` | `/bots/:name/schedules` | Required | Add a schedule |
+| `DELETE` | `/bots/:name/schedules/:id` | Required | Remove a schedule |
+| `POST` | `/bots/:name/schedules/:id/pause` | Required | Pause a schedule |
+| `POST` | `/bots/:name/schedules/:id/resume` | Required | Resume a paused schedule |
+| `POST` | `/bots/:name/schedules/:id/run` | Required | Trigger immediate schedule run |
+| `GET` | `/bots/:name/schedules/:id/history` | Required | Schedule run history (supports `?limit=`) |
+| **Discovery** |
 | `GET` | `/discover` | Required | Discover bots (filterable by `?tag=` and `?capability=`) |
+| `POST` | `/discover/handshake` | Cluster Key | Auto-discovery handshake (conditional on `MECHA_CLUSTER_KEY`) |
+| **ACL** |
 | `GET` | `/acl` | Required | List ACL rules |
+| `POST` | `/acl/grant` | Required | Grant a capability |
+| `POST` | `/acl/revoke` | Required | Revoke a capability |
+| **Audit** |
 | `GET` | `/audit` | Required | Read audit log (supports `?limit=`) |
-| `GET` | `/mesh/nodes` | Required | List mesh nodes with health status |
+| `POST` | `/audit/clear` | Required | Clear the audit log |
+| **Budgets** |
+| `GET` | `/budgets` | Required | List budget limits |
+| `POST` | `/budgets` | Required | Set a budget limit |
+| `DELETE` | `/budgets/:scope/:name?` | Required | Remove a budget limit |
+| **Metering** |
 | `GET` | `/meter/cost` | Required | Query metering data (supports `?bot=`) |
-| `GET` | `/settings/runtime` | Required | Runtime port configuration |
+| `GET` | `/meter/status` | Required | Meter proxy status |
+| `POST` | `/meter/start` | Required | Start the meter proxy |
+| `POST` | `/meter/stop` | Required | Stop the meter proxy |
+| **Events** |
 | `GET` | `/events` | Required | SSE stream for real-time process events |
+| `GET` | `/events/log` | Required | Persisted event log (supports `?limit=`) |
+| **Mesh Nodes** |
+| `GET` | `/mesh/nodes` | Required | List mesh nodes with health status |
+| `GET` | `/nodes` | Required | List mesh nodes from registry |
+| `POST` | `/nodes` | Required | Add a mesh node |
+| `DELETE` | `/nodes/:name` | Required | Remove a mesh node |
+| `POST` | `/nodes/:name/ping` | Required | Ping a mesh node |
+| `POST` | `/nodes/:name/promote` | Required | Promote a discovered node to managed |
+| **Tools** |
+| `GET` | `/tools` | Required | List installed tools |
+| `POST` | `/tools` | Required | Install a tool |
+| `DELETE` | `/tools/:name` | Required | Remove a tool |
+| **Plugins** |
+| `GET` | `/plugins` | Required | List registered plugins |
+| `POST` | `/plugins` | Required | Add a plugin |
+| `DELETE` | `/plugins/:name` | Required | Remove a plugin |
+| `GET` | `/plugins/:name/status` | Required | Get plugin config (secrets redacted) |
+| `POST` | `/plugins/:name/test` | Required | Connectivity test for a plugin |
+| **Settings** |
+| `GET` | `/settings/runtime` | Required | Runtime port configuration |
+| `GET` | `/settings/totp` | Required | TOTP auth status |
+| `GET` | `/settings/node` | Required | Node identity and network info |
+| `GET` | `/settings/auth-profiles` | Required | Auth profile configuration |
+| `GET` | `/settings/network` | Required | Network/proxy settings |
+| **WebSocket** |
 | `POST` | `/ws/ticket` | Required | Issue a single-use WebSocket ticket |
 | `WS` | `/ws/terminal/:name` | Ticket | Terminal WebSocket (PTY attach) |
 
@@ -183,7 +240,8 @@ All routes except those listed as **Public** require authentication (session coo
 Factory function that creates a fully configured Fastify server with all routes, auth hooks, and optional SPA serving.
 
 ```ts
-import { createAgentServer, fetchPublicIp } from "@mecha/agent";
+import { createAgentServer } from "@mecha/agent";
+import { fetchPublicIp } from "@mecha/core";
 
 const publicIp = await fetchPublicIp();
 const app = createAgentServer({
@@ -224,6 +282,81 @@ await app.listen({ port: 7660, host: "0.0.0.0" });
 | `totpSecret` | `string` | — | Base32 TOTP secret. When set, enables session-based TOTP auth |
 | `sessionTtlHours` | `number` | `24` | Session cookie TTL in hours |
 | `apiKey` | `string` | — | Internal API key for mesh node-to-node routing (Bearer token) |
+
+### Barrel Exports (`@mecha/agent`)
+
+The `@mecha/agent` package re-exports the following public API from its barrel:
+
+| Export | Type | Description |
+|--------|------|-------------|
+| `createAgentServer` | Function | Factory to create the agent Fastify server |
+| `AgentServerOpts` | Type | Options for `createAgentServer` |
+| `AgentServerAuth` | Type | Auth configuration subset |
+| `createAuthHook` | Function | Fastify `onRequest` hook for session/token/ticket auth |
+| `getSource` | Function | Extract `X-Mecha-Source` header from a request |
+| `AuthOpts` | Type | Options for the auth hook |
+| `startMeterDaemon` | Function | Start the background meter proxy daemon |
+| `stopMeterDaemon` | Function | Stop the running meter proxy daemon |
+
+### Node Routes (`registerNodeRoutes`)
+
+Registers CRUD + ping + promote routes for mesh node management.
+
+```ts
+function registerNodeRoutes(app: FastifyInstance, opts: NodeRouteOpts): void
+```
+
+**`NodeRouteOpts`**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `mechaDir` | `string` | Path to `~/.mecha` data directory |
+
+**Routes registered:**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/nodes` | List all nodes (redacts `apiKey`, exposes `hasApiKey` boolean) |
+| `POST` | `/nodes` | Add a node. Body: `{ name, host, port, apiKey }`. Returns `409` on duplicate |
+| `DELETE` | `/nodes/:name` | Remove a node. Returns `404` if not found |
+| `POST` | `/nodes/:name/ping` | Ping a node via `nodePing()`. Returns `404` if not found |
+| `POST` | `/nodes/:name/promote` | Promote a discovered node to managed. Returns `404` if not found |
+
+### Tool Routes (`registerToolRoutes`)
+
+Registers CRUD routes for tool management (install, list, remove).
+
+```ts
+function registerToolRoutes(app: FastifyInstance, opts: ToolRouteOpts): void
+```
+
+**`ToolRouteOpts`**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `mechaDir` | `string` | Path to `~/.mecha` data directory |
+
+**Routes registered:**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/tools` | List all installed tools |
+| `POST` | `/tools` | Install a tool. Body: `{ name, version?, description? }` |
+| `DELETE` | `/tools/:name` | Remove a tool. Returns `404` if not found |
+
+### Plugin Routes and `isPrivateUrl`
+
+Plugin routes are registered via `registerPluginRoutes(app, opts)` with the same `{ mechaDir }` options pattern.
+
+**`isPrivateUrl(urlStr: string): boolean`**
+
+SSRF guard helper used by the plugin test endpoint. Returns `true` if the given URL targets a private or internal network address. Blocks:
+
+- Non-HTTP(S) protocols
+- Localhost variants (`localhost`, `0.0.0.0`, `[::]`, `::1`, `::`)
+- IPv4 private ranges (10.x, 172.16-31.x, 192.168.x, 127.x, 169.254.x)
+- IPv6 link-local (`fe80:`), unique local (`fc`, `fd`), and IPv4-mapped (`::ffff:`)
+- Malformed URLs (returns `true` as fail-closed default)
 
 ### Authentication System
 
@@ -567,6 +700,424 @@ When `spaDir` is provided, the server serves the SPA:
 - API paths (`/bots`, `/acl`, `/audit`, `/mesh`, `/meter`, `/settings/`, `/events`, `/discover`, `/ws`) are not intercepted by the SPA fallback for non-browser requests
 - The auth hook skips authentication for static asset requests when SPA is enabled
 
+## Process Package API Reference (`@mecha/process`)
+
+The `@mecha/process` package manages bot process lifecycles: spawning, stopping, killing, port allocation, sandbox filesystem setup, schedule persistence, and event emission.
+
+### Barrel Exports
+
+The package re-exports the following public API:
+
+| Export | Kind | Source |
+|--------|------|--------|
+| `checkPort` | Function | `port.ts` |
+| `allocatePort` | Function | `port.ts` |
+| `waitForHealthy` | Function | `health.ts` |
+| `readState` | Function | `state-store.ts` |
+| `writeState` | Function | `state-store.ts` |
+| `listBotDirs` | Function | `state-store.ts` |
+| `BotState` | Type | `state-store.ts` |
+| `ProcessEventEmitter` | Class | `events.ts` |
+| `ProcessEvent` | Type | `events.ts` |
+| `ProcessEventHandler` | Type | `events.ts` |
+| `createProcessManager` | Function | `process-manager.ts` |
+| `ProcessManager` | Interface | `types.ts` |
+| `ProcessInfo` | Interface | `types.ts` |
+| `SpawnOpts` | Interface | `types.ts` |
+| `LogOpts` | Interface | `types.ts` |
+| `CreateProcessManagerOpts` | Interface | `types.ts` |
+| `isPidAlive` | Function | `process-lifecycle.ts` (re-export from `@mecha/core`) |
+| `waitForChildExit` | Function | `process-lifecycle.ts` |
+| `waitForPidExit` | Function | `process-lifecycle.ts` |
+| `prepareBotFilesystem` | Function | `sandbox-setup.ts` |
+| `encodeProjectPath` | Function | `sandbox-setup.ts` |
+| `buildBotEnv` | Function | `sandbox-setup.ts` |
+| `BotFilesystemOpts` | Interface | `sandbox-setup.ts` |
+| `BotFilesystemResult` | Interface | `sandbox-setup.ts` |
+| `BuildBotEnvOpts` | Interface | `sandbox-setup.ts` |
+| `readLogs` | Function | `log-reader.ts` |
+| `MechaPty` | Interface | `pty-types.ts` |
+| `PtySpawnOpts` | Interface | `pty-types.ts` |
+| `PtySpawnFn` | Type | `pty-types.ts` |
+| `PtyDisposable` | Interface | `pty-types.ts` |
+| `createBunPtySpawn` | Function | `bun-pty.ts` |
+| `readScheduleConfig` | Function | `schedule-store.ts` |
+| `writeScheduleConfig` | Function | `schedule-store.ts` |
+| `readScheduleState` | Function | `schedule-store.ts` |
+| `writeScheduleState` | Function | `schedule-store.ts` |
+| `appendRunHistory` | Function | `schedule-store.ts` |
+| `readRunHistory` | Function | `schedule-store.ts` |
+| `removeScheduleData` | Function | `schedule-store.ts` |
+
+### `createProcessManager(opts)`
+
+Factory function that creates a `ProcessManager` instance managing bot process lifecycles with per-bot mutex serialization.
+
+```ts
+import { createProcessManager } from "@mecha/process";
+
+const pm = createProcessManager({
+  mechaDir: "/Users/you/.mecha",
+  runtimeEntrypoint: "/path/to/runtime.js",
+  healthTimeoutMs: 30000,
+});
+
+const info = await pm.spawn({ name: "researcher", workspacePath: "/path/to/workspace" });
+```
+
+**`CreateProcessManagerOpts`**
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `mechaDir` | `string` | Yes | — | Path to `~/.mecha` data directory |
+| `healthTimeoutMs` | `number` | No | `30000` | Timeout for bot health check after spawn |
+| `spawnFn` | `typeof spawn` | No | `child_process.spawn` | Override for testing |
+| `runtimeEntrypoint` | `string` | No | — | Path to the `@mecha/runtime` JS entrypoint (used with `node`) |
+| `runtimeBin` | `string` | No | — | Path to a standalone runtime binary (takes precedence over `runtimeEntrypoint`) |
+| `runtimeArgs` | `string[]` | No | — | Extra args when using `runtimeBin` (e.g., `["__runtime"]`) |
+| `sandbox` | `Sandbox` | No | — | Sandbox instance for kernel-level isolation |
+
+**`ProcessManager` Interface**
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `spawn` | `(opts: SpawnOpts) => Promise<ProcessInfo>` | Spawn a new bot process |
+| `get` | `(name: BotName) => ProcessInfo \| undefined` | Get bot info by name |
+| `list` | `() => ProcessInfo[]` | List all bots (checks PID liveness) |
+| `stop` | `(name: BotName) => Promise<void>` | Graceful stop (SIGTERM, then SIGKILL after grace period) |
+| `kill` | `(name: BotName) => Promise<void>` | Force kill (SIGKILL) |
+| `logs` | `(name: BotName, opts?: LogOpts) => Readable` | Stream bot logs |
+| `getPortAndToken` | `(name: BotName) => { port: number; token: string } \| undefined` | Get connection details for a running bot |
+| `onEvent` | `(handler: (event: ProcessEvent) => void) => () => void` | Subscribe to lifecycle events (returns unsubscribe fn) |
+
+### Types
+
+**`SpawnOpts`**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | `BotName` | Yes | Bot name |
+| `workspacePath` | `string` | Yes | Absolute path to workspace directory |
+| `port` | `number` | No | Specific port (auto-allocated from 7700-7799 if omitted) |
+| `env` | `Record<string, string>` | No | Additional environment variables |
+| `model` | `string` | No | Model override |
+| `permissionMode` | `string` | No | Permission mode |
+| `auth` | `string \| null` | No | Auth profile name or `null` to clear |
+| `tags` | `string[]` | No | Tags for discovery |
+| `expose` | `string[]` | No | Exposed capabilities |
+| `runtimeBin` | `string` | No | Per-spawn runtime binary override |
+| `sandboxMode` | `SandboxMode` | No | Sandbox mode (`"auto"`, `"require"`, `"off"`) |
+| `meterOff` | `boolean` | No | Disable metering for this bot |
+| `home` | `string` | No | Override HOME directory |
+
+**`ProcessInfo`**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | `BotName` | Bot name |
+| `state` | `"running" \| "stopped" \| "error"` | Current state |
+| `pid` | `number?` | OS process ID |
+| `port` | `number?` | Listening port |
+| `workspacePath` | `string` | Workspace path |
+| `token` | `string?` | Auth token (only available for live processes) |
+| `startedAt` | `string?` | ISO timestamp of last start |
+| `stoppedAt` | `string?` | ISO timestamp of last stop |
+| `exitCode` | `number?` | Exit code if stopped |
+
+**`LogOpts`**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `follow` | `boolean` | `false` | Tail the log file (like `tail -f`) |
+| `tail` | `number` | — | Number of lines from the end |
+
+**`LiveProcess`** (internal)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `child` | `ChildProcess` | Node.js child process handle |
+| `port` | `number` | Allocated port |
+| `token` | `string` | Auth token |
+| `name` | `BotName` | Bot name |
+
+### `spawnBot(ctx, spawnOpts)`
+
+Low-level spawn pipeline called internally by `ProcessManager.spawn()`. Handles port allocation, filesystem preparation, sandbox wrapping, child process spawning, health check, and state persistence.
+
+```ts
+function spawnBot(ctx: SpawnContext, spawnOpts: SpawnOpts): Promise<ProcessInfo>
+```
+
+Throws `BotAlreadyExistsError` if the bot is already running, `ProcessSpawnError` on spawn failures.
+
+### `prepareBotFilesystem(opts)`
+
+Creates the sandboxed directory structure for a bot process, writes `config.json`, sandbox hook scripts, Claude Code credentials, and builds the child process environment.
+
+```ts
+function prepareBotFilesystem(opts: BotFilesystemOpts): BotFilesystemResult
+```
+
+**`BotFilesystemOpts`**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `botDir` | `string` | Yes | Bot root directory |
+| `workspacePath` | `string` | Yes | Workspace path |
+| `port` | `number` | Yes | Allocated port |
+| `token` | `string` | Yes | Auth token |
+| `name` | `string` | Yes | Bot name |
+| `mechaDir` | `string` | Yes | Path to `~/.mecha` |
+| `model` | `string` | No | Model override |
+| `permissionMode` | `string` | No | Permission mode |
+| `auth` | `string \| null` | No | Auth profile |
+| `tags` | `string[]` | No | Tags |
+| `expose` | `string[]` | No | Exposed capabilities |
+| `userEnv` | `Record<string, string>` | No | User environment variables (reserved keys are filtered) |
+| `meterOff` | `boolean` | No | Disable meter proxy integration |
+| `home` | `string` | No | Override HOME directory |
+
+**`BotFilesystemResult`**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `homeDir` | `string` | Effective HOME directory |
+| `tmpDir` | `string` | TMPDIR for the bot |
+| `logsDir` | `string` | Log directory |
+| `projectsDir` | `string` | Claude projects directory |
+| `childEnv` | `Record<string, string>` | Complete environment for the child process |
+
+The directory structure mirrors real Claude Code:
+
+```
+botDir/
+  .claude/
+    settings.json         <- hooks config
+    hooks/
+      sandbox-guard.sh    <- file access guard
+      bash-guard.sh       <- bash command guard
+    projects/<encoded>/   <- session data
+  tmp/                    <- TMPDIR
+  logs/                   <- stdout.log, stderr.log
+  config.json             <- port, token, workspace
+```
+
+### `waitForChildExit(child, timeoutMs)`
+
+Waits for a `ChildProcess` to emit an `exit` event within the given timeout.
+
+```ts
+function waitForChildExit(child: ChildProcess, timeoutMs: number): Promise<boolean>
+```
+
+Returns `true` if the child exited, `false` if the timeout elapsed.
+
+### `waitForPidExit(pid, timeoutMs)`
+
+Polls a process by PID (using `process.kill(pid, 0)`) until it exits or the timeout elapses. Polls every 100ms.
+
+```ts
+function waitForPidExit(pid: number, timeoutMs: number): Promise<boolean>
+```
+
+Returns `true` if the process exited, `false` on timeout.
+
+### Process Events
+
+**`ProcessEvent`** -- Discriminated union of lifecycle events:
+
+| Event | Fields | Description |
+|-------|--------|-------------|
+| `spawned` | `name`, `pid`, `port` | Bot process started successfully |
+| `stopped` | `name`, `exitCode?` | Bot process exited |
+| `error` | `name`, `error` | Bot encountered an error |
+| `warning` | `name`, `message` | Non-fatal warning (e.g., sandbox degradation) |
+
+**`ProcessEventEmitter`** -- Simple typed event emitter class:
+
+| Member | Description |
+|--------|-------------|
+| `subscribe(handler)` | Register a handler. Returns an unsubscribe function |
+| `emit(event)` | Emit an event to all handlers. Failures are isolated per handler |
+| `listenerCount` | Read-only property returning the number of active handlers |
+
+### Schedule Store
+
+Filesystem-backed persistence for bot schedules. All writes use atomic tmp+rename.
+
+#### `readScheduleConfig(botDir)`
+
+Reads `schedule.json` from the bot directory. Returns an empty config (`{ schedules: [] }`) if the file is missing or corrupt.
+
+```ts
+function readScheduleConfig(botDir: string): ScheduleConfig
+```
+
+#### `writeScheduleConfig(botDir, config)`
+
+Atomically writes `schedule.json` to the bot directory.
+
+```ts
+function writeScheduleConfig(botDir: string, config: ScheduleConfig): void
+```
+
+#### `readScheduleState(botDir, scheduleId)`
+
+Reads per-schedule state from `schedules/<id>/state.json`. Returns `undefined` if missing.
+
+```ts
+function readScheduleState(botDir: string, scheduleId: string): ScheduleState | undefined
+```
+
+#### `writeScheduleState(botDir, scheduleId, state)`
+
+Atomically writes per-schedule state.
+
+```ts
+function writeScheduleState(botDir: string, scheduleId: string, state: ScheduleState): void
+```
+
+#### `appendRunHistory(botDir, scheduleId, result)`
+
+Appends a run result to `schedules/<id>/history.jsonl`. Automatically truncates when the file exceeds `MAX_HISTORY_ENTRIES` (amortized check based on file size heuristic).
+
+```ts
+function appendRunHistory(botDir: string, scheduleId: string, result: ScheduleRunResult): void
+```
+
+#### `readRunHistory(botDir, scheduleId, limit?)`
+
+Reads run history from the JSONL file. Malformed lines are silently skipped. When `limit` is provided, returns only the most recent N entries.
+
+```ts
+function readRunHistory(botDir: string, scheduleId: string, limit?: number): ScheduleRunResult[]
+```
+
+#### `removeScheduleData(botDir, scheduleId)`
+
+Removes all state and history for a schedule (deletes `schedules/<id>/` recursively).
+
+```ts
+function removeScheduleData(botDir: string, scheduleId: string): void
+```
+
+## Service Package API Reference (`@mecha/service`)
+
+The `@mecha/service` package is the high-level business logic layer that CLI commands and dashboard routes call into. It orchestrates `@mecha/process`, `@mecha/core`, and `@mecha/meter`.
+
+### Barrel Exports
+
+| Export | Kind | Source |
+|--------|------|--------|
+| `resolveBotEndpoint` | Function | `helpers.ts` |
+| `runtimeFetch` | Function | `helpers.ts` |
+| `assertOk` | Function | `helpers.ts` |
+| `RuntimeFetchOpts` | Type | `helpers.ts` |
+| `RuntimeFetchResult` | Type | `helpers.ts` |
+| `botStatus` | Function | `bot.ts` |
+| `botFind` | Function | `bot.ts` |
+| `botConfigure` | Function | `bot.ts` |
+| `FindResult` | Type | `bot.ts` |
+| `BotConfigUpdates` | Type | `bot.ts` |
+| `botChat` | Function | `chat.ts` |
+| `ChatOpts` | Type | `chat.ts` |
+| `ChatEvent` | Type | `chat.ts` |
+| `botSessionList` | Function | `sessions.ts` |
+| `botSessionGet` | Function | `sessions.ts` |
+| `botSessionDelete` | Function | `sessions.ts` |
+| `mechaInit` | Function | `init.ts` |
+| `InitResult` | Type | `init.ts` |
+| `mechaDoctor` | Function | `doctor.ts` |
+| `DoctorCheck` | Type | `doctor.ts` |
+| `DoctorResult` | Type | `doctor.ts` |
+| `mechaToolInstall` | Function | `tools.ts` |
+| `mechaToolLs` | Function | `tools.ts` |
+| `mechaToolRemove` | Function | `tools.ts` |
+| `ToolInfo` | Type | `tools.ts` |
+| `ToolInstallOpts` | Type | `tools.ts` |
+| `mechaAuthAdd` | Function | `auth.ts` |
+| `mechaAuthAddFull` | Function | `auth.ts` |
+| `mechaAuthLs` | Function | `auth.ts` |
+| `mechaAuthDefault` | Function | `auth.ts` |
+| `mechaAuthRm` | Function | `auth.ts` |
+| `mechaAuthTag` | Function | `auth.ts` |
+| `mechaAuthSwitch` | Function | `auth.ts` |
+| `mechaAuthTest` | Function | `auth.ts` |
+| `mechaAuthRenew` | Function | `auth.ts` |
+| `mechaAuthGet` | Function | `auth.ts` |
+| `mechaAuthGetDefault` | Function | `auth.ts` |
+| `mechaAuthSwitchBot` | Function | `auth.ts` |
+| `mechaAuthProbe` | Function | `auth-probe.ts` |
+| `AuthProfile` | Type | `auth.ts` |
+| `AuthAddOpts` | Type | `auth.ts` |
+| `buildHierarchy` | Function | `hierarchy.ts` |
+| `flattenHierarchy` | Function | `hierarchy.ts` |
+| `HierarchyNode` | Type | `hierarchy.ts` |
+| `createBotRouter` | Function | `router.ts` |
+| `BotRouter` | Type | `router.ts` |
+| `CreateRouterOpts` | Type | `router.ts` |
+| `nodeInit` | Function | `node-init.ts` |
+| `readNodeName` | Function | `node-init.ts` |
+| `NodeInitResult` | Type | `node-init.ts` |
+| `agentFetch` | Function | `agent-fetch.ts` |
+| `AgentFetchOpts` | Type | `agent-fetch.ts` |
+| `SecureChannelLike` | Type | `agent-fetch.ts` |
+| `createLocator` | Function | `locator.ts` |
+| `MechaLocator` | Type | `locator.ts` |
+| `LocateResult` | Type | `locator.ts` |
+| `CreateLocatorOpts` | Type | `locator.ts` |
+| `checkBotBusy` | Function | `task-check.ts` |
+| `TaskCheckResult` | Type | `task-check.ts` |
+| `batchBotAction` | Function | `bot-batch.ts` |
+| `BatchActionOpts` | Type | `bot-batch.ts` |
+| `BatchItemResult` | Type | `bot-batch.ts` |
+| `BatchResult` | Type | `bot-batch.ts` |
+| `enrichBotInfo` | Function | `bot-enrich.ts` |
+| `buildEnrichContext` | Function | `bot-enrich.ts` |
+| `EnrichedBotInfo` | Type | `bot-enrich.ts` |
+| `EnrichContext` | Type | `bot-enrich.ts` |
+| `getCachedSnapshot` | Function | `snapshot-cache.ts` |
+| `invalidateSnapshotCache` | Function | `snapshot-cache.ts` |
+| `botScheduleAdd` | Function | `schedule.ts` |
+| `botScheduleRemove` | Function | `schedule.ts` |
+| `botScheduleList` | Function | `schedule.ts` |
+| `botSchedulePause` | Function | `schedule.ts` |
+| `botScheduleResume` | Function | `schedule.ts` |
+| `botScheduleRun` | Function | `schedule.ts` |
+| `botScheduleHistory` | Function | `schedule.ts` |
+| `nodePing` | Function | `node-ping.ts` |
+| `PingResult` | Type | `node-ping.ts` |
+
+### `nodePing(mechaDir, name, opts?)`
+
+Pings a mesh node to check reachability. For managed (P2P) nodes, checks the rendezvous server's `/lookup/:name` endpoint. For direct (HTTP) nodes, performs a `/healthz` request.
+
+```ts
+import { nodePing } from "@mecha/service";
+
+const result = await nodePing("/Users/you/.mecha", "bob");
+// { reachable: true, latencyMs: 42, method: "http" }
+```
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `mechaDir` | `string` | Yes | Path to `~/.mecha` |
+| `name` | `string` | Yes | Node name to ping |
+| `opts.server` | `string` | No | Override rendezvous server URL |
+
+**`PingResult`**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `reachable` | `boolean` | Whether the node responded |
+| `latencyMs` | `number?` | Round-trip time in milliseconds (only when reachable) |
+| `method` | `"http" \| "rendezvous"` | Method used to reach the node |
+| `error` | `string?` | Error description when not reachable |
+
+Throws `NodeNotFoundError` if the node name is not in the registry.
+
 ## Runtime API
 
 Each bot exposes these HTTP endpoints (localhost only):
@@ -595,6 +1146,37 @@ All routes except `/healthz` require `Authorization: Bearer <token>` (the token 
 ### Runtime Package API Reference (`@mecha/runtime`)
 
 The `@mecha/runtime` package provides the Fastify-based HTTP server that runs inside each bot process. It is the per-bot runtime — one instance per spawned agent.
+
+#### Barrel Exports
+
+| Export | Kind | Source |
+|--------|------|--------|
+| `createSessionManager` | Function | `session-manager.ts` |
+| `SessionManager` | Type | `session-manager.ts` |
+| `SessionMeta` | Type | `session-manager.ts` |
+| `TranscriptEvent` | Type | `session-manager.ts` |
+| `Session` | Type | `session-manager.ts` |
+| `createAuthHook` | Function | `auth.ts` |
+| `registerHealthRoutes` | Function | `routes/health.ts` |
+| `HealthRouteOpts` | Type | `routes/health.ts` |
+| `registerSessionRoutes` | Function | `routes/sessions.ts` |
+| `registerChatRoutes` | Function | `routes/chat.ts` |
+| `registerMcpRoutes` | Function | `mcp/server.ts` |
+| `McpRouteOpts` | Type | `mcp/server.ts` |
+| `MeshRouter` | Type | `mcp/mesh-tools.ts` |
+| `parseRuntimeEnv` | Function | `env.ts` |
+| `RuntimeEnvData` | Type | `env.ts` |
+| `createServer` | Function | `server.ts` |
+| `CreateServerOpts` | Type | `server.ts` |
+| `ServerResult` | Type | `server.ts` |
+| `createScheduleEngine` | Function | `scheduler.ts` |
+| `ScheduleEngine` | Type | `scheduler.ts` |
+| `ChatFn` | Type | `scheduler.ts` |
+| `CreateScheduleEngineOpts` | Type | `scheduler.ts` |
+| `ScheduleLog` | Type | `scheduler.ts` |
+| `executeRun` | Function | `schedule-runner.ts` |
+| `RunDeps` | Type | `schedule-runner.ts` |
+| `registerScheduleRoutes` | Function | `routes/schedule.ts` |
 
 #### `createServer(opts): ServerResult`
 
@@ -729,6 +1311,332 @@ interface MeshRouter {
 | `botName` | `string` | Identity of the calling bot |
 | `router` | `MeshRouter?` | Routing implementation (undefined disables `mesh_query`) |
 
+## Rendezvous Server API Reference (`@mecha/server`)
+
+The `@mecha/server` package provides the rendezvous server for P2P peer discovery, WebSocket signaling, relay tunneling, gossip protocol, and invite-based onboarding.
+
+### Barrel Exports
+
+| Export | Kind | Source |
+|--------|------|--------|
+| `createServer` | Function | `index.ts` |
+| `nodes` | Map | `signaling.ts` -- in-memory online node registry |
+| `invites` | Map | `invites.ts` -- in-memory pending invite store |
+| `relayPairs` | Map | `relay.ts` -- active relay pair store |
+| `DEFAULT_CONFIG` | Object | `types.ts` -- default server configuration |
+| `ServerConfig` | Type | `types.ts` |
+| `OnlineNode` | Type | `types.ts` |
+| `PendingInvite` | Type | `types.ts` |
+| `RelayPair` | Type | `types.ts` |
+| `RelayTokenPayload` | Type | `relay-tokens.ts` |
+| `createRelayToken` | Function | `relay-tokens.ts` |
+| `validateRelayToken` | Function | `relay-tokens.ts` |
+| `createGossipCache` | Function | `gossip-cache.ts` |
+| `PeerRecord` | Type | `gossip-cache.ts` |
+| `GossipCache` | Type | `gossip-cache.ts` |
+| `VectorClock` | Type | `vector-clock.ts` |
+| `increment` | Function | `vector-clock.ts` |
+| `merge` | Function | `vector-clock.ts` |
+| `isNewer` | Function | `vector-clock.ts` |
+| `diff` | Function | `vector-clock.ts` |
+| `GossipMessage` | Type | `gossip.ts` |
+
+### `createServer(overrides?)`
+
+Creates a fully configured Fastify server with WebSocket support, signaling, invites, relay, and optionally gossip.
+
+```ts
+import { createServer } from "@mecha/server";
+
+const app = await createServer({
+  port: 7680,
+  host: "0.0.0.0",
+  mechaDir: "/Users/you/.mecha", // enables gossip
+});
+
+await app.listen({ port: 7680, host: "0.0.0.0" });
+```
+
+**HTTP Routes:**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/healthz` | Health check (`{ status: "ok" }`) |
+| `GET` | `/lookup/:name` | REST lookup for a node by name (also checks gossip cache) |
+
+### Types
+
+**`ServerConfig`**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `port` | `number` | `7680` | Server port |
+| `host` | `string` | `"0.0.0.0"` | Bind address |
+| `relayUrl` | `string` | `"wss://relay.mecha.im"` | Public relay WebSocket URL |
+| `relayPairTimeoutMs` | `number` | `60000` | Timeout for relay pair matching |
+| `relayMaxSessionMs` | `number` | `3600000` | Max relay session duration (1 hour) |
+| `relayMaxMessageBytes` | `number` | `65536` | Max relay message size (64 KB) |
+| `relayMaxPairs` | `number` | `1000` | Max concurrent relay pairs |
+| `inviteMaxPending` | `number` | `10000` | Max pending invites |
+| `trustProxy` | `boolean \| string` | `false` | Trust `X-Forwarded-For` headers |
+| `secret` | `Buffer?` | (auto-generated) | HMAC secret for self-verifiable relay tokens |
+| `mechaDir` | `string?` | — | Mecha config dir (enables gossip peer validation) |
+
+**`OnlineNode`**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | `string` | Node name |
+| `publicKey` | `string` | Ed25519 public key (base64 DER or PEM) |
+| `noisePublicKey` | `string` | X25519 Noise public key |
+| `fingerprint` | `string` | Key fingerprint |
+| `ws` | `WebSocket` | Active WebSocket connection |
+| `publicIp` | `string` | Client IP from connection |
+| `registeredAt` | `number` | Unix timestamp of registration |
+
+**`PendingInvite`**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `token` | `string` | Unique invite token |
+| `inviterName` | `string` | Name of the inviting node |
+| `inviterPublicKey` | `string` | Inviter's Ed25519 public key |
+| `inviterFingerprint` | `string` | Inviter's key fingerprint |
+| `inviterNoisePublicKey` | `string` | Inviter's Noise public key |
+| `expiresAt` | `number` | Expiry timestamp (max 7 days) |
+| `consumed` | `boolean` | Whether the invite has been accepted |
+
+**`RelayPair`**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `token` | `string` | Relay token (HMAC-verified) |
+| `ws1` | `WebSocket` | First peer socket |
+| `ws2` | `WebSocket?` | Second peer socket (set on pairing) |
+| `createdAt` | `number` | Unix timestamp |
+| `timer` | `Timeout` | Pairing timeout handle |
+
+**`ClientMessage`** -- Messages sent from client to server:
+
+| Type | Fields | Description |
+|------|--------|-------------|
+| `register` | `name`, `publicKey`, `noisePublicKey`, `fingerprint`, `signature`, `requestId?` | Register on signaling server (requires Ed25519 signature) |
+| `unregister` | — | Unregister from signaling |
+| `signal` | `to`, `data` | Forward signaling data to a peer |
+| `request-relay` | `peer`, `requestId?` | Request a relay token for NAT traversal |
+| `lookup` | `peer`, `requestId?` | Look up a peer's online status and keys |
+| `ping` | — | Keepalive ping (server responds with `pong`) |
+
+**`ServerMessage`** -- Messages sent from server to client:
+
+| Type | Fields | Description |
+|------|--------|-------------|
+| `registered` | `ok`, `requestId?` | Registration confirmed |
+| `signal` | `from`, `data` | Forwarded signaling data from a peer |
+| `relay-token` | `token`, `relayUrl`, `requestId?` | Relay token for NAT traversal |
+| `invite-accepted` | `peer`, `publicKey`, `noisePublicKey`, `fingerprint` | Notification that an invite was accepted |
+| `pong` | — | Keepalive response |
+| `error` | `code`, `message`, `requestId?` | Error response |
+| `lookup-result` | `found`, `peer?`, `requestId?` | Peer lookup result |
+
+### `registerSignaling(app, config, gossipCache?)`
+
+Registers the WebSocket signaling endpoint at `/ws`. Handles node registration (with Ed25519 signature verification and public key pinning), peer signaling, lookup (with gossip cache fallback), relay token issuance, and keepalive pings. Includes per-IP rate limiting (60 messages/minute).
+
+```ts
+function registerSignaling(
+  app: FastifyInstance,
+  config: ServerConfig,
+  gossipCache?: GossipCache,
+): void
+```
+
+### `registerInviteRoutes(app, config)`
+
+Registers HTTP routes for invite-based peer onboarding.
+
+```ts
+function registerInviteRoutes(app: FastifyInstance, config: ServerConfig): void
+```
+
+**Routes registered:**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/invite` | Create an invite. Body: `PendingInvite` fields. Returns `429` if max pending reached |
+| `GET` | `/invite/:token` | Get invite metadata. Returns `410` if consumed or expired |
+| `POST` | `/invite/:token/accept` | Accept an invite. Body: `{ name, publicKey, fingerprint, noisePublicKey? }`. Notifies inviter via WebSocket if online |
+
+### `registerRelay(app, config)`
+
+Registers the WebSocket relay endpoint at `/relay`. Pairs two peers by a shared HMAC token for NAT traversal. Relay is a dumb bidirectional pipe -- identity enforcement happens at the Noise protocol layer.
+
+```ts
+function registerRelay(app: FastifyInstance, config: ServerConfig): void
+```
+
+**Connection flow:**
+1. First peer connects with `?token=<hmac_token>` and waits (60s timeout)
+2. Second peer connects with the same token
+3. Bidirectional relay established (messages forwarded between peers)
+4. Session terminates after `relayMaxSessionMs` (1 hour) or peer disconnect
+
+### `registerGossip(app, opts)`
+
+Registers the WebSocket gossip endpoint at `/gossip`. Implements a push-based gossip protocol with vector clocks for eventually-consistent peer discovery across multiple rendezvous servers.
+
+```ts
+function registerGossip(app: FastifyInstance, opts: GossipOpts): void
+```
+
+**Authentication:** Gossip peers must authenticate via a challenge-response protocol:
+1. Server sends a random nonce
+2. Client responds with `{ name, publicKey, signature }` where `signature` is an Ed25519 signature over the nonce
+3. Server verifies the public key matches a known peer from `nodes.json`
+
+**Gossip push:** Every 60 seconds, the server pushes local + cached peer records (with `hopCount < 3`) to all authenticated peers whose vector clocks are behind.
+
+**`GossipMessage`** types:
+
+| Type | Direction | Description |
+|------|-----------|-------------|
+| `challenge` | Server -> Client | Random nonce for authentication |
+| `auth` | Client -> Server | Ed25519 signed response |
+| `authenticated` | Server -> Client | Authentication confirmed |
+| `gossip-push` | Bidirectional | Peer records with vector clock |
+
+## Core Utilities (`@mecha/core`)
+
+Shared utility functions re-exported from the `@mecha/core` barrel.
+
+### Logging
+
+#### `createLogger(namespace): Logger`
+
+Create a structured JSON logger that writes to stderr. Respects the `MECHA_LOG_LEVEL` environment variable (`debug`, `info`, `warn`, `error`; default: `info`).
+
+```ts
+import { createLogger } from "@mecha/core";
+
+const log = createLogger("mecha:agent");
+log.info("Server started", { port: 7660 });
+// stderr: {"ts":"2026-03-06T...","level":"info","ns":"mecha:agent","msg":"Server started","data":{"port":7660}}
+```
+
+**`Logger`**
+
+| Method | Description |
+|--------|-------------|
+| `debug(msg, data?)` | Debug-level message (suppressed unless `MECHA_LOG_LEVEL=debug`) |
+| `info(msg, data?)` | Informational message (default threshold) |
+| `warn(msg, data?)` | Warning message |
+| `error(msg, data?)` | Error message |
+
+The logger automatically redacts sensitive keys (`token`, `authorization`, `apikey`, `api_key`, `secret`, `password`, `credential`) from the `data` object up to 3 levels deep.
+
+#### `resetLogLevel(): void`
+
+Reset the cached log level threshold. Used in tests to pick up changes to `MECHA_LOG_LEVEL`.
+
+### Safe File Reading
+
+#### `safeReadJson<T>(path, label, schema?): SafeReadResult<T>`
+
+Safely read and parse a JSON file. Returns a discriminated union instead of throwing, so callers can decide how to handle errors.
+
+```ts
+import { safeReadJson } from "@mecha/core";
+
+const result = safeReadJson("/path/to/config.json", "bot config");
+if (result.ok) {
+  console.log(result.data);
+} else {
+  console.error(result.reason, result.detail);
+}
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `path` | `string` | Absolute file path |
+| `label` | `string` | Human-readable label for error messages |
+| `schema` | `ZodType<T>?` | Optional Zod schema for validation |
+
+**`SafeReadResult<T>`**
+
+```ts
+type SafeReadResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; reason: "missing" | "corrupt" | "unreadable"; detail: string };
+```
+
+| Reason | Condition |
+|--------|-----------|
+| `missing` | File does not exist (`ENOENT`) |
+| `corrupt` | File exists but contains invalid JSON or fails schema validation |
+| `unreadable` | File exists but cannot be read (permission error, etc.) |
+
+### Node Information
+
+#### `getNetworkIps(): { lanIp?: string; tailscaleIp?: string }`
+
+Detect the machine's LAN and Tailscale IPv4 addresses by scanning network interfaces. Returns `undefined` for either if not found.
+
+- **LAN IP**: First IPv4 address in RFC 1918 private ranges (`10.x`, `172.16-31.x`, `192.168.x`)
+- **Tailscale IP**: First IPv4 address in the CGNAT range used by Tailscale (`100.64-127.x`)
+
+#### `fetchPublicIp(): Promise<string | undefined>`
+
+Fetch the machine's public IP by querying external providers (`ifconfig.me`, `api.ipify.org`). Returns `undefined` if all providers fail. Each request has a 3-second timeout.
+
+#### `collectNodeInfo(opts): NodeInfo`
+
+Collect complete system telemetry for the `/node/info` endpoint.
+
+```ts
+import { collectNodeInfo } from "@mecha/core";
+
+const info = collectNodeInfo({
+  port: 7660,
+  startedAt: new Date().toISOString(),
+  botCount: 3,
+  publicIp: "203.0.113.1",
+});
+```
+
+**`NodeInfo`**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `hostname` | `string` | Machine hostname |
+| `platform` | `string` | OS platform (`darwin`, `linux`, etc.) |
+| `arch` | `string` | CPU architecture (`arm64`, `x64`, etc.) |
+| `port` | `number` | Agent server port |
+| `uptimeSeconds` | `number` | Process uptime in seconds |
+| `startedAt` | `string` | ISO timestamp of server start |
+| `botCount` | `number` | Number of bots managed |
+| `totalMemMB` | `number` | Total system memory in MB |
+| `freeMemMB` | `number` | Free system memory in MB |
+| `cpuCount` | `number` | Number of CPU cores |
+| `lanIp` | `string?` | LAN IPv4 address |
+| `tailscaleIp` | `string?` | Tailscale IPv4 address |
+| `publicIp` | `string?` | Public IPv4 address |
+
+#### `formatUptime(seconds): string`
+
+Format a duration in seconds to a human-readable string.
+
+```ts
+import { formatUptime } from "@mecha/core";
+
+formatUptime(90);     // "1m"
+formatUptime(3700);   // "1h 1m"
+formatUptime(90000);  // "1d 1h"
+```
+
+#### `wsToHttp(url): string`
+
+Convert a `ws://` or `wss://` URL to the corresponding `http://` or `https://` URL.
+
 ## Data Storage
 
 All state is plain files — no databases:
@@ -750,6 +1658,9 @@ All state is plain files — no databases:
 | Budgets | JSON | `~/.mecha/meter/budgets.json` |
 | Plugin registry | JSON | `~/.mecha/plugins.json` |
 | Audit log | JSONL | `~/.mecha/audit.jsonl` |
+| Schedule config | JSON | `~/.mecha/<name>/schedule.json` |
+| Schedule state | JSON | `~/.mecha/<name>/schedules/<id>/state.json` |
+| Schedule history | JSONL | `~/.mecha/<name>/schedules/<id>/history.jsonl` |
 
 All file writes use atomic tmp+rename to prevent corruption on crash.
 
