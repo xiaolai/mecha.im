@@ -1,3 +1,8 @@
+---
+title: Metering & Budgets
+description: Track API costs per agent in real time with built-in metering, budgets, and auto-pause.
+---
+
 # Metering & Budgets
 
 Mecha includes a built-in metering proxy that tracks API costs per agent in real time. Set daily budgets, get warnings, and auto-pause agents that overspend.
@@ -123,12 +128,11 @@ The metering proxy uses several background processes to maintain accuracy and pe
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| Snapshot interval | 10s | Hot counters flushed to `snapshot.json` |
-| Rollup interval | 60s | Aggregate counters rolled up |
+| Snapshot interval | 5s | Hot counters flushed to `snapshot.json` |
 | Registry rescan | 30s | Re-scan bots for new/removed agents |
-| Event buffer max | 100 events | Force flush when buffer is full |
-| Event buffer interval | 5s | Force flush after this delay |
 | Retention | 90 days | Event files older than this are pruned |
+
+Rollups are computed inline on each event and flushed on shutdown — there is no periodic rollup timer. Events are written synchronously via `appendFileSync` per event (no in-memory buffer).
 
 Special HTTP status codes in event records:
 - `status: -1` — Client disconnected mid-stream (partial usage still recorded)

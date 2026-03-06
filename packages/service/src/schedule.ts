@@ -8,6 +8,7 @@ import {
 import type { ProcessManager } from "@mecha/process";
 import { runtimeFetch, assertOk } from "./helpers.js";
 
+/** Add a scheduled prompt to a bot's runtime. Validates the interval client-side first. */
 export async function botScheduleAdd(
   pm: ProcessManager,
   name: BotName,
@@ -24,6 +25,7 @@ export async function botScheduleAdd(
   assertOk(result, "SCHEDULE_ADD_FAILED");
 }
 
+/** Remove a schedule entry from a bot by schedule ID. */
 export async function botScheduleRemove(
   pm: ProcessManager,
   name: BotName,
@@ -35,6 +37,7 @@ export async function botScheduleRemove(
   assertOk(result, "SCHEDULE_REMOVE_FAILED");
 }
 
+/** List all schedule entries for a bot. */
 export async function botScheduleList(
   pm: ProcessManager,
   name: BotName,
@@ -44,6 +47,7 @@ export async function botScheduleList(
   return result.body as ScheduleEntry[];
 }
 
+/** Pause a single schedule or all schedules for a bot. */
 export async function botSchedulePause(
   pm: ProcessManager,
   name: BotName,
@@ -56,6 +60,7 @@ export async function botSchedulePause(
   assertOk(result, "SCHEDULE_PAUSE_FAILED");
 }
 
+/** Resume a single schedule or all schedules for a bot. */
 export async function botScheduleResume(
   pm: ProcessManager,
   name: BotName,
@@ -68,6 +73,7 @@ export async function botScheduleResume(
   assertOk(result, "SCHEDULE_RESUME_FAILED");
 }
 
+/** Trigger an immediate run of a schedule entry. */
 export async function botScheduleRun(
   pm: ProcessManager,
   name: BotName,
@@ -80,6 +86,7 @@ export async function botScheduleRun(
   return result.body as ScheduleRunResult;
 }
 
+/** Retrieve the run history for a schedule entry, optionally limited. */
 export async function botScheduleHistory(
   pm: ProcessManager,
   name: BotName,

@@ -1,6 +1,11 @@
+---
+title: Dashboard
+description: Web-based GUI for managing bots, sessions, logs, and runtime settings.
+---
+
 # Dashboard
 
-The web dashboard provides a graphical interface for managing your mecha runtime. It runs as an in-process Next.js application — no separate daemon or API server needed.
+The web dashboard provides a graphical interface for managing your mecha runtime. It runs as a pre-built SPA served by the agent server — no separate daemon or API server needed.
 
 ## Quick Start
 

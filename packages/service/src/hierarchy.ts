@@ -1,5 +1,6 @@
 import type { FindResult } from "./bot.js";
 
+/** A node in the workspace-path hierarchy tree. */
 export interface HierarchyNode {
   bot: FindResult;
   children: HierarchyNode[];

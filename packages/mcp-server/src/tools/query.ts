@@ -3,6 +3,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { MeshMcpContext } from "../types.js";
 import { textResult, withAuditAndRateLimit, annotationsFor } from "./helpers.js";
 
+/** Register query tools: mecha_query (stub — wave 2). */
 export function registerQueryTools(server: McpServer, ctx: MeshMcpContext): void {
   server.registerTool(
     "mecha_query",

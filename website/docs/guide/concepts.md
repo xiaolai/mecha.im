@@ -1,3 +1,8 @@
+---
+title: Core Concepts
+description: Key concepts in the Mecha multi-agent runtime — bots, workspaces, sessions, and permissions.
+---
+
 # Core Concepts
 
 ## bot

@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { writeDiscoveredNode, safeCompare, type DiscoveredNode } from "@mecha/core";
 
+/** Options for the auto-discovery handshake route. */
 export interface HandshakeRouteOpts {
   clusterKey: string;
   nodeName: string;
@@ -28,6 +29,7 @@ function isValidBody(body: unknown): body is HandshakeBody {
 }
 
 
+/** Register POST /discover/handshake for cluster key-authenticated peer discovery. */
 export function registerHandshakeRoute(app: FastifyInstance, opts: HandshakeRouteOpts): void {
   app.post(
     "/discover/handshake",

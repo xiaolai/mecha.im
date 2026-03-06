@@ -5,6 +5,7 @@ const AUDIT_FILE = "audit.jsonl";
 const MAX_PARAMS_BYTES = 1024;
 const FILE_MODE = 0o600;
 
+/** A single audit log entry recording an MCP tool invocation. */
 export interface AuditEntry {
   ts: string;
   client: string;
@@ -15,6 +16,7 @@ export interface AuditEntry {
   durationMs: number;
 }
 
+/** Append-only JSONL audit log for MCP tool calls. */
 export interface AuditLog {
   append(entry: AuditEntry): void;
   read(opts?: { limit?: number }): AuditEntry[];
@@ -27,6 +29,7 @@ function truncateParams(params: Record<string, unknown>): Record<string, unknown
   return { _truncated: serialized.slice(0, MAX_PARAMS_BYTES) + "...(truncated)" };
 }
 
+/** Create a filesystem-backed audit log stored as `audit.jsonl` in the mecha directory. */
 export function createAuditLog(mechaDir: string): AuditLog {
   const filePath = join(mechaDir, AUDIT_FILE);
 

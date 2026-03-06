@@ -1,3 +1,8 @@
+---
+title: Installation
+description: Download and install the Mecha runtime binary.
+---
+
 # Installation
 
 ## Download the Binary

@@ -12,6 +12,7 @@ interface NodeConfig {
   createdAt: string;
 }
 
+/** Result of initializing this machine as a named node. */
 export interface NodeInitResult {
   name: NodeName;
   created: boolean;

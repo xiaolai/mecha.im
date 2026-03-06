@@ -3,12 +3,14 @@ import { join } from "node:path";
 import { readAuthProfiles } from "@mecha/core";
 import { getMeterStatus, meterDir } from "@mecha/meter";
 
+/** A single health check result with name, status, and human-readable message. */
 export interface DoctorCheck {
   name: string;
   status: "ok" | "warn" | "error";
   message: string;
 }
 
+/** Aggregate doctor result: all checks and overall healthy flag. */
 export interface DoctorResult {
   checks: DoctorCheck[];
   healthy: boolean;

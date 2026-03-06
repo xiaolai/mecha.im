@@ -21,6 +21,7 @@ import {
 
 export type { ScheduleLog };
 
+/** Timer-based schedule engine that manages cron-like recurring bot prompts. */
 export interface ScheduleEngine {
   start(): void;
   stop(): void;
@@ -33,10 +34,12 @@ export interface ScheduleEngine {
   triggerNow(scheduleId: string): Promise<ScheduleRunResult>;
 }
 
+/** Function that sends a prompt to the bot and returns the result. */
 export interface ChatFn {
   (prompt: string): Promise<{ durationMs: number; error?: string }>;
 }
 
+/** Options for creating a schedule engine instance. */
 export interface CreateScheduleEngineOpts {
   botDir: string;
   botName: string;
@@ -49,6 +52,10 @@ export interface CreateScheduleEngineOpts {
 const noopLog: ScheduleLog = () => {};
 /* v8 ignore stop */
 
+/**
+ * Create a schedule engine that runs bot prompts on interval timers.
+ * Uses chained setTimeout (not setInterval) to prevent overlapping runs.
+ */
 export function createScheduleEngine(opts: CreateScheduleEngineOpts): ScheduleEngine {
   const { botDir, chatFn } = opts;
   const now = opts.now ?? Date.now;

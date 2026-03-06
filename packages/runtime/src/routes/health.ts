@@ -1,11 +1,13 @@
 import type { FastifyInstance } from "fastify";
 
+/** Options for health and info route registration. */
 export interface HealthRouteOpts {
   botName: string;
   port: number;
   startedAt: string;
 }
 
+/** Register GET /healthz and GET /info routes on the Fastify app. */
 export function registerHealthRoutes(
   app: FastifyInstance,
   opts: HealthRouteOpts,

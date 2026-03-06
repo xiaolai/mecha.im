@@ -5,6 +5,7 @@ import { botSessionList, botSessionGet } from "@mecha/service";
 import type { MeshMcpContext } from "../types.js";
 import { textResult, errorResult, withAuditAndRateLimit, annotationsFor } from "./helpers.js";
 
+/** Register session tools: mecha_list_sessions, mecha_get_session. */
 export function registerSessionTools(server: McpServer, ctx: MeshMcpContext): void {
   // mecha_list_sessions
   server.registerTool(

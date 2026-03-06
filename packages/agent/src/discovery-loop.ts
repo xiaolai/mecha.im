@@ -16,12 +16,14 @@ const SCAN_INTERVAL_MS = 60_000;
 const EXPIRY_TTL_MS = 60 * 60_000; // 1 hour → removed
 const PROBE_TIMEOUT_MS = 5_000;
 
+/** A network peer candidate to probe for mecha node discovery. */
 export interface DiscoveryCandidate {
   ip: string;
   port: number;
   source: "tailscale" | "mdns";
 }
 
+/** Options for probing discovery candidates via health check and handshake. */
 export interface ProbeOpts {
   candidates: DiscoveryCandidate[];
   clusterKey: string;
@@ -99,6 +101,7 @@ export async function probeCandidates(opts: ProbeOpts): Promise<void> {
   }
 }
 
+/** Options for the periodic node discovery loop. */
 export interface DiscoveryLoopOpts {
   clusterKey: string;
   nodeName: string;

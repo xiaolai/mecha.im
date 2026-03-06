@@ -3,11 +3,13 @@ import { readBotConfig, isValidName } from "@mecha/core";
 import type { ProcessManager } from "@mecha/process";
 import { join } from "node:path";
 
+/** Options for bot discovery route registration. */
 export interface DiscoverRouteOpts {
   mechaDir: string;
   pm: ProcessManager;
 }
 
+/** Register GET /discover for listing bots with optional tag/capability filters. */
 export function registerDiscoverRoutes(app: FastifyInstance, opts: DiscoverRouteOpts): void {
   app.get(
     "/discover",

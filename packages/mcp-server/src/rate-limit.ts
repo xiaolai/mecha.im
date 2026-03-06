@@ -1,11 +1,13 @@
 const DEFAULT_READ_LIMIT = { max: 120, windowMs: 60_000 };
 const DEFAULT_QUERY_LIMIT = { max: 30, windowMs: 60_000 };
 
+/** Per-tool rate limit configuration. */
 export interface RateLimitConfig {
   max: number;
   windowMs: number;
 }
 
+/** Sliding-window rate limiter for MCP tool calls. */
 export interface RateLimiter {
   check(tool: string): boolean;
   remaining(tool: string): number;
@@ -16,6 +18,7 @@ function getDefaultConfig(tool: string): RateLimitConfig {
   return DEFAULT_READ_LIMIT;
 }
 
+/** Create an in-memory sliding-window rate limiter with per-tool limits. */
 export function createRateLimiter(
   limits?: Record<string, RateLimitConfig>,
 ): RateLimiter {

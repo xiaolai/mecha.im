@@ -1,5 +1,6 @@
 import { hkdfSync, createHmac, timingSafeEqual } from "node:crypto";
 
+/** Name of the HTTP cookie used to store the session JWT. */
 export const SESSION_COOKIE = "mecha-session";
 
 const HKDF_SALT = "mecha-agent-session";

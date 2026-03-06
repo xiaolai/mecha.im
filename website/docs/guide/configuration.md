@@ -1,3 +1,8 @@
+---
+title: Configuration
+description: Configure auth profiles, bot settings, sandbox modes, and runtime options.
+---
+
 # Configuration
 
 ## Auth Profiles
