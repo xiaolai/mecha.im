@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { TooltipIconButton } from "@/components/ui/tooltip-icon-button";
 import { useFetch } from "@/lib/use-fetch";
 import { useAuth } from "@/auth-context";
 
@@ -22,17 +23,24 @@ export function AclView() {
   const [target, setTarget] = useState("");
   const [capability, setCapability] = useState("query");
   const [granting, setGranting] = useState(false);
+  const [mutationError, setMutationError] = useState<string | null>(null);
 
   async function handleGrant() {
     if (!source || !target) return;
     setGranting(true);
+    setMutationError(null);
     try {
-      await fetch("/acl/grant", {
+      const res = await fetch("/acl/grant", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders },
         credentials: "include",
         body: JSON.stringify({ source, target, capability }),
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: "Request failed" }));
+        setMutationError(data.error ?? "Failed to grant capability");
+        return;
+      }
       setSource("");
       setTarget("");
       refetch();
@@ -42,12 +50,18 @@ export function AclView() {
   }
 
   async function handleRevoke(src: string, tgt: string, cap: string) {
-    await fetch("/acl/revoke", {
+    setMutationError(null);
+    const res = await fetch("/acl/revoke", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders },
       credentials: "include",
       body: JSON.stringify({ source: src, target: tgt, capability: cap }),
     });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({ error: "Request failed" }));
+      setMutationError(data.error ?? "Failed to revoke capability");
+      return;
+    }
     refetch();
   }
 
@@ -90,6 +104,10 @@ export function AclView() {
         </Button>
       </div>
 
+      {mutationError && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">{mutationError}</div>
+      )}
+
       {/* Rules table */}
       {(!rules || rules.length === 0) ? (
         <div className="rounded-lg border border-border bg-card p-8 text-center">
@@ -115,14 +133,14 @@ export function AclView() {
                       {rule.capabilities.map((cap) => (
                         <Badge key={cap} variant="secondary" className="text-xs inline-flex items-center gap-1">
                           {cap}
-                          <button
-                            type="button"
+                          <TooltipIconButton
+                            tooltip="Revoke"
+                            variant="ghost"
+                            size="icon-xs"
                             onClick={() => handleRevoke(rule.source, rule.target, cap)}
-                            className="text-muted-foreground hover:text-destructive transition-colors"
-                            aria-label={`Revoke ${cap}`}
                           >
                             <Trash2Icon className="size-3" />
-                          </button>
+                          </TooltipIconButton>
                         </Badge>
                       ))}
                     </div>

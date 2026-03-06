@@ -20,6 +20,14 @@ export function registerToolRoutes(app: FastifyInstance, opts: ToolRouteOpts): v
       reply.code(400).send({ error: "name is required" });
       return;
     }
+    if (body.version !== undefined && typeof body.version !== "string") {
+      reply.code(400).send({ error: "version must be a string" });
+      return;
+    }
+    if (body.description !== undefined && typeof body.description !== "string") {
+      reply.code(400).send({ error: "description must be a string" });
+      return;
+    }
     try {
       const tool = mechaToolInstall(mechaDir, {
         name: body.name,

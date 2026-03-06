@@ -24,17 +24,22 @@ export function DoctorView() {
   const { authHeaders } = useAuth();
   const [result, setResult] = useState<DoctorResult | null>(null);
   const [running, setRunning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function runDiagnostics() {
     setRunning(true);
+    setError(null);
     try {
       const res = await fetch("/doctor", {
         headers: authHeaders,
         credentials: "include",
       });
-      if (res.ok) {
-        setResult(await res.json());
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: "Request failed" }));
+        setError(data.error ?? "Diagnostics request failed");
+        return;
       }
+      setResult(await res.json());
     } finally {
       setRunning(false);
     }
@@ -53,6 +58,10 @@ export function DoctorView() {
           </span>
         )}
       </div>
+
+      {error && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">{error}</div>
+      )}
 
       {result && (
         <div className="rounded-lg border border-border">
