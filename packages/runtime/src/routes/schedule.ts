@@ -22,6 +22,7 @@ function handleError(err: unknown, reply: { code: (n: number) => { send: (b: unk
   /* v8 ignore stop */
 }
 
+/** Register schedule management routes under /api/schedules (CRUD, pause, resume, trigger, history). */
 export function registerScheduleRoutes(
   app: FastifyInstance,
   engine: ScheduleEngine,

@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import { randomUUID } from "node:crypto";
 import { createNodeIdentity, loadNodeIdentity } from "@mecha/core";
 
+/** Result of initializing the mecha directory. */
 export interface InitResult {
   mechaDir: string;
   nodeId: string;

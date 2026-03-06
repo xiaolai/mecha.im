@@ -1,3 +1,8 @@
+---
+title: Permissions (ACL)
+description: Capability-based access control for inter-agent communication — isolated by default.
+---
+
 # Permissions (ACL)
 
 Mecha uses **capability-based access control** to mediate all inter-agent communication. No grant means no access — agents are isolated by default.

@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
 import type { ProcessManager } from "@mecha/process";
 
+/** Options for SSE event stream route registration. */
 export interface EventsRouteOpts {
   processManager: ProcessManager;
 }
@@ -8,6 +9,7 @@ export interface EventsRouteOpts {
 const MAX_CONNECTIONS = 10;
 const HEARTBEAT_INTERVAL_MS = 10_000;
 
+/** Register GET /events SSE endpoint for real-time process lifecycle events. */
 export function registerEventsRoutes(app: FastifyInstance, opts: EventsRouteOpts): void {
   // Scope connection counter to this server instance (not module-global)
   let activeConnections = 0;

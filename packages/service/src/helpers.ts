@@ -17,12 +17,14 @@ export function resolveBotEndpoint(
   return info;
 }
 
+/** Options for making an HTTP request to a bot's runtime server. */
 export interface RuntimeFetchOpts {
   method?: string;
   body?: unknown;
   headers?: Record<string, string>;
 }
 
+/** Result of a runtime HTTP request, including parsed body and raw Response. */
 export interface RuntimeFetchResult {
   status: number;
   body: unknown;

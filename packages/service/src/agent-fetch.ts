@@ -12,6 +12,7 @@ export interface SecureChannelLike {
   onClose?(handler: (reason: string) => void): void;
 }
 
+/** Options for making an authenticated request to a remote node's agent server. */
 export interface AgentFetchOpts {
   node: NodeEntry;
   path: string;

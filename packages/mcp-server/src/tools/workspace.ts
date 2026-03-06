@@ -35,6 +35,7 @@ async function callRuntimeMcpTool(
   /* v8 ignore stop */
 }
 
+/** Register workspace tools: mecha_workspace_list, mecha_workspace_read. */
 export function registerWorkspaceTools(server: McpServer, ctx: MeshMcpContext): void {
   // mecha_workspace_list
   server.registerTool(

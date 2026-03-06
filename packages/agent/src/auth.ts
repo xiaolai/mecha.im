@@ -4,6 +4,7 @@ import { safeCompare } from "@mecha/core";
 import { consumeTicket } from "./ws-tickets.js";
 import { verifySessionToken, parseSessionCookie } from "./session.js";
 
+/** Options for authentication and signature verification hooks. */
 export interface AuthOpts {
   /** Session signing key (derived from TOTP secret). Omit to disable session auth. */
   sessionKey?: string;

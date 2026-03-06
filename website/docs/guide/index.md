@@ -1,3 +1,8 @@
+---
+title: What is Mecha?
+description: Mecha is a local-first multi-agent runtime for running multiple Claude agents as isolated processes.
+---
+
 # What is Mecha?
 
 Mecha is a **local-first multi-agent runtime** that lets you run multiple Claude agents as isolated processes on your own machine. Each agent — called a **bot** (Claude Agent SDK App) — gets its own workspace, permissions, and identity.

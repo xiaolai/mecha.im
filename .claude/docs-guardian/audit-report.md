@@ -1,205 +1,200 @@
 # Documentation Audit Report
 
 **Project**: mecha.im
-**Date**: 2026-03-04
+**Date**: 2026-03-06
 **Language**: TypeScript
-**Framework**: Monorepo (pnpm workspaces) — Fastify runtime, Next.js dashboard, Commander CLI
+**Framework**: VitePress
 
 ## Executive Summary
 
 | Dimension | Score | Status |
 |-----------|-------|--------|
-| Freshness | 85/100 | :yellow_circle: |
-| Accuracy  | 93/100 | :green_circle: |
-| Coverage  | 25%    | :red_circle: |
-| Quality   | 94/100 | :green_circle: |
+| Freshness | 100/100 | 🟢 |
+| Accuracy  | 78/100 | 🟡 |
+| Coverage  | 52% (inline) / 60% (combined) | 🔴 |
+| Quality   | 92/100 | 🟢 |
 
-**Overall health**: 56/100
+**Overall health**: 78/100
 
-The documentation is **accurate and well-structured** for what it covers, but **coverage is critically low** — only 75 of 305 public API symbols are documented. CLI commands and runtime APIs are excellent; library-level programmatic APIs are almost entirely absent.
+The docs are **fresh and well-structured** with excellent external documentation (CLI, architecture, features). Primary gaps: 4 factual inaccuracies in metering/env docs, and inline JSDoc coverage at 52%.
 
 ## Critical Findings (fix immediately)
 
-None. No critical issues found across any dimension.
+None.
 
 ## High Findings (fix soon)
 
-### H1: Library API coverage at 25% (Coverage)
+### Coverage — Worst Packages
 
-305 public symbols across 11 packages; only 75 documented. Worst offenders:
+**[HIGH]** `packages/mcp-server` — 5% inline coverage (22 exports, 1 documented)
+- `createMeshMcpServer()`, `runHttp()`, `runStdio()`, `createRateLimiter()`, `createAuditLog()` — all undocumented
 
-| Package | Exports | Documented | Coverage |
-|---------|---------|------------|----------|
-| `@mecha/connect` | 38 | 3 | 8% |
-| `@mecha/process` | 22 | 2 | 9% |
-| `@mecha/service` | 38 | 4 | 11% |
-| `@mecha/server` | 18 | 2 | 11% |
-| `@mecha/meter` | 42 | 7 | 17% |
-| `@mecha/sandbox` | 11 | 2 | 18% |
-| `@mecha/core` | 97 | 22 | 23% |
-| `@mecha/cli` | 3 | 0 | 0% |
+**[HIGH]** `packages/runtime` — 14% inline coverage (35 exports, 5 documented)
+- `createServer()`, `createSessionManager()`, `createScheduleEngine()` — core runtime factories undocumented
 
-Well-covered: `@mecha/mcp-server` (100%), `@mecha/runtime` (90%), `@mecha/agent` (80%).
+**[HIGH]** `packages/agent` — 27% inline coverage (66 exports, 18 documented)
+- `createAgentServer()`, `createPtyManager()`, `createEventLog()` — main entry points undocumented
+- 16 `register*Routes()` functions lack any JSDoc
 
-### H2: 8 undocumented high-priority API functions (Coverage)
-
-- `createProcessManager` / `prepareBotFilesystem` (`@mecha/process`) — core bot lifecycle
-- `createConnectManager` / `createSecureChannel` / `channelFetch` (`@mecha/connect`) — P2P core
-- `createProgram` / `createFormatter` (`@mecha/cli`) — CLI extension API
-- `botScheduleAdd/Remove/List/Pause/Resume/Run/History` (`@mecha/service`) — schedule service layer
-- `mechaInit` / `mechaDoctor` (`@mecha/service`) — init/doctor service layer
+**[HIGH]** `packages/service` — 33% inline coverage (75 exports, 25 documented)
+- 11 `mechaAuth*()` functions, 7 `botSchedule*()` functions, 3 `botSession*()` functions — all undocumented
 
 ## Medium Findings (fix soon)
 
-### M1: Stale `/home/` paths in architecture.md (Staleness)
+### Accuracy Mismatches
 
-`website/docs/reference/architecture.md` still references the old `home/` directory in the bot filesystem layout. The recent flatten-bot-home refactor removed this nesting — `.claude/` is now directly under the bot root.
+**[MEDIUM]** Metering snapshot interval: doc says 10s, code says 5s
+- Doc: `website/docs/features/metering.md:126`
+- Code: `packages/meter/src/daemon.ts` uses `5_000`ms
+- Fix: Change doc table to show `5s`
 
-**File**: `website/docs/reference/architecture.md`
-**Fix**: Update the bot directory tree diagram to remove the `home/` level.
+**[MEDIUM]** Metering event buffer doesn't exist — doc describes a buffer that isn't implemented
+- Doc: `website/docs/features/metering.md:129-130` — "Event buffer max | 100 events"
+- Code: Events are written synchronously via `appendFileSync` per event — no buffer
+- Fix: Remove the two "Event buffer" rows from the internals table
 
-### M2: Package count says "13" — should be "12" (Accuracy)
+**[MEDIUM]** Metering rollup interval is not a periodic timer
+- Doc: `website/docs/features/metering.md:127` — "Rollup interval | 60s"
+- Code: Rollups update inline per event, flushed on shutdown. Only 2 timers: snapshot (5s) + registry (30s)
+- Fix: Remove "Rollup interval" row or clarify inline behavior
 
-`website/docs/reference/architecture.md` states "13 packages" but the monorepo has 12 (after the `@mecha/ui` merge).
+**[MEDIUM]** `SERVER_SECRET_PATH` env var documented but doesn't exist in code
+- Doc: `website/docs/reference/environment.md:16`
+- Code: Zero matches across all packages
+- Fix: Remove from docs or implement the feature
 
-**File**: `website/docs/reference/architecture.md`
-**Fix**: Change "13" to "12" in the package count.
+### Quality
 
-### M3: Missing `POST /bots/batch` in route summary table (Accuracy)
-
-The batch stop/restart endpoint was added but is missing from the API route summary table in architecture.md.
-
-**File**: `website/docs/reference/architecture.md`
-**Fix**: Add `POST /bots/batch` row to the Agent HTTP API table.
-
-### M4: `mecha_query` section is stubbed (Quality)
-
-`website/docs/features/mcp-server.md` has a `mecha_query` tool section that says "Coming soon" with no content.
-
-**Fix**: Either document it or remove the stub section.
-
-### M5: 28+ error classes undocumented (Coverage)
-
-All error types exported from `@mecha/core` (`MechaError`, `BotNotFoundError`, `AclDeniedError`, `ScheduleNotFoundError`, etc.) have no reference documentation listing their properties or when they are thrown.
-
-### M6: Plugin registry API undocumented (Coverage)
-
-The full plugin registry module (`readPluginRegistry`, `addPlugin`, `removePlugin`, `getPlugin`, `listPlugins`, etc.) from `@mecha/core` is exported but has no programmatic documentation.
-
-### M7: ~20 Medium-priority undocumented APIs (Coverage)
-
-Including: Noise/STUN/rendezvous primitives (`@mecha/connect`), meter proxy pipeline (`@mecha/meter`), sandbox factory (`@mecha/sandbox`), server factory (`@mecha/server`), service routing (`@mecha/service`), auth resolution (`@mecha/core`), gossip/vector-clock (`@mecha/server`).
+**[MEDIUM]** Potential fragile anchor link in dashboard.md:224 → `architecture#authentication-system`
 
 ## Low Findings (nice to have)
 
-| # | Finding | Source |
-|---|---------|--------|
-| L1 | Missing TOC in 4 long doc pages (scheduling, metering, sandbox, mesh-networking) | Quality |
-| L2 | Dense sections without examples in architecture.md (Process Events, Discovery) | Quality |
-| L3 | `cost` command shows UTC — docs should note timezone suffix | Accuracy |
-| L4 | ~40 low-priority undocumented exports across all packages | Coverage |
-| L5 | Several doc pages exceed 300 lines without section breaks | Quality |
+- **VitePress frontmatter**: 19 of 20 doc files lack `---` frontmatter (SEO impact)
+- **Cross-references**: CLI reference (1407 lines) lacks "See also" links to feature pages
+- **Environment docs**: No `.env` usage examples
+- **Dashboard doc**: Says "in-process Next.js application" — should say "pre-built SPA"
+- **`MECHA_LOG_DIR`**: Documented as runtime env var but not in RuntimeEnv Zod schema
+- **Multi-agent doc**: Thin content (93 lines), could add workflow patterns
+- **Architecture doc**: 774 lines — consider splitting if it grows
 
 ## Fixing Plan
 
-Priority-ordered actions:
-
-1. **Fix stale paths** (M1) — Update architecture.md bot filesystem diagram to remove `home/` nesting. ~5 min.
-2. **Fix accuracy issues** (M2, M3) — Correct package count to 12, add batch route to API table. ~5 min.
-3. **Stub or remove `mecha_query`** (M4) — Either document the tool or remove the "Coming soon" stub. ~2 min.
-4. **Add error reference** (M5) — Create a table of all error classes with status codes and when thrown. ~30 min.
-5. **Add library API docs for top packages** (H1, H2) — Start with `@mecha/process`, `@mecha/service`, `@mecha/connect` as they have the highest user impact. This is a large effort best done incrementally.
-6. **Add TOCs to long pages** (L1) — Auto-generate or add manual TOCs. ~15 min.
-
-## Coverage Breakdown by Package
-
-| Package | Total | Documented | Coverage |
-|---------|-------|------------|----------|
-| `@mecha/agent` | 5 | 4 | 80% |
-| `@mecha/cli` | 3 | 0 | 0% |
-| `@mecha/connect` | 38 | 3 | 8% |
-| `@mecha/core` | 97 | 22 | 23% |
-| `@mecha/mcp-server` | 11 | 11 | 100% |
-| `@mecha/meter` | 42 | 7 | 17% |
-| `@mecha/process` | 22 | 2 | 9% |
-| `@mecha/runtime` | 20 | 18 | 90% |
-| `@mecha/sandbox` | 11 | 2 | 18% |
-| `@mecha/server` | 18 | 2 | 11% |
-| `@mecha/service` | 38 | 4 | 11% |
-| **Total** | **305** | **75** | **25%** |
+1. **Fix 3 metering doc inaccuracies** — snapshot 10s→5s, remove phantom event buffer/rollup rows
+2. **Remove `SERVER_SECRET_PATH`** from environment.md
+3. **Fix dashboard doc** — "Next.js" → "pre-built SPA"
+4. **Add JSDoc to mcp-server** (22 exports) — worst coverage, user-facing
+5. **Add JSDoc to runtime** (35 exports) — core factories
+6. **Add JSDoc to agent** (66 exports) — primary API surface
+7. **Add JSDoc to service** (75 exports) — business logic layer
+8. **Add VitePress frontmatter** to all 19 doc files
+9. **Add cross-reference links** to CLI reference and environment docs
 
 ## Full Agent Reports
 
 <details>
 <summary>Staleness Report</summary>
 
-**Score**: 85/100
+**Score**: 100/100 — All 20 mappings fresh (0 stale)
 
-All documentation was updated on the same day (2026-03-04) as the latest code changes. The primary staleness issue is the bot filesystem layout in `architecture.md` which still references the old `home/` directory nesting that was removed in the flatten-bot-home refactor.
+| # | Source | Doc | Gap | Status |
+|---|--------|-----|-----|--------|
+| 1 | `packages/cli/src/commands/**` | `reference/cli.md` | 0d | FRESH |
+| 2 | `packages/agent/src/**` | `reference/architecture.md` | 1d | FRESH |
+| 3 | `packages/runtime/src/**` | `reference/architecture.md` | 0d | FRESH |
+| 4 | `packages/core/src/acl/**` | `features/permissions.md` | 0d | FRESH |
+| 5 | `packages/sandbox/src/**` | `features/sandbox.md` | 0d | FRESH |
+| 6 | `packages/meter/src/**` | `features/metering.md` | 0d | FRESH |
+| 7 | `packages/connect/src/**` | `features/mesh-networking.md` | 0d | FRESH |
+| 8 | `packages/server/src/**` | `features/mesh-networking.md` | 0d | FRESH |
+| 9 | `packages/core/src/schedule.ts` | `features/scheduling.md` | 0d | FRESH |
+| 10 | `packages/cli/src/commands/schedule*.ts` | `features/scheduling.md` | 0d | FRESH |
+| 11 | `packages/runtime/src/scheduler.ts` | `features/scheduling.md` | 0d | FRESH |
+| 12 | `packages/mcp-server/src/**` | `features/mcp-server.md` | 0d | FRESH |
+| 13 | `packages/runtime/src/session-manager.ts` | `features/sessions.md` | 0d | FRESH |
+| 14 | `packages/agent/src/routes/sessions.ts` | `features/sessions.md` | 0d | FRESH |
+| 15 | `packages/core/src/types.ts` | `guide/concepts.md` | 0d | FRESH |
+| 16 | `packages/core/src/schemas.ts` | `guide/configuration.md` | 0d | FRESH |
+| 17 | `packages/runtime/src/env.ts` | `reference/environment.md` | 0d | FRESH |
+| 18 | `packages/agent/src/routes/bots.ts` | `features/multi-agent.md` | 1d | FRESH |
+| 19 | `packages/process/src/**` | `reference/architecture.md` | 1d | FRESH |
+| 20 | `packages/spa/src/**` | `features/dashboard.md` | 1d | FRESH |
 
-Other pages (cli.md, scheduling.md, metering.md, sandbox.md, mesh-networking.md, mcp-server.md) are all current with their corresponding source code.
+Watch list: Mappings 2, 18, 19, 20 have 1-day gaps from today's audit fix commit.
 
 </details>
 
 <details>
 <summary>Accuracy Report</summary>
 
-**Score**: 93/100
+**Score**: 78/100 — 6 mismatches (0 critical, 0 high, 4 medium, 2 low)
 
-**MEDIUM findings:**
-1. Package count "13" should be "12" in architecture.md (after @mecha/ui merge)
-2. `POST /bots/batch` endpoint missing from the Agent HTTP API route summary table
+**Verified accurate (31 items):** All CLI command signatures (start, stop, restart, bot spawn/stop/logs/chat/sessions, schedule add/history, node add/invite/join, meter start, mcp serve, agent start, budget set/rm/ls, cost). All port defaults (7660, 7700-7799, 7600, 7680, 7681). All ACL capabilities, sandbox modes, permission modes. BotConfig schema, RuntimeEnv schema. All environment variables. SessionManager API. Rate limiter defaults. All agent server routes. Metering retention/registry rescan.
 
-**LOW findings:**
-1. `mecha cost` output uses UTC dates — docs should mention the timezone suffix for clarity
-
-All CLI command signatures, option flags, default values, and examples match their source implementations. Schedule, sandbox, metering, and mesh-networking docs are accurate.
+**Findings:**
+1. **[MEDIUM]** Snapshot interval 10s→5s
+2. **[MEDIUM]** Phantom event buffer (synchronous writes, no buffer)
+3. **[MEDIUM]** Phantom rollup interval (inline per-event, not periodic)
+4. **[MEDIUM]** `SERVER_SECRET_PATH` env var doesn't exist in code
+5. **[LOW]** Dashboard described as "Next.js" (actually SPA)
+6. **[LOW]** `MECHA_LOG_DIR` not in RuntimeEnv Zod schema
 
 </details>
 
 <details>
 <summary>Coverage Report</summary>
 
-**Score**: 25% (75/305 symbols documented)
+**Score**: 51.5% inline / ~60% combined — 781 public symbols, 402 documented
 
-**Key observations:**
-- CLI commands are excellently documented (cli.md is comprehensive)
-- `@mecha/runtime` (90%) and `@mecha/agent` (80%) are well-covered
-- `@mecha/mcp-server` is fully documented (100%)
-- `@mecha/connect` is the largest gap — 38 exports, only 3 mentioned conceptually
-- `@mecha/core` has 97 exports but only 23% documented (missing: 28+ error types, plugin registry, auth resolution, TOTP storage, identity/crypto)
-- `@mecha/service` is almost entirely undocumented as a library (38 exports, 4 documented)
-- Docs describe *features* thoroughly but *library APIs* almost not at all
+| Package | Exports | Documented | Coverage |
+|---------|---------|------------|----------|
+| sandbox | 19 | 18 | 95% |
+| spa | 14 | 11 | 79% |
+| meter | 99 | 71 | 72% |
+| core | 222 | 150 | 68% |
+| connect | 61 | 39 | 64% |
+| server | 29 | 18 | 62% |
+| process | 43 | 24 | 56% |
+| service | 75 | 25 | 33% |
+| agent | 66 | 18 | 27% |
+| cli | 96 | 22 | 23% |
+| runtime | 35 | 5 | 14% |
+| mcp-server | 22 | 1 | 5% |
 
-**8 HIGH-priority undocumented functions**: createProcessManager, prepareBotFilesystem, createConnectManager, createSecureChannel, channelFetch, createProgram, createFormatter, botSchedule* service functions, mechaInit, mechaDoctor.
+External docs fully cover: CLI commands (cli.md), API routes (architecture.md), env vars (environment.md).
 
-**~25 MEDIUM-priority undocumented APIs**: Noise/STUN/rendezvous primitives, meter proxy pipeline, sandbox factory, server factory, service routing, auth resolution, gossip/vector-clock, batch operations, error types, plugin registry, TOTP storage.
-
-**~40 LOW-priority undocumented exports**: Budget storage, SSE parsing, pricing functions, event storage, schedule persistence, process event emitter, log reader, node registry, validation constants, bot config read/write, discovery filter, address utilities.
+Worst offenders (0% inline): mcp-server (audit, rate-limit, types), agent (login-limiter, pty-manager, server, 16 route files), runtime (schedule-runner, server), service (bot, schedule, sessions, locator), process (types, spawn-pipeline).
 
 </details>
 
 <details>
 <summary>Quality Report</summary>
 
-**Score**: 93.7/100
+**Score**: 92/100 — 20 files, 11 findings (0 critical, 0 high, 1 medium, 10 low)
 
-**MEDIUM findings:**
-1. `mecha_query` tool section in mcp-server.md is stubbed ("Coming soon") with no content
+| File | Structure | Examples | Links | Completeness | Score |
+|------|-----------|----------|-------|--------------|-------|
+| guide/quickstart.md | 10 | 10 | 10 | 10 | 97 |
+| reference/cli.md | 10 | 10 | 8 | 10 | 95 |
+| features/mesh-networking.md | 10 | 10 | 8 | 10 | 95 |
+| features/mcp-server.md | 10 | 10 | 8 | 10 | 95 |
+| guide/concepts.md | 10 | 10 | 9 | 10 | 95 |
+| guide/installation.md | 10 | 10 | 9 | 10 | 95 |
+| advanced/multi-machine.md | 10 | 10 | 8 | 10 | 95 |
+| features/permissions.md | 10 | 10 | 8 | 10 | 93 |
+| features/sandbox.md | 10 | 9 | 8 | 10 | 93 |
+| features/metering.md | 10 | 10 | 8 | 10 | 93 |
+| features/scheduling.md | 10 | 10 | 8 | 10 | 93 |
+| features/sessions.md | 10 | 10 | 8 | 10 | 93 |
+| features/dashboard.md | 10 | 8 | 10 | 10 | 93 |
+| guide/configuration.md | 10 | 10 | 8 | 10 | 93 |
+| guide/index.md | 10 | 9 | 10 | 10 | 93 |
+| advanced/troubleshooting.md | 10 | 10 | 9 | 10 | 93 |
+| reference/architecture.md | 10 | 9 | 8 | 10 | 92 |
+| index.md | 9 | 7 | 9 | 10 | 85 |
+| reference/environment.md | 9 | 7 | 8 | 10 | 82 |
+| features/multi-agent.md | 9 | 9 | 7 | 9 | 82 |
 
-**LOW findings (11):**
-1. Missing table of contents in scheduling.md (200+ lines)
-2. Missing table of contents in metering.md (250+ lines)
-3. Missing table of contents in sandbox.md (200+ lines)
-4. Missing table of contents in mesh-networking.md (300+ lines)
-5. Dense "Process Events" section in architecture.md lacks examples
-6. Dense "Discovery" section in architecture.md could use a flow diagram
-7. Configuration guide has long unbroken lists of options
-8. Environment variables page could group vars by subsystem
-9. CLI reference could add "See also" cross-links between related commands
-10. Permissions page ACL table could link to relevant CLI commands
-11. Multi-machine guide could add a troubleshooting section
-
-Overall structure, formatting, heading hierarchy, and code examples are strong across all pages.
+Strengths: Excellent structure, comprehensive code examples, no stubs/TODOs, consistent formatting.
+Gaps: Missing VitePress frontmatter (19 files), limited cross-references in reference docs.
 
 </details>

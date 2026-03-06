@@ -4,6 +4,7 @@ import type { BotConfig, AuthProfileStore } from "@mecha/core";
 import type { ProcessInfo } from "@mecha/process";
 import type { HotSnapshot } from "@mecha/meter";
 
+/** Bot info enriched with config, auth type, and meter cost data. */
 export interface EnrichedBotInfo {
   name: string;
   state: "running" | "stopped" | "error";
@@ -23,6 +24,7 @@ export interface EnrichedBotInfo {
   costToday?: number;
 }
 
+/** Pre-loaded context for enriching bot info (configs, meter snapshot, auth store). */
 export interface EnrichContext {
   configs: Map<string, BotConfig>;
   snapshot: HotSnapshot | null;

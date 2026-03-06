@@ -1,3 +1,8 @@
+---
+title: Troubleshooting
+description: Common issues and solutions for the Mecha runtime.
+---
+
 # Troubleshooting
 
 Common issues and how to resolve them.

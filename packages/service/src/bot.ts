@@ -2,16 +2,19 @@ import { join } from "node:path";
 import { type BotName, type BotConfig, BotNotFoundError, isValidName, readBotConfig, updateBotConfig, matchesDiscoveryFilter } from "@mecha/core";
 import type { ProcessManager, ProcessInfo } from "@mecha/process";
 
+/** ProcessInfo augmented with tags from the bot's config. */
 export interface FindResult extends ProcessInfo {
   tags: string[];
 }
 
+/** Get the process info for a bot, or throw BotNotFoundError. */
 export function botStatus(pm: ProcessManager, name: BotName): ProcessInfo {
   const info = pm.get(name);
   if (!info) throw new BotNotFoundError(name);
   return info;
 }
 
+/** Find bots matching optional tag filters, reading config for each. */
 export function botFind(
   mechaDir: string,
   pm: ProcessManager,
@@ -30,6 +33,7 @@ export function botFind(
   return results;
 }
 
+/** Partial config fields that can be updated on a bot. */
 export interface BotConfigUpdates {
   auth?: string | null;
   model?: string;
@@ -41,6 +45,7 @@ export interface BotConfigUpdates {
   workspace?: string;
 }
 
+/** Update a bot's config.json with partial changes. Setting auth to null clears it. */
 export function botConfigure(
   mechaDir: string,
   pm: ProcessManager,

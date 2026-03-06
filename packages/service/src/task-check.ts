@@ -2,6 +2,7 @@ import type { BotName } from "@mecha/core";
 import type { ProcessManager } from "@mecha/process";
 import { runtimeFetch } from "./helpers.js";
 
+/** Result of checking whether a bot is busy with active sessions. */
 export interface TaskCheckResult {
   busy: boolean;
   activeSessions: number;

@@ -1,3 +1,8 @@
+---
+title: Scheduling
+description: Built-in cron-like scheduler for running agent tasks on a recurring basis.
+---
+
 # Scheduling
 
 Mecha includes a built-in scheduler for running agent tasks on a recurring basis — cron-like automation without leaving the Mecha ecosystem.

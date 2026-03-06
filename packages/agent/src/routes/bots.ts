@@ -41,6 +41,7 @@ function listProjection(info: EnrichedBotInfo) {
   return { ...rest, workspacePath: basename(info.workspacePath) };
 }
 
+/** Register bot CRUD routes: list, create, start, stop, kill, restart, and config patch. */
 export function registerBotRoutes(app: FastifyInstance, pm: ProcessManager, mechaDir: string, nodeName?: string): void {
   const meterDir = join(mechaDir, "meter");
   const node = nodeName ?? "local";

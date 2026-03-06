@@ -11,11 +11,13 @@ import {
 import { join } from "node:path";
 import { getSource } from "../auth.js";
 
+/** Options for inter-bot query routing routes. */
 export interface RoutingRouteOpts {
   mechaDir: string;
   acl: AclEngine;
 }
 
+/** Register POST /bots/:name/query for ACL-gated inter-bot message routing. */
 export function registerRoutingRoutes(app: FastifyInstance, opts: RoutingRouteOpts): void {
   const { mechaDir, acl } = opts;
 

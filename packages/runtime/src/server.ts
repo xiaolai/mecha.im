@@ -9,6 +9,7 @@ import { registerScheduleRoutes } from "./routes/schedule.js";
 import { registerMcpRoutes } from "./mcp/server.js";
 import { createScheduleEngine, type ChatFn, type ScheduleEngine } from "./scheduler.js";
 
+/** Options for creating a bot runtime Fastify server. */
 export interface CreateServerOpts {
   botName: string;
   port: number;
@@ -20,11 +21,13 @@ export interface CreateServerOpts {
   chatFn?: ChatFn;
 }
 
+/** Return value from {@link createServer}: the Fastify app and optional scheduler. */
 export interface ServerResult {
   app: FastifyInstance;
   scheduler?: ScheduleEngine;
 }
 
+/** Create a fully-configured bot runtime server with auth, sessions, chat, MCP, and scheduling. */
 export function createServer(opts: CreateServerOpts): ServerResult {
   const app = Fastify({
     logger: { redact: ["req.headers.authorization"] },

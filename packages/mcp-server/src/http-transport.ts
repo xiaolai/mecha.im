@@ -21,12 +21,19 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
   res.end(JSON.stringify(body));
 }
 
+/** Configuration for the HTTP-based MCP transport. */
 export interface HttpTransportOpts {
   port: number;
   host: string;
   token?: string;
 }
 
+/**
+ * Start an HTTP server exposing the MCP protocol via StreamableHTTP transport.
+ *
+ * Manages per-client sessions with idle timeout and optional bearer-token auth.
+ * Blocks until SIGINT/SIGTERM, then gracefully closes all sessions.
+ */
 export async function runHttp(
   createMcpServer: () => McpServer,
   opts: HttpTransportOpts,

@@ -4,6 +4,7 @@ import { createSessionToken, SESSION_COOKIE } from "../session.js";
 import { createLoginLimiter } from "../login-limiter.js";
 import { emitEvent, type EventLog } from "../event-log.js";
 
+/** Options for TOTP authentication route registration. */
 export interface AuthRouteOpts {
   totpSecret?: string;
   sessionKey?: string;
@@ -11,6 +12,7 @@ export interface AuthRouteOpts {
   eventLog?: EventLog;
 }
 
+/** Register public auth routes: GET /auth/status, POST /auth/login, POST /auth/logout. */
 export function registerAuthRoutes(app: FastifyInstance, opts: AuthRouteOpts): void {
   const limiter = createLoginLimiter();
   const ttl = opts.sessionTtlHours ?? 24;

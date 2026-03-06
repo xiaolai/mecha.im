@@ -2,11 +2,13 @@ import { type BotName, DEFAULTS, ChatRequestError } from "@mecha/core";
 import type { ProcessManager } from "@mecha/process";
 import { resolveBotEndpoint } from "./helpers.js";
 
+/** Options for sending a chat message to a bot. */
 export interface ChatOpts {
   message: string;
   sessionId?: string;
 }
 
+/** A parsed SSE event from the bot's chat stream. */
 export interface ChatEvent {
   type: "text" | "done";
   content?: string;

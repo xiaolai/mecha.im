@@ -1,3 +1,8 @@
+---
+title: Sandbox & Security
+description: Five layers of defense-in-depth isolation ensuring each agent only accesses what it is allowed to.
+---
+
 # Sandbox & Security
 
 Mecha enforces **defense in depth** — five layers of isolation ensure that each agent can only access what it's explicitly allowed to.

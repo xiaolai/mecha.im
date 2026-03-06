@@ -37,6 +37,7 @@ export interface AgentServerAuth {
   apiKey?: string;
 }
 
+/** Configuration for the agent server. */
 export interface AgentServerOpts {
   port: number;
   auth: AgentServerAuth;
@@ -57,6 +58,7 @@ export interface AgentServerOpts {
 /** Fetch public IP for server startup. Call before createAgentServer(). */
 export { fetchPublicIp } from "@mecha/core";
 
+/** Create and configure the Fastify agent server with all routes, auth, and middleware. */
 export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
   const app = Fastify({
     logger: {

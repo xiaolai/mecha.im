@@ -10,6 +10,7 @@ import { DEFAULTS, createLogger } from "@mecha/core";
 
 const log = createLogger("mecha:runtime");
 
+/** Lightweight session metadata (no transcript events). */
 export interface SessionMeta {
   id: string;
   title: string;
@@ -27,6 +28,7 @@ export interface TranscriptEvent {
   [key: string]: unknown;
 }
 
+/** Full session including metadata and transcript events. */
 export interface Session extends SessionMeta {
   events: TranscriptEvent[];
 }
@@ -47,15 +49,15 @@ interface StoredMeta {
   updatedAt: string;
 }
 
-/**
- * Creates a read-only session manager that reads session files
- * written by Claude Code (Agent SDK) in the projects directory.
- */
 /** Validate session ID — must be a simple slug (no path separators or traversal). */
 function _validateId(id: string): boolean {
   return /^[a-zA-Z0-9_-]+$/.test(id);
 }
 
+/**
+ * Create a read-only session manager that reads session files
+ * written by Claude Code (Agent SDK) in the projects directory.
+ */
 export function createSessionManager(
   projectsDir: string,
 ): SessionManager {

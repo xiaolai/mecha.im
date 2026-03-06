@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { SessionManager } from "../session-manager.js";
 
+/** Register session CRUD routes: GET/DELETE /api/sessions and GET/DELETE /api/sessions/:id. */
 export function registerSessionRoutes(
   app: FastifyInstance,
   sm: SessionManager,

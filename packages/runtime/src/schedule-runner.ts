@@ -13,10 +13,12 @@ import {
   appendRunHistory,
 } from "@mecha/process";
 
+/** Structured logger callback for schedule engine events. */
 export interface ScheduleLog {
   (level: "info" | "warn" | "error", msg: string, data?: Record<string, unknown>): void;
 }
 
+/** Dependencies injected into {@link executeRun} for testability. */
 export interface RunDeps {
   botDir: string;
   chatFn: (prompt: string) => Promise<{ durationMs: number; error?: string }>;
@@ -28,18 +30,22 @@ export interface RunDeps {
   manual?: boolean;
 }
 
+/** Return today's date as an ISO date string (YYYY-MM-DD). */
 export function todayStr(now: () => number): string {
   return new Date(now()).toISOString().slice(0, 10);
 }
 
+/** Read the schedule config from the bot's filesystem. */
 export function getConfig(botDir: string): ScheduleConfig {
   return readScheduleConfig(botDir);
 }
 
+/** Persist the schedule config to the bot's filesystem. */
 export function saveConfig(botDir: string, config: ScheduleConfig): void {
   writeScheduleConfig(botDir, config);
 }
 
+/** Read schedule run state, resetting daily counters if the date has changed. */
 export function getState(botDir: string, scheduleId: string, now: () => number): ScheduleState {
   const existing = readScheduleState(botDir, scheduleId);
   const today = todayStr(now);
@@ -52,10 +58,15 @@ export function getState(botDir: string, scheduleId: string, now: () => number):
   return existing;
 }
 
+/** Persist schedule run state to the bot's filesystem. */
 export function saveState(botDir: string, scheduleId: string, state: ScheduleState): void {
   writeScheduleState(botDir, scheduleId, state);
 }
 
+/**
+ * Execute a single scheduled run: enforce budget/concurrency, call chatFn, record result.
+ * Auto-pauses the schedule after too many consecutive errors.
+ */
 export async function executeRun(entry: ScheduleEntry, deps: RunDeps): Promise<ScheduleRunResult> {
   const { botDir, chatFn, now, log, manual } = deps;
   const config = getConfig(botDir);

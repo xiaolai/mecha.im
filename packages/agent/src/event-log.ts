@@ -4,9 +4,12 @@ import { join } from "node:path";
 const EVENT_LOG_FILE = "events.jsonl";
 const FILE_MODE = 0o600;
 
+/** Severity level for system events. */
 export type EventSeverity = "info" | "warn" | "error";
+/** Category of system event source. */
 export type EventCategory = "auth" | "process" | "server";
 
+/** A persisted system event entry (auth, process lifecycle, server events). */
 export interface SystemEvent {
   ts: string;
   severity: EventSeverity;
@@ -16,12 +19,14 @@ export interface SystemEvent {
   meta?: Record<string, unknown>;
 }
 
+/** JSONL-backed append-only event log for system events. */
 export interface EventLog {
   append(entry: SystemEvent): void;
   read(opts?: { limit?: number }): SystemEvent[];
   clear(): void;
 }
 
+/** Create a file-backed event log stored as JSONL in the mecha directory. */
 export function createEventLog(mechaDir: string): EventLog {
   const filePath = join(mechaDir, EVENT_LOG_FILE);
 

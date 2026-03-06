@@ -1,3 +1,8 @@
+---
+title: Sessions & Chat
+description: Persistent conversation sessions stored as files on disk — resume, star, and manage agent threads.
+---
+
 # Sessions & Chat
 
 Every conversation with a Mecha agent is a **session** — a persistent thread of messages stored as files on disk.

@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import type { ProcessManager } from "@mecha/process";
 import { botScheduleList } from "@mecha/service";
 
+/** A schedule entry with its associated bot and node for the overview endpoint. */
 export interface ScheduleOverviewEntry {
   botName: string;
   node: string;
@@ -36,6 +37,7 @@ async function fetchWithLimit<T>(
   return results;
 }
 
+/** Register GET /bots/schedules/overview to aggregate schedules across all running bots. */
 export function registerScheduleOverviewRoutes(
   app: FastifyInstance,
   pm: ProcessManager,

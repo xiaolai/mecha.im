@@ -5,6 +5,7 @@ import { agentFetch } from "@mecha/service";
 
 const log = createLogger("mesh-routes");
 
+/** Options for mesh network route registration. */
 export interface MeshRouteOpts {
   mechaDir: string;
   nodeName: string;
@@ -108,6 +109,7 @@ async function checkNodesWithConcurrencyLimit(entries: NodeEntry[]): Promise<Nod
 }
 /* v8 ignore stop */
 
+/** Register GET /mesh/nodes to list local + remote node statuses with health checks. */
 export function registerMeshRoutes(app: FastifyInstance, opts: MeshRouteOpts): void {
   app.get("/mesh/nodes", async () => {
     // Local node: collect full system info (only running bots)

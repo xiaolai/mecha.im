@@ -1,3 +1,4 @@
+/** Rate limiter for login attempts with sliding window and lockout. */
 export interface LoginLimiter {
   check(): { allowed: boolean; retryAfterMs?: number };
   /** Record a failed attempt. Returns true if lockout was triggered. */
@@ -5,12 +6,14 @@ export interface LoginLimiter {
   reset(): void;
 }
 
+/** Configuration for the login rate limiter. */
 export interface LoginLimiterOpts {
   maxAttempts?: number;
   windowMs?: number;
   lockoutMs?: number;
 }
 
+/** Create a login rate limiter with configurable window, max attempts, and lockout duration. */
 export function createLoginLimiter(opts?: LoginLimiterOpts): LoginLimiter {
   const maxAttempts = opts?.maxAttempts ?? 5;
   const windowMs = opts?.windowMs ?? 30_000;

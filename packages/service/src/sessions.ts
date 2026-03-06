@@ -6,6 +6,7 @@ function sessionPath(sessionId: string): string {
   return `/api/sessions/${encodeURIComponent(sessionId)}`;
 }
 
+/** List all sessions for a running bot. */
 export async function botSessionList(
   pm: ProcessManager,
   name: BotName,
@@ -15,6 +16,7 @@ export async function botSessionList(
   return result.body as unknown[];
 }
 
+/** Get a single session by ID, or undefined if not found. */
 export async function botSessionGet(
   pm: ProcessManager,
   name: BotName,
@@ -26,6 +28,7 @@ export async function botSessionGet(
   return result.body;
 }
 
+/** Delete a session by ID. Returns true if deleted, false if not found. */
 export async function botSessionDelete(
   pm: ProcessManager,
   name: BotName,

@@ -88,6 +88,7 @@ function toPublicProfile(name: string, meta: Omit<AuthProfileMeta, "name">, defa
 
 // --- Public API ---
 
+/** Add an auth profile with positional arguments (convenience wrapper around mechaAuthAddFull). */
 export function mechaAuthAdd(
   mechaDir: string,
   name: string,
@@ -98,6 +99,7 @@ export function mechaAuthAdd(
   return mechaAuthAddFull(mechaDir, { name, type, token, tags });
 }
 
+/** Add an auth profile with full options. First profile becomes the default. */
 export function mechaAuthAddFull(mechaDir: string, opts: AuthAddOpts): AuthProfile {
   if (!isValidProfileName(opts.name)) {
     throw new InvalidNameError(opts.name);
@@ -144,6 +146,7 @@ export function mechaAuthAddFull(mechaDir: string, opts: AuthAddOpts): AuthProfi
   return toPublicProfile(opts.name, meta, store.default);
 }
 
+/** List all auth profiles, including synthetic entries for environment variable credentials. */
 export function mechaAuthLs(mechaDir: string): AuthProfile[] {
   const store = readAuthProfiles(mechaDir);
   const result = Object.entries(store.profiles).map(([name, meta]) =>
@@ -175,6 +178,7 @@ export function mechaAuthLs(mechaDir: string): AuthProfile[] {
   return result;
 }
 
+/** Set the default auth profile by name. */
 export function mechaAuthDefault(mechaDir: string, name: string): void {
   const store = readAuthProfiles(mechaDir);
   if (!store.profiles[name]) throw new AuthProfileNotFoundError(name);
@@ -182,6 +186,7 @@ export function mechaAuthDefault(mechaDir: string, name: string): void {
   writeProfiles(mechaDir, store);
 }
 
+/** Remove an auth profile and its credentials. Reassigns default if needed. */
 export function mechaAuthRm(mechaDir: string, name: string): void {
   const store = readAuthProfiles(mechaDir);
   const creds = readAuthCredentials(mechaDir);
@@ -210,6 +215,7 @@ export function mechaAuthRm(mechaDir: string, name: string): void {
   /* v8 ignore stop */
 }
 
+/** Replace the tags on an auth profile. */
 export function mechaAuthTag(mechaDir: string, name: string, tags: string[]): void {
   const store = readAuthProfiles(mechaDir);
   const meta = store.profiles[name];
@@ -219,6 +225,7 @@ export function mechaAuthTag(mechaDir: string, name: string, tags: string[]): vo
   writeProfiles(mechaDir, store);
 }
 
+/** Switch the default auth profile and return the newly active profile. */
 export function mechaAuthSwitch(mechaDir: string, name: string): AuthProfile {
   const store = readAuthProfiles(mechaDir);
   const meta = store.profiles[name];
@@ -228,6 +235,7 @@ export function mechaAuthSwitch(mechaDir: string, name: string): AuthProfile {
   return toPublicProfile(name, meta, store.default);
 }
 
+/** Test if an auth profile has a non-empty credential (local check only, no API call). */
 export function mechaAuthTest(mechaDir: string, name: string): { valid: boolean; profile: AuthProfile } {
   const store = readAuthProfiles(mechaDir);
   const meta = store.profiles[name];
@@ -239,6 +247,7 @@ export function mechaAuthTest(mechaDir: string, name: string): { valid: boolean;
   return { valid, profile: toPublicProfile(name, meta, store.default) };
 }
 
+/** Replace the credential token for an existing auth profile. */
 export function mechaAuthRenew(mechaDir: string, name: string, newToken: string): AuthProfile {
   const store = readAuthProfiles(mechaDir);
   const meta = store.profiles[name];
@@ -251,6 +260,7 @@ export function mechaAuthRenew(mechaDir: string, name: string, newToken: string)
   return toPublicProfile(name, meta, store.default);
 }
 
+/** Get a single auth profile by name, or undefined if not found. */
 export function mechaAuthGet(mechaDir: string, name: string): AuthProfile | undefined {
   const store = readAuthProfiles(mechaDir);
   const meta = store.profiles[name];
@@ -258,6 +268,7 @@ export function mechaAuthGet(mechaDir: string, name: string): AuthProfile | unde
   return toPublicProfile(name, meta, store.default);
 }
 
+/** Get the current default auth profile, or undefined if none is set. */
 export function mechaAuthGetDefault(mechaDir: string): AuthProfile | undefined {
   const store = readAuthProfiles(mechaDir);
   if (!store.default) return undefined;
@@ -268,6 +279,7 @@ export function mechaAuthGetDefault(mechaDir: string): AuthProfile | undefined {
   return toPublicProfile(store.default, meta, store.default);
 }
 
+/** Assign an auth profile (stored or $env: sentinel) to a specific bot. */
 export function mechaAuthSwitchBot(
   mechaDir: string,
   pm: ProcessManager,

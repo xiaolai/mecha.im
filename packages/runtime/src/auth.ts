@@ -1,6 +1,7 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
 import { safeCompare } from "@mecha/core";
 
+/** Create a Fastify onRequest hook that validates Bearer token auth (skips /healthz). */
 export function createAuthHook(token: string) {
   return async function authHook(
     request: FastifyRequest,

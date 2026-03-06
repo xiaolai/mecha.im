@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 
+/** Register POST /api/chat stub route (returns 501 — chat is handled by Agent SDK). */
 export function registerChatRoutes(
   app: FastifyInstance,
 ): void {

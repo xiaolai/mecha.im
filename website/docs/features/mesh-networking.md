@@ -1,3 +1,8 @@
+---
+title: Mesh Networking
+description: Connect Mecha agents across machines via P2P invite-based channels or direct HTTP connections.
+---
+
 # Mesh Networking
 
 Mecha agents can communicate across machines through the mesh. Nodes connect via two modes: **P2P** (invite-based, encrypted channels) and **HTTP** (direct agent server connections).

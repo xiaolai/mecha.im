@@ -1,3 +1,8 @@
+---
+title: Architecture
+description: Technical overview of Mecha's internal architecture — packages, process model, and API routes.
+---
+
 # Architecture
 
 Technical overview of Mecha's internal architecture.

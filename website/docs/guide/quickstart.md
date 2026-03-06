@@ -1,3 +1,8 @@
+---
+title: Quick Start
+description: Create your first Mecha agent in 5 minutes.
+---
+
 # Quick Start
 
 Create your first Mecha agent in 5 minutes.

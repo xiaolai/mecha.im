@@ -18,6 +18,7 @@ interface McpToolDef {
   inputSchema: Record<string, unknown>;
 }
 
+/** MCP tool definitions for inter-bot mesh communication (query + discover). */
 export const MESH_TOOLS: McpToolDef[] = [
   {
     name: "mesh_query",
@@ -55,6 +56,7 @@ export interface MeshRouter {
   ): Promise<ForwardResult>;
 }
 
+/** Runtime context for mesh tool execution. */
 export interface MeshOpts {
   mechaDir: string;
   botName: string;
@@ -105,6 +107,7 @@ async function discoverBots(
   return results;
 }
 
+/** Dispatch a mesh tool call (mesh_query or mesh_discover) and return the MCP result. */
 export async function handleMeshTool(
   opts: MeshOpts,
   name: string,

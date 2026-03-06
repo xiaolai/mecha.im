@@ -1,3 +1,8 @@
+---
+title: Multi-Agent Management
+description: Organize and operate a fleet of specialized agents with tags, discovery, and group addressing.
+---
+
 # Multi-Agent Management
 
 Mecha is designed for running many agents simultaneously. Tags, discovery, and group addressing let you organize and operate a fleet of specialized agents.

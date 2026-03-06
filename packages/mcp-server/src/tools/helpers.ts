@@ -2,14 +2,17 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { MeshMcpContext, ToolName } from "../types.js";
 import { TOOL_ANNOTATIONS } from "../types.js";
 
+/** Wrap a text string as a successful MCP tool result. */
 export function textResult(text: string): CallToolResult {
   return { content: [{ type: "text", text }] };
 }
 
+/** Wrap an error message as a failed MCP tool result. */
 export function errorResult(message: string): CallToolResult {
   return { content: [{ type: "text", text: message }], isError: true };
 }
 
+/** Wrap a tool handler with rate limiting and audit logging. */
 export function withAuditAndRateLimit(
   ctx: MeshMcpContext,
   toolName: ToolName,
@@ -72,6 +75,7 @@ function extractText(result: CallToolResult): string | undefined {
 }
 /* v8 ignore stop */
 
+/** Look up the MCP annotations (readOnlyHint, destructiveHint) for a tool. */
 export function annotationsFor(toolName: ToolName) {
   return TOOL_ANNOTATIONS[toolName];
 }

@@ -13,6 +13,15 @@ import { runHttp } from "./http-transport.js";
 const VALID_MODES = ["read-only", "query"] as const;
 const VALID_TRANSPORTS = ["stdio", "http"] as const;
 
+/**
+ * MCP server entry point — validates options, assembles dependencies, and starts the selected transport.
+ *
+ * @param opts.mode - Access mode: "read-only" or "query" (default: "query")
+ * @param opts.transport - Transport type: "stdio" or "http" (default: "stdio")
+ * @param opts.port - HTTP listen port (default: 7680, ignored for stdio)
+ * @param opts.host - HTTP bind address (default: "127.0.0.1")
+ * @param opts.token - Bearer token for HTTP auth (required for non-loopback hosts)
+ */
 export async function main(opts: {
   mode?: string;
   transport?: "stdio" | "http";
