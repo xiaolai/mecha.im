@@ -150,8 +150,10 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
       reply.code(403).send({ error: "HTTPS required" });
       return;
     }
-    // Use opts.port as authority to prevent open redirect via Host header injection
-    const host = request.headers.host ?? `localhost:${opts.port}`;
+    // Prevent open redirect: only use Host header if it looks like a valid host:port,
+    // otherwise fall back to localhost. Reject headers with path separators or protocols.
+    const rawHost = request.headers.host;
+    const host = rawHost && /^[\w.:-]+$/.test(rawHost) ? rawHost : `localhost:${opts.port}`;
     reply.code(301).redirect(`https://${host}${request.url}`);
   });
   /* v8 ignore stop */

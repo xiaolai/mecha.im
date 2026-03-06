@@ -10,7 +10,7 @@ vi.mock("node:os", async (importOriginal) => {
   };
 });
 
-import { getNetworkIps, collectNodeInfo, formatUptime, fetchPublicIp } from "../src/node-info.js";
+import { getNetworkIps, collectNodeInfo, formatUptime, wsToHttp, fetchPublicIp } from "../src/node-info.js";
 import { networkInterfaces } from "node:os";
 
 const mockNetworkInterfaces = networkInterfaces as ReturnType<typeof vi.fn>;
@@ -164,6 +164,20 @@ describe("formatUptime", () => {
 
   it("formats exactly one day", () => {
     expect(formatUptime(86400)).toBe("1d 0h");
+  });
+});
+
+describe("wsToHttp", () => {
+  it("converts ws:// to http://", () => {
+    expect(wsToHttp("ws://localhost:7681")).toBe("http://localhost:7681");
+  });
+
+  it("converts wss:// to https://", () => {
+    expect(wsToHttp("wss://rendezvous.mecha.im")).toBe("https://rendezvous.mecha.im");
+  });
+
+  it("leaves http:// URLs unchanged", () => {
+    expect(wsToHttp("http://example.com")).toBe("http://example.com");
   });
 });
 

@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { getMeterStatus, meterDir } from "@mecha/meter";
+import { formatUptime } from "@mecha/core";
 import { withErrorHandler } from "../error-handler.js";
 
 export function registerMeterStatusCommand(parent: Command, deps: CommandDeps): void {
@@ -27,7 +28,7 @@ export function registerMeterStatusCommand(parent: Command, deps: CommandDeps): 
         if (status.startedAt) {
           const started = new Date(status.startedAt);
           const uptimeMs = Date.now() - started.getTime();
-          deps.formatter.info(`  Uptime:  ${formatUptime(uptimeMs)}`);
+          deps.formatter.info(`  Uptime:  ${formatUptime(Math.floor(uptimeMs / 1000))}`);
         }
         if (status.required) {
           deps.formatter.info("  Mode:    required (fail-closed)");
@@ -36,14 +37,3 @@ export function registerMeterStatusCommand(parent: Command, deps: CommandDeps): 
     );
 }
 
-function formatUptime(ms: number): string {
-  const seconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
-
-  if (days > 0) return `${days}d ${hours % 24}h`;
-  if (hours > 0) return `${hours}h ${minutes % 60}m`;
-  if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
-  return `${seconds}s`;
-}

@@ -1,20 +1,16 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { FastifyInstance } from "fastify";
-import { DEFAULTS, readNodes, readDiscoveredNodes, readTotpSecret, readMechaSettings, writeMechaSettings, AuthProfileAlreadyExistsError, AuthProfileNotFoundError } from "@mecha/core";
+import { DEFAULTS, readNodes, readDiscoveredNodes, readTotpSecret, readMechaSettings, writeMechaSettings, isValidProfileName as _isValidProfileName, AuthProfileAlreadyExistsError, AuthProfileNotFoundError } from "@mecha/core";
+
+/** Type-narrowing wrapper: validates unknown input is a valid profile name string. */
+function isValidProfileName(name: unknown): name is string {
+  return typeof name === "string" && _isValidProfileName(name);
+}
 import { mechaAuthLs, mechaAuthDefault, mechaAuthRm, mechaAuthAddFull, mechaAuthRenew, mechaAuthProbe } from "@mecha/service";
 
 export interface SettingsRouteOpts {
   mechaDir: string;
-}
-
-const RESERVED_NAMES = new Set(["__proto__", "constructor", "prototype", "toString", "valueOf", "hasOwnProperty"]);
-
-/** Profile names must be non-empty alphanumeric/dash/underscore strings, not reserved keys. */
-function isValidProfileName(name: unknown): name is string {
-  return typeof name === "string" && name.length > 0 && name.length <= 64
-    && /^[\w][\w\-.]*$/.test(name)
-    && !RESERVED_NAMES.has(name);
 }
 
 /** Detect TOTP source by checking file existence before env fallback. */

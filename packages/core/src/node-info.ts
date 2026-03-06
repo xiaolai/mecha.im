@@ -84,6 +84,11 @@ export function collectNodeInfo(opts: {
   };
 }
 
+/** Convert ws:// or wss:// URL to http:// or https:// for REST calls. */
+export function wsToHttp(url: string): string {
+  return url.replace(/^wss:\/\//, "https://").replace(/^ws:\/\//, "http://");
+}
+
 export function formatUptime(seconds: number): string {
   const d = Math.floor(seconds / 86400);
   const h = Math.floor((seconds % 86400) / 3600);

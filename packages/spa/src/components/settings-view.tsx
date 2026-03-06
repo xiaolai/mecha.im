@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { useFetch } from "@/lib/use-fetch";
 import { useAuth } from "@/auth-context";
 import { AuthProfilesSection } from "@/components/auth-profiles-section";
+import { formatUptime } from "@/lib/format";
 
 interface NodeInfo {
   node: string;
@@ -51,15 +52,6 @@ interface TotpStatus {
   source: "file" | "env" | null;
 }
 
-function formatUptime(s: number): string {
-  const clamped = Math.max(0, Math.floor(s));
-  const d = Math.floor(clamped / 86400);
-  const h = Math.floor((clamped % 86400) / 3600);
-  const m = Math.floor((clamped % 3600) / 60);
-  if (d > 0) return `${d}d ${h}h`;
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
-}
 
 function formatMemory(mb: number): string {
   if (mb >= 1024) return `${(mb / 1024).toFixed(1)} GB`;

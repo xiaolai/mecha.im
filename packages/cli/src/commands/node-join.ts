@@ -1,14 +1,10 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { withErrorHandler } from "../error-handler.js";
-import { loadNodeIdentity, IdentityNotFoundError, addNode, getNode, DuplicateNodeError, createNoiseKeys } from "@mecha/core";
+import { loadNodeIdentity, IdentityNotFoundError, addNode, getNode, DuplicateNodeError, createNoiseKeys, wsToHttp } from "@mecha/core";
 import { readNodeName } from "@mecha/service";
 import { parseInviteCode } from "@mecha/connect";
 
-/** Convert ws:// URL to http:// for REST calls. */
-function wsToHttp(url: string): string {
-  return url.replace(/^wss:\/\//, "https://").replace(/^ws:\/\//, "http://");
-}
 
 export function registerNodeJoinCommand(parent: Command, deps: CommandDeps): void {
   parent
