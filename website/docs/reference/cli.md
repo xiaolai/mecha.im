@@ -13,6 +13,8 @@ These flags work with any command:
 
 | Option | Description |
 |--------|-------------|
+| `-V, --version` | Print the CLI version and exit |
+| `-h, --help` | Display help for a command |
 | `--json` | Output JSON instead of human-readable format |
 | `--quiet` | Minimal output (errors only) |
 | `--verbose` | Detailed output |

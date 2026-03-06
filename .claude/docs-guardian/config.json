@@ -1,132 +1,35 @@
 {
   "language": "typescript",
   "framework": "vitepress",
-  "docRoot": "website/docs",
-  "sourceRoots": [
-    "packages/agent/src",
-    "packages/cli/src",
-    "packages/connect/src",
-    "packages/core/src",
-    "packages/mcp-server/src",
-    "packages/meter/src",
-    "packages/process/src",
-    "packages/runtime/src",
-    "packages/sandbox/src",
-    "packages/server/src",
-    "packages/service/src",
-    "packages/spa/src"
-  ],
-  "hookStrictness": "warn",
+  "docRoot": "website/docs/",
+  "strictness": "warn",
   "stalenessThresholdDays": 30,
   "excludePatterns": [
-    "**/node_modules/**",
-    "**/dist/**",
+    "node_modules/**",
+    "dist/**",
+    "**/fixtures/**",
     "**/__tests__/**",
-    "**/test/**",
     "**/*.test.ts",
     "**/*.spec.ts",
     "v1/**"
   ],
   "mappings": [
-    {
-      "source": "packages/cli/src/commands/**",
-      "doc": "website/docs/reference/cli.md",
-      "description": "CLI command implementations"
-    },
-    {
-      "source": "packages/agent/src/**",
-      "doc": "website/docs/reference/architecture.md",
-      "description": "Agent server and routes"
-    },
-    {
-      "source": "packages/runtime/src/**",
-      "doc": "website/docs/reference/architecture.md",
-      "description": "Runtime server and routes"
-    },
-    {
-      "source": "packages/core/src/acl/**",
-      "doc": "website/docs/features/permissions.md",
-      "description": "ACL engine and types"
-    },
-    {
-      "source": "packages/sandbox/src/**",
-      "doc": "website/docs/features/sandbox.md",
-      "description": "Sandbox profiles and platforms"
-    },
-    {
-      "source": "packages/meter/src/**",
-      "doc": "website/docs/features/metering.md",
-      "description": "Metering, budgets, and pricing"
-    },
-    {
-      "source": "packages/connect/src/**",
-      "doc": "website/docs/features/mesh-networking.md",
-      "description": "Mesh networking and connectivity"
-    },
-    {
-      "source": "packages/server/src/**",
-      "doc": "website/docs/features/mesh-networking.md",
-      "description": "Rendezvous server and relay"
-    },
-    {
-      "source": "packages/core/src/schedule.ts",
-      "doc": "website/docs/features/scheduling.md",
-      "description": "Schedule schemas"
-    },
-    {
-      "source": "packages/cli/src/commands/schedule*.ts",
-      "doc": "website/docs/features/scheduling.md",
-      "description": "Schedule CLI commands"
-    },
-    {
-      "source": "packages/runtime/src/scheduler.ts",
-      "doc": "website/docs/features/scheduling.md",
-      "description": "Scheduler runtime"
-    },
-    {
-      "source": "packages/mcp-server/src/**",
-      "doc": "website/docs/features/mcp-server.md",
-      "description": "MCP server implementation"
-    },
-    {
-      "source": "packages/runtime/src/session-manager.ts",
-      "doc": "website/docs/features/sessions.md",
-      "description": "Session management"
-    },
-    {
-      "source": "packages/agent/src/routes/sessions.ts",
-      "doc": "website/docs/features/sessions.md",
-      "description": "Session API routes"
-    },
-    {
-      "source": "packages/core/src/types.ts",
-      "doc": "website/docs/guide/concepts.md",
-      "description": "Core type definitions and concepts"
-    },
-    {
-      "source": "packages/core/src/schemas.ts",
-      "doc": "website/docs/guide/configuration.md",
-      "description": "Configuration schemas"
-    },
-    {
-      "source": "packages/runtime/src/env.ts",
-      "doc": "website/docs/reference/environment.md",
-      "description": "Environment variable definitions"
-    },
-    {
-      "source": "packages/agent/src/routes/bots.ts",
-      "doc": "website/docs/features/multi-agent.md",
-      "description": "Bot management routes"
-    },
-    {
-      "source": "packages/process/src/**",
-      "doc": "website/docs/reference/architecture.md",
-      "description": "Process management"
-    },
-    {
-      "source": "packages/spa/src/**",
-      "doc": "website/docs/features/dashboard.md",
-      "description": "Dashboard SPA"
-    }
+    { "source": "packages/cli/src/commands/*.ts", "doc": "website/docs/reference/cli.md" },
+    { "source": "packages/agent/src/routes/*.ts", "doc": "website/docs/reference/architecture.md" },
+    { "source": "packages/core/src/acl/**/*.ts", "doc": "website/docs/features/permissions.md" },
+    { "source": "packages/sandbox/src/**/*.ts", "doc": "website/docs/features/sandbox.md" },
+    { "source": "packages/meter/src/**/*.ts", "doc": "website/docs/features/metering.md" },
+    { "source": "packages/connect/src/**/*.ts", "doc": "website/docs/features/mesh-networking.md" },
+    { "source": "packages/service/src/schedule*.ts", "doc": "website/docs/features/scheduling.md" },
+    { "source": "packages/core/src/mecha-settings.ts", "doc": "website/docs/guide/configuration.md" },
+    { "source": "packages/core/src/auth-config.ts", "doc": "website/docs/guide/configuration.md" },
+    { "source": "packages/core/src/plugin-registry.ts", "doc": "website/docs/guide/configuration.md" },
+    { "source": "packages/core/src/constants.ts", "doc": "website/docs/reference/environment.md" },
+    { "source": "packages/core/src/discover*.ts", "doc": "website/docs/advanced/multi-machine.md" },
+    { "source": "packages/agent/src/auth.ts", "doc": "website/docs/guide/configuration.md" },
+    { "source": "packages/process/src/**/*.ts", "doc": "website/docs/reference/architecture.md" },
+    { "source": "packages/service/src/**/*.ts", "doc": "website/docs/reference/architecture.md" },
+    { "source": "packages/runtime/src/**/*.ts", "doc": "website/docs/reference/architecture.md" },
+    { "source": "packages/spa/src/**/*.tsx", "doc": "website/docs/guide/dashboard.md" }
   ]
 }

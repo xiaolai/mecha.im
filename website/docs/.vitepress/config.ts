@@ -65,6 +65,7 @@ export default withMermaid(
                 link: "/reference/environment",
               },
               { text: "Architecture", link: "/reference/architecture" },
+              { text: "Error Reference", link: "/reference/errors" },
             ],
           },
         ],
