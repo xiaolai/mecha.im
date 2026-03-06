@@ -1,6 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
-import { writeDiscoveredNode, type DiscoveredNode } from "@mecha/core";
-import { timingSafeEqual } from "node:crypto";
+import { writeDiscoveredNode, safeCompare, type DiscoveredNode } from "@mecha/core";
 
 export interface HandshakeRouteOpts {
   clusterKey: string;
@@ -28,12 +27,6 @@ function isValidBody(body: unknown): body is HandshakeBody {
     && typeof b.port === "number" && Number.isInteger(b.port) && b.port >= 1 && b.port <= 65535;
 }
 
-function safeEqual(a: string, b: string): boolean {
-  const bufA = Buffer.from(a);
-  const bufB = Buffer.from(b);
-  if (bufA.length !== bufB.length) return false;
-  return timingSafeEqual(bufA, bufB);
-}
 
 export function registerHandshakeRoute(app: FastifyInstance, opts: HandshakeRouteOpts): void {
   app.post(
@@ -44,7 +37,7 @@ export function registerHandshakeRoute(app: FastifyInstance, opts: HandshakeRout
       }
       const body = request.body;
 
-      if (!safeEqual(body.clusterKey, opts.clusterKey)) {
+      if (!safeCompare(body.clusterKey, opts.clusterKey)) {
         return reply.code(403).send({ error: "Forbidden" });
       }
 

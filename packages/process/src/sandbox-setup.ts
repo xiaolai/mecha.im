@@ -269,7 +269,7 @@ export function prepareBotFilesystem(opts: BotFilesystemOpts): BotFilesystemResu
       ],
     },
   };
-  writeFileSync(join(claudeDir, "settings.json"), JSON.stringify(settings, null, 2) + "\n");
+  writeFileSync(join(claudeDir, "settings.json"), JSON.stringify(settings, null, 2) + "\n", { mode: 0o600 });
 
   // Write hook scripts — hooks receive JSON on stdin per Claude Code PreToolUse spec
   // Use Node.js one-liner for JSON parsing (no jq dependency, no grep/sed injection risk)
