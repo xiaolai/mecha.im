@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { collectNodeInfo } from "@mecha/core";
+import { mechaDoctor } from "@mecha/service";
 import type { ProcessManager } from "@mecha/process";
 
 /** Options for health check route registration. */
@@ -9,15 +10,21 @@ export interface HealthRouteOpts {
   processManager: ProcessManager;
   startedAt: string;
   publicIp?: string;
+  mechaDir?: string;
 }
 
-/** Register GET /healthz (public) and GET /node/info (authenticated system telemetry). */
+/** Register GET /healthz (public), GET /doctor, and GET /node/info (authenticated system telemetry). */
 export function registerHealthRoutes(app: FastifyInstance, opts: HealthRouteOpts): void {
   // Public endpoint — minimal response only
   app.get("/healthz", async () => ({
     status: "ok",
     node: opts.nodeName,
   }));
+
+  // System diagnostics — runs mechaDoctor checks
+  app.get("/doctor", async () => {
+    return mechaDoctor(opts.mechaDir ?? "");
+  });
 
   // Authenticated endpoint — full system telemetry
   app.get("/node/info", async () => {

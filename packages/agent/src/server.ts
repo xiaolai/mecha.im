@@ -26,6 +26,7 @@ import { registerScheduleRoutes } from "./routes/schedules.js";
 import { registerScheduleOverviewRoutes } from "./routes/schedule-overview.js";
 import { registerToolRoutes } from "./routes/tools.js";
 import { registerPluginRoutes } from "./routes/plugins.js";
+import { registerBudgetRoutes } from "./routes/budgets.js";
 import { registerAuthRoutes } from "./routes/auth.js";
 import { createEventLog, emitEvent, type EventLog } from "./event-log.js";
 import { createPtyManager } from "./pty-manager.js";
@@ -218,6 +219,7 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
     processManager: opts.processManager,
     startedAt: opts.startedAt,
     publicIp: opts.publicIp,
+    mechaDir: opts.mechaDir,
   });
   registerBotRoutes(app, opts.processManager, opts.mechaDir, opts.nodeName);
   registerRoutingRoutes(app, { mechaDir: opts.mechaDir, acl: opts.acl });
@@ -259,6 +261,7 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
   registerNodeRoutes(app, { mechaDir: opts.mechaDir });
   registerPluginRoutes(app, { mechaDir: opts.mechaDir });
   registerToolRoutes(app, { mechaDir: opts.mechaDir });
+  registerBudgetRoutes(app, { mechaDir: opts.mechaDir });
   registerEventsRoutes(app, { processManager: opts.processManager });
   registerEventLogRoutes(app, { eventLog });
 

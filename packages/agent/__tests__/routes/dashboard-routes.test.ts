@@ -281,6 +281,23 @@ describe("dashboard routes", () => {
       expect(res.statusCode).toBe(200);
       await app.close();
     });
+
+    it("returns meter daemon status", async () => {
+      mechaDir = mkdtempSync(join(tmpdir(), "agent-meter-"));
+      const meterDir = join(mechaDir, "meter");
+      mkdirSync(meterDir, { recursive: true });
+
+      const app = Fastify();
+      registerMeterRoutes(app, { mechaDir });
+      await app.ready();
+
+      const res = await app.inject({ method: "GET", url: "/meter/status" });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body).toHaveProperty("running");
+      expect(body.running).toBe(false);
+      await app.close();
+    });
   });
 
   describe("mesh routes", () => {
