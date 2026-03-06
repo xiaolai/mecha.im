@@ -72,7 +72,7 @@ When spawning a bot, credentials are resolved in this order:
 ## See Also
 
 - [Configuration Guide](/guide/configuration) — auth profiles and bot settings
-- [Multi-Machine Setup](/advanced/multi-machine) — environment setup across nodes
+- [Multi-Machine Setup](/guide/multi-machine) — environment setup across nodes
 - [Metering & Budgets](/features/metering) — cost tracking configuration
 - [Mesh Networking](/features/mesh-networking) — `MECHA_CLUSTER_KEY` usage
 - [Error Reference](/reference/errors) — complete error catalog

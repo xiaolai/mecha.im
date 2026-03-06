@@ -53,7 +53,7 @@ mecha start
   └── AclEngine (in-process)
 ```
 
-The agent server is created via `createAgentServer()` from `@mecha/agent`. When `spaDir` is configured, it serves the SPA static files and handles client-side routing fallback. See the [Architecture Reference](/reference/architecture#agent-server-api) for the full API specification.
+The agent server is created via `createAgentServer()` from `@mecha/agent`. When `spaDir` is configured, it serves the SPA static files and handles client-side routing fallback. See the [Architecture Reference](/reference/api/#createagentserveropts) for the full API specification.
 
 ## Pages
 
@@ -175,7 +175,7 @@ The dashboard subscribes to runtime events via SSE at `/events`. Events include 
 
 The dashboard SPA communicates with the agent server's HTTP API. All endpoints are served directly (no `/api/` prefix) and protected by TOTP session authentication.
 
-For the complete API specification including request/response formats, see the [Agent Server API](/reference/architecture#agent-server-api) in the Architecture Reference.
+For the complete API specification including request/response formats, see the [Agent Server API](/reference/api/#createagentserveropts) in the Architecture Reference.
 
 ### Key Endpoints Used by the Dashboard
 
@@ -226,7 +226,7 @@ WebSocket connections (terminal) use single-use tickets because browser WebSocke
 
 ### Mesh Authentication
 
-Inter-node routing requests use Bearer token auth plus Ed25519 signatures. See the [Architecture Reference](/reference/architecture#authentication-system) for details.
+Inter-node routing requests use Bearer token auth plus Ed25519 signatures. See the [Architecture Reference](/reference/api/#route-summary) for details.
 
 ### Error Sanitization
 
