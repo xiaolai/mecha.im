@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Trash2Icon, PlusIcon, Loader2Icon } from "lucide-react";
+import { Trash2Icon, PlusIcon, Loader2Icon, TerminalSquareIcon } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
@@ -11,6 +12,68 @@ interface ToolInfo {
   name: string;
   version: string;
   description: string;
+}
+
+interface ClaudeRuntimeInfo {
+  binPath: string | null;
+  version: string | null;
+  resolvedFrom: string;
+}
+
+const RESOLVED_LABELS: Record<string, string> = {
+  "local-bin": "~/.local/bin/claude",
+  "claude-local": "~/.claude/local/bin/claude",
+  "usr-local": "/usr/local/bin/claude",
+  "usr-bin": "/usr/bin/claude",
+  "path": "PATH lookup",
+  "not-found": "Not found",
+};
+
+function ClaudeRuntimeCard() {
+  const { data: runtime, loading, error } = useFetch<ClaudeRuntimeInfo>("/tools/runtime");
+
+  if (loading) return <Skeleton className="h-28 rounded-lg" />;
+  if (error) {
+    return (
+      <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+        Failed to load Claude runtime info
+      </div>
+    );
+  }
+
+  const found = runtime?.binPath != null;
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-4 flex flex-col gap-3">
+      <div className="flex items-center gap-2">
+        <TerminalSquareIcon className="size-4 text-muted-foreground" />
+        <h2 className="text-sm font-semibold text-card-foreground">Claude Code Runtime</h2>
+        <Badge variant={found ? "default" : "destructive"} className="ml-auto">
+          {found ? `v${runtime!.version ?? "unknown"}` : "Not found"}
+        </Badge>
+      </div>
+      {found ? (
+        <div className="flex flex-col gap-1 text-sm">
+          <div className="flex items-baseline justify-between gap-4">
+            <span className="text-muted-foreground">Binary</span>
+            <span className="font-mono text-card-foreground truncate text-right" title={runtime!.binPath!}>
+              {runtime!.binPath}
+            </span>
+          </div>
+          <div className="flex items-baseline justify-between gap-4">
+            <span className="text-muted-foreground">Resolved from</span>
+            <span className="text-card-foreground">
+              {RESOLVED_LABELS[runtime!.resolvedFrom] ?? runtime!.resolvedFrom}
+            </span>
+          </div>
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Claude Code is not installed. Install with: <code className="font-mono text-card-foreground">npm install -g @anthropic-ai/claude-code</code>
+        </p>
+      )}
+    </div>
+  );
 }
 
 export function ToolsView() {
@@ -89,6 +152,9 @@ export function ToolsView() {
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Claude Runtime Info */}
+      <ClaudeRuntimeCard />
+
       {/* Install form toggle */}
       {!showForm ? (
         <div>

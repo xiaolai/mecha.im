@@ -56,4 +56,17 @@ describe("tools commands", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]).toEqual(expect.arrayContaining(["tool-a"]));
   });
+
+  it("shows claude runtime info", async () => {
+    tempDir = mkdtempSync(join(tmpdir(), "mecha-cli-tools-"));
+    const deps = makeDeps({ mechaDir: tempDir });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "tools", "runtime"]);
+    // Either shows a table (claude found) or an error message (not found)
+    const tableCalled = (deps.formatter.table as ReturnType<typeof vi.fn>).mock.calls.length > 0;
+    const errorCalled = (deps.formatter.error as ReturnType<typeof vi.fn>).mock.calls.length > 0;
+    expect(tableCalled || errorCalled).toBe(true);
+  });
 });

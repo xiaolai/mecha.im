@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { mechaToolLs, mechaToolInstall, mechaToolRemove } from "@mecha/service";
+import { mechaToolLs, mechaToolInstall, mechaToolRemove, resolveClaudeRuntime } from "@mecha/service";
 
 export interface ToolRouteOpts {
   mechaDir: string;
@@ -10,6 +10,10 @@ export function registerToolRoutes(app: FastifyInstance, opts: ToolRouteOpts): v
 
   app.get("/tools", async () => {
     return mechaToolLs(mechaDir);
+  });
+
+  app.get("/tools/runtime", async () => {
+    return resolveClaudeRuntime();
   });
 
   app.post("/tools", async (request: FastifyRequest, reply: FastifyReply) => {
