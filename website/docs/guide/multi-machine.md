@@ -329,4 +329,4 @@ Only port 7660 needs to be accessible between machines.
 
 ## API Reference
 
-See [@mecha/core API Reference](/reference/api/core#discovery) for the discovery registry types and functions.
+See [@mecha/core API Reference](/reference/api/core#discovery-types) for the discovery registry types and functions.
