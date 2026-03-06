@@ -42,7 +42,7 @@ export function registerToolsCommand(program: Command, deps: CommandDeps): void 
     .command("runtime")
     .description("Show Claude Code runtime binary info")
     .action(async () => withErrorHandler(deps, async () => {
-      const info = resolveClaudeRuntime();
+      const info = await resolveClaudeRuntime();
       if (!info.binPath) {
         deps.formatter.error("Claude Code binary not found");
         deps.formatter.info("Install: npm install -g @anthropic-ai/claude-code");
