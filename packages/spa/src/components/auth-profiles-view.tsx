@@ -52,6 +52,8 @@ export function AuthProfilesView() {
       setToken("");
       setShowForm(false);
       refetch();
+    } catch {
+      setCreateError("Connection error");
     } finally {
       setCreating(false);
     }
@@ -66,6 +68,10 @@ export function AuthProfilesView() {
         headers: authHeaders,
         credentials: "include",
       });
+      if (!res.ok) {
+        setTestResults((prev) => ({ ...prev, [profileName]: { valid: false, error: `HTTP ${res.status}` } }));
+        return;
+      }
       const body = await res.json();
       setTestResults((prev) => ({ ...prev, [profileName]: body }));
     } catch {
@@ -77,33 +83,41 @@ export function AuthProfilesView() {
 
   async function handleSetDefault(profileName: string) {
     setMutationError(null);
-    const res = await fetch("/settings/auth-profiles/default", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders },
-      credentials: "include",
-      body: JSON.stringify({ name: profileName }),
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({ error: "Request failed" }));
-      setMutationError(data.error ?? "Failed to set default profile");
-      return;
+    try {
+      const res = await fetch("/settings/auth-profiles/default", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders },
+        credentials: "include",
+        body: JSON.stringify({ name: profileName }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: "Request failed" }));
+        setMutationError(data.error ?? "Failed to set default profile");
+        return;
+      }
+      refetch();
+    } catch {
+      setMutationError("Connection error");
     }
-    refetch();
   }
 
   async function handleDelete(profileName: string) {
     setMutationError(null);
-    const res = await fetch(`/settings/auth-profiles/${encodeURIComponent(profileName)}`, {
-      method: "DELETE",
-      headers: authHeaders,
-      credentials: "include",
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({ error: "Request failed" }));
-      setMutationError(data.error ?? "Failed to delete profile");
-      return;
+    try {
+      const res = await fetch(`/settings/auth-profiles/${encodeURIComponent(profileName)}`, {
+        method: "DELETE",
+        headers: authHeaders,
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: "Request failed" }));
+        setMutationError(data.error ?? "Failed to delete profile");
+        return;
+      }
+      refetch();
+    } catch {
+      setMutationError("Connection error");
     }
-    refetch();
   }
 
   if (loading && !profiles) {
@@ -149,7 +163,7 @@ export function AuthProfilesView() {
             </div>
             <div className="flex flex-col gap-1.5 flex-1">
               <label className="text-xs font-medium text-muted-foreground">Token</label>
-              <input type="password" value={token} onChange={(e) => setToken(e.target.value)} placeholder="sk-ant-..."
+              <input type="password" autoComplete="off" value={token} onChange={(e) => setToken(e.target.value)} placeholder="sk-ant-..."
                 className="h-11 sm:h-9 w-full rounded-md border border-input bg-background px-3 text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring" />
             </div>
           </div>

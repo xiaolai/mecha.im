@@ -267,6 +267,8 @@ function BotPathEditor({ bot, name, node, onSaved }: { bot: BotInfo; name: strin
         return;
       }
       onSaved();
+    } catch {
+      setError("Connection error");
     } finally {
       setBusy(false);
     }
@@ -344,6 +346,8 @@ function BotConfigEditor({ bot, name, node, onSaved }: { bot: BotInfo; name: str
         return;
       }
       onSaved();
+    } catch {
+      setError("Connection error");
     } finally {
       setBusy(false);
     }

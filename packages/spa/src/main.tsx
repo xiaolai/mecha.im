@@ -7,7 +7,9 @@ import { AuthProvider } from "@/auth-context";
 import { App } from "@/app";
 import "./globals.css";
 
-createRoot(document.getElementById("root")!).render(
+const root = document.getElementById("root");
+if (!root) throw new Error("Missing #root element");
+createRoot(root).render(
   <StrictMode>
     <BrowserRouter>
       <ThemeProvider attribute="class" defaultTheme="light" forcedTheme="light">

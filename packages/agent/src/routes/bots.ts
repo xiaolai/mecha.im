@@ -41,6 +41,28 @@ function listProjection(info: EnrichedBotInfo) {
   return { ...rest, workspacePath: basename(info.workspacePath) };
 }
 
+/**
+ * Proxy a request to a remote node if ?node= targets a different node.
+ * Returns true if the request was proxied (caller should return early).
+ */
+/* v8 ignore start -- proxy requires live remote node */
+async function proxyToNode(
+  mechaDir: string, localNode: string, targetNode: string | undefined,
+  path: string, method: string, reply: FastifyReply, body?: unknown,
+): Promise<boolean> {
+  if (!targetNode || targetNode === localNode || targetNode === "local") return false;
+  const entry = resolveNodeEntry(mechaDir, targetNode);
+  if (!entry) { reply.code(404).send({ error: `Node not found: ${targetNode}` }); return true; }
+  try {
+    const res = await agentFetch({ node: entry, path, method, source: localNode, timeoutMs: 10_000, body });
+    if (!res.ok) { reply.code(502).send({ error: `Remote node "${targetNode}" returned ${res.status}` }); return true; }
+    const data = await res.json();
+    reply.send(data);
+    return true;
+  } catch { reply.code(502).send({ error: `Cannot reach node "${targetNode}"` }); return true; }
+}
+/* v8 ignore stop */
+
 /** Register bot CRUD routes: list, create, start, stop, kill, restart, and config patch. */
 export function registerBotRoutes(app: FastifyInstance, pm: ProcessManager, mechaDir: string, nodeName?: string): void {
   const meterDir = join(mechaDir, "meter");
@@ -53,24 +75,7 @@ export function registerBotRoutes(app: FastifyInstance, pm: ProcessManager, mech
 
     // Proxy to remote node if ?node= is set and doesn't match local
     /* v8 ignore start -- proxy requires live remote node */
-    if (targetNode && targetNode !== node && targetNode !== "local") {
-      const entry = resolveNodeEntry(mechaDir, targetNode);
-      if (!entry) {
-        reply.code(404).send({ error: `Node not found: ${targetNode}` });
-        return;
-      }
-      try {
-        const res = await agentFetch({ node: entry, path: "/bots", method: "GET", source: node, timeoutMs: 5_000 });
-        if (!res.ok) {
-          reply.code(502).send({ error: `Remote node "${targetNode}" returned ${res.status}` });
-          return;
-        }
-        return res.json();
-      } catch {
-        reply.code(502).send({ error: `Cannot reach node "${targetNode}"` });
-        return;
-      }
-    }
+    if (await proxyToNode(mechaDir, node, targetNode, "/bots", "GET", reply)) return;
     /* v8 ignore stop */
 
     const list = pm.list();
@@ -102,7 +107,10 @@ export function registerBotRoutes(app: FastifyInstance, pm: ProcessManager, mech
     return result;
   });
 
-  app.get("/bots/:name/status", async (request: FastifyRequest<{ Params: { name: string } }>, reply: FastifyReply) => {
+  app.get("/bots/:name/status", async (request: FastifyRequest<{ Params: { name: string }; Querystring: { node?: string } }>, reply: FastifyReply) => {
+    /* v8 ignore start -- proxy requires live remote node */
+    if (await proxyToNode(mechaDir, node, request.query.node, `/bots/${encodeURIComponent(request.params.name)}/status`, "GET", reply)) return;
+    /* v8 ignore stop */
     const botName = validateName(request.params.name, reply);
     if (!botName) return;
     const info = pm.get(botName);
@@ -116,7 +124,10 @@ export function registerBotRoutes(app: FastifyInstance, pm: ProcessManager, mech
   });
 
   // --- Start a stopped bot from its persisted config ---
-  app.post("/bots/:name/start", async (request: FastifyRequest<{ Params: { name: string } }>, reply: FastifyReply) => {
+  app.post("/bots/:name/start", async (request: FastifyRequest<{ Params: { name: string }; Querystring: { node?: string } }>, reply: FastifyReply) => {
+    /* v8 ignore start -- proxy requires live remote node */
+    if (await proxyToNode(mechaDir, node, request.query.node, `/bots/${encodeURIComponent(request.params.name)}/start`, "POST", reply)) return;
+    /* v8 ignore stop */
     const botName = validateName(request.params.name, reply);
     if (!botName) return;
     const config = readBotConfig(join(mechaDir, botName));
@@ -135,9 +146,12 @@ export function registerBotRoutes(app: FastifyInstance, pm: ProcessManager, mech
 
   // --- Restart: stop (with task check) + re-spawn ---
   app.post("/bots/:name/restart", async (
-    request: FastifyRequest<{ Params: { name: string }; Body: ForceBody }>,
+    request: FastifyRequest<{ Params: { name: string }; Body: ForceBody; Querystring: { node?: string } }>,
     reply: FastifyReply,
   ) => {
+    /* v8 ignore start -- proxy requires live remote node */
+    if (await proxyToNode(mechaDir, node, request.query.node, `/bots/${encodeURIComponent(request.params.name)}/restart`, "POST", reply, request.body)) return;
+    /* v8 ignore stop */
     const botName = validateName(request.params.name, reply);
     if (!botName) return;
     const config = readBotConfig(join(mechaDir, botName));
@@ -174,9 +188,12 @@ export function registerBotRoutes(app: FastifyInstance, pm: ProcessManager, mech
 
   // --- Stop with task safety check ---
   app.post("/bots/:name/stop", async (
-    request: FastifyRequest<{ Params: { name: string }; Body: ForceBody }>,
+    request: FastifyRequest<{ Params: { name: string }; Body: ForceBody; Querystring: { node?: string } }>,
     reply: FastifyReply,
   ) => {
+    /* v8 ignore start -- proxy requires live remote node */
+    if (await proxyToNode(mechaDir, node, request.query.node, `/bots/${encodeURIComponent(request.params.name)}/stop`, "POST", reply, request.body)) return;
+    /* v8 ignore stop */
     const botName = validateName(request.params.name, reply);
     if (!botName) return;
     const info = pm.get(botName);
@@ -206,7 +223,10 @@ export function registerBotRoutes(app: FastifyInstance, pm: ProcessManager, mech
     return { ok: true };
   });
 
-  app.post("/bots/:name/kill", async (request: FastifyRequest<{ Params: { name: string } }>, reply: FastifyReply) => {
+  app.post("/bots/:name/kill", async (request: FastifyRequest<{ Params: { name: string }; Querystring: { node?: string } }>, reply: FastifyReply) => {
+    /* v8 ignore start -- proxy requires live remote node */
+    if (await proxyToNode(mechaDir, node, request.query.node, `/bots/${encodeURIComponent(request.params.name)}/kill`, "POST", reply)) return;
+    /* v8 ignore stop */
     const botName = validateName(request.params.name, reply);
     if (!botName) return;
     const info = pm.get(botName);
@@ -405,9 +425,12 @@ export function registerBotRoutes(app: FastifyInstance, pm: ProcessManager, mech
   }
 
   app.patch("/bots/:name/config", async (
-    request: FastifyRequest<{ Params: { name: string }; Body: ConfigPatchBody }>,
+    request: FastifyRequest<{ Params: { name: string }; Body: ConfigPatchBody; Querystring: { node?: string } }>,
     reply: FastifyReply,
   ) => {
+    /* v8 ignore start -- proxy requires live remote node */
+    if (await proxyToNode(mechaDir, node, request.query.node, `/bots/${encodeURIComponent(request.params.name)}/config`, "PATCH", reply, request.body)) return;
+    /* v8 ignore stop */
     const botName = validateName(request.params.name, reply);
     if (!botName) return;
     const info = pm.get(botName);

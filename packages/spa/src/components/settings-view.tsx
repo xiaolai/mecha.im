@@ -101,7 +101,7 @@ export function SettingsView() {
   const { data: info, loading: infoLoading } = useFetch<NodeInfo>("/node/info", { interval: 30_000 });
   const { data: runtime, loading: runtimeLoading, error: runtimeError } = useFetch<RuntimeConfig>("/settings/runtime");
   const { data: totp, loading: totpLoading, error: totpError } = useFetch<TotpStatus>("/settings/totp");
-  const { data: network, loading: networkLoading, refetch: refetchNetwork } = useFetch<NetworkSettings>("/settings/network");
+  const { data: network, loading: networkLoading, error: networkFetchError, refetch: refetchNetwork } = useFetch<NetworkSettings>("/settings/network");
   const { data: meter, loading: meterLoading } = useFetch<MeterStatus>("/meter/status", { interval: 30_000 });
   const [httpsToggling, setHttpsToggling] = useState(false);
   const [networkError, setNetworkError] = useState<string | null>(null);
@@ -123,6 +123,8 @@ export function SettingsView() {
         return;
       }
       refetchNetwork();
+    } catch {
+      setNetworkError("Connection error");
     } finally {
       setHttpsToggling(false);
     }
@@ -226,7 +228,7 @@ export function SettingsView() {
       {/* Network */}
       <Card>
         <SectionHeader icon={NetworkIcon} title="Network" />
-        {runtimeError ? (
+        {networkFetchError ? (
           <p className="text-sm text-destructive">Unable to load network config.</p>
         ) : (
           <div className="flex flex-col gap-2 text-sm">

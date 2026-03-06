@@ -87,6 +87,8 @@ export function AuthProfilesSection() {
         return;
       }
       await refetch();
+    } catch {
+      setMutError("Connection error");
     } finally {
       setBusy(null);
     }
@@ -108,6 +110,8 @@ export function AuthProfilesSection() {
       }
       setConfirmDelete(null);
       await refetch();
+    } catch {
+      setMutError("Connection error");
     } finally {
       setBusy(null);
     }

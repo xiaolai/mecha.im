@@ -44,6 +44,8 @@ export function AclView() {
       setSource("");
       setTarget("");
       refetch();
+    } catch {
+      setMutationError("Connection error");
     } finally {
       setGranting(false);
     }
@@ -51,18 +53,22 @@ export function AclView() {
 
   async function handleRevoke(src: string, tgt: string, cap: string) {
     setMutationError(null);
-    const res = await fetch("/acl/revoke", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders },
-      credentials: "include",
-      body: JSON.stringify({ source: src, target: tgt, capability: cap }),
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({ error: "Request failed" }));
-      setMutationError(data.error ?? "Failed to revoke capability");
-      return;
+    try {
+      const res = await fetch("/acl/revoke", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders },
+        credentials: "include",
+        body: JSON.stringify({ source: src, target: tgt, capability: cap }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: "Request failed" }));
+        setMutationError(data.error ?? "Failed to revoke capability");
+        return;
+      }
+      refetch();
+    } catch {
+      setMutationError("Connection error");
     }
-    refetch();
   }
 
   if (loading && !rules) {

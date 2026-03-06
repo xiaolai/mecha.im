@@ -81,7 +81,7 @@ export function ScheduleList({ botName, node, botState }: ScheduleListProps) {
     return <Skeleton className="h-32 rounded-lg" />;
   }
 
-  if (error) {
+  if (error && !schedules) {
     return (
       <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
         {error}
@@ -93,6 +93,11 @@ export function ScheduleList({ botName, node, botState }: ScheduleListProps) {
 
   return (
     <div className="flex flex-col gap-3">
+      {error && schedules && (
+        <div className="rounded-lg border border-warning/50 bg-warning/10 p-3 text-sm text-warning">
+          Failed to refresh — showing last known state.
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-muted-foreground">
