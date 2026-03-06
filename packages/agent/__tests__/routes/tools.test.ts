@@ -86,4 +86,17 @@ describe("tool routes", () => {
     expect(res.statusCode).toBe(404);
     await app.close();
   });
+
+  it("GET /tools/runtime returns claude runtime info", async () => {
+    const app = Fastify();
+    registerToolRoutes(app, { mechaDir });
+    await app.ready();
+    const res = await app.inject({ method: "GET", url: "/tools/runtime" });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body).toHaveProperty("binPath");
+    expect(body).toHaveProperty("version");
+    expect(body).toHaveProperty("resolvedFrom");
+    await app.close();
+  });
 });
