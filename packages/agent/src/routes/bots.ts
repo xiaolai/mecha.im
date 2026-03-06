@@ -3,7 +3,7 @@ import { type BotName, type SandboxMode, isValidName, readBotConfig, readAuthPro
 import type { ProcessManager } from "@mecha/process";
 import { botConfigure, checkBotBusy, enrichBotInfo, buildEnrichContext, getCachedSnapshot, mechaAuthLs, batchBotAction, agentFetch } from "@mecha/service";
 import type { BotConfigUpdates, EnrichedBotInfo } from "@mecha/service";
-import { existsSync, statSync, rmSync, readFileSync } from "node:fs";
+import { existsSync, statSync, rmSync, readFileSync, readdirSync } from "node:fs";
 import { join, basename, resolve, isAbsolute } from "node:path";
 import { hostname as osHostname } from "node:os";
 import { resolveNodeEntry } from "../node-resolve.js";
@@ -318,6 +318,51 @@ export function registerBotRoutes(app: FastifyInstance, pm: ProcessManager, mech
     const content = readFileSync(logFile, "utf-8");
     const allLines = content.split("\n").filter(Boolean);
     return { lines: allLines.slice(-lines) };
+  });
+
+  // --- Sandbox profile: settings + hooks ---
+  app.get("/bots/:name/sandbox", async (
+    request: FastifyRequest<{ Params: { name: string } }>,
+    reply: FastifyReply,
+  ) => {
+    const validated = validateName(request.params.name, reply);
+    if (!validated) return;
+
+    const botDir = join(mechaDir, validated);
+    if (!existsSync(botDir)) {
+      reply.code(404).send({ error: `Bot not found: ${validated}` });
+      return;
+    }
+
+    const claudeDir = join(botDir, ".claude");
+    let settings: Record<string, unknown> = {};
+    const settingsPath = join(claudeDir, "settings.json");
+    if (existsSync(settingsPath)) {
+      /* v8 ignore start -- corrupt JSON fallback */
+      try {
+        settings = JSON.parse(readFileSync(settingsPath, "utf-8"));
+      } catch { /* invalid JSON — use defaults */ }
+      /* v8 ignore stop */
+    }
+
+    const hooksDir = join(claudeDir, "hooks");
+    let hooks: string[] = [];
+    if (existsSync(hooksDir)) {
+      /* v8 ignore start -- fs error fallback */
+      try {
+        hooks = readdirSync(hooksDir).filter((f) => f.endsWith(".sh"));
+      } catch { /* ignore */ }
+      /* v8 ignore stop */
+    }
+
+    const config = readBotConfig(join(mechaDir, validated));
+
+    return {
+      name: validated,
+      sandboxMode: config?.sandboxMode ?? "auto",
+      settings,
+      hooks,
+    };
   });
 
   // --- Update bot config fields, optionally restart ---
