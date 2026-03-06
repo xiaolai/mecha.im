@@ -3,12 +3,15 @@ import { Link } from "react-router-dom";
 import {
   PlayIcon, RefreshCwIcon, SquareIcon, OctagonXIcon,
   KeyRoundIcon, ShieldCheckIcon, CopyIcon, CheckIcon, ClockIcon,
+  Trash2Icon, Loader2Icon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { TooltipIconButton } from "@/components/ui/tooltip-icon-button";
 import { cn } from "@/lib/utils";
 import { stateStyles } from "@/lib/bot-styles";
 import { useBotAction } from "@/lib/use-bot-action";
+import { useAuth } from "@/auth-context";
 import { humanizeProfileName } from "@/lib/auth-utils";
 import { BusyWarningBanner } from "@/components/busy-warning-banner";
 import { ConfirmActionBanner } from "@/components/confirm-action-banner";
@@ -83,6 +86,25 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 export function BotCard({ bot }: BotCardProps) {
   const style = stateStyles[bot.state] ?? stateStyles.error;
   const { acting, actionError, busyWarning, pendingConfirm, handleAction, confirmAction, dismissConfirm, confirmForce, dismissBusy } = useBotAction(bot.name, undefined, bot.node);
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const { authHeaders } = useAuth();
+
+  async function handleRemove() {
+    setRemoving(true);
+    try {
+      const res = await fetch(`/bots/${encodeURIComponent(bot.name)}`, {
+        method: "DELETE",
+        headers: authHeaders,
+        credentials: "include",
+      });
+      if (res.ok) {
+        window.location.reload();
+      }
+    } finally {
+      setRemoving(false);
+    }
+  }
 
   return (
     <div className="relative flex flex-col gap-3 rounded-lg border border-border bg-card p-4 transition-colors hover:bg-accent/50">
@@ -196,17 +218,38 @@ export function BotCard({ bot }: BotCardProps) {
 
       {/* Actions */}
       <div className="relative z-10 flex items-center gap-3 border-t border-border pt-2">
-        {bot.state === "stopped" && (
-          <TooltipIconButton
-            tooltip="Start"
-            variant="outline"
-            size="icon"
-            className="text-success hover:text-success sm:size-8"
-            disabled={acting}
-            onClick={() => handleAction("start")}
-          >
-            <PlayIcon className="size-4" />
-          </TooltipIconButton>
+        {bot.state === "stopped" && !confirmRemove && (
+          <>
+            <TooltipIconButton
+              tooltip="Start"
+              variant="outline"
+              size="icon"
+              className="text-success hover:text-success sm:size-8"
+              disabled={acting || removing}
+              onClick={() => handleAction("start")}
+            >
+              <PlayIcon className="size-4" />
+            </TooltipIconButton>
+            <TooltipIconButton
+              tooltip="Remove"
+              variant="ghost"
+              size="icon"
+              className="text-destructive hover:text-destructive sm:size-8"
+              disabled={acting || removing}
+              onClick={() => setConfirmRemove(true)}
+            >
+              <Trash2Icon className="size-4" />
+            </TooltipIconButton>
+          </>
+        )}
+        {confirmRemove && (
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-destructive">Delete {bot.name}?</span>
+            <Button variant="destructive" size="xs" disabled={removing} onClick={handleRemove}>
+              {removing ? <Loader2Icon className="size-3 animate-spin" /> : "Confirm"}
+            </Button>
+            <Button variant="ghost" size="xs" onClick={() => setConfirmRemove(false)}>Cancel</Button>
+          </div>
         )}
         {bot.state === "running" && (
           <>
