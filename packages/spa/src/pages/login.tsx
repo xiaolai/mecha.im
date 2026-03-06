@@ -130,7 +130,7 @@ export function LoginPage() {
 
   return (
     <div className="flex min-h-dvh items-center justify-center p-4">
-      <div className="w-full max-w-sm rounded-lg border border-border bg-card p-6">
+      <div className="w-full max-w-sm p-6">
         <div className="mb-6 flex flex-col items-center gap-2">
           <img src="/images/login-bg.png" alt="Mecha" className="size-48" />
           <h1 className="text-lg font-semibold text-foreground">Dashboard Login</h1>

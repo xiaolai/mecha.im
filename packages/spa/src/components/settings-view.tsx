@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import {
   ServerIcon,
   NetworkIcon,
@@ -8,8 +7,6 @@ import {
   RadioIcon,
   Loader2Icon,
   GaugeIcon,
-  KeyRoundIcon,
-  ExternalLinkIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -351,22 +348,6 @@ export function SettingsView() {
         ) : (
           <p className="text-sm text-muted-foreground">Unable to load discovery status.</p>
         )}
-      </Card>
-
-      {/* Auth Profiles Link */}
-      <Card className="sm:col-span-2">
-        <SectionHeader icon={KeyRoundIcon} title="Auth Profiles" />
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            Manage API keys and OAuth tokens for bot authentication.
-          </p>
-          <Button variant="outline" size="sm" className="min-h-11 sm:min-h-0 shrink-0 gap-1.5" asChild>
-            <Link to="/auth">
-              Manage
-              <ExternalLinkIcon className="size-3" />
-            </Link>
-          </Button>
-        </div>
       </Card>
     </div>
   );

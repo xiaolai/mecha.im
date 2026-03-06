@@ -15,8 +15,11 @@ import {
   PuzzleIcon,
   WrenchIcon,
   HeartPulseIcon,
+  PanelLeftCloseIcon,
+  PanelLeftOpenIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { TooltipIconButton } from "@/components/ui/tooltip-icon-button";
 import { useAuth } from "@/auth-context";
 
@@ -58,10 +61,27 @@ const navSections = [
 interface SidebarProps {
   open: boolean;
   onClose: () => void;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
 }
 
-function LogoutButton({ logout }: { logout: () => void }) {
+function LogoutButton({ logout, collapsed }: { logout: () => void; collapsed: boolean }) {
   const [pending, setPending] = useState(false);
+
+  if (collapsed) {
+    return (
+      <TooltipIconButton
+        tooltip={pending ? "Logging out…" : "Log out"}
+        variant="ghost"
+        size="icon-sm"
+        disabled={pending}
+        onClick={() => { setPending(true); logout(); }}
+      >
+        <LogOutIcon className="size-4" />
+      </TooltipIconButton>
+    );
+  }
+
   return (
     <button
       disabled={pending}
@@ -77,7 +97,7 @@ function LogoutButton({ logout }: { logout: () => void }) {
   );
 }
 
-export function Sidebar({ open, onClose }: SidebarProps) {
+export function Sidebar({ open, onClose, collapsed, onToggleCollapse }: SidebarProps) {
   const { pathname } = useLocation();
   const { logout } = useAuth();
 
@@ -104,17 +124,23 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       {/* Sidebar panel */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-56 flex-col border-r border-sidebar-border bg-sidebar md:static md:z-auto",
-          "transition-transform duration-200 md:translate-x-0",
-          open ? "translate-x-0" : "-translate-x-full",
+          "fixed inset-y-0 left-0 z-50 flex flex-col border-r border-sidebar-border bg-sidebar md:static md:z-auto",
+          "transition-all duration-200 md:translate-x-0",
+          collapsed ? "md:w-14" : "w-56",
+          open ? "translate-x-0 w-56" : "-translate-x-full",
         )}
       >
         {/* Header */}
-        <div className="flex h-12 items-center justify-between px-4">
-          <div className="flex items-center gap-2">
+        <div className={cn("flex h-12 items-center", collapsed ? "justify-center px-2" : "justify-between px-4")}>
+          {!collapsed && (
+            <div className="flex items-center gap-2">
+              <img src="/images/logo-40.png" alt="" className="size-6" />
+              <span className="text-sm font-semibold text-sidebar-foreground">MECHA</span>
+            </div>
+          )}
+          {collapsed && (
             <img src="/images/logo-40.png" alt="" className="size-6" />
-            <span className="text-sm font-semibold text-sidebar-foreground">MECHA</span>
-          </div>
+          )}
           <div className="md:hidden">
             <TooltipIconButton
               tooltip="Close sidebar"
@@ -129,17 +155,43 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 overflow-y-auto px-2 py-2">
+        <nav className={cn("flex-1 overflow-y-auto py-2", collapsed ? "px-1" : "px-2")}>
           {navSections.map((section) => (
             <div key={section.label} className="mb-3">
-              <div className="px-3 py-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                {section.label}
-              </div>
+              {!collapsed && (
+                <div className="px-3 py-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  {section.label}
+                </div>
+              )}
+              {collapsed && <div className="my-1 mx-2 border-t border-sidebar-border" />}
               <div className="space-y-0.5">
                 {section.items.map(({ href, label, icon: Icon }) => {
                   const active = href === "/"
                     ? pathname === "/" || pathname.startsWith("/bot/")
                     : pathname === href || pathname.startsWith(`${href}/`);
+
+                  if (collapsed) {
+                    return (
+                      <Tooltip key={href}>
+                        <TooltipTrigger asChild>
+                          <Link
+                            to={href}
+                            onClick={onClose}
+                            className={cn(
+                              "flex items-center justify-center rounded-md p-2 transition-colors",
+                              active
+                                ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                                : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                            )}
+                          >
+                            <Icon className="size-4" />
+                          </Link>
+                        </TooltipTrigger>
+                        <TooltipContent side="right">{label}</TooltipContent>
+                      </Tooltip>
+                    );
+                  }
+
                   return (
                     <Link
                       key={href}
@@ -163,9 +215,20 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         </nav>
 
         {/* Footer */}
-        <div className="flex flex-col items-center gap-2 px-4 pb-4">
-          <img src="/images/login-bg.png" alt="" className="size-24 opacity-60" />
-          <LogoutButton logout={logout} />
+        <div className={cn("flex flex-col items-center gap-2 pb-4", collapsed ? "px-2" : "px-4")}>
+          {!collapsed && <img src="/images/login-bg.png" alt="" className="size-24 opacity-60" />}
+          <LogoutButton logout={logout} collapsed={collapsed} />
+          {/* Collapse toggle — desktop only */}
+          <div className="hidden md:flex">
+            <TooltipIconButton
+              tooltip={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+              variant="ghost"
+              size="icon-sm"
+              onClick={onToggleCollapse}
+            >
+              {collapsed ? <PanelLeftOpenIcon className="size-4" /> : <PanelLeftCloseIcon className="size-4" />}
+            </TooltipIconButton>
+          </div>
         </div>
       </aside>
     </>
