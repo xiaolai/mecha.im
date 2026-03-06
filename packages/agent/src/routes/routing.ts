@@ -69,7 +69,7 @@ export function registerRoutingRoutes(app: FastifyInstance, opts: RoutingRouteOp
         const detail = err instanceof Error ? err.message : String(err);
         request.log.error(`Routing to bot "${target}" failed: ${detail}`);
         const code = err instanceof Error && "code" in err && (err as { code: string }).code === "UND_ERR_CONNECT_TIMEOUT" ? 504 : 502;
-        reply.code(code).send({ error: `Upstream bot unavailable: ${detail}` });
+        reply.code(code).send({ error: "Upstream bot unavailable" });
         /* v8 ignore stop */
       }
     },

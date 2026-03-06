@@ -4,6 +4,7 @@ import type { ProcessManager } from "@mecha/process";
 import { botConfigure, checkBotBusy, enrichBotInfo, buildEnrichContext, getCachedSnapshot, mechaAuthLs, batchBotAction, agentFetch } from "@mecha/service";
 import type { BotConfigUpdates, EnrichedBotInfo } from "@mecha/service";
 import { existsSync, statSync, rmSync, readFileSync, readdirSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { join, basename, resolve, isAbsolute } from "node:path";
 import { hostname as osHostname } from "node:os";
 import { resolveNodeEntry } from "../node-resolve.js";
@@ -262,8 +263,24 @@ export function registerBotRoutes(app: FastifyInstance, pm: ProcessManager, mech
       /* v8 ignore stop */
       return;
     }
-    if (!body.workspacePath) {
-      reply.code(400).send({ error: "Missing workspacePath" });
+    if (!body.workspacePath || typeof body.workspacePath !== "string") {
+      reply.code(400).send({ error: "Missing or invalid workspacePath (must be a string)" });
+      return;
+    }
+    if (body.model !== undefined && typeof body.model !== "string") {
+      reply.code(400).send({ error: "model must be a string" });
+      return;
+    }
+    if (body.permissionMode !== undefined && typeof body.permissionMode !== "string") {
+      reply.code(400).send({ error: "permissionMode must be a string" });
+      return;
+    }
+    if (body.auth !== undefined && body.auth !== null && typeof body.auth !== "string") {
+      reply.code(400).send({ error: "auth must be a string or null" });
+      return;
+    }
+    if (body.home !== undefined && typeof body.home !== "string") {
+      reply.code(400).send({ error: "home must be a string" });
       return;
     }
     const validSandboxModes = ["auto", "off", "require"];
@@ -366,7 +383,7 @@ export function registerBotRoutes(app: FastifyInstance, pm: ProcessManager, mech
       return { lines: [] };
     }
 
-    const content = readFileSync(logFile, "utf-8");
+    const content = await readFile(logFile, "utf-8");
     const allLines = content.split("\n").filter(Boolean);
     return { lines: allLines.slice(-lines) };
   });
@@ -445,6 +462,10 @@ export function registerBotRoutes(app: FastifyInstance, pm: ProcessManager, mech
     // Validate auth profile exists if specified
     /* v8 ignore start -- auth validation branches: $env sentinel requires env vars, store lookup tested in routes.test.ts */
     if (body.auth !== undefined && body.auth !== null) {
+      if (typeof body.auth !== "string") {
+        reply.code(400).send({ error: "auth must be a string or null" });
+        return;
+      }
       if (body.auth.startsWith("$env:")) {
         const envMap: Record<string, string> = { "$env:api-key": "ANTHROPIC_API_KEY", "$env:oauth": "CLAUDE_CODE_OAUTH_TOKEN" };
         const envVar = envMap[body.auth];
@@ -495,8 +516,8 @@ export function registerBotRoutes(app: FastifyInstance, pm: ProcessManager, mech
       }
     }
 
-    // Extract only allowed config fields — reject unknown fields to prevent
-    // persisting arbitrary data (e.g. token, port overrides).
+    // Extract only allowed config fields — unknown fields are silently ignored
+    // to prevent persisting arbitrary data (e.g. token, port overrides).
     const { restart, force, auth, model, tags, expose, sandboxMode, permissionMode, home, workspace } = body;
     /* v8 ignore start -- optional field spread; each undefined check is a branch */
     const configUpdates: BotConfigUpdates = {

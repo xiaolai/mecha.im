@@ -49,9 +49,11 @@ export function registerScheduleRoutes(app: FastifyInstance, pm: ProcessManager)
   app.post("/bots/:name/schedules", async (request: FastifyRequest<NameParams>, reply: FastifyReply) => {
     const botName = resolveBot(pm, request, reply);
     if (!botName) return;
-    const body = (request.body ?? {}) as { id?: string; every?: string; prompt?: string };
-    if (!body.id || !body.every || !body.prompt) {
-      reply.code(400).send({ error: "Missing required fields: id, every, prompt" });
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    if (typeof body.id !== "string" || body.id.length === 0
+      || typeof body.every !== "string" || body.every.length === 0
+      || typeof body.prompt !== "string" || body.prompt.length === 0) {
+      reply.code(400).send({ error: "Missing required fields: id (string), every (string), prompt (string)" });
       return;
     }
     await botScheduleAdd(pm, botName, { id: body.id, every: body.every, prompt: body.prompt });
@@ -95,7 +97,7 @@ export function registerScheduleRoutes(app: FastifyInstance, pm: ProcessManager)
         reply.code(400).send({ error: "limit must be a positive integer" });
         return;
       }
-      limit = parsed;
+      limit = Math.min(parsed, 1000);
     }
     return await botScheduleHistory(pm, botName, request.params.scheduleId, limit);
   });
