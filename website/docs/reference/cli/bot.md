@@ -5,6 +5,8 @@ description: CLI reference for mecha bot lifecycle management commands
 
 # Bot Commands
 
+[[toc]]
+
 All bot commands live under `mecha bot`.
 
 ## `mecha bot spawn`

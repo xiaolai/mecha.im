@@ -1,4 +1,5 @@
 import { createSocket, type Socket } from "node:dgram";
+import { isIP } from "node:net";
 import { DEFAULTS } from "@mecha/core";
 import type { Candidate, HolePunchResult } from "./types.js";
 
@@ -38,8 +39,8 @@ export async function holePunch(opts: HolePunchOpts): Promise<HolePunchResult> {
   const validatedCandidates = remoteCandidates.slice(0, MAX_CANDIDATES).filter((c) => {
     // Validate port range
     if (c.port < 1 || c.port > 65535) return false;
-    // Validate IP format (basic check)
-    if (!c.ip || c.ip.includes("..")) return false;
+    // Validate IP format using net.isIP for strict validation
+    if (!c.ip || isIP(c.ip) === 0) return false;
     return true;
   });
   if (validatedCandidates.length === 0) {

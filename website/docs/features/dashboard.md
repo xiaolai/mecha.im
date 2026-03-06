@@ -5,6 +5,8 @@ description: Web-based GUI for managing bots, sessions, logs, and runtime settin
 
 # Dashboard
 
+[[toc]]
+
 The web dashboard provides a graphical interface for managing your mecha runtime. It runs as a pre-built SPA served by the agent server — no separate daemon or API server needed.
 
 ## Quick Start

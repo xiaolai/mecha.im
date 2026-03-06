@@ -45,7 +45,7 @@ export const DEFAULTS = {
   /** Metering proxy shutdown grace period (ms) */
   METER_STOP_GRACE_MS: 30_000,
   /** Hot counter snapshot interval (ms) */
-  METER_SNAPSHOT_INTERVAL_MS: 10_000,
+  METER_SNAPSHOT_INTERVAL_MS: 5_000,
   /** Rollup flush interval (ms) */
   METER_ROLLUP_INTERVAL_MS: 60_000,
   /** bot registry rescan interval (ms) */

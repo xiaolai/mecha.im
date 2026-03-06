@@ -40,6 +40,7 @@ export async function channelFetch(opts: ChannelFetchOpts): Promise<ChannelRespo
       clearTimeout(timer);
       channel.offMessage(messageHandler);
       channel.offError(errorHandler);
+      // Note: SecureChannel has no offClose — closeHandler self-guards via settled flag
     }
 
     const messageHandler = (data: Uint8Array): void => {
@@ -81,6 +82,17 @@ export async function channelFetch(opts: ChannelFetchOpts): Promise<ChannelRespo
     };
 
     channel.onError(errorHandler);
+
+    // Detect channel close to fail fast instead of waiting for timeout
+    const closeHandler = (): void => {
+      /* v8 ignore start -- close after settle is a no-op */
+      if (!settled) {
+        cleanup();
+        reject(new Error("Channel closed during fetch"));
+      }
+      /* v8 ignore stop */
+    };
+    channel.onClose(closeHandler);
 
     /* v8 ignore start -- channel.send() only throws if channel is closed pre-call */
     try {

@@ -53,7 +53,8 @@ describe("wrapLinux", () => {
     const result = wrapLinux(profile, "/usr/bin/node", ["app.js"]);
     expect(result.args).toContain("/usr");
     expect(result.args).toContain("/lib");
-    expect(result.args).toContain("/etc");
+    // /etc is not mounted wholesale — only specific files (resolv.conf, hosts, etc.)
+    expect(result.args).toContain("/etc/resolv.conf");
     expect(result.args).toContain("/dev");
     expect(result.args).toContain("/proc");
   });

@@ -384,7 +384,7 @@ function BotConfigEditor({ bot, name, node, onSaved }: { bot: BotInfo; name: str
             className="h-11 sm:h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring">
             <option value="default">default</option>
             <option value="plan">plan</option>
-            <option value="bypassPermissions">full-auto</option>
+            <option value="full-auto">full-auto</option>
           </select>
         </div>
       </div>

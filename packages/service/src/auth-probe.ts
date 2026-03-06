@@ -54,13 +54,17 @@ export async function mechaAuthProbe(
     /* v8 ignore start -- timeout callback only fires on network delay */
     const timeout = setTimeout(() => controller.abort(), 15_000);
     /* v8 ignore stop */
-    const res = await fetch("https://api.anthropic.com/v1/models", {
-      method: "GET",
-      headers,
-      signal: controller.signal,
-      redirect: "error",
-    });
-    clearTimeout(timeout);
+    let res: Response;
+    try {
+      res = await fetch("https://api.anthropic.com/v1/models", {
+        method: "GET",
+        headers,
+        signal: controller.signal,
+        redirect: "error",
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
     /* v8 ignore start -- HTTP error responses depend on real API */
     if (!res.ok) {
       const transient = res.status === 429 || res.status >= 500;

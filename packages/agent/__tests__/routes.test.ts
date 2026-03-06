@@ -647,8 +647,8 @@ describe("agent routes", () => {
         });
         expect(res.statusCode).toBe(409);
         expect(res.json().code).toBe("BOT_BUSY");
-        // Config should still have been updated before the busy check
-        expect(mockBotConfigure).toHaveBeenCalled();
+        // Config should NOT be updated when busy check fails (no partial mutation)
+        expect(mockBotConfigure).not.toHaveBeenCalled();
         await app.close();
       });
 

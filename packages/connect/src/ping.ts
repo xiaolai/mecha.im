@@ -37,7 +37,15 @@ export async function pingPeer(
     }
     /* v8 ignore stop */
 
+    // Fail fast on channel close
+    const closeHandler = (): void => {
+      clearTimeout(timeout);
+      channel.offMessage(handler);
+      reject(new ConnectError(`Channel closed during ping to "${peer}"`));
+    };
+
     channel.onMessage(handler);
+    channel.onClose(closeHandler);
   });
 
   return {

@@ -322,7 +322,7 @@ while read -r FPATH; do
   case "$RESOLVED" in
     "$SANDBOX"/*|"$SANDBOX") ;;
     "$WORKSPACE"/*|"$WORKSPACE") ;;
-    /usr/*|/bin/*|/etc/*|/dev/*|/tmp/*|/System/*|/lib/*|/lib64/*) ;;
+    /usr/bin/*|/usr/local/bin/*|/bin/*|/usr/sbin/*|/dev/null|/dev/stdin|/dev/stdout|/dev/stderr|/tmp/*) ;;
     *) echo "BLOCKED: $RESOLVED is outside sandbox" >&2; exit 2 ;;
   esac
 done < <(echo "$COMMAND" | grep -oE '((/|\\.\\./|\\./)([^ ;"'"'"'|&>]*))')
