@@ -87,6 +87,45 @@ describe("tool routes", () => {
     await app.close();
   });
 
+  it("POST /tools rejects non-string name", async () => {
+    const app = Fastify();
+    registerToolRoutes(app, { mechaDir });
+    await app.ready();
+    const res = await app.inject({
+      method: "POST", url: "/tools",
+      payload: { name: 123 },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toContain("name is required");
+    await app.close();
+  });
+
+  it("POST /tools rejects non-string version", async () => {
+    const app = Fastify();
+    registerToolRoutes(app, { mechaDir });
+    await app.ready();
+    const res = await app.inject({
+      method: "POST", url: "/tools",
+      payload: { name: "valid-tool", version: 123 },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toContain("version must be a string");
+    await app.close();
+  });
+
+  it("POST /tools rejects non-string description", async () => {
+    const app = Fastify();
+    registerToolRoutes(app, { mechaDir });
+    await app.ready();
+    const res = await app.inject({
+      method: "POST", url: "/tools",
+      payload: { name: "valid-tool", description: 42 },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toContain("description must be a string");
+    await app.close();
+  });
+
   it("GET /tools/runtime returns claude runtime info", async () => {
     const app = Fastify();
     registerToolRoutes(app, { mechaDir });

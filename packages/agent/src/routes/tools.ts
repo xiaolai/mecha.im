@@ -13,15 +13,15 @@ export function registerToolRoutes(app: FastifyInstance, opts: ToolRouteOpts): v
   });
 
   app.get("/tools/runtime", async () => {
-    return resolveClaudeRuntime();
+    return await resolveClaudeRuntime();
   });
 
   app.post("/tools", async (request: FastifyRequest, reply: FastifyReply) => {
     /* v8 ignore start -- Fastify always parses body for POST */
     const body = (request.body ?? {}) as { name?: string; version?: string; description?: string };
     /* v8 ignore stop */
-    if (!body.name) {
-      reply.code(400).send({ error: "name is required" });
+    if (!body.name || typeof body.name !== "string") {
+      reply.code(400).send({ error: "name is required and must be a string" });
       return;
     }
     if (body.version !== undefined && typeof body.version !== "string") {

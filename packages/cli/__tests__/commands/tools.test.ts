@@ -64,9 +64,22 @@ describe("tools commands", () => {
     program.exitOverride();
 
     await program.parseAsync(["node", "mecha", "tools", "runtime"]);
-    // Either shows a table (claude found) or an error message (not found)
-    const tableCalled = (deps.formatter.table as ReturnType<typeof vi.fn>).mock.calls.length > 0;
-    const errorCalled = (deps.formatter.error as ReturnType<typeof vi.fn>).mock.calls.length > 0;
-    expect(tableCalled || errorCalled).toBe(true);
+    const tableCalls = (deps.formatter.table as ReturnType<typeof vi.fn>).mock.calls;
+    const errorCalls = (deps.formatter.error as ReturnType<typeof vi.fn>).mock.calls;
+    if (tableCalls.length > 0) {
+      // Claude found — table headers should include Binary, Version, Resolved from
+      const headers = tableCalls[0][0] as string[];
+      expect(headers).toContain("Property");
+      expect(headers).toContain("Value");
+      const rows = tableCalls[0][1] as string[][];
+      const labels = rows.map((r) => r[0]);
+      expect(labels).toContain("Binary");
+      expect(labels).toContain("Version");
+      expect(labels).toContain("Resolved from");
+    } else {
+      // Claude not found — error message shown
+      expect(errorCalls.length).toBeGreaterThan(0);
+      expect(errorCalls[0][0]).toContain("not found");
+    }
   });
 });
