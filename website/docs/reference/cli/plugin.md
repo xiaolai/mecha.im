@@ -92,4 +92,5 @@ mecha plugin test filesystem
 
 ## See Also
 
-- [CLI Reference](./) -- overview and global options
+- [CLI Reference](./) — overview and global options
+- [MCP Server Integration](/features/mcp-server) — feature overview, audit logging, rate limiting, and transports

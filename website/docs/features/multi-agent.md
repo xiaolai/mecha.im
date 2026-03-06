@@ -95,3 +95,9 @@ The `doctor` command checks the overall system health:
 ```bash
 mecha doctor
 ```
+
+## See Also
+
+- [Bot Commands](/reference/cli/bot) — CLI reference for bot lifecycle, chat, and discovery commands
+- [@mecha/process](/reference/api/process) — Process lifecycle management API
+- [@mecha/service](/reference/api/service) — High-level service layer (botStatus, botFind, botChat)

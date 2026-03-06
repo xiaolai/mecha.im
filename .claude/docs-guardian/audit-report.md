@@ -9,132 +9,193 @@
 
 | Dimension | Score | Status |
 |-----------|-------|--------|
-| Freshness | 73/100 | yellow |
-| Accuracy  | 94/100 | green |
-| Coverage  | 93%    | green |
-| Quality   | 97/100 | green |
+| Freshness | 100/100 | 🟢 |
+| Accuracy  | 95/100 | 🟢 |
+| Coverage  | 84%    | 🟡 |
+| Quality   | 94/100 | 🟢 |
 
-**Overall health: 89/100**
+**Overall health**: 93/100
 
 ## Critical Findings (fix immediately)
 
-### 1. `dashboard.md` is untracked in git (Freshness - CRITICAL)
+None.
 
-**File:** `website/docs/guide/dashboard.md`
+## High Findings (fix soon)
 
-The dashboard documentation (27KB, 766 lines, 128 symbols) exists on disk but has **never been committed to git**. It will be lost if the working tree is cleaned.
+### 1. [HIGH] `healthTimeoutMs` default mismatch in `@mecha/process`
 
-**Fix:** `git add website/docs/guide/dashboard.md` and commit.
+- **File**: `website/docs/reference/api/process.md:74`
+- **Source**: `packages/core/src/constants.ts:32` — `HEALTH_TIMEOUT_MS: 10_000`
+- **Doc says**: Default is `30000`
+- **Fix**: Change to `10000`
 
-### 2. Meter snapshot interval mismatch (Accuracy - HIGH)
+### 2. [HIGH] `relayConnect.timeoutMs` default mismatch in `@mecha/connect`
 
-**File:** `website/docs/features/metering.md:143`
-**Source:** `packages/core/src/constants.ts:48`
+- **File**: `website/docs/reference/api/connect.md:592`
+- **Source**: `packages/core/src/constants.ts:75` — `RELAY_PAIR_TIMEOUT_MS: 30_000`
+- **Doc says**: Default is `10000`
+- **Fix**: Change to `30000`
 
-- Doc says: `Snapshot interval | 5s`
-- Code says: `METER_SNAPSHOT_INTERVAL_MS: 10_000` (10 seconds)
+### 3. [HIGH] `noiseInitiate` and `noiseRespond` timeout default mismatch
 
-**Fix:** Update the doc table to show `10s`.
+- **File**: `website/docs/reference/api/connect.md:630` and `:652`
+- **Source**: `packages/core/src/constants.ts:73` — `NOISE_HANDSHAKE_TIMEOUT_MS: 10_000`
+- **Doc says**: Default is `5000` for both
+- **Fix**: Change both to `10000`
 
-### 3. Route summary table missing ~28 routes (Accuracy - HIGH)
+### 4. [HIGH] `channelFetch.timeoutMs` default mismatch
 
-**File:** `website/docs/reference/architecture.md:150-193`
-
-The route summary table lists 35 routes but the agent registers ~63. Missing routes include: budgets, meter start/stop, audit clear, ACL grant/revoke, schedule CRUD, bot delete/logs/sandbox, doctor, settings endpoints, and discover handshake.
-
-**Fix:** Add all registered routes to the summary table.
+- **File**: `website/docs/reference/api/connect.md:558`
+- **Source**: `packages/core/src/constants.ts:36` — `FORWARD_TIMEOUT_MS: 60_000`
+- **Doc says**: Default is `30000`
+- **Fix**: Change to `60000`
 
 ## Medium Findings (fix soon)
 
-### 4. Broken anchor link in configuration.md (Quality - MEDIUM)
+### 5. [MEDIUM] Broken anchor `#discovery` in multi-machine guide
 
-**File:** `website/docs/guide/configuration.md:244`
+- **File**: `website/docs/guide/multi-machine.md:332`
+- **Issue**: Links to `/reference/api/core#discovery` but heading is `## Discovery Types` (anchor: `#discovery-types`)
+- **Fix**: Change link to `/reference/api/core#discovery-types`
 
-`[ACL capabilities](#capabilities)` links to a nonexistent heading. Should be `[ACL capabilities](/features/permissions#capabilities)`.
+### 6. [MEDIUM] Sparse `@mecha/service` API reference
 
-### 5. Duplicate discovery types across two docs (Quality - MEDIUM)
+- **File**: `website/docs/reference/api/service.md`
+- **Issue**: 40+ barrel exports but only `nodePing` documented in detail
+- **Fix**: Add brief docs for commonly used functions (`botChat`, `botStatus`, `mechaInit`, `mechaDoctor`)
 
-`DiscoverableEntry`, `DiscoveryFilter`, `DiscoveryIndex` etc. are fully documented in both `mesh-networking.md` and `multi-machine.md`. One should reference the other.
+### 7. [MEDIUM] Missing "See Also" in multi-agent feature doc
 
-### 6. `fetchPublicIp` barrel export missing (Accuracy - LOW)
+- **File**: `website/docs/features/multi-agent.md`
+- **Issue**: Only feature doc without an API Reference / See Also section
+- **Fix**: Add See Also linking to `/reference/cli/bot` and `/reference/api/process`
 
-`architecture.md` shows `import { fetchPublicIp } from "@mecha/agent"` but the barrel `index.ts` doesn't re-export it. Either add the re-export or change the doc to `from "@mecha/core"`.
+### 8. [MEDIUM] CLI coverage gap (20%)
 
-### 7. 4 source mapping globs match no files (Freshness)
-
-These mapping patterns in `docs-guardian/config.json` need updating:
-- `packages/core/src/sandbox*.ts` (sandbox is in `packages/sandbox/`)
-- `packages/core/src/mesh*.ts` (mesh is in `packages/connect/`)
-- `packages/core/src/config*.ts` (no files match)
-- `packages/core/src/env*.ts` (no files match)
+- **File**: `packages/cli/src/commands/*.ts`
+- **Issue**: 76/95 CLI symbols undocumented. All `register*Command` functions lack JSDoc.
+- **Note**: These are internal wiring functions following the `CommandDeps` DI pattern. The user-facing CLI behavior IS fully documented in `reference/cli/` pages. The gap is in inline JSDoc only.
 
 ## Low Findings (nice to have)
 
-- **Long reference files**: `architecture.md` (1644 lines), `mesh-networking.md` (1197 lines), `metering.md` (974 lines), `cli.md` (1426 lines) could benefit from splitting into sub-pages
-- **dashboard.md lacks screenshots**: GUI documentation would benefit from visual aids
-- **Error message docs simplified**: `ForwardingError` and `ProcessHealthTimeoutError` docs don't show full message text with guidance hints
-- **59 remaining undocumented symbols**: Mostly in `core/src/errors.ts` (21 error constants), `core/src/schedule.ts` (9 Zod schemas), and identity modules
+| # | File | Issue |
+|---|------|-------|
+| 9 | `reference/cli/system.md` | 574 lines — consider TOC or split |
+| 10 | `reference/api/core.md` | 714 lines — consider TOC at top |
+| 11 | `reference/components.md` | Frontmatter title "Dashboard Components" vs H1 "Dashboard SPA" |
+| 12 | `features/multi-agent.md` | No See Also section (addressed in #7) |
+| 13 | `reference/cli/plugin.md` | See Also only links to CLI index, not to MCP feature page |
+| 14 | `guide/dashboard.md` | No introductory paragraph before first section |
+| 15 | `core/src/errors.ts` | 22 error factory constants undocumented (covered in `reference/errors.md` by code, but not by name in mapped doc) |
 
 ## Fixing Plan
 
-1. **Commit all new/updated doc files** (especially `dashboard.md`)
-2. Fix metering snapshot interval: `5s` -> `10s` in `metering.md:143`
-3. Add missing routes to architecture route summary table
-4. Fix broken `#capabilities` anchor in `configuration.md:244`
-5. Deduplicate discovery types between `mesh-networking.md` and `multi-machine.md`
-6. Fix `fetchPublicIp` import path in `architecture.md`
-7. Update `docs-guardian/config.json` mapping globs to match actual file locations
+1. Fix 5 default value mismatches in `connect.md` and `process.md` (findings #1-4)
+2. Fix broken `#discovery` anchor in `multi-machine.md` (finding #5)
+3. Add See Also section to `features/multi-agent.md` (finding #7)
+4. Optionally expand `service.md` API details (finding #6)
+5. Add TOC to `core.md` and `system.md` (findings #9-10)
+6. Align components.md title/H1 (finding #11)
 
-## Detailed Scores
+## Full Agent Reports
 
-### Freshness: 73/100
+<details>
+<summary>Staleness Report</summary>
 
-| Source | Doc | Gap | Status |
-|--------|-----|-----|--------|
-| `packages/spa/src/**/*.tsx` | `guide/dashboard.md` | UNTRACKED | CRITICAL |
-| `packages/agent/src/routes/*.ts` | `reference/architecture.md` | 10.2h | FRESH |
-| `packages/cli/src/commands/*.ts` | `reference/cli.md` | 10.2h | FRESH |
-| `packages/agent/src/auth.ts` | `guide/configuration.md` | 10.2h | FRESH |
-| `packages/service/src/**/*.ts` | `reference/architecture.md` | 4.1h | FRESH |
-| All other pairs | Various | 0h | FRESH |
+**Score: 100/100** — All 18 mapped source-to-doc pairs are fresh. Documentation was updated today (2026-03-06) across multiple commits. No stale docs found.
 
-### Accuracy: 94/100
+| Source Glob | Doc File | Days Behind |
+|---|---|---|
+| `packages/cli/src/commands/*.ts` | `reference/cli/index.md` | 0 |
+| `packages/agent/src/routes/*.ts` | `reference/api/index.md` | 0 |
+| `packages/core/src/acl/**/*.ts` | `reference/api/core.md` | 0 |
+| `packages/sandbox/src/**/*.ts` | `reference/api/core.md` | 0 |
+| `packages/meter/src/**/*.ts` | `reference/api/meter.md` | 0 |
+| `packages/connect/src/**/*.ts` | `reference/api/connect.md` | 0 |
+| `packages/service/src/schedule*.ts` | `reference/api/core.md` | 0 |
+| `packages/core/src/mecha-settings.ts` | `reference/api/core.md` | 0 |
+| `packages/core/src/auth-config.ts` | `reference/api/core.md` | 0 |
+| `packages/core/src/plugin-registry.ts` | `reference/api/core.md` | 0 |
+| `packages/core/src/constants.ts` | `reference/environment.md` | 0 |
+| `packages/core/src/discover*.ts` | `reference/api/core.md` | 0 |
+| `packages/agent/src/auth.ts` | `reference/api/index.md` | 0 |
+| `packages/process/src/**/*.ts` | `reference/api/process.md` | 0 |
+| `packages/service/src/**/*.ts` | `reference/api/service.md` | 0 |
+| `packages/runtime/src/**/*.ts` | `reference/api/runtime.md` | 0 |
+| `packages/spa/src/**/*.tsx` | `reference/components.md` | 0 |
+| `packages/mcp-server/src/**/*.ts` | `reference/api/mcp-server.md` | 0 |
 
-- 142 symbols cross-referenced
-- 8 mismatches found (1 HIGH numeric, 1 HIGH completeness, 2 MEDIUM, 4 LOW)
+</details>
 
-### Coverage: 93% (800/859 symbols)
+<details>
+<summary>Accuracy Report</summary>
 
-| Package | Coverage |
-|---------|----------|
-| connect | 100% |
-| mcp-server | 100% |
-| meter | 100% |
-| process | 100% |
-| runtime | 100% |
-| sandbox | 100% |
-| service | 100% |
-| spa | 99% |
-| agent | 99% |
-| cli | 98% |
-| server | 97% |
-| core | 76% |
+**Score: 95/100** — 280 symbols checked, 5 default value mismatches found.
 
-Previous: 47% (524/1116) -> Current: 93% (800/859)
+All internal links verified as resolving correctly. All type definitions, function signatures, CLI command arguments, and API routes match source code.
 
-### Quality: 97.4/100
+**Mismatches:**
 
-| File | Score |
-|------|-------|
-| `reference/errors.md` | 100 |
-| `features/permissions.md` | 100 |
-| `features/scheduling.md` | 100 |
-| `reference/environment.md` | 99 |
-| `features/sandbox.md` | 99 |
-| `reference/cli.md` | 97 |
-| `features/metering.md` | 97 |
-| `guide/dashboard.md` | 97 |
-| `guide/configuration.md` | 96 |
-| `features/mesh-networking.md` | 96 |
-| `advanced/multi-machine.md` | 95 |
-| `reference/architecture.md` | 93 |
+| Finding | Doc File | Code Default | Doc Default |
+|---------|----------|-------------|-------------|
+| `healthTimeoutMs` | `process.md:74` | `10000` | `30000` |
+| `relayConnect.timeoutMs` | `connect.md:592` | `30000` | `10000` |
+| `noiseInitiate.timeoutMs` | `connect.md:630` | `10000` | `5000` |
+| `noiseRespond.timeoutMs` | `connect.md:652` | `10000` | `5000` |
+| `channelFetch.timeoutMs` | `connect.md:558` | `60000` | `30000` |
+
+**Verified accurate:** ACL types, Discovery types, Discovered Node Registry, MechaSettings, AuthConfig, PluginRegistry, Sandbox types, ProcessManager, SpawnOpts, AgentServer, Runtime server, all CLI commands, environment variables, meter types, connect types, server types, MCP server exports.
+
+</details>
+
+<details>
+<summary>Coverage Report</summary>
+
+**Score: 84%** — 858 public symbols found, 722 documented, 136 undocumented.
+
+**By package:**
+
+| Package | Total | Documented | Coverage |
+|---------|-------|------------|----------|
+| packages/connect | 61 | 61 | 100% |
+| packages/mcp-server | 22 | 22 | 100% |
+| packages/meter | 99 | 99 | 100% |
+| packages/process | 43 | 43 | 100% |
+| packages/runtime | 35 | 35 | 100% |
+| packages/service | 78 | 78 | 100% |
+| packages/spa | 79 | 78 | 99% |
+| packages/server | 29 | 28 | 97% |
+| packages/sandbox | 19 | 18 | 95% |
+| packages/agent | 76 | 71 | 93% |
+| packages/core | 222 | 170 | 77% |
+| packages/cli | 95 | 19 | 20% |
+
+**Key gaps:**
+- CLI `register*Command` functions (76 symbols) — internal wiring, user-facing CLI is documented
+- Core error factory constants (22 symbols) — covered in `errors.md` but not mapped doc
+- Core Zod schemas and input types (12 symbols) — implementation detail
+
+</details>
+
+<details>
+<summary>Quality Report</summary>
+
+**Score: 94/100** — 36 files scanned, 12 issues found (0 Critical, 0 High, 4 Medium, 8 Low).
+
+**Strengths:**
+- Consistent frontmatter on every file
+- Proper heading hierarchy throughout
+- All code blocks have language tags
+- Consistent "bot" terminology
+- Rich cross-references between docs
+- Good use of tables and code examples
+
+**Issues:**
+1. Broken anchor `#discovery` → should be `#discovery-types` (multi-machine.md)
+2. Sparse service.md (40+ exports, 1 documented in detail)
+3. Missing See Also in multi-agent.md
+4. Long files without TOC (system.md 574 lines, core.md 714 lines)
+5. Title/H1 mismatch in components.md
+6. Missing intro paragraph in guide/dashboard.md
+
+</details>

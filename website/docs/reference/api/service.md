@@ -90,6 +90,89 @@ The `@mecha/service` package is the high-level business logic layer that CLI com
 | `nodePing` | Function | `node-ping.ts` |
 | `PingResult` | Type | `node-ping.ts` |
 
+## `botStatus(pm, name)`
+
+Returns the current status of a bot by name. Reads live state from the process manager and on-disk state.
+
+```ts
+import { botStatus } from "@mecha/service";
+
+const info = await botStatus(pm, "researcher");
+// { name: "researcher", state: "running", pid: 12345, port: 7700, ... }
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `pm` | `ProcessManager` | Yes | Process manager instance |
+| `name` | `string` | Yes | Bot name |
+
+Returns `ProcessInfo` or `undefined` if the bot doesn't exist.
+
+## `botFind(pm, opts)`
+
+Find bots matching filter criteria (tag, state).
+
+```ts
+import { botFind } from "@mecha/service";
+
+const results = await botFind(pm, { tag: "dev" });
+// [{ name: "coder", tags: ["dev", "backend"], ... }]
+```
+
+**`FindResult`** — Array of matching bots with name, tags, state, port, and workspace.
+
+## `botChat(pm, opts)`
+
+Send a message to a bot and stream the response. Returns an async iterable of `ChatEvent` objects.
+
+```ts
+import { botChat } from "@mecha/service";
+
+for await (const event of botChat(pm, { name: "coder", message: "Explain this function" })) {
+  if (event.type === "text") process.stdout.write(event.text);
+}
+```
+
+**`ChatOpts`**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | `string` | Yes | Bot name |
+| `message` | `string` | Yes | Message to send |
+| `session` | `string` | No | Session ID (creates new if omitted) |
+
+**`ChatEvent`** — Discriminated union: `{ type: "text", text }`, `{ type: "tool_use", name, input }`, `{ type: "done" }`.
+
+## `mechaInit(mechaDir)`
+
+Initialize Mecha data directory at `~/.mecha/`. Creates directory structure, generates TOTP secret, and writes default configuration.
+
+```ts
+import { mechaInit } from "@mecha/service";
+
+const result = await mechaInit("/Users/you/.mecha");
+// { created: true, totpSecret: "...", mechaDir: "/Users/you/.mecha" }
+```
+
+**`InitResult`** — `{ created: boolean, totpSecret?: string, mechaDir: string }`
+
+## `mechaDoctor(mechaDir, pm)`
+
+Run system health checks. Returns a list of checks with pass/fail status.
+
+```ts
+import { mechaDoctor } from "@mecha/service";
+
+const result = await mechaDoctor("/Users/you/.mecha", pm);
+for (const check of result.checks) {
+  console.log(`${check.ok ? "✓" : "✗"} ${check.label}`);
+}
+```
+
+**`DoctorCheck`** — `{ label: string, ok: boolean, detail?: string }`
+
+**`DoctorResult`** — `{ checks: DoctorCheck[], healthy: boolean }`
+
 ## `nodePing(mechaDir, name, opts?)`
 
 Pings a mesh node to check reachability. For managed (P2P) nodes, checks the rendezvous server's `/lookup/:name` endpoint. For direct (HTTP) nodes, performs a `/healthz` request.
