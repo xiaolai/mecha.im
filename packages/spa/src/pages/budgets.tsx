@@ -1,9 +1,10 @@
 import { PageShell } from "@/components/page-shell";
+import { BudgetsView } from "@/components/budgets-view";
 
 export function BudgetsPage() {
   return (
     <PageShell title="Budgets">
-      <p className="text-sm text-muted-foreground">Coming soon.</p>
+      <BudgetsView />
     </PageShell>
   );
 }

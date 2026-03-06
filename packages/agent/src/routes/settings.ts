@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { FastifyInstance } from "fastify";
-import { DEFAULTS, readNodes, readDiscoveredNodes, readTotpSecret, readMechaSettings, writeMechaSettings, isValidProfileName as _isValidProfileName, AuthProfileAlreadyExistsError, AuthProfileNotFoundError } from "@mecha/core";
+import { DEFAULTS, readNodes, readDiscoveredNodes, readTotpSecret, readMechaSettings, writeMechaSettings, isValidProfileName as _isValidProfileName, isValidName, AuthProfileAlreadyExistsError, AuthProfileNotFoundError } from "@mecha/core";
+import { readNodeName } from "@mecha/service";
 
 /** Type-narrowing wrapper: validates unknown input is a valid profile name string. */
 function isValidProfileName(name: unknown): name is string {
@@ -53,6 +54,33 @@ export function registerSettingsRoutes(app: FastifyInstance, opts: SettingsRoute
     const secret = readTotpSecret(opts.mechaDir);
     const source = secret !== null ? detectTotpSource(opts.mechaDir) : null;
     return { configured: secret !== null, source };
+  });
+
+  /** GET /settings/node — current node name. */
+  app.get("/settings/node", async () => {
+    const name = readNodeName(opts.mechaDir);
+    return { name: name ?? null };
+  });
+
+  /** PATCH /settings/node — rename this node (requires restart to take effect on mesh). */
+  app.patch<{ Body: { name: string } }>("/settings/node", async (request, reply) => {
+    const body = request.body as Record<string, unknown> | null;
+    const name = body?.name;
+    if (typeof name !== "string" || name.length === 0) {
+      return reply.code(400).send({ error: "Node name is required" });
+    }
+    if (!isValidName(name)) {
+      return reply.code(400).send({ error: "Invalid node name (lowercase a-z, 0-9, hyphens, 1-32 chars)" });
+    }
+    const existing = readNodeName(opts.mechaDir);
+    if (existing === name) {
+      return { name, changed: false };
+    }
+    const nodePath = join(opts.mechaDir, "node.json");
+    const { writeFileSync } = await import("node:fs");
+    const config = { name, createdAt: new Date().toISOString() };
+    writeFileSync(nodePath, JSON.stringify(config, null, 2) + "\n", { mode: 0o600 });
+    return { name, changed: true, note: "Restart the agent for the new name to take effect on the mesh." };
   });
 
   /** GET /settings/auth-profiles — list all stored + env-sourced profiles. */

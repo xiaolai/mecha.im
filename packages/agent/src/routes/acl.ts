@@ -13,7 +13,9 @@ export function registerAclRoutes(app: FastifyInstance, opts: AclRouteOpts): voi
   });
 
   app.post("/acl/grant", async (request: FastifyRequest, reply: FastifyReply) => {
+    /* v8 ignore start -- Fastify always parses body for POST */
     const body = (request.body ?? {}) as { source?: string; target?: string; capability?: string };
+    /* v8 ignore stop */
     if (!body.source || !body.target || !body.capability) {
       reply.code(400).send({ error: "source, target, and capability are required" });
       return;
@@ -28,7 +30,9 @@ export function registerAclRoutes(app: FastifyInstance, opts: AclRouteOpts): voi
   });
 
   app.post("/acl/revoke", async (request: FastifyRequest, reply: FastifyReply) => {
+    /* v8 ignore start -- Fastify always parses body for POST */
     const body = (request.body ?? {}) as { source?: string; target?: string; capability?: string };
+    /* v8 ignore stop */
     if (!body.source || !body.target || !body.capability) {
       reply.code(400).send({ error: "source, target, and capability are required" });
       return;

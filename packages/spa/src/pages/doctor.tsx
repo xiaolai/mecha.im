@@ -1,9 +1,10 @@
 import { PageShell } from "@/components/page-shell";
+import { DoctorView } from "@/components/doctor-view";
 
 export function DoctorPage() {
   return (
     <PageShell title="Doctor">
-      <p className="text-sm text-muted-foreground">Coming soon.</p>
+      <DoctorView />
     </PageShell>
   );
 }

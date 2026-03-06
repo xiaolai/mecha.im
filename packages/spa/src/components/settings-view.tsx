@@ -6,6 +6,9 @@ import {
   CpuIcon,
   RadioIcon,
   Loader2Icon,
+  GaugeIcon,
+  KeyRoundIcon,
+  ExternalLinkIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,8 +16,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useFetch } from "@/lib/use-fetch";
 import { useAuth } from "@/auth-context";
-import { AuthProfilesSection } from "@/components/auth-profiles-section";
-import { formatUptime } from "@/lib/format";
+import { NodeNameEditor } from "@/components/node-name-editor";
+import { formatUptime, formatUptimeFromIso } from "@/lib/format";
 
 interface NodeInfo {
   node: string;
@@ -52,6 +55,13 @@ interface TotpStatus {
   source: "file" | "env" | null;
 }
 
+interface MeterStatus {
+  running: boolean;
+  port?: number;
+  pid?: number;
+  required?: boolean;
+  startedAt?: string;
+}
 
 function formatMemory(mb: number): string {
   if (mb >= 1024) return `${(mb / 1024).toFixed(1)} GB`;
@@ -87,12 +97,12 @@ function Card({ children, className }: { children: React.ReactNode; className?: 
 
 export function SettingsView() {
   const { authHeaders } = useAuth();
-  const { data: info, loading: infoLoading, error: infoError } = useFetch<NodeInfo>("/node/info", { interval: 30_000 });
+  const { data: info, loading: infoLoading } = useFetch<NodeInfo>("/node/info", { interval: 30_000 });
   const { data: runtime, loading: runtimeLoading, error: runtimeError } = useFetch<RuntimeConfig>("/settings/runtime");
   const { data: totp, loading: totpLoading, error: totpError } = useFetch<TotpStatus>("/settings/totp");
   const { data: network, loading: networkLoading, refetch: refetchNetwork } = useFetch<NetworkSettings>("/settings/network");
+  const { data: meter, loading: meterLoading } = useFetch<MeterStatus>("/meter/status", { interval: 30_000 });
   const [httpsToggling, setHttpsToggling] = useState(false);
-
   const [networkError, setNetworkError] = useState<string | null>(null);
 
   async function toggleForceHttps() {
@@ -117,10 +127,10 @@ export function SettingsView() {
     }
   }
 
-  if (infoLoading || runtimeLoading || totpLoading || networkLoading) {
+  if (infoLoading || runtimeLoading || totpLoading || networkLoading || meterLoading) {
     return (
       <div className="grid gap-4 sm:grid-cols-2">
-        {Array.from({ length: 4 }, (_, i) => (
+        {Array.from({ length: 6 }, (_, i) => (
           <Skeleton key={i} className="h-40 rounded-lg" />
         ))}
       </div>
@@ -134,7 +144,7 @@ export function SettingsView() {
         <SectionHeader icon={ServerIcon} title="This Node" />
         {info ? (
           <div className="grid gap-x-8 gap-y-1 text-sm sm:grid-cols-2">
-            <InfoRow label="Node Name" value={info.node} mono />
+            <NodeNameEditor currentName={info.node} />
             <InfoRow label="Hostname" value={info.hostname} mono />
             <InfoRow label="OS" value={`${info.platform} ${info.arch}`} />
             <InfoRow label="CPUs" value={info.cpuCount} mono />
@@ -145,47 +155,6 @@ export function SettingsView() {
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">Unable to load node info.</p>
-        )}
-      </Card>
-
-      {/* Network */}
-      <Card>
-        <SectionHeader icon={NetworkIcon} title="Network" />
-        {runtimeError ? (
-          <p className="text-sm text-destructive">Unable to load network config.</p>
-        ) : (
-          <div className="flex flex-col gap-2 text-sm">
-            <div className="flex flex-col gap-1">
-              {runtime && <InfoRow label="Agent Port" value={runtime.agentPort} mono />}
-              {info?.lanIp && <InfoRow label="LAN" value={info.lanIp} mono />}
-              {info?.tailscaleIp && <InfoRow label="Tailscale" value={info.tailscaleIp} mono />}
-              {info?.publicIp && <InfoRow label="Public IP" value={info.publicIp} mono />}
-            </div>
-            {network && (
-              <div className="flex items-center justify-between gap-4 pt-2 border-t border-border">
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-sm text-card-foreground">Force HTTPS</span>
-                  <span className="text-xs text-muted-foreground">
-                    Redirect HTTP → HTTPS. Enable when exposed on a public domain.
-                  </span>
-                </div>
-                <Button
-                  variant={network.forceHttps ? "default" : "outline"}
-                  size="sm"
-                  className="min-h-11 sm:min-h-0 shrink-0"
-                  disabled={httpsToggling}
-                  onClick={toggleForceHttps}
-                  aria-pressed={network.forceHttps}
-                >
-                  {httpsToggling && <Loader2Icon className="size-4 animate-spin" />}
-                  {network.forceHttps ? "On" : "Off"}
-                </Button>
-              </div>
-            )}
-            {networkError && (
-              <p className="text-xs text-destructive">{networkError}</p>
-            )}
-          </div>
         )}
       </Card>
 
@@ -216,6 +185,80 @@ export function SettingsView() {
                 : <>Run <code className="font-mono text-card-foreground">mecha dashboard totp</code> to generate a secret and enable TOTP login.</>
               }
             </p>
+          </div>
+        )}
+      </Card>
+
+      {/* Meter Status */}
+      <Card>
+        <SectionHeader icon={GaugeIcon} title="Meter Daemon" />
+        <div className="flex flex-col gap-2 text-sm">
+          <div className="flex items-baseline justify-between gap-4">
+            <span className="text-muted-foreground">Status</span>
+            <Badge variant={meter?.running ? "default" : "secondary"}>
+              {meter?.running ? "Running" : "Stopped"}
+            </Badge>
+          </div>
+          {meter?.running && (
+            <>
+              <InfoRow label="Port" value={meter.port} mono />
+              <InfoRow label="PID" value={meter.pid} mono />
+              {meter.startedAt && (
+                <InfoRow label="Uptime" value={formatUptimeFromIso(meter.startedAt)} />
+              )}
+              {meter.required != null && (
+                <div className="flex items-baseline justify-between gap-4">
+                  <span className="text-muted-foreground">Required</span>
+                  <span className="text-card-foreground">{meter.required ? "Yes" : "No"}</span>
+                </div>
+              )}
+            </>
+          )}
+          {!meter?.running && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Run <code className="font-mono text-card-foreground">mecha meter start</code> to enable cost tracking.
+            </p>
+          )}
+        </div>
+      </Card>
+
+      {/* Network */}
+      <Card>
+        <SectionHeader icon={NetworkIcon} title="Network" />
+        {runtimeError ? (
+          <p className="text-sm text-destructive">Unable to load network config.</p>
+        ) : (
+          <div className="flex flex-col gap-2 text-sm">
+            <div className="flex flex-col gap-1">
+              {runtime && <InfoRow label="Agent Port" value={runtime.agentPort} mono />}
+              {info?.lanIp && <InfoRow label="LAN" value={info.lanIp} mono />}
+              {info?.tailscaleIp && <InfoRow label="Tailscale" value={info.tailscaleIp} mono />}
+              {info?.publicIp && <InfoRow label="Public IP" value={info.publicIp} mono />}
+            </div>
+            {network && (
+              <div className="flex items-center justify-between gap-4 pt-2 border-t border-border">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-sm text-card-foreground">Force HTTPS</span>
+                  <span className="text-xs text-muted-foreground">
+                    Redirect HTTP &rarr; HTTPS. Enable when exposed on a public domain.
+                  </span>
+                </div>
+                <Button
+                  variant={network.forceHttps ? "default" : "outline"}
+                  size="sm"
+                  className="min-h-11 sm:min-h-0 shrink-0"
+                  disabled={httpsToggling}
+                  onClick={toggleForceHttps}
+                  aria-pressed={network.forceHttps}
+                >
+                  {httpsToggling && <Loader2Icon className="size-4 animate-spin" />}
+                  {network.forceHttps ? "On" : "Off"}
+                </Button>
+              </div>
+            )}
+            {networkError && (
+              <p className="text-xs text-destructive">{networkError}</p>
+            )}
           </div>
         )}
       </Card>
@@ -267,8 +310,21 @@ export function SettingsView() {
         )}
       </Card>
 
-      {/* Auth Profiles */}
-      <AuthProfilesSection />
+      {/* Auth Profiles Link */}
+      <Card className="sm:col-span-2">
+        <SectionHeader icon={KeyRoundIcon} title="Auth Profiles" />
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            Manage API keys and OAuth tokens for bot authentication.
+          </p>
+          <Button variant="outline" size="sm" className="min-h-11 sm:min-h-0 shrink-0 gap-1.5" asChild>
+            <a href="/auth">
+              Manage
+              <ExternalLinkIcon className="size-3" />
+            </a>
+          </Button>
+        </div>
+      </Card>
     </div>
   );
 }
