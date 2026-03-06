@@ -1,9 +1,10 @@
 import { PageShell } from "@/components/page-shell";
+import { SandboxView } from "@/components/sandbox-view";
 
 export function SandboxPage() {
   return (
     <PageShell title="Sandbox">
-      <p className="text-sm text-muted-foreground">Coming soon.</p>
+      <SandboxView />
     </PageShell>
   );
 }

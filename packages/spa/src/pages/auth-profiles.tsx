@@ -1,9 +1,10 @@
 import { PageShell } from "@/components/page-shell";
+import { AuthProfilesView } from "@/components/auth-profiles-view";
 
 export function AuthProfilesPage() {
   return (
     <PageShell title="Auth Profiles">
-      <p className="text-sm text-muted-foreground">Coming soon.</p>
+      <AuthProfilesView />
     </PageShell>
   );
 }
