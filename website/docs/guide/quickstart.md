@@ -121,4 +121,4 @@ mecha bot ls
 - [Core Concepts](/guide/concepts) — understand bots, naming, sessions
 - [Permissions](/features/permissions) — fine-grained access control
 - [Mesh Networking](/features/mesh-networking) — cross-machine agent communication
-- [CLI Reference](/reference/cli) — complete command documentation
+- [CLI Reference](/reference/cli/) — complete command documentation

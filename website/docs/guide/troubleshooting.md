@@ -151,4 +151,4 @@ If you're stuck:
 1. Check logs: `mecha bot logs <name> --tail 100`
 2. Run doctor: `mecha doctor`
 3. Check status: `mecha bot status <name>`
-4. Review the [CLI Reference](/reference/cli) for correct syntax
+4. Review the [CLI Reference](/reference/cli/) for correct syntax
