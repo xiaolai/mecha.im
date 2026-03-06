@@ -6,6 +6,7 @@ import { botFind, botStatus } from "@mecha/service";
 import type { MeshMcpContext } from "../types.js";
 import { textResult, errorResult, withAuditAndRateLimit, annotationsFor } from "./helpers.js";
 
+/** Register discovery tools: mecha_list_nodes, mecha_list_bots, mecha_bot_status, mecha_discover. */
 export function registerDiscoveryTools(server: McpServer, ctx: MeshMcpContext): void {
   // mecha_list_nodes
   server.registerTool(

@@ -22,6 +22,7 @@ function resolveBot(
   return botName;
 }
 
+/** Register bot session routes: list, get, and delete sessions for a bot. */
 export function registerSessionRoutes(app: FastifyInstance, pm: ProcessManager): void {
   app.get("/bots/:name/sessions", async (request: FastifyRequest<{ Params: { name: string } }>, reply: FastifyReply) => {
     const botName = resolveBot(pm, request, reply);

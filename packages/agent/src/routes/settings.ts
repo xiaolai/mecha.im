@@ -9,6 +9,7 @@ function isValidProfileName(name: unknown): name is string {
 }
 import { mechaAuthLs, mechaAuthDefault, mechaAuthRm, mechaAuthAddFull, mechaAuthRenew, mechaAuthProbe } from "@mecha/service";
 
+/** Options for settings route registration. */
 export interface SettingsRouteOpts {
   mechaDir: string;
 }
@@ -28,7 +29,7 @@ function detectTotpSource(mechaDir: string): "file" | "env" | null {
   return null;
 }
 
-/** GET /settings/runtime — port ranges, agent port, MCP port, discovery status. */
+/** Register settings routes: runtime config, TOTP status, auth profiles CRUD, and network settings. */
 export function registerSettingsRoutes(app: FastifyInstance, opts: SettingsRouteOpts): void {
   app.get("/settings/runtime", async () => {
     const manualNodes = readNodes(opts.mechaDir);

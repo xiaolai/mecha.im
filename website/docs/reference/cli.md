@@ -1,3 +1,8 @@
+---
+title: CLI Reference
+description: Complete reference for all mecha CLI commands, options, and flags.
+---
+
 # CLI Reference
 
 Complete reference for the `mecha` command-line interface.
@@ -1404,3 +1409,16 @@ mecha dashboard totp verify <code>
 | Argument | Description |
 |----------|-------------|
 | `<code>` | 6-digit TOTP code |
+
+---
+
+## See Also
+
+- [Quick Start](/guide/quickstart) — first steps with the CLI
+- [Configuration](/guide/configuration) — auth profiles and bot settings
+- [Environment Variables](/reference/environment) — env vars recognized by Mecha
+- [Metering & Budgets](/features/metering) — cost tracking with `mecha meter` and `mecha budget`
+- [Scheduling](/features/scheduling) — cron-like automation with `mecha schedule`
+- [Mesh Networking](/features/mesh-networking) — multi-node setup with `mecha node`
+- [Sessions & Chat](/features/sessions) — session management with `mecha bot sessions` and `mecha bot chat`
+- [Dashboard](/features/dashboard) — web UI served by `mecha dashboard serve`

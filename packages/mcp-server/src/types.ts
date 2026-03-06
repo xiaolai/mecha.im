@@ -4,6 +4,7 @@ import type { agentFetch } from "@mecha/service";
 import type { AuditLog } from "./audit.js";
 import type { RateLimiter } from "./rate-limit.js";
 
+/** Shared context passed to all MCP tool handlers. */
 export interface MeshMcpContext {
   mechaDir: string;
   pm: ProcessManager;
@@ -15,6 +16,7 @@ export interface MeshMcpContext {
   clientInfo?: { name: string; version: string };
 }
 
+/** MCP tool annotations (readOnlyHint / destructiveHint) keyed by tool name. */
 export const TOOL_ANNOTATIONS = {
   mecha_list_nodes:     { readOnlyHint: true,  destructiveHint: false },
   mecha_list_bots:     { readOnlyHint: true,  destructiveHint: false },
@@ -27,4 +29,5 @@ export const TOOL_ANNOTATIONS = {
   mecha_workspace_read: { readOnlyHint: true,  destructiveHint: false },
 } as const;
 
+/** Union of all registered MCP tool names. */
 export type ToolName = keyof typeof TOOL_ANNOTATIONS;

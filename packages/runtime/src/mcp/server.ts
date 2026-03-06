@@ -240,6 +240,7 @@ async function handleRequest(
   }
 }
 
+/** Options for MCP route registration (workspace tools + optional mesh tools). */
 export interface McpRouteOpts {
   workspacePath: string;
   mechaDir?: string;
@@ -247,6 +248,7 @@ export interface McpRouteOpts {
   router?: MeshRouter;
 }
 
+/** Register POST /mcp JSON-RPC endpoint for workspace and mesh tool calls. */
 export function registerMcpRoutes(app: FastifyInstance, opts: McpRouteOpts): void {
   const meshOpts: MeshOpts | undefined =
     opts.mechaDir && opts.botName

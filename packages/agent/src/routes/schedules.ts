@@ -32,6 +32,7 @@ function resolveBot(
   return botName;
 }
 
+/** Register per-bot schedule CRUD routes: list, add, remove, pause, resume, run, and history. */
 export function registerScheduleRoutes(app: FastifyInstance, pm: ProcessManager): void {
   app.get("/bots/:name/schedules", async (request: FastifyRequest<NameParams>, reply: FastifyReply) => {
     const botName = resolveBot(pm, request, reply);

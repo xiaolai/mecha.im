@@ -1,10 +1,12 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { EventLog } from "../event-log.js";
 
+/** Options for persisted event log route registration. */
 export interface EventLogRouteOpts {
   eventLog: EventLog;
 }
 
+/** Register GET /events/log to retrieve persisted system events with optional limit. */
 export function registerEventLogRoutes(app: FastifyInstance, opts: EventLogRouteOpts): void {
   app.get("/events/log", async (request: FastifyRequest<{ Querystring: { limit?: string } }>) => {
     const limitParam = request.query.limit;

@@ -1,3 +1,8 @@
+---
+title: Multi-Machine Setup
+description: Run Mecha agents across multiple machines and route queries between them.
+---
+
 # Multi-Machine Setup
 
 Run Mecha agents across multiple machines and route queries between them.

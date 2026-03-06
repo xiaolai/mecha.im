@@ -1,10 +1,12 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { createAuditLog } from "@mecha/mcp-server";
 
+/** Options for audit log route registration. */
 export interface AuditRouteOpts {
   mechaDir: string;
 }
 
+/** Register GET /audit to retrieve MCP audit log entries with optional limit. */
 export function registerAuditRoutes(app: FastifyInstance, opts: AuditRouteOpts): void {
   app.get("/audit", async (request: FastifyRequest<{ Querystring: { limit?: string } }>) => {
     const limitParam = request.query.limit;

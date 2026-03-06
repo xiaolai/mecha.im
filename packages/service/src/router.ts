@@ -19,6 +19,7 @@ import { botFind, type FindResult } from "./bot.js";
 import type { MechaLocator } from "./locator.js";
 import type { agentFetch as agentFetchType } from "./agent-fetch.js";
 
+/** Router for mediated inter-bot communication with ACL enforcement. */
 export interface BotRouter {
   /** Route a query from source to target, checking ACL. */
   routeQuery(source: string, target: string, message: string, sessionId?: string): Promise<ForwardResult>;
@@ -30,6 +31,7 @@ export interface BotRouter {
   ): FindResult[];
 }
 
+/** Options for creating a bot router. */
 export interface CreateRouterOpts {
   mechaDir: string;
   acl: AclEngine;

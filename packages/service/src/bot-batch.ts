@@ -4,6 +4,7 @@ import { isValidName, readBotConfig } from "@mecha/core";
 import type { ProcessManager, ProcessInfo } from "@mecha/process";
 import { checkBotBusy } from "./task-check.js";
 
+/** Per-bot result from a batch stop/restart operation. */
 export interface BatchItemResult {
   name: string;
   status: "succeeded" | "skipped_busy" | "skipped_stopped" | "failed";
@@ -12,11 +13,13 @@ export interface BatchItemResult {
   lastActivity?: string;
 }
 
+/** Aggregate result of a batch operation with per-bot details and summary counts. */
 export interface BatchResult {
   results: BatchItemResult[];
   summary: { succeeded: number; skipped: number; failed: number };
 }
 
+/** Options for running a batch stop/restart across bots. */
 export interface BatchActionOpts {
   pm: ProcessManager;
   mechaDir: string;

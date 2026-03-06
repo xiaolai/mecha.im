@@ -30,6 +30,7 @@ function resolveClaudeBin(): string {
 /** Max chunks retained for scrollback replay on reattach. */
 const SCROLLBACK_LIMIT = 200;
 
+/** Active PTY session with its associated WebSocket clients and scrollback buffer. */
 export interface PtySession {
   id: string;
   botName: string;
@@ -40,6 +41,7 @@ export interface PtySession {
   scrollback: string[];
 }
 
+/** Manages PTY sessions: spawning, attaching/detaching WebSocket clients, and cleanup. */
 export interface PtyManager {
   spawn(botName: string, sessionId: string | undefined, cols: number, rows: number): PtySession;
   attach(sessionKey: string, ws: WebSocket): PtySession | null;
@@ -51,6 +53,7 @@ export interface PtyManager {
   shutdown(): void;
 }
 
+/** Options for creating a PtyManager instance. */
 export interface CreatePtyManagerOpts {
   processManager: ProcessManager;
   mechaDir: string;
@@ -62,6 +65,7 @@ export interface CreatePtyManagerOpts {
 const DEFAULT_MAX_SESSIONS = 10;
 const DEFAULT_IDLE_TIMEOUT_MS = 300_000;
 
+/** Create a PtyManager that spawns Claude Code PTY sessions for bots with idle timeout and scrollback. */
 export function createPtyManager(opts: CreatePtyManagerOpts): PtyManager {
   const {
     processManager, mechaDir, spawnFn,

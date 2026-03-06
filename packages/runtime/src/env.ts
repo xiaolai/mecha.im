@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+/** Zod schema for validating bot process environment variables. */
 export const RuntimeEnv = z.object({
   MECHA_BOT_NAME: z.string().min(1, "MECHA_BOT_NAME is required"),
   MECHA_PORT: z.string().regex(/^\d+$/, "MECHA_PORT must be numeric").transform(Number).pipe(z.number().int().min(1).max(65535)),
@@ -10,6 +11,7 @@ export const RuntimeEnv = z.object({
   MECHA_SANDBOX_ROOT: z.string().optional(),
 });
 
+/** Validated runtime environment data after Zod parsing. */
 export type RuntimeEnvData = z.infer<typeof RuntimeEnv>;
 
 /**

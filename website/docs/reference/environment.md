@@ -1,3 +1,8 @@
+---
+title: Environment Variables
+description: All environment variables recognized by the Mecha runtime.
+---
+
 # Environment Variables
 
 All environment variables recognized by Mecha.
@@ -8,12 +13,6 @@ All environment variables recognized by Mecha.
 |----------|-------------|
 | `ANTHROPIC_API_KEY` | Anthropic API key for agent inference. Takes precedence over auth profiles. |
 | `CLAUDE_CODE_OAUTH_TOKEN` | OAuth token for Claude Code. Preferred over API keys (longer lifespan). |
-
-## Server
-
-| Variable | Description |
-|----------|-------------|
-| `SERVER_SECRET_PATH` | Path to a file containing the 32-byte HMAC secret for relay tokens. If not set, an ephemeral secret is generated on each server start. |
 
 ## Debugging
 
@@ -48,6 +47,20 @@ These are set automatically when a bot process starts. Do not set manually.
 | `MECHA_LOG_DIR` | Path to the bot's log directory |
 | `MECHA_SANDBOX_ROOT` | Path to the bot's root directory |
 
+## Example `.env` File
+
+```bash
+# Authentication
+ANTHROPIC_API_KEY=sk-ant-...
+CLAUDE_CODE_OAUTH_TOKEN=eyJ...
+
+# Auto-discovery (optional)
+MECHA_CLUSTER_KEY=my-shared-secret
+
+# Debugging (optional)
+MECHA_LOG_LEVEL=info
+```
+
 ## Resolution Priority
 
 When spawning a bot, credentials are resolved in this order:
@@ -55,3 +68,10 @@ When spawning a bot, credentials are resolved in this order:
 1. CLI flag (`--auth <profile>`)
 2. Environment variables (`ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`)
 3. Default auth profile (`mecha auth default`)
+
+## See Also
+
+- [Configuration Guide](/guide/configuration) — auth profiles and bot settings
+- [Multi-Machine Setup](/advanced/multi-machine) — environment setup across nodes
+- [Metering & Budgets](/features/metering) — cost tracking configuration
+- [Mesh Networking](/features/mesh-networking) — `MECHA_CLUSTER_KEY` usage

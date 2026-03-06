@@ -2,12 +2,14 @@ import { existsSync, mkdirSync, writeFileSync, readdirSync, readFileSync } from 
 import { join, resolve, relative, isAbsolute } from "node:path";
 import { InvalidToolNameError } from "@mecha/core";
 
+/** Metadata for an installed tool. */
 export interface ToolInfo {
   name: string;
   version: string;
   description: string;
 }
 
+/** Options for installing a tool. */
 export interface ToolInstallOpts {
   name: string;
   version?: string;

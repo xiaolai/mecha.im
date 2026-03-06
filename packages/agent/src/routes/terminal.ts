@@ -7,6 +7,7 @@ const BACKPRESSURE_LIMIT = 1_048_576; // 1 MB
 /** Only allow alphanumeric, hyphens, and underscores in session IDs. */
 const SESSION_ID_RE = /^[a-zA-Z0-9_-]+$/;
 
+/** Register WebSocket /ws/terminal/:name for interactive PTY terminal sessions. */
 export function registerTerminalRoutes(
   app: FastifyInstance,
   ptyManager: PtyManager,

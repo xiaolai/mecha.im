@@ -5,6 +5,7 @@ import { registerSessionTools } from "./tools/sessions.js";
 import { registerWorkspaceTools } from "./tools/workspace.js";
 import { registerQueryTools } from "./tools/query.js";
 
+/** Create and configure the Mecha MCP server with all tool groups registered. */
 export function createMeshMcpServer(ctx: MeshMcpContext): McpServer {
   const server = new McpServer({
     name: "mecha",
