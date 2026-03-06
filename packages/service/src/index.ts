@@ -61,5 +61,5 @@ export {
 } from "./schedule.js";
 export { nodePing } from "./node-ping.js";
 export type { PingResult } from "./node-ping.js";
-export { resolveClaudeRuntime } from "./claude-runtime.js";
-export type { ClaudeRuntimeInfo } from "./claude-runtime.js";
+export { resolveClaudeRuntime, invalidateClaudeRuntimeCache } from "./claude-runtime.js";
+export type { ClaudeRuntimeInfo, ResolvedFrom } from "./claude-runtime.js";

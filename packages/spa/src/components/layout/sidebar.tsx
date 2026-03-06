@@ -110,6 +110,9 @@ export function Sidebar({ open, onClose, collapsed, onToggleCollapse }: SidebarP
     return () => document.removeEventListener("keydown", handler);
   }, [open, onClose]);
 
+  // On mobile (drawer open), always show expanded — collapsed only applies on desktop
+  const isCollapsed = collapsed && !open;
+
   return (
     <>
       {/* Mobile overlay */}
@@ -126,19 +129,19 @@ export function Sidebar({ open, onClose, collapsed, onToggleCollapse }: SidebarP
         className={cn(
           "fixed inset-y-0 left-0 z-50 flex flex-col border-r border-sidebar-border bg-sidebar md:static md:z-auto",
           "transition-all duration-200 md:translate-x-0",
-          collapsed ? "md:w-14" : "w-56",
+          isCollapsed ? "md:w-14" : "w-56",
           open ? "translate-x-0 w-56" : "-translate-x-full",
         )}
       >
         {/* Header */}
-        <div className={cn("flex h-12 items-center", collapsed ? "justify-center px-2" : "justify-between px-4")}>
-          {!collapsed && (
+        <div className={cn("flex h-12 items-center", isCollapsed ? "justify-center px-2" : "justify-between px-4")}>
+          {!isCollapsed && (
             <div className="flex items-center gap-2">
               <img src="/images/logo-40.png" alt="" className="size-6" />
               <span className="text-sm font-semibold text-sidebar-foreground">MECHA</span>
             </div>
           )}
-          {collapsed && (
+          {isCollapsed && (
             <img src="/images/logo-40.png" alt="" className="size-6" />
           )}
           <div className="md:hidden">
@@ -155,22 +158,22 @@ export function Sidebar({ open, onClose, collapsed, onToggleCollapse }: SidebarP
         </div>
 
         {/* Nav */}
-        <nav className={cn("flex-1 overflow-y-auto py-2", collapsed ? "px-1" : "px-2")}>
+        <nav className={cn("flex-1 overflow-y-auto py-2", isCollapsed ? "px-1" : "px-2")}>
           {navSections.map((section) => (
             <div key={section.label} className="mb-3">
-              {!collapsed && (
+              {!isCollapsed && (
                 <div className="px-3 py-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
                   {section.label}
                 </div>
               )}
-              {collapsed && <div className="my-1 mx-2 border-t border-sidebar-border" />}
+              {isCollapsed && <div className="my-1 mx-2 border-t border-sidebar-border" />}
               <div className="space-y-0.5">
                 {section.items.map(({ href, label, icon: Icon }) => {
                   const active = href === "/"
                     ? pathname === "/" || pathname.startsWith("/bot/")
                     : pathname === href || pathname.startsWith(`${href}/`);
 
-                  if (collapsed) {
+                  if (isCollapsed) {
                     return (
                       <Tooltip key={href}>
                         <TooltipTrigger asChild>
@@ -215,9 +218,9 @@ export function Sidebar({ open, onClose, collapsed, onToggleCollapse }: SidebarP
         </nav>
 
         {/* Footer */}
-        <div className={cn("flex flex-col items-center gap-2 pb-4", collapsed ? "px-2" : "px-4")}>
-          {!collapsed && <img src="/images/login-bg.png" alt="" className="size-24 opacity-60" />}
-          <LogoutButton logout={logout} collapsed={collapsed} />
+        <div className={cn("flex flex-col items-center gap-2 pb-4", isCollapsed ? "px-2" : "px-4")}>
+          {!isCollapsed && <img src="/images/login-bg.png" alt="" className="size-24 opacity-60" />}
+          <LogoutButton logout={logout} collapsed={isCollapsed} />
           {/* Collapse toggle — desktop only */}
           <div className="hidden md:flex">
             <TooltipIconButton
