@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { type BotName, isValidName, readBotConfig, readAuthProfiles, BotNotRunningError, getNetworkIps } from "@mecha/core";
+import { type BotName, type SandboxMode, isValidName, readBotConfig, readAuthProfiles, BotNotRunningError, getNetworkIps } from "@mecha/core";
 import type { ProcessManager } from "@mecha/process";
 import { botConfigure, checkBotBusy, enrichBotInfo, buildEnrichContext, getCachedSnapshot, mechaAuthLs, batchBotAction, agentFetch } from "@mecha/service";
 import type { BotConfigUpdates, EnrichedBotInfo } from "@mecha/service";
@@ -218,7 +218,20 @@ export function registerBotRoutes(app: FastifyInstance, pm: ProcessManager, mech
     return { ok: true };
   });
 
-  app.post("/bots", async (request: FastifyRequest<{ Body: { name?: string; workspacePath?: string } }>, reply: FastifyReply) => {
+  interface SpawnBody {
+    name?: string;
+    workspacePath?: string;
+    model?: string;
+    permissionMode?: string;
+    auth?: string | null;
+    tags?: string[];
+    expose?: string[];
+    sandboxMode?: string;
+    meterOff?: boolean;
+    home?: string;
+  }
+
+  app.post("/bots", async (request: FastifyRequest<{ Body: SpawnBody }>, reply: FastifyReply) => {
     /* v8 ignore start -- Fastify always parses body for POST */
     const body = request.body ?? {};
     /* v8 ignore stop */
@@ -237,7 +250,18 @@ export function registerBotRoutes(app: FastifyInstance, pm: ProcessManager, mech
       reply.code(409).send({ error: `bot already exists: ${botName}` });
       return;
     }
-    const result = await pm.spawn({ name: botName, workspacePath: body.workspacePath });
+    const result = await pm.spawn({
+      name: botName,
+      workspacePath: body.workspacePath,
+      ...(body.model && { model: body.model }),
+      ...(body.permissionMode && { permissionMode: body.permissionMode }),
+      ...(body.auth !== undefined && { auth: body.auth }),
+      ...(body.tags && { tags: body.tags }),
+      ...(body.expose && { expose: body.expose }),
+      ...(body.sandboxMode && { sandboxMode: body.sandboxMode as SandboxMode }),
+      ...(body.meterOff !== undefined && { meterOff: body.meterOff }),
+      ...(body.home && { home: body.home }),
+    });
     return { ok: true, name: botName, port: result.port };
   });
 
