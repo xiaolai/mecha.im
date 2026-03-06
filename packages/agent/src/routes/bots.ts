@@ -3,7 +3,7 @@ import { type BotName, type SandboxMode, isValidName, readBotConfig, readAuthPro
 import type { ProcessManager } from "@mecha/process";
 import { botConfigure, checkBotBusy, enrichBotInfo, buildEnrichContext, getCachedSnapshot, mechaAuthLs, batchBotAction, agentFetch } from "@mecha/service";
 import type { BotConfigUpdates, EnrichedBotInfo } from "@mecha/service";
-import { existsSync, statSync } from "node:fs";
+import { existsSync, statSync, rmSync, readFileSync } from "node:fs";
 import { join, basename, resolve, isAbsolute } from "node:path";
 import { hostname as osHostname } from "node:os";
 import { resolveNodeEntry } from "../node-resolve.js";
@@ -263,6 +263,61 @@ export function registerBotRoutes(app: FastifyInstance, pm: ProcessManager, mech
       ...(body.home && { home: body.home }),
     });
     return { ok: true, name: botName, port: result.port };
+  });
+
+  // --- Remove a bot: stop/kill if running, then delete its directory ---
+  app.delete("/bots/:name", async (
+    request: FastifyRequest<{ Params: { name: string }; Querystring: { force?: string } }>,
+    reply: FastifyReply,
+  ) => {
+    const validated = validateName(request.params.name, reply);
+    if (!validated) return;
+
+    const botDir = join(mechaDir, validated);
+    if (!existsSync(botDir)) {
+      reply.code(404).send({ error: `Bot not found: ${validated}` });
+      return;
+    }
+
+    const existing = pm.get(validated);
+    if (existing?.state === "running") {
+      const force = request.query.force === "true";
+      if (force) await pm.kill(validated);
+      else await pm.stop(validated);
+    }
+
+    rmSync(botDir, { recursive: true, force: true });
+    return { ok: true };
+  });
+
+  // --- View bot logs ---
+  app.get("/bots/:name/logs", async (
+    request: FastifyRequest<{
+      Params: { name: string };
+      Querystring: { stream?: string; lines?: string };
+    }>,
+    reply: FastifyReply,
+  ) => {
+    const validated = validateName(request.params.name, reply);
+    if (!validated) return;
+
+    const botDir = join(mechaDir, validated);
+    if (!existsSync(botDir)) {
+      reply.code(404).send({ error: `Bot not found: ${validated}` });
+      return;
+    }
+
+    const stream = request.query.stream === "stderr" ? "stderr" : "stdout";
+    const logFile = join(botDir, "logs", `${stream}.log`);
+    const lines = Math.min(parseInt(request.query.lines ?? "200", 10) || 200, 5000);
+
+    if (!existsSync(logFile)) {
+      return { lines: [] };
+    }
+
+    const content = readFileSync(logFile, "utf-8");
+    const allLines = content.split("\n").filter(Boolean);
+    return { lines: allLines.slice(-lines) };
   });
 
   // --- Update bot config fields, optionally restart ---

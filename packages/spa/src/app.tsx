@@ -11,6 +11,12 @@ import { AuditPage } from "@/pages/audit";
 import { NodesPage } from "@/pages/nodes";
 import { SettingsPage } from "@/pages/settings";
 import { SchedulesPage } from "@/pages/schedules-page";
+import { BudgetsPage } from "@/pages/budgets";
+import { AuthProfilesPage } from "@/pages/auth-profiles";
+import { SandboxPage } from "@/pages/sandbox";
+import { PluginsPage } from "@/pages/plugins";
+import { ToolsPage } from "@/pages/tools";
+import { DoctorPage } from "@/pages/doctor";
 import { LoginPage } from "@/pages/login";
 import { NotFoundPage } from "@/pages/not-found";
 
@@ -42,6 +48,12 @@ export function App() {
         <Route path="schedules" element={<SchedulesPage />} />
         <Route path="acl" element={<AclPage />} />
         <Route path="audit" element={<AuditPage />} />
+        <Route path="budgets" element={<BudgetsPage />} />
+        <Route path="auth" element={<AuthProfilesPage />} />
+        <Route path="sandbox" element={<SandboxPage />} />
+        <Route path="plugins" element={<PluginsPage />} />
+        <Route path="tools" element={<ToolsPage />} />
+        <Route path="doctor" element={<DoctorPage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>
       <Route path="*" element={<NotFoundPage />} />

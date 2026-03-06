@@ -9,19 +9,51 @@ import {
   SettingsIcon,
   XIcon,
   LogOutIcon,
+  DollarSignIcon,
+  KeyRoundIcon,
+  LockIcon,
+  PuzzleIcon,
+  WrenchIcon,
+  HeartPulseIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TooltipIconButton } from "@/components/ui/tooltip-icon-button";
 import { useAuth } from "@/auth-context";
 
-const navItems = [
-  { href: "/nodes", label: "Nodes", icon: NetworkIcon },
-  { href: "/", label: "Bots", icon: BoxIcon },
-  { href: "/schedules", label: "Schedules", icon: CalendarClockIcon },
-  { href: "/acl", label: "ACL", icon: ShieldCheckIcon },
-  { href: "/audit", label: "Logs", icon: ScrollTextIcon },
-  { href: "/settings", label: "Settings", icon: SettingsIcon },
-] as const;
+const navSections = [
+  {
+    label: "Bots",
+    items: [
+      { href: "/", label: "Bots", icon: BoxIcon },
+      { href: "/schedules", label: "Schedules", icon: CalendarClockIcon },
+      { href: "/budgets", label: "Budgets", icon: DollarSignIcon },
+    ],
+  },
+  {
+    label: "Security",
+    items: [
+      { href: "/acl", label: "ACL Rules", icon: ShieldCheckIcon },
+      { href: "/auth", label: "Auth Profiles", icon: KeyRoundIcon },
+      { href: "/sandbox", label: "Sandbox", icon: LockIcon },
+    ],
+  },
+  {
+    label: "Infrastructure",
+    items: [
+      { href: "/nodes", label: "Nodes", icon: NetworkIcon },
+      { href: "/plugins", label: "Plugins", icon: PuzzleIcon },
+      { href: "/tools", label: "Tools", icon: WrenchIcon },
+    ],
+  },
+  {
+    label: "System",
+    items: [
+      { href: "/audit", label: "Audit & Events", icon: ScrollTextIcon },
+      { href: "/doctor", label: "Doctor", icon: HeartPulseIcon },
+      { href: "/settings", label: "Settings", icon: SettingsIcon },
+    ],
+  },
+];
 
 interface SidebarProps {
   open: boolean;
@@ -97,28 +129,37 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 space-y-1 px-2 py-2">
-          {navItems.map(({ href, label, icon: Icon }) => {
-            const active = href === "/"
-              ? pathname === "/" || pathname.startsWith("/bot/")
-              : pathname === href || pathname.startsWith(`${href}/`);
-            return (
-              <Link
-                key={href}
-                to={href}
-                onClick={onClose}
-                className={cn(
-                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                  active
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                )}
-              >
-                <Icon className="size-4" />
-                {label}
-              </Link>
-            );
-          })}
+        <nav className="flex-1 overflow-y-auto px-2 py-2">
+          {navSections.map((section) => (
+            <div key={section.label} className="mb-3">
+              <div className="px-3 py-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                {section.label}
+              </div>
+              <div className="space-y-0.5">
+                {section.items.map(({ href, label, icon: Icon }) => {
+                  const active = href === "/"
+                    ? pathname === "/" || pathname.startsWith("/bot/")
+                    : pathname === href || pathname.startsWith(`${href}/`);
+                  return (
+                    <Link
+                      key={href}
+                      to={href}
+                      onClick={onClose}
+                      className={cn(
+                        "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                        active
+                          ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                          : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                      )}
+                    >
+                      <Icon className="size-4" />
+                      {label}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
 
         {/* Footer */}
