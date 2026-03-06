@@ -14,7 +14,22 @@ export interface AuthRouteOpts {
 
 /** Register public auth routes: GET /auth/status, POST /auth/login, POST /auth/logout. */
 export function registerAuthRoutes(app: FastifyInstance, opts: AuthRouteOpts): void {
-  const limiter = createLoginLimiter();
+  // Per-IP rate limiters with bounded eviction to prevent memory exhaustion
+  const limiters = new Map<string, ReturnType<typeof createLoginLimiter>>();
+  const MAX_LIMITER_ENTRIES = 1_000;
+  function getLimiter(ip: string) {
+    let lim = limiters.get(ip);
+    if (!lim) {
+      // Evict oldest entries if map exceeds size limit
+      if (limiters.size >= MAX_LIMITER_ENTRIES) {
+        const first = limiters.keys().next().value;
+        if (first) limiters.delete(first);
+      }
+      lim = createLoginLimiter();
+      limiters.set(ip, lim);
+    }
+    return lim;
+  }
   const ttl = opts.sessionTtlHours ?? 24;
 
   /** Public: returns which auth methods are available. */
@@ -30,6 +45,7 @@ export function registerAuthRoutes(app: FastifyInstance, opts: AuthRouteOpts): v
       return reply.code(404).send({ error: "TOTP auth not enabled" });
     }
 
+    const limiter = getLimiter(request.ip);
     const { allowed, retryAfterMs } = limiter.check();
     if (!allowed) {
       return reply.code(429).send({
@@ -56,7 +72,7 @@ export function registerAuthRoutes(app: FastifyInstance, opts: AuthRouteOpts): v
       return reply.code(401).send({ error: "Invalid TOTP code" });
     }
 
-    limiter.reset();
+    getLimiter(request.ip).reset();
     if (opts.eventLog) {
       emitEvent(opts.eventLog, "info", "auth", "totp.login_success",
         `TOTP login from ${request.ip}`, { ip: request.ip });

@@ -85,6 +85,18 @@ export function registerStartCommand(program: Command, deps: CommandDeps): void 
 
       await server.listen({ port, host: opts.host });
 
+      // Auto-start meter daemon in-process
+      /* v8 ignore start -- meter auto-start is best-effort */
+      try {
+        const { startMeterDaemon } = await import("@mecha/agent");
+        const handle = await startMeterDaemon(deps.mechaDir);
+        deps.registerShutdownHook?.(() => handle.close());
+        deps.formatter.success(`Meter proxy started on 127.0.0.1:${handle.info.port}`);
+      } catch (err) {
+        deps.formatter.warn(`Meter auto-start failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      /* v8 ignore stop */
+
       /* v8 ignore start -- SPA presence varies by build configuration */
       if (spaDir) {
         deps.formatter.success(`Mecha started on http://${opts.host}:${port} (node: ${nodeName}, auth: TOTP)`);

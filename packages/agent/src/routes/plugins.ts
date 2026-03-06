@@ -18,8 +18,26 @@ export interface PluginRouteOpts {
 /** Check if a URL targets a private/internal address (SSRF guard). */
 function isPrivateUrl(urlStr: string): boolean {
   try {
-    const { hostname } = new URL(urlStr);
-    return /^(127\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|::1|localhost|0\.0\.0\.0)/i.test(hostname);
+    const url = new URL(urlStr);
+    // Only allow http/https protocols
+    if (url.protocol !== "http:" && url.protocol !== "https:") return true;
+    const h = url.hostname.replace(/^\[|\]$/g, "").toLowerCase();
+    // Block localhost variants
+    if (h === "localhost" || h === "0.0.0.0" || h === "[::]") return true;
+    // Block IPv6 loopback, link-local, ULA, and mapped private addresses
+    if (h === "::1" || h === "::") return true;
+    if (h.startsWith("::ffff:")) return true; // IPv4-mapped IPv6 (any)
+    if (h.startsWith("fe80:") || h.startsWith("fc") || h.startsWith("fd")) return true;
+    // Block IPv4 private ranges
+    const ipv4Match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h);
+    if (ipv4Match) {
+      const [, a, b] = ipv4Match.map(Number);
+      if (a === 127 || a === 10 || a === 0) return true;
+      if (a === 172 && b !== undefined && b >= 16 && b <= 31) return true;
+      if (a === 192 && b === 168) return true;
+      if (a === 169 && b === 254) return true; // link-local
+    }
+    return false;
   /* v8 ignore start -- malformed URL fallback */
   } catch { return true; }
   /* v8 ignore stop */
@@ -136,7 +154,7 @@ export function registerPluginRoutes(app: FastifyInstance, opts: PluginRouteOpts
           return reply.code(400).send({ error: "Cannot test plugins targeting private/internal addresses" });
         }
         try {
-          const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+          const res = await fetch(url, { signal: AbortSignal.timeout(5000), redirect: "manual" });
           return { ok: res.ok, status: res.status };
         } catch {
           return { ok: false, error: "unreachable" };

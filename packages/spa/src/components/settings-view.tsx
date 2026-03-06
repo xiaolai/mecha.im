@@ -102,7 +102,9 @@ export function SettingsView() {
   const { data: runtime, loading: runtimeLoading, error: runtimeError } = useFetch<RuntimeConfig>("/settings/runtime");
   const { data: totp, loading: totpLoading, error: totpError } = useFetch<TotpStatus>("/settings/totp");
   const { data: network, loading: networkLoading, error: networkFetchError, refetch: refetchNetwork } = useFetch<NetworkSettings>("/settings/network");
-  const { data: meter, loading: meterLoading } = useFetch<MeterStatus>("/meter/status", { interval: 30_000 });
+  const { data: meter, loading: meterLoading, refetch: refetchMeter } = useFetch<MeterStatus>("/meter/status", { interval: 30_000 });
+  const [meterToggling, setMeterToggling] = useState(false);
+  const [meterError, setMeterError] = useState<string | null>(null);
   const [httpsToggling, setHttpsToggling] = useState(false);
   const [networkError, setNetworkError] = useState<string | null>(null);
 
@@ -127,6 +129,29 @@ export function SettingsView() {
       setNetworkError("Connection error");
     } finally {
       setHttpsToggling(false);
+    }
+  }
+
+  async function toggleMeter() {
+    setMeterToggling(true);
+    setMeterError(null);
+    try {
+      const action = meter?.running ? "stop" : "start";
+      const res = await fetch(`/meter/${action}`, {
+        method: "POST",
+        headers: authHeaders,
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: "Request failed" }));
+        setMeterError((data as { error?: string }).error ?? `Failed to ${action} meter`);
+        return;
+      }
+      refetchMeter();
+    } catch {
+      setMeterError("Connection error");
+    } finally {
+      setMeterToggling(false);
     }
   }
 
@@ -196,11 +221,23 @@ export function SettingsView() {
       <Card>
         <SectionHeader icon={GaugeIcon} title="Meter Daemon" />
         <div className="flex flex-col gap-2 text-sm">
-          <div className="flex items-baseline justify-between gap-4">
-            <span className="text-muted-foreground">Status</span>
-            <Badge variant={meter?.running ? "default" : "secondary"}>
-              {meter?.running ? "Running" : "Stopped"}
-            </Badge>
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-baseline gap-2">
+              <span className="text-muted-foreground">Status</span>
+              <Badge variant={meter?.running ? "default" : "secondary"}>
+                {meter?.running ? "Running" : "Stopped"}
+              </Badge>
+            </div>
+            <Button
+              variant={meter?.running ? "outline" : "default"}
+              size="sm"
+              className="min-h-11 sm:min-h-0 shrink-0"
+              disabled={meterToggling}
+              onClick={toggleMeter}
+            >
+              {meterToggling && <Loader2Icon className="size-4 animate-spin" />}
+              {meter?.running ? "Stop" : "Start"}
+            </Button>
           </div>
           {meter?.running && (
             <>
@@ -219,8 +256,11 @@ export function SettingsView() {
           )}
           {!meter?.running && (
             <p className="text-xs text-muted-foreground mt-1">
-              Run <code className="font-mono text-card-foreground">mecha meter start</code> to enable cost tracking.
+              Cost tracking is disabled. Start the meter to track API usage and enforce budgets.
             </p>
+          )}
+          {meterError && (
+            <p className="text-xs text-destructive">{meterError}</p>
           )}
         </div>
       </Card>
