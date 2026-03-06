@@ -1,9 +1,10 @@
 import { PageShell } from "@/components/page-shell";
+import { PluginsView } from "@/components/plugins-view";
 
 export function PluginsPage() {
   return (
     <PageShell title="Plugins">
-      <p className="text-sm text-muted-foreground">Coming soon.</p>
+      <PluginsView />
     </PageShell>
   );
 }
