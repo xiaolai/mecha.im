@@ -16,7 +16,7 @@ export default withMermaid(
       nav: [
         { text: "Guide", link: "/guide/" },
         { text: "Features", link: "/features/multi-agent" },
-        { text: "Reference", link: "/reference/cli" },
+        { text: "Reference", link: "/reference/cli/" },
         {
           text: "GitHub",
           link: "https://github.com/xiaolai/myprojects/tree/main/mecha.im",
@@ -38,6 +38,14 @@ export default withMermaid(
             items: [
               { text: "Core Concepts", link: "/guide/concepts" },
               { text: "Configuration", link: "/guide/configuration" },
+              { text: "Dashboard", link: "/guide/dashboard" },
+            ],
+          },
+          {
+            text: "Operations",
+            items: [
+              { text: "Multi-Machine Setup", link: "/guide/multi-machine" },
+              { text: "Troubleshooting", link: "/guide/troubleshooting" },
             ],
           },
         ],
@@ -52,32 +60,44 @@ export default withMermaid(
               { text: "Metering & Budgets", link: "/features/metering" },
               { text: "Scheduling", link: "/features/scheduling" },
               { text: "Sessions", link: "/features/sessions" },
+              { text: "MCP Server", link: "/features/mcp-server" },
+              { text: "Dashboard", link: "/features/dashboard" },
             ],
           },
         ],
         "/reference/": [
           {
-            text: "Reference",
+            text: "CLI Reference",
             items: [
-              { text: "CLI Reference", link: "/reference/cli" },
-              {
-                text: "Environment Variables",
-                link: "/reference/environment",
-              },
-              { text: "Architecture", link: "/reference/architecture" },
-              { text: "Error Reference", link: "/reference/errors" },
+              { text: "Overview", link: "/reference/cli/" },
+              { text: "Bot Commands", link: "/reference/cli/bot" },
+              { text: "Schedule Commands", link: "/reference/cli/schedule" },
+              { text: "Node Commands", link: "/reference/cli/node" },
+              { text: "Meter & Budget", link: "/reference/cli/meter" },
+              { text: "Plugin Commands", link: "/reference/cli/plugin" },
+              { text: "System Commands", link: "/reference/cli/system" },
             ],
           },
-        ],
-        "/advanced/": [
           {
-            text: "Advanced",
+            text: "API Reference",
             items: [
-              {
-                text: "Multi-Machine Setup",
-                link: "/advanced/multi-machine",
-              },
-              { text: "Troubleshooting", link: "/advanced/troubleshooting" },
+              { text: "Routes & Server", link: "/reference/api/" },
+              { text: "@mecha/core", link: "/reference/api/core" },
+              { text: "@mecha/process", link: "/reference/api/process" },
+              { text: "@mecha/service", link: "/reference/api/service" },
+              { text: "@mecha/meter", link: "/reference/api/meter" },
+              { text: "@mecha/connect", link: "/reference/api/connect" },
+              { text: "@mecha/runtime", link: "/reference/api/runtime" },
+              { text: "@mecha/server", link: "/reference/api/server" },
+              { text: "@mecha/mcp-server", link: "/reference/api/mcp-server" },
+            ],
+          },
+          {
+            text: "Other",
+            items: [
+              { text: "Dashboard Components", link: "/reference/components" },
+              { text: "Environment Variables", link: "/reference/environment" },
+              { text: "Error Reference", link: "/reference/errors" },
             ],
           },
         ],
