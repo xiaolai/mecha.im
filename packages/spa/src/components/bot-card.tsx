@@ -12,6 +12,7 @@ import { useBotAction } from "@/lib/use-bot-action";
 import { humanizeProfileName } from "@/lib/auth-utils";
 import { BusyWarningBanner } from "@/components/busy-warning-banner";
 import { ConfirmActionBanner } from "@/components/confirm-action-banner";
+import { formatUptimeFromIso } from "@/lib/format";
 
 export interface BotInfo {
   name: string;
@@ -67,20 +68,6 @@ function CopyBtn({ value }: { value: string }) {
   );
 }
 
-/** Format duration from ISO date to now (e.g. "2h 15m", "3d 4h") */
-function formatUptime(iso: string): string {
-  const ms = Date.now() - new Date(iso).getTime();
-  if (ms < 0 || !Number.isFinite(ms)) return "—";
-  const mins = Math.floor(ms / 60_000);
-  if (mins < 1) return "<1m";
-  if (mins < 60) return `${mins}m`;
-  const hrs = Math.floor(mins / 60);
-  const remMins = mins % 60;
-  if (hrs < 24) return remMins > 0 ? `${hrs}h ${remMins}m` : `${hrs}h`;
-  const days = Math.floor(hrs / 24);
-  const remHrs = hrs % 24;
-  return remHrs > 0 ? `${days}d ${remHrs}h` : `${days}d`;
-}
 
 /** A copyable mono-text detail row */
 function DetailRow({ label, value }: { label: string; value: string }) {
@@ -162,7 +149,7 @@ export function BotCard({ bot }: BotCardProps) {
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1">
             <ClockIcon className="size-3" />
-            {formatUptime(bot.startedAt)}
+            {formatUptimeFromIso(bot.startedAt)}
           </span>
           {bot.costToday != null && bot.costToday > 0 && (
             <span>{bot.costToday < 0.01 ? "<$0.01" : `$${bot.costToday.toFixed(2)}`} today</span>

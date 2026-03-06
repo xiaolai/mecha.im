@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useFetch } from "@/lib/use-fetch";
+import { formatUptime } from "@/lib/format";
 
 interface NodeHealth {
   name: string;
@@ -27,17 +28,6 @@ interface NodeHealth {
   publicIp?: string;
 }
 
-function formatUptime(s: number): string {
-  const clamped = Math.max(0, Math.floor(s));
-  const d = Math.floor(clamped / 86400);
-  const h = Math.floor((clamped % 86400) / 3600);
-  const m = Math.floor((clamped % 3600) / 60);
-  const sec = clamped % 60;
-  if (d > 0) return `${d}d ${h}h`;
-  if (h > 0) return `${h}h ${m}m`;
-  if (m > 0) return `${m}m`;
-  return `${sec}s`;
-}
 
 function InfoRow({ label, value, mono }: { label: string; value?: string | number | null; mono?: boolean }) {
   if (value == null) return null;

@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { withErrorHandler } from "../error-handler.js";
-import { loadNodeIdentity, loadNodePrivateKey, IdentityNotFoundError, DEFAULTS, createNoiseKeys, readServerState } from "@mecha/core";
+import { loadNodeIdentity, loadNodePrivateKey, IdentityNotFoundError, DEFAULTS, createNoiseKeys, readServerState, wsToHttp } from "@mecha/core";
 import { readNodeName } from "@mecha/service";
 import { createInviteCode } from "@mecha/connect";
 
@@ -14,10 +14,6 @@ function parseDuration(duration: string): number {
   return value * multipliers[unit]!;
 }
 
-/** Convert ws:// URL to http:// for REST calls. */
-function wsToHttp(url: string): string {
-  return url.replace(/^wss:\/\//, "https://").replace(/^ws:\/\//, "http://");
-}
 
 export function registerNodeInviteCommand(parent: Command, deps: CommandDeps): void {
   parent
