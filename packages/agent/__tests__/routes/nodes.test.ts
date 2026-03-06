@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import Fastify from "fastify";
 import { registerNodeRoutes } from "../../src/routes/nodes.js";
+import { NodeNotFoundError } from "@mecha/core";
 
 vi.mock("@mecha/service", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@mecha/service")>();
@@ -148,7 +149,7 @@ describe("node routes", () => {
     const app = Fastify();
     registerNodeRoutes(app, { mechaDir });
     await app.ready();
-    mockPing.mockRejectedValue(new Error("Node not found: ghost"));
+    mockPing.mockRejectedValue(new NodeNotFoundError("ghost"));
     const res = await app.inject({ method: "POST", url: "/nodes/ghost/ping" });
     expect(res.statusCode).toBe(404);
     expect(res.json().error).toContain("ghost");

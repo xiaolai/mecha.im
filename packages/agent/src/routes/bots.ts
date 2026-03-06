@@ -246,6 +246,19 @@ export function registerBotRoutes(app: FastifyInstance, pm: ProcessManager, mech
       reply.code(400).send({ error: "Missing workspacePath" });
       return;
     }
+    const validSandboxModes = ["auto", "off", "require"];
+    if (body.sandboxMode && !validSandboxModes.includes(body.sandboxMode)) {
+      reply.code(400).send({ error: `Invalid sandboxMode. Valid: ${validSandboxModes.join(", ")}` });
+      return;
+    }
+    if (body.tags !== undefined && (!Array.isArray(body.tags) || !body.tags.every((t: unknown) => typeof t === "string"))) {
+      reply.code(400).send({ error: "tags must be an array of strings" });
+      return;
+    }
+    if (body.expose !== undefined && (!Array.isArray(body.expose) || !body.expose.every((e: unknown) => typeof e === "string"))) {
+      reply.code(400).send({ error: "expose must be an array of strings" });
+      return;
+    }
     const botName = rawName as BotName;
     const existing = pm.get(botName);
     if (existing) {
@@ -286,6 +299,18 @@ export function registerBotRoutes(app: FastifyInstance, pm: ProcessManager, mech
     const existing = pm.get(validated);
     if (existing?.state === "running") {
       const force = request.query.force === "true";
+      if (!force) {
+        const check = await checkBotBusy(pm, validated);
+        if (check.busy) {
+          reply.code(409).send({
+            error: `bot has ${check.activeSessions} active session(s)`,
+            code: "BOT_BUSY",
+            activeSessions: check.activeSessions,
+            lastActivity: check.lastActivity,
+          });
+          return;
+        }
+      }
       if (force) await pm.kill(validated);
       else await pm.stop(validated);
     }
@@ -314,7 +339,7 @@ export function registerBotRoutes(app: FastifyInstance, pm: ProcessManager, mech
     const stream = request.query.stream === "stderr" ? "stderr" : "stdout";
     const logFile = join(botDir, "logs", `${stream}.log`);
     /* v8 ignore start -- NaN fallback for malformed lines param */
-    const lines = Math.min(parseInt(request.query.lines ?? "200", 10) || 200, 5000);
+    const lines = Math.max(1, Math.min(5000, parseInt(request.query.lines ?? "200", 10) || 200));
     /* v8 ignore stop */
 
     if (!existsSync(logFile)) {

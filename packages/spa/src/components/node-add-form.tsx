@@ -32,9 +32,9 @@ export function NodeAddForm({ open, onOpenChange, onAdded }: Props) {
     touched.name && !/^[a-z0-9][a-z0-9-]*$/.test(name)
       ? "Lowercase letters, numbers, hyphens only."
       : null;
-  const portNum = parseInt(port, 10);
+  const portNum = Number(port);
   const portError =
-    touched.port && (!Number.isFinite(portNum) || portNum < 1 || portNum > 65535)
+    touched.port && (!Number.isInteger(portNum) || portNum < 1 || portNum > 65535)
       ? "Must be 1-65535."
       : null;
   const canSubmit =

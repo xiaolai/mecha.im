@@ -35,6 +35,14 @@ export function registerBudgetRoutes(app: FastifyInstance, opts: BudgetRouteOpts
       reply.code(400).send({ error: "at least one of daily or monthly is required" });
       return;
     }
+    if (body.daily !== undefined && (typeof body.daily !== "number" || !Number.isFinite(body.daily) || body.daily < 0)) {
+      reply.code(400).send({ error: "daily must be a non-negative number" });
+      return;
+    }
+    if (body.monthly !== undefined && (typeof body.monthly !== "number" || !Number.isFinite(body.monthly) || body.monthly < 0)) {
+      reply.code(400).send({ error: "monthly must be a non-negative number" });
+      return;
+    }
 
     const target = parseTarget(body.scope, body.name);
     if (!target) {

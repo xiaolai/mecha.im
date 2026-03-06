@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { type AclEngine, isCapability, type Capability } from "@mecha/core";
+import { type AclEngine, isCapability, ALL_CAPABILITIES, type Capability } from "@mecha/core";
 
 /** Options for ACL route registration. */
 export interface AclRouteOpts {
@@ -21,7 +21,7 @@ export function registerAclRoutes(app: FastifyInstance, opts: AclRouteOpts): voi
       return;
     }
     if (!isCapability(body.capability)) {
-      reply.code(400).send({ error: `Invalid capability: ${body.capability}. Valid: query, read_workspace, write_workspace, execute, read_sessions, lifecycle` });
+      reply.code(400).send({ error: `Invalid capability: ${body.capability}. Valid: ${ALL_CAPABILITIES.join(", ")}` });
       return;
     }
     opts.acl.grant(body.source, body.target, [body.capability as Capability]);

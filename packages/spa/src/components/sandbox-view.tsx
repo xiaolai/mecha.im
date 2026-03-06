@@ -11,11 +11,11 @@ interface SandboxProfile {
 }
 
 export function SandboxView() {
-  const { data: bots } = useFetch<Array<{ name: string; state: string }>>("/bots");
+  const { data: bots, error: botsError } = useFetch<Array<{ name: string; state: string }>>("/bots");
   const [selectedBot, setSelectedBot] = useState<string | null>(null);
 
   const botName = selectedBot ?? bots?.[0]?.name ?? null;
-  const { data: profile, loading } = useFetch<SandboxProfile>(
+  const { data: profile, loading, error: profileError } = useFetch<SandboxProfile>(
     botName ? `/bots/${encodeURIComponent(botName)}/sandbox` : null,
     { deps: [botName] },
   );
@@ -35,6 +35,10 @@ export function SandboxView() {
           ))}
         </select>
       </div>
+
+      {(botsError || profileError) && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">{botsError || profileError}</div>
+      )}
 
       {loading && !profile ? (
         <Skeleton className="h-48 rounded-lg" />

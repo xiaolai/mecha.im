@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   PencilIcon,
   CheckIcon,
@@ -16,6 +16,8 @@ export function NodeNameEditor({ currentName }: { currentName: string }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedName, setSavedName] = useState(currentName);
+
+  useEffect(() => { if (!editing) setSavedName(currentName); }, [currentName, editing]);
 
   async function save() {
     if (!draft.trim() || draft === savedName) {
