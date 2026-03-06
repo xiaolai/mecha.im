@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, writeFileSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { join, resolve, relative, isAbsolute } from "node:path";
 import { InvalidToolNameError } from "@mecha/core";
 
@@ -77,4 +77,25 @@ export function mechaToolLs(mechaDir: string): ToolInfo[] {
   }
 
   return tools;
+}
+
+/**
+ * Removes an installed tool by name.
+ * Returns true if the tool was found and removed, false if it didn't exist.
+ */
+export function mechaToolRemove(mechaDir: string, name: string): boolean {
+  if (!/^[a-z0-9]([a-z0-9._-]*[a-z0-9])?$/i.test(name) || name.includes("..")) {
+    throw new InvalidToolNameError(name);
+  }
+  const toolsDir = join(mechaDir, "tools");
+  const toolDir = join(toolsDir, name);
+  const rel = relative(resolve(toolsDir), resolve(toolDir));
+  /* v8 ignore start -- defense-in-depth: regex above blocks traversal */
+  if (rel.startsWith("..") || isAbsolute(rel)) {
+    throw new InvalidToolNameError(name);
+  }
+  /* v8 ignore stop */
+  if (!existsSync(toolDir)) return false;
+  rmSync(toolDir, { recursive: true, force: true });
+  return true;
 }
