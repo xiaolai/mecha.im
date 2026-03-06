@@ -76,6 +76,7 @@ export function PluginsView() {
   const [testResults, setTestResults] = useState<Record<string, TestResult>>({});
   const [testing, setTesting] = useState<Record<string, boolean>>({});
   const [removing, setRemoving] = useState<Record<string, boolean>>({});
+  const [mutationError, setMutationError] = useState<string | null>(null);
 
   async function handleCreate() {
     if (!name) return;
@@ -138,12 +139,18 @@ export function PluginsView() {
 
   async function handleRemove(pluginName: string) {
     setRemoving((prev) => ({ ...prev, [pluginName]: true }));
+    setMutationError(null);
     try {
-      await fetch(`/plugins/${encodeURIComponent(pluginName)}`, {
+      const res = await fetch(`/plugins/${encodeURIComponent(pluginName)}`, {
         method: "DELETE",
         headers: authHeaders,
         credentials: "include",
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: "Request failed" }));
+        setMutationError(data.error ?? "Failed to remove plugin");
+        return;
+      }
       refetch();
     } finally {
       setRemoving((prev) => ({ ...prev, [pluginName]: false }));
@@ -279,6 +286,10 @@ export function PluginsView() {
             </Button>
           </div>
         </div>
+      )}
+
+      {mutationError && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">{mutationError}</div>
       )}
 
       {/* Plugin cards */}

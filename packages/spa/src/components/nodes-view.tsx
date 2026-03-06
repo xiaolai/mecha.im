@@ -168,9 +168,11 @@ function NodeCard({ node, isLocal, onClick, onPing, onRemove, onPromote, pinging
               <ArrowUpCircleIcon className="size-4" />
             </TooltipIconButton>
           )}
-          <TooltipIconButton tooltip="Remove" variant="ghost" size="icon-sm" onClick={onRemove} className="text-destructive hover:text-destructive">
-            <Trash2Icon className="size-4" />
-          </TooltipIconButton>
+          {!isDiscovered && (
+            <TooltipIconButton tooltip="Remove" variant="ghost" size="icon-sm" onClick={onRemove} className="text-destructive hover:text-destructive">
+              <Trash2Icon className="size-4" />
+            </TooltipIconButton>
+          )}
         </div>
       )}
     </div>
@@ -184,6 +186,7 @@ export function NodesView() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [pingingNode, setPingingNode] = useState<string | null>(null);
   const [pingResult, setPingResult] = useState<Record<string, string>>({});
+  const [mutationError, setMutationError] = useState<string | null>(null);
 
   async function handlePing(name: string) {
     setPingingNode(name);
@@ -207,20 +210,32 @@ export function NodesView() {
   }
 
   async function handleRemove(name: string) {
-    await fetch(`/nodes/${encodeURIComponent(name)}`, {
+    setMutationError(null);
+    const res = await fetch(`/nodes/${encodeURIComponent(name)}`, {
       method: "DELETE",
       headers: authHeaders,
       credentials: "include",
     });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({ error: "Request failed" }));
+      setMutationError(data.error ?? "Failed to remove node");
+      return;
+    }
     refetch();
   }
 
   async function handlePromote(name: string) {
-    await fetch(`/nodes/${encodeURIComponent(name)}/promote`, {
+    setMutationError(null);
+    const res = await fetch(`/nodes/${encodeURIComponent(name)}/promote`, {
       method: "POST",
       headers: authHeaders,
       credentials: "include",
     });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({ error: "Request failed" }));
+      setMutationError(data.error ?? "Failed to promote node");
+      return;
+    }
     refetch();
   }
 
@@ -265,6 +280,10 @@ export function NodesView() {
         <div role="alert" className="rounded-lg border border-warning/50 bg-warning/10 p-3 text-sm text-warning">
           Failed to refresh — showing last known state.
         </div>
+      )}
+
+      {mutationError && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">{mutationError}</div>
       )}
 
       {/* Ping results toast area */}

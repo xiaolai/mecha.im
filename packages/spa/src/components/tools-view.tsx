@@ -22,6 +22,7 @@ export function ToolsView() {
   const [description, setDescription] = useState("");
   const [installing, setInstalling] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
 
   async function handleInstall() {
     if (!name.trim()) return;
@@ -54,11 +55,17 @@ export function ToolsView() {
   }
 
   async function handleRemove(toolName: string) {
-    await fetch(`/tools/${encodeURIComponent(toolName)}`, {
+    setRemoveError(null);
+    const res = await fetch(`/tools/${encodeURIComponent(toolName)}`, {
       method: "DELETE",
       headers: authHeaders,
       credentials: "include",
     });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({ error: "Request failed" }));
+      setRemoveError(data.error ?? "Failed to remove tool");
+      return;
+    }
     refetch();
   }
 
@@ -131,6 +138,10 @@ export function ToolsView() {
             <p className="text-xs text-destructive">{formError}</p>
           )}
         </div>
+      )}
+
+      {removeError && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">{removeError}</div>
       )}
 
       {/* Tools table */}

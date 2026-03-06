@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import type { FastifyInstance } from "fastify";
 import { DEFAULTS, readNodes, readDiscoveredNodes, readTotpSecret, readMechaSettings, writeMechaSettings, isValidProfileName as _isValidProfileName, isValidName, AuthProfileAlreadyExistsError, AuthProfileNotFoundError } from "@mecha/core";
@@ -78,8 +78,19 @@ export function registerSettingsRoutes(app: FastifyInstance, opts: SettingsRoute
     }
     const nodePath = join(opts.mechaDir, "node.json");
     const { writeFileSync } = await import("node:fs");
-    const config = { name, createdAt: new Date().toISOString() };
-    writeFileSync(nodePath, JSON.stringify(config, null, 2) + "\n", { mode: 0o600 });
+    // Preserve createdAt from existing node.json if present
+    let createdAt = new Date().toISOString();
+    /* v8 ignore start -- corrupt/missing file fallback */
+    try {
+      const prev = JSON.parse(readFileSync(nodePath, "utf-8"));
+      if (prev.createdAt) createdAt = prev.createdAt;
+    } catch { /* new file or corrupt — use current timestamp */ }
+    /* v8 ignore stop */
+    const config = { name, createdAt };
+    // Atomic write: temp file + rename
+    const tmp = nodePath + `.${Date.now()}.tmp`;
+    writeFileSync(tmp, JSON.stringify(config, null, 2) + "\n", { mode: 0o600 });
+    renameSync(tmp, nodePath);
     return { name, changed: true, note: "Restart the agent for the new name to take effect on the mesh." };
   });
 

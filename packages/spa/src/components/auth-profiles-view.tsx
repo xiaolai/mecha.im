@@ -28,6 +28,7 @@ export function AuthProfilesView() {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
+  const [mutationError, setMutationError] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, TestResult>>({});
   const [testing, setTesting] = useState<Record<string, boolean>>({});
 
@@ -75,21 +76,33 @@ export function AuthProfilesView() {
   }
 
   async function handleSetDefault(profileName: string) {
-    await fetch("/settings/auth-profiles/default", {
+    setMutationError(null);
+    const res = await fetch("/settings/auth-profiles/default", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders },
       credentials: "include",
       body: JSON.stringify({ name: profileName }),
     });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({ error: "Request failed" }));
+      setMutationError(data.error ?? "Failed to set default profile");
+      return;
+    }
     refetch();
   }
 
   async function handleDelete(profileName: string) {
-    await fetch(`/settings/auth-profiles/${encodeURIComponent(profileName)}`, {
+    setMutationError(null);
+    const res = await fetch(`/settings/auth-profiles/${encodeURIComponent(profileName)}`, {
       method: "DELETE",
       headers: authHeaders,
       credentials: "include",
     });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({ error: "Request failed" }));
+      setMutationError(data.error ?? "Failed to delete profile");
+      return;
+    }
     refetch();
   }
 
@@ -153,6 +166,10 @@ export function AuthProfilesView() {
             </Button>
           </div>
         </div>
+      )}
+
+      {mutationError && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">{mutationError}</div>
       )}
 
       {/* Profiles table */}

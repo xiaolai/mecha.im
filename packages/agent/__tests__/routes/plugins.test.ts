@@ -262,7 +262,7 @@ describe("plugin routes", () => {
     await app.close();
   });
 
-  it("POST /plugins/:name/test for http returns unreachable for bad url", async () => {
+  it("POST /plugins/:name/test for http rejects private/internal URLs", async () => {
     const app = Fastify();
     registerPluginRoutes(app, { mechaDir });
     await app.ready();
@@ -272,10 +272,9 @@ describe("plugin routes", () => {
       payload: { name: "bad-http", type: "http", url: "http://127.0.0.1:19999" },
     });
     const res = await app.inject({ method: "POST", url: "/plugins/bad-http/test" });
-    expect(res.statusCode).toBe(200);
+    expect(res.statusCode).toBe(400);
     const body = res.json();
-    expect(body.ok).toBe(false);
-    expect(body.error).toBe("unreachable");
+    expect(body.error).toBe("Cannot test plugins targeting private/internal addresses");
     await app.close();
   });
 
@@ -298,7 +297,7 @@ describe("plugin routes", () => {
 
     const status = await app.inject({ method: "GET", url: "/plugins/full-plugin/status" });
     const cfg = status.json().config;
-    expect(cfg.headers).toEqual({ Authorization: "Bearer token" });
+    expect(cfg.headers).toEqual({ Authorization: "***" });
     expect(cfg.description).toBe("Full HTTP plugin");
     await app.close();
   });
@@ -322,7 +321,7 @@ describe("plugin routes", () => {
 
     const status = await app.inject({ method: "GET", url: "/plugins/env-plugin/status" });
     const cfg = status.json().config;
-    expect(cfg.env).toEqual({ API_KEY: "secret" });
+    expect(cfg.env).toEqual({ API_KEY: "***" });
     expect(cfg.args).toEqual(["-m", "server"]);
     await app.close();
   });

@@ -200,7 +200,7 @@ export function BotDetail({ name, node }: BotDetailProps) {
           <TabsTrigger value="sessions" className="min-h-11 sm:min-h-0">Sessions</TabsTrigger>
           <TabsTrigger value="schedules" className="min-h-11 sm:min-h-0">Schedules</TabsTrigger>
           <TabsTrigger value="config" className="min-h-11 sm:min-h-0">Config</TabsTrigger>
-          <TabsTrigger value="logs" className="min-h-11 sm:min-h-0">Logs</TabsTrigger>
+          <TabsTrigger value="logs" className="min-h-11 sm:min-h-0" disabled={!!(node && node !== "local")}>Logs</TabsTrigger>
         </TabsList>
         <TabsContent value="sessions">
           <SessionList name={name} node={node} botState={bot.state} />
@@ -216,7 +216,13 @@ export function BotDetail({ name, node }: BotDetailProps) {
           </div>
         </TabsContent>
         <TabsContent value="logs">
-          <BotLogsView name={name} />
+          {node && node !== "local" ? (
+            <div className="rounded-lg border border-border bg-card p-8 text-center">
+              <p className="text-sm text-muted-foreground">Logs are not available for remote bots.</p>
+            </div>
+          ) : (
+            <BotLogsView name={name} />
+          )}
         </TabsContent>
       </Tabs>
     </div>

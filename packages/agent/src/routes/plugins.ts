@@ -6,7 +6,6 @@ import {
   getPlugin,
   pluginName,
   PluginInputSchema,
-  MechaError,
   type PluginConfig,
   type StdioPluginConfig,
   type HttpPluginConfig,
@@ -14,6 +13,16 @@ import {
 
 export interface PluginRouteOpts {
   mechaDir: string;
+}
+
+/** Check if a URL targets a private/internal address (SSRF guard). */
+function isPrivateUrl(urlStr: string): boolean {
+  try {
+    const { hostname } = new URL(urlStr);
+    return /^(127\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|::1|localhost|0\.0\.0\.0)/i.test(hostname);
+  /* v8 ignore start -- malformed URL fallback */
+  } catch { return true; }
+  /* v8 ignore stop */
 }
 
 /** Register CRUD + test routes for plugin management. */
@@ -99,7 +108,15 @@ export function registerPluginRoutes(app: FastifyInstance, opts: PluginRouteOpts
       if (!plugin) {
         return reply.code(404).send({ error: `Plugin not found: ${name}` });
       }
-      return { name, config: plugin };
+      // Redact sensitive values (env vars, auth headers) — expose keys only
+      const redacted = { ...plugin } as Record<string, unknown>;
+      if (plugin.type === "stdio" && (plugin as StdioPluginConfig).env) {
+        redacted.env = Object.fromEntries(Object.keys((plugin as StdioPluginConfig).env!).map((k) => [k, "***"]));
+      }
+      if ((plugin.type === "http" || plugin.type === "sse") && (plugin as HttpPluginConfig).headers) {
+        redacted.headers = Object.fromEntries(Object.keys((plugin as HttpPluginConfig).headers!).map((k) => [k, "***"]));
+      }
+      return { name, config: redacted };
     },
   );
 
@@ -115,6 +132,9 @@ export function registerPluginRoutes(app: FastifyInstance, opts: PluginRouteOpts
 
       if (plugin.type === "http" || plugin.type === "sse") {
         const { url } = plugin as HttpPluginConfig;
+        if (isPrivateUrl(url)) {
+          return reply.code(400).send({ error: "Cannot test plugins targeting private/internal addresses" });
+        }
         try {
           const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
           return { ok: res.ok, status: res.status };

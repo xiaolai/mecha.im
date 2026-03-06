@@ -28,21 +28,38 @@ export function BudgetsView() {
   const [daily, setDaily] = useState("");
   const [monthly, setMonthly] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [mutationError, setMutationError] = useState<string | null>(null);
 
   async function handleSet() {
     setSubmitting(true);
+    setMutationError(null);
     try {
+      const dailyVal = daily ? parseFloat(daily) : undefined;
+      const monthlyVal = monthly ? parseFloat(monthly) : undefined;
+      if (dailyVal !== undefined && (!Number.isFinite(dailyVal) || dailyVal < 0)) {
+        setMutationError("Invalid daily value");
+        return;
+      }
+      if (monthlyVal !== undefined && (!Number.isFinite(monthlyVal) || monthlyVal < 0)) {
+        setMutationError("Invalid monthly value");
+        return;
+      }
       const body: Record<string, unknown> = { scope };
       if (scope !== "global") body.name = name;
-      if (daily) body.daily = parseFloat(daily);
-      if (monthly) body.monthly = parseFloat(monthly);
+      if (dailyVal !== undefined) body.daily = dailyVal;
+      if (monthlyVal !== undefined) body.monthly = monthlyVal;
 
-      await fetch("/budgets", {
+      const res = await fetch("/budgets", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders },
         credentials: "include",
         body: JSON.stringify(body),
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: "Request failed" }));
+        setMutationError(data.error ?? "Failed to set budget");
+        return;
+      }
       setShowForm(false);
       setDaily("");
       setMonthly("");
@@ -54,13 +71,19 @@ export function BudgetsView() {
   }
 
   async function handleRemove(budgetScope: string, budgetName: string | undefined, period: string) {
+    setMutationError(null);
     const params = new URLSearchParams({ scope: budgetScope, period });
     if (budgetName) params.set("name", budgetName);
-    await fetch(`/budgets?${params}`, {
+    const res = await fetch(`/budgets?${params}`, {
       method: "DELETE",
       headers: authHeaders,
       credentials: "include",
     });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({ error: "Request failed" }));
+      setMutationError(data.error ?? "Failed to remove budget");
+      return;
+    }
     refetch();
   }
 
@@ -91,6 +114,10 @@ export function BudgetsView() {
           <PlusIcon className="size-4" /> Set Budget
         </Button>
       </div>
+
+      {mutationError && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">{mutationError}</div>
+      )}
 
       {showForm && (
         <div className="rounded-lg border border-border bg-card p-4 flex flex-col gap-3">

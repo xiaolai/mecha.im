@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import {
   ServerIcon,
   NetworkIcon,
@@ -318,10 +319,10 @@ export function SettingsView() {
             Manage API keys and OAuth tokens for bot authentication.
           </p>
           <Button variant="outline" size="sm" className="min-h-11 sm:min-h-0 shrink-0 gap-1.5" asChild>
-            <a href="/auth">
+            <Link to="/auth">
               Manage
               <ExternalLinkIcon className="size-3" />
-            </a>
+            </Link>
           </Button>
         </div>
       </Card>

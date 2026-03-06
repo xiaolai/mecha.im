@@ -88,19 +88,25 @@ export function BotCard({ bot }: BotCardProps) {
   const { acting, actionError, busyWarning, pendingConfirm, handleAction, confirmAction, dismissConfirm, confirmForce, dismissBusy } = useBotAction(bot.name, undefined, bot.node);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [removing, setRemoving] = useState(false);
+  const [removeError, setRemoveError] = useState<string | null>(null);
   const { authHeaders } = useAuth();
+  const isRemote = !!bot.node && bot.node !== "local";
 
   async function handleRemove() {
     setRemoving(true);
+    setRemoveError(null);
     try {
       const res = await fetch(`/bots/${encodeURIComponent(bot.name)}`, {
         method: "DELETE",
         headers: authHeaders,
         credentials: "include",
       });
-      if (res.ok) {
-        window.location.reload();
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: "Request failed" }));
+        setRemoveError(data.error ?? "Failed to delete bot");
+        return;
       }
+      window.location.reload();
     } finally {
       setRemoving(false);
     }
@@ -194,6 +200,9 @@ export function BotCard({ bot }: BotCardProps) {
       {actionError && (
         <div className="text-xs text-destructive">{actionError}</div>
       )}
+      {removeError && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">{removeError}</div>
+      )}
 
       {/* Confirm action */}
       {pendingConfirm && (
@@ -230,16 +239,18 @@ export function BotCard({ bot }: BotCardProps) {
             >
               <PlayIcon className="size-4" />
             </TooltipIconButton>
-            <TooltipIconButton
-              tooltip="Remove"
-              variant="ghost"
-              size="icon"
-              className="text-destructive hover:text-destructive sm:size-8"
-              disabled={acting || removing}
-              onClick={() => setConfirmRemove(true)}
-            >
-              <Trash2Icon className="size-4" />
-            </TooltipIconButton>
+            {!isRemote && (
+              <TooltipIconButton
+                tooltip="Remove"
+                variant="ghost"
+                size="icon"
+                className="text-destructive hover:text-destructive sm:size-8"
+                disabled={acting || removing}
+                onClick={() => setConfirmRemove(true)}
+              >
+                <Trash2Icon className="size-4" />
+              </TooltipIconButton>
+            )}
           </>
         )}
         {confirmRemove && (

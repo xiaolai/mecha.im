@@ -6,7 +6,7 @@ interface Props { name: string }
 
 export function BotLogsView({ name }: Props) {
   const [stream, setStream] = useState<"stdout" | "stderr">("stdout");
-  const { data, loading } = useFetch<{ lines: string[] }>(
+  const { data, loading, error } = useFetch<{ lines: string[] }>(
     `/bots/${encodeURIComponent(name)}/logs?stream=${stream}&lines=500`,
     { interval: 5000, deps: [stream] },
   );
@@ -30,6 +30,9 @@ export function BotLogsView({ name }: Props) {
           </button>
         ))}
       </div>
+      {error && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">{error}</div>
+      )}
       <div className="max-h-[600px] overflow-y-auto rounded-lg bg-muted/30 p-4">
         {loading && !data ? (
           <p className="text-sm text-muted-foreground">Loading...</p>
