@@ -5,6 +5,8 @@ description: Track API costs per agent in real time with built-in metering, budg
 
 # Metering & Budgets
 
+[[toc]]
+
 Mecha includes a built-in metering proxy that tracks API costs per agent in real time. Set daily budgets, get warnings, and auto-pause agents that overspend.
 
 ## How It Works
@@ -140,7 +142,7 @@ The metering proxy uses several background processes to maintain accuracy and pe
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| Snapshot interval | 10s | Hot counters flushed to `snapshot.json` |
+| Snapshot interval | 5s | Hot counters flushed to `snapshot.json` |
 | Registry rescan | 30s | Re-scan bots for new/removed agents |
 | Retention | 90 days | Event files older than this are pruned |
 | Upstream timeout | 60s | HTTPS request to `api.anthropic.com` |

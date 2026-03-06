@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative, isAbsolute } from "node:path";
 import { randomBytes } from "node:crypto";
 import type { BotName } from "../types.js";
 import { generateKeyPair, fingerprint } from "./keys.js";
@@ -100,7 +100,8 @@ export function loadBotIdentity(mechaDir: string, name: BotName): BotIdentity | 
   // Validate name doesn't contain path traversal
   const resolved = join(mechaDir, name);
   /* v8 ignore start -- path traversal guard: name is validated before reaching here */
-  if (!resolved.startsWith(mechaDir)) return undefined;
+  const rel = relative(mechaDir, resolved);
+  if (rel.startsWith("..") || isAbsolute(rel)) return undefined;
   /* v8 ignore stop */
   return loadBotIdentityFromDir(resolved);
 }

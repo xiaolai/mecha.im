@@ -1,6 +1,8 @@
-import type { BotName } from "@mecha/core";
+import { type BotName, createLogger } from "@mecha/core";
 import type { ProcessManager } from "@mecha/process";
 import { runtimeFetch } from "./helpers.js";
+
+const log = createLogger("mecha:service");
 
 /** Result of checking whether a bot is busy with active sessions. */
 export interface TaskCheckResult {
@@ -58,8 +60,9 @@ export async function checkBotBusy(
       activeSessions: recent.length,
       lastActivity,
     };
-  } catch {
+  } catch (err) {
     /* v8 ignore start -- fail open: unreachable runtime should not block lifecycle ops */
+    log.debug("Busy check failed, treating as idle", { bot: name, error: err instanceof Error ? err.message : String(err) });
     return { busy: false, activeSessions: 0 };
     /* v8 ignore stop */
   }

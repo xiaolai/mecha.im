@@ -531,22 +531,26 @@ export function registerBotRoutes(app: FastifyInstance, pm: ProcessManager, mech
       ...(workspace !== undefined && { workspace }),
     };
     /* v8 ignore stop */
+
+    // Check busy BEFORE persisting config to avoid state mutation on 409
+    let restarted = false;
+    if (restart === true && info.state === "running" && force !== true) {
+      const check = await checkBotBusy(pm, botName);
+      if (check.busy) {
+        reply.code(409).send({
+          error: `bot has ${check.activeSessions} active session(s)`,
+          code: "BOT_BUSY",
+          activeSessions: check.activeSessions,
+          lastActivity: check.lastActivity,
+        });
+        return;
+      }
+    }
+
+    // Persist config AFTER busy check passes
     botConfigure(mechaDir, pm, botName, configUpdates);
 
-    let restarted = false;
     if (restart === true && info.state === "running") {
-      if (force !== true) {
-        const check = await checkBotBusy(pm, botName);
-        if (check.busy) {
-          reply.code(409).send({
-            error: `bot has ${check.activeSessions} active session(s)`,
-            code: "BOT_BUSY",
-            activeSessions: check.activeSessions,
-            lastActivity: check.lastActivity,
-          });
-          return;
-        }
-      }
       if (force === true) {
         await pm.kill(botName);
       } else {

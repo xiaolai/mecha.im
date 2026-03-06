@@ -1,4 +1,4 @@
-import { existsSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, statSync } from "node:fs";
 import { resolve, join } from "node:path";
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
@@ -74,6 +74,10 @@ export function registerBotSpawnCommand(parent: Command, deps: CommandDeps): voi
       const resolvedPath = path
         ? resolve(path)
         : resolvedHome ?? join(deps.mechaDir, validated);
+      // Create default workspace directory if using botDir fallback (no explicit path or home)
+      if (!path && !resolvedHome && !existsSync(resolvedPath)) {
+        mkdirSync(resolvedPath, { recursive: true });
+      }
       if (!existsSync(resolvedPath)) {
         throw new PathNotFoundError(resolvedPath);
       }

@@ -5,6 +5,8 @@ description: Connect Mecha agents across machines via P2P invite-based channels 
 
 # Mesh Networking
 
+[[toc]]
+
 Mecha agents can communicate across machines through the mesh. Nodes connect via two modes: **P2P** (invite-based, encrypted channels) and **HTTP** (direct agent server connections).
 
 ## Connection Modes

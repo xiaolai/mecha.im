@@ -47,10 +47,9 @@ export function registerHandshakeRoute(app: FastifyInstance, opts: HandshakeRout
         return reply.code(409).send({ error: "Self-discovery" });
       }
 
-      // Validate IP fields — dotted-decimal IPv4 (1-3 digits per octet, 4 octets) or hex-colon IPv6
-      const ipv4Re = /^(\d{1,3}\.){3}\d{1,3}$/;
-      const ipv6Re = /^[a-f\d:]{2,39}$/i;
-      const isValidIp = (s: string) => ipv4Re.test(s) || ipv6Re.test(s);
+      // Validate IP fields using net.isIP for strict validation
+      const { isIP } = await import("node:net");
+      const isValidIp = (s: string) => isIP(s) !== 0;
       if (body.tailscaleIp && (typeof body.tailscaleIp !== "string" || !isValidIp(body.tailscaleIp))) {
         return reply.code(400).send({ error: "Invalid tailscaleIp format" });
       }

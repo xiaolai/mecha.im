@@ -130,6 +130,13 @@ export function registerGossip(app: FastifyInstance, opts: GossipOpts): void {
 
         authenticated = true;
         peerName = msg.name;
+        // Close previous socket for this peer to prevent stale connection influence
+        const prev = connectedPeers.get(peerName);
+        /* v8 ignore start -- race: concurrent reconnect from same peer */
+        if (prev && prev.ws !== socket && prev.ws.readyState === prev.ws.OPEN) {
+          prev.ws.close(1000, "Replaced by new connection");
+        }
+        /* v8 ignore stop */
         connectedPeers.set(peerName, { ws: socket, name: peerName, remoteClock: {} });
         send(socket, { type: "authenticated" });
         return;
