@@ -44,8 +44,12 @@ export function BudgetsView() {
         setMutationError("Invalid monthly value");
         return;
       }
+      if (scope !== "global" && !name.trim()) {
+        setMutationError("Name is required for this scope");
+        return;
+      }
       const body: Record<string, unknown> = { scope };
-      if (scope !== "global") body.name = name;
+      if (scope !== "global") body.name = name.trim();
       if (dailyVal !== undefined) body.daily = dailyVal;
       if (monthlyVal !== undefined) body.monthly = monthlyVal;
 
@@ -65,6 +69,8 @@ export function BudgetsView() {
       setMonthly("");
       setName("");
       refetch();
+    } catch {
+      setMutationError("Connection error");
     } finally {
       setSubmitting(false);
     }
@@ -72,19 +78,23 @@ export function BudgetsView() {
 
   async function handleRemove(budgetScope: string, budgetName: string | undefined, period: string) {
     setMutationError(null);
-    const params = new URLSearchParams({ scope: budgetScope, period });
-    if (budgetName) params.set("name", budgetName);
-    const res = await fetch(`/budgets?${params}`, {
-      method: "DELETE",
-      headers: authHeaders,
-      credentials: "include",
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({ error: "Request failed" }));
-      setMutationError(data.error ?? "Failed to remove budget");
-      return;
+    try {
+      const params = new URLSearchParams({ scope: budgetScope, period });
+      if (budgetName) params.set("name", budgetName);
+      const res = await fetch(`/budgets?${params}`, {
+        method: "DELETE",
+        headers: authHeaders,
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: "Request failed" }));
+        setMutationError(data.error ?? "Failed to remove budget");
+        return;
+      }
+      refetch();
+    } catch {
+      setMutationError("Connection error");
     }
-    refetch();
   }
 
   if (loading && !config) return <Skeleton className="h-48 rounded-lg" />;
