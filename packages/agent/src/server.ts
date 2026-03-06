@@ -17,12 +17,15 @@ import { registerAuditRoutes } from "./routes/audit.js";
 import { registerMeshRoutes } from "./routes/mesh.js";
 import { registerMeterRoutes } from "./routes/meter.js";
 import { registerSettingsRoutes } from "./routes/settings.js";
+import { registerNodeRoutes } from "./routes/nodes.js";
 import { registerEventsRoutes } from "./routes/events.js";
 import { registerEventLogRoutes } from "./routes/event-log.js";
 import { registerHandshakeRoute } from "./routes/discover-handshake.js";
 import { startDiscoveryLoop } from "./discovery-loop.js";
 import { registerScheduleRoutes } from "./routes/schedules.js";
 import { registerScheduleOverviewRoutes } from "./routes/schedule-overview.js";
+import { registerToolRoutes } from "./routes/tools.js";
+import { registerPluginRoutes } from "./routes/plugins.js";
 import { registerAuthRoutes } from "./routes/auth.js";
 import { createEventLog, emitEvent, type EventLog } from "./event-log.js";
 import { createPtyManager } from "./pty-manager.js";
@@ -253,6 +256,9 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
     app.addHook("onClose", stopDiscovery);
   }
   registerSettingsRoutes(app, { mechaDir: opts.mechaDir });
+  registerNodeRoutes(app, { mechaDir: opts.mechaDir });
+  registerPluginRoutes(app, { mechaDir: opts.mechaDir });
+  registerToolRoutes(app, { mechaDir: opts.mechaDir });
   registerEventsRoutes(app, { processManager: opts.processManager });
   registerEventLogRoutes(app, { eventLog });
 
