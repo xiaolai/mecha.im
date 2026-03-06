@@ -15,7 +15,7 @@ export { mechaInit } from "./init.js";
 export type { InitResult } from "./init.js";
 export { mechaDoctor } from "./doctor.js";
 export type { DoctorCheck, DoctorResult } from "./doctor.js";
-export { mechaToolInstall, mechaToolLs } from "./tools.js";
+export { mechaToolInstall, mechaToolLs, mechaToolRemove } from "./tools.js";
 export type { ToolInfo, ToolInstallOpts } from "./tools.js";
 export {
   mechaAuthAdd,
@@ -59,3 +59,5 @@ export {
   botScheduleRun,
   botScheduleHistory,
 } from "./schedule.js";
+export { nodePing } from "./node-ping.js";
+export type { PingResult } from "./node-ping.js";

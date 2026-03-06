@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { mkdtempSync, rmSync, existsSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { mechaToolInstall, mechaToolLs } from "../src/tools.js";
+import { mechaToolInstall, mechaToolLs, mechaToolRemove } from "../src/tools.js";
 
 describe("mechaToolInstall", () => {
   let tempDir: string;
@@ -107,5 +107,32 @@ describe("mechaToolLs", () => {
 
     const tools = mechaToolLs(tempDir);
     expect(tools).toHaveLength(1);
+  });
+});
+
+describe("mechaToolRemove", () => {
+  let tempDir: string;
+
+  afterEach(() => {
+    if (tempDir) rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it("removes an installed tool directory", () => {
+    tempDir = mkdtempSync(join(tmpdir(), "mecha-tools-test-"));
+    mechaToolInstall(tempDir, { name: "my-tool", version: "1.0.0" });
+    expect(mechaToolLs(tempDir)).toHaveLength(1);
+    const removed = mechaToolRemove(tempDir, "my-tool");
+    expect(removed).toBe(true);
+    expect(mechaToolLs(tempDir)).toHaveLength(0);
+  });
+
+  it("returns false for nonexistent tool", () => {
+    tempDir = mkdtempSync(join(tmpdir(), "mecha-tools-test-"));
+    expect(mechaToolRemove(tempDir, "nope")).toBe(false);
+  });
+
+  it("rejects invalid tool names (path traversal)", () => {
+    tempDir = mkdtempSync(join(tmpdir(), "mecha-tools-test-"));
+    expect(() => mechaToolRemove(tempDir, "../etc")).toThrow();
   });
 });
