@@ -135,15 +135,18 @@ function useMermaidRenderer(editor: ReturnType<typeof useEditor> | null) {
 
   useEffect(() => {
     if (!editor) return;
+    let debounceTimer: ReturnType<typeof setTimeout>;
     const timer = setTimeout(renderMermaid, 300);
     const onUpdate = () => {
       const parent = editor.view.dom.parentElement;
       parent?.querySelectorAll(".mermaid-preview").forEach((el) => el.remove());
-      setTimeout(renderMermaid, 500);
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(renderMermaid, 500);
     };
     editor.on("update", onUpdate);
     return () => {
       clearTimeout(timer);
+      clearTimeout(debounceTimer);
       editor.off("update", onUpdate);
     };
   }, [editor, renderMermaid]);
