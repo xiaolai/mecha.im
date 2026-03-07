@@ -29,7 +29,7 @@ export function registerBotSpawnCommand(parent: Command, deps: CommandDeps): voi
     .option("--system-prompt <prompt>", "System prompt override")
     .option("--append-system-prompt <prompt>", "Append to default system prompt")
     .option("--effort <level>", "Effort level: low, medium, high")
-    .option("--max-budget <dollars>", "Max USD budget per session")
+    .option("--max-budget-usd <dollars>", "Max USD budget per session")
     .option("--allowed-tools <tools>", "Comma-separated allowed tools (Claude Code syntax)")
     .option("--disallowed-tools <tools>", "Comma-separated disallowed tools")
     .option("--tools <tools>", "Override tool set (comma-separated, empty string disables all)")
@@ -45,7 +45,7 @@ export function registerBotSpawnCommand(parent: Command, deps: CommandDeps): voi
       port?: string; auth?: string | boolean; tags?: string; expose?: string;
       sandbox?: string; model?: string; permissionMode?: string; meter?: string; home?: string;
       systemPrompt?: string; appendSystemPrompt?: string; effort?: string;
-      maxBudget?: string; allowedTools?: string; disallowedTools?: string; tools?: string;
+      maxBudgetUsd?: string; allowedTools?: string; disallowedTools?: string; tools?: string;
       addDir?: string; agent?: string; sessionPersistence?: boolean;
       mcpConfig?: string; strictMcpConfig?: boolean; pluginDir?: string;
       disableSlashCommands?: boolean; budgetLimit?: string;
@@ -100,7 +100,7 @@ export function registerBotSpawnCommand(parent: Command, deps: CommandDeps): voi
       const addDirs = opts.addDir?.split(",").map(d => d.trim()).filter(Boolean);
       const mcpConfigFiles = opts.mcpConfig?.split(",").map(p => p.trim()).filter(Boolean);
       const pluginDirs = opts.pluginDir?.split(",").map(p => p.trim()).filter(Boolean);
-      const maxBudgetUsd = opts.maxBudget ? parseFloat(opts.maxBudget) : undefined;
+      const maxBudgetUsd = opts.maxBudgetUsd ? parseFloat(opts.maxBudgetUsd) : undefined;
       const budgetLimit = opts.budgetLimit ? parseFloat(opts.budgetLimit) : undefined;
       // Cross-field validation
       const validation = validateBotConfig({
