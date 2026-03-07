@@ -6,6 +6,7 @@ import type { BotConfigUpdates } from "@mecha/service";
 import { existsSync, statSync } from "node:fs";
 import { join, resolve, isAbsolute } from "node:path";
 import { resolveNodeEntry } from "../node-resolve.js";
+import { spawnOptsFromConfig } from "./spawn-opts.js";
 
 function validateName(name: string, reply: FastifyReply): BotName | null {
   if (!isValidName(name)) {
@@ -36,41 +37,6 @@ async function proxyToNode(
   } catch { reply.code(502).send({ error: `Cannot reach node "${targetNode}"` }); return true; }
 }
 /* v8 ignore stop */
-
-function spawnOptsFromConfig(name: BotName, config: ReturnType<typeof readBotConfig> & object) {
-  return {
-    name,
-    workspacePath: config.workspace,
-    home: config.home,
-    port: config.port,
-    /* v8 ignore start -- null coalescing fallback for optional auth field */
-    auth: config.auth ?? undefined,
-    /* v8 ignore stop */
-    tags: config.tags,
-    expose: config.expose,
-    sandboxMode: config.sandboxMode,
-    model: config.model,
-    permissionMode: config.permissionMode,
-    systemPrompt: config.systemPrompt,
-    appendSystemPrompt: config.appendSystemPrompt,
-    effort: config.effort,
-    maxBudgetUsd: config.maxBudgetUsd,
-    allowedTools: config.allowedTools,
-    disallowedTools: config.disallowedTools,
-    tools: config.tools,
-    agent: config.agent,
-    agents: config.agents,
-    sessionPersistence: config.sessionPersistence,
-    budgetLimit: config.budgetLimit,
-    mcpServers: config.mcpServers,
-    mcpConfigFiles: config.mcpConfigFiles,
-    strictMcpConfig: config.strictMcpConfig,
-    pluginDirs: config.pluginDirs,
-    disableSlashCommands: config.disableSlashCommands,
-    addDirs: config.addDirs,
-    env: config.env,
-  };
-}
 
 /** Register bot config patch and auth profile routes. */
 export function registerBotConfigRoutes(app: FastifyInstance, pm: ProcessManager, mechaDir: string, nodeName?: string): void {
