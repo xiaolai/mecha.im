@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { type BotName, type SandboxMode, isValidName, readBotConfig, BotNotRunningError, getNetworkIps } from "@mecha/core";
+import { type BotName, type SandboxMode, isValidName, readBotConfig, BotNotRunningError, getNetworkIps, validateBotConfig } from "@mecha/core";
 import type { ProcessManager } from "@mecha/process";
 import { checkBotBusy, enrichBotInfo, buildEnrichContext, getCachedSnapshot, batchBotAction, agentFetch } from "@mecha/service";
 import type { EnrichedBotInfo } from "@mecha/service";
@@ -34,6 +34,24 @@ function spawnOptsFromConfig(name: BotName, config: ReturnType<typeof readBotCon
     sandboxMode: config.sandboxMode,
     model: config.model,
     permissionMode: config.permissionMode,
+    systemPrompt: config.systemPrompt,
+    appendSystemPrompt: config.appendSystemPrompt,
+    effort: config.effort,
+    maxBudgetUsd: config.maxBudgetUsd,
+    allowedTools: config.allowedTools,
+    disallowedTools: config.disallowedTools,
+    tools: config.tools,
+    agent: config.agent,
+    agents: config.agents,
+    sessionPersistence: config.sessionPersistence,
+    budgetLimit: config.budgetLimit,
+    mcpServers: config.mcpServers,
+    mcpConfigFiles: config.mcpConfigFiles,
+    strictMcpConfig: config.strictMcpConfig,
+    pluginDirs: config.pluginDirs,
+    disableSlashCommands: config.disableSlashCommands,
+    addDirs: config.addDirs,
+    env: config.env,
   };
 }
 
@@ -251,6 +269,24 @@ export function registerBotRoutes(app: FastifyInstance, pm: ProcessManager, mech
     sandboxMode?: string;
     meterOff?: boolean;
     home?: string;
+    systemPrompt?: string;
+    appendSystemPrompt?: string;
+    effort?: string;
+    maxBudgetUsd?: number;
+    allowedTools?: string[];
+    disallowedTools?: string[];
+    tools?: string[];
+    agent?: string;
+    agents?: Record<string, { description: string; prompt: string }>;
+    sessionPersistence?: boolean;
+    budgetLimit?: number;
+    mcpServers?: Record<string, unknown>;
+    mcpConfigFiles?: string[];
+    strictMcpConfig?: boolean;
+    pluginDirs?: string[];
+    disableSlashCommands?: boolean;
+    addDirs?: string[];
+    env?: Record<string, string>;
   }
 
   app.post("/bots", async (request: FastifyRequest<{ Body: SpawnBody }>, reply: FastifyReply) => {
@@ -297,6 +333,20 @@ export function registerBotRoutes(app: FastifyInstance, pm: ProcessManager, mech
       reply.code(400).send({ error: "expose must be an array of strings" });
       return;
     }
+    const validation = validateBotConfig({
+      permissionMode: body.permissionMode,
+      sandboxMode: body.sandboxMode,
+      systemPrompt: body.systemPrompt,
+      appendSystemPrompt: body.appendSystemPrompt,
+      allowedTools: body.allowedTools,
+      tools: body.tools,
+      maxBudgetUsd: body.maxBudgetUsd,
+      meterOff: body.meterOff,
+    });
+    if (!validation.ok) {
+      reply.code(400).send({ error: validation.errors.join("; ") });
+      return;
+    }
     const botName = rawName as BotName;
     const existing = pm.get(botName);
     if (existing) {
@@ -315,6 +365,24 @@ export function registerBotRoutes(app: FastifyInstance, pm: ProcessManager, mech
       ...(body.sandboxMode && { sandboxMode: body.sandboxMode as SandboxMode }),
       ...(body.meterOff !== undefined && { meterOff: body.meterOff }),
       ...(body.home && { home: body.home }),
+      ...(body.systemPrompt && { systemPrompt: body.systemPrompt }),
+      ...(body.appendSystemPrompt && { appendSystemPrompt: body.appendSystemPrompt }),
+      ...(body.effort && { effort: body.effort }),
+      ...(body.maxBudgetUsd != null && { maxBudgetUsd: body.maxBudgetUsd }),
+      ...(body.allowedTools && { allowedTools: body.allowedTools }),
+      ...(body.disallowedTools && { disallowedTools: body.disallowedTools }),
+      ...(body.tools && { tools: body.tools }),
+      ...(body.agent && { agent: body.agent }),
+      ...(body.agents && { agents: body.agents }),
+      ...(body.sessionPersistence != null && { sessionPersistence: body.sessionPersistence }),
+      ...(body.budgetLimit != null && { budgetLimit: body.budgetLimit }),
+      ...(body.mcpServers && { mcpServers: body.mcpServers }),
+      ...(body.mcpConfigFiles && { mcpConfigFiles: body.mcpConfigFiles }),
+      ...(body.strictMcpConfig != null && { strictMcpConfig: body.strictMcpConfig }),
+      ...(body.pluginDirs && { pluginDirs: body.pluginDirs }),
+      ...(body.disableSlashCommands != null && { disableSlashCommands: body.disableSlashCommands }),
+      ...(body.addDirs && { addDirs: body.addDirs }),
+      ...(body.env && { env: body.env }),
       /* v8 ignore stop */
     });
     return { ok: true, name: botName, port: result.port };

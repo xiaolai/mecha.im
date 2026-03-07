@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { type BotName, isValidName, readBotConfig, readAuthProfiles } from "@mecha/core";
+import { type BotName, isValidName, readBotConfig, readAuthProfiles, validateBotConfig } from "@mecha/core";
 import type { ProcessManager } from "@mecha/process";
 import { botConfigure, checkBotBusy, mechaAuthLs, agentFetch } from "@mecha/service";
 import type { BotConfigUpdates } from "@mecha/service";
@@ -51,6 +51,24 @@ function spawnOptsFromConfig(name: BotName, config: ReturnType<typeof readBotCon
     sandboxMode: config.sandboxMode,
     model: config.model,
     permissionMode: config.permissionMode,
+    systemPrompt: config.systemPrompt,
+    appendSystemPrompt: config.appendSystemPrompt,
+    effort: config.effort,
+    maxBudgetUsd: config.maxBudgetUsd,
+    allowedTools: config.allowedTools,
+    disallowedTools: config.disallowedTools,
+    tools: config.tools,
+    agent: config.agent,
+    agents: config.agents,
+    sessionPersistence: config.sessionPersistence,
+    budgetLimit: config.budgetLimit,
+    mcpServers: config.mcpServers,
+    mcpConfigFiles: config.mcpConfigFiles,
+    strictMcpConfig: config.strictMcpConfig,
+    pluginDirs: config.pluginDirs,
+    disableSlashCommands: config.disableSlashCommands,
+    addDirs: config.addDirs,
+    env: config.env,
   };
 }
 
@@ -139,9 +157,29 @@ export function registerBotConfigRoutes(app: FastifyInstance, pm: ProcessManager
       }
     }
 
+    // Cross-field validation
+    const validation = validateBotConfig({
+      permissionMode: body.permissionMode,
+      sandboxMode: body.sandboxMode,
+      systemPrompt: body.systemPrompt,
+      appendSystemPrompt: body.appendSystemPrompt,
+      allowedTools: body.allowedTools,
+      tools: body.tools,
+      maxBudgetUsd: body.maxBudgetUsd,
+    });
+    if (!validation.ok) {
+      reply.code(400).send({ error: validation.errors.join("; ") });
+      return;
+    }
+
     // Extract only allowed config fields — unknown fields are silently ignored
     // to prevent persisting arbitrary data (e.g. token, port overrides).
-    const { restart, force, auth, model, tags, expose, sandboxMode, permissionMode, home, workspace } = body;
+    const {
+      restart, force, auth, model, tags, expose, sandboxMode, permissionMode, home, workspace,
+      systemPrompt, appendSystemPrompt, effort, maxBudgetUsd, allowedTools, disallowedTools, tools,
+      agent, agents, sessionPersistence, budgetLimit, mcpServers, mcpConfigFiles, strictMcpConfig,
+      pluginDirs, disableSlashCommands, addDirs, env,
+    } = body;
     /* v8 ignore start -- optional field spread; each undefined check is a branch */
     const configUpdates: BotConfigUpdates = {
       ...(auth !== undefined && { auth }),
@@ -152,6 +190,24 @@ export function registerBotConfigRoutes(app: FastifyInstance, pm: ProcessManager
       ...(permissionMode !== undefined && { permissionMode }),
       ...(home !== undefined && { home }),
       ...(workspace !== undefined && { workspace }),
+      ...(systemPrompt !== undefined && { systemPrompt }),
+      ...(appendSystemPrompt !== undefined && { appendSystemPrompt }),
+      ...(effort !== undefined && { effort }),
+      ...(maxBudgetUsd !== undefined && { maxBudgetUsd }),
+      ...(allowedTools !== undefined && { allowedTools }),
+      ...(disallowedTools !== undefined && { disallowedTools }),
+      ...(tools !== undefined && { tools }),
+      ...(agent !== undefined && { agent }),
+      ...(agents !== undefined && { agents }),
+      ...(sessionPersistence !== undefined && { sessionPersistence }),
+      ...(budgetLimit !== undefined && { budgetLimit }),
+      ...(mcpServers !== undefined && { mcpServers }),
+      ...(mcpConfigFiles !== undefined && { mcpConfigFiles }),
+      ...(strictMcpConfig !== undefined && { strictMcpConfig }),
+      ...(pluginDirs !== undefined && { pluginDirs }),
+      ...(disableSlashCommands !== undefined && { disableSlashCommands }),
+      ...(addDirs !== undefined && { addDirs }),
+      ...(env !== undefined && { env }),
     };
     /* v8 ignore stop */
 
