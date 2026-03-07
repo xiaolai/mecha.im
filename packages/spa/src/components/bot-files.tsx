@@ -289,6 +289,7 @@ function NewFileEditor({ name, basePath, onBack, onSaved }: {
           value={fileName}
           onChange={(e) => setFileName(e.target.value)}
           placeholder="filename.md"
+          aria-label="File name"
           className="flex-1 h-8 border-0 bg-transparent text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none"
           autoFocus
         />

@@ -119,7 +119,6 @@ export function createPtyManager(opts: CreatePtyManagerOpts): PtyManager {
       if (lastSpawn && now - lastSpawn < spawnCooldownMs) {
         throw new Error(`Too many spawn requests for "${botName}" — wait a moment`);
       }
-      lastSpawnTime.set(botName, now);
 
       const info = processManager.get(botName as BotName);
       if (!info || info.state !== "running") {
@@ -170,6 +169,10 @@ export function createPtyManager(opts: CreatePtyManagerOpts): PtyManager {
         cwd: config.workspace,
         env: botEnv,
       });
+
+      // Record cooldown only after successful spawn — failed attempts should not
+      // block the next valid retry.
+      lastSpawnTime.set(botName, now);
 
       const scrollback: string[] = [];
       const session: PtySession = {

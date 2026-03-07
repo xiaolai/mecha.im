@@ -82,7 +82,7 @@ export function TerminalPage() {
   // server-assigned session IDs (which would cause infinite remount loop).
   const terminalKey = useMemo(() => `${botName}-${terminalGen}`, [botName, terminalGen]);
   const isStopped = botStatus?.state === "stopped" || botStatus?.state === "error";
-  const isRemote = !!node;
+  const isRemote = !!node && node !== "local";
 
   if (!botName) return null;
 

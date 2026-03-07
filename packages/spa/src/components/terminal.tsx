@@ -110,7 +110,7 @@ export function Terminal({ botName, sessionId, node, onSessionCreated, onExit }:
       const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
       const params = new URLSearchParams();
       if (sessionId) params.set("session", sessionId);
-      if (node) params.set("node", node);
+      if (node && node !== "local") params.set("node", node);
       if (ticket) params.set("ticket", ticket);
       // Send initial terminal dimensions so the PTY spawns at the correct size,
       // avoiding garbled output from the spinner rendering at wrong dimensions.

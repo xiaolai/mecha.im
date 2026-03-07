@@ -193,4 +193,10 @@ describe("writeBotFile", () => {
     const huge = "x".repeat(6 * 1024 * 1024); // 6 MB
     await expect(writeBotFile(homeDir, "big.md", huge)).rejects.toThrow(/too large/i);
   });
+
+  it("rejects writing to a symlinked target", async () => {
+    writeFileSync(join(homeDir, "real.md"), "original");
+    symlinkSync(join(homeDir, "real.md"), join(homeDir, "link.md"));
+    await expect(writeBotFile(homeDir, "link.md", "hacked")).rejects.toThrow(PathTraversalError);
+  });
 });

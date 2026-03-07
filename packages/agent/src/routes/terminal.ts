@@ -32,7 +32,7 @@ export function registerTerminalRoutes(
       ?? new URL(rawUrl || "/", "http://localhost").searchParams.get("node")
       ?? undefined;
     /* v8 ignore stop */
-    if (nodeParam) {
+    if (nodeParam && nodeParam !== "local") {
       socket.send(JSON.stringify({
         __mecha: true, type: "error",
         message: "Remote terminals are not supported yet. Use SSH to access the remote node directly.",
@@ -164,7 +164,11 @@ export function registerTerminalRoutes(
     });
 
     // Heartbeat: detect dead connections (e.g. network drop without FIN)
+    let isAlive = true;
+    socket.on("pong", () => { isAlive = true; });
     const pingTimer = setInterval(() => {
+      if (!isAlive) { socket.terminate(); return; }
+      isAlive = false;
       if (socket.readyState === socket.OPEN) socket.ping();
     }, PING_INTERVAL_MS);
 

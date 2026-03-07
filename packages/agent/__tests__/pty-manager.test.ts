@@ -252,6 +252,14 @@ describe("agent createPtyManager", () => {
     expect(() => pm.spawn("writer", "s1", 80, 24)).not.toThrow();
   });
 
+  it("failed spawn does not consume cooldown", () => {
+    const pm = createPtyManager({ processManager: createMockPm(false), mechaDir: "/m", spawnFn, spawnCooldownMs: 2000 });
+    // First spawn fails (bot not running) — should not set cooldown
+    expect(() => pm.spawn("ghost", undefined, 80, 24)).toThrow("not running");
+    // Immediate retry should throw "not running" again, NOT "Too many spawn requests"
+    expect(() => pm.spawn("ghost", undefined, 80, 24)).toThrow("not running");
+  });
+
   it("uses default idle timeout of 5 minutes", () => {
     const pm = createPtyManager({ processManager: createMockPm(), mechaDir: "/m", spawnFn });
     const session = pm.spawn("coder", "s1", 80, 24);
