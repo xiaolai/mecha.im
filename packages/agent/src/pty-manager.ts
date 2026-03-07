@@ -30,6 +30,13 @@ function resolveClaudeBin(): string {
 
 /** Max chunks retained for scrollback replay on reattach. */
 const SCROLLBACK_LIMIT = 200;
+/** Max total bytes for scrollback buffer (prevents memory DoS from large chunks). */
+const SCROLLBACK_MAX_BYTES = 512 * 1024; // 512 KB
+/** Safe PTY dimension bounds. */
+const MIN_COLS = 10;
+const MAX_COLS = 500;
+const MIN_ROWS = 2;
+const MAX_ROWS = 200;
 
 /** Active PTY session with its associated WebSocket clients and scrollback buffer. */
 export interface PtySession {
@@ -162,10 +169,12 @@ export function createPtyManager(opts: CreatePtyManagerOpts): PtyManager {
       }
 
       const claudeBin = resolveClaudeBin();
+      const safeCols = Math.max(MIN_COLS, Math.min(MAX_COLS, cols));
+      const safeRows = Math.max(MIN_ROWS, Math.min(MAX_ROWS, rows));
       const pty = spawnFn(claudeBin, args, {
         name: "xterm-256color",
-        cols,
-        rows,
+        cols: safeCols,
+        rows: safeRows,
         cwd: config.workspace,
         env: botEnv,
       });
@@ -175,6 +184,7 @@ export function createPtyManager(opts: CreatePtyManagerOpts): PtyManager {
       lastSpawnTime.set(botName, now);
 
       const scrollback: string[] = [];
+      let scrollbackBytes = 0;
       const session: PtySession = {
         id: key, botName, pty, clients: new Set(),
         createdAt: new Date(), lastActivity: new Date(),
@@ -182,10 +192,16 @@ export function createPtyManager(opts: CreatePtyManagerOpts): PtyManager {
       };
       sessions.set(key, session);
 
-      // Capture PTY output into scrollback ring buffer for replay on reattach
+      // Capture PTY output into scrollback ring buffer for replay on reattach.
+      // Enforces both chunk count and byte limits to prevent memory DoS.
       pty.onData((data) => {
         scrollback.push(data);
-        if (scrollback.length > SCROLLBACK_LIMIT) scrollback.shift();
+        scrollbackBytes += data.length;
+        while (scrollback.length > SCROLLBACK_LIMIT || scrollbackBytes > SCROLLBACK_MAX_BYTES) {
+          const removed = scrollback.shift();
+          if (removed) scrollbackBytes -= removed.length;
+          else break;
+        }
       });
 
       /* v8 ignore start -- PTY exit cleanup tested via mock emitter in pty-manager.test.ts */
@@ -201,6 +217,12 @@ export function createPtyManager(opts: CreatePtyManagerOpts): PtyManager {
     attach(sessionKey, ws) {
       const session = sessions.get(sessionKey);
       if (!session) return null;
+      // Single-client model: disconnect previous clients before attaching new one.
+      // Prevents confusing multi-tab input interleaving on the same PTY.
+      for (const old of session.clients) {
+        old.close(4001, "Replaced by new client");
+      }
+      session.clients.clear();
       session.clients.add(ws);
       session.lastActivity = new Date();
       clearIdleTimer(sessionKey);

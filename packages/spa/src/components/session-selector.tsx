@@ -13,7 +13,6 @@ interface SessionSelectorProps {
   botName: string;
   node?: string;
   currentSessionId?: string;
-  botState?: string;
   onSelect: (sessionId: string | undefined) => void;
 }
 
@@ -28,12 +27,11 @@ function formatSessionLabel(s: Session): string {
   return `${label} \u00b7 ${time}`;
 }
 
-export function SessionSelector({ botName, node, currentSessionId, botState, onSelect }: SessionSelectorProps) {
-  const isRunning = botState === "running" || botState === undefined;
+export function SessionSelector({ botName, node, currentSessionId, onSelect }: SessionSelectorProps) {
   const nodeQuery = node ? `?node=${encodeURIComponent(node)}` : "";
   const { data: sessions, loading, error, refetch } = useFetch<Session[]>(
-    isRunning ? `/bots/${encodeURIComponent(botName)}/sessions${nodeQuery}` : null,
-    { deps: [botName, node, isRunning], interval: isRunning ? POLL_INTERVAL_MS : undefined },
+    `/bots/${encodeURIComponent(botName)}/sessions${nodeQuery}`,
+    { deps: [botName, node], interval: POLL_INTERVAL_MS },
   );
   const { authHeaders } = useAuth();
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -67,7 +65,7 @@ export function SessionSelector({ botName, node, currentSessionId, botState, onS
       <label htmlFor="session-select" className="text-sm font-medium text-muted-foreground whitespace-nowrap">
         Session:
       </label>
-      {(error || deleteError) && isRunning && <span className="text-xs text-destructive">{deleteError ?? error}</span>}
+      {(error || deleteError) && <span className="text-xs text-destructive" role="alert">{deleteError ?? error}</span>}
       <select
         id="session-select"
         className="h-9 w-full max-w-xs rounded-md border border-input bg-background px-3 text-sm"
@@ -81,6 +79,12 @@ export function SessionSelector({ botName, node, currentSessionId, botState, onS
             {formatSessionLabel(s)}
           </option>
         ))}
+        {/* Ensure current session appears even if sessions list failed to load */}
+        {currentSessionId && !currentSessionId.startsWith("new-") && !sessions?.some((s) => s.id === currentSessionId) && (
+          <option key={currentSessionId} value={currentSessionId}>
+            {currentSessionId.slice(0, 8)}
+          </option>
+        )}
       </select>
       {canDelete && (
         <button
