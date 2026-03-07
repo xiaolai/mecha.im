@@ -110,6 +110,15 @@ describe("bot file routes", () => {
       const res = await app.inject({ method: "GET", url: "/bots/alice/files/read?path=../../etc/passwd.md" });
       expect(res.statusCode).toBe(400);
     });
+
+    it("returns 413 for oversized file", async () => {
+      const big = Buffer.alloc(6 * 1024 * 1024, "x");
+      writeFileSync(join(botDir, "big.md"), big);
+      const app = buildApp();
+      const res = await app.inject({ method: "GET", url: "/bots/alice/files/read?path=big.md" });
+      expect(res.statusCode).toBe(413);
+      expect(res.json().error).toMatch(/too large/i);
+    });
   });
 
   describe("PUT /bots/:name/files/write", () => {
@@ -167,6 +176,18 @@ describe("bot file routes", () => {
         payload: { path: "../escape.md", content: "bad" },
       });
       expect(res.statusCode).toBe(400);
+    });
+
+    it("returns 413 for oversized content", async () => {
+      const app = buildApp();
+      const huge = "x".repeat(6 * 1024 * 1024); // 6 MB
+      const res = await app.inject({
+        method: "PUT",
+        url: "/bots/alice/files/write",
+        payload: { path: "big.md", content: huge },
+      });
+      expect(res.statusCode).toBe(413);
+      expect(res.json().error).toMatch(/too large/i);
     });
   });
 });

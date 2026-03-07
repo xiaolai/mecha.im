@@ -15,7 +15,7 @@ export function safePath(baseDir: string, relativePath: string): string {
 
   // Lexical check first (fast path — catches ../ before touching filesystem)
   const rel = relative(base, target);
-  if (rel.startsWith("..") || resolve(base, rel) !== target) {
+  if (rel === ".." || rel.startsWith("../") || resolve(base, rel) !== target) {
     throw new PathTraversalError(relativePath);
   }
 
@@ -26,7 +26,7 @@ export function safePath(baseDir: string, relativePath: string): string {
   if (existsSync(target)) {
     const realTarget = realpathSync(target);
     const realRel = relative(realBase, realTarget);
-    if (realRel.startsWith("..")) {
+    if (realRel === ".." || realRel.startsWith("../")) {
       throw new PathTraversalError(relativePath);
     }
   } else {
@@ -38,7 +38,7 @@ export function safePath(baseDir: string, relativePath: string): string {
     if (existsSync(ancestor)) {
       const realAncestor = realpathSync(ancestor);
       const realRel = relative(realBase, realAncestor);
-      if (realRel.startsWith("..")) {
+      if (realRel === ".." || realRel.startsWith("../")) {
         throw new PathTraversalError(relativePath);
       }
     }

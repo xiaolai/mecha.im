@@ -1,5 +1,6 @@
-import { readdir, readFile, writeFile, lstat, mkdir } from "node:fs/promises";
+import { readdir, writeFile, lstat, mkdir, open } from "node:fs/promises";
 import { join, dirname, extname, resolve } from "node:path";
+import { constants } from "node:fs";
 import { safePath, PathTraversalError } from "@mecha/core";
 
 export { PathTraversalError };
@@ -22,23 +23,17 @@ function isMarkdown(filePath: string): boolean {
 
 /** Returns true if any segment of a relative path starts with a dot. */
 function hasHiddenSegment(relPath: string): boolean {
-  return relPath.split("/").some((s) => s.startsWith("."));
+  return relPath.split(/[/\\]/).some((s) => s.startsWith("."));
 }
 
 /**
  * Resolve a bot's effective home directory.
- * Validates that a custom home is within mechaDir to prevent
- * arbitrary filesystem access via config.home.
+ * When configHome is set, it is used as-is (validated at config-write time).
+ * Browsing within the returned home is constrained by safePath.
  */
 export function resolveBotHome(mechaDir: string, botName: string, configHome?: string): string {
   if (!configHome) return join(mechaDir, botName);
-  const resolved = resolve(configHome);
-  const base = resolve(mechaDir);
-  // Allow if home is under mechaDir or is a sibling path the admin explicitly set.
-  // The key invariant: safePath then constrains browsing within homeDir.
-  // We accept the configured home as-is since it was validated at config-write time
-  // (bots-config.ts validates home is absolute and exists).
-  return resolved;
+  return resolve(configHome);
 }
 
 /**
@@ -53,7 +48,8 @@ export async function listBotDir(homeDir: string, relPath: string): Promise<DirE
   try {
     entries = await readdir(target, { withFileTypes: true });
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return [];
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === "ENOENT" || code === "ENOTDIR") return [];
     throw err;
   }
   const results: DirEntry[] = [];
@@ -88,19 +84,25 @@ export async function readBotFile(homeDir: string, relPath: string): Promise<str
   if (!isMarkdown(target)) {
     throw new NotMarkdownError(relPath);
   }
-  // Check size before reading (lstat to reject symlinks)
-  let info;
+  // Open with O_NOFOLLOW to reject symlinks atomically (no TOCTOU gap)
+  let fh;
   try {
-    info = await lstat(target);
+    fh = await open(target, constants.O_RDONLY | constants.O_NOFOLLOW);
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") throw new FileNotFoundError(relPath);
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === "ENOENT" || code === "ELOOP") throw new FileNotFoundError(relPath);
     throw err;
   }
-  if (info.isSymbolicLink()) throw new FileNotFoundError(relPath);
-  if (info.size > MAX_FILE_SIZE) {
-    throw new Error(`File too large: ${(info.size / (1024 * 1024)).toFixed(1)} MB (max ${MAX_FILE_SIZE / (1024 * 1024)} MB)`);
+  try {
+    const info = await fh.stat();
+    if (!info.isFile()) throw new FileNotFoundError(relPath);
+    if (info.size > MAX_FILE_SIZE) {
+      throw new FileTooLargeError(info.size, MAX_FILE_SIZE);
+    }
+    return await fh.readFile("utf-8");
+  } finally {
+    await fh.close();
   }
-  return readFile(target, "utf-8");
 }
 
 /**
@@ -116,10 +118,21 @@ export async function writeBotFile(homeDir: string, relPath: string, content: st
     throw new NotMarkdownError(relPath);
   }
   if (Buffer.byteLength(content, "utf-8") > MAX_FILE_SIZE) {
-    throw new Error(`Content too large (max ${MAX_FILE_SIZE / (1024 * 1024)} MB)`);
+    throw new FileTooLargeError(Buffer.byteLength(content, "utf-8"), MAX_FILE_SIZE);
   }
-  await mkdir(dirname(target), { recursive: true });
-  await writeFile(target, content, "utf-8");
+  const dir = dirname(target);
+  await mkdir(dir, { recursive: true });
+  // Verify parent dir is not a symlink (prevents symlink swap after mkdir)
+  const parentInfo = await lstat(dir);
+  if (parentInfo.isSymbolicLink()) throw new PathTraversalError(relPath);
+  // Write via O_NOFOLLOW fd to prevent target symlink swap between lstat and write
+  const flags = constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | constants.O_NOFOLLOW;
+  const fh = await open(target, flags, 0o644);
+  try {
+    await fh.writeFile(content, "utf-8");
+  } finally {
+    await fh.close();
+  }
 }
 
 export class FileNotFoundError extends Error {
@@ -133,5 +146,12 @@ export class NotMarkdownError extends Error {
   constructor(path: string) {
     super(`Only markdown files (.md, .mdx, .markdown) are allowed: ${path}`);
     this.name = "NotMarkdownError";
+  }
+}
+
+export class FileTooLargeError extends Error {
+  constructor(actual: number, max: number) {
+    super(`File too large: ${(actual / (1024 * 1024)).toFixed(1)} MB (max ${max / (1024 * 1024)} MB)`);
+    this.name = "FileTooLargeError";
   }
 }
