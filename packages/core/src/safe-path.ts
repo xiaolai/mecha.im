@@ -1,5 +1,12 @@
-import { resolve, relative } from "node:path";
+import { resolve, relative, sep } from "node:path";
 import { realpathSync, existsSync } from "node:fs";
+
+/** Check if a relative path escapes its parent (platform-safe). */
+function isEscape(rel: string): boolean {
+  // path.relative() returns OS-native separators, so check both / and sep.
+  // On Windows sep is \, on POSIX sep is / — covering both ensures safety.
+  return rel === ".." || rel.startsWith(`..${sep}`) || (sep !== "/" && rel.startsWith("../"));
+}
 
 /**
  * Resolve a relative path against a base directory and verify
@@ -15,7 +22,7 @@ export function safePath(baseDir: string, relativePath: string): string {
 
   // Lexical check first (fast path — catches ../ before touching filesystem)
   const rel = relative(base, target);
-  if (rel === ".." || rel.startsWith("../") || resolve(base, rel) !== target) {
+  if (isEscape(rel) || resolve(base, rel) !== target) {
     throw new PathTraversalError(relativePath);
   }
 
@@ -26,7 +33,7 @@ export function safePath(baseDir: string, relativePath: string): string {
   if (existsSync(target)) {
     const realTarget = realpathSync(target);
     const realRel = relative(realBase, realTarget);
-    if (realRel === ".." || realRel.startsWith("../")) {
+    if (isEscape(realRel)) {
       throw new PathTraversalError(relativePath);
     }
   } else {
@@ -38,7 +45,7 @@ export function safePath(baseDir: string, relativePath: string): string {
     if (existsSync(ancestor)) {
       const realAncestor = realpathSync(ancestor);
       const realRel = relative(realBase, realAncestor);
-      if (realRel === ".." || realRel.startsWith("../")) {
+      if (isEscape(realRel)) {
         throw new PathTraversalError(relativePath);
       }
     }
