@@ -123,6 +123,12 @@ export function registerBotConfigRoutes(app: FastifyInstance, pm: ProcessManager
       }
     }
 
+    // Validate agents shape if specified
+    if (body.agents !== undefined && (typeof body.agents !== "object" || body.agents === null || Array.isArray(body.agents))) {
+      reply.code(400).send({ error: "agents must be an object mapping name to { description, prompt }" });
+      return;
+    }
+
     // Cross-field validation
     const validation = validateBotConfig({
       permissionMode: body.permissionMode,
