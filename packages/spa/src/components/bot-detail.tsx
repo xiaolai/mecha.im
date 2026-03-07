@@ -12,6 +12,7 @@ import { ScheduleList } from "@/components/schedule-list";
 import { BotLogsView } from "@/components/bot-logs-view";
 import { BusyWarningBanner } from "@/components/busy-warning-banner";
 import { ConfirmActionBanner } from "@/components/confirm-action-banner";
+import { BotFiles } from "@/components/bot-files";
 import { cn } from "@/lib/utils";
 import { useFetch } from "@/lib/use-fetch";
 import { useAuth } from "@/auth-context";
@@ -199,6 +200,7 @@ export function BotDetail({ name, node }: BotDetailProps) {
         <TabsList>
           <TabsTrigger value="sessions" className="min-h-11 sm:min-h-0">Sessions</TabsTrigger>
           <TabsTrigger value="schedules" className="min-h-11 sm:min-h-0">Schedules</TabsTrigger>
+          <TabsTrigger value="files" className="min-h-11 sm:min-h-0" disabled={!!(node && node !== "local")}>Files</TabsTrigger>
           <TabsTrigger value="config" className="min-h-11 sm:min-h-0">Config</TabsTrigger>
           <TabsTrigger value="logs" className="min-h-11 sm:min-h-0" disabled={!!(node && node !== "local")}>Logs</TabsTrigger>
         </TabsList>
@@ -207,6 +209,15 @@ export function BotDetail({ name, node }: BotDetailProps) {
         </TabsContent>
         <TabsContent value="schedules">
           <ScheduleList botName={name} node={node} botState={bot.state} />
+        </TabsContent>
+        <TabsContent value="files">
+          {node && node !== "local" ? (
+            <div className="rounded-lg border border-border bg-card p-8 text-center">
+              <p className="text-sm text-muted-foreground">Files are not available for remote bots.</p>
+            </div>
+          ) : (
+            <BotFiles name={name} />
+          )}
         </TabsContent>
         <TabsContent value="config">
           <div className="flex flex-col gap-4">
