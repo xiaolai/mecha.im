@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { FolderIcon, FileTextIcon, ArrowLeftIcon, SaveIcon, Loader2Icon, PencilIcon, PlusIcon } from "lucide-react";
+import { TiptapEditor } from "@/components/tiptap-editor";
 import { Button } from "@/components/ui/button";
 import { TooltipIconButton } from "@/components/ui/tooltip-icon-button";
 import { useFetch } from "@/lib/use-fetch";
@@ -157,15 +158,18 @@ function MarkdownEditor({ name, filePath, onBack, onSaved }: {
   const url = `/bots/${encodeURIComponent(name)}/files/read?path=${encodeURIComponent(filePath)}`;
   const { data, loading, error: fetchError } = useFetch<FileContent>(url, { deps: [filePath] });
 
-  const [content, setContent] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const contentRef = useRef<string | null>(null);
+  const [changed, setChanged] = useState(false);
 
-  // Reset content state when filePath changes (fix 4.1)
-  useEffect(() => { setContent(null); }, [filePath]);
+  // Reset state when filePath changes
+  useEffect(() => { contentRef.current = null; setChanged(false); }, [filePath]);
 
-  const displayContent = content ?? data?.content ?? "";
-  const changed = data !== null && displayContent !== data.content;
+  const handleEditorChange = useCallback((md: string) => {
+    contentRef.current = md;
+    setChanged(data !== null && md !== data.content);
+  }, [data]);
 
   const handleSave = useCallback(async () => {
     setSaving(true);
@@ -175,7 +179,7 @@ function MarkdownEditor({ name, filePath, onBack, onSaved }: {
         method: "PUT",
         headers: { "content-type": "application/json", ...authHeaders },
         credentials: "include",
-        body: JSON.stringify({ path: filePath, content: displayContent }),
+        body: JSON.stringify({ path: filePath, content: contentRef.current ?? data?.content ?? "" }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({ error: "Failed to save" }));
@@ -188,7 +192,7 @@ function MarkdownEditor({ name, filePath, onBack, onSaved }: {
     } finally {
       setSaving(false);
     }
-  }, [name, filePath, displayContent, authHeaders, onSaved]);
+  }, [name, filePath, data, authHeaders, onSaved]);
 
   return (
     <div className="rounded-lg border border-border bg-card flex flex-col">
@@ -215,11 +219,10 @@ function MarkdownEditor({ name, filePath, onBack, onSaved }: {
       {fetchError && <div className="p-4 text-sm text-destructive">{fetchError}</div>}
 
       {data && (
-        <textarea
-          value={displayContent}
-          onChange={(e) => setContent(e.target.value)}
-          className="min-h-96 w-full resize-y border-0 bg-background p-4 font-mono text-sm text-foreground focus:outline-none"
-          spellCheck={false}
+        <TiptapEditor
+          initialContent={data.content}
+          onChange={handleEditorChange}
+          placeholder="Start writing..."
         />
       )}
 
@@ -244,7 +247,7 @@ function NewFileEditor({ name, basePath, onBack, onSaved }: {
 }) {
   const { authHeaders } = useAuth();
   const [fileName, setFileName] = useState("");
-  const [content, setContent] = useState("# ");
+  const contentRef = useRef("# ");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -259,7 +262,7 @@ function NewFileEditor({ name, basePath, onBack, onSaved }: {
         method: "PUT",
         headers: { "content-type": "application/json", ...authHeaders },
         credentials: "include",
-        body: JSON.stringify({ path: fullPath, content }),
+        body: JSON.stringify({ path: fullPath, content: contentRef.current }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({ error: "Failed to create" }));
@@ -299,11 +302,10 @@ function NewFileEditor({ name, basePath, onBack, onSaved }: {
           Filename must end with .md and contain no path separators
         </div>
       )}
-      <textarea
-        value={content}
-        onChange={(e) => setContent(e.target.value)}
-        className="min-h-96 w-full resize-y border-0 bg-background p-4 font-mono text-sm text-foreground focus:outline-none"
-        spellCheck={false}
+      <TiptapEditor
+        initialContent="# "
+        onChange={(md) => { contentRef.current = md; }}
+        placeholder="Start writing..."
       />
       {saveError && <div className="border-t border-border px-4 py-2 text-sm text-destructive">{saveError}</div>}
     </div>
