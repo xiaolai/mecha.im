@@ -11,16 +11,16 @@ When modifying any of these, you MUST update the corresponding website documenta
 
 | Change | Doc files to update |
 |--------|---------------------|
-| CLI command signature (arguments, options, flags) | `website/docs/reference/cli.md` |
-| New CLI command added | `website/docs/reference/cli.md` + relevant feature/guide page |
-| CLI command removed or renamed | `website/docs/reference/cli.md` + all pages referencing it |
-| Runtime API route added/changed | `website/docs/reference/architecture.md` (Runtime API table) |
+| CLI command signature (arguments, options, flags) | `website/docs/reference/cli/` (index, bot, system, node, meter, schedule, plugin) |
+| New CLI command added | `website/docs/reference/cli/` + relevant feature/guide page |
+| CLI command removed or renamed | `website/docs/reference/cli/` + all pages referencing it |
+| Runtime API route added/changed | `website/docs/reference/api/` (runtime, server, process, service) |
 | Environment variable added/changed | `website/docs/reference/environment.md` |
 | Config schema changed (`config.json` fields) | `website/docs/guide/configuration.md` |
 | ACL capabilities added/changed | `website/docs/features/permissions.md` |
 | Sandbox modes changed | `website/docs/features/sandbox.md` + `website/docs/guide/configuration.md` |
 | Meter/budget behavior changed | `website/docs/features/metering.md` |
-| Mesh networking changes | `website/docs/features/mesh-networking.md` + `website/docs/advanced/multi-machine.md` |
+| Mesh networking changes | `website/docs/features/mesh-networking.md` + `website/docs/guide/multi-machine.md` |
 | Scheduling changes | `website/docs/features/scheduling.md` |
 
 ## How to verify

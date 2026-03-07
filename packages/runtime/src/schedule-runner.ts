@@ -21,7 +21,7 @@ export interface ScheduleLog {
 /** Dependencies injected into {@link executeRun} for testability. */
 export interface RunDeps {
   botDir: string;
-  chatFn: (prompt: string) => Promise<{ durationMs: number; error?: string }>;
+  chatFn: (prompt: string, signal?: AbortSignal) => Promise<{ durationMs: number; error?: string }>;
   now: () => number;
   getActiveRun: () => string | undefined;
   setActiveRun: (id: string | undefined) => void;
@@ -118,13 +118,19 @@ export async function executeRun(entry: ScheduleEntry, deps: RunDeps): Promise<S
 
   let result: ScheduleRunResult;
   let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+  const abortController = new AbortController();
+  let chatPromise: ReturnType<typeof chatFn> | undefined;
   try {
     // Timeout guard — prevents a hanging chatFn from blocking the engine
     const timeoutMs = SCHEDULE_DEFAULTS.RUN_TIMEOUT_MS;
+    chatPromise = chatFn(entry.prompt, abortController.signal);
     const timeoutPromise = new Promise<never>((_, reject) => {
-      timeoutHandle = setTimeout(() => reject(new Error(`Schedule run timed out after ${timeoutMs / 1000}s`)), timeoutMs);
+      timeoutHandle = setTimeout(() => {
+        abortController.abort();
+        reject(new Error(`Schedule run timed out after ${timeoutMs / 1000}s`));
+      }, timeoutMs);
     });
-    const chatResult = await Promise.race([chatFn(entry.prompt), timeoutPromise]);
+    const chatResult = await Promise.race([chatPromise, timeoutPromise]);
     const completedAt = new Date(now()).toISOString();
 
     if (chatResult.error) {
@@ -146,6 +152,11 @@ export async function executeRun(entry: ScheduleEntry, deps: RunDeps): Promise<S
       };
     }
   } catch (err) {
+    // Wait for chatFn to actually settle after abort so activeRun isn't cleared
+    // while chatFn is still executing (prevents overlapping runs)
+    if (abortController.signal.aborted) {
+      await chatPromise!.catch(() => {});
+    }
     const completedAt = new Date(now()).toISOString();
     result = {
       scheduleId: entry.id,

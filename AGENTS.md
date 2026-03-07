@@ -30,7 +30,7 @@ This ensures Claude Code, Codex CLI, and Gemini CLI share the same context consi
 
 ```
 mecha.im/
-├── packages/              ← v2 source code (empty until Phase 0)
+├── packages/              ← monorepo packages (core, cli, agent, service, etc.)
 ├── dev-docs/
 │   ├── plan/              ← v2 phase plans (phase-0 through phase-7)
 │   ├── research/          ← discovery, networking, naming research

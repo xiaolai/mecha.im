@@ -55,15 +55,6 @@ export function createBotRouter(opts: CreateRouterOpts): BotRouter {
   }
   /* v8 ignore stop */
 
-  /* v8 ignore start -- resolveLocal: only called via locator.locate("local") path */
-  function resolveLocal(name: BotName): { port: number; token: string } {
-    if (!isValidName(name)) throw new BotNotFoundError(name);
-    const config = readBotConfig(join(mechaDir, name));
-    if (!config) throw new BotNotFoundError(name);
-    return { port: config.port, token: config.token };
-  }
-  /* v8 ignore stop */
-
   return {
     async routeQuery(source, target, message, sessionId?) {
       // ACL check with full address strings
@@ -118,7 +109,11 @@ export function createBotRouter(opts: CreateRouterOpts): BotRouter {
         }
         /* v8 ignore stop */
 
-        // TODO(Phase 6): Plumb signFn into agentFetch for signed remote routing
+        // KNOWN GAP (Phase 6): Remote agentFetch calls do not pass signFn.
+        // This means remote routing is unauthenticated — the receiving node cannot
+        // verify the sender's identity. Acceptable for local-first / trusted-network
+        // usage (see AGENTS.md "Security Trust Boundary"). Signing will be added
+        // when Phase 6 mesh authentication is implemented.
         if (located.location === "remote" && !opts.agentFetch) {
           throw new RemoteRoutingError("(no transport)", 0);
         }
