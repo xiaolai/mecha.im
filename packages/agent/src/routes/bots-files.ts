@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { type BotName, isValidName, readBotConfig, PathTraversalError } from "@mecha/core";
-import { resolveBotHome, listBotDir, readBotFile, writeBotFile, FileNotFoundError, NotMarkdownError } from "@mecha/service";
+import { resolveBotHome, listBotDir, readBotFile, writeBotFile, FileNotFoundError, NotMarkdownError, FileTooLargeError } from "@mecha/service";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 
@@ -89,13 +89,17 @@ export function registerBotFileRoutes(app: FastifyInstance, mechaDir: string): v
         reply.code(400).send({ error: err.message });
         return;
       }
+      if (err instanceof FileTooLargeError) {
+        reply.code(413).send({ error: err.message });
+        return;
+      }
       throw err;
     }
   });
 
-  // --- Write markdown file (5 MB body limit) ---
+  // --- Write markdown file (6 MB body limit to allow JSON envelope overhead) ---
   app.put("/bots/:name/files/write", {
-    config: { bodyLimit: 5_242_880 },
+    config: { bodyLimit: 6_291_456 },
   } as object, async (
     request: FastifyRequest<{
       Params: { name: string };
@@ -137,6 +141,10 @@ export function registerBotFileRoutes(app: FastifyInstance, mechaDir: string): v
       }
       if (err instanceof NotMarkdownError) {
         reply.code(400).send({ error: err.message });
+        return;
+      }
+      if (err instanceof FileTooLargeError) {
+        reply.code(413).send({ error: err.message });
         return;
       }
       throw err;

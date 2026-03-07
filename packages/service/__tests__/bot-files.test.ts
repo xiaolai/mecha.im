@@ -9,6 +9,7 @@ import {
   writeBotFile,
   FileNotFoundError,
   NotMarkdownError,
+  FileTooLargeError,
 } from "../src/bot-files.js";
 import { PathTraversalError } from "@mecha/core";
 
@@ -70,6 +71,11 @@ describe("listBotDir", () => {
     expect(entries).toEqual([]);
   });
 
+  it("returns empty array when path is a file (ENOTDIR)", async () => {
+    const entries = await listBotDir(homeDir, "readme.md");
+    expect(entries).toEqual([]);
+  });
+
   it("rejects path traversal", async () => {
     await expect(listBotDir(homeDir, "../")).rejects.toThrow(PathTraversalError);
   });
@@ -127,6 +133,13 @@ describe("readBotFile", () => {
     writeFileSync(join(homeDir, "real.md"), "real content");
     symlinkSync(join(homeDir, "real.md"), join(homeDir, "link.md"));
     await expect(readBotFile(homeDir, "link.md")).rejects.toThrow(FileNotFoundError);
+  });
+
+  it("rejects oversized files with FileTooLargeError", async () => {
+    // Create a file > 5 MB
+    const big = Buffer.alloc(6 * 1024 * 1024, "x");
+    writeFileSync(join(homeDir, "big.md"), big);
+    await expect(readBotFile(homeDir, "big.md")).rejects.toThrow(FileTooLargeError);
   });
 });
 
