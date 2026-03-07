@@ -226,6 +226,9 @@ export type { NodeInfo } from "./node-info.js";
 export { CLAUDE_MODELS } from "./models.js";
 export type { ModelOption } from "./models.js";
 
+// Safe Path
+export { safePath, PathTraversalError } from "./safe-path.js";
+
 // Schedule Engine
 export {
   parseInterval,
