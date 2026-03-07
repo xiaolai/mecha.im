@@ -90,6 +90,54 @@ The `@mecha/service` package is the high-level business logic layer that CLI com
 | `nodePing` | Function | `node-ping.ts` |
 | `PingResult` | Type | `node-ping.ts` |
 
+## Bot Spawn Settings
+
+When spawning a bot via `POST /bots` or updating config via `PATCH /bots/:name/config`, the following optional fields control LLM behavior, tool access, agent identity, MCP/plugins, and session settings. All fields are optional.
+
+**LLM Behavior**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `systemPrompt` | `string` | System prompt override (mutually exclusive with `appendSystemPrompt`) |
+| `appendSystemPrompt` | `string` | Append to default system prompt (mutually exclusive with `systemPrompt`) |
+| `effort` | `"low" \| "medium" \| "high"` | Effort level for the LLM |
+| `maxBudget` | `number` | Max USD budget per session |
+
+**Tool Control**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `allowedTools` | `string[]` | Allowed tools (mutually exclusive with `tools`) |
+| `disallowedTools` | `string[]` | Disallowed tools |
+| `tools` | `string[]` | Override tool set (mutually exclusive with `allowedTools`) |
+
+**Agent Identity & Environment**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `agent` | `string` | Agent preset name |
+| `addDir` | `string[]` | Additional directories to mount |
+| `budgetLimit` | `number` | Mecha-level aggregate budget cap |
+
+**MCP & Plugins**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `mcpConfig` | `string[]` | MCP config file paths |
+| `strictMcpConfig` | `boolean` | Only use specified MCP servers |
+| `pluginDir` | `string[]` | Plugin directories |
+
+**Session Behavior**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `sessionPersistence` | `boolean` | Enable/disable session persistence |
+| `disableSlashCommands` | `boolean` | Disable all skills |
+
+**Validation Rules:**
+- `systemPrompt` and `appendSystemPrompt` are mutually exclusive
+- `allowedTools` and `tools` are mutually exclusive
+
 ## `botStatus(pm, name)`
 
 Returns the current status of a bot by name. Reads live state from the process manager and on-disk state.

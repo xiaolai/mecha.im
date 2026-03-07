@@ -34,6 +34,21 @@ mecha bot spawn <name> [path] [options]
 | `--model <model>` | Model to use | |
 | `--permission-mode <mode>` | Permission mode: `default`, `plan`, `full-auto` | |
 | `--meter <mode>` | Meter mode: `on`, `off` | `on` |
+| `--system-prompt <prompt>` | System prompt override | |
+| `--append-system-prompt <prompt>` | Append to default system prompt | |
+| `--effort <level>` | Effort level: `low`, `medium`, `high` | |
+| `--max-budget <dollars>` | Max USD budget per session | |
+| `--allowed-tools <tools>` | Comma-separated allowed tools | |
+| `--disallowed-tools <tools>` | Comma-separated disallowed tools | |
+| `--tools <tools>` | Override tool set (comma-separated) | |
+| `--add-dir <dirs>` | Comma-separated additional directories | |
+| `--agent <name>` | Agent preset name | |
+| `--no-session-persistence` | Disable session persistence | |
+| `--mcp-config <paths>` | Comma-separated MCP config file paths | |
+| `--strict-mcp-config` | Only use specified MCP servers | |
+| `--plugin-dir <dirs>` | Comma-separated plugin directories | |
+| `--disable-slash-commands` | Disable all skills | |
+| `--budget-limit <dollars>` | Mecha-level aggregate budget cap | |
 
 When `[path]` is omitted, CWD defaults to `--home` (or `~/.mecha/<name>/` if `--home` is also omitted). A warning is emitted if CWD is not under HOME.
 
@@ -44,6 +59,10 @@ mecha bot spawn helper ~/docs --no-auth
 mecha bot spawn worker ~/code --meter off
 mecha bot spawn alice --home /opt/bots/alice   # HOME and CWD both at /opt/bots/alice
 mecha bot spawn alice                           # HOME and CWD both at ~/.mecha/alice/
+mecha bot spawn writer ~/blog --system-prompt "You are a technical writer."
+mecha bot spawn coder ~/project --effort high --max-budget 5.00
+mecha bot spawn sandbox ~/code --allowed-tools Bash,Read,Write
+mecha bot spawn assistant ~/docs --agent reviewer --mcp-config ~/mcp.json
 ```
 
 ## `mecha bot start`
