@@ -43,6 +43,30 @@ export interface BotConfigUpdates {
   permissionMode?: string;
   home?: string;
   workspace?: string;
+  // LLM behavior
+  systemPrompt?: string;
+  appendSystemPrompt?: string;
+  effort?: "low" | "medium" | "high";
+  maxBudgetUsd?: number;
+  // Tool control
+  allowedTools?: string[];
+  disallowedTools?: string[];
+  tools?: string[];
+  // Agent identity
+  agent?: string;
+  agents?: Record<string, { description: string; prompt: string }>;
+  // Session behavior
+  sessionPersistence?: boolean;
+  budgetLimit?: number;
+  // MCP & plugins
+  mcpServers?: Record<string, unknown>;
+  mcpConfigFiles?: string[];
+  strictMcpConfig?: boolean;
+  pluginDirs?: string[];
+  disableSlashCommands?: boolean;
+  // Environment
+  addDirs?: string[];
+  env?: Record<string, string>;
 }
 
 /** Update a bot's config.json with partial changes. Setting auth to null clears it. */
