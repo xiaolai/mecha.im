@@ -367,7 +367,7 @@ export function registerBotRoutes(app: FastifyInstance, pm: ProcessManager, mech
       ...(body.home && { home: body.home }),
       ...(body.systemPrompt && { systemPrompt: body.systemPrompt }),
       ...(body.appendSystemPrompt && { appendSystemPrompt: body.appendSystemPrompt }),
-      ...(body.effort && { effort: body.effort }),
+      ...(body.effort && { effort: body.effort as "low" | "medium" | "high" }),
       ...(body.maxBudgetUsd != null && { maxBudgetUsd: body.maxBudgetUsd }),
       ...(body.allowedTools && { allowedTools: body.allowedTools }),
       ...(body.disallowedTools && { disallowedTools: body.disallowedTools }),
