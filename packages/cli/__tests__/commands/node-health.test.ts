@@ -66,6 +66,31 @@ describe("node health command", () => {
     );
   });
 
+  it("sends the node's actual API key in the Authorization header", async () => {
+    addHttpNode("bob");
+
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response("ok", { status: 200 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+
+    const deps = makeDeps({ mechaDir });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "node", "health", "bob"]);
+
+    // Verify the /bots request includes the node's API key (not a placeholder)
+    const botsCall = vi.mocked(fetch).mock.calls.find((c) => String(c[0]).includes("/bots"));
+    expect(botsCall).toBeDefined();
+    const headers = botsCall![1]?.headers as Record<string, string> | undefined;
+    expect(headers?.authorization).toBe("Bearer key");
+  });
+
   it("checks specific HTTP node — online without bot count", async () => {
     addHttpNode("bob");
 
