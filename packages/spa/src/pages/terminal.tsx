@@ -30,8 +30,9 @@ export function TerminalPage() {
     // Update URL to reflect server-assigned session without triggering remount.
     // Using `replace` so back button doesn't create a "new session" → "assigned session" pair.
     setSearchParams((prev) => {
-      prev.set("session", id);
-      return prev;
+      const next = new URLSearchParams(prev);
+      next.set("session", id);
+      return next;
     }, { replace: true });
   }, [setSearchParams]);
 
@@ -45,8 +46,9 @@ export function TerminalPage() {
     // to an existing session via findByBot() fallback.
     const newId = `new-${crypto.randomUUID().slice(0, 8)}`;
     setSearchParams((prev) => {
-      prev.set("session", newId);
-      return prev;
+      const next = new URLSearchParams(prev);
+      next.set("session", newId);
+      return next;
     });
     setTerminalGen((g) => g + 1);
   }, [setSearchParams]);
@@ -57,8 +59,9 @@ export function TerminalPage() {
     // generate a new-* ID so the server spawns fresh PTY.
     const sessionValue = id ?? `new-${crypto.randomUUID().slice(0, 8)}`;
     setSearchParams((prev) => {
-      prev.set("session", sessionValue);
-      return prev;
+      const next = new URLSearchParams(prev);
+      next.set("session", sessionValue);
+      return next;
     });
     setTerminalGen((g) => g + 1);
   }, [setSearchParams]);
