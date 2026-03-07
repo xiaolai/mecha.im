@@ -211,6 +211,112 @@ describe("bot spawn command", () => {
     rmSync(join(tempFile, ".."), { recursive: true, force: true });
   });
 
+  it("passes new config options through to spawn", async () => {
+    const deps = makeDeps({ pm: defaultPm() });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync([
+      "node", "mecha", "bot", "spawn", "test", tmpdir(),
+      "--system-prompt", "You are a coding assistant",
+      "--effort", "high",
+      "--max-budget", "5.50",
+      "--allowed-tools", "Read,Write,Bash",
+      "--disallowed-tools", "WebFetch",
+      "--add-dir", "/extra,/more",
+      "--agent", "coder",
+      "--mcp-config", "/a.json,/b.json",
+      "--strict-mcp-config",
+      "--plugin-dir", "/plugins",
+      "--disable-slash-commands",
+      "--budget-limit", "100",
+    ]);
+    expect(deps.processManager.spawn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        systemPrompt: "You are a coding assistant",
+        effort: "high",
+        maxBudgetUsd: 5.50,
+        allowedTools: ["Read", "Write", "Bash"],
+        disallowedTools: ["WebFetch"],
+        addDirs: ["/extra", "/more"],
+        agent: "coder",
+        mcpConfigFiles: ["/a.json", "/b.json"],
+        strictMcpConfig: true,
+        pluginDirs: ["/plugins"],
+        disableSlashCommands: true,
+        budgetLimit: 100,
+      }),
+    );
+    expect(deps.formatter.success).toHaveBeenCalledWith(expect.stringContaining("Spawned"));
+  });
+
+  it("rejects conflicting system prompts", async () => {
+    const deps = makeDeps({ pm: defaultPm() });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync([
+      "node", "mecha", "bot", "spawn", "test", tmpdir(),
+      "--system-prompt", "override",
+      "--append-system-prompt", "extra",
+    ]);
+    expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("mutually exclusive"));
+    expect(process.exitCode).toBe(1);
+    expect(deps.processManager.spawn).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid effort level", async () => {
+    const deps = makeDeps({ pm: defaultPm() });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync([
+      "node", "mecha", "bot", "spawn", "test", tmpdir(),
+      "--effort", "ultra",
+    ]);
+    expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("Effort must be"));
+    expect(process.exitCode).toBe(1);
+    expect(deps.processManager.spawn).not.toHaveBeenCalled();
+  });
+
+  it("shows validation warnings", async () => {
+    const deps = makeDeps({ pm: defaultPm() });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync([
+      "node", "mecha", "bot", "spawn", "test", tmpdir(),
+      "--max-budget", "10",
+      "--meter", "off",
+    ]);
+    expect(deps.formatter.warn).toHaveBeenCalledWith(expect.stringContaining("metering is off"));
+    expect(deps.formatter.success).toHaveBeenCalledWith(expect.stringContaining("Spawned"));
+  });
+
+  it("passes sessionPersistence false with --no-session-persistence", async () => {
+    const deps = makeDeps({ pm: defaultPm() });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync([
+      "node", "mecha", "bot", "spawn", "test", tmpdir(),
+      "--no-session-persistence",
+    ]);
+    expect(deps.processManager.spawn).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionPersistence: false }),
+    );
+  });
+
+  it("omits sessionPersistence when flag is not used", async () => {
+    const deps = makeDeps({ pm: defaultPm() });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "bot", "spawn", "test", tmpdir()]);
+    const spawnArg = (deps.processManager.spawn as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(spawnArg).not.toHaveProperty("sessionPersistence");
+  });
+
   it("subscribes to warning events during spawn", async () => {
     const onEventMock = vi.fn().mockReturnValue(() => {});
     const deps = makeDeps({ pm: { ...defaultPm(), onEvent: onEventMock } });
