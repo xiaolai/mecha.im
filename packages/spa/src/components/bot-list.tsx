@@ -92,7 +92,7 @@ export function BotList({ node }: BotListProps) {
       )}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {filtered.map((bot) => (
-          <BotCard key={`${bot.node ?? "local"}-${bot.name}`} bot={bot} />
+          <BotCard key={`${bot.node ?? "local"}-${bot.name}`} bot={bot} remoteNode={node} />
         ))}
       </div>
     </>
