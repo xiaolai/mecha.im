@@ -147,6 +147,7 @@ describe("agent createPtyManager", () => {
 
     const pm = createPtyManager({ processManager: createMockPm(), mechaDir: "/m", spawnFn: multiSpawn });
     pm.spawn("coder", "s1", 80, 24);
+    vi.advanceTimersByTime(3000);
     pm.spawn("coder", "s2", 80, 24);
     pm.shutdown();
     expect(pty1.kill).toHaveBeenCalled();
@@ -195,7 +196,7 @@ describe("agent createPtyManager", () => {
 
       const pm = createPtyManager({ processManager: createMockPm(), mechaDir: "/m", spawnFn: multiSpawn });
       const s1 = pm.spawn("coder", "s1", 80, 24);
-      vi.advanceTimersByTime(100);
+      vi.advanceTimersByTime(3000);
       const s2 = pm.spawn("coder", "s2", 80, 24);
 
       const results = pm.findByBot("coder");
@@ -233,6 +234,22 @@ describe("agent createPtyManager", () => {
       expect(session.scrollback[0]).toBe("chunk-50");
       expect(session.scrollback[199]).toBe("chunk-249");
     });
+  });
+
+  it("rejects spawn within cooldown period", () => {
+    const pm = createPtyManager({ processManager: createMockPm(), mechaDir: "/m", spawnFn, spawnCooldownMs: 2000 });
+    pm.spawn("coder", "s1", 80, 24);
+    expect(() => pm.spawn("coder", "s2", 80, 24)).toThrow("Too many spawn requests");
+    // After cooldown expires, spawn should succeed
+    vi.advanceTimersByTime(2000);
+    expect(() => pm.spawn("coder", "s3", 80, 24)).not.toThrow();
+  });
+
+  it("allows rapid spawns for different bots", () => {
+    const pm = createPtyManager({ processManager: createMockPm(), mechaDir: "/m", spawnFn, spawnCooldownMs: 2000 });
+    pm.spawn("coder", "s1", 80, 24);
+    // Different bot name should not be rate-limited
+    expect(() => pm.spawn("writer", "s1", 80, 24)).not.toThrow();
   });
 
   it("uses default idle timeout of 5 minutes", () => {

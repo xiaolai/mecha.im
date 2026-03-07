@@ -1,4 +1,7 @@
+import { useState, useCallback } from "react";
+import { Trash2Icon, Loader2Icon } from "lucide-react";
 import { useFetch } from "@/lib/use-fetch";
+import { useAuth } from "@/auth-context";
 
 interface Session {
   id: string;
@@ -27,11 +30,29 @@ function formatSessionLabel(s: Session): string {
 
 export function SessionSelector({ botName, node, currentSessionId, botState, onSelect }: SessionSelectorProps) {
   const isRunning = botState === "running" || botState === undefined;
-  const nodeQuery = node && node !== "local" ? `?node=${encodeURIComponent(node)}` : "";
-  const { data: sessions, loading, error } = useFetch<Session[]>(
+  const nodeQuery = node ? `?node=${encodeURIComponent(node)}` : "";
+  const { data: sessions, loading, error, refetch } = useFetch<Session[]>(
     isRunning ? `/bots/${encodeURIComponent(botName)}/sessions${nodeQuery}` : null,
     { deps: [botName, node, isRunning], interval: isRunning ? POLL_INTERVAL_MS : undefined },
   );
+  const { authHeaders } = useAuth();
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  const handleDelete = useCallback(async () => {
+    if (!currentSessionId || currentSessionId.startsWith("new-")) return;
+    setDeleting(currentSessionId);
+    try {
+      await fetch(`/bots/${encodeURIComponent(botName)}/sessions/${encodeURIComponent(currentSessionId)}${nodeQuery}`, {
+        method: "DELETE", headers: authHeaders, credentials: "include",
+      });
+      onSelect(undefined);
+      refetch();
+    } finally {
+      setDeleting(null);
+    }
+  }, [botName, currentSessionId, nodeQuery, authHeaders, onSelect, refetch]);
+
+  const canDelete = currentSessionId && !currentSessionId.startsWith("new-") && !currentSessionId.startsWith("__");
 
   return (
     <div className="flex items-center gap-2">
@@ -53,6 +74,17 @@ export function SessionSelector({ botName, node, currentSessionId, botState, onS
           </option>
         ))}
       </select>
+      {canDelete && (
+        <button
+          type="button"
+          onClick={handleDelete}
+          disabled={!!deleting}
+          className="inline-flex items-center p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-50"
+          aria-label="Delete session"
+        >
+          {deleting ? <Loader2Icon className="size-3.5 animate-spin" /> : <Trash2Icon className="size-3.5" />}
+        </button>
+      )}
     </div>
   );
 }
