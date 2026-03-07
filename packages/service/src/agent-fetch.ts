@@ -161,6 +161,10 @@ async function channelBasedFetch(
     channel.onMessage(messageHandler);
     /* v8 ignore start -- register error/close for early rejection */
     if (channel.onError) channel.onError(errorHandler);
+    // NOTE: closeHandler is registered but cannot be removed — SecureChannelLike
+    // lacks offClose. The `settled` guard prevents double-reject. If the channel
+    // is long-lived across many fetches, closeHandlers accumulate (one per call).
+    // Acceptable for now; add offClose to SecureChannelLike if this becomes a problem.
     if (channel.onClose) channel.onClose(closeHandler);
     /* v8 ignore stop */
     channel.send(encoded);

@@ -141,7 +141,7 @@ describe("createScheduleEngine", () => {
       const result = await engine.triggerNow("run-test");
       expect(result.outcome).toBe("success");
       expect(result.durationMs).toBe(100);
-      expect(chatFn).toHaveBeenCalledWith("test prompt");
+      expect(chatFn).toHaveBeenCalledWith("test prompt", expect.any(AbortSignal));
 
       const history = engine.getHistory("run-test");
       expect(history).toHaveLength(1);

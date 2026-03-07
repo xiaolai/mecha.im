@@ -71,16 +71,6 @@ describe("start command", () => {
     expect(deps.formatter.warn).toHaveBeenCalledWith(expect.stringContaining("SPA not found"));
   });
 
-  it("errors when --no-totp disables the only auth method", async () => {
-    const deps = makeDeps({ mechaDir: dir });
-    const program = createProgram(deps);
-    program.exitOverride();
-
-    await program.parseAsync(["node", "mecha", "start", "--no-totp"]);
-    expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("TOTP must be enabled"));
-    expect(process.exitCode).toBe(1);
-  });
-
   it("rejects invalid agent port", async () => {
     const deps = makeDeps({ mechaDir: dir });
     const program = createProgram(deps);

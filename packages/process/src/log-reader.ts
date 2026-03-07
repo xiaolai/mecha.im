@@ -21,7 +21,8 @@ export function readLogs(
   const stderrPath = join(botDir, "logs", "stderr.log");
   const logPaths = [stdoutPath, stderrPath];
 
-  // Read both stdout and stderr
+  // Read both stdout and stderr into memory. For local-first usage with small
+  // log files, reading the whole file is simpler than seek-based tail and acceptable.
   const parts: string[] = [];
   for (const logPath of logPaths) {
     if (existsSync(logPath)) {
