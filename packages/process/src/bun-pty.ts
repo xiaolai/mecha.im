@@ -34,7 +34,6 @@ interface BunSubprocess {
 /* v8 ignore start -- runtime PTY code; tested via integration only */
 
 declare global {
-  // eslint-disable-next-line no-var
   var Bun: unknown;
 }
 

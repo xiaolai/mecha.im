@@ -81,7 +81,8 @@ export function registerAuthRoutes(app: FastifyInstance, opts: AuthRouteOpts): v
     const maxAge = ttl * 3600;
 
     /* v8 ignore start -- Secure flag only added over TLS; plain HTTP on LAN must work */
-    const secure = request.protocol === "https" ? "; Secure" : "";
+    const proto = request.headers["x-forwarded-proto"] ?? request.protocol;
+    const secure = proto === "https" ? "; Secure" : "";
     /* v8 ignore stop */
     reply.header(
       "Set-Cookie",
@@ -93,7 +94,8 @@ export function registerAuthRoutes(app: FastifyInstance, opts: AuthRouteOpts): v
   /** Clear session cookie. */
   app.post("/auth/logout", async (request, reply) => {
     /* v8 ignore start -- Secure flag only added over TLS; plain HTTP on LAN must work */
-    const secure = request.protocol === "https" ? "; Secure" : "";
+    const proto = request.headers["x-forwarded-proto"] ?? request.protocol;
+    const secure = proto === "https" ? "; Secure" : "";
     /* v8 ignore stop */
     reply.header(
       "Set-Cookie",

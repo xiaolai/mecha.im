@@ -1,4 +1,4 @@
-import type { BotAddress, NodeName, NodeEntry } from "@mecha/core";
+import type { BotAddress, NodeEntry } from "@mecha/core";
 import { readBotConfig, nodeName } from "@mecha/core";
 import { join } from "node:path";
 import type { ProcessManager } from "@mecha/process";
