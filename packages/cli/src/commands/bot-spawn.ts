@@ -109,6 +109,7 @@ export function registerBotSpawnCommand(parent: Command, deps: CommandDeps): voi
         systemPrompt: opts.systemPrompt,
         appendSystemPrompt: opts.appendSystemPrompt,
         allowedTools,
+        disallowedTools,
         tools,
         maxBudgetUsd,
         meterOff: opts.meter === "off",

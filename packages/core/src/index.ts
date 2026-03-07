@@ -222,6 +222,10 @@ export type { AuthConfig, AuthConfigOverrides } from "./auth-config.js";
 export { getNetworkIps, fetchPublicIp, collectNodeInfo, formatUptime, wsToHttp } from "./node-info.js";
 export type { NodeInfo } from "./node-info.js";
 
+// Models
+export { CLAUDE_MODELS } from "./models.js";
+export type { ModelOption } from "./models.js";
+
 // Schedule Engine
 export {
   parseInterval,
