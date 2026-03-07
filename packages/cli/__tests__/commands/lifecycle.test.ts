@@ -220,7 +220,7 @@ describe("bot spawn command", () => {
       "node", "mecha", "bot", "spawn", "test", tmpdir(),
       "--system-prompt", "You are a coding assistant",
       "--effort", "high",
-      "--max-budget", "5.50",
+      "--max-budget-usd", "5.50",
       "--allowed-tools", "Read,Write,Bash",
       "--disallowed-tools", "WebFetch",
       "--add-dir", "/extra,/more",
@@ -286,7 +286,7 @@ describe("bot spawn command", () => {
 
     await program.parseAsync([
       "node", "mecha", "bot", "spawn", "test", tmpdir(),
-      "--max-budget", "10",
+      "--max-budget-usd", "10",
       "--meter", "off",
     ]);
     expect(deps.formatter.warn).toHaveBeenCalledWith(expect.stringContaining("metering is off"));
