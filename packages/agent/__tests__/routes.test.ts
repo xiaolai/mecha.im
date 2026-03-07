@@ -811,6 +811,25 @@ describe("agent routes", () => {
         await app.close();
       });
 
+      it("rejects invalid agents shape in config patch", async () => {
+        const pm = makePm([
+          { name: "alice" as BotName, state: "running", port: 7700, workspacePath: "/ws" },
+        ]);
+        const app = Fastify();
+        registerBotRoutes(app, pm, mechaDir);
+        await app.ready();
+
+        const res = await app.inject({
+          method: "PATCH",
+          url: "/bots/alice/config",
+          payload: { agents: "not-an-object" },
+        });
+        expect(res.statusCode).toBe(400);
+        expect(res.json().error).toContain("agents must be an object");
+        expect(mockBotConfigure).not.toHaveBeenCalled();
+        await app.close();
+      });
+
       it("rejects systemPrompt + appendSystemPrompt via config patch", async () => {
         const pm = makePm([
           { name: "alice" as BotName, state: "running", port: 7700, workspacePath: "/ws" },
