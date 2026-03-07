@@ -38,6 +38,10 @@ describe("safePath", () => {
   it("allows names starting with .. that are not traversal (e.g. ..notes)", () => {
     expect(safePath(base, "..notes")).toBe(resolve(base, "..notes"));
   });
+
+  it("rejects bare .. (parent escape)", () => {
+    expect(() => safePath(base, "..")).toThrow(PathTraversalError);
+  });
 });
 
 describe("safePath symlink checks", () => {

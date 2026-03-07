@@ -27,7 +27,8 @@ interface BotDetailProps {
 }
 
 export function BotDetail({ name, node }: BotDetailProps) {
-  const nodeQuery = !!node ? `?node=${encodeURIComponent(node)}` : "";
+  const isRemote = !!node && node !== "local";
+  const nodeQuery = isRemote ? `?node=${encodeURIComponent(node)}` : "";
   const { data: bot, loading, error, refetch } = useFetch<BotInfo>(
     `/bots/${encodeURIComponent(name)}/status${nodeQuery}`,
     { interval: 5000, deps: [name, node] },
@@ -70,7 +71,7 @@ export function BotDetail({ name, node }: BotDetailProps) {
           <span className={cn("size-2.5 rounded-full", style.dot)} />
           <h1 className="text-lg font-semibold text-foreground">{bot.name}</h1>
           <Badge variant={style.badge}>{bot.state}</Badge>
-          {!!node && (
+          {isRemote && (
             <span className="text-xs text-muted-foreground font-mono">@ {node}</span>
           )}
         </div>
@@ -200,9 +201,9 @@ export function BotDetail({ name, node }: BotDetailProps) {
         <TabsList>
           <TabsTrigger value="sessions" className="min-h-11 sm:min-h-0">Sessions</TabsTrigger>
           <TabsTrigger value="schedules" className="min-h-11 sm:min-h-0">Schedules</TabsTrigger>
-          <TabsTrigger value="files" className="min-h-11 sm:min-h-0" disabled={!!(!!node)}>Files</TabsTrigger>
+          <TabsTrigger value="files" className="min-h-11 sm:min-h-0" disabled={isRemote}>Files</TabsTrigger>
           <TabsTrigger value="config" className="min-h-11 sm:min-h-0">Config</TabsTrigger>
-          <TabsTrigger value="logs" className="min-h-11 sm:min-h-0" disabled={!!(!!node)}>Logs</TabsTrigger>
+          <TabsTrigger value="logs" className="min-h-11 sm:min-h-0" disabled={isRemote}>Logs</TabsTrigger>
         </TabsList>
         <TabsContent value="sessions">
           <SessionList name={name} node={node} botState={bot.state} />
@@ -211,7 +212,7 @@ export function BotDetail({ name, node }: BotDetailProps) {
           <ScheduleList botName={name} node={node} botState={bot.state} />
         </TabsContent>
         <TabsContent value="files">
-          {!!node ? (
+          {isRemote ? (
             <div className="rounded-lg border border-border bg-card p-8 text-center">
               <p className="text-sm text-muted-foreground">Files are not available for remote bots.</p>
             </div>
@@ -227,7 +228,7 @@ export function BotDetail({ name, node }: BotDetailProps) {
           </div>
         </TabsContent>
         <TabsContent value="logs">
-          {!!node ? (
+          {isRemote ? (
             <div className="rounded-lg border border-border bg-card p-8 text-center">
               <p className="text-sm text-muted-foreground">Logs are not available for remote bots.</p>
             </div>
@@ -265,7 +266,7 @@ function BotPathEditor({ bot, name, node, onSaved }: { bot: BotInfo; name: strin
       const body: Record<string, unknown> = { restart: true };
       if (home !== (bot.homeDir ?? "")) body.home = home || undefined;
       if (workspace !== (bot.workspacePath ?? "")) body.workspace = workspace || undefined;
-      const nodeQuery = !!node ? `?node=${encodeURIComponent(node)}` : "";
+      const nodeQuery = node && node !== "local" ? `?node=${encodeURIComponent(node)}` : "";
       const res = await fetch(`/bots/${encodeURIComponent(name)}/config${nodeQuery}`, {
         method: "PATCH",
         headers: { "content-type": "application/json", ...authHeaders },
@@ -347,7 +348,7 @@ function BotConfigEditor({ bot, name, node, onSaved }: { bot: BotInfo; name: str
       if (model !== (bot.model ?? "")) body.model = model;
       if (sandbox !== (bot.sandboxMode ?? "auto")) body.sandboxMode = sandbox;
       if (perm !== (bot.permissionMode ?? "default")) body.permissionMode = perm;
-      const nodeQuery = !!node ? `?node=${encodeURIComponent(node)}` : "";
+      const nodeQuery = node && node !== "local" ? `?node=${encodeURIComponent(node)}` : "";
       const res = await fetch(`/bots/${encodeURIComponent(name)}/config${nodeQuery}`, {
         method: "PATCH",
         headers: { "content-type": "application/json", ...authHeaders },

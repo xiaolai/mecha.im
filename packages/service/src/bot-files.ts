@@ -52,11 +52,15 @@ export async function listBotDir(homeDir: string, relPath: string): Promise<DirE
     if (code === "ENOENT" || code === "ENOTDIR") return [];
     throw err;
   }
+  const visible = entries.filter((e) => !e.name.startsWith("."));
+  const stats = await Promise.all(
+    visible.map(async (entry) => {
+      const info = await lstat(join(target, entry.name));
+      return { entry, info };
+    }),
+  );
   const results: DirEntry[] = [];
-  for (const entry of entries) {
-    if (entry.name.startsWith(".")) continue;
-    const fullPath = join(target, entry.name);
-    const info = await lstat(fullPath);
+  for (const { entry, info } of stats) {
     // Skip symlinks entirely to prevent symlink-based escapes
     if (info.isSymbolicLink()) continue;
     results.push({
@@ -127,7 +131,14 @@ export async function writeBotFile(homeDir: string, relPath: string, content: st
   if (parentInfo.isSymbolicLink()) throw new PathTraversalError(relPath);
   // Write via O_NOFOLLOW fd to prevent target symlink swap between lstat and write
   const flags = constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | constants.O_NOFOLLOW;
-  const fh = await open(target, flags, 0o644);
+  let fh;
+  try {
+    fh = await open(target, flags, 0o644);
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === "ELOOP") throw new PathTraversalError(relPath);
+    throw err;
+  }
   try {
     await fh.writeFile(content, "utf-8");
   } finally {

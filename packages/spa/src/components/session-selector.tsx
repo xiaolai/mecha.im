@@ -37,16 +37,24 @@ export function SessionSelector({ botName, node, currentSessionId, botState, onS
   );
   const { authHeaders } = useAuth();
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const handleDelete = useCallback(async () => {
     if (!currentSessionId || currentSessionId.startsWith("new-")) return;
     setDeleting(currentSessionId);
+    setDeleteError(null);
     try {
-      await fetch(`/bots/${encodeURIComponent(botName)}/sessions/${encodeURIComponent(currentSessionId)}${nodeQuery}`, {
+      const res = await fetch(`/bots/${encodeURIComponent(botName)}/sessions/${encodeURIComponent(currentSessionId)}${nodeQuery}`, {
         method: "DELETE", headers: authHeaders, credentials: "include",
       });
+      if (!res.ok) {
+        setDeleteError("Failed to delete session");
+        return;
+      }
       onSelect(undefined);
       refetch();
+    } catch {
+      setDeleteError("Connection error");
     } finally {
       setDeleting(null);
     }
@@ -59,7 +67,7 @@ export function SessionSelector({ botName, node, currentSessionId, botState, onS
       <label htmlFor="session-select" className="text-sm font-medium text-muted-foreground whitespace-nowrap">
         Session:
       </label>
-      {error && isRunning && <span className="text-xs text-destructive">{error}</span>}
+      {(error || deleteError) && isRunning && <span className="text-xs text-destructive">{deleteError ?? error}</span>}
       <select
         id="session-select"
         className="h-9 w-full max-w-xs rounded-md border border-input bg-background px-3 text-sm"
