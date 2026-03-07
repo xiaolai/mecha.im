@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import Fastify, { type FastifyInstance } from "fastify";
 import fastifyWebSocket from "@fastify/websocket";
-import { type AclEngine, MechaError, readNodes, verifySignature, readMechaSettings } from "@mecha/core";
+import { type AclEngine, MechaError, readNodes, verifySignature, readMechaSettings, CLAUDE_MODELS } from "@mecha/core";
 import type { ProcessManager, PtySpawnFn } from "@mecha/process";
 import { createAuthHook, createSignatureHook, API_PREFIXES } from "./auth.js";
 import { deriveSessionKey } from "./session.js";
@@ -220,6 +220,7 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
     publicIp: opts.publicIp,
     mechaDir: opts.mechaDir,
   });
+  app.get("/models", async () => CLAUDE_MODELS);
   registerBotRoutes(app, opts.processManager, opts.mechaDir, opts.nodeName);
   registerRoutingRoutes(app, { mechaDir: opts.mechaDir, acl: opts.acl });
   registerDiscoverRoutes(app, { mechaDir: opts.mechaDir, pm: opts.processManager });

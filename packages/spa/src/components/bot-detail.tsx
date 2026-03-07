@@ -312,6 +312,8 @@ function BotPathEditor({ bot, name, node, onSaved }: { bot: BotInfo; name: strin
   );
 }
 
+interface ModelOption { id: string; label: string }
+
 function BotConfigEditor({ bot, name, node, onSaved }: { bot: BotInfo; name: string; node?: string; onSaved: () => void }) {
   const { authHeaders } = useAuth();
   const [tags, setTags] = useState((bot.tags ?? []).join(", "));
@@ -320,6 +322,7 @@ function BotConfigEditor({ bot, name, node, onSaved }: { bot: BotInfo; name: str
   const [perm, setPerm] = useState(bot.permissionMode ?? "default");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const { data: models } = useFetch<ModelOption[]>("/models");
 
   const origTags = (bot.tags ?? []).join(", ");
   const changed = tags !== origTags || model !== (bot.model ?? "") || sandbox !== (bot.sandboxMode ?? "auto") || perm !== (bot.permissionMode ?? "default");
@@ -364,9 +367,13 @@ function BotConfigEditor({ bot, name, node, onSaved }: { bot: BotInfo; name: str
       </div>
       <div className="flex flex-col gap-1.5">
         <label className="text-xs font-medium text-muted-foreground">MODEL</label>
-        <input type="text" value={model} onChange={(e) => setModel(e.target.value)}
-          placeholder="claude-sonnet-4-5-20250514"
-          className="h-11 sm:h-9 w-full rounded-md border border-input bg-background px-3 text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring" />
+        <select value={model} onChange={(e) => setModel(e.target.value)}
+          className="h-11 sm:h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring">
+          <option value="">Default</option>
+          {models?.map((m) => (
+            <option key={m.id} value={m.id}>{m.label}</option>
+          ))}
+        </select>
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5">

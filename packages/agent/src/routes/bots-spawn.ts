@@ -79,8 +79,50 @@ export function registerBotSpawnRoute(app: FastifyInstance, pm: ProcessManager):
       reply.code(400).send({ error: "expose must be an array of strings" });
       return;
     }
-    if (body.agents !== undefined && (typeof body.agents !== "object" || body.agents === null || Array.isArray(body.agents))) {
-      reply.code(400).send({ error: "agents must be an object mapping name to { description, prompt }" });
+    if (body.agents !== undefined) {
+      if (typeof body.agents !== "object" || body.agents === null || Array.isArray(body.agents)) {
+        reply.code(400).send({ error: "agents must be an object mapping name to { description, prompt }" });
+        return;
+      }
+      for (const [k, v] of Object.entries(body.agents)) {
+        if (typeof v !== "object" || v === null || typeof (v as Record<string, unknown>).description !== "string" || typeof (v as Record<string, unknown>).prompt !== "string") {
+          reply.code(400).send({ error: `agents.${k} must have string 'description' and 'prompt' fields` });
+          return;
+        }
+      }
+    }
+    const validEfforts = ["low", "medium", "high"];
+    if (body.effort !== undefined && (typeof body.effort !== "string" || !validEfforts.includes(body.effort))) {
+      reply.code(400).send({ error: `Invalid effort. Valid: ${validEfforts.join(", ")}` });
+      return;
+    }
+    const isStringArray = (v: unknown): v is string[] => Array.isArray(v) && v.every((x: unknown) => typeof x === "string");
+    if (body.allowedTools !== undefined && !isStringArray(body.allowedTools)) {
+      reply.code(400).send({ error: "allowedTools must be an array of strings" });
+      return;
+    }
+    if (body.disallowedTools !== undefined && !isStringArray(body.disallowedTools)) {
+      reply.code(400).send({ error: "disallowedTools must be an array of strings" });
+      return;
+    }
+    if (body.tools !== undefined && !isStringArray(body.tools)) {
+      reply.code(400).send({ error: "tools must be an array of strings" });
+      return;
+    }
+    if (body.addDirs !== undefined && !isStringArray(body.addDirs)) {
+      reply.code(400).send({ error: "addDirs must be an array of strings" });
+      return;
+    }
+    if (body.mcpConfigFiles !== undefined && !isStringArray(body.mcpConfigFiles)) {
+      reply.code(400).send({ error: "mcpConfigFiles must be an array of strings" });
+      return;
+    }
+    if (body.pluginDirs !== undefined && !isStringArray(body.pluginDirs)) {
+      reply.code(400).send({ error: "pluginDirs must be an array of strings" });
+      return;
+    }
+    if (body.env !== undefined && (typeof body.env !== "object" || body.env === null || Array.isArray(body.env))) {
+      reply.code(400).send({ error: "env must be an object mapping string keys to string values" });
       return;
     }
     const validation = validateBotConfig({
@@ -89,6 +131,7 @@ export function registerBotSpawnRoute(app: FastifyInstance, pm: ProcessManager):
       systemPrompt: body.systemPrompt,
       appendSystemPrompt: body.appendSystemPrompt,
       allowedTools: body.allowedTools,
+      disallowedTools: body.disallowedTools,
       tools: body.tools,
       maxBudgetUsd: body.maxBudgetUsd,
       meterOff: body.meterOff,

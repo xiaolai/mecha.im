@@ -124,9 +124,17 @@ export function registerBotConfigRoutes(app: FastifyInstance, pm: ProcessManager
     }
 
     // Validate agents shape if specified
-    if (body.agents !== undefined && (typeof body.agents !== "object" || body.agents === null || Array.isArray(body.agents))) {
-      reply.code(400).send({ error: "agents must be an object mapping name to { description, prompt }" });
-      return;
+    if (body.agents !== undefined) {
+      if (typeof body.agents !== "object" || body.agents === null || Array.isArray(body.agents)) {
+        reply.code(400).send({ error: "agents must be an object mapping name to { description, prompt }" });
+        return;
+      }
+      for (const [k, v] of Object.entries(body.agents)) {
+        if (typeof v !== "object" || v === null || typeof (v as Record<string, unknown>).description !== "string" || typeof (v as Record<string, unknown>).prompt !== "string") {
+          reply.code(400).send({ error: `agents.${k} must have string 'description' and 'prompt' fields` });
+          return;
+        }
+      }
     }
 
     // Cross-field validation
@@ -136,6 +144,7 @@ export function registerBotConfigRoutes(app: FastifyInstance, pm: ProcessManager
       systemPrompt: body.systemPrompt,
       appendSystemPrompt: body.appendSystemPrompt,
       allowedTools: body.allowedTools,
+      disallowedTools: body.disallowedTools,
       tools: body.tools,
       maxBudgetUsd: body.maxBudgetUsd,
     });
