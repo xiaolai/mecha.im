@@ -259,7 +259,8 @@ export function prepareBotFilesystem(opts: BotFilesystemOpts): BotFilesystemResu
   // Write config
   const config = {
     configVersion: BOT_CONFIG_VERSION, port, token, workspace: workspacePath,
-    ...(opts.home != null && { home: opts.home }), model, permissionMode, auth, tags, expose: opts.expose,
+    ...(opts.home != null && { home: opts.home }), model, permissionMode, auth, tags,
+    ...(opts.expose != null && { expose: opts.expose }),
     ...(opts.systemPrompt != null && { systemPrompt: opts.systemPrompt }),
     ...(opts.appendSystemPrompt != null && { appendSystemPrompt: opts.appendSystemPrompt }),
     ...(opts.effort != null && { effort: opts.effort }),
@@ -277,6 +278,7 @@ export function prepareBotFilesystem(opts: BotFilesystemOpts): BotFilesystemResu
     ...(opts.pluginDirs != null && { pluginDirs: opts.pluginDirs }),
     ...(opts.disableSlashCommands != null && { disableSlashCommands: opts.disableSlashCommands }),
     ...(opts.addDirs != null && { addDirs: opts.addDirs }),
+    ...(opts.userEnv != null && Object.keys(opts.userEnv).length > 0 && { env: opts.userEnv }),
   };
   writeFileSync(join(botDir, "config.json"), JSON.stringify(config, null, 2) + "\n", { mode: 0o600 });
 
