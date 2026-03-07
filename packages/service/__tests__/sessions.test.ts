@@ -137,8 +137,10 @@ describe("session service error paths", () => {
     await new Promise<void>((resolve) => errServer.close(() => resolve()));
   });
 
-  it("throws on unexpected list status", async () => {
-    await expect(botSessionList(pm, BOT)).rejects.toThrow("Failed to list sessions: 500");
+  it("falls through to empty list on unexpected runtime status", async () => {
+    // Non-200 from running bot falls through to disk fallback (returns [] without mechaDir)
+    const result = await botSessionList(pm, BOT);
+    expect(result).toEqual([]);
   });
 
   it("throws on unexpected get status", async () => {
