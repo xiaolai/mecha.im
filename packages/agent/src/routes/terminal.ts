@@ -3,6 +3,7 @@ import { isValidName } from "@mecha/core";
 import type { PtyManager } from "../pty-manager.js";
 
 const BACKPRESSURE_LIMIT = 1_048_576; // 1 MB
+const PING_INTERVAL_MS = 30_000; // 30s heartbeat
 
 /** Only allow alphanumeric, hyphens, and underscores in session IDs. */
 const SESSION_ID_RE = /^[a-zA-Z0-9_-]+$/;
@@ -24,6 +25,21 @@ export function registerTerminalRoutes(
       ?? new URL(rawUrl || "/", "http://localhost").searchParams.get("session")
       ?? undefined;
     /* v8 ignore stop */
+
+    // Reject remote terminal requests — WS proxying not yet supported
+    /* v8 ignore start -- query param extraction fallback */
+    const nodeParam = (req.query as { node?: string } | undefined)?.node
+      ?? new URL(rawUrl || "/", "http://localhost").searchParams.get("node")
+      ?? undefined;
+    /* v8 ignore stop */
+    if (nodeParam) {
+      socket.send(JSON.stringify({
+        __mecha: true, type: "error",
+        message: "Remote terminals are not supported yet. Use SSH to access the remote node directly.",
+      }));
+      socket.close(4400, "Remote terminal not supported");
+      return;
+    }
 
     // Validate bot name consistently with other routes
     if (!botName || !isValidName(botName)) {
@@ -91,8 +107,14 @@ export function registerTerminalRoutes(
     socket.send(JSON.stringify({ __mecha: true, type: "session", id: clientSessionId }));
 
     // Replay scrollback buffer so reattaching clients see recent output
-    for (const chunk of session.scrollback) {
-      if (socket.readyState === socket.OPEN) socket.send(chunk);
+    if (session.scrollback.length > 0) {
+      for (const chunk of session.scrollback) {
+        if (socket.readyState === socket.OPEN) socket.send(chunk);
+      }
+      // Visual separator so user can distinguish replayed output from new output
+      if (socket.readyState === socket.OPEN) {
+        socket.send("\r\n\x1b[2m--- reconnected ---\x1b[0m\r\n");
+      }
     }
 
     // PTY output → WS (text)
@@ -121,23 +143,33 @@ export function registerTerminalRoutes(
       const s = ptyManager.getSession(sessionKey);
       if (!s) return;
 
+      const str = data.toString();
+
       if (isBinary) {
-        s.pty.write(data.toString());
+        s.pty.write(str);
       } else {
         try {
-          const msg = JSON.parse(data.toString()) as { type: string; cols?: number; rows?: number };
+          const msg = JSON.parse(str) as { type: string; cols?: number; rows?: number };
           if (msg.type === "resize" && typeof msg.cols === "number" && typeof msg.rows === "number") {
             const cols = Math.max(1, Math.min(500, Math.floor(msg.cols)));
             const rows = Math.max(1, Math.min(200, Math.floor(msg.rows)));
             ptyManager.resize(sessionKey, cols, rows);
+            return;
           }
         } catch {
-          // Invalid JSON — ignore
+          // Not JSON — treat as PTY input below
         }
+        s.pty.write(str);
       }
     });
 
+    // Heartbeat: detect dead connections (e.g. network drop without FIN)
+    const pingTimer = setInterval(() => {
+      if (socket.readyState === socket.OPEN) socket.ping();
+    }, PING_INTERVAL_MS);
+
     socket.on("close", () => {
+      clearInterval(pingTimer);
       ptyManager.detach(sessionKey, socket);
       dataDisposable.dispose();
       exitDisposable.dispose();

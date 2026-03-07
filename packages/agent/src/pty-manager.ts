@@ -60,11 +60,14 @@ export interface CreatePtyManagerOpts {
   mechaDir: string;
   maxSessions?: number;
   idleTimeoutMs?: number;
+  /** Minimum milliseconds between spawns for the same bot. */
+  spawnCooldownMs?: number;
   spawnFn: PtySpawnFn;
 }
 
 const DEFAULT_MAX_SESSIONS = 10;
 const DEFAULT_IDLE_TIMEOUT_MS = 300_000;
+const DEFAULT_SPAWN_COOLDOWN_MS = 2_000;
 
 /** Create a PtyManager that spawns Claude Code PTY sessions for bots with idle timeout and scrollback. */
 export function createPtyManager(opts: CreatePtyManagerOpts): PtyManager {
@@ -72,10 +75,12 @@ export function createPtyManager(opts: CreatePtyManagerOpts): PtyManager {
     processManager, mechaDir, spawnFn,
     maxSessions = DEFAULT_MAX_SESSIONS,
     idleTimeoutMs = DEFAULT_IDLE_TIMEOUT_MS,
+    spawnCooldownMs = DEFAULT_SPAWN_COOLDOWN_MS,
   } = opts;
 
   const sessions = new Map<string, PtySession>();
   const idleTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  const lastSpawnTime = new Map<string, number>();
 
   function clearIdleTimer(key: string): void {
     const timer = idleTimers.get(key);
@@ -107,6 +112,14 @@ export function createPtyManager(opts: CreatePtyManagerOpts): PtyManager {
       if (sessions.size >= maxSessions) {
         throw new Error(`Max PTY sessions (${maxSessions}) reached`);
       }
+
+      // Rate limit: prevent rapid-fire PTY spawns for the same bot
+      const now = Date.now();
+      const lastSpawn = lastSpawnTime.get(botName);
+      if (lastSpawn && now - lastSpawn < spawnCooldownMs) {
+        throw new Error(`Too many spawn requests for "${botName}" — wait a moment`);
+      }
+      lastSpawnTime.set(botName, now);
 
       const info = processManager.get(botName as BotName);
       if (!info || info.state !== "running") {

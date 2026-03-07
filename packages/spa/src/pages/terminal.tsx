@@ -1,9 +1,10 @@
 import { useParams, useSearchParams, Link } from "react-router-dom";
 import { useState, useCallback, useMemo } from "react";
-import { ArrowLeftIcon } from "lucide-react";
+import { ArrowLeftIcon, PlayIcon, AlertTriangleIcon } from "lucide-react";
 import { Terminal } from "@/components/terminal";
 import { SessionSelector } from "@/components/session-selector";
 import { useFetch } from "@/lib/use-fetch";
+import { useAuth } from "@/auth-context";
 
 export function TerminalPage() {
   const { name: botName } = useParams<{ name: string }>();
@@ -12,12 +13,14 @@ export function TerminalPage() {
   // Derive session from URL as source of truth — keeps state in sync with
   // back/forward navigation and manual URL edits.
   const sessionId = searchParams.get("session") ?? undefined;
-  const nodeQuery = node && node !== "local" ? `?node=${encodeURIComponent(node)}` : "";
+  const nodeQuery = node ? `?node=${encodeURIComponent(node)}` : "";
   const { data: botStatus } = useFetch<{ state?: string }>(
     botName ? `/bots/${encodeURIComponent(botName)}/status${nodeQuery}` : null,
     { deps: [botName, node], interval: 10_000 },
   );
+  const { authHeaders } = useAuth();
   const [exitCode, setExitCode] = useState<number | null>(null);
+  const [starting, setStarting] = useState(false);
   // Monotonic counter used as Terminal key — only incremented on explicit user
   // actions (session select, new session). Server-assigned session IDs from
   // onSessionCreated do NOT trigger remount (avoids infinite loop).
@@ -60,9 +63,26 @@ export function TerminalPage() {
     setTerminalGen((g) => g + 1);
   }, [setSearchParams]);
 
+  const handleStartBot = useCallback(async () => {
+    if (!botName) return;
+    setStarting(true);
+    try {
+      const res = await fetch(`/bots/${encodeURIComponent(botName)}/start`, {
+        method: "POST", headers: authHeaders, credentials: "include",
+      });
+      if (!res.ok) return;
+      // After starting, trigger a new session
+      handleNewSession();
+    } finally {
+      setStarting(false);
+    }
+  }, [botName, authHeaders, handleNewSession]);
+
   // Stable key for Terminal — changes only on explicit user actions, not on
   // server-assigned session IDs (which would cause infinite remount loop).
   const terminalKey = useMemo(() => `${botName}-${terminalGen}`, [botName, terminalGen]);
+  const isStopped = botStatus?.state === "stopped" || botStatus?.state === "error";
+  const isRemote = !!node;
 
   if (!botName) return null;
 
@@ -99,15 +119,36 @@ export function TerminalPage() {
           </div>
         )}
       </div>
+      {isRemote && (
+        <div className="flex items-center gap-2 rounded-lg border border-warning/50 bg-warning/10 p-3 text-sm text-warning-foreground">
+          <AlertTriangleIcon className="size-4 shrink-0 text-warning" />
+          Remote terminals are not yet supported. Use SSH to access the remote node directly.
+        </div>
+      )}
+      {isStopped && !isRemote && (
+        <div className="flex items-center gap-3 rounded-lg border border-border bg-card p-4">
+          <span className="text-sm text-muted-foreground">Bot is stopped.</span>
+          <button
+            onClick={handleStartBot}
+            disabled={starting}
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-success/50 bg-success/10 text-sm font-medium text-success hover:bg-success/20 disabled:opacity-50"
+          >
+            <PlayIcon className="size-3.5" />
+            {starting ? "Starting…" : "Start Bot"}
+          </button>
+        </div>
+      )}
       <div className="flex-1 min-h-0 rounded-lg border border-border overflow-hidden">
-        <Terminal
-          key={terminalKey}
-          botName={botName}
-          sessionId={sessionId}
-          node={node}
-          onSessionCreated={handleSessionCreated}
-          onExit={handleExit}
-        />
+        {!isRemote && !isStopped && (
+          <Terminal
+            key={terminalKey}
+            botName={botName}
+            sessionId={sessionId}
+            node={node}
+            onSessionCreated={handleSessionCreated}
+            onExit={handleExit}
+          />
+        )}
       </div>
     </div>
   );

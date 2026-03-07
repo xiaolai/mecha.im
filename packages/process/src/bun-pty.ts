@@ -155,7 +155,7 @@ function createBridgePty(): PtySpawnFn {
       },
       kill() {
         child.stdin!.write(JSON.stringify({ type: "kill" }) + "\n");
-        setTimeout(() => child.kill(), 500);
+        setTimeout(() => child.kill("SIGKILL"), 500);
       },
     };
   };
