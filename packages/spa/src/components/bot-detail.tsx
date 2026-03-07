@@ -206,7 +206,7 @@ export function BotDetail({ name, node }: BotDetailProps) {
           <TabsTrigger value="logs" className="min-h-11 sm:min-h-0" disabled={isRemote}>Logs</TabsTrigger>
         </TabsList>
         <TabsContent value="sessions">
-          <SessionList name={name} node={node} botState={bot.state} />
+          <SessionList name={name} node={node} />
         </TabsContent>
         <TabsContent value="schedules">
           <ScheduleList botName={name} node={node} botState={bot.state} />

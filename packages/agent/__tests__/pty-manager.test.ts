@@ -27,7 +27,9 @@ function createMockPty(): MechaPty & { _emitData: (d: string) => void; _emitExit
 function createMockPm(running = true): ProcessManager {
   return {
     spawn: vi.fn(),
-    get: vi.fn().mockReturnValue(running ? { name: "coder", state: "running", workspacePath: "/ws", port: 7700 } : undefined),
+    get: vi.fn().mockImplementation((name: string) =>
+      running ? { name, state: "running", workspacePath: "/ws", port: 7700 } : undefined,
+    ),
     list: vi.fn().mockReturnValue([]),
     stop: vi.fn(), kill: vi.fn(), logs: vi.fn(), getPortAndToken: vi.fn(),
     onEvent: vi.fn().mockReturnValue(() => {}),
@@ -154,16 +156,18 @@ describe("agent createPtyManager", () => {
     expect(pty2.kill).toHaveBeenCalled();
   });
 
-  it("detach with remaining clients does not start idle timer", () => {
+  it("attach disconnects previous client (single-client model)", () => {
     const pm = createPtyManager({ processManager: createMockPm(), mechaDir: "/m", spawnFn, idleTimeoutMs: 1000 });
     const session = pm.spawn("coder", "s1", 80, 24);
     const ws1 = createMockWs();
     const ws2 = createMockWs();
     pm.attach(session.id, ws1);
     pm.attach(session.id, ws2);
-    pm.detach(session.id, ws1);
-    vi.advanceTimersByTime(2000);
-    expect(pm.getSession(session.id)).toBe(session);
+    // ws1 should be disconnected
+    expect(ws1.close).toHaveBeenCalledWith(4001, "Replaced by new client");
+    expect(session.clients.has(ws1)).toBe(false);
+    expect(session.clients.has(ws2)).toBe(true);
+    expect(session.clients.size).toBe(1);
   });
 
   it("attach cancels pending idle timer", () => {
