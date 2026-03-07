@@ -85,6 +85,8 @@ export {
 } from "./mapping.js";
 export { readBotConfig, updateBotConfig, BOT_CONFIG_VERSION } from "./bot-config.js";
 export type { BotConfig, SandboxMode } from "./bot-config.js";
+export { validateBotConfig } from "./bot-config-validation.js";
+export type { BotConfigValidationInput, BotConfigValidationResult } from "./bot-config-validation.js";
 export { forwardQueryToBot } from "./forwarding.js";
 export type { ForwardResult } from "./forwarding.js";
 export { matchesDiscoveryFilter } from "./discovery.js";
