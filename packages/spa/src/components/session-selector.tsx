@@ -71,7 +71,7 @@ export function SessionSelector({ botName, node, currentSessionId, botState, onS
       <select
         id="session-select"
         className="h-9 w-full max-w-xs rounded-md border border-input bg-background px-3 text-sm"
-        value={currentSessionId ?? "__new__"}
+        value={!currentSessionId || currentSessionId.startsWith("new-") ? "__new__" : currentSessionId}
         onChange={(e) => onSelect(e.target.value === "__new__" ? undefined : e.target.value)}
         disabled={loading && !sessions}
       >
