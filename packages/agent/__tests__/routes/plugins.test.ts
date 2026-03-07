@@ -262,6 +262,21 @@ describe("plugin routes", () => {
     await app.close();
   });
 
+  it("POST /plugins/:name/test blocks hostname resolving to private IP (SSRF)", async () => {
+    const app = Fastify();
+    registerPluginRoutes(app, { mechaDir });
+    await app.ready();
+    await app.inject({
+      method: "POST",
+      url: "/plugins",
+      payload: { name: "ssrf-dns", type: "http", url: "http://localhost:19999" },
+    });
+    const res = await app.inject({ method: "POST", url: "/plugins/ssrf-dns/test" });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toBe("Cannot test plugins targeting private/internal addresses");
+    await app.close();
+  });
+
   it("POST /plugins/:name/test for http rejects private/internal URLs", async () => {
     const app = Fastify();
     registerPluginRoutes(app, { mechaDir });
