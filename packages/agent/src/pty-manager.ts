@@ -7,6 +7,7 @@ import type { ProcessManager, MechaPty, PtySpawnFn } from "@mecha/process";
 import { buildBotEnv, encodeProjectPath } from "@mecha/process";
 import { readBotConfig } from "@mecha/core";
 import type { BotName } from "@mecha/core";
+import { buildClaudeArgs } from "./build-claude-args.js";
 
 /** Resolve absolute path to `claude` binary, checking common install locations. */
 function resolveClaudeBin(): string {
@@ -124,7 +125,7 @@ export function createPtyManager(opts: CreatePtyManagerOpts): PtyManager {
       const key = isNewSession
         ? `${botName}:new-${randomBytes(8).toString("hex")}`
         : `${botName}:${sessionId}`;
-      const args: string[] = isNewSession ? [] : ["--resume", sessionId];
+      const args = buildClaudeArgs(config, sessionId ?? undefined);
 
       // bot filesystem paths — mirrors prepareBotFilesystem() layout
       // Use configured home if set, otherwise default to botDir
