@@ -4,6 +4,7 @@ export interface BotConfigValidationInput {
   systemPrompt?: string;
   appendSystemPrompt?: string;
   allowedTools?: string[];
+  disallowedTools?: string[];
   tools?: string[];
   maxBudgetUsd?: number;
   meterOff?: boolean;
@@ -54,6 +55,16 @@ export function validateBotConfig(
     input.tools.length > 0
   ) {
     errors.push("allowedTools and tools are mutually exclusive");
+  }
+
+  // Rule 4b: disallowedTools and tools are mutually exclusive (both non-empty)
+  if (
+    input.disallowedTools &&
+    input.disallowedTools.length > 0 &&
+    input.tools &&
+    input.tools.length > 0
+  ) {
+    errors.push("disallowedTools and tools are mutually exclusive");
   }
 
   // Rule 5: maxBudgetUsd with meterOff
