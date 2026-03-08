@@ -13,6 +13,9 @@ import type { WebSocket } from "ws";
 
 const mockReadBotConfig = vi.mocked(readBotConfig);
 
+/** UUID v4 pattern */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
 function createMockPty(): MechaPty & { _emitData: (d: string) => void; _emitExit: (code: number) => void } {
   const emitter = new EventEmitter();
   return {
@@ -56,27 +59,40 @@ describe("agent createPtyManager", () => {
     vi.restoreAllMocks();
   });
 
-  it("spawns PTY with correct args", () => {
+  it("spawns PTY with --resume for existing session ID", () => {
     const pm = createPtyManager({ processManager: createMockPm(), mechaDir: "/m", spawnFn });
     const session = pm.spawn("coder", "sess-1", 80, 24);
-    expect(spawnFn).toHaveBeenCalledWith(expect.stringContaining("claude"), ["--resume", "sess-1"], expect.objectContaining({ cwd: "/workspace" }));
+    expect(spawnFn).toHaveBeenCalledWith(
+      expect.stringContaining("claude"),
+      expect.arrayContaining(["--resume", "sess-1"]),
+      expect.objectContaining({ cwd: "/workspace" }),
+    );
     expect(session.id).toBe("coder:sess-1");
+    expect(session.claudeSessionId).toBe("sess-1");
   });
 
-  it("spawns new session without sessionId", () => {
+  it("spawns new session with --session-id UUID when no sessionId", () => {
     const pm = createPtyManager({ processManager: createMockPm(), mechaDir: "/m", spawnFn });
     const session = pm.spawn("coder", undefined, 80, 24);
-    expect(spawnFn).toHaveBeenCalledWith(expect.stringContaining("claude"), [], expect.any(Object));
-    expect(session.id).toMatch(/^coder:new-/);
+    // Should pass --session-id with a real UUID
+    const args = spawnFn.mock.calls[0][1] as string[];
+    const sessionIdIdx = args.indexOf("--session-id");
+    expect(sessionIdIdx).toBeGreaterThanOrEqual(0);
+    expect(args[sessionIdIdx + 1]).toMatch(UUID_RE);
+    // Internal key uses the same UUID
+    expect(session.claudeSessionId).toMatch(UUID_RE);
+    expect(session.id).toBe(`coder:${session.claudeSessionId}`);
   });
 
-  it("treats new-* session IDs as new sessions (no --resume)", () => {
+  it("treats new-* session IDs as new sessions with --session-id", () => {
     const pm = createPtyManager({ processManager: createMockPm(), mechaDir: "/m", spawnFn });
     const session = pm.spawn("coder", "new-abc123", 80, 24);
-    // Should NOT pass --resume with a new-* ID (it's mecha-internal, not a real Claude session)
-    expect(spawnFn).toHaveBeenCalledWith(expect.stringContaining("claude"), [], expect.any(Object));
-    // Should generate a fresh key (not reuse the new-abc123)
-    expect(session.id).toMatch(/^coder:new-/);
+    // Should NOT pass --resume with a new-* ID
+    const args = spawnFn.mock.calls[0][1] as string[];
+    expect(args).not.toContain("--resume");
+    // Should generate a real UUID via --session-id
+    expect(args).toContain("--session-id");
+    expect(session.claudeSessionId).toMatch(UUID_RE);
   });
 
   it("throws when bot not running", () => {
@@ -210,6 +226,28 @@ describe("agent createPtyManager", () => {
       expect(results[1]).toBe(s1);
     });
 
+    it("updates ordering when PTY output changes lastActivity", () => {
+      const pty1 = createMockPty();
+      const pty2 = createMockPty();
+      let call = 0;
+      const multiSpawn = vi.fn().mockImplementation(() => ++call === 1 ? pty1 : pty2);
+
+      const pm = createPtyManager({ processManager: createMockPm(), mechaDir: "/m", spawnFn: multiSpawn });
+      const s1 = pm.spawn("coder", "s1", 80, 24);
+      vi.advanceTimersByTime(3000);
+      pm.spawn("coder", "s2", 80, 24);
+
+      // s2 is more recent — verify initial ordering
+      expect(pm.findByBot("coder")[0]!.id).toBe("coder:s2");
+
+      // PTY output on s1 updates its lastActivity
+      vi.advanceTimersByTime(1000);
+      pty1._emitData("output");
+
+      // Now s1 should be first (most recently active)
+      expect(pm.findByBot("coder")[0]).toBe(s1);
+    });
+
     it("returns empty array when no sessions match", () => {
       const pm = createPtyManager({ processManager: createMockPm(), mechaDir: "/m", spawnFn });
       pm.spawn("coder", "s1", 80, 24);
@@ -224,6 +262,20 @@ describe("agent createPtyManager", () => {
       mockPty._emitData("line1");
       mockPty._emitData("line2");
       expect(session.scrollback).toEqual(["line1", "line2"]);
+    });
+
+    it("trims scrollback when byte cap is exceeded", () => {
+      const pm = createPtyManager({ processManager: createMockPm(), mechaDir: "/m", spawnFn });
+      const session = pm.spawn("coder", "s1", 80, 24);
+      // 512 KB cap = 524288 bytes. Push 6 chunks of 100KB each (600KB total)
+      const bigChunk = "x".repeat(100 * 1024);
+      for (let i = 0; i < 6; i++) {
+        mockPty._emitData(bigChunk);
+      }
+      // Should have trimmed oldest chunks to stay under 512KB
+      expect(session.scrollback.length).toBeLessThan(6);
+      const totalBytes = session.scrollback.reduce((sum, c) => sum + Buffer.byteLength(c, "utf8"), 0);
+      expect(totalBytes).toBeLessThanOrEqual(512 * 1024);
     });
 
     it("limits scrollback to SCROLLBACK_LIMIT chunks", () => {
