@@ -141,7 +141,7 @@ describe("createScheduleEngine", () => {
       const result = await engine.triggerNow("run-test");
       expect(result.outcome).toBe("success");
       expect(result.durationMs).toBe(100);
-      expect(chatFn).toHaveBeenCalledWith("test prompt");
+      expect(chatFn).toHaveBeenCalledWith("test prompt", expect.any(AbortSignal));
 
       const history = engine.getHistory("run-test");
       expect(history).toHaveLength(1);
@@ -317,6 +317,52 @@ describe("createScheduleEngine", () => {
       const resultB = await executeRun(entryB, deps);
       expect(resultA.outcome).toBe("skipped");
       expect(resultB.outcome).toBe("skipped");
+    });
+  });
+
+  describe("timeout abort", () => {
+    it("aborts chatFn and prevents overlapping run when timeout fires", async () => {
+      let capturedSignal: AbortSignal | undefined;
+      let resolveChat: ((v: { durationMs: number }) => void) | undefined;
+
+      // chatFn that hangs indefinitely — only resolves when we call resolveChat
+      (chatFn as ReturnType<typeof vi.fn>).mockImplementation(
+        (_prompt: string, signal?: AbortSignal) => {
+          capturedSignal = signal;
+          return new Promise<{ durationMs: number }>((resolve) => {
+            resolveChat = resolve;
+          });
+        },
+      );
+
+      engine.addSchedule(makeEntry("timeout-test", 60_000));
+
+      let activeRun: string | undefined;
+      const deps: RunDeps = {
+        botDir: tempDir,
+        chatFn,
+        now: () => currentTime,
+        log: () => {},
+        getActiveRun: () => activeRun,
+        setActiveRun: (id) => { activeRun = id; },
+      };
+
+      const entry = makeEntry("timeout-test", 60_000);
+      const runPromise = executeRun(entry, deps);
+
+      // Advance past the RUN_TIMEOUT_MS to trigger abort
+      await vi.advanceTimersByTimeAsync(SCHEDULE_DEFAULTS.RUN_TIMEOUT_MS + 100);
+
+      // Now resolve chatFn so the abort-wait settles
+      resolveChat!({ durationMs: 0 });
+
+      const result = await runPromise;
+      expect(result.outcome).toBe("error");
+      expect(result.error).toContain("timed out");
+      expect(capturedSignal!.aborted).toBe(true);
+
+      // activeRun should be cleared — no overlap
+      expect(activeRun).toBeUndefined();
     });
   });
 

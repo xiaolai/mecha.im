@@ -342,7 +342,7 @@ describe("AgentServer", () => {
       expect(res.statusCode).toBe(400);
     });
 
-    it("returns 502 when session fetch fails", async () => {
+    it("falls through to empty list when runtime fetch fails", async () => {
       const list: ProcessInfo[] = [
         { name: "coder" as BotName, state: "running", port: 7700, workspacePath: "/ws" },
       ];
@@ -355,7 +355,9 @@ describe("AgentServer", () => {
         url: "/bots/coder/sessions",
         headers: { cookie: authCookie() },
       });
-      expect(res.statusCode).toBe(502);
+      // Runtime fetch fails — falls through to disk fallback (empty)
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual([]);
     });
   });
 

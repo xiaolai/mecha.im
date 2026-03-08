@@ -1,4 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { mkdtempSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import Fastify, { type FastifyInstance } from "fastify";
 import { registerSessionRoutes } from "../../src/routes/sessions.js";
 import type { ProcessManager } from "@mecha/process";
@@ -32,11 +35,13 @@ function createMockPm(running = true): ProcessManager {
 describe("agent session routes", () => {
   let app: FastifyInstance;
   let pm: ProcessManager;
+  let mechaDir: string;
 
   beforeEach(async () => {
+    mechaDir = mkdtempSync(join(tmpdir(), "mecha-sess-test-"));
     pm = createMockPm();
     app = Fastify();
-    registerSessionRoutes(app, pm);
+    registerSessionRoutes(app, pm, mechaDir);
     await app.ready();
   });
 
@@ -61,7 +66,7 @@ describe("agent session routes", () => {
     it("returns 404 when bot not found", async () => {
       pm = createMockPm(false);
       app = Fastify();
-      registerSessionRoutes(app, pm);
+      registerSessionRoutes(app, pm, mechaDir);
       await app.ready();
 
       const res = await app.inject({ method: "GET", url: "/bots/ghost/sessions" });
@@ -91,7 +96,7 @@ describe("agent session routes", () => {
     it("returns 404 when bot not found", async () => {
       pm = createMockPm(false);
       app = Fastify();
-      registerSessionRoutes(app, pm);
+      registerSessionRoutes(app, pm, mechaDir);
       await app.ready();
 
       const res = await app.inject({ method: "GET", url: "/bots/ghost/sessions/s1" });
@@ -121,7 +126,7 @@ describe("agent session routes", () => {
     it("returns 404 when bot not found", async () => {
       pm = createMockPm(false);
       app = Fastify();
-      registerSessionRoutes(app, pm);
+      registerSessionRoutes(app, pm, mechaDir);
       await app.ready();
 
       const res = await app.inject({ method: "DELETE", url: "/bots/ghost/sessions/s1" });

@@ -13,7 +13,7 @@ interface HealthResult {
 }
 
 async function checkNodeHealth(
-  node: { name: string; host?: string; port?: number; managed?: boolean; serverUrl?: string },
+  node: { name: string; host?: string; port?: number; managed?: boolean; serverUrl?: string; apiKey?: string },
   rendezvousUrl: string,
 ): Promise<HealthResult> {
   if (node.managed) {
@@ -53,7 +53,7 @@ async function checkNodeHealth(
     let botCount: number | undefined;
     try {
       const botRes = await fetch(`${url}/bots`, {
-        headers: { authorization: `Bearer placeholder` },
+        ...(node.apiKey && { headers: { authorization: `Bearer ${node.apiKey}` } }),
         signal: AbortSignal.timeout(DEFAULTS.AGENT_STATUS_TIMEOUT_MS),
       });
       if (botRes.ok) {

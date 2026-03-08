@@ -1,13 +1,16 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { type BotName, type SandboxMode, isValidName, readBotConfig, readAuthProfiles, BotNotRunningError, getNetworkIps } from "@mecha/core";
+import { type BotName, isValidName, readBotConfig, BotNotRunningError, getNetworkIps } from "@mecha/core";
 import type { ProcessManager } from "@mecha/process";
-import { botConfigure, checkBotBusy, enrichBotInfo, buildEnrichContext, getCachedSnapshot, mechaAuthLs, batchBotAction, agentFetch } from "@mecha/service";
-import type { BotConfigUpdates, EnrichedBotInfo } from "@mecha/service";
-import { existsSync, statSync, rmSync, readFileSync, readdirSync } from "node:fs";
-import { readFile } from "node:fs/promises";
-import { join, basename, resolve, isAbsolute } from "node:path";
+import { checkBotBusy, enrichBotInfo, buildEnrichContext, getCachedSnapshot, batchBotAction, agentFetch } from "@mecha/service";
+import type { EnrichedBotInfo } from "@mecha/service";
+import { existsSync, rmSync } from "node:fs";
+import { join, basename } from "node:path";
 import { hostname as osHostname } from "node:os";
 import { resolveNodeEntry } from "../node-resolve.js";
+import { registerBotLogRoutes } from "./bots-logs.js";
+import { registerBotConfigRoutes } from "./bots-config.js";
+import { registerBotSpawnRoute } from "./bots-spawn.js";
+import { spawnOptsFromConfig } from "./spawn-opts.js";
 
 function validateName(name: string, reply: FastifyReply): BotName | null {
   if (!isValidName(name)) {
@@ -18,23 +21,6 @@ function validateName(name: string, reply: FastifyReply): BotName | null {
 }
 
 interface ForceBody { force?: boolean }
-
-function spawnOptsFromConfig(name: BotName, config: ReturnType<typeof readBotConfig> & object) {
-  return {
-    name,
-    workspacePath: config.workspace,
-    home: config.home,
-    port: config.port,
-    /* v8 ignore start -- null coalescing fallback for optional auth field */
-    auth: config.auth ?? undefined,
-    /* v8 ignore stop */
-    tags: config.tags,
-    expose: config.expose,
-    sandboxMode: config.sandboxMode,
-    model: config.model,
-    permissionMode: config.permissionMode,
-  };
-}
 
 /** List endpoint projection — omit pid/exitCode, shorten workspacePath to basename. */
 function listProjection(info: EnrichedBotInfo) {
@@ -60,7 +46,12 @@ async function proxyToNode(
     const data = await res.json();
     reply.send(data);
     return true;
-  } catch { reply.code(502).send({ error: `Cannot reach node "${targetNode}"` }); return true; }
+  } catch (err) {
+    const cause = err instanceof Error ? err.message : String(err);
+    console.warn(`[proxyToNode] ${method} ${path} → node "${targetNode}" failed: ${cause}`);
+    reply.code(502).send({ error: `Cannot reach node "${targetNode}"` });
+    return true;
+  }
 }
 /* v8 ignore stop */
 
@@ -239,91 +230,17 @@ export function registerBotRoutes(app: FastifyInstance, pm: ProcessManager, mech
     return { ok: true };
   });
 
-  interface SpawnBody {
-    name?: string;
-    workspacePath?: string;
-    model?: string;
-    permissionMode?: string;
-    auth?: string | null;
-    tags?: string[];
-    expose?: string[];
-    sandboxMode?: string;
-    meterOff?: boolean;
-    home?: string;
-  }
-
-  app.post("/bots", async (request: FastifyRequest<{ Body: SpawnBody }>, reply: FastifyReply) => {
-    /* v8 ignore start -- Fastify always parses body for POST */
-    const body = request.body ?? {};
-    /* v8 ignore stop */
-    const rawName = body.name;
-    if (!rawName || !isValidName(rawName)) {
-      /* v8 ignore start -- null coalescing fallback for missing name */
-      reply.code(400).send({ error: `Invalid bot name: ${rawName ?? "(missing)"}` });
-      /* v8 ignore stop */
-      return;
-    }
-    if (!body.workspacePath || typeof body.workspacePath !== "string") {
-      reply.code(400).send({ error: "Missing or invalid workspacePath (must be a string)" });
-      return;
-    }
-    if (body.model !== undefined && typeof body.model !== "string") {
-      reply.code(400).send({ error: "model must be a string" });
-      return;
-    }
-    if (body.permissionMode !== undefined && typeof body.permissionMode !== "string") {
-      reply.code(400).send({ error: "permissionMode must be a string" });
-      return;
-    }
-    if (body.auth !== undefined && body.auth !== null && typeof body.auth !== "string") {
-      reply.code(400).send({ error: "auth must be a string or null" });
-      return;
-    }
-    if (body.home !== undefined && typeof body.home !== "string") {
-      reply.code(400).send({ error: "home must be a string" });
-      return;
-    }
-    const validSandboxModes = ["auto", "off", "require"];
-    if (body.sandboxMode && !validSandboxModes.includes(body.sandboxMode)) {
-      reply.code(400).send({ error: `Invalid sandboxMode. Valid: ${validSandboxModes.join(", ")}` });
-      return;
-    }
-    if (body.tags !== undefined && (!Array.isArray(body.tags) || !body.tags.every((t: unknown) => typeof t === "string"))) {
-      reply.code(400).send({ error: "tags must be an array of strings" });
-      return;
-    }
-    if (body.expose !== undefined && (!Array.isArray(body.expose) || !body.expose.every((e: unknown) => typeof e === "string"))) {
-      reply.code(400).send({ error: "expose must be an array of strings" });
-      return;
-    }
-    const botName = rawName as BotName;
-    const existing = pm.get(botName);
-    if (existing) {
-      reply.code(409).send({ error: `bot already exists: ${botName}` });
-      return;
-    }
-    const result = await pm.spawn({
-      name: botName,
-      workspacePath: body.workspacePath,
-      /* v8 ignore start -- optional field spread; each truthy/defined check is a branch */
-      ...(body.model && { model: body.model }),
-      ...(body.permissionMode && { permissionMode: body.permissionMode }),
-      ...(body.auth !== undefined && { auth: body.auth }),
-      ...(body.tags && { tags: body.tags }),
-      ...(body.expose && { expose: body.expose }),
-      ...(body.sandboxMode && { sandboxMode: body.sandboxMode as SandboxMode }),
-      ...(body.meterOff !== undefined && { meterOff: body.meterOff }),
-      ...(body.home && { home: body.home }),
-      /* v8 ignore stop */
-    });
-    return { ok: true, name: botName, port: result.port };
-  });
+  // --- Spawn (POST /bots) — extracted to bots-spawn.ts ---
+  registerBotSpawnRoute(app, pm);
 
   // --- Remove a bot: stop/kill if running, then delete its directory ---
   app.delete("/bots/:name", async (
-    request: FastifyRequest<{ Params: { name: string }; Querystring: { force?: string } }>,
+    request: FastifyRequest<{ Params: { name: string }; Querystring: { force?: string; node?: string } }>,
     reply: FastifyReply,
   ) => {
+    /* v8 ignore start -- proxy requires live remote node */
+    if (await proxyToNode(mechaDir, node, request.query.node, `/bots/${encodeURIComponent(request.params.name)}?force=${request.query.force ?? "false"}`, "DELETE", reply)) return;
+    /* v8 ignore stop */
     const validated = validateName(request.params.name, reply);
     if (!validated) return;
 
@@ -356,220 +273,7 @@ export function registerBotRoutes(app: FastifyInstance, pm: ProcessManager, mech
     return { ok: true };
   });
 
-  // --- View bot logs ---
-  app.get("/bots/:name/logs", async (
-    request: FastifyRequest<{
-      Params: { name: string };
-      Querystring: { stream?: string; lines?: string };
-    }>,
-    reply: FastifyReply,
-  ) => {
-    const validated = validateName(request.params.name, reply);
-    if (!validated) return;
-
-    const botDir = join(mechaDir, validated);
-    if (!existsSync(botDir)) {
-      reply.code(404).send({ error: `Bot not found: ${validated}` });
-      return;
-    }
-
-    const stream = request.query.stream === "stderr" ? "stderr" : "stdout";
-    const logFile = join(botDir, "logs", `${stream}.log`);
-    /* v8 ignore start -- NaN fallback for malformed lines param */
-    const lines = Math.max(1, Math.min(5000, parseInt(request.query.lines ?? "200", 10) || 200));
-    /* v8 ignore stop */
-
-    if (!existsSync(logFile)) {
-      return { lines: [] };
-    }
-
-    const content = await readFile(logFile, "utf-8");
-    const allLines = content.split("\n").filter(Boolean);
-    return { lines: allLines.slice(-lines) };
-  });
-
-  // --- Sandbox profile: settings + hooks ---
-  app.get("/bots/:name/sandbox", async (
-    request: FastifyRequest<{ Params: { name: string } }>,
-    reply: FastifyReply,
-  ) => {
-    const validated = validateName(request.params.name, reply);
-    if (!validated) return;
-
-    const botDir = join(mechaDir, validated);
-    if (!existsSync(botDir)) {
-      reply.code(404).send({ error: `Bot not found: ${validated}` });
-      return;
-    }
-
-    const claudeDir = join(botDir, ".claude");
-    let settings: Record<string, unknown> = {};
-    const settingsPath = join(claudeDir, "settings.json");
-    if (existsSync(settingsPath)) {
-      /* v8 ignore start -- corrupt JSON fallback */
-      try {
-        settings = JSON.parse(readFileSync(settingsPath, "utf-8"));
-      } catch { /* invalid JSON — use defaults */ }
-      /* v8 ignore stop */
-    }
-
-    const hooksDir = join(claudeDir, "hooks");
-    let hooks: string[] = [];
-    if (existsSync(hooksDir)) {
-      /* v8 ignore start -- fs error fallback */
-      try {
-        hooks = readdirSync(hooksDir).filter((f) => f.endsWith(".sh"));
-      } catch { /* ignore */ }
-      /* v8 ignore stop */
-    }
-
-    const config = readBotConfig(join(mechaDir, validated));
-
-    return {
-      name: validated,
-      /* v8 ignore start -- null coalescing fallback for missing sandboxMode */
-      sandboxMode: config?.sandboxMode ?? "auto",
-      /* v8 ignore stop */
-      settings,
-      hooks,
-    };
-  });
-
-  // --- Update bot config fields, optionally restart ---
-  interface ConfigPatchBody extends BotConfigUpdates {
-    restart?: boolean;
-    force?: boolean;
-  }
-
-  app.patch("/bots/:name/config", async (
-    request: FastifyRequest<{ Params: { name: string }; Body: ConfigPatchBody; Querystring: { node?: string } }>,
-    reply: FastifyReply,
-  ) => {
-    /* v8 ignore start -- proxy requires live remote node */
-    if (await proxyToNode(mechaDir, node, request.query.node, `/bots/${encodeURIComponent(request.params.name)}/config`, "PATCH", reply, request.body)) return;
-    /* v8 ignore stop */
-    const botName = validateName(request.params.name, reply);
-    if (!botName) return;
-    const info = pm.get(botName);
-    if (!info) {
-      reply.code(404).send({ error: `bot not found: ${botName}` });
-      return;
-    }
-    /* v8 ignore start -- Fastify always parses body for PATCH */
-    const body = (request.body ?? {}) as ConfigPatchBody;
-    /* v8 ignore stop */
-
-    // Validate auth profile exists if specified
-    /* v8 ignore start -- auth validation branches: $env sentinel requires env vars, store lookup tested in routes.test.ts */
-    if (body.auth !== undefined && body.auth !== null) {
-      if (typeof body.auth !== "string") {
-        reply.code(400).send({ error: "auth must be a string or null" });
-        return;
-      }
-      if (body.auth.startsWith("$env:")) {
-        const envMap: Record<string, string> = { "$env:api-key": "ANTHROPIC_API_KEY", "$env:oauth": "CLAUDE_CODE_OAUTH_TOKEN" };
-        const envVar = envMap[body.auth];
-        if (!envVar || !process.env[envVar]) {
-          reply.code(400).send({ error: `Auth profile not found: ${body.auth}` });
-          return;
-        }
-      } else {
-        const store = readAuthProfiles(mechaDir);
-        if (!store.profiles[body.auth]) {
-          reply.code(400).send({ error: `Auth profile not found: ${body.auth}` });
-          return;
-        }
-      }
-    }
-    /* v8 ignore stop */
-
-    // Validate home path if specified — must be absolute
-    if (body.home !== undefined) {
-      if (typeof body.home !== "string" || body.home.length === 0) {
-        reply.code(400).send({ error: "home must be a non-empty string" });
-        return;
-      }
-      if (!isAbsolute(body.home)) {
-        reply.code(400).send({ error: "home must be an absolute path" });
-        return;
-      }
-      body.home = resolve(body.home);
-      if (!existsSync(body.home) || !statSync(body.home).isDirectory()) {
-        reply.code(400).send({ error: `home directory does not exist: ${body.home}` });
-        return;
-      }
-    }
-    // Validate workspace path if specified — must be absolute
-    if (body.workspace !== undefined) {
-      if (typeof body.workspace !== "string" || body.workspace.length === 0) {
-        reply.code(400).send({ error: "workspace must be a non-empty string" });
-        return;
-      }
-      if (!isAbsolute(body.workspace)) {
-        reply.code(400).send({ error: "workspace must be an absolute path" });
-        return;
-      }
-      body.workspace = resolve(body.workspace);
-      if (!existsSync(body.workspace) || !statSync(body.workspace).isDirectory()) {
-        reply.code(400).send({ error: `workspace directory does not exist: ${body.workspace}` });
-        return;
-      }
-    }
-
-    // Extract only allowed config fields — unknown fields are silently ignored
-    // to prevent persisting arbitrary data (e.g. token, port overrides).
-    const { restart, force, auth, model, tags, expose, sandboxMode, permissionMode, home, workspace } = body;
-    /* v8 ignore start -- optional field spread; each undefined check is a branch */
-    const configUpdates: BotConfigUpdates = {
-      ...(auth !== undefined && { auth }),
-      ...(model !== undefined && { model }),
-      ...(tags !== undefined && { tags }),
-      ...(expose !== undefined && { expose }),
-      ...(sandboxMode !== undefined && { sandboxMode }),
-      ...(permissionMode !== undefined && { permissionMode }),
-      ...(home !== undefined && { home }),
-      ...(workspace !== undefined && { workspace }),
-    };
-    /* v8 ignore stop */
-
-    // Check busy BEFORE persisting config to avoid state mutation on 409
-    let restarted = false;
-    if (restart === true && info.state === "running" && force !== true) {
-      const check = await checkBotBusy(pm, botName);
-      if (check.busy) {
-        reply.code(409).send({
-          error: `bot has ${check.activeSessions} active session(s)`,
-          code: "BOT_BUSY",
-          activeSessions: check.activeSessions,
-          lastActivity: check.lastActivity,
-        });
-        return;
-      }
-    }
-
-    // Persist config AFTER busy check passes
-    botConfigure(mechaDir, pm, botName, configUpdates);
-
-    if (restart === true && info.state === "running") {
-      if (force === true) {
-        await pm.kill(botName);
-      } else {
-        await pm.stop(botName);
-      }
-      const config = readBotConfig(join(mechaDir, botName));
-      /* v8 ignore start -- config always exists after botConfigure */
-      if (config) {
-        await pm.spawn(spawnOptsFromConfig(botName, config));
-      }
-      /* v8 ignore stop */
-      restarted = true;
-    }
-
-    return { ok: true, restarted };
-  });
-
-  // --- List auth profiles (for UI dropdowns) ---
-  app.get("/auth/profiles", async () => {
-    return mechaAuthLs(mechaDir);
-  });
+  // Register extracted route modules
+  registerBotLogRoutes(app, mechaDir);
+  registerBotConfigRoutes(app, pm, mechaDir, nodeName);
 }

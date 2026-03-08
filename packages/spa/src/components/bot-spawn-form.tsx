@@ -22,6 +22,11 @@ import { useFetch } from "@/lib/use-fetch";
 import { Loader2Icon } from "lucide-react";
 import type { AuthProfile } from "@/components/auth-switcher-panels";
 
+interface ModelOption {
+  id: string;
+  label: string;
+}
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -37,6 +42,10 @@ export function BotSpawnForm({ open, onOpenChange, onCreated }: Props) {
   const [sandbox, setSandbox] = useState("auto");
   const [permissionMode, setPermissionMode] = useState("default");
   const [model, setModel] = useState("");
+  const [systemPrompt, setSystemPrompt] = useState("");
+  const [appendSystemPrompt, setAppendSystemPrompt] = useState("");
+  const [effort, setEffort] = useState("");
+  const [maxBudgetUsd, setMaxBudgetUsd] = useState("");
   const [expose, setExpose] = useState("");
   const [meterOff, setMeterOff] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -45,6 +54,9 @@ export function BotSpawnForm({ open, onOpenChange, onCreated }: Props) {
 
   const { data: profiles } = useFetch<AuthProfile[]>(
     open ? "/auth/profiles" : null,
+  );
+  const { data: models } = useFetch<ModelOption[]>(
+    open ? "/models" : null,
   );
 
   const nameError =
@@ -85,6 +97,13 @@ export function BotSpawnForm({ open, onOpenChange, onCreated }: Props) {
       if (sandbox !== "auto") body.sandboxMode = sandbox;
       if (permissionMode !== "default") body.permissionMode = permissionMode;
       if (model) body.model = model;
+      if (systemPrompt.trim()) body.systemPrompt = systemPrompt.trim();
+      if (appendSystemPrompt.trim()) body.appendSystemPrompt = appendSystemPrompt.trim();
+      if (effort) body.effort = effort;
+      if (maxBudgetUsd) {
+        const parsed = parseFloat(maxBudgetUsd);
+        if (!isNaN(parsed) && parsed > 0) body.maxBudgetUsd = parsed;
+      }
       if (expose.trim()) {
         body.expose = expose
           .split(",")
@@ -124,6 +143,10 @@ export function BotSpawnForm({ open, onOpenChange, onCreated }: Props) {
     setSandbox("auto");
     setPermissionMode("default");
     setModel("");
+    setSystemPrompt("");
+    setAppendSystemPrompt("");
+    setEffort("");
+    setMaxBudgetUsd("");
     setExpose("");
     setMeterOff(false);
     setTouched({});
@@ -235,14 +258,81 @@ export function BotSpawnForm({ open, onOpenChange, onCreated }: Props) {
 
           {/* Model */}
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="spawn-model">Model</Label>
-            <Input
-              id="spawn-model"
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              placeholder="claude-sonnet-4-5-20250514"
-              className="h-11 sm:h-9"
+            <Label>Model</Label>
+            <Select value={model} onValueChange={setModel}>
+              <SelectTrigger className="h-11 sm:h-9">
+                <SelectValue placeholder="Default" />
+              </SelectTrigger>
+              <SelectContent>
+                {models?.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* System Prompt */}
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="spawn-system-prompt">System Prompt</Label>
+            <textarea
+              id="spawn-system-prompt"
+              value={systemPrompt}
+              onChange={(e) => setSystemPrompt(e.target.value)}
+              placeholder="You are a helpful coding assistant..."
+              rows={3}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-y"
             />
+            <p className="text-xs text-muted-foreground">
+              Overrides the default system prompt. Leave empty for default.
+            </p>
+          </div>
+
+          {/* Append System Prompt */}
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="spawn-append-prompt">Append to System Prompt</Label>
+            <textarea
+              id="spawn-append-prompt"
+              value={appendSystemPrompt}
+              onChange={(e) => setAppendSystemPrompt(e.target.value)}
+              placeholder="Additional instructions appended to the default prompt..."
+              rows={2}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-y"
+            />
+            <p className="text-xs text-muted-foreground">
+              Appends to default prompt instead of replacing it. Cannot be used with System Prompt.
+            </p>
+          </div>
+
+          {/* Effort + Max Budget row */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <Label>Effort</Label>
+              <Select value={effort} onValueChange={setEffort}>
+                <SelectTrigger className="h-11 sm:h-9">
+                  <SelectValue placeholder="Default" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="low">Low</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="spawn-budget">Max Budget (USD)</Label>
+              <Input
+                id="spawn-budget"
+                type="number"
+                step="0.01"
+                min="0"
+                value={maxBudgetUsd}
+                onChange={(e) => setMaxBudgetUsd(e.target.value)}
+                placeholder="e.g. 5.00"
+                className="h-11 sm:h-9"
+              />
+            </div>
           </div>
 
           {/* Expose */}

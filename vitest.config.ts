@@ -73,6 +73,8 @@ export { projects };
 export default defineConfig({
   test: {
     projects,
+    // JUnit reporter writes to reports/junit.xml — acceptable for local-first usage
+    // where the working tree is always writable. No need to conditionalize.
     reporters: ["default", "junit"],
     outputFile: {
       junit: "reports/junit.xml",

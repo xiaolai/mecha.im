@@ -31,6 +31,12 @@ export function checkPort(port: number): Promise<boolean> {
  * Allocate the first available port in [base, max] range,
  * skipping ports in the exclude set.
  * Throws PortRangeExhaustedError if no port is available.
+ *
+ * KNOWN LIMITATION: TOCTOU race — a port verified as free by checkPort() may be
+ * claimed by another process before the caller binds to it. The race window is
+ * typically sub-millisecond and acceptable for local-first usage. For deterministic
+ * port assignment, use --port to skip scanning entirely.
+ * See AGENTS.md "Port Assignment" for details.
  */
 export async function allocatePort(
   base: number = DEFAULTS.RUNTIME_PORT_BASE,

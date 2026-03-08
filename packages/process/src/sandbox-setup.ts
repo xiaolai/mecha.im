@@ -22,6 +22,29 @@ export interface BotFilesystemOpts {
   userEnv?: Record<string, string>;
   meterOff?: boolean;
   home?: string;
+  // LLM behavior
+  systemPrompt?: string;
+  appendSystemPrompt?: string;
+  effort?: "low" | "medium" | "high";
+  maxBudgetUsd?: number;
+  // Tool control
+  allowedTools?: string[];
+  disallowedTools?: string[];
+  tools?: string[];
+  // Agent identity
+  agent?: string;
+  agents?: Record<string, { description: string; prompt: string }>;
+  // Session behavior
+  sessionPersistence?: boolean;
+  budgetLimit?: number;
+  // MCP & plugins
+  mcpServers?: Record<string, unknown>;
+  mcpConfigFiles?: string[];
+  strictMcpConfig?: boolean;
+  pluginDirs?: string[];
+  disableSlashCommands?: boolean;
+  // Environment
+  addDirs?: string[];
 }
 
 export interface BotFilesystemResult {
@@ -234,7 +257,29 @@ export function prepareBotFilesystem(opts: BotFilesystemOpts): BotFilesystemResu
   mkdirSync(logsDir, { recursive: true, mode: 0o700 });
 
   // Write config
-  const config = { configVersion: BOT_CONFIG_VERSION, port, token, workspace: workspacePath, ...(opts.home != null && { home: opts.home }), model, permissionMode, auth, tags, expose: opts.expose };
+  const config = {
+    configVersion: BOT_CONFIG_VERSION, port, token, workspace: workspacePath,
+    ...(opts.home != null && { home: opts.home }), model, permissionMode, auth, tags,
+    ...(opts.expose != null && { expose: opts.expose }),
+    ...(opts.systemPrompt != null && { systemPrompt: opts.systemPrompt }),
+    ...(opts.appendSystemPrompt != null && { appendSystemPrompt: opts.appendSystemPrompt }),
+    ...(opts.effort != null && { effort: opts.effort }),
+    ...(opts.maxBudgetUsd != null && { maxBudgetUsd: opts.maxBudgetUsd }),
+    ...(opts.allowedTools != null && { allowedTools: opts.allowedTools }),
+    ...(opts.disallowedTools != null && { disallowedTools: opts.disallowedTools }),
+    ...(opts.tools != null && { tools: opts.tools }),
+    ...(opts.agent != null && { agent: opts.agent }),
+    ...(opts.agents != null && { agents: opts.agents }),
+    ...(opts.sessionPersistence != null && { sessionPersistence: opts.sessionPersistence }),
+    ...(opts.budgetLimit != null && { budgetLimit: opts.budgetLimit }),
+    ...(opts.mcpServers != null && { mcpServers: opts.mcpServers }),
+    ...(opts.mcpConfigFiles != null && { mcpConfigFiles: opts.mcpConfigFiles }),
+    ...(opts.strictMcpConfig != null && { strictMcpConfig: opts.strictMcpConfig }),
+    ...(opts.pluginDirs != null && { pluginDirs: opts.pluginDirs }),
+    ...(opts.disableSlashCommands != null && { disableSlashCommands: opts.disableSlashCommands }),
+    ...(opts.addDirs != null && { addDirs: opts.addDirs }),
+    ...(opts.userEnv != null && Object.keys(opts.userEnv).length > 0 && { env: opts.userEnv }),
+  };
   writeFileSync(join(botDir, "config.json"), JSON.stringify(config, null, 2) + "\n", { mode: 0o600 });
 
   // Generate bot identity if node identity exists
