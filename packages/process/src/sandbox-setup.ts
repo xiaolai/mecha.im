@@ -1,7 +1,8 @@
-import { existsSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, writeFileSync, rmSync, symlinkSync, statSync, chmodSync, realpathSync } from "node:fs";
+import { join, resolve, isAbsolute } from "node:path";
+import { homedir } from "node:os";
 import type { BotName } from "@mecha/core";
-import { loadNodeIdentity, loadNodePrivateKey, createBotIdentity, BOT_CONFIG_VERSION, resolveAuth, MeterProxyRequiredError, createLogger } from "@mecha/core";
+import { loadNodeIdentity, loadNodePrivateKey, createBotIdentity, BOT_CONFIG_VERSION, resolveAuth, MeterProxyRequiredError, AuthProfileNotFoundError, createLogger } from "@mecha/core";
 import type { ResolvedAuth } from "@mecha/core";
 import { readProxyInfo, isPidAlive, meterDir } from "@mecha/meter";
 
@@ -106,8 +107,8 @@ export function buildBotEnv(opts: BuildBotEnvOpts): Record<string, string> {
   ]);
   const safeUserEnv: Record<string, string> = {};
   for (const [k, v] of Object.entries(resolvedUserEnv)) {
-    // Block reserved keys and bash function exports (BASH_FUNC_*%%)
-    if (reservedKeys.has(k) || /^BASH_FUNC_.*%%$/.test(k)) continue;
+    // Block reserved keys (case-insensitive for Windows compat) and bash function exports
+    if (reservedKeys.has(k.toUpperCase()) || /^BASH_FUNC_.*%%$/.test(k)) continue;
     safeUserEnv[k] = v;
   }
   const childEnv: Record<string, string> = {
@@ -147,8 +148,10 @@ export function buildBotEnv(opts: BuildBotEnvOpts): Record<string, string> {
   } catch (err) {
     // Only fall back to host env when no profiles exist (implicit auth).
     // If user explicitly passed --auth <name>, rethrow so spawn fails fast.
+    // Also rethrow non-"not found" errors (corruption, permission) to surface real issues.
     /* v8 ignore start -- fallback for environments without auth profiles */
     if (opts.auth !== undefined) throw err;
+    if (!(err instanceof AuthProfileNotFoundError)) throw err;
     log.warn("No auth profiles found, inheriting host credentials. Use --auth <name> or create a profile with 'mecha auth add' for explicit auth.");
     const sdkKeys = ["ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"] as const;
     for (const key of sdkKeys) {
@@ -178,6 +181,64 @@ export function buildBotEnv(opts: BuildBotEnvOpts): Record<string, string> {
   }
 
   return childEnv;
+}
+
+/**
+ * Create a symlink at `<homeDir>/.local/bin/claude` pointing to the real claude binary.
+ * Claude Code checks `$HOME/.local/bin/claude` at startup — since bot HOME is sandboxed,
+ * this symlink prevents the "claude command not found" warning.
+ */
+function seedClaudeBinSymlink(homeDir: string): void {
+  const localBinDir = join(homeDir, ".local", "bin");
+  const symlinkPath = join(localBinDir, "claude");
+
+  // Find the real claude binary from the host user's home
+  const realHome = homedir();
+  const candidates = [
+    join(realHome, ".local", "bin", "claude"),
+    join(realHome, ".claude", "local", "bin", "claude"),
+    "/usr/local/bin/claude",
+    "/usr/bin/claude",
+  ];
+  const realBin = candidates.find((p) => {
+    try {
+      const st = statSync(p);
+      // Verify it's a regular file (or symlink to one) with execute permission
+      return st.isFile() && (st.mode & 0o111) !== 0;
+    } catch {
+      return false;
+    }
+  });
+  /* v8 ignore start -- no claude binary found on host */
+  if (!realBin) return;
+  /* v8 ignore stop */
+
+  try {
+    // Verify parent components are not symlinks before creating directories.
+    // Check each intermediate path to prevent symlink-based redirection attacks.
+    const resolvedHome = realpathSync(homeDir);
+    // Check existing intermediate paths for symlink redirection
+    for (const sub of [join(homeDir, ".local"), localBinDir]) {
+      if (!existsSync(sub)) continue;
+      const resolved = realpathSync(sub);
+      /* v8 ignore start -- symlink redirection outside homeDir */
+      if (!resolved.startsWith(resolvedHome + "/") && resolved !== resolvedHome) {
+        log.warn(`Refusing to create claude symlink: ${sub} resolved outside homeDir`);
+        return;
+      }
+      /* v8 ignore stop */
+    }
+    mkdirSync(localBinDir, { recursive: true, mode: 0o755 });
+    symlinkSync(realBin, symlinkPath);
+  } catch (err: unknown) {
+    // Tolerate EEXIST (race with concurrent spawn) — any other error is logged but non-fatal
+    /* v8 ignore start -- race condition or permission error during symlink creation */
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code !== "EEXIST") {
+      log.warn("Failed to create claude symlink", { error: (err as Error).message });
+    }
+    /* v8 ignore stop */
+  }
 }
 
 /**
@@ -230,6 +291,8 @@ function seedClaudeCredentials(
       },
     };
     writeFileSync(credPath, JSON.stringify(credentials) + "\n", { mode: 0o600 });
+    // Ensure restrictive permissions even if the file pre-existed with looser perms
+    chmodSync(credPath, 0o600);
   } else {
     // Non-OAuth (api-key): remove stale OAuth credentials if they exist.
     // API key auth works via env var alone — leftover .credentials.json could
@@ -242,7 +305,12 @@ export function prepareBotFilesystem(opts: BotFilesystemOpts): BotFilesystemResu
   const { botDir, workspacePath, port, token, name, model, permissionMode, auth, tags, userEnv } = opts;
 
   // Create directory structure mirroring real Claude Code
-  const homeDir = opts.home ?? botDir;
+  // Enforce absolute, normalized home path to prevent traversal outside bot directory
+  const rawHome = opts.home ?? botDir;
+  const homeDir = resolve(rawHome);
+  if (!isAbsolute(rawHome)) {
+    throw new Error(`home must be an absolute path, got: ${rawHome}`);
+  }
   const claudeDir = join(homeDir, ".claude");
   const hooksDir = join(claudeDir, "hooks");
   const projectsBaseDir = join(claudeDir, "projects");
@@ -255,6 +323,11 @@ export function prepareBotFilesystem(opts: BotFilesystemOpts): BotFilesystemResu
   mkdirSync(projectsDir, { recursive: true, mode: 0o700 });
   mkdirSync(tmpDir, { recursive: true, mode: 0o700 });
   mkdirSync(logsDir, { recursive: true, mode: 0o700 });
+
+  // Symlink claude binary into bot's HOME so Claude Code finds itself at $HOME/.local/bin/claude.
+  // Without this, Claude Code warns "installMethod is native, but claude command not found"
+  // because $HOME points to the bot directory, not the real user home.
+  seedClaudeBinSymlink(homeDir);
 
   // Write config
   const config = {
@@ -370,7 +443,11 @@ while read -r FPATH; do
     /usr/bin/*|/usr/local/bin/*|/bin/*|/usr/sbin/*|/dev/null|/dev/stdin|/dev/stdout|/dev/stderr|/tmp/*) ;;
     *) echo "BLOCKED: $RESOLVED is outside sandbox" >&2; exit 2 ;;
   esac
-done < <(echo "$COMMAND" | grep -oE '((/|\\.\\./|\\./)([^ ;"'"'"'|&>]*))')
+done < <(echo "$COMMAND" | grep -oE '((~|/|\\.\\./|\\./)([^ ;"'"'"'|&>]*))')
+# Also block shell variable expansions that could reference paths outside sandbox
+if echo "$COMMAND" | grep -qE '\\$HOME|\\$\\{HOME\\}|\\$MECHA_DIR'; then
+  echo "BLOCKED: command references shell variable paths" >&2; exit 2
+fi
 exit 0
 `;
   writeFileSync(join(hooksDir, "sandbox-guard.sh"), sandboxGuard, { mode: 0o755 });
