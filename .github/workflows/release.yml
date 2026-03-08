@@ -83,7 +83,7 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           for bin in dist/bin/darwin-arm64/mecha dist/bin/darwin-x64/mecha; do
-            codesign --sign "Developer ID Application: PANDO K.K. ($APPLE_TEAM_ID)" --options runtime --timestamp --force "$bin"
+            codesign --sign "Developer ID Application: HANDO K.K. ($APPLE_TEAM_ID)" --options runtime --timestamp --force "$bin"
             codesign --verify --verbose "$bin"
             echo "Signed: $bin"
           done
