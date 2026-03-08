@@ -12,6 +12,7 @@ import { ScheduleList } from "@/components/schedule-list";
 import { BotLogsView } from "@/components/bot-logs-view";
 import { BusyWarningBanner } from "@/components/busy-warning-banner";
 import { ConfirmActionBanner } from "@/components/confirm-action-banner";
+import { BotFiles } from "@/components/bot-files";
 import { cn } from "@/lib/utils";
 import { useFetch } from "@/lib/use-fetch";
 import { useAuth } from "@/auth-context";
@@ -26,7 +27,8 @@ interface BotDetailProps {
 }
 
 export function BotDetail({ name, node }: BotDetailProps) {
-  const nodeQuery = node && node !== "local" ? `?node=${encodeURIComponent(node)}` : "";
+  const isRemote = !!node && node !== "local";
+  const nodeQuery = isRemote ? `?node=${encodeURIComponent(node)}` : "";
   const { data: bot, loading, error, refetch } = useFetch<BotInfo>(
     `/bots/${encodeURIComponent(name)}/status${nodeQuery}`,
     { interval: 5000, deps: [name, node] },
@@ -69,7 +71,7 @@ export function BotDetail({ name, node }: BotDetailProps) {
           <span className={cn("size-2.5 rounded-full", style.dot)} />
           <h1 className="text-lg font-semibold text-foreground">{bot.name}</h1>
           <Badge variant={style.badge}>{bot.state}</Badge>
-          {node && node !== "local" && (
+          {isRemote && (
             <span className="text-xs text-muted-foreground font-mono">@ {node}</span>
           )}
         </div>
@@ -199,14 +201,24 @@ export function BotDetail({ name, node }: BotDetailProps) {
         <TabsList>
           <TabsTrigger value="sessions" className="min-h-11 sm:min-h-0">Sessions</TabsTrigger>
           <TabsTrigger value="schedules" className="min-h-11 sm:min-h-0">Schedules</TabsTrigger>
+          <TabsTrigger value="files" className="min-h-11 sm:min-h-0" disabled={isRemote}>Files</TabsTrigger>
           <TabsTrigger value="config" className="min-h-11 sm:min-h-0">Config</TabsTrigger>
-          <TabsTrigger value="logs" className="min-h-11 sm:min-h-0" disabled={!!(node && node !== "local")}>Logs</TabsTrigger>
+          <TabsTrigger value="logs" className="min-h-11 sm:min-h-0" disabled={isRemote}>Logs</TabsTrigger>
         </TabsList>
         <TabsContent value="sessions">
-          <SessionList name={name} node={node} botState={bot.state} />
+          <SessionList name={name} node={node} />
         </TabsContent>
         <TabsContent value="schedules">
           <ScheduleList botName={name} node={node} botState={bot.state} />
+        </TabsContent>
+        <TabsContent value="files">
+          {isRemote ? (
+            <div className="rounded-lg border border-border bg-card p-8 text-center">
+              <p className="text-sm text-muted-foreground">Files are not available for remote bots.</p>
+            </div>
+          ) : (
+            <BotFiles name={name} />
+          )}
         </TabsContent>
         <TabsContent value="config">
           <div className="flex flex-col gap-4">
@@ -216,7 +228,7 @@ export function BotDetail({ name, node }: BotDetailProps) {
           </div>
         </TabsContent>
         <TabsContent value="logs">
-          {node && node !== "local" ? (
+          {isRemote ? (
             <div className="rounded-lg border border-border bg-card p-8 text-center">
               <p className="text-sm text-muted-foreground">Logs are not available for remote bots.</p>
             </div>
@@ -252,8 +264,8 @@ function BotPathEditor({ bot, name, node, onSaved }: { bot: BotInfo; name: strin
     setError(null);
     try {
       const body: Record<string, unknown> = { restart: true };
-      if (home !== (bot.homeDir ?? "")) body.home = home || undefined;
-      if (workspace !== (bot.workspacePath ?? "")) body.workspace = workspace || undefined;
+      if (home !== (bot.homeDir ?? "")) body.home = home || null;
+      if (workspace !== (bot.workspacePath ?? "")) body.workspace = workspace || null;
       const nodeQuery = node && node !== "local" ? `?node=${encodeURIComponent(node)}` : "";
       const res = await fetch(`/bots/${encodeURIComponent(name)}/config${nodeQuery}`, {
         method: "PATCH",
@@ -312,6 +324,8 @@ function BotPathEditor({ bot, name, node, onSaved }: { bot: BotInfo; name: strin
   );
 }
 
+interface ModelOption { id: string; label: string }
+
 function BotConfigEditor({ bot, name, node, onSaved }: { bot: BotInfo; name: string; node?: string; onSaved: () => void }) {
   const { authHeaders } = useAuth();
   const [tags, setTags] = useState((bot.tags ?? []).join(", "));
@@ -320,6 +334,7 @@ function BotConfigEditor({ bot, name, node, onSaved }: { bot: BotInfo; name: str
   const [perm, setPerm] = useState(bot.permissionMode ?? "default");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const { data: models } = useFetch<ModelOption[]>("/models");
 
   const origTags = (bot.tags ?? []).join(", ");
   const changed = tags !== origTags || model !== (bot.model ?? "") || sandbox !== (bot.sandboxMode ?? "auto") || perm !== (bot.permissionMode ?? "default");
@@ -364,9 +379,13 @@ function BotConfigEditor({ bot, name, node, onSaved }: { bot: BotInfo; name: str
       </div>
       <div className="flex flex-col gap-1.5">
         <label className="text-xs font-medium text-muted-foreground">MODEL</label>
-        <input type="text" value={model} onChange={(e) => setModel(e.target.value)}
-          placeholder="claude-sonnet-4-5-20250514"
-          className="h-11 sm:h-9 w-full rounded-md border border-input bg-background px-3 text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring" />
+        <select value={model} onChange={(e) => setModel(e.target.value)}
+          className="h-11 sm:h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring">
+          <option value="">Default</option>
+          {models?.map((m) => (
+            <option key={m.id} value={m.id}>{m.label}</option>
+          ))}
+        </select>
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5">

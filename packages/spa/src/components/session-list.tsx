@@ -19,24 +19,14 @@ interface SessionEntry {
 interface SessionListProps {
   name: string;
   node?: string;
-  botState?: string;
 }
 
-export function SessionList({ name, node, botState }: SessionListProps) {
-  const isRunning = botState === "running" || botState === undefined;
+export function SessionList({ name, node }: SessionListProps) {
   const nodeQuery = node && node !== "local" ? `?node=${encodeURIComponent(node)}` : "";
   const { data: sessions, loading, error } = useFetch<SessionEntry[]>(
-    isRunning ? `/bots/${encodeURIComponent(name)}/sessions${nodeQuery}` : null,
-    { deps: [name, node, isRunning] },
+    `/bots/${encodeURIComponent(name)}/sessions${nodeQuery}`,
+    { deps: [name, node] },
   );
-
-  if (!isRunning) {
-    return (
-      <div className="rounded-lg border border-border bg-card p-6 text-center text-sm text-muted-foreground">
-        bot is not running. Start it to view sessions.
-      </div>
-    );
-  }
 
   if (loading && !sessions) {
     return <Skeleton className="h-32 rounded-lg" />;

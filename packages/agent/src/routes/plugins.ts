@@ -15,33 +15,25 @@ export interface PluginRouteOpts {
   mechaDir: string;
 }
 
-/** Check if a URL targets a private/internal address (SSRF guard). */
-function isPrivateUrl(urlStr: string): boolean {
-  try {
-    const url = new URL(urlStr);
-    // Only allow http/https protocols
-    if (url.protocol !== "http:" && url.protocol !== "https:") return true;
-    const h = url.hostname.replace(/^\[|\]$/g, "").toLowerCase();
-    // Block localhost variants
-    if (h === "localhost" || h === "0.0.0.0" || h === "[::]") return true;
-    // Block IPv6 loopback, link-local, ULA, and mapped private addresses
-    if (h === "::1" || h === "::") return true;
-    if (h.startsWith("::ffff:")) return true; // IPv4-mapped IPv6 (any)
-    if (h.startsWith("fe80:") || h.startsWith("fc") || h.startsWith("fd")) return true;
-    // Block IPv4 private ranges
-    const ipv4Match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h);
-    if (ipv4Match) {
-      const [, a, b] = ipv4Match.map(Number);
-      if (a === 127 || a === 10 || a === 0) return true;
-      if (a === 172 && b !== undefined && b >= 16 && b <= 31) return true;
-      if (a === 192 && b === 168) return true;
-      if (a === 169 && b === 254) return true; // link-local
-    }
-    return false;
-  /* v8 ignore start -- malformed URL fallback */
-  } catch { return true; }
-  /* v8 ignore stop */
+/** Check if a resolved IP is private/loopback/link-local. */
+function isPrivateIP(ip: string): boolean {
+  const h = ip.replace(/^\[|\]$/g, "").toLowerCase();
+  // IPv6 loopback, link-local, ULA, mapped
+  if (h === "::1" || h === "::" || h === "[::]") return true;
+  if (h.startsWith("::ffff:")) return true;
+  if (h.startsWith("fe80:") || h.startsWith("fc") || h.startsWith("fd")) return true;
+  // IPv4 private ranges
+  const ipv4Match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h);
+  if (ipv4Match) {
+    const [, a, b] = ipv4Match.map(Number);
+    if (a === 127 || a === 10 || a === 0) return true;
+    if (a === 172 && b !== undefined && b >= 16 && b <= 31) return true;
+    if (a === 192 && b === 168) return true;
+    if (a === 169 && b === 254) return true; // link-local
+  }
+  return false;
 }
+
 
 /** Register CRUD + test routes for plugin management. */
 export function registerPluginRoutes(app: FastifyInstance, opts: PluginRouteOpts): void {
@@ -150,11 +142,37 @@ export function registerPluginRoutes(app: FastifyInstance, opts: PluginRouteOpts
 
       if (plugin.type === "http" || plugin.type === "sse") {
         const { url } = plugin as HttpPluginConfig;
-        if (isPrivateUrl(url)) {
+        // Resolve DNS once and fetch by pinned IP to prevent TOCTOU rebinding
+        const dns = await import("node:dns/promises");
+        const parsed = new URL(url);
+        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+          return reply.code(400).send({ error: "Only http/https protocols are allowed" });
+        }
+        const h = parsed.hostname.replace(/^\[|\]$/g, "").toLowerCase();
+        if (h === "localhost" || h === "0.0.0.0" || h === "[::]" || isPrivateIP(h)) {
           return reply.code(400).send({ error: "Cannot test plugins targeting private/internal addresses" });
         }
+        let resolvedIp: string;
         try {
-          const res = await fetch(url, { signal: AbortSignal.timeout(5000), redirect: "manual" });
+          const { address } = await dns.lookup(h);
+          if (isPrivateIP(address)) {
+            return reply.code(400).send({ error: "Cannot test plugins targeting private/internal addresses" });
+          }
+          resolvedIp = address;
+        /* v8 ignore start -- DNS failure fallback */
+        } catch {
+          return reply.code(400).send({ error: "Cannot resolve plugin hostname" });
+        }
+        /* v8 ignore stop */
+        // Fetch using the pinned resolved IP with Host header to prevent DNS rebinding
+        const pinnedUrl = new URL(url);
+        pinnedUrl.hostname = resolvedIp;
+        try {
+          const res = await fetch(pinnedUrl.toString(), {
+            signal: AbortSignal.timeout(5000),
+            redirect: "manual",
+            headers: { host: parsed.host },
+          });
           return { ok: res.ok, status: res.status };
         } catch {
           return { ok: false, error: "unreachable" };

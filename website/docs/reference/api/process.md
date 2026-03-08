@@ -112,6 +112,21 @@ const info = await pm.spawn({ name: "researcher", workspacePath: "/path/to/works
 | `sandboxMode` | `SandboxMode` | No | Sandbox mode (`"auto"`, `"require"`, `"off"`) |
 | `meterOff` | `boolean` | No | Disable metering for this bot |
 | `home` | `string` | No | Override HOME directory |
+| `systemPrompt` | `string` | No | System prompt override (mutually exclusive with `appendSystemPrompt`) |
+| `appendSystemPrompt` | `string` | No | Append to default system prompt (mutually exclusive with `systemPrompt`) |
+| `effort` | `"low" \| "medium" \| "high"` | No | Effort level for the LLM |
+| `maxBudget` | `number` | No | Max USD budget per session |
+| `allowedTools` | `string[]` | No | Allowed tools (mutually exclusive with `tools`) |
+| `disallowedTools` | `string[]` | No | Disallowed tools |
+| `tools` | `string[]` | No | Override tool set (mutually exclusive with `allowedTools`) |
+| `addDir` | `string[]` | No | Additional directories to mount |
+| `agent` | `string` | No | Agent preset name |
+| `sessionPersistence` | `boolean` | No | Enable/disable session persistence |
+| `mcpConfig` | `string[]` | No | MCP config file paths |
+| `strictMcpConfig` | `boolean` | No | Only use specified MCP servers |
+| `pluginDir` | `string[]` | No | Plugin directories |
+| `disableSlashCommands` | `boolean` | No | Disable all skills |
+| `budgetLimit` | `number` | No | Mecha-level aggregate budget cap |
 
 ### `ProcessInfo`
 

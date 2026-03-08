@@ -10,6 +10,7 @@ export interface SecureChannelLike {
   onError?(handler: (err: Error) => void): void;
   offError?(handler: (err: Error) => void): void;
   onClose?(handler: (reason: string) => void): void;
+  offClose?(handler: (reason: string) => void): void;
 }
 
 /** Options for making an authenticated request to a remote node's agent server. */
@@ -107,8 +108,9 @@ async function channelBasedFetch(
       settled = true;
       clearTimeout(timer);
       channel.offMessage(messageHandler);
-      /* v8 ignore start -- offError cleanup for optional channel method */
+      /* v8 ignore start -- offError/offClose cleanup for optional channel methods */
       if (channel.offError) channel.offError(errorHandler);
+      if (channel.offClose) channel.offClose(closeHandler);
       /* v8 ignore stop */
     }
 

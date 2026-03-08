@@ -42,6 +42,8 @@ export function createEventLog(mechaDir: string): EventLog {
       /* v8 ignore stop */
     },
 
+    // Loads and parses the entire JSONL file. For a local-first tool with
+    // moderate event volume this is acceptable; no retention policy needed yet.
     read(opts?: { limit?: number }): SystemEvent[] {
       let content: string;
       try {
