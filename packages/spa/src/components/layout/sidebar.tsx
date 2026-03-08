@@ -4,16 +4,11 @@ import {
   BoxIcon,
   CalendarClockIcon,
   NetworkIcon,
-  ShieldCheckIcon,
   ScrollTextIcon,
   SettingsIcon,
   XIcon,
   LogOutIcon,
   DollarSignIcon,
-  KeyRoundIcon,
-  LockIcon,
-  PuzzleIcon,
-  WrenchIcon,
   HeartPulseIcon,
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
@@ -33,19 +28,9 @@ const navSections = [
     ],
   },
   {
-    label: "Security",
-    items: [
-      { href: "/acl", label: "ACL Rules", icon: ShieldCheckIcon },
-      { href: "/auth", label: "Auth Profiles", icon: KeyRoundIcon },
-      { href: "/sandbox", label: "Sandbox", icon: LockIcon },
-    ],
-  },
-  {
     label: "Infrastructure",
     items: [
       { href: "/nodes", label: "Nodes", icon: NetworkIcon },
-      { href: "/plugins", label: "Plugins", icon: PuzzleIcon },
-      { href: "/tools", label: "Tools", icon: WrenchIcon },
     ],
   },
   {

@@ -5,7 +5,7 @@ import { Topbar } from "@/components/layout/topbar";
 
 export function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
 
   return (
     <div className="flex h-dvh overflow-hidden">
