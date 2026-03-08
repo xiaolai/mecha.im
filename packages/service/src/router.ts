@@ -110,10 +110,11 @@ export function createBotRouter(opts: CreateRouterOpts): BotRouter {
         /* v8 ignore stop */
 
         // KNOWN GAP (Phase 6): Remote agentFetch calls do not pass signFn.
-        // This means remote routing is unauthenticated — the receiving node cannot
-        // verify the sender's identity. Acceptable for local-first / trusted-network
-        // usage (see AGENTS.md "Security Trust Boundary"). Signing will be added
-        // when Phase 6 mesh authentication is implemented.
+        // x-mecha-source is spoofable without signature verification. The receiving
+        // node cannot authenticate sender identity. Acceptable for local-first /
+        // trusted-network usage (see AGENTS.md "Security Trust Boundary").
+        // TODO(phase-6): Plumb signing keys into agentFetch for remote paths and
+        // enforce signature verification server-side.
         if (located.location === "remote" && !opts.agentFetch) {
           throw new RemoteRoutingError("(no transport)", 0);
         }

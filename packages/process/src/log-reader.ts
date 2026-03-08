@@ -65,7 +65,9 @@ export function readLogs(
       if (!existsSync(logPath)) continue;
       try {
         const st = statSync(logPath);
-        const fileOffset = offsets.get(logPath) ?? 0;
+        let fileOffset = offsets.get(logPath) ?? 0;
+        // Handle file truncation/rotation: reset offset if file shrank
+        if (st.size < fileOffset) fileOffset = 0;
         if (st.size > fileOffset) {
           const fd = openSync(logPath, "r");
           const buf = Buffer.alloc(st.size - fileOffset);

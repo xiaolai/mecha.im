@@ -46,7 +46,12 @@ async function proxyToNode(
     const data = await res.json();
     reply.send(data);
     return true;
-  } catch { reply.code(502).send({ error: `Cannot reach node "${targetNode}"` }); return true; }
+  } catch (err) {
+    const cause = err instanceof Error ? err.message : String(err);
+    console.warn(`[proxyToNode] ${method} ${path} → node "${targetNode}" failed: ${cause}`);
+    reply.code(502).send({ error: `Cannot reach node "${targetNode}"` });
+    return true;
+  }
 }
 /* v8 ignore stop */
 
@@ -230,9 +235,12 @@ export function registerBotRoutes(app: FastifyInstance, pm: ProcessManager, mech
 
   // --- Remove a bot: stop/kill if running, then delete its directory ---
   app.delete("/bots/:name", async (
-    request: FastifyRequest<{ Params: { name: string }; Querystring: { force?: string } }>,
+    request: FastifyRequest<{ Params: { name: string }; Querystring: { force?: string; node?: string } }>,
     reply: FastifyReply,
   ) => {
+    /* v8 ignore start -- proxy requires live remote node */
+    if (await proxyToNode(mechaDir, node, request.query.node, `/bots/${encodeURIComponent(request.params.name)}?force=${request.query.force ?? "false"}`, "DELETE", reply)) return;
+    /* v8 ignore stop */
     const validated = validateName(request.params.name, reply);
     if (!validated) return;
 

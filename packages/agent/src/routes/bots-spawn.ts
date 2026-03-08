@@ -121,9 +121,17 @@ export function registerBotSpawnRoute(app: FastifyInstance, pm: ProcessManager):
       reply.code(400).send({ error: "pluginDirs must be an array of strings" });
       return;
     }
-    if (body.env !== undefined && (typeof body.env !== "object" || body.env === null || Array.isArray(body.env))) {
-      reply.code(400).send({ error: "env must be an object mapping string keys to string values" });
-      return;
+    if (body.env !== undefined) {
+      if (typeof body.env !== "object" || body.env === null || Array.isArray(body.env)) {
+        reply.code(400).send({ error: "env must be an object mapping string keys to string values" });
+        return;
+      }
+      for (const [k, v] of Object.entries(body.env)) {
+        if (typeof v !== "string") {
+          reply.code(400).send({ error: `env.${k} must be a string value` });
+          return;
+        }
+      }
     }
     const validation = validateBotConfig({
       permissionMode: body.permissionMode,

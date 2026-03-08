@@ -20,12 +20,13 @@ export function buildClaudeArgs(
     args.push("--model", config.model);
   }
 
-  // 3. --system-prompt
+  // 3. --system-prompt / --append-system-prompt (mutually exclusive)
+  if (config.systemPrompt && config.appendSystemPrompt) {
+    throw new Error("systemPrompt and appendSystemPrompt are mutually exclusive");
+  }
   if (config.systemPrompt) {
     args.push("--system-prompt", config.systemPrompt);
   }
-
-  // 4. --append-system-prompt
   if (config.appendSystemPrompt) {
     args.push("--append-system-prompt", config.appendSystemPrompt);
   }

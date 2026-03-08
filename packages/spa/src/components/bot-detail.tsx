@@ -264,8 +264,8 @@ function BotPathEditor({ bot, name, node, onSaved }: { bot: BotInfo; name: strin
     setError(null);
     try {
       const body: Record<string, unknown> = { restart: true };
-      if (home !== (bot.homeDir ?? "")) body.home = home || undefined;
-      if (workspace !== (bot.workspacePath ?? "")) body.workspace = workspace || undefined;
+      if (home !== (bot.homeDir ?? "")) body.home = home || null;
+      if (workspace !== (bot.workspacePath ?? "")) body.workspace = workspace || null;
       const nodeQuery = node && node !== "local" ? `?node=${encodeURIComponent(node)}` : "";
       const res = await fetch(`/bots/${encodeURIComponent(name)}/config${nodeQuery}`, {
         method: "PATCH",
