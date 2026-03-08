@@ -22,6 +22,7 @@ export interface SecureChannel {
   onMessage(handler: (data: Uint8Array) => void): void;
   offMessage(handler: (data: Uint8Array) => void): void;
   onClose(handler: (reason: string) => void): void;
+  offClose(handler: (reason: string) => void): void;
   onError(handler: (err: Error) => void): void;
   offError(handler: (err: Error) => void): void;
   close(): void;

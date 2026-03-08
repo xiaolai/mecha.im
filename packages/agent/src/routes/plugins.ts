@@ -34,37 +34,6 @@ function isPrivateIP(ip: string): boolean {
   return false;
 }
 
-/**
- * Check if a URL targets a private/internal address (SSRF guard).
- * Performs DNS resolution to catch hostnames that resolve to private IPs.
- */
-async function isPrivateUrl(urlStr: string): Promise<boolean> {
-  const dns = await import("node:dns/promises");
-  try {
-    const url = new URL(urlStr);
-    // Only allow http/https protocols
-    if (url.protocol !== "http:" && url.protocol !== "https:") return true;
-    const h = url.hostname.replace(/^\[|\]$/g, "").toLowerCase();
-    // Block localhost variants
-    if (h === "localhost" || h === "0.0.0.0" || h === "[::]") return true;
-    // Block literal private IPs
-    if (isPrivateIP(h)) return true;
-    // DNS resolution check: resolve hostname and verify the IP is not private.
-    // This prevents DNS rebinding / SSRF bypass where a public hostname
-    // resolves to a private IP (e.g., 127.0.0.1, 10.x.x.x, 192.168.x.x).
-    try {
-      const { address } = await dns.lookup(h);
-      if (isPrivateIP(address)) return true;
-    /* v8 ignore start -- DNS failure fallback: block to be safe */
-    } catch {
-      return true;
-    }
-    /* v8 ignore stop */
-    return false;
-  /* v8 ignore start -- malformed URL fallback */
-  } catch { return true; }
-  /* v8 ignore stop */
-}
 
 /** Register CRUD + test routes for plugin management. */
 export function registerPluginRoutes(app: FastifyInstance, opts: PluginRouteOpts): void {
@@ -173,11 +142,37 @@ export function registerPluginRoutes(app: FastifyInstance, opts: PluginRouteOpts
 
       if (plugin.type === "http" || plugin.type === "sse") {
         const { url } = plugin as HttpPluginConfig;
-        if (await isPrivateUrl(url)) {
+        // Resolve DNS once and fetch by pinned IP to prevent TOCTOU rebinding
+        const dns = await import("node:dns/promises");
+        const parsed = new URL(url);
+        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+          return reply.code(400).send({ error: "Only http/https protocols are allowed" });
+        }
+        const h = parsed.hostname.replace(/^\[|\]$/g, "").toLowerCase();
+        if (h === "localhost" || h === "0.0.0.0" || h === "[::]" || isPrivateIP(h)) {
           return reply.code(400).send({ error: "Cannot test plugins targeting private/internal addresses" });
         }
+        let resolvedIp: string;
         try {
-          const res = await fetch(url, { signal: AbortSignal.timeout(5000), redirect: "manual" });
+          const { address } = await dns.lookup(h);
+          if (isPrivateIP(address)) {
+            return reply.code(400).send({ error: "Cannot test plugins targeting private/internal addresses" });
+          }
+          resolvedIp = address;
+        /* v8 ignore start -- DNS failure fallback */
+        } catch {
+          return reply.code(400).send({ error: "Cannot resolve plugin hostname" });
+        }
+        /* v8 ignore stop */
+        // Fetch using the pinned resolved IP with Host header to prevent DNS rebinding
+        const pinnedUrl = new URL(url);
+        pinnedUrl.hostname = resolvedIp;
+        try {
+          const res = await fetch(pinnedUrl.toString(), {
+            signal: AbortSignal.timeout(5000),
+            redirect: "manual",
+            headers: { host: parsed.host },
+          });
           return { ok: res.ok, status: res.status };
         } catch {
           return { ok: false, error: "unreachable" };
