@@ -137,6 +137,396 @@ formatUptime(90000);  // "1d 1h"
 
 Convert a `ws://` or `wss://` URL to the corresponding `http://` or `https://` URL.
 
+## Tailscale Scanner
+
+**Source:** `packages/core/src/tailscale-scanner.ts`
+
+Discover peers on the Tailscale overlay network by parsing `tailscale status --json` output.
+
+### `TailscalePeer`
+
+```ts
+interface TailscalePeer {
+  ip: string;
+  hostname: string;
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `ip` | `string` | Tailscale IPv4 address of the peer |
+| `hostname` | `string` | Hostname reported by Tailscale (falls back to IP if unavailable) |
+
+### `parseTailscaleStatus(json)`
+
+```ts
+function parseTailscaleStatus(json: TailscaleStatusJson): TailscalePeer[]
+```
+
+Parse `tailscale status --json` output and return online peers, excluding the local node. Filters out offline peers and peers without a Tailscale IP.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `json` | `TailscaleStatusJson` | Parsed JSON output from `tailscale status --json` |
+
+```ts
+import { parseTailscaleStatus } from "@mecha/core";
+
+const status = JSON.parse(stdout);
+const peers = parseTailscaleStatus(status);
+// [{ ip: "100.100.1.9", hostname: "linode02" }, ...]
+```
+
+### `scanTailscalePeers()`
+
+```ts
+function scanTailscalePeers(): Promise<TailscalePeer[]>
+```
+
+Run `tailscale status --json` and return online peers. Returns an empty array if Tailscale is not installed, not running, or the command fails. Has a 5-second timeout.
+
+```ts
+import { scanTailscalePeers } from "@mecha/core";
+
+const peers = await scanTailscalePeers();
+for (const peer of peers) {
+  console.log(`${peer.hostname} at ${peer.ip}`);
+}
+```
+
+## Host Validation
+
+**Source:** `packages/core/src/host-validation.ts`
+
+Functions for validating host addresses, primarily used for SSRF protection in outbound agent-to-agent communication.
+
+### `isPrivateHost(host)`
+
+```ts
+function isPrivateHost(host: string): boolean
+```
+
+Returns `true` if the host looks like a private or loopback address. Checks `localhost`, RFC 1918 IPv4 ranges, link-local, loopback, and IPv6 equivalents (including IPv4-mapped IPv6 like `::ffff:127.0.0.1`). Hostnames that resolve to private IPs via DNS are not caught (DNS resolution is out of scope for a synchronous check).
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `host` | `string` | IP address, hostname, or bracketed IPv6 literal |
+
+```ts
+import { isPrivateHost } from "@mecha/core";
+
+isPrivateHost("localhost");         // true
+isPrivateHost("127.0.0.1");        // true
+isPrivateHost("10.0.0.1");         // true
+isPrivateHost("::1");              // true
+isPrivateHost("::ffff:127.0.0.1"); // true
+isPrivateHost("203.0.113.1");      // false
+isPrivateHost("example.com");      // false
+```
+
+### `validateRemoteHost(host)`
+
+```ts
+function validateRemoteHost(host: string): void
+```
+
+Validate a host for outbound agent-to-agent communication. Throws if the host is a private or loopback address (SSRF protection).
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `host` | `string` | IP address or hostname to validate |
+
+**Throws:** `Error` with message `"Refusing to connect to private/loopback address: <host>"` if the host is private.
+
+```ts
+import { validateRemoteHost } from "@mecha/core";
+
+validateRemoteHost("203.0.113.1");  // OK
+validateRemoteHost("127.0.0.1");    // throws Error
+```
+
+## Safe Path
+
+**Source:** `packages/core/src/safe-path.ts`
+
+Path traversal protection for sandboxed filesystem operations.
+
+### `safePath(baseDir, relativePath)`
+
+```ts
+function safePath(baseDir: string, relativePath: string): string
+```
+
+Resolve a relative path against a base directory and verify the result stays within the base. Performs both a lexical check (fast path) and a symlink-aware check (resolves real paths to catch symlink escapes). Returns the absolute resolved path. Passing an empty string resolves to the base directory itself.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `baseDir` | `string` | Base directory that the path must stay within |
+| `relativePath` | `string` | Relative path to resolve |
+
+**Throws:** `PathTraversalError` if the resolved path escapes the base directory.
+
+```ts
+import { safePath } from "@mecha/core";
+
+safePath("/home/alice/project", "src/index.ts");
+// "/home/alice/project/src/index.ts"
+
+safePath("/home/alice/project", "../../etc/passwd");
+// throws PathTraversalError
+```
+
+### `PathTraversalError`
+
+```ts
+class PathTraversalError extends Error {
+  name: "PathTraversalError";
+}
+```
+
+Thrown by `safePath` when the resolved path escapes the base directory. Message format: `"Path traversal denied: <path>"`.
+
+## Error Mapping
+
+**Source:** `packages/core/src/mapping.ts`
+
+Utility functions for extracting user-facing error messages from unknown error values.
+
+### `toUserMessage(err)`
+
+```ts
+function toUserMessage(err: unknown): string
+```
+
+Extract a user-facing error message from any error value. Returns `err.message` for `MechaError` and standard `Error` instances, or `String(err)` for other values.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `err` | `unknown` | The error value to extract a message from |
+
+```ts
+import { toUserMessage } from "@mecha/core";
+
+toUserMessage(new Error("file not found")); // "file not found"
+toUserMessage("something broke");           // "something broke"
+```
+
+### `toSafeMessage(err)`
+
+```ts
+function toSafeMessage(err: unknown): string
+```
+
+Extract a safe error message that strips stack traces and internal details. Returns the message for `MechaError` instances, `"Internal error"` for standard `Error` instances, and `"Unknown error"` for other values.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `err` | `unknown` | The error value to extract a message from |
+
+```ts
+import { toSafeMessage } from "@mecha/core";
+
+toSafeMessage(new MechaError("bot not found", { code: "NOT_FOUND" })); // "bot not found"
+toSafeMessage(new TypeError("Cannot read property 'x' of undefined")); // "Internal error"
+```
+
+## Plugin Environment Resolution
+
+**Source:** `packages/core/src/plugin-resolve.ts`
+
+Resolve `${VAR}` and `${VAR:-default}` placeholders in plugin environment variable maps.
+
+### `resolveEnvVars(vars)`
+
+```ts
+function resolveEnvVars(vars: Record<string, string>): Record<string, string>
+```
+
+Resolve `${VAR}` and `${VAR:-default}` placeholders in a record of strings, reading values from `process.env`.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `vars` | `Record<string, string>` | Key-value map with possible `${VAR}` placeholders |
+
+**Throws:** `PluginEnvError` if a variable is unresolved and has no default.
+
+```ts
+import { resolveEnvVars } from "@mecha/core";
+
+// With process.env.API_KEY = "sk-123"
+resolveEnvVars({ token: "${API_KEY}", host: "${HOST:-localhost}" });
+// { token: "sk-123", host: "localhost" }
+```
+
+### `resolveEnvString(str)`
+
+```ts
+function resolveEnvString(value: string): string
+```
+
+Resolve `${VAR}` and `${VAR:-default}` placeholders in a single string value, reading from `process.env`.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `value` | `string` | String with possible `${VAR}` placeholders |
+
+**Throws:** `PluginEnvError` if a variable is unresolved and has no default.
+
+```ts
+import { resolveEnvString } from "@mecha/core";
+
+// With process.env.PORT = "8080"
+resolveEnvString("http://localhost:${PORT}"); // "http://localhost:8080"
+resolveEnvString("${MISSING:-fallback}");     // "fallback"
+resolveEnvString("${MISSING}");               // throws PluginEnvError
+```
+
+## Input Schemas
+
+**Source:** `packages/core/src/schemas.ts`
+
+Zod schemas for validating CLI and HTTP input payloads.
+
+### `PermissionMode`
+
+```ts
+const PermissionMode: z.ZodEnum<["default", "plan", "full-auto"]>;
+type PermissionMode = "default" | "plan" | "full-auto";
+```
+
+Permission modes for bot processes. Controls how the Claude SDK handles permission prompts.
+
+| Value | Description |
+|-------|-------------|
+| `"default"` | Standard permission handling (prompts for confirmation) |
+| `"plan"` | Plan mode (read-only, no writes) |
+| `"full-auto"` | Bypass all permission prompts |
+
+### `BotSpawnInput`
+
+```ts
+const BotSpawnInput: z.ZodObject<{
+  name: z.ZodString;
+  workspacePath: z.ZodString;
+  tags: z.ZodOptional<z.ZodArray<z.ZodString>>;
+  env: z.ZodOptional<z.ZodRecord<z.ZodString>>;
+  model: z.ZodOptional<z.ZodString>;
+  permissionMode: z.ZodOptional<typeof PermissionMode>;
+  port: z.ZodOptional<z.ZodNumber>;
+  auth: z.ZodOptional<z.ZodString>;
+}>;
+```
+
+Validation schema for bot spawn requests.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | `string` | Yes | Bot name (lowercase alphanumeric + hyphens, 1-32 chars) |
+| `workspacePath` | `string` | Yes | Workspace directory path |
+| `tags` | `string[]` | No | Discovery tags |
+| `env` | `Record<string, string>` | No | Additional environment variables |
+| `model` | `string` | No | Claude model override |
+| `permissionMode` | `PermissionMode` | No | Permission mode |
+| `port` | `number` | No | Specific port (1-65535) |
+| `auth` | `string` | No | Auth profile name |
+
+```ts
+import { BotSpawnInput } from "@mecha/core";
+
+BotSpawnInput.parse({ name: "researcher", workspacePath: "/home/alice/project" });
+```
+
+### `BotKillInput`
+
+```ts
+const BotKillInput: z.ZodObject<{
+  name: z.ZodString;
+  force: z.ZodOptional<z.ZodBoolean>;
+}>;
+```
+
+Validation schema for bot kill requests.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | `string` | Yes | Bot name |
+| `force` | `boolean` | No | Force kill (SIGKILL instead of SIGTERM) |
+
+### `SessionCreateInput`
+
+```ts
+const SessionCreateInput: z.ZodObject<{
+  title: z.ZodOptional<z.ZodString>;
+  model: z.ZodOptional<z.ZodString>;
+}>;
+```
+
+Validation schema for session creation requests.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `title` | `string` | No | Session title |
+| `model` | `string` | No | Claude model override |
+
+### `SessionMessageInput`
+
+```ts
+const SessionMessageInput: z.ZodObject<{
+  message: z.ZodString;
+  model: z.ZodOptional<z.ZodString>;
+}>;
+```
+
+Validation schema for sending a message to a session.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `message` | `string` | Yes | Message content (min 1 character) |
+| `model` | `string` | No | Claude model override |
+
+## Models
+
+**Source:** `packages/core/src/models.ts`
+
+Available Claude model definitions for bot spawning and model selection.
+
+### `ModelOption`
+
+```ts
+interface ModelOption {
+  id: string;
+  label: string;
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | `string` | Model identifier passed to the Claude SDK |
+| `label` | `string` | Human-readable display label |
+
+### `CLAUDE_MODELS`
+
+```ts
+const CLAUDE_MODELS: ModelOption[]
+```
+
+List of available Claude models. Update this list when new models are released or old ones are retired.
+
+| Model ID | Label |
+|----------|-------|
+| `claude-sonnet-4-5-20250514` | Sonnet 4.5 |
+| `claude-sonnet-4-6` | Sonnet 4.6 |
+| `claude-opus-4-6` | Opus 4.6 |
+| `claude-haiku-4-5-20251001` | Haiku 4.5 |
+
+```ts
+import { CLAUDE_MODELS } from "@mecha/core";
+
+for (const model of CLAUDE_MODELS) {
+  console.log(`${model.label}: ${model.id}`);
+}
+```
+
 ## Discovery Types
 
 **Source:** `packages/core/src/discovery.ts`
@@ -468,6 +858,64 @@ const result = acl.check("coder", "reviewer", "query");
 
 Returns `true` if the string is a valid `Capability` value.
 
+### `ALL_CAPABILITIES`
+
+```ts
+const ALL_CAPABILITIES: readonly Capability[]
+```
+
+Array of all valid capability strings: `"query"`, `"read_workspace"`, `"write_workspace"`, `"execute"`, `"read_sessions"`, `"lifecycle"`.
+
+### `AclData`
+
+```ts
+interface AclData {
+  version: number;
+  rules: AclRule[];
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `version` | `number` | Schema version (currently `1`) |
+| `rules` | `AclRule[]` | Array of ACL rules |
+
+### `loadAcl(mechaDir): AclData`
+
+Load ACL rules from `mechaDir/acl.json`. Returns an empty ruleset (`{ version: 1, rules: [] }`) if the file is missing or fails schema validation. Logs an error for corrupt or unreadable files (but does not for missing files).
+
+```ts
+import { loadAcl } from "@mecha/core";
+
+const aclData = loadAcl("/home/alice/.mecha");
+console.log(`${aclData.rules.length} ACL rules loaded`);
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `mechaDir` | `string` | Yes | Path to the `.mecha` directory |
+
+**Source:** `packages/core/src/acl/persistence.ts`
+
+### `saveAcl(mechaDir, data): void`
+
+Save ACL rules to `mechaDir/acl.json` using an atomic write (write to temp file, then rename). The file is written with mode `0o600` (owner read/write only).
+
+```ts
+import { loadAcl, saveAcl } from "@mecha/core";
+
+const data = loadAcl("/home/alice/.mecha");
+data.rules.push({ source: "coder", target: "reviewer", capabilities: ["query"] });
+saveAcl("/home/alice/.mecha", data);
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `mechaDir` | `string` | Yes | Path to the `.mecha` directory |
+| `data` | `AclData` | Yes | ACL data to persist |
+
+**Source:** `packages/core/src/acl/persistence.ts`
+
 ## Sandbox
 
 **Source:** `packages/sandbox/src/`
@@ -617,6 +1065,41 @@ Constraints: minimum 10s, maximum 24h.
 | `MAX_HISTORY_ENTRIES` | 1000 | Maximum stored history entries |
 | `RUN_TIMEOUT_MS` | 600000 | Per-run timeout (10 minutes) |
 
+### Zod Schemas
+
+The following Zod schemas are used for runtime validation of schedule data. Each schema corresponds to the type of the same name (e.g., `ScheduleEntrySchema` validates `ScheduleEntry`).
+
+| Schema | Validates |
+|--------|-----------|
+| `ScheduleEntrySchema` | A single schedule entry (id, trigger, prompt, paused) |
+| `ScheduleRunResultSchema` | A schedule run result (outcome, timing, error) |
+| `ScheduleConfigSchema` | Full schedule configuration (schedules array, limits) |
+| `ScheduleStateSchema` | Runtime schedule state (next/last run, counts) |
+
+### `ScheduleAddInput`
+
+```ts
+const ScheduleAddInput: z.ZodObject<{
+  id: z.ZodString;
+  every: z.ZodString;
+  prompt: z.ZodString;
+}>;
+```
+
+Validation schema for adding a new schedule via CLI or HTTP.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | `string` | Yes | Schedule ID (lowercase alphanumeric + hyphens, 1-32 chars) |
+| `every` | `string` | Yes | Interval string (`"5m"`, `"1h"`, `"30s"`) |
+| `prompt` | `string` | Yes | Message sent to the agent on each run |
+
+```ts
+import { ScheduleAddInput } from "@mecha/core";
+
+ScheduleAddInput.parse({ id: "daily-report", every: "1h", prompt: "Generate the daily report" });
+```
+
 ## Configuration
 
 **Source:** `packages/core/src/mecha-settings.ts`, `packages/core/src/auth-config.ts`, `packages/core/src/plugin-registry.ts`
@@ -703,6 +1186,76 @@ type PluginConfig = StdioPluginConfig | HttpPluginConfig;
 | `listPlugins` | `(mechaDir) => { name, config }[]` | List all plugins. |
 | `isPluginName` | `(mechaDir, name) => boolean` | Check if name is a registered plugin. |
 | `pluginName` | `(input) => PluginName` | Validate and brand a string as a `PluginName`. Throws on reserved names. |
+
+### `PLUGIN_REGISTRY_VERSION`
+
+```ts
+const PLUGIN_REGISTRY_VERSION = 1;
+```
+
+Current plugin registry schema version. Stored in `plugins.json` to support forward-compatible reads.
+
+### `PluginConfigBase`
+
+```ts
+interface PluginConfigBase {
+  description?: string;
+  addedAt: string;
+}
+```
+
+Base fields shared by all plugin configuration types.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `description` | `string?` | Optional human-readable description |
+| `addedAt` | `string` | ISO 8601 timestamp of when the plugin was added |
+
+### Plugin Input Schemas
+
+Zod schemas for validating plugin creation input (before `addedAt` is set).
+
+**`StdioPluginInputSchema`** -- Validates stdio plugin input:
+
+```ts
+const StdioPluginInputSchema: z.ZodObject<{
+  type: z.ZodLiteral<"stdio">;
+  command: z.ZodString;
+  args: z.ZodOptional<z.ZodArray<z.ZodString>>;
+  env: z.ZodOptional<z.ZodRecord<z.ZodString>>;
+  description: z.ZodOptional<z.ZodString>;
+}>;
+```
+
+**`HttpPluginInputSchema`** -- Validates HTTP/SSE plugin input:
+
+```ts
+const HttpPluginInputSchema: z.ZodObject<{
+  type: z.ZodEnum<["http", "sse"]>;
+  url: z.ZodString;  // Must be a valid URL
+  headers: z.ZodOptional<z.ZodRecord<z.ZodString>>;
+  description: z.ZodOptional<z.ZodString>;
+}>;
+```
+
+**`PluginInputSchema`** -- Discriminated union of both plugin input types:
+
+```ts
+const PluginInputSchema: z.ZodDiscriminatedUnion<"type", [
+  typeof StdioPluginInputSchema,
+  typeof HttpPluginInputSchema,
+]>;
+```
+
+```ts
+import { PluginInputSchema } from "@mecha/core";
+
+// Validates stdio plugin
+PluginInputSchema.parse({ type: "stdio", command: "node", args: ["server.js"] });
+
+// Validates HTTP plugin
+PluginInputSchema.parse({ type: "http", url: "https://example.com/mcp" });
+```
 
 ### `RESERVED_PLUGIN_NAMES`
 
@@ -1127,6 +1680,75 @@ Load a bot identity by name from the mecha directory. Returns `undefined` if mis
 | `name` | `BotName` | Validated bot name |
 
 **Source:** `packages/core/src/identity/bot-identity.ts`
+
+### `loadBotIdentityFromDir(botDir)`
+
+```ts
+function loadBotIdentityFromDir(botDir: string): BotIdentity | undefined
+```
+
+Load a bot identity directly from a bot directory by reading `identity.json`. Returns `undefined` if the file is missing or malformed.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `botDir` | `string` | Path to the bot directory |
+
+**Source:** `packages/core/src/identity/bot-identity.ts`
+
+```ts
+import { loadBotIdentityFromDir } from "@mecha/core";
+
+const identity = loadBotIdentityFromDir("/home/alice/.mecha/researcher");
+if (identity) {
+  console.log(`Bot ${identity.name}, fingerprint: ${identity.fingerprint}`);
+}
+```
+
+### `loadNodePrivateKey(mechaDir)`
+
+```ts
+function loadNodePrivateKey(mechaDir: string): string | undefined
+```
+
+Load the node's PEM-encoded Ed25519 private key from `mechaDir/identity/node.key`. Returns `undefined` if the file is missing or unreadable.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `mechaDir` | `string` | Path to the `.mecha` directory |
+
+**Source:** `packages/core/src/identity/node-identity.ts`
+
+```ts
+import { loadNodePrivateKey } from "@mecha/core";
+
+const pem = loadNodePrivateKey("/home/alice/.mecha");
+if (pem) {
+  console.log("Node private key loaded");
+}
+```
+
+### `loadNoisePublicKey(mechaDir)`
+
+```ts
+function loadNoisePublicKey(mechaDir: string): string | undefined
+```
+
+Load only the X25519 noise public key from `mechaDir/identity/noise.pub`. Returns `undefined` if the file is missing or empty.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `mechaDir` | `string` | Path to the `.mecha` directory |
+
+**Source:** `packages/core/src/identity/noise-keys.ts`
+
+```ts
+import { loadNoisePublicKey } from "@mecha/core";
+
+const noiseKey = loadNoisePublicKey("/home/alice/.mecha");
+if (noiseKey) {
+  console.log(`Noise public key: ${noiseKey}`);
+}
+```
 
 ### `signMessage(privateKeyPem, data)`
 
@@ -1594,6 +2216,86 @@ import { updateBotConfig } from "@mecha/core";
 updateBotConfig("/home/alice/.mecha/researcher", { tags: ["research", "data"] });
 ```
 
+### `BOT_CONFIG_VERSION`
+
+```ts
+const BOT_CONFIG_VERSION: number
+```
+
+Current schema version number written to `config.json` when creating or updating bot configs.
+
+### `BotConfigValidationInput`
+
+```ts
+interface BotConfigValidationInput {
+  permissionMode?: string;
+  sandboxMode?: string;
+  systemPrompt?: string;
+  appendSystemPrompt?: string;
+  allowedTools?: string[];
+  disallowedTools?: string[];
+  tools?: string[];
+  maxBudgetUsd?: number;
+  meterOff?: boolean;
+}
+```
+
+Input to `validateBotConfig`. Contains the subset of bot config fields subject to cross-field validation rules.
+
+### `BotConfigValidationResult`
+
+```ts
+interface BotConfigValidationResult {
+  ok: boolean;
+  errors: string[];
+  warnings: string[];
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `ok` | `boolean` | `true` if no errors were found (warnings are allowed) |
+| `errors` | `string[]` | Validation errors that prevent saving |
+| `warnings` | `string[]` | Non-blocking warnings about potentially unsafe combinations |
+
+### `validateBotConfig(input): BotConfigValidationResult`
+
+Validate cross-field constraints on bot configuration. Returns errors and warnings without throwing. Use this before saving config changes to catch mutually exclusive or unsafe field combinations.
+
+```ts
+import { validateBotConfig } from "@mecha/core";
+
+const result = validateBotConfig({
+  permissionMode: "bypassPermissions",
+  sandboxMode: "off",
+  systemPrompt: "You are a researcher.",
+  appendSystemPrompt: "Always cite sources.",
+});
+
+if (!result.ok) {
+  console.error("Config errors:", result.errors);
+  // ["permissionMode 'bypassPermissions' requires sandboxMode 'require'",
+  //  "systemPrompt and appendSystemPrompt are mutually exclusive"]
+}
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `input` | `BotConfigValidationInput` | Yes | Config fields to validate |
+
+**Source:** `packages/core/src/bot-config-validation.ts`
+
+**Validation rules:**
+
+| Rule | Severity | Condition |
+|------|----------|-----------|
+| `permissionMode 'bypassPermissions' requires sandboxMode 'require'` | Error | `permissionMode` is `"bypassPermissions"` but `sandboxMode` is not `"require"` |
+| `systemPrompt and appendSystemPrompt are mutually exclusive` | Error | Both `systemPrompt` and `appendSystemPrompt` are set |
+| `allowedTools and tools are mutually exclusive` | Error | Both `allowedTools` and `tools` are non-empty |
+| `disallowedTools and tools are mutually exclusive` | Error | Both `disallowedTools` and `tools` are non-empty |
+| `permissionMode 'auto' with sandboxMode 'off' has no safety net` | Warning | `permissionMode` is `"auto"` and `sandboxMode` is `"off"` |
+| `maxBudgetUsd set but metering is off` | Warning | `maxBudgetUsd` is set and `meterOff` is `true` |
+
 ## Server State
 
 **Source:** `packages/core/src/server-state.ts`
@@ -1746,6 +2448,140 @@ if (isNew) {
   console.log("New TOTP secret generated — scan QR code to set up authenticator");
 }
 ```
+
+## Forwarding
+
+**Source:** `packages/core/src/forwarding.ts`
+
+HTTP forwarding utility for inter-bot communication. Used by the service layer and mesh tools to send queries between bots via their local HTTP API.
+
+### `ForwardResult`
+
+```ts
+interface ForwardResult {
+  text: string;
+  sessionId?: string;
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `text` | `string` | Response text from the target bot |
+| `sessionId` | `string?` | Session ID returned by the target bot (if the response was JSON) |
+
+### `forwardQueryToBot(port, token, message, sessionId?, requestId?): Promise<ForwardResult>`
+
+Forward a query message to a bot via HTTP POST to `http://127.0.0.1:{port}/api/chat`. Shared by the service router and runtime mesh tools for inter-bot communication.
+
+The request is sent with a 60-second timeout (`DEFAULTS.FORWARD_TIMEOUT_MS`). If the response is JSON, the `response` and `sessionId` fields are extracted; otherwise the raw text body is returned.
+
+```ts
+import { forwardQueryToBot } from "@mecha/core";
+
+const result = await forwardQueryToBot(
+  7701,                          // target bot port
+  "bot-auth-token",              // target bot token
+  "Summarize the latest report", // message to send
+  "session-abc-123",             // optional: reuse existing session
+);
+console.log(result.text);       // bot's response
+console.log(result.sessionId);  // session ID for follow-up queries
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `port` | `number` | Yes | Target bot's port number |
+| `token` | `string` | Yes | Target bot's auth token (sent as `Bearer` header) |
+| `message` | `string` | Yes | Query message to send |
+| `sessionId` | `string` | No | Session ID for continuing an existing conversation |
+| `requestId` | `string` | No | Request ID forwarded as `x-request-id` header for tracing |
+
+**Throws:** `ForwardingError` with the HTTP status code if the request fails or the target returns a non-2xx response. A status of `0` indicates a network-level failure (connection refused, timeout, etc.).
+
+**Source:** `packages/core/src/forwarding.ts`
+
+## Process Utilities
+
+### `isPidAlive(pid): boolean`
+
+Check if a process with the given PID is alive using `kill -0`. Returns `true` if the process exists (even if owned by another user), `false` if it doesn't.
+
+```ts
+import { isPidAlive } from "@mecha/core";
+
+isPidAlive(12345); // true if process exists
+isPidAlive(-1);    // false (invalid PID)
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `pid` | `number` | Yes | Process ID to check (must be a positive integer) |
+
+**Source:** `packages/core/src/pid.ts`
+
+### `safeCompare(a, b): boolean`
+
+Constant-time string comparison to prevent timing side-channel attacks. Used for bearer token validation across all servers. Rejects tokens longer than 4096 bytes.
+
+```ts
+import { safeCompare } from "@mecha/core";
+
+safeCompare(request.token, expected); // true/false without timing leakage
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `a` | `string` | Yes | First string |
+| `b` | `string` | Yes | Second string |
+
+**Source:** `packages/core/src/safe-compare.ts`
+
+## Address Type Guards
+
+### `isBotAddress(addr): boolean`
+
+Type guard that narrows an `Address` to `BotAddress`. Returns `true` if the address has `bot` and `node` fields.
+
+```ts
+import { isBotAddress, parseAddress } from "@mecha/core";
+
+const addr = parseAddress("coder@alice");
+if (isBotAddress(addr)) {
+  console.log(addr.bot, addr.node); // "coder", "alice"
+}
+```
+
+### `isGroupAddress(addr): boolean`
+
+Type guard that narrows an `Address` to `GroupAddress`. Returns `true` if the address has a `group` field.
+
+```ts
+import { isGroupAddress, parseAddress } from "@mecha/core";
+
+const addr = parseAddress("@devteam");
+if (isGroupAddress(addr)) {
+  console.log(addr.group); // "devteam"
+}
+```
+
+## ACL Engine Options
+
+### `CreateAclEngineOpts`
+
+Options passed to `createAclEngine()`.
+
+```ts
+interface CreateAclEngineOpts {
+  mechaDir: string;
+  /** Override for reading expose config — used in tests. */
+  getExpose?: (name: string) => Capability[];
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `mechaDir` | `string` | Yes | Path to the Mecha data directory |
+| `getExpose` | `(name: string) => Capability[]` | No | Custom function to read bot expose config. Defaults to reading from bot `config.json`. |
 
 ## See also
 
