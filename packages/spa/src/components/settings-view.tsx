@@ -7,7 +7,11 @@ import {
   RadioIcon,
   Loader2Icon,
   GaugeIcon,
+  KeyRoundIcon,
+  LockIcon,
+  ChevronRightIcon,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -212,6 +216,31 @@ export function SettingsView() {
             </p>
           </div>
         )}
+      </Card>
+
+      {/* Security */}
+      <Card className="sm:col-span-2">
+        <SectionHeader icon={ShieldCheckIcon} title="Security" />
+        <div className="grid gap-3 sm:grid-cols-3">
+          {([
+            { href: "/acl", icon: ShieldCheckIcon, label: "ACL Rules", desc: "Permission rules for bot capabilities" },
+            { href: "/auth", icon: KeyRoundIcon, label: "Auth Profiles", desc: "API keys and credential profiles" },
+            { href: "/sandbox", icon: LockIcon, label: "Sandbox", desc: "Filesystem and process isolation" },
+          ] as const).map(({ href, icon: Icon, label, desc }) => (
+            <Link
+              key={href}
+              to={href}
+              className="flex items-center gap-3 rounded-md border border-border p-3 text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+            >
+              <Icon className="size-4 text-muted-foreground shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-card-foreground">{label}</div>
+                <div className="text-xs text-muted-foreground truncate">{desc}</div>
+              </div>
+              <ChevronRightIcon className="size-4 text-muted-foreground shrink-0" />
+            </Link>
+          ))}
+        </div>
       </Card>
 
       {/* Meter Status */}
