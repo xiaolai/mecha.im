@@ -7,22 +7,29 @@ describe("buildClaudeArgs", () => {
     expect(buildClaudeArgs({})).toEqual([]);
   });
 
-  it("returns empty array for undefined sessionId", () => {
+  it("returns empty array for undefined session opts", () => {
     expect(buildClaudeArgs({}, undefined)).toEqual([]);
   });
 
-  // --- Session resume ---
+  // --- Session identity ---
 
-  it("adds --resume for a real session ID", () => {
-    expect(buildClaudeArgs({}, "abc-123")).toEqual(["--resume", "abc-123"]);
+  it("adds --resume for an existing session ID", () => {
+    expect(buildClaudeArgs({}, { resume: "abc-123" })).toEqual(["--resume", "abc-123"]);
   });
 
-  it("skips --resume when sessionId starts with new-", () => {
-    expect(buildClaudeArgs({}, "new-deadbeef")).toEqual([]);
+  it("adds --session-id for a new session with pre-assigned UUID", () => {
+    const uuid = "550e8400-e29b-41d4-a716-446655440000";
+    expect(buildClaudeArgs({}, { newSessionId: uuid })).toEqual(["--session-id", uuid]);
   });
 
-  it("skips --resume when sessionId is empty string", () => {
-    expect(buildClaudeArgs({}, "")).toEqual([]);
+  it("resume takes precedence over newSessionId", () => {
+    expect(buildClaudeArgs({}, { resume: "abc-123", newSessionId: "new-uuid" })).toEqual([
+      "--resume", "abc-123",
+    ]);
+  });
+
+  it("skips session flags when session opts has no resume or newSessionId", () => {
+    expect(buildClaudeArgs({}, {})).toEqual([]);
   });
 
   // --- Individual flags ---
@@ -37,6 +44,11 @@ describe("buildClaudeArgs", () => {
     expect(buildClaudeArgs({ systemPrompt: "You are helpful" })).toEqual([
       "--system-prompt", "You are helpful",
     ]);
+  });
+
+  it("throws when both systemPrompt and appendSystemPrompt are set", () => {
+    expect(() => buildClaudeArgs({ systemPrompt: "A", appendSystemPrompt: "B" }))
+      .toThrow("systemPrompt and appendSystemPrompt are mutually exclusive");
   });
 
   it("adds --append-system-prompt when set", () => {
@@ -59,6 +71,16 @@ describe("buildClaudeArgs", () => {
     expect(buildClaudeArgs({ permissionMode: "plan" })).toEqual([
       "--permission-mode", "plan",
     ]);
+  });
+
+  it("throws when both allowedTools and tools are set", () => {
+    expect(() => buildClaudeArgs({ allowedTools: ["Bash"], tools: ["Read"] }))
+      .toThrow("allowedTools and tools are mutually exclusive");
+  });
+
+  it("throws when both disallowedTools and tools are set", () => {
+    expect(() => buildClaudeArgs({ disallowedTools: ["Write"], tools: ["Read"] }))
+      .toThrow("disallowedTools and tools are mutually exclusive");
   });
 
   it("adds --allowed-tools with spread items", () => {
@@ -198,7 +220,7 @@ describe("buildClaudeArgs", () => {
 
   // --- Combined ---
 
-  it("builds combined args in correct order", () => {
+  it("builds combined args with --resume in correct order", () => {
     const config: Partial<BotConfig> = {
       model: "claude-sonnet-4-20250514",
       effort: "high",
@@ -209,7 +231,7 @@ describe("buildClaudeArgs", () => {
       sessionPersistence: false,
       disableSlashCommands: true,
     };
-    const result = buildClaudeArgs(config, "sess-42");
+    const result = buildClaudeArgs(config, { resume: "sess-42" });
     expect(result).toEqual([
       "--resume", "sess-42",
       "--model", "claude-sonnet-4-20250514",
@@ -220,6 +242,15 @@ describe("buildClaudeArgs", () => {
       "--agent", "coder",
       "--no-session-persistence",
       "--disable-slash-commands",
+    ]);
+  });
+
+  it("builds combined args with --session-id for new session", () => {
+    const uuid = "550e8400-e29b-41d4-a716-446655440000";
+    const result = buildClaudeArgs({ model: "opus" }, { newSessionId: uuid });
+    expect(result).toEqual([
+      "--session-id", uuid,
+      "--model", "opus",
     ]);
   });
 });

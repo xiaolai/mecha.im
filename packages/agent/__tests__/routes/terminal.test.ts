@@ -21,9 +21,12 @@ function createMockPtyManager(): PtyManager & { _sessions: Map<string, PtySessio
   return {
     _sessions: sessions,
     spawn: vi.fn().mockImplementation((botName: string, sessionId: string | undefined) => {
-      const id = sessionId ? `${botName}:${sessionId}` : `${botName}:new-test`;
+      // Mirror real pty-manager: new-* or missing → generate UUID; otherwise use as-is
+      const isNew = !sessionId || sessionId.startsWith("new-");
+      const claudeSessionId = isNew ? "mock-uuid-1234" : sessionId;
+      const id = `${botName}:${claudeSessionId}`;
       const pty = createMockPty();
-      const session: PtySession = { id, botName, pty, clients: new Set(), createdAt: new Date(), lastActivity: new Date(), scrollback: [] };
+      const session: PtySession = { id, claudeSessionId, botName, pty, clients: new Set(), createdAt: new Date(), lastActivity: new Date(), scrollback: [] };
       sessions.set(id, session);
       return session;
     }),
@@ -51,7 +54,10 @@ describe("registerTerminalRoutes", () => {
   let routeHandler: (socket: EventEmitter & { readyState: number; OPEN: number; bufferedAmount: number; send: ReturnType<typeof vi.fn>; close: ReturnType<typeof vi.fn> }, req: unknown) => void;
   let ptyManager: ReturnType<typeof createMockPtyManager>;
 
+  const activeSockets: Array<EventEmitter & { close: ReturnType<typeof vi.fn> }> = [];
+
   beforeEach(() => {
+    vi.useFakeTimers();
     ptyManager = createMockPtyManager();
     const mockApp = {
       get: vi.fn().mockImplementation((_path: string, _opts: unknown, handler: typeof routeHandler) => {
@@ -63,15 +69,22 @@ describe("registerTerminalRoutes", () => {
   });
 
   afterEach(() => {
+    // Emit close on all active sockets to clear heartbeat intervals
+    for (const s of activeSockets) s.emit("close");
+    activeSockets.length = 0;
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
   function createSocket() {
     const emitter = new EventEmitter();
-    return Object.assign(emitter, {
+    const socket = Object.assign(emitter, {
       readyState: 1, OPEN: 1, bufferedAmount: 0,
       send: vi.fn(), close: vi.fn(),
+      ping: vi.fn(), terminate: vi.fn(),
     });
+    activeSockets.push(socket);
+    return socket;
   }
 
   function createReq(name: string, session?: string, cols?: string, rows?: string) {
@@ -101,8 +114,8 @@ describe("registerTerminalRoutes", () => {
       try { return JSON.parse(data).type === "session"; } catch { return false; }
     });
     const parsed = JSON.parse(sessionMsg![0]);
-    // Session ID should be just "new-test", not "coder:new-test"
-    expect(parsed.id).toBe("new-test");
+    // Session ID should be just "new-test", not "coder:mock-uuid-1234"
+    expect(parsed.id).toBe("mock-uuid-1234");
     expect(parsed.id).not.toContain("coder:");
   });
 
@@ -116,7 +129,7 @@ describe("registerTerminalRoutes", () => {
   it("reattaches to existing session", () => {
     // Pre-populate a session
     const pty = createMockPty();
-    const existing: PtySession = { id: "coder:s1", botName: "coder", pty, clients: new Set(), createdAt: new Date(), lastActivity: new Date(), scrollback: [] };
+    const existing: PtySession = { id: "coder:s1", claudeSessionId: "s1", botName: "coder", pty, clients: new Set(), createdAt: new Date(), lastActivity: new Date(), scrollback: [] };
     ptyManager._sessions.set("coder:s1", existing);
 
     const socket = createSocket();
@@ -129,7 +142,7 @@ describe("registerTerminalRoutes", () => {
   it("strips botName: prefix from stale session IDs", () => {
     // Client sends composite key "coder:s1" from stale URL — should be stripped to "s1"
     const pty = createMockPty();
-    const existing: PtySession = { id: "coder:s1", botName: "coder", pty, clients: new Set(), createdAt: new Date(), lastActivity: new Date(), scrollback: [] };
+    const existing: PtySession = { id: "coder:s1", claudeSessionId: "s1", botName: "coder", pty, clients: new Set(), createdAt: new Date(), lastActivity: new Date(), scrollback: [] };
     ptyManager._sessions.set("coder:s1", existing);
 
     const socket = createSocket();
@@ -143,7 +156,7 @@ describe("registerTerminalRoutes", () => {
   it("falls back to findByBot when no sessionId is provided", () => {
     // Pre-populate a session
     const pty = createMockPty();
-    const existing: PtySession = { id: "coder:new-abc123", botName: "coder", pty, clients: new Set(), createdAt: new Date(), lastActivity: new Date(), scrollback: [] };
+    const existing: PtySession = { id: "coder:new-abc123", claudeSessionId: "new-abc123", botName: "coder", pty, clients: new Set(), createdAt: new Date(), lastActivity: new Date(), scrollback: [] };
     ptyManager._sessions.set("coder:new-abc123", existing);
 
     const socket = createSocket();
@@ -158,7 +171,7 @@ describe("registerTerminalRoutes", () => {
   it("spawns new PTY when specific sessionId not found (no findByBot fallback)", () => {
     // Pre-populate a session with a different key
     const pty = createMockPty();
-    const existing: PtySession = { id: "coder:new-abc123", botName: "coder", pty, clients: new Set(), createdAt: new Date(), lastActivity: new Date(), scrollback: [] };
+    const existing: PtySession = { id: "coder:new-abc123", claudeSessionId: "new-abc123", botName: "coder", pty, clients: new Set(), createdAt: new Date(), lastActivity: new Date(), scrollback: [] };
     ptyManager._sessions.set("coder:new-abc123", existing);
 
     const socket = createSocket();
@@ -173,7 +186,7 @@ describe("registerTerminalRoutes", () => {
   it("replays scrollback on reattach", () => {
     const pty = createMockPty();
     const existing: PtySession = {
-      id: "coder:s1", botName: "coder", pty, clients: new Set(),
+      id: "coder:s1", claudeSessionId: "s1", botName: "coder", pty, clients: new Set(),
       createdAt: new Date(), lastActivity: new Date(),
       scrollback: ["chunk1", "chunk2", "chunk3"],
     };
@@ -228,7 +241,7 @@ describe("registerTerminalRoutes", () => {
     routeHandler(socket, createReq("coder"));
 
     socket.emit("message", Buffer.from(JSON.stringify({ type: "resize", cols: 120, rows: 40 })), false);
-    expect(ptyManager.resize).toHaveBeenCalledWith("coder:new-test", 120, 40);
+    expect(ptyManager.resize).toHaveBeenCalledWith("coder:mock-uuid-1234", 120, 40);
   });
 
   it("sends PTY output as text string", () => {
@@ -319,11 +332,11 @@ describe("registerTerminalRoutes", () => {
 
     // Send extreme dimensions — should be clamped
     socket.emit("message", Buffer.from(JSON.stringify({ type: "resize", cols: -5, rows: 99999 })), false);
-    expect(ptyManager.resize).toHaveBeenCalledWith("coder:new-test", 1, 200);
+    expect(ptyManager.resize).toHaveBeenCalledWith("coder:mock-uuid-1234", 1, 200);
 
     // Send fractional dimensions — should be floored
     socket.emit("message", Buffer.from(JSON.stringify({ type: "resize", cols: 120.7, rows: 40.3 })), false);
-    expect(ptyManager.resize).toHaveBeenCalledWith("coder:new-test", 120, 40);
+    expect(ptyManager.resize).toHaveBeenCalledWith("coder:mock-uuid-1234", 120, 40);
   });
 
   it("rejects invalid bot name", () => {
@@ -336,5 +349,44 @@ describe("registerTerminalRoutes", () => {
     expect(errorMsg).toBeDefined();
     expect(socket.close).toHaveBeenCalledWith(4400, "Invalid bot name");
     expect(ptyManager.spawn).not.toHaveBeenCalled();
+  });
+
+  it("heartbeat terminates dead connections", () => {
+    const socket = createSocket();
+    routeHandler(socket, createReq("coder"));
+
+    // First ping — sets isAlive = false
+    vi.advanceTimersByTime(30_000);
+    expect(socket.ping).toHaveBeenCalledTimes(1);
+
+    // No pong received — next interval should terminate
+    vi.advanceTimersByTime(30_000);
+    expect(socket.terminate).toHaveBeenCalledTimes(1);
+  });
+
+  it("heartbeat keeps alive when pong received", () => {
+    const socket = createSocket();
+    routeHandler(socket, createReq("coder"));
+
+    // First interval fires ping
+    vi.advanceTimersByTime(30_000);
+    expect(socket.ping).toHaveBeenCalledTimes(1);
+
+    // Simulate pong
+    socket.emit("pong");
+
+    // Next interval should ping again (not terminate)
+    vi.advanceTimersByTime(30_000);
+    expect(socket.ping).toHaveBeenCalledTimes(2);
+    expect(socket.terminate).not.toHaveBeenCalled();
+  });
+
+  it("handles socket error without crashing", () => {
+    const socket = createSocket();
+    routeHandler(socket, createReq("coder"));
+
+    // Emitting an error should not throw
+    socket.emit("error", new Error("connection reset"));
+    expect(ptyManager.detach).toHaveBeenCalled();
   });
 });

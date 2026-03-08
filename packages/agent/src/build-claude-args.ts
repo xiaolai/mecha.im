@@ -1,18 +1,28 @@
 import type { BotConfig } from "@mecha/core";
 
+/** Session options for buildClaudeArgs. If both are set, resume takes precedence. */
+export interface SessionOpts {
+  /** Existing Claude Code session ID to resume. */
+  resume?: string;
+  /** Pre-assigned UUID for a new session (passed as --session-id). */
+  newSessionId?: string;
+}
+
 /**
  * Convert a bot's BotConfig into Claude Code CLI arguments.
  * Pure function — no side effects, easy to test independently.
  */
 export function buildClaudeArgs(
   config: Partial<BotConfig>,
-  sessionId?: string,
+  session?: SessionOpts,
 ): string[] {
   const args: string[] = [];
 
-  // 1. --resume (only for real session IDs, not mecha-internal new-* IDs)
-  if (sessionId && !sessionId.startsWith("new-")) {
-    args.push("--resume", sessionId);
+  // 1. Session identity: --resume (existing) or --session-id (new, pre-assigned)
+  if (session?.resume) {
+    args.push("--resume", session.resume);
+  } else if (session?.newSessionId) {
+    args.push("--session-id", session.newSessionId);
   }
 
   // 2. --model
@@ -46,17 +56,19 @@ export function buildClaudeArgs(
     args.push("--permission-mode", config.permissionMode);
   }
 
-  // 8. --allowed-tools
+  // 8–10. Tool flags (allowedTools/disallowedTools and tools are mutually exclusive)
+  if (config.allowedTools?.length && config.tools?.length) {
+    throw new Error("allowedTools and tools are mutually exclusive");
+  }
+  if (config.disallowedTools?.length && config.tools?.length) {
+    throw new Error("disallowedTools and tools are mutually exclusive");
+  }
   if (config.allowedTools && config.allowedTools.length > 0) {
     args.push("--allowed-tools", ...config.allowedTools);
   }
-
-  // 9. --disallowed-tools
   if (config.disallowedTools && config.disallowedTools.length > 0) {
     args.push("--disallowed-tools", ...config.disallowedTools);
   }
-
-  // 10. --tools
   if (config.tools && config.tools.length > 0) {
     args.push("--tools", ...config.tools);
   }

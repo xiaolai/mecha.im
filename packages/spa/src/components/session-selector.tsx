@@ -38,7 +38,7 @@ export function SessionSelector({ botName, node, currentSessionId, onSelect }: S
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const handleDelete = useCallback(async () => {
-    if (!currentSessionId || currentSessionId.startsWith("new-")) return;
+    if (!currentSessionId) return;
     setDeleting(currentSessionId);
     setDeleteError(null);
     try {
@@ -58,7 +58,7 @@ export function SessionSelector({ botName, node, currentSessionId, onSelect }: S
     }
   }, [botName, currentSessionId, nodeQuery, authHeaders, onSelect, refetch]);
 
-  const canDelete = currentSessionId && !currentSessionId.startsWith("new-") && !currentSessionId.startsWith("__");
+  const canDelete = currentSessionId && !currentSessionId.startsWith("__");
 
   return (
     <div className="flex items-center gap-2">
@@ -69,7 +69,7 @@ export function SessionSelector({ botName, node, currentSessionId, onSelect }: S
       <select
         id="session-select"
         className="h-9 w-full max-w-xs rounded-md border border-input bg-background px-3 text-sm"
-        value={!currentSessionId || currentSessionId.startsWith("new-") ? "__new__" : currentSessionId}
+        value={!currentSessionId ? "__new__" : currentSessionId}
         onChange={(e) => onSelect(e.target.value === "__new__" ? undefined : e.target.value)}
         disabled={loading && !sessions}
       >
@@ -80,7 +80,7 @@ export function SessionSelector({ botName, node, currentSessionId, onSelect }: S
           </option>
         ))}
         {/* Ensure current session appears even if sessions list failed to load */}
-        {currentSessionId && !currentSessionId.startsWith("new-") && !sessions?.some((s) => s.id === currentSessionId) && (
+        {currentSessionId && !sessions?.some((s) => s.id === currentSessionId) && (
           <option key={currentSessionId} value={currentSessionId}>
             {currentSessionId.slice(0, 8)}
           </option>
