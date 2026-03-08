@@ -33,8 +33,6 @@ const LIGHT_THEME = {
 /** Debounce resize events to prevent excessive fit/resize calls. */
 const RESIZE_DEBOUNCE_MS = 100;
 
-/** Reuse one encoder for all keystroke sends to avoid per-keystroke allocation. */
-const textEncoder = new TextEncoder();
 
 export function Terminal({ botName, sessionId, node, onSessionCreated, onExit }: TerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -177,7 +175,7 @@ export function Terminal({ botName, sessionId, node, onSessionCreated, onExit }:
       // and only fires onData with the final committed text, not intermediate composition.
       term.onData((data) => {
         if (ws.readyState === WebSocket.OPEN) {
-          ws.send(textEncoder.encode(data));
+          ws.send(data);
         }
       });
 
@@ -230,7 +228,7 @@ export function Terminal({ botName, sessionId, node, onSessionCreated, onExit }:
         </div>
       )}
       {status === "disconnected" && (
-        <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
+        <div className="absolute top-2 inset-x-2 z-10 flex items-center justify-end gap-2">
           <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${
             exitCode === 0
               ? "bg-success/15 text-success"

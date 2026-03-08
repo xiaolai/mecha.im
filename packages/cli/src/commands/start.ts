@@ -9,7 +9,6 @@ interface StartOpts {
   port: string;
   host: string;
   open: boolean;
-  totp: boolean;
 }
 
 export function registerStartCommand(program: Command, deps: CommandDeps): void {
@@ -19,7 +18,6 @@ export function registerStartCommand(program: Command, deps: CommandDeps): void 
     .option("--port <port>", "Agent server port", String(DEFAULTS.AGENT_PORT))
     .option("--host <host>", "Bind address", "127.0.0.1")
     .option("--open", "Open browser after starting", false)
-    .option("--no-totp", "Disable TOTP authentication")
     .action(async (opts: StartOpts) => withErrorHandler(deps, async () => {
       const port = parsePort(opts.port);
       if (port === undefined) {
@@ -28,10 +26,8 @@ export function registerStartCommand(program: Command, deps: CommandDeps): void 
         return;
       }
 
-      // Resolve auth config from file + CLI flags
-      const authConfig = resolveAuthConfig(deps.mechaDir, {
-        totp: opts.totp === false ? false : undefined,
-      });
+      // Resolve auth config from file (TOTP is always required)
+      const authConfig = resolveAuthConfig(deps.mechaDir);
 
       // Ensure TOTP secret exists if TOTP is enabled
       let totpSecret: string | undefined;

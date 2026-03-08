@@ -16,7 +16,7 @@ const managedRequiresKeys = (n: { managed?: boolean; fingerprint?: string; publi
 const NodeEntrySchema = z.object({
   name: z.string(),
   host: z.string(),
-  port: z.number().int().nonnegative(),
+  port: z.number().int().min(0).max(65535),
   apiKey: z.string(),
   publicKey: z.string().optional(),
   noisePublicKey: z.string().optional(),
@@ -24,7 +24,8 @@ const NodeEntrySchema = z.object({
   addedAt: z.string(),
   managed: z.boolean().optional(),
   serverUrl: z.string().optional(),
-}).refine(managedRequiresKeys, { message: "Managed nodes require publicKey and fingerprint" });
+}).refine(managedRequiresKeys, { message: "Managed nodes require publicKey and fingerprint" })
+  .refine((n) => n.managed || n.port >= 1, { message: "HTTP nodes require port 1-65535" });
 
 export type NodeEntry = z.infer<typeof NodeEntrySchema>;
 

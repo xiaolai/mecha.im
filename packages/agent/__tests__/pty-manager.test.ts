@@ -27,7 +27,9 @@ function createMockPty(): MechaPty & { _emitData: (d: string) => void; _emitExit
 function createMockPm(running = true): ProcessManager {
   return {
     spawn: vi.fn(),
-    get: vi.fn().mockReturnValue(running ? { name: "coder", state: "running", workspacePath: "/ws", port: 7700 } : undefined),
+    get: vi.fn().mockImplementation((name: string) =>
+      running ? { name, state: "running", workspacePath: "/ws", port: 7700 } : undefined,
+    ),
     list: vi.fn().mockReturnValue([]),
     stop: vi.fn(), kill: vi.fn(), logs: vi.fn(), getPortAndToken: vi.fn(),
     onEvent: vi.fn().mockReturnValue(() => {}),
@@ -147,22 +149,25 @@ describe("agent createPtyManager", () => {
 
     const pm = createPtyManager({ processManager: createMockPm(), mechaDir: "/m", spawnFn: multiSpawn });
     pm.spawn("coder", "s1", 80, 24);
+    vi.advanceTimersByTime(3000);
     pm.spawn("coder", "s2", 80, 24);
     pm.shutdown();
     expect(pty1.kill).toHaveBeenCalled();
     expect(pty2.kill).toHaveBeenCalled();
   });
 
-  it("detach with remaining clients does not start idle timer", () => {
+  it("attach disconnects previous client (single-client model)", () => {
     const pm = createPtyManager({ processManager: createMockPm(), mechaDir: "/m", spawnFn, idleTimeoutMs: 1000 });
     const session = pm.spawn("coder", "s1", 80, 24);
     const ws1 = createMockWs();
     const ws2 = createMockWs();
     pm.attach(session.id, ws1);
     pm.attach(session.id, ws2);
-    pm.detach(session.id, ws1);
-    vi.advanceTimersByTime(2000);
-    expect(pm.getSession(session.id)).toBe(session);
+    // ws1 should be disconnected
+    expect(ws1.close).toHaveBeenCalledWith(4001, "Replaced by new client");
+    expect(session.clients.has(ws1)).toBe(false);
+    expect(session.clients.has(ws2)).toBe(true);
+    expect(session.clients.size).toBe(1);
   });
 
   it("attach cancels pending idle timer", () => {
@@ -195,7 +200,7 @@ describe("agent createPtyManager", () => {
 
       const pm = createPtyManager({ processManager: createMockPm(), mechaDir: "/m", spawnFn: multiSpawn });
       const s1 = pm.spawn("coder", "s1", 80, 24);
-      vi.advanceTimersByTime(100);
+      vi.advanceTimersByTime(3000);
       const s2 = pm.spawn("coder", "s2", 80, 24);
 
       const results = pm.findByBot("coder");
@@ -233,6 +238,30 @@ describe("agent createPtyManager", () => {
       expect(session.scrollback[0]).toBe("chunk-50");
       expect(session.scrollback[199]).toBe("chunk-249");
     });
+  });
+
+  it("rejects spawn within cooldown period", () => {
+    const pm = createPtyManager({ processManager: createMockPm(), mechaDir: "/m", spawnFn, spawnCooldownMs: 2000 });
+    pm.spawn("coder", "s1", 80, 24);
+    expect(() => pm.spawn("coder", "s2", 80, 24)).toThrow("Too many spawn requests");
+    // After cooldown expires, spawn should succeed
+    vi.advanceTimersByTime(2000);
+    expect(() => pm.spawn("coder", "s3", 80, 24)).not.toThrow();
+  });
+
+  it("allows rapid spawns for different bots", () => {
+    const pm = createPtyManager({ processManager: createMockPm(), mechaDir: "/m", spawnFn, spawnCooldownMs: 2000 });
+    pm.spawn("coder", "s1", 80, 24);
+    // Different bot name should not be rate-limited
+    expect(() => pm.spawn("writer", "s1", 80, 24)).not.toThrow();
+  });
+
+  it("failed spawn does not consume cooldown", () => {
+    const pm = createPtyManager({ processManager: createMockPm(false), mechaDir: "/m", spawnFn, spawnCooldownMs: 2000 });
+    // First spawn fails (bot not running) — should not set cooldown
+    expect(() => pm.spawn("ghost", undefined, 80, 24)).toThrow("not running");
+    // Immediate retry should throw "not running" again, NOT "Too many spawn requests"
+    expect(() => pm.spawn("ghost", undefined, 80, 24)).toThrow("not running");
   });
 
   it("uses default idle timeout of 5 minutes", () => {

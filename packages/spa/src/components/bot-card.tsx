@@ -42,6 +42,8 @@ export interface BotInfo {
 
 interface BotCardProps {
   bot: BotInfo;
+  /** Set when viewing bots on a remote node (from URL ?node= param). Absent = local. */
+  remoteNode?: string;
 }
 
 /** Tiny inline copy button — shows check icon briefly after copying. */
@@ -83,14 +85,15 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function BotCard({ bot }: BotCardProps) {
+export function BotCard({ bot, remoteNode }: BotCardProps) {
   const style = stateStyles[bot.state] ?? stateStyles.error;
-  const { acting, actionError, busyWarning, pendingConfirm, handleAction, confirmAction, dismissConfirm, confirmForce, dismissBusy } = useBotAction(bot.name, undefined, bot.node);
+  const isRemote = !!remoteNode;
+  const nodeForApi = isRemote ? remoteNode : undefined;
+  const { acting, actionError, busyWarning, pendingConfirm, handleAction, confirmAction, dismissConfirm, confirmForce, dismissBusy } = useBotAction(bot.name, undefined, nodeForApi);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [removeError, setRemoveError] = useState<string | null>(null);
   const { authHeaders } = useAuth();
-  const isRemote = !!bot.node && bot.node !== "local";
 
   async function handleRemove() {
     setRemoving(true);
@@ -117,7 +120,7 @@ export function BotCard({ bot }: BotCardProps) {
   return (
     <div className="relative flex flex-col gap-3 rounded-lg border border-border bg-card p-4 transition-colors hover:bg-accent/50">
       <Link
-        to={`/bot/${encodeURIComponent(bot.name)}${bot.node && bot.node !== "local" ? `?node=${encodeURIComponent(bot.node)}` : ""}`}
+        to={`/bot/${encodeURIComponent(bot.name)}${isRemote ? `?node=${encodeURIComponent(remoteNode)}` : ""}`}
         className="absolute inset-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         aria-label={`View ${bot.name}`}
       />

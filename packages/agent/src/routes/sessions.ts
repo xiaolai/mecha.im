@@ -1,12 +1,13 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { type BotName, isValidName } from "@mecha/core";
 import type { ProcessManager } from "@mecha/process";
 import { botSessionList, botSessionGet, botSessionDelete, agentFetch } from "@mecha/service";
 import { resolveNodeEntry } from "../node-resolve.js";
 
-/** Validate + resolve bot from route params. Returns botName or sends error reply. */
+/** Validate bot name from route params. Returns botName or sends error reply. */
 function resolveBot(
-  pm: ProcessManager,
   request: FastifyRequest<{ Params: { name: string } }>,
   reply: FastifyReply,
 ): BotName | null {
@@ -15,7 +16,17 @@ function resolveBot(
     reply.code(400).send({ error: `Invalid bot name: ${name}` });
     return null;
   }
-  const botName = name as BotName;
+  return name as BotName;
+}
+
+/** Validate bot name AND require it exists in process manager. */
+function resolveBotStrict(
+  pm: ProcessManager,
+  request: FastifyRequest<{ Params: { name: string } }>,
+  reply: FastifyReply,
+): BotName | null {
+  const botName = resolveBot(request, reply);
+  if (!botName) return null;
   if (!pm.get(botName)) {
     reply.code(404).send({ error: `bot not found: ${botName}` });
     return null;
@@ -53,10 +64,15 @@ export function registerSessionRoutes(app: FastifyInstance, pm: ProcessManager, 
     /* v8 ignore start -- proxy requires live remote node */
     if (await proxyToNode(mechaDir, node, request.query.node, `/bots/${encodeURIComponent(request.params.name)}/sessions`, "GET", reply)) return;
     /* v8 ignore stop */
-    const botName = resolveBot(pm, request as FastifyRequest<{ Params: { name: string } }>, reply);
+    const botName = resolveBot(request as FastifyRequest<{ Params: { name: string } }>, reply);
     if (!botName) return;
+    // Return 404 for truly unknown bots (not in PM and no directory on disk)
+    if (!pm.get(botName) && !existsSync(join(mechaDir, botName))) {
+      reply.code(404).send({ error: `bot not found: ${botName}` });
+      return;
+    }
     try {
-      return await botSessionList(pm, botName);
+      return await botSessionList(pm, botName, mechaDir);
     /* v8 ignore start -- non-Error throw is defensive */
     } catch (err) {
       reply.code(502).send({ error: `Failed to fetch sessions: ${err instanceof Error ? err.message : String(err)}` });
@@ -71,7 +87,7 @@ export function registerSessionRoutes(app: FastifyInstance, pm: ProcessManager, 
     /* v8 ignore start -- proxy requires live remote node */
     if (await proxyToNode(mechaDir, node, request.query.node, `/bots/${encodeURIComponent(request.params.name)}/sessions/${encodeURIComponent(request.params.id)}`, "GET", reply)) return;
     /* v8 ignore stop */
-    const botName = resolveBot(pm, request as FastifyRequest<{ Params: { name: string } }>, reply);
+    const botName = resolveBotStrict(pm, request as FastifyRequest<{ Params: { name: string } }>, reply);
     if (!botName) return;
     try {
       const session = await botSessionGet(pm, botName, request.params.id);
@@ -94,7 +110,7 @@ export function registerSessionRoutes(app: FastifyInstance, pm: ProcessManager, 
     /* v8 ignore start -- proxy requires live remote node */
     if (await proxyToNode(mechaDir, node, request.query.node, `/bots/${encodeURIComponent(request.params.name)}/sessions/${encodeURIComponent(request.params.id)}`, "DELETE", reply)) return;
     /* v8 ignore stop */
-    const botName = resolveBot(pm, request as FastifyRequest<{ Params: { name: string } }>, reply);
+    const botName = resolveBotStrict(pm, request as FastifyRequest<{ Params: { name: string } }>, reply);
     if (!botName) return;
     try {
       const deleted = await botSessionDelete(pm, botName, request.params.id);

@@ -502,6 +502,91 @@ describe("agent routes", () => {
       });
     });
 
+    describe("POST /bots (spawn with new settings)", () => {
+      it("accepts and passes through new settings fields", async () => {
+        const pm = makePm();
+        vi.mocked(pm.spawn).mockResolvedValue({
+          name: "alice" as BotName, state: "running", port: 7700, workspacePath: "/ws",
+        });
+        const app = Fastify();
+        registerBotRoutes(app, pm, mechaDir);
+        await app.ready();
+
+        const res = await app.inject({
+          method: "POST",
+          url: "/bots",
+          payload: {
+            name: "alice",
+            workspacePath: "/ws",
+            systemPrompt: "You are a helper",
+            effort: "high",
+            maxBudgetUsd: 5.0,
+            allowedTools: ["Read", "Write"],
+            agent: "coder",
+            sessionPersistence: false,
+            budgetLimit: 10,
+            disableSlashCommands: true,
+            addDirs: ["/extra"],
+            env: { FOO: "bar" },
+          },
+        });
+        expect(res.statusCode).toBe(200);
+        expect(res.json()).toEqual({ ok: true, name: "alice", port: 7700 });
+        const spawnCall = vi.mocked(pm.spawn).mock.calls[0][0];
+        expect(spawnCall.systemPrompt).toBe("You are a helper");
+        expect(spawnCall.effort).toBe("high");
+        expect(spawnCall.maxBudgetUsd).toBe(5.0);
+        expect(spawnCall.allowedTools).toEqual(["Read", "Write"]);
+        expect(spawnCall.agent).toBe("coder");
+        expect(spawnCall.sessionPersistence).toBe(false);
+        expect(spawnCall.budgetLimit).toBe(10);
+        expect(spawnCall.disableSlashCommands).toBe(true);
+        expect(spawnCall.addDirs).toEqual(["/extra"]);
+        expect(spawnCall.env).toEqual({ FOO: "bar" });
+        await app.close();
+      });
+
+      it("rejects bypassPermissions without sandbox require", async () => {
+        const app = Fastify();
+        registerBotRoutes(app, makePm(), mechaDir);
+        await app.ready();
+
+        const res = await app.inject({
+          method: "POST",
+          url: "/bots",
+          payload: {
+            name: "alice",
+            workspacePath: "/ws",
+            permissionMode: "bypassPermissions",
+            sandboxMode: "auto",
+          },
+        });
+        expect(res.statusCode).toBe(400);
+        expect(res.json().error).toContain("bypassPermissions");
+        await app.close();
+      });
+
+      it("rejects systemPrompt + appendSystemPrompt together", async () => {
+        const app = Fastify();
+        registerBotRoutes(app, makePm(), mechaDir);
+        await app.ready();
+
+        const res = await app.inject({
+          method: "POST",
+          url: "/bots",
+          payload: {
+            name: "alice",
+            workspacePath: "/ws",
+            systemPrompt: "full override",
+            appendSystemPrompt: "extra stuff",
+          },
+        });
+        expect(res.statusCode).toBe(400);
+        expect(res.json().error).toContain("mutually exclusive");
+        await app.close();
+      });
+    });
+
     describe("PATCH /bots/:name/config", () => {
       it("updates config fields without restart", async () => {
         const pm = makePm([
@@ -669,6 +754,101 @@ describe("agent routes", () => {
         expect(res.json()).toEqual({ ok: true, restarted: false });
         expect(pm.stop).not.toHaveBeenCalled();
         expect(pm.spawn).not.toHaveBeenCalled();
+        await app.close();
+      });
+
+      it("accepts and persists new settings fields", async () => {
+        const pm = makePm([
+          { name: "alice" as BotName, state: "running", port: 7700, workspacePath: "/ws" },
+        ]);
+        const app = Fastify();
+        registerBotRoutes(app, pm, mechaDir);
+        await app.ready();
+
+        const res = await app.inject({
+          method: "PATCH",
+          url: "/bots/alice/config",
+          payload: {
+            systemPrompt: "You are a coder",
+            effort: "low",
+            maxBudgetUsd: 3.0,
+            allowedTools: ["Read"],
+            disallowedTools: ["Write"],
+            agent: "reviewer",
+            sessionPersistence: true,
+            budgetLimit: 5,
+            mcpServers: { myServer: { command: "node" } },
+            mcpConfigFiles: ["/path/to/config.json"],
+            strictMcpConfig: true,
+            pluginDirs: ["/plugins"],
+            disableSlashCommands: false,
+            addDirs: ["/extra"],
+            env: { KEY: "val" },
+          },
+        });
+        expect(res.statusCode).toBe(200);
+        expect(res.json()).toEqual({ ok: true, restarted: false });
+        expect(mockBotConfigure).toHaveBeenCalledWith(
+          mechaDir, pm, "alice",
+          expect.objectContaining({
+            systemPrompt: "You are a coder",
+            effort: "low",
+            maxBudgetUsd: 3.0,
+            allowedTools: ["Read"],
+            disallowedTools: ["Write"],
+            agent: "reviewer",
+            sessionPersistence: true,
+            budgetLimit: 5,
+            mcpServers: { myServer: { command: "node" } },
+            mcpConfigFiles: ["/path/to/config.json"],
+            strictMcpConfig: true,
+            pluginDirs: ["/plugins"],
+            disableSlashCommands: false,
+            addDirs: ["/extra"],
+            env: { KEY: "val" },
+          }),
+        );
+        await app.close();
+      });
+
+      it("rejects invalid agents shape in config patch", async () => {
+        const pm = makePm([
+          { name: "alice" as BotName, state: "running", port: 7700, workspacePath: "/ws" },
+        ]);
+        const app = Fastify();
+        registerBotRoutes(app, pm, mechaDir);
+        await app.ready();
+
+        const res = await app.inject({
+          method: "PATCH",
+          url: "/bots/alice/config",
+          payload: { agents: "not-an-object" },
+        });
+        expect(res.statusCode).toBe(400);
+        expect(res.json().error).toContain("agents must be an object");
+        expect(mockBotConfigure).not.toHaveBeenCalled();
+        await app.close();
+      });
+
+      it("rejects systemPrompt + appendSystemPrompt via config patch", async () => {
+        const pm = makePm([
+          { name: "alice" as BotName, state: "running", port: 7700, workspacePath: "/ws" },
+        ]);
+        const app = Fastify();
+        registerBotRoutes(app, pm, mechaDir);
+        await app.ready();
+
+        const res = await app.inject({
+          method: "PATCH",
+          url: "/bots/alice/config",
+          payload: {
+            systemPrompt: "override",
+            appendSystemPrompt: "extra",
+          },
+        });
+        expect(res.statusCode).toBe(400);
+        expect(res.json().error).toContain("mutually exclusive");
+        expect(mockBotConfigure).not.toHaveBeenCalled();
         await app.close();
       });
     });

@@ -7,6 +7,7 @@ import type { ProcessManager, MechaPty, PtySpawnFn } from "@mecha/process";
 import { buildBotEnv, encodeProjectPath } from "@mecha/process";
 import { readBotConfig } from "@mecha/core";
 import type { BotName } from "@mecha/core";
+import { buildClaudeArgs } from "./build-claude-args.js";
 
 /** Resolve absolute path to `claude` binary, checking common install locations. */
 function resolveClaudeBin(): string {
@@ -29,6 +30,13 @@ function resolveClaudeBin(): string {
 
 /** Max chunks retained for scrollback replay on reattach. */
 const SCROLLBACK_LIMIT = 200;
+/** Max total bytes for scrollback buffer (prevents memory DoS from large chunks). */
+const SCROLLBACK_MAX_BYTES = 512 * 1024; // 512 KB
+/** Safe PTY dimension bounds. */
+const MIN_COLS = 10;
+const MAX_COLS = 500;
+const MIN_ROWS = 2;
+const MAX_ROWS = 200;
 
 /** Active PTY session with its associated WebSocket clients and scrollback buffer. */
 export interface PtySession {
@@ -59,11 +67,14 @@ export interface CreatePtyManagerOpts {
   mechaDir: string;
   maxSessions?: number;
   idleTimeoutMs?: number;
+  /** Minimum milliseconds between spawns for the same bot. */
+  spawnCooldownMs?: number;
   spawnFn: PtySpawnFn;
 }
 
 const DEFAULT_MAX_SESSIONS = 10;
 const DEFAULT_IDLE_TIMEOUT_MS = 300_000;
+const DEFAULT_SPAWN_COOLDOWN_MS = 2_000;
 
 /** Create a PtyManager that spawns Claude Code PTY sessions for bots with idle timeout and scrollback. */
 export function createPtyManager(opts: CreatePtyManagerOpts): PtyManager {
@@ -71,10 +82,12 @@ export function createPtyManager(opts: CreatePtyManagerOpts): PtyManager {
     processManager, mechaDir, spawnFn,
     maxSessions = DEFAULT_MAX_SESSIONS,
     idleTimeoutMs = DEFAULT_IDLE_TIMEOUT_MS,
+    spawnCooldownMs = DEFAULT_SPAWN_COOLDOWN_MS,
   } = opts;
 
   const sessions = new Map<string, PtySession>();
   const idleTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  const lastSpawnTime = new Map<string, number>();
 
   function clearIdleTimer(key: string): void {
     const timer = idleTimers.get(key);
@@ -107,6 +120,13 @@ export function createPtyManager(opts: CreatePtyManagerOpts): PtyManager {
         throw new Error(`Max PTY sessions (${maxSessions}) reached`);
       }
 
+      // Rate limit: prevent rapid-fire PTY spawns for the same bot
+      const now = Date.now();
+      const lastSpawn = lastSpawnTime.get(botName);
+      if (lastSpawn && now - lastSpawn < spawnCooldownMs) {
+        throw new Error(`Too many spawn requests for "${botName}" — wait a moment`);
+      }
+
       const info = processManager.get(botName as BotName);
       if (!info || info.state !== "running") {
         throw new Error(`bot "${botName}" is not running`);
@@ -124,10 +144,11 @@ export function createPtyManager(opts: CreatePtyManagerOpts): PtyManager {
       const key = isNewSession
         ? `${botName}:new-${randomBytes(8).toString("hex")}`
         : `${botName}:${sessionId}`;
-      const args: string[] = isNewSession ? [] : ["--resume", sessionId];
+      const args = buildClaudeArgs(config, sessionId ?? undefined);
 
       // bot filesystem paths — mirrors prepareBotFilesystem() layout
-      const homeDir = botDir;
+      // Use configured home if set, otherwise default to botDir
+      const homeDir = config.home ?? botDir;
       const tmpDir = join(botDir, "tmp");
       const logsDir = join(botDir, "logs");
       const projectsDir = join(homeDir, ".claude", "projects", encodeProjectPath(config.workspace));
@@ -148,15 +169,22 @@ export function createPtyManager(opts: CreatePtyManagerOpts): PtyManager {
       }
 
       const claudeBin = resolveClaudeBin();
+      const safeCols = Math.max(MIN_COLS, Math.min(MAX_COLS, cols));
+      const safeRows = Math.max(MIN_ROWS, Math.min(MAX_ROWS, rows));
       const pty = spawnFn(claudeBin, args, {
         name: "xterm-256color",
-        cols,
-        rows,
+        cols: safeCols,
+        rows: safeRows,
         cwd: config.workspace,
         env: botEnv,
       });
 
+      // Record cooldown only after successful spawn — failed attempts should not
+      // block the next valid retry.
+      lastSpawnTime.set(botName, now);
+
       const scrollback: string[] = [];
+      let scrollbackBytes = 0;
       const session: PtySession = {
         id: key, botName, pty, clients: new Set(),
         createdAt: new Date(), lastActivity: new Date(),
@@ -164,10 +192,16 @@ export function createPtyManager(opts: CreatePtyManagerOpts): PtyManager {
       };
       sessions.set(key, session);
 
-      // Capture PTY output into scrollback ring buffer for replay on reattach
+      // Capture PTY output into scrollback ring buffer for replay on reattach.
+      // Enforces both chunk count and byte limits to prevent memory DoS.
       pty.onData((data) => {
         scrollback.push(data);
-        if (scrollback.length > SCROLLBACK_LIMIT) scrollback.shift();
+        scrollbackBytes += data.length;
+        while (scrollback.length > SCROLLBACK_LIMIT || scrollbackBytes > SCROLLBACK_MAX_BYTES) {
+          const removed = scrollback.shift();
+          if (removed) scrollbackBytes -= removed.length;
+          else break;
+        }
       });
 
       /* v8 ignore start -- PTY exit cleanup tested via mock emitter in pty-manager.test.ts */
@@ -183,6 +217,12 @@ export function createPtyManager(opts: CreatePtyManagerOpts): PtyManager {
     attach(sessionKey, ws) {
       const session = sessions.get(sessionKey);
       if (!session) return null;
+      // Single-client model: disconnect previous clients before attaching new one.
+      // Prevents confusing multi-tab input interleaving on the same PTY.
+      for (const old of session.clients) {
+        old.close(4001, "Replaced by new client");
+      }
+      session.clients.clear();
       session.clients.add(ws);
       session.lastActivity = new Date();
       clearIdleTimer(sessionKey);

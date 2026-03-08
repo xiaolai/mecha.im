@@ -29,6 +29,54 @@ export interface BotConfig {
   expose?: string[];
   sandboxMode?: SandboxMode;
   allowNetwork?: boolean;
+
+  /* — LLM behavior — */
+  /** Full system prompt override */
+  systemPrompt?: string;
+  /** Append to default system prompt */
+  appendSystemPrompt?: string;
+  /** Reasoning depth */
+  effort?: "low" | "medium" | "high";
+  /** Dollar spend cap per session */
+  maxBudgetUsd?: number;
+
+  /* — Tool control — */
+  /** Whitelist tools */
+  allowedTools?: string[];
+  /** Blacklist tools */
+  disallowedTools?: string[];
+  /** Override entire tool set */
+  tools?: string[];
+
+  /* — Agent identity — */
+  /** Named agent preset */
+  agent?: string;
+  /** Custom agent definitions */
+  agents?: Record<string, { description: string; prompt: string }>;
+
+  /* — Session behavior — */
+  /** Disable session persistence */
+  sessionPersistence?: boolean;
+  /** Mecha meter proxy cap */
+  budgetLimit?: number;
+
+  /* — MCP & plugins — */
+  /** Inline MCP server definitions */
+  mcpServers?: Record<string, unknown>;
+  /** Paths to MCP config files */
+  mcpConfigFiles?: string[];
+  /** Only use specified MCP servers */
+  strictMcpConfig?: boolean;
+  /** Plugin directories */
+  pluginDirs?: string[];
+  /** Disable all skills */
+  disableSlashCommands?: boolean;
+
+  /* — Environment — */
+  /** Additional directories to allow access */
+  addDirs?: string[];
+  /** Custom environment variables */
+  env?: Record<string, string>;
 }
 
 const BotConfigSchema: z.ZodType<BotConfig> = z.object({
@@ -44,6 +92,38 @@ const BotConfigSchema: z.ZodType<BotConfig> = z.object({
   expose: z.array(z.string()).optional(),
   sandboxMode: z.enum(["auto", "off", "require"]).optional(),
   allowNetwork: z.boolean().optional(),
+
+  // LLM behavior
+  systemPrompt: z.string().optional(),
+  appendSystemPrompt: z.string().optional(),
+  effort: z.enum(["low", "medium", "high"]).optional(),
+  maxBudgetUsd: z.number().positive().optional(),
+
+  // Tool control
+  allowedTools: z.array(z.string()).optional(),
+  disallowedTools: z.array(z.string()).optional(),
+  tools: z.array(z.string()).optional(),
+
+  // Agent identity
+  agent: z.string().optional(),
+  agents: z
+    .record(z.string(), z.object({ description: z.string(), prompt: z.string() }))
+    .optional(),
+
+  // Session behavior
+  sessionPersistence: z.boolean().optional(),
+  budgetLimit: z.number().positive().optional(),
+
+  // MCP & plugins
+  mcpServers: z.record(z.string(), z.unknown()).optional(),
+  mcpConfigFiles: z.array(z.string()).optional(),
+  strictMcpConfig: z.boolean().optional(),
+  pluginDirs: z.array(z.string()).optional(),
+  disableSlashCommands: z.boolean().optional(),
+
+  // Environment
+  addDirs: z.array(z.string()).optional(),
+  env: z.record(z.string(), z.string()).optional(),
 });
 
 /** Read a bot's config.json. Returns undefined if missing or malformed. */

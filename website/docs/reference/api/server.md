@@ -5,6 +5,8 @@ description: API reference for @mecha/server — rendezvous server, WebSocket si
 
 # @mecha/server
 
+[[toc]]
+
 The `@mecha/server` package provides the rendezvous server for P2P peer discovery, WebSocket signaling, relay tunneling, gossip protocol, and invite-based onboarding.
 
 ## Barrel Exports
@@ -200,6 +202,115 @@ function registerGossip(app: FastifyInstance, opts: GossipOpts): void
 | `auth` | Client -> Server | Ed25519 signed response |
 | `authenticated` | Server -> Client | Authentication confirmed |
 | `gossip-push` | Bidirectional | Peer records with vector clock |
+
+## Agent Server Internals
+
+The following symbols are exported from `@mecha/agent` (the main agent HTTP server package). They handle request authentication and meter daemon lifecycle at the agent level.
+
+### `AuthOpts`
+
+Configuration options for the agent authentication and signature verification hooks.
+
+```ts
+import type { AuthOpts } from "@mecha/agent";
+
+const opts: AuthOpts = {
+  sessionKey: "derived-from-totp-secret",
+  apiKey: "mesh-bearer-token",
+  nodePublicKeys: new Map([["alice", "-----BEGIN PUBLIC KEY-----\n..."]]),
+  spaDir: "/path/to/spa/dist",
+};
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `sessionKey` | `string` | No | Session signing key derived from the TOTP secret. Omit to disable session-based auth. |
+| `apiKey` | `string` | No | Internal API key for mesh node-to-node routing (used as a Bearer token). |
+| `nodePublicKeys` | `Map<string, string>` | No | Map of node name to Ed25519 public key PEM. When provided, routing requests must include a valid `X-Mecha-Signature` header. |
+| `verifySignature` | `(publicKey, data, signature) => boolean` | No | Signature verification function. Defaults to `@mecha/core` `verifySignature`. |
+| `spaDir` | `string` | No | Directory where the SPA is served from. When set, non-API paths skip auth (static assets). |
+| `spaIndexHtml` | `string` | No | Pre-read SPA `index.html` content. Used to serve the SPA shell for browser navigations to API-prefixed paths. |
+
+At least one of `apiKey` or `sessionKey` must be provided when using `createAuthHook`.
+
+### `getSource(request)`
+
+Extracts the `X-Mecha-Source` header from a Fastify request. This header identifies the originating bot and node in mesh routing requests (e.g., `"coder@alice"`).
+
+```ts
+import { getSource } from "@mecha/agent";
+
+app.addHook("preHandler", async (request, reply) => {
+  const source = getSource(request);
+  // source: "coder@alice" | undefined
+  if (!source) {
+    reply.code(400).send({ error: "Missing source header" });
+    return;
+  }
+});
+```
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `request` | `FastifyRequest` | The incoming Fastify request object |
+
+**Returns:** `string | undefined` -- the value of the `X-Mecha-Source` header, or `undefined` if the header is missing or not a string.
+
+### `startMeterDaemon(mechaDir, port?)`
+
+Starts the meter daemon in-process. The meter daemon is an HTTP proxy that intercepts Anthropic API calls to track token usage and cost. The daemon handle is stored internally per `mechaDir` so that `stopMeterDaemon` can shut it down later.
+
+```ts
+import { startMeterDaemon } from "@mecha/agent";
+
+const handle = await startMeterDaemon("/Users/you/.mecha");
+console.log(`Meter running on port ${handle.info.port}, pid ${handle.info.pid}`);
+
+// Later: shut down
+await handle.close();
+```
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `mechaDir` | `string` | -- | Path to the mecha configuration directory (e.g., `~/.mecha`) |
+| `port` | `number` | `7600` | Port for the meter proxy to listen on |
+
+**Returns:** `Promise<DaemonHandle>` -- resolves with the daemon handle.
+
+**`DaemonHandle`**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `server` | `Server` | The underlying Node.js HTTP server |
+| `info` | `ProxyInfo` | Runtime info: `port`, `pid`, `required`, `startedAt` |
+| `close` | `() => Promise<void>` | Gracefully shuts down the meter daemon |
+
+**Throws** if the meter daemon is already running or the port is busy.
+
+### `stopMeterDaemon(mechaDir)`
+
+Stops a previously started meter daemon. First checks for an in-process handle (started via `startMeterDaemon`). If no in-process handle exists, falls back to stopping an external daemon process via PID file signal.
+
+```ts
+import { stopMeterDaemon } from "@mecha/agent";
+
+const stopped = await stopMeterDaemon("/Users/you/.mecha");
+if (!stopped) {
+  console.error("Meter proxy was not running");
+}
+```
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `mechaDir` | `string` | Path to the mecha configuration directory |
+
+**Returns:** `Promise<boolean>` -- `true` if the daemon was stopped, `false` if no running daemon was found.
 
 ## See also
 

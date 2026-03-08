@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import Fastify, { type FastifyInstance } from "fastify";
 import fastifyWebSocket from "@fastify/websocket";
-import { type AclEngine, MechaError, readNodes, verifySignature, fetchPublicIp, readMechaSettings } from "@mecha/core";
+import { type AclEngine, MechaError, readNodes, verifySignature, readMechaSettings, CLAUDE_MODELS } from "@mecha/core";
 import type { ProcessManager, PtySpawnFn } from "@mecha/process";
 import { createAuthHook, createSignatureHook, API_PREFIXES } from "./auth.js";
 import { deriveSessionKey } from "./session.js";
@@ -27,8 +27,9 @@ import { registerScheduleOverviewRoutes } from "./routes/schedule-overview.js";
 import { registerToolRoutes } from "./routes/tools.js";
 import { registerPluginRoutes } from "./routes/plugins.js";
 import { registerBudgetRoutes } from "./routes/budgets.js";
+import { registerBotFileRoutes } from "./routes/bots-files.js";
 import { registerAuthRoutes } from "./routes/auth.js";
-import { createEventLog, emitEvent, type EventLog } from "./event-log.js";
+import { createEventLog, emitEvent } from "./event-log.js";
 import { createPtyManager } from "./pty-manager.js";
 import { issueTicket, purgeTickets } from "./ws-tickets.js";
 
@@ -100,7 +101,7 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
     return keys;
   }
 
-  const initialKeys = loadNodePublicKeys();
+  loadNodePublicKeys(); // validate node keys are readable at startup
   /* v8 ignore stop */
 
   // Derive session key from TOTP secret if TOTP is enabled
@@ -156,10 +157,8 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
       reply.code(403).send({ error: "HTTPS required" });
       return;
     }
-    // Prevent open redirect: only use Host header if it looks like a valid host:port,
-    // otherwise fall back to localhost. Reject headers with path separators or protocols.
-    const rawHost = request.headers.host;
-    const host = rawHost && /^[\w.:-]+$/.test(rawHost) ? rawHost : `localhost:${opts.port}`;
+    // Use configured host/port — never trust the user-controlled Host header for redirects
+    const host = `localhost:${opts.port}`;
     reply.code(301).redirect(`https://${host}${request.url}`);
   });
   /* v8 ignore stop */
@@ -173,7 +172,7 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
   const eventLog = createEventLog(opts.mechaDir);
 
   // Subscribe to process lifecycle events → persist as system events
-  opts.processManager.onEvent((event) => {
+  const unsubProcessEvents = opts.processManager.onEvent((event) => {
     switch (event.type) {
       case "spawned":
         emitEvent(eventLog, "info", "process", "bot.spawned",
@@ -202,6 +201,7 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
     `Server started on port ${opts.port}`, { port: opts.port, nodeName: opts.nodeName });
 
   app.addHook("onClose", () => {
+    unsubProcessEvents();
     emitEvent(eventLog, "info", "server", "server.shutdown", "Server shutting down");
   });
 
@@ -221,6 +221,7 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
     publicIp: opts.publicIp,
     mechaDir: opts.mechaDir,
   });
+  app.get("/models", async () => CLAUDE_MODELS);
   registerBotRoutes(app, opts.processManager, opts.mechaDir, opts.nodeName);
   registerRoutingRoutes(app, { mechaDir: opts.mechaDir, acl: opts.acl });
   registerDiscoverRoutes(app, { mechaDir: opts.mechaDir, pm: opts.processManager });
@@ -262,6 +263,7 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
   registerPluginRoutes(app, { mechaDir: opts.mechaDir });
   registerToolRoutes(app, { mechaDir: opts.mechaDir });
   registerBudgetRoutes(app, { mechaDir: opts.mechaDir });
+  registerBotFileRoutes(app, opts.mechaDir);
   registerEventsRoutes(app, { processManager: opts.processManager });
   registerEventLogRoutes(app, { eventLog });
 

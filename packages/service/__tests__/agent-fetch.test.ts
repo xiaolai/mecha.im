@@ -145,6 +145,29 @@ describe("agentFetch", () => {
     expect(res.status).toBe(200);
   });
 
+  it("channel fetch timeout settled guard prevents double-resolve from close handler", async () => {
+    let closeHandler: ((reason: string) => void) | undefined;
+
+    const channel = {
+      isOpen: true,
+      send: vi.fn(),
+      onMessage: vi.fn(),
+      offMessage: vi.fn(),
+      onClose: vi.fn((handler: (reason: string) => void) => { closeHandler = handler; }),
+    };
+
+    const promise = agentFetch({
+      node, path: "/slow", channel, timeoutMs: 50,
+    });
+
+    await expect(promise).rejects.toThrow("timeout");
+
+    // After timeout, the settled guard should prevent close handler from rejecting again
+    // This should NOT throw or cause unhandled rejection
+    expect(closeHandler).toBeDefined();
+    expect(() => closeHandler!("peer disconnected")).not.toThrow();
+  });
+
   it("channel fetch times out", async () => {
     const channel = {
       isOpen: true,

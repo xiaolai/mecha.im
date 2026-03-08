@@ -85,6 +85,8 @@ export {
 } from "./mapping.js";
 export { readBotConfig, updateBotConfig, BOT_CONFIG_VERSION } from "./bot-config.js";
 export type { BotConfig, SandboxMode } from "./bot-config.js";
+export { validateBotConfig } from "./bot-config-validation.js";
+export type { BotConfigValidationInput, BotConfigValidationResult } from "./bot-config-validation.js";
 export { forwardQueryToBot } from "./forwarding.js";
 export type { ForwardResult } from "./forwarding.js";
 export { matchesDiscoveryFilter } from "./discovery.js";
@@ -219,6 +221,13 @@ export type { AuthConfig, AuthConfigOverrides } from "./auth-config.js";
 // Node Info
 export { getNetworkIps, fetchPublicIp, collectNodeInfo, formatUptime, wsToHttp } from "./node-info.js";
 export type { NodeInfo } from "./node-info.js";
+
+// Models
+export { CLAUDE_MODELS } from "./models.js";
+export type { ModelOption } from "./models.js";
+
+// Safe Path
+export { safePath, PathTraversalError } from "./safe-path.js";
 
 // Schedule Engine
 export {

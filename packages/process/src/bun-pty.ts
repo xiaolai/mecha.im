@@ -34,7 +34,6 @@ interface BunSubprocess {
 /* v8 ignore start -- runtime PTY code; tested via integration only */
 
 declare global {
-  // eslint-disable-next-line no-var
   var Bun: unknown;
 }
 
@@ -156,7 +155,7 @@ function createBridgePty(): PtySpawnFn {
       },
       kill() {
         child.stdin!.write(JSON.stringify({ type: "kill" }) + "\n");
-        setTimeout(() => child.kill(), 500);
+        setTimeout(() => child.kill("SIGKILL"), 500);
       },
     };
   };

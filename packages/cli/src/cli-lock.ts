@@ -49,8 +49,7 @@ export function acquireCliLock(mechaDir: string): boolean {
     // Other errors (EACCES, EROFS, etc.) should surface, not be treated as contention
     /* v8 ignore start -- non-EEXIST errors: requires permission/disk issues */
     if ((err as NodeJS.ErrnoException).code !== "EEXIST") {
-      console.error("[mecha] Failed to create lock file:", (err as Error).message);
-      return false;
+      throw err;
     }
     /* v8 ignore stop */
   }

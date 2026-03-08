@@ -76,6 +76,11 @@ export function createSecureChannel(opts: CreateChannelOpts): SecureChannel {
       closeHandlers.push(handler);
     },
 
+    offClose(handler: (reason: string) => void): void {
+      const idx = closeHandlers.indexOf(handler);
+      if (idx >= 0) closeHandlers.splice(idx, 1);
+    },
+
     onError(handler: (err: Error) => void): void {
       errorHandlers.push(handler);
     },

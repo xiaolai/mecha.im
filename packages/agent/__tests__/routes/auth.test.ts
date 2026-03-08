@@ -105,6 +105,21 @@ describe("auth routes", () => {
       await app.close();
     });
 
+    it("sets Secure cookie flag when x-forwarded-proto is https", async () => {
+      const app = await buildApp();
+      const code = generateCode(TEST_SECRET);
+      const res = await app.inject({
+        method: "POST",
+        url: "/auth/login",
+        headers: { "x-forwarded-proto": "https" },
+        payload: { code },
+      });
+      expect(res.statusCode).toBe(200);
+      const setCookie = res.headers["set-cookie"] as string;
+      expect(setCookie).toContain("; Secure");
+      await app.close();
+    });
+
     it("rate limits after too many failures", async () => {
       const app = await buildApp();
       // 5 failures to trigger lockout
