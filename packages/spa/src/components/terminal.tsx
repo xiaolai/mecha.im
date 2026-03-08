@@ -11,7 +11,8 @@ interface TerminalProps {
   sessionId?: string;
   node?: string;
   onSessionCreated?: (id: string) => void;
-  onExit?: (code: number) => void;
+  /** Called when user clicks "New Session" after exit/disconnect. */
+  onNewSession?: () => void;
 }
 
 const DARK_THEME = {
@@ -34,7 +35,7 @@ const LIGHT_THEME = {
 const RESIZE_DEBOUNCE_MS = 100;
 
 
-export function Terminal({ botName, sessionId, node, onSessionCreated, onExit }: TerminalProps) {
+export function Terminal({ botName, sessionId, node, onSessionCreated, onNewSession }: TerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const termRef = useRef<import("@xterm/xterm").Terminal | null>(null);
@@ -49,8 +50,8 @@ export function Terminal({ botName, sessionId, node, onSessionCreated, onExit }:
 
   const onSessionCreatedRef = useRef(onSessionCreated);
   onSessionCreatedRef.current = onSessionCreated;
-  const onExitRef = useRef(onExit);
-  onExitRef.current = onExit;
+  const onNewSessionRef = useRef(onNewSession);
+  onNewSessionRef.current = onNewSession;
 
   const sendResize = useCallback(() => {
     const ws = wsRef.current;
@@ -66,6 +67,8 @@ export function Terminal({ botName, sessionId, node, onSessionCreated, onExit }:
     setStatus("connecting");
     setExitCode(null);
     let disposed = false;
+    // Track whether we received an explicit exit message (vs connection drop)
+    let gotExitMessage = false;
 
     (async () => { try {
       const { Terminal: XTerm } = await import("@xterm/xterm");
@@ -104,7 +107,11 @@ export function Terminal({ botName, sessionId, node, onSessionCreated, onExit }:
           term.writeln("\r\n\x1b[31mAuthentication expired. Please re-login.\x1b[0m");
           return;
         }
-      } catch { /* proceed without ticket — server will reject if required */ }
+      } catch {
+        // Ticket fetch failed (network error) — proceed without ticket.
+        // Server will reject with 401 if auth is required, surfacing a clear error.
+        term.writeln("\x1b[2m[Auth ticket unavailable — connection may fail]\x1b[0m");
+      }
       if (disposed) return;
 
       const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -145,9 +152,11 @@ export function Terminal({ botName, sessionId, node, onSessionCreated, onExit }:
               if (msg.__mecha) {
                 if (msg.type === "session" && msg.id) {
                   onSessionCreatedRef.current?.(msg.id);
-                } else if (msg.type === "exit" && typeof msg.code === "number") {
-                  setExitCode(msg.code);
-                  onExitRef.current?.(msg.code);
+                } else if (msg.type === "exit") {
+                  // Handle exit with or without code (signal kills may lack code)
+                  const code = typeof msg.code === "number" ? msg.code : -1;
+                  gotExitMessage = true;
+                  setExitCode(code);
                   setStatus("disconnected");
                 } else if (msg.type === "error") {
                   term.writeln(`\r\n\x1b[31mError: ${msg.message ?? "Unknown error"}\x1b[0m`);
@@ -163,7 +172,10 @@ export function Terminal({ botName, sessionId, node, onSessionCreated, onExit }:
       ws.onclose = () => {
         if (disposed) return;
         setStatus("disconnected");
-        term.writeln("\r\n\x1b[2m[Connection closed]\x1b[0m");
+        // Only show [Connection closed] if we didn't get an explicit exit message
+        if (!gotExitMessage) {
+          term.writeln("\r\n\x1b[2m[Connection closed]\x1b[0m");
+        }
       };
 
       ws.onerror = () => {
@@ -209,6 +221,8 @@ export function Terminal({ botName, sessionId, node, onSessionCreated, onExit }:
   // sessionId intentionally excluded — it's only used for the initial connection.
   // Including it would cause an infinite loop: server returns session ID → parent
   // updates state → effect re-runs → spawns new PTY → repeat.
+  // User-initiated session changes (select, new session) remount via parent's
+  // terminalKey prop, which correctly triggers a fresh connection.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [botName, node, sendResize, authHeaders, reconnectKey]);
 
@@ -240,7 +254,13 @@ export function Terminal({ botName, sessionId, node, onSessionCreated, onExit }:
             onClick={() => setReconnectKey((k) => k + 1)}
             className="h-7 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent"
           >
-            Reconnect
+            Resume
+          </button>
+          <button
+            onClick={() => onNewSessionRef.current?.()}
+            className="h-7 px-3 rounded-md border border-input bg-background text-xs font-medium hover:bg-accent"
+          >
+            New Session
           </button>
         </div>
       )}

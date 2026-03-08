@@ -1,6 +1,6 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { join, delimiter } from "node:path";
 import { homedir } from "node:os";
 import type { WebSocket } from "@fastify/websocket";
 import type { ProcessManager, MechaPty, PtySpawnFn } from "@mecha/process";
@@ -9,7 +9,8 @@ import { readBotConfig } from "@mecha/core";
 import type { BotName } from "@mecha/core";
 import { buildClaudeArgs } from "./build-claude-args.js";
 
-/** Resolve absolute path to `claude` binary, checking common install locations. */
+/** Resolve absolute path to `claude` binary, checking common Unix install locations.
+ *  Windows is not a deployment target (see CLAUDE.local.md). */
 function resolveClaudeBin(): string {
   const home = homedir();
   const candidates = [
@@ -41,6 +42,8 @@ const MAX_ROWS = 200;
 /** Active PTY session with its associated WebSocket clients and scrollback buffer. */
 export interface PtySession {
   id: string;
+  /** The Claude Code session ID (real UUID). Used for --resume on reconnect. */
+  claudeSessionId: string;
   botName: string;
   pty: MechaPty;
   clients: Set<WebSocket>;
@@ -138,13 +141,16 @@ export function createPtyManager(opts: CreatePtyManagerOpts): PtyManager {
         throw new Error(`Cannot read config for bot "${botName}"`);
       }
 
-      // new-* IDs are mecha-internal (not real Claude Code session IDs).
-      // Treat them as new sessions — don't pass --resume with a fake ID.
+      // Determine session identity:
+      // - No sessionId or new-* prefix → new session with pre-assigned UUID (--session-id)
+      // - Real session ID → resume existing session (--resume)
       const isNewSession = !sessionId || sessionId.startsWith("new-");
-      const key = isNewSession
-        ? `${botName}:new-${randomBytes(8).toString("hex")}`
-        : `${botName}:${sessionId}`;
-      const args = buildClaudeArgs(config, sessionId ?? undefined);
+      const claudeSessionId = isNewSession ? randomUUID() : sessionId;
+      const key = `${botName}:${claudeSessionId}`;
+      const args = buildClaudeArgs(config, isNewSession
+        ? { newSessionId: claudeSessionId }
+        : { resume: claudeSessionId },
+      );
 
       // bot filesystem paths — mirrors prepareBotFilesystem() layout
       // Use configured home if set, otherwise default to botDir
@@ -164,8 +170,8 @@ export function createPtyManager(opts: CreatePtyManagerOpts): PtyManager {
       botEnv.TERM = "xterm-256color";
       // Ensure ~/.local/bin is on PATH (common claude install location)
       const localBin = join(homedir(), ".local", "bin");
-      if (botEnv.PATH && !botEnv.PATH.split(":").includes(localBin)) {
-        botEnv.PATH = `${localBin}:${botEnv.PATH}`;
+      if (botEnv.PATH && !botEnv.PATH.split(delimiter).includes(localBin)) {
+        botEnv.PATH = `${localBin}${delimiter}${botEnv.PATH}`;
       }
 
       const claudeBin = resolveClaudeBin();
@@ -186,7 +192,7 @@ export function createPtyManager(opts: CreatePtyManagerOpts): PtyManager {
       const scrollback: string[] = [];
       let scrollbackBytes = 0;
       const session: PtySession = {
-        id: key, botName, pty, clients: new Set(),
+        id: key, claudeSessionId, botName, pty, clients: new Set(),
         createdAt: new Date(), lastActivity: new Date(),
         scrollback,
       };
@@ -195,11 +201,12 @@ export function createPtyManager(opts: CreatePtyManagerOpts): PtyManager {
       // Capture PTY output into scrollback ring buffer for replay on reattach.
       // Enforces both chunk count and byte limits to prevent memory DoS.
       pty.onData((data) => {
+        session.lastActivity = new Date();
         scrollback.push(data);
-        scrollbackBytes += data.length;
+        scrollbackBytes += Buffer.byteLength(data, "utf8");
         while (scrollback.length > SCROLLBACK_LIMIT || scrollbackBytes > SCROLLBACK_MAX_BYTES) {
           const removed = scrollback.shift();
-          if (removed) scrollbackBytes -= removed.length;
+          if (removed) scrollbackBytes -= Buffer.byteLength(removed, "utf8");
           else break;
         }
       });
@@ -241,7 +248,9 @@ export function createPtyManager(opts: CreatePtyManagerOpts): PtyManager {
     resize(sessionKey, cols, rows) {
       const session = sessions.get(sessionKey);
       if (!session) return;
-      session.pty.resize(cols, rows);
+      const safeCols = Math.max(MIN_COLS, Math.min(MAX_COLS, cols));
+      const safeRows = Math.max(MIN_ROWS, Math.min(MAX_ROWS, rows));
+      session.pty.resize(safeCols, safeRows);
       session.lastActivity = new Date();
     },
 

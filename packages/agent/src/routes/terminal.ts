@@ -53,7 +53,7 @@ export function registerTerminalRoutes(
       sessionId = sessionId.slice(botName.length + 1);
     }
 
-    // Validate session ID format (allow new-* mecha-internal IDs)
+    // Validate session ID format (UUIDs, legacy new-* IDs, alphanumeric)
     if (sessionId && !SESSION_ID_RE.test(sessionId)) {
       socket.send(JSON.stringify({
         __mecha: true, type: "error",
@@ -81,7 +81,13 @@ export function registerTerminalRoutes(
 
     try {
       if (session) {
-        ptyManager.attach(session.id, socket);
+        const attached = ptyManager.attach(session.id, socket);
+        /* v8 ignore start -- race: session vanished between lookup and attach */
+        if (!attached) {
+          session = ptyManager.spawn(botName, sessionId, initCols, initRows);
+          ptyManager.attach(session.id, socket);
+        }
+        /* v8 ignore stop */
       } else {
         session = ptyManager.spawn(botName, sessionId, initCols, initRows);
         ptyManager.attach(session.id, socket);
@@ -100,21 +106,24 @@ export function registerTerminalRoutes(
 
     const sessionKey = session.id;
 
-    // Send session ID — strip botName: prefix so client stores only the session part
-    const clientSessionId = sessionKey.startsWith(`${botName}:`)
-      ? sessionKey.slice(botName.length + 1)
-      : sessionKey;
-    socket.send(JSON.stringify({ __mecha: true, type: "session", id: clientSessionId }));
+    /** Send helper: guards against readyState + swallows broken-socket throws. */
+    function safeSend(data: string): void {
+      /* v8 ignore start -- defensive: socket can break between check and send */
+      if (socket.readyState !== socket.OPEN) return;
+      try { socket.send(data); } catch { /* socket closing — ignore */ }
+      /* v8 ignore stop */
+    }
+
+    // Send the real Claude Code session ID so the client can use it for --resume
+    safeSend(JSON.stringify({ __mecha: true, type: "session", id: session.claudeSessionId }));
 
     // Replay scrollback buffer so reattaching clients see recent output
     if (session.scrollback.length > 0) {
       for (const chunk of session.scrollback) {
-        if (socket.readyState === socket.OPEN) socket.send(chunk);
+        safeSend(chunk);
       }
       // Visual separator so user can distinguish replayed output from new output
-      if (socket.readyState === socket.OPEN) {
-        socket.send("\r\n\x1b[2m--- reconnected ---\x1b[0m\r\n");
-      }
+      safeSend("\r\n\x1b[2m--- reconnected ---\x1b[0m\r\n");
     }
 
     // PTY output → WS (text)
@@ -125,7 +134,7 @@ export function registerTerminalRoutes(
     const dataDisposable = session.pty.onData((data) => {
       if (socket.readyState === socket.OPEN) {
         if (socket.bufferedAmount > BACKPRESSURE_LIMIT) return;
-        socket.send(data);
+        safeSend(data);
       }
     });
 
@@ -134,7 +143,7 @@ export function registerTerminalRoutes(
       /* v8 ignore start -- defensive: socket may close before PTY exits */
       if (socket.readyState !== socket.OPEN) return;
       /* v8 ignore stop */
-      socket.send(JSON.stringify({ __mecha: true, type: "exit", code: exitCode }));
+      safeSend(JSON.stringify({ __mecha: true, type: "exit", code: exitCode }));
       socket.close(1000, "PTY exited");
     });
 
@@ -171,6 +180,16 @@ export function registerTerminalRoutes(
       isAlive = false;
       if (socket.readyState === socket.OPEN) socket.ping();
     }, PING_INTERVAL_MS);
+
+    // Prevent unhandled WebSocket errors from crashing the process
+    /* v8 ignore start -- WS errors are rare and hard to reproduce in tests */
+    socket.on("error", () => {
+      clearInterval(pingTimer);
+      ptyManager.detach(sessionKey, socket);
+      dataDisposable.dispose();
+      exitDisposable.dispose();
+    });
+    /* v8 ignore stop */
 
     socket.on("close", () => {
       clearInterval(pingTimer);

@@ -1,5 +1,5 @@
-import { useParams, useSearchParams, Link, useNavigate } from "react-router-dom";
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useParams, useSearchParams, Link } from "react-router-dom";
+import { useState, useCallback, useMemo } from "react";
 import { ArrowLeftIcon, PlayIcon, AlertTriangleIcon } from "lucide-react";
 import { Terminal } from "@/components/terminal";
 import { SessionSelector } from "@/components/session-selector";
@@ -14,26 +14,11 @@ export function TerminalPage() {
   // back/forward navigation and manual URL edits.
   const sessionId = searchParams.get("session") ?? undefined;
 
-  // When navigating to /terminal without a session param (e.g. "New Session
-  // with Terminal" button), assign a new-* ID so the server spawns a fresh PTY
-  // instead of reattaching to the most recent one via findByBot.
-  // Note: Terminal is not rendered until sessionId is set (guard at line ~145).
-  useEffect(() => {
-    if (!sessionId) {
-      const newId = `new-${crypto.randomUUID().slice(0, 8)}`;
-      setSearchParams((prev) => {
-        const next = new URLSearchParams(prev);
-        next.set("session", newId);
-        return next;
-      }, { replace: true });
-    }
-  }, [sessionId, setSearchParams]);
   const nodeQuery = node ? `?node=${encodeURIComponent(node)}` : "";
   const { data: botStatus, refetch: refetchStatus } = useFetch<{ state?: string }>(
     botName ? `/bots/${encodeURIComponent(botName)}/status${nodeQuery}` : null,
     { deps: [botName, node], interval: 10_000 },
   );
-  const navigate = useNavigate();
   const { authHeaders } = useAuth();
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
@@ -43,8 +28,9 @@ export function TerminalPage() {
   const [terminalGen, setTerminalGen] = useState(0);
 
   const handleSessionCreated = useCallback((id: string) => {
-    // Update URL to reflect server-assigned session without triggering remount.
-    // Using `replace` so back button doesn't create a "new session" → "assigned session" pair.
+    // Update URL to reflect server-assigned Claude Code session ID without
+    // triggering remount. Using `replace` so back button doesn't create a
+    // stale → real session ID pair.
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       next.set("session", id);
@@ -52,33 +38,36 @@ export function TerminalPage() {
     }, { replace: true });
   }, [setSearchParams]);
 
-  const handleExit = useCallback((_code: number) => {
-    // Navigate back to bot detail page (sessions tab) after PTY exits.
-    const botUrl = `/bot/${encodeURIComponent(botName!)}${nodeQuery}`;
-    navigate(botUrl);
-  }, [botName, nodeQuery, navigate]);
-
   const handleNewSession = useCallback(() => {
-    // Use a new-* ID so the server spawns a fresh PTY instead of reattaching
-    // to an existing session via findByBot() fallback.
-    const newId = `new-${crypto.randomUUID().slice(0, 8)}`;
+    // Set a new-<random> session marker so the server spawns a fresh PTY
+    // instead of reusing an existing one via findByBot fallback.
+    // The server treats new-* IDs as new sessions and assigns a real UUID.
+    const marker = `new-${Math.random().toString(36).slice(2, 10)}`;
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
-      next.set("session", newId);
+      next.set("session", marker);
       return next;
     });
     setTerminalGen((g) => g + 1);
   }, [setSearchParams]);
 
   const handleSelectSession = useCallback((id: string | undefined) => {
-    // When id is undefined (user selected "New Session" from dropdown),
-    // generate a new-* ID so the server spawns fresh PTY.
-    const sessionValue = id ?? `new-${crypto.randomUUID().slice(0, 8)}`;
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev);
-      next.set("session", sessionValue);
-      return next;
-    });
+    if (id) {
+      // Resume an existing Claude Code session (--resume)
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set("session", id);
+        return next;
+      });
+    } else {
+      // "New Session" selected — spawn fresh PTY
+      const marker = `new-${Math.random().toString(36).slice(2, 10)}`;
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set("session", marker);
+        return next;
+      });
+    }
     setTerminalGen((g) => g + 1);
   }, [setSearchParams]);
 
@@ -119,6 +108,7 @@ export function TerminalPage() {
           <Link
             to={`/bot/${encodeURIComponent(botName)}${nodeQuery}`}
             className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+            aria-label={`Back to ${botName}`}
           >
             <ArrowLeftIcon className="size-4" />
             <span className="hidden sm:inline">{botName}</span>
@@ -156,14 +146,14 @@ export function TerminalPage() {
         </div>
       )}
       <div className="flex-1 min-h-0 rounded-lg border border-border overflow-hidden">
-        {!isRemote && !isStopped && sessionId && (
+        {!isRemote && !isStopped && (
           <Terminal
             key={terminalKey}
             botName={botName}
             sessionId={sessionId}
             node={node}
             onSessionCreated={handleSessionCreated}
-            onExit={handleExit}
+            onNewSession={handleNewSession}
           />
         )}
       </div>
