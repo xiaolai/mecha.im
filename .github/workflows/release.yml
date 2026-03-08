@@ -103,8 +103,7 @@ jobs:
               --team-id "$APPLE_TEAM_ID" \
               --password "$APPLE_ID_PASSWORD" \
               --wait
-            xcrun stapler staple "dist/bin/$arch/mecha"
-            echo "Notarized: $arch"
+            echo "Notarized: $arch (stapling skipped — not supported for bare executables)"
           done
 
       - name: Cleanup keychain
