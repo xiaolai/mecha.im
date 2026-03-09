@@ -12,7 +12,7 @@ Mecha is distributed as a single binary — no package manager required.
 ### macOS (Apple Silicon)
 
 ```bash
-curl -L -o mecha https://github.com/xiaolai/myprojects/releases/latest/download/mecha-darwin-arm64
+curl -L -o mecha https://github.com/xiaolai/mecha.im/releases/latest/download/mecha-darwin-arm64
 chmod +x mecha
 sudo mv mecha /usr/local/bin/
 ```
@@ -20,7 +20,7 @@ sudo mv mecha /usr/local/bin/
 ### macOS (Intel)
 
 ```bash
-curl -L -o mecha https://github.com/xiaolai/myprojects/releases/latest/download/mecha-darwin-x64
+curl -L -o mecha https://github.com/xiaolai/mecha.im/releases/latest/download/mecha-darwin-x64
 chmod +x mecha
 sudo mv mecha /usr/local/bin/
 ```
@@ -28,7 +28,7 @@ sudo mv mecha /usr/local/bin/
 ### Linux (x86_64)
 
 ```bash
-curl -L -o mecha https://github.com/xiaolai/myprojects/releases/latest/download/mecha-linux-x64
+curl -L -o mecha https://github.com/xiaolai/mecha.im/releases/latest/download/mecha-linux-x64
 chmod +x mecha
 sudo mv mecha /usr/local/bin/
 ```
@@ -36,7 +36,7 @@ sudo mv mecha /usr/local/bin/
 ### Linux (ARM64)
 
 ```bash
-curl -L -o mecha https://github.com/xiaolai/myprojects/releases/latest/download/mecha-linux-arm64
+curl -L -o mecha https://github.com/xiaolai/mecha.im/releases/latest/download/mecha-linux-arm64
 chmod +x mecha
 sudo mv mecha /usr/local/bin/
 ```
@@ -46,8 +46,8 @@ sudo mv mecha /usr/local/bin/
 If you prefer to build from source:
 
 ```bash
-git clone https://github.com/xiaolai/myprojects.git
-cd myprojects/mecha.im
+git clone https://github.com/xiaolai/mecha.im.git
+cd mecha.im
 
 # Install dependencies
 pnpm install
