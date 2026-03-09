@@ -182,10 +182,18 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
       return;
     }
 
-    try { lp.child.kill("SIGTERM"); } catch { /* child already gone */ }
+    try { lp.child.kill("SIGTERM"); } catch (err) {
+      /* v8 ignore start -- only ESRCH expected */
+      if ((err as NodeJS.ErrnoException).code !== "ESRCH") throw err;
+      /* v8 ignore stop */
+    }
     const exited = await waitForChildExit(lp.child, DEFAULTS.STOP_GRACE_MS);
     if (!exited) {
-      try { lp.child.kill("SIGKILL"); } catch { /* child already gone */ }
+      try { lp.child.kill("SIGKILL"); } catch (err) {
+        /* v8 ignore start -- only ESRCH expected */
+        if ((err as NodeJS.ErrnoException).code !== "ESRCH") throw err;
+        /* v8 ignore stop */
+      }
       await waitForChildExit(lp.child, 2000);
     }
 
@@ -231,7 +239,11 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
       return;
     }
 
-    try { lp.child.kill("SIGKILL"); } catch { /* child already gone */ }
+    try { lp.child.kill("SIGKILL"); } catch (err) {
+      /* v8 ignore start -- only ESRCH expected */
+      if ((err as NodeJS.ErrnoException).code !== "ESRCH") throw err;
+      /* v8 ignore stop */
+    }
     const killed = await waitForChildExit(lp.child, DEFAULTS.STOP_GRACE_MS);
     /* v8 ignore start -- SIGKILL-surviving edge case */
     if (!killed && live.has(name)) {
