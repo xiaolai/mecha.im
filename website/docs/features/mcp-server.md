@@ -11,13 +11,45 @@ Mecha exposes its control plane as an [MCP (Model Context Protocol)](https://mod
 
 ## Quick Start
 
-Generate the Claude Desktop configuration:
+### Claude Desktop
+
+Generate the configuration:
 
 ```bash
 mecha mcp config
 ```
 
 Copy the JSON output into your Claude Desktop `claude_desktop_config.json` file. Restart Claude Desktop — you'll see mecha's tools available in the tool picker.
+
+### Cursor
+
+Add to your Cursor MCP config (`~/.cursor/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "mecha": {
+      "command": "mecha",
+      "args": ["mcp", "serve"]
+    }
+  }
+}
+```
+
+### Claude Code
+
+Add to your Claude Code MCP config (`.mcp.json` or project settings):
+
+```json
+{
+  "mcpServers": {
+    "mecha": {
+      "command": "mecha",
+      "args": ["mcp", "serve"]
+    }
+  }
+}
+```
 
 ## Operating Modes
 
@@ -84,13 +116,13 @@ p2p-peer: p2p (no http) (p2p:0, n/a)
 
 ### `mecha_list_bots`
 
-Lists bots on the local machine or on a specified remote node.
+Lists bots on the local machine or on a specified remote node. Managed (P2P) nodes do not support remote listing via HTTP — use direct node access instead.
 
 **Parameters:**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `node` | `string` | No | Remote node name to query. Omit for local bots. |
+| `node` | `string` | No | Remote node name to query. Omit for local bots. Managed nodes return an error. |
 | `limit` | `number` | No | Maximum number of results to return. |
 
 **Returns:** One line per bot in the format `<name>: <state> (port <port>) [tags]`. State is `running`, `stopped`, or `error`.
@@ -167,29 +199,29 @@ Returns full detail for a specific session, including message content.
 
 ### `mecha_workspace_list`
 
-Lists files in a local bot's workspace directory. Delegates to the bot runtime's embedded MCP tool.
+Lists files in a local bot's workspace directory. Delegates to the bot runtime's embedded MCP tool. Paths are validated to prevent traversal outside the workspace root.
 
 **Parameters:**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `target` | `string` | Yes | bot name. |
-| `path` | `string` | No | Subdirectory path relative to workspace root. Defaults to root. |
+| `path` | `string` | No | Subdirectory path relative to workspace root. Defaults to root. Path traversal (`../`) is rejected. |
 
-**Returns:** File listing from the bot's workspace.
+**Returns:** File listing from the bot's workspace. Returns an error if the bot is not running or the path is invalid.
 
 ### `mecha_workspace_read`
 
-Reads a file from a local bot's workspace. Delegates to the bot runtime's embedded MCP tool.
+Reads a file from a local bot's workspace. Delegates to the bot runtime's embedded MCP tool. Paths are validated to prevent traversal outside the workspace root.
 
 **Parameters:**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `target` | `string` | Yes | bot name. |
-| `path` | `string` | Yes | File path relative to workspace root. |
+| `path` | `string` | Yes | File path relative to workspace root. Path traversal (`../`) is rejected. |
 
-**Returns:** File contents as text.
+**Returns:** File contents as text. Returns an error if the bot is not running, the file does not exist, or the path is invalid.
 
 ### `mecha_query`
 
@@ -199,11 +231,13 @@ Send a message to a bot and receive a response. Supports both local and remote b
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `target` | `string` | Yes | Bot name (`bot-a`) or remote address (`bot-a@spark01`). |
+| `target` | `string` | Yes | Bot name (`bot-a`) for local, or `bot-a@spark01` for remote. Group addresses (`+group`) are not supported. |
 | `message` | `string` | Yes | Message to send (must be non-empty). |
 | `sessionId` | `string` | No | Session ID to continue an existing conversation. |
 
-**Returns:** Bot's text response. If a session was created or continued, includes `[sessionId: ...]` for continuity. Remote queries include `X-Mecha-Source: mcp:<client-name>` for ACL enforcement.
+**Returns:** Bot's text response, optionally followed by `\n[sessionId: <id>]` for conversation continuity. Remote queries include `X-Mecha-Source: mcp:<client-name>` header for ACL enforcement.
+
+**Errors:** Returns an error if the bot is not running (local), the node is not found (remote), the node is managed (P2P), or the remote node returns a non-2xx status.
 
 ## Audit Log
 
@@ -212,6 +246,8 @@ Every MCP tool call is logged to `~/.mecha/audit.jsonl` with:
 - Timestamp, client info, tool name, parameters
 - Result status (ok/error) and duration
 - Client identification (e.g., `claude-desktop/1.2.3`)
+
+> **Note:** Tool parameters are logged as-is (truncated at 1024 bytes). For `mecha_query`, this includes the message content. If your messages may contain sensitive data (secrets, PII), consider reviewing and clearing the audit log periodically with `mecha audit clear`.
 
 View and manage the audit log:
 
@@ -238,14 +274,14 @@ Each line in `audit.jsonl` is a JSON object with the following fields:
 
 ## Rate Limiting
 
-Built-in sliding-window rate limiting protects against runaway clients:
+Built-in sliding-window rate limiting protects against excessive requests:
 
 | Tool Tier | Limit |
 |-----------|-------|
 | Read tools (discovery, sessions, workspace) | 120 requests/minute |
 | Query tools (`mecha_query`) | 30 requests/minute |
 
-Rate limits are per-tool and reset on a sliding window.
+Rate limits are **per-tool, global across all clients** in the server process, and reset on a sliding window. When rate-limited, the tool returns an error with `result: "rate-limited"` in the audit log.
 
 ## Tool Annotations
 
@@ -300,11 +336,15 @@ Each HTTP session gets its own transport and server instance. Sessions are track
 Idle sessions are automatically expired and cleaned up. When a session is closed (via DELETE or timeout), both the transport and server instances are shut down. On process shutdown (SIGINT/SIGTERM), all sessions are closed gracefully before the HTTP server stops.
 
 > **Security note:** When binding to a non-loopback address (e.g., `0.0.0.0`), you must provide a `--token` for Bearer authentication. All requests must include an `Authorization: Bearer <token>` header. On localhost (`127.0.0.1`), authentication is optional but recommended. Token comparison uses constant-time `safeCompare` to prevent timing attacks.
+>
+> **Important:** HTTP transport does not use TLS. When exposing on non-loopback interfaces, always place behind a TLS-terminating reverse proxy or tunnel (e.g., Tailscale, nginx, Caddy) to prevent token interception.
 
 ```bash
 # Example: Start HTTP server with authentication
-mecha mcp serve --transport http --token my-secret-token
-mecha mcp serve --transport http --host 0.0.0.0 --token my-secret-token
+# Use an environment variable to avoid leaking the token in shell history
+export MECHA_MCP_TOKEN="my-secret-token"
+mecha mcp serve --transport http --token "$MECHA_MCP_TOKEN"
+mecha mcp serve --transport http --host 0.0.0.0 --token "$MECHA_MCP_TOKEN"
 ```
 
 ## Architecture
