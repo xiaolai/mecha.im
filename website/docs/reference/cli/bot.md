@@ -48,6 +48,9 @@ mecha bot spawn <name> [path] [options]
 | `--strict-mcp-config` | Only use specified MCP servers | |
 | `--plugin-dir <dirs>` | Comma-separated plugin directories | |
 | `--disable-slash-commands` | Disable all skills | |
+| `--dangerously-skip-permissions` | Skip all permission checks (requires `--sandbox require`) | |
+| `--allow-dangerously-skip-permissions` | Allow `--dangerously-skip-permissions` without defaulting to it | |
+| `--fallback-model <model>` | Fallback model when primary is overloaded | |
 | `--budget-limit <dollars>` | Mecha-level aggregate budget cap | |
 
 When `[path]` is omitted, CWD defaults to `--home` (or `~/.mecha/<name>/` if `--home` is also omitted). A warning is emitted if CWD is not under HOME.

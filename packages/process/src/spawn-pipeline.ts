@@ -61,6 +61,26 @@ export async function spawnBot(ctx: SpawnContext, spawnOpts: SpawnOpts): Promise
     userEnv: spawnOpts.env,
     meterOff: spawnOpts.meterOff,
     home,
+    systemPrompt: spawnOpts.systemPrompt,
+    appendSystemPrompt: spawnOpts.appendSystemPrompt,
+    effort: spawnOpts.effort,
+    maxBudgetUsd: spawnOpts.maxBudgetUsd,
+    allowedTools: spawnOpts.allowedTools,
+    disallowedTools: spawnOpts.disallowedTools,
+    tools: spawnOpts.tools,
+    agent: spawnOpts.agent,
+    agents: spawnOpts.agents,
+    sessionPersistence: spawnOpts.sessionPersistence,
+    budgetLimit: spawnOpts.budgetLimit,
+    mcpServers: spawnOpts.mcpServers,
+    mcpConfigFiles: spawnOpts.mcpConfigFiles,
+    strictMcpConfig: spawnOpts.strictMcpConfig,
+    pluginDirs: spawnOpts.pluginDirs,
+    disableSlashCommands: spawnOpts.disableSlashCommands,
+    addDirs: spawnOpts.addDirs,
+    dangerouslySkipPermissions: spawnOpts.dangerouslySkipPermissions,
+    allowDangerouslySkipPermissions: spawnOpts.allowDangerouslySkipPermissions,
+    fallbackModel: spawnOpts.fallbackModel,
   });
 
   // Determine runtime binary path
@@ -91,6 +111,9 @@ export async function spawnBot(ctx: SpawnContext, spawnOpts: SpawnOpts): Promise
     }
     if (available) {
       const config = readBotConfig(botDir);
+      if (!config && sandboxMode === "require") {
+        throw new ProcessSpawnError("Sandbox required but config.json could not be read for profile generation");
+      }
       if (config) {
         const profile = profileFromConfig({
           config, botDir, mechaDir, runtimeEntrypoint: ctx.opts.runtimeEntrypoint,

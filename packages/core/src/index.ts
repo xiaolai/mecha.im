@@ -28,6 +28,7 @@ export {
   MechaError,
   InvalidNameError,
   InvalidAddressError,
+  ConfigValidationError,
   BotNotFoundError,
   BotAlreadyExistsError,
   BotNotRunningError,

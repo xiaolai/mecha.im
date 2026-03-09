@@ -32,7 +32,7 @@ export function registerBotSpawnCommand(parent: Command, deps: CommandDeps): voi
     .option("--max-budget-usd <dollars>", "Max USD budget per session")
     .option("--allowed-tools <tools>", "Comma-separated allowed tools (Claude Code syntax)")
     .option("--disallowed-tools <tools>", "Comma-separated disallowed tools")
-    .option("--tools <tools>", "Override tool set (comma-separated, empty string disables all)")
+    .option("--tools <tools>", "Override tool set (comma-separated)")
     .option("--add-dir <dirs>", "Comma-separated additional directories")
     .option("--agent <name>", "Agent preset name")
     .option("--no-session-persistence", "Disable session persistence")
@@ -40,6 +40,9 @@ export function registerBotSpawnCommand(parent: Command, deps: CommandDeps): voi
     .option("--strict-mcp-config", "Only use specified MCP servers")
     .option("--plugin-dir <dirs>", "Comma-separated plugin directories")
     .option("--disable-slash-commands", "Disable all skills")
+    .option("--dangerously-skip-permissions", "Skip all permission checks (requires sandbox: require)")
+    .option("--allow-dangerously-skip-permissions", "Allow --dangerously-skip-permissions without defaulting to it")
+    .option("--fallback-model <model>", "Fallback model when primary is overloaded")
     .option("--budget-limit <dollars>", "Mecha-level aggregate budget cap")
     .action(async (name: string, path: string | undefined, opts: {
       port?: string; auth?: string | boolean; tags?: string; expose?: string;
@@ -49,6 +52,8 @@ export function registerBotSpawnCommand(parent: Command, deps: CommandDeps): voi
       addDir?: string; agent?: string; sessionPersistence?: boolean;
       mcpConfig?: string; strictMcpConfig?: boolean; pluginDir?: string;
       disableSlashCommands?: boolean; budgetLimit?: string;
+      dangerouslySkipPermissions?: boolean; allowDangerouslySkipPermissions?: boolean;
+      fallbackModel?: string;
     }) => withErrorHandler(deps, async () => {
       const validated = botName(name);
       const port = opts.port ? parsePort(opts.port) : undefined;
@@ -101,7 +106,17 @@ export function registerBotSpawnCommand(parent: Command, deps: CommandDeps): voi
       const mcpConfigFiles = opts.mcpConfig?.split(",").map(p => p.trim()).filter(Boolean);
       const pluginDirs = opts.pluginDir?.split(",").map(p => p.trim()).filter(Boolean);
       const maxBudgetUsd = opts.maxBudgetUsd ? parseFloat(opts.maxBudgetUsd) : undefined;
+      if (maxBudgetUsd !== undefined && (!Number.isFinite(maxBudgetUsd) || maxBudgetUsd <= 0)) {
+        deps.formatter.error("--max-budget-usd must be a positive number");
+        process.exitCode = 1;
+        return;
+      }
       const budgetLimit = opts.budgetLimit ? parseFloat(opts.budgetLimit) : undefined;
+      if (budgetLimit !== undefined && (!Number.isFinite(budgetLimit) || budgetLimit <= 0)) {
+        deps.formatter.error("--budget-limit must be a positive number");
+        process.exitCode = 1;
+        return;
+      }
       // Cross-field validation
       const validation = validateBotConfig({
         permissionMode: opts.permissionMode,
@@ -113,6 +128,7 @@ export function registerBotSpawnCommand(parent: Command, deps: CommandDeps): voi
         tools,
         maxBudgetUsd,
         meterOff: opts.meter === "off",
+        dangerouslySkipPermissions: opts.dangerouslySkipPermissions,
       });
       if (!validation.ok) {
         deps.formatter.error(validation.errors.join("; "));
@@ -181,6 +197,9 @@ export function registerBotSpawnCommand(parent: Command, deps: CommandDeps): voi
           strictMcpConfig: opts.strictMcpConfig,
           pluginDirs,
           disableSlashCommands: opts.disableSlashCommands,
+          dangerouslySkipPermissions: opts.dangerouslySkipPermissions,
+          allowDangerouslySkipPermissions: opts.allowDangerouslySkipPermissions,
+          fallbackModel: opts.fallbackModel,
         });
         deps.formatter.success(`Spawned ${info.name} on port ${info.port}`);
       } finally {

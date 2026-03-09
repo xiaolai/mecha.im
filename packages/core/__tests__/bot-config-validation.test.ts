@@ -51,6 +51,37 @@ describe("validateBotConfig", () => {
     expect(result.warnings).toHaveLength(0);
   });
 
+  // Rule 1b: REJECT dangerouslySkipPermissions without sandboxMode require
+  it("rejects dangerouslySkipPermissions when sandboxMode is not require", () => {
+    const result = validateBotConfig({
+      dangerouslySkipPermissions: true,
+      sandboxMode: "off",
+    });
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain(
+      "dangerouslySkipPermissions requires sandboxMode 'require'",
+    );
+  });
+
+  it("rejects dangerouslySkipPermissions when sandboxMode is undefined", () => {
+    const result = validateBotConfig({
+      dangerouslySkipPermissions: true,
+    });
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain(
+      "dangerouslySkipPermissions requires sandboxMode 'require'",
+    );
+  });
+
+  it("allows dangerouslySkipPermissions with sandboxMode require", () => {
+    const result = validateBotConfig({
+      dangerouslySkipPermissions: true,
+      sandboxMode: "require",
+    });
+    expect(result.ok).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
   // Rule 2: WARN auto + off
   it("warns when permissionMode auto with sandboxMode off", () => {
     const result = validateBotConfig({
@@ -103,6 +134,26 @@ describe("validateBotConfig", () => {
     });
     expect(result.ok).toBe(true);
     expect(result.errors).toHaveLength(0);
+  });
+
+  // Rule 4b: REJECT disallowedTools + tools both non-empty
+  it("rejects both disallowedTools and tools non-empty", () => {
+    const result = validateBotConfig({
+      disallowedTools: ["Write"],
+      tools: ["Read"],
+    });
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain(
+      "disallowedTools and tools are mutually exclusive",
+    );
+  });
+
+  it("allows disallowedTools empty with tools non-empty", () => {
+    const result = validateBotConfig({
+      disallowedTools: [],
+      tools: ["Read"],
+    });
+    expect(result.ok).toBe(true);
   });
 
   // Rule 5: WARN maxBudgetUsd with meterOff
