@@ -1,95 +1,75 @@
 ---
 title: What is Mecha?
-description: Mecha is a local-first multi-agent runtime for running multiple Claude agents as isolated processes.
+description: Mecha runs an army of Claude Code bots on your own machines — scheduled, sandboxed, and organized in a tree.
 ---
 
 # What is Mecha?
 
 [[toc]]
 
-Mecha is a **local-first multi-agent runtime** that lets you run multiple Claude agents as isolated processes on your own machine. Each agent — called a **bot** (Claude Agent SDK App) — gets its own workspace, permissions, and identity.
+Mecha lets you run an army of bots on your own machines. Each bot is a Claude Code process with its own workspace, identity, and schedule.
 
-## Why Mecha?
+## Why
 
-Running AI agents locally gives you:
+You need more than one AI assistant. You need a team — a coder, a reviewer, a researcher, a monitor — each focused on its own job, running on your hardware, under your control.
 
-- **Privacy** — your code and conversations never leave your machine
-- **Speed** — agents start in under a second, no container boot time
-- **Control** — fine-grained permissions decide what each agent can access
-- **Cost visibility** — built-in metering tracks every API call per agent
+Mecha makes this possible. It wraps Claude Code (specifically) into managed processes called **bots**. You define a bot with a markdown file, spawn it, and let it work.
 
-## How It Works
+## Bots are markdown files
 
-```mermaid
-sequenceDiagram
-  participant You as You (terminal)
-  participant coder
-  participant reviewer
-  participant researcher
+A bot's identity lives in a markdown file. The file defines its system prompt, instructions, and constraints. Mecha reads the file, spawns a Claude Code session with those settings, and manages the process.
 
-  You->>researcher: mecha bot spawn researcher ~/papers
-  You->>coder: mecha bot spawn coder ~/project
-  You->>reviewer: mecha bot spawn reviewer ~/project
-  You->>coder: mecha bot chat coder "refactor the auth module"
-  coder->>reviewer: mesh_query: "review this code"
-  reviewer->>coder: reads workspace (ACL-gated)
-  reviewer-->>coder: code review response
-  coder-->>You: applies changes
+```
+bots/
+├── coder/
+│   ├── CLAUDE.md          ← the bot's identity
+│   ├── config.json        ← port, workspace, model, schedule
+│   └── sessions/          ← conversation history (JSONL)
+├── reviewer/
+│   └── ...
+└── researcher/
+    └── ...
 ```
 
-Each agent runs as a separate process with:
+Each bot gets its own workspace directory, chat sessions, MCP tools, and API budget.
 
-- Its own **workspace directory** (read/write only its own files)
-- Its own **chat sessions** (persistent conversation history)
-- Its own **MCP tools** (workspace_list, workspace_read, mesh_query)
-- Its own **budget** (daily API cost limit)
+## Active, not passive
 
-Agents communicate through **mesh queries** — one agent asks another a question, mediated by the ACL engine that checks permissions on both sides.
+Most AI setups wait for you to type something. Mecha bots can be active:
 
-## Key Concepts
+- **Scheduled** — run tasks on a cron schedule (check logs every hour, review PRs daily)
+- **Responsive** — listen for events via webhooks or mesh queries from other bots
+- **Autonomous** — work through multi-step tasks independently within their sandbox
 
-### bot (Claude Agent SDK App)
+A bot sitting idle is a bot not earning its keep.
 
-A bot is the unit of deployment in Mecha. Each bot is a Fastify server process that wraps the Claude Agent SDK, providing:
+## Tree structure
 
-- HTTP API for chat (with SSE streaming)
-- MCP tool server (workspace access + mesh tools)
-- Session management (conversation persistence as JSONL files)
+Bots are organized in a tree. A machine runs a node. A node manages bots. Multiple nodes form a mesh.
 
-### Names and Addresses
-
-Every bot has a human-readable name:
-
-```text
-researcher              ← local name
-researcher@alice        ← fully qualified (name@node)
-+research               ← group address (all bots tagged "research")
+```
+mesh
+├── macbook (node)
+│   ├── coder
+│   ├── reviewer
+│   └── researcher
+├── server-01 (node)
+│   ├── monitor
+│   └── deployer
+└── server-02 (node)
+    └── data-analyst
 ```
 
-### Permissions (ACL)
+Bots on different machines talk to each other through mesh queries. Permissions control who can talk to whom.
 
-Mecha uses capability-based access control:
+## Built on Claude Code
 
-```bash
-# Allow coder to query reviewer
-mecha acl grant coder query reviewer
+Mecha is not a generic AI framework. It runs Claude Code — the same CLI tool Anthropic ships. Every bot gets the full Claude Code toolset: file editing, bash execution, web search, MCP servers.
 
-# Allow researcher to read coder's workspace
-mecha acl grant researcher read_workspace coder
-```
-
-No grant = no access. Every inter-agent interaction is checked against the ACL.
-
-### Sandbox
-
-Each bot runs inside an OS-level sandbox:
-
-- **macOS**: `sandbox-exec` profiles restrict filesystem and network
-- **Linux**: `bwrap` (bubblewrap) provides namespace isolation
-- **Fallback**: Process-level restrictions when no sandbox runtime is available
+This means your bots can do real work: write code, run tests, read documentation, manage files. They operate in real workspaces on real filesystems.
 
 ## What's Next?
 
-- [Install Mecha](/guide/installation) — download the binary
-- [Quick Start](/guide/quickstart) — create your first agent in 5 minutes
+- [Install Mecha](/guide/installation) — `brew install xiaolai/tap/mecha`
+- [Quick Start](/guide/quickstart) — zero to a working bot in 5 minutes
 - [Core Concepts](/guide/concepts) — deep dive into the architecture

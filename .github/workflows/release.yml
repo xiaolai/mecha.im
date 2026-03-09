@@ -144,3 +144,86 @@ jobs:
         with:
           generate_release_notes: true
           files: artifacts/mecha-*.tar.gz
+
+  update-homebrew:
+    needs: [release]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compute SHA256 hashes
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+          for platform in darwin-arm64 darwin-x64 linux-arm64 linux-x64; do
+            URL="https://github.com/xiaolai/mecha.im/releases/download/v${VERSION}/mecha-${platform}.tar.gz"
+            SHA=$(curl -sL "$URL" | shasum -a 256 | awk '{print $1}')
+            VAR="SHA_$(echo "$platform" | tr '-' '_' | tr '[:lower:]' '[:upper:]')"
+            echo "${VAR}=${SHA}" >> "$GITHUB_ENV"
+            echo "${platform}: ${SHA}"
+          done
+
+      - name: Checkout homebrew-tap
+        uses: actions/checkout@v4
+        with:
+          repository: xiaolai/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Update formula
+        run: |
+          cat > homebrew-tap/Formula/mecha.rb << 'RUBY'
+          class Mecha < Formula
+            desc "Run an army of Claude Code bots on your machines"
+            homepage "https://mecha.im"
+            version "VERSION_PLACEHOLDER"
+            license "ISC"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/xiaolai/mecha.im/releases/download/v#{version}/mecha-darwin-arm64.tar.gz"
+                sha256 "SHA_DARWIN_ARM64_PLACEHOLDER"
+              else
+                url "https://github.com/xiaolai/mecha.im/releases/download/v#{version}/mecha-darwin-x64.tar.gz"
+                sha256 "SHA_DARWIN_X64_PLACEHOLDER"
+              end
+            end
+
+            on_linux do
+              if Hardware::CPU.arm?
+                url "https://github.com/xiaolai/mecha.im/releases/download/v#{version}/mecha-linux-arm64.tar.gz"
+                sha256 "SHA_LINUX_ARM64_PLACEHOLDER"
+              else
+                url "https://github.com/xiaolai/mecha.im/releases/download/v#{version}/mecha-linux-x64.tar.gz"
+                sha256 "SHA_LINUX_X64_PLACEHOLDER"
+              end
+            end
+
+            def install
+              bin.install "mecha"
+              (bin/"spa").install Dir["spa/*"] if (buildpath/"spa").exist?
+            end
+
+            test do
+              assert_match version.to_s, shell_output("#{bin}/mecha --version")
+            end
+          end
+          RUBY
+
+          # Replace placeholders with actual values
+          sed -i "s/VERSION_PLACEHOLDER/$VERSION/" homebrew-tap/Formula/mecha.rb
+          sed -i "s/SHA_DARWIN_ARM64_PLACEHOLDER/$SHA_DARWIN_ARM64/" homebrew-tap/Formula/mecha.rb
+          sed -i "s/SHA_DARWIN_X64_PLACEHOLDER/$SHA_DARWIN_X64/" homebrew-tap/Formula/mecha.rb
+          sed -i "s/SHA_LINUX_ARM64_PLACEHOLDER/$SHA_LINUX_ARM64/" homebrew-tap/Formula/mecha.rb
+          sed -i "s/SHA_LINUX_X64_PLACEHOLDER/$SHA_LINUX_X64/" homebrew-tap/Formula/mecha.rb
+
+          # Fix indentation (heredoc adds leading spaces)
+          sed -i 's/^          //' homebrew-tap/Formula/mecha.rb
+
+      - name: Push formula update
+        run: |
+          cd homebrew-tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/mecha.rb
+          git commit -m "mecha $VERSION"
+          git push
