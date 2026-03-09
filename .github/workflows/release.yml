@@ -200,7 +200,6 @@ jobs:
 
             def install
               bin.install "mecha"
-              (bin/"spa").install Dir["spa/*"] if (buildpath/"spa").exist?
             end
 
             test do

@@ -65,9 +65,18 @@ Mecha is not a generic AI framework. It runs Claude Code — the same CLI tool A
 
 This means your bots can do real work: write code, run tests, read documentation, manage files. They operate in real workspaces on real filesystems.
 
+## Install
+
+```bash
+brew install xiaolai/tap/mecha
+```
+
 ## Quick start
 
 ```bash
+# Initialize
+mecha init
+
 # Start the runtime
 mecha start
 
