@@ -101,7 +101,7 @@ export function NodeAddForm({ open, onOpenChange, onAdded }: Props) {
               value={name}
               onChange={(e) => setName(e.target.value)}
               onBlur={() => setTouched((t) => ({ ...t, name: true }))}
-              placeholder="linode02"
+              placeholder="my-server"
               className="h-11 sm:h-9 font-mono"
             />
             {nameError && <p className="text-xs text-destructive">{nameError}</p>}

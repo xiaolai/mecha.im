@@ -231,7 +231,7 @@ Send a message to a bot and receive a response. Supports both local and remote b
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `target` | `string` | Yes | Bot name (`bot-a`) for local, or `bot-a@spark01` for remote. Group addresses (`+group`) are not supported. |
+| `target` | `string` | Yes | Bot name (`bot-a`) for local, or `bot-a@remote-node` for remote. Group addresses (`+group`) are not supported. |
 | `message` | `string` | Yes | Message to send (must be non-empty). |
 | `sessionId` | `string` | No | Session ID to continue an existing conversation. |
 
