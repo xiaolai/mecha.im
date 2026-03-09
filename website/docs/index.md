@@ -5,6 +5,9 @@ hero:
   name: Mecha
   text: An Army of Bots on Your Machines
   tagline: Each bot is a Claude Code process — sandboxed, scheduled, and managed from your terminal.
+  image:
+    src: /hero-mecha.png
+    alt: Mecha
   actions:
     - theme: brand
       text: Get Started
