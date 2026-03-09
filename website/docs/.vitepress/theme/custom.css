@@ -1,32 +1,26 @@
 /* Feature cards: icon inline at the beginning of the heading */
 .VPFeature article .box {
-  display: block;
+  display: block !important;
+  flex-direction: unset !important;
 }
 
 .VPFeature .box .icon {
-  display: inline;
-  background: none;
-  border-radius: 0;
-  padding: 0;
-  margin: 0 0.4em 0 0;
-  width: auto;
-  height: auto;
-  vertical-align: middle;
+  display: inline !important;
+  background: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  margin: 0 0.3em 0 0 !important;
+  width: auto !important;
+  height: auto !important;
 }
 
 .VPFeature .box .icon svg {
-  display: inline;
-  vertical-align: -0.15em;
+  display: inline !important;
+  width: 0.75em;
+  height: 0.75em;
+  vertical-align: -0.05em;
 }
 
 .VPFeature .box h2.title {
-  display: inline;
-}
-
-/* Match icon size to h2 font size */
-.VPFeature .box .icon,
-.VPFeature .box .icon svg {
-  font-size: inherit;
-  width: 1em;
-  height: 1em;
+  display: inline !important;
 }
