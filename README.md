@@ -85,8 +85,8 @@ brew install xiaolai/tap/mecha
 # Initialize
 mecha init
 
-# Start the runtime
-mecha start
+# Start the runtime (background)
+mecha start -d
 
 # Spawn a bot
 mecha bot spawn coder ~/my-project

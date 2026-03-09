@@ -25,12 +25,18 @@ mecha start [options]
 |--------|-------------|---------|
 | `--port <port>` | Agent server port | `7660` |
 | `--host <host>` | Bind address | `127.0.0.1` |
+| `-d, --daemon` | Run in background (fork and exit) | `false` |
 | `--open` | Open browser after starting | `false` |
 
 The server ensures a TOTP secret exists in `~/.mecha/` and displays a QR code on first run. The SPA dashboard is served from the same port if a built SPA directory is found.
 
+When started with `--daemon` (or `-d`), the server forks to the background and writes a PID file to `~/.mecha/daemon.pid`. The parent process exits immediately.
+
+On startup, the server also writes `~/.mecha/agent.json` with the port and PID for client discovery. This file is cleaned up on shutdown.
+
 ```bash
 mecha start
+mecha start -d                          # background mode
 mecha start --port 7661 --host 0.0.0.0
 mecha start --open
 ```
@@ -47,7 +53,7 @@ mecha stop [options]
 |--------|-------------|---------|
 | `--force` | Force kill bots (SIGKILL) instead of graceful stop (SIGTERM) | `false` |
 
-Gracefully stops all running bots (SIGTERM), then stops the meter proxy and daemon. With `--force`, sends SIGKILL immediately.
+Gracefully stops all running bots (SIGTERM), then stops the meter proxy and daemon process. Cleans up `daemon.pid` and `agent.json` discovery files. With `--force`, sends SIGKILL immediately.
 
 ```bash
 mecha stop
@@ -89,6 +95,31 @@ Run system health checks (directory structure, sandbox availability, etc.).
 
 ```bash
 mecha doctor
+```
+
+### `mecha status`
+
+Show daemon, server, and bot status at a glance.
+
+```bash
+mecha status [options]
+```
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--port <port>` | Agent server port to check | auto-detected from `agent.json`, or `7660` |
+
+Shows:
+- **Daemon** — running (with PID), stale PID file, or not running
+- **Server** — reachable or not on the detected/specified port
+- **Bots** — table of all configured bots with name, state, port, workspace
+
+If `agent.json` exists (written by `mecha start`), the port is auto-detected from it.
+
+```bash
+mecha status
+mecha status --json
+mecha status --port 7661
 ```
 
 ---
