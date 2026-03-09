@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import Fastify, { type FastifyInstance } from "fastify";
+import fastifyCors from "@fastify/cors";
 import fastifyWebSocket from "@fastify/websocket";
 import { type AclEngine, MechaError, readNodes, verifySignature, readMechaSettings, CLAUDE_MODELS } from "@mecha/core";
 import type { ProcessManager, PtySpawnFn } from "@mecha/process";
@@ -71,6 +72,12 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
     },
   });
 
+  // CORS: deny cross-origin by default, allow same-origin SPA requests
+  app.register(fastifyCors, {
+    origin: false, // deny all cross-origin requests
+    credentials: true,
+  });
+
   // Global error handler — map MechaError to correct HTTP status
   /* v8 ignore start -- error handler tested via route-level integration tests */
   app.setErrorHandler((err, _req, reply) => {
@@ -85,8 +92,14 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
 
   /* v8 ignore start -- node key loading requires live nodes.json + readNodes */
   // Build node public key map for signature verification.
-  // Reloaded from disk on each resolution to pick up key rotation/revocation.
+  // Cached with 30s TTL to avoid disk I/O on every request while still picking
+  // up key rotation/revocation within a reasonable window.
+  let _nodeKeyCache: { keys: Map<string, string>; ts: number } | undefined;
+  const NODE_KEY_TTL_MS = 30_000;
+
   function loadNodePublicKeys(): Map<string, string> {
+    const now = Date.now();
+    if (_nodeKeyCache && now - _nodeKeyCache.ts < NODE_KEY_TTL_MS) return _nodeKeyCache.keys;
     const keys = new Map<string, string>();
     try {
       const nodes = readNodes(opts.mechaDir);
@@ -98,6 +111,7 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
       app.log.warn("Failed to read nodes.json — routing will reject signed requests: %s",
         err instanceof Error ? err.message : String(err));
     }
+    _nodeKeyCache = { keys, ts: now };
     return keys;
   }
 

@@ -94,6 +94,15 @@ export function bootstrap(opts: BootstrapOpts): void {
     process.on("exit", () => releaseCliLock(mechaDir));
   }
 
+  process.on("unhandledRejection", (reason) => {
+    console.error("[mecha:cli] Unhandled rejection:", reason instanceof Error ? reason.message : String(reason));
+    process.exitCode = 1;
+  });
+  process.on("uncaughtException", (err) => {
+    console.error("[mecha:cli] Uncaught exception:", err.message);
+    process.exitCode = 1;
+  });
+
   program.parseAsync(process.argv).catch((err: unknown) => {
     formatter.error(err instanceof Error ? err.message : String(err));
     process.exitCode = err instanceof MechaError ? err.exitCode : 1;
