@@ -2,7 +2,6 @@ import { existsSync, mkdirSync, writeFileSync, unlinkSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createRequire } from "node:module";
 
 /**
  * Resolve the SPA dist directory.
@@ -14,7 +13,7 @@ import { createRequire } from "node:module";
  *
  * Returns undefined if not found (dashboard won't be served).
  */
-export function resolveSpaDir(): string | undefined {
+export async function resolveSpaDir(): Promise<string | undefined> {
   // 1. Monorepo: packages/cli/dist/../spa/dist → packages/spa/dist
   const thisDir = dirname(fileURLToPath(import.meta.url));
   const monorepoPath = join(thisDir, "..", "..", "spa", "dist");
@@ -37,7 +36,7 @@ export function resolveSpaDir(): string | undefined {
   // 3. Embedded SPA: extract compressed archive to cache dir
   /* v8 ignore start -- embedded SPA only exists in compiled binary */
   try {
-    return extractEmbeddedSpa();
+    return await extractEmbeddedSpa();
   } catch (err) {
     process.stderr.write(`[mecha] SPA extraction failed: ${err instanceof Error ? err.message : "unknown"}\n`);
   }
@@ -49,12 +48,12 @@ export function resolveSpaDir(): string | undefined {
 /* v8 ignore start -- embedded SPA extraction only runs in compiled binary */
 
 /** Extract the embedded SPA archive to a versioned cache directory. */
-function extractEmbeddedSpa(): string | undefined {
+async function extractEmbeddedSpa(): Promise<string | undefined> {
   let mod: { SPA_ARCHIVE_B64: string; SPA_VERSION: string };
   try {
-    // Use createRequire for ESM compatibility — dynamic import won't work with generated file
-    const esmRequire = createRequire(import.meta.url);
-    mod = esmRequire("./spa-embedded.generated.js");
+    // Dynamic import so Bun's bundler includes the generated file in compiled binaries.
+    // createRequire does NOT work in Bun compiled binaries.
+    mod = await import("./spa-embedded.generated.js");
   } catch {
     return undefined;
   }

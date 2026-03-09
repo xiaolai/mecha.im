@@ -36,7 +36,7 @@ export async function executeDashboardServe(opts: DashboardServeOpts, deps: Comm
     }
   }
 
-  const spaDir = resolveSpaDir();
+  const spaDir = await resolveSpaDir();
   if (!spaDir) {
     deps.formatter.error("SPA not found. Run: pnpm --filter @mecha/spa build");
     process.exitCode = 1;

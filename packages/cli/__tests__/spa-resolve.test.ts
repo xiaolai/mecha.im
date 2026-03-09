@@ -1,7 +1,4 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
 
 // We can't easily test resolveSpaDir since it uses import.meta.url
 // to resolve relative to the source file. Instead we test the exported
@@ -22,7 +19,7 @@ describe("resolveSpaDir", () => {
 
   it("returns undefined when no SPA dist found", async () => {
     const { resolveSpaDir } = await import("../src/spa-resolve.js");
-    const result = resolveSpaDir();
+    const result = await resolveSpaDir();
     expect(result).toBeUndefined();
   });
 
@@ -33,7 +30,7 @@ describe("resolveSpaDir", () => {
     });
 
     const { resolveSpaDir } = await import("../src/spa-resolve.js");
-    const result = resolveSpaDir();
+    const result = await resolveSpaDir();
     expect(result).toBeDefined();
     expect(result).toContain("spa");
   });
