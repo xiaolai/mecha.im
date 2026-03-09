@@ -144,6 +144,20 @@ describe("mecha_query", () => {
     expect(getText(result)).toMatch(/failed/i);
   });
 
+  it("returns helpful error when bot returns 501 (SDK-only)", async () => {
+    const ctx = makeLocalBotCtx();
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: false,
+      status: 501,
+      statusText: "Not Implemented",
+    }));
+
+    const result = await callTool(ctx, "mecha_query", { target: "bot-a", message: "hello" });
+    expect(result.isError).toBe(true);
+    expect(getText(result)).toMatch(/does not support HTTP chat/i);
+    expect(getText(result)).toContain("SDK-only");
+  });
+
   // --- Remote bot ---
 
   it("queries a remote bot via agentFetch with source header", async () => {

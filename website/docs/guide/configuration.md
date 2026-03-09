@@ -5,6 +5,8 @@ description: Configure auth profiles, bot settings, sandbox modes, and runtime o
 
 # Configuration
 
+[[toc]]
+
 ## Auth Profiles
 
 Mecha supports multiple authentication profiles for different API credentials.
