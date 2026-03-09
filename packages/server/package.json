@@ -1,6 +1,6 @@
 {
   "name": "@mecha/server",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Rendezvous + relay server for mecha.im P2P connectivity",
   "type": "module",
   "exports": {
