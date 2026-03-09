@@ -47,22 +47,10 @@ export function registerStartCommand(program: Command, deps: CommandDeps): void 
         );
         const child = spawn(process.execPath, filteredArgs, {
           detached: true,
-          stdio: ["ignore", "ignore", "ignore"],
+          stdio: "ignore",
         });
         const childPid = child.pid!;
         child.unref();
-
-        // Wait briefly for the child to boot (or fail)
-        const ok = await new Promise<boolean>((resolve) => {
-          child.on("error", () => resolve(false));
-          child.on("exit", () => resolve(false));
-          setTimeout(() => resolve(true), 1500);
-        });
-        if (!ok) {
-          deps.formatter.error("Daemon failed to start — check logs");
-          process.exitCode = 1;
-          return;
-        }
         writeDaemonPid(deps.mechaDir, childPid);
         deps.formatter.success(`Mecha started in background (pid ${childPid})`);
         return;
