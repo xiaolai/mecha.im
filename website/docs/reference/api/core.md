@@ -326,7 +326,7 @@ Extract a safe error message that strips stack traces and internal details. Retu
 ```ts
 import { toSafeMessage } from "@mecha/core";
 
-toSafeMessage(new MechaError("bot not found", { code: "NOT_FOUND" })); // "bot not found"
+toSafeMessage(new MechaError("bot not found", { code: "NOT_FOUND", statusCode: 404, exitCode: 1 })); // "bot not found"
 toSafeMessage(new TypeError("Cannot read property 'x' of undefined")); // "Internal error"
 ```
 

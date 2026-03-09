@@ -45,6 +45,7 @@ interface SecureChannel {
   onMessage(handler: (data: Uint8Array) => void): void;
   offMessage(handler: (data: Uint8Array) => void): void;
   onClose(handler: (reason: string) => void): void;
+  offClose(handler: (reason: string) => void): void;
   onError(handler: (err: Error) => void): void;
   offError(handler: (err: Error) => void): void;
   close(): void;
@@ -62,6 +63,7 @@ interface SecureChannel {
 | `onMessage(handler)` | Register a handler for incoming decrypted messages. |
 | `offMessage(handler)` | Remove a previously registered message handler. |
 | `onClose(handler)` | Register a handler invoked when the channel closes (with a reason string). |
+| `offClose(handler)` | Remove a previously registered close handler. |
 | `onError(handler)` | Register a handler for decryption or transport errors. |
 | `offError(handler)` | Remove a previously registered error handler. |
 | `close()` | Close the channel and underlying transport. |

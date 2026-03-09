@@ -5,6 +5,8 @@ description: API reference for @mecha/mcp-server — MCP tools, audit log, rate 
 
 # @mecha/mcp-server
 
+[[toc]]
+
 The `@mecha/mcp-server` package exposes the Mecha control plane as an [MCP](https://modelcontextprotocol.io/) server. See [MCP Server feature guide](/features/mcp-server) for usage and tool reference.
 
 ## Barrel Exports

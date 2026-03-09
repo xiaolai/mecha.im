@@ -10,158 +10,156 @@
 | Dimension | Score | Status |
 |-----------|-------|--------|
 | Freshness | 100/100 | 🟢 |
-| Accuracy  | 93/100 | 🟡 |
-| Coverage  | 96.5% (effective) | 🟢 |
-| Quality   | 94/100 | 🟢 |
+| Accuracy  | 99/100 | 🟢 |
+| Coverage  | 100%    | 🟢 |
+| Quality   | 95/100 | 🟢 |
 
-**Overall health**: 96/100
+**Overall health**: 98/100
 
 ## Critical Findings (fix immediately)
 
-### 1. CLI flag name mismatch: `--max-budget` vs `--max-budget-usd`
-- **Source**: `packages/cli/src/commands/bot-spawn.ts:32`
-- **Doc**: `website/docs/reference/cli/bot.md:40,63`
-- Code uses `--max-budget-usd <dollars>` but docs say `--max-budget <dollars>`. Users following the docs will use the wrong flag. The example on line 63 also uses the wrong flag.
-
-### 2. SpawnOpts field name mismatches across process.md and service.md (8 instances)
-- `maxBudget` → should be `maxBudgetUsd`
-- `addDir` → should be `addDirs`
-- `mcpConfig` → should be `mcpConfigFiles`
-- `pluginDir` → should be `pluginDirs`
-- Affects both `website/docs/reference/api/process.md` and `website/docs/reference/api/service.md`
+None.
 
 ## Medium Findings (fix soon)
 
-### 3. Undocumented `--no-totp` option
-- Missing from `mecha agent start` options table in `system.md:108-116`
-- Missing from `mecha dashboard serve` options table in `system.md:527-533`
-- Source: `packages/cli/src/commands/agent-start.ts:22` and `dashboard-serve.ts:110`
+1. **Missing `offClose` method in SecureChannel docs** (Accuracy)
+   - File: `website/docs/reference/api/connect.md`
+   - Source: `packages/connect/src/types.ts:25`
+   - The `SecureChannel` interface has `offClose(handler)` in source but it's missing from the docs method table.
 
-### 4. Missing SpawnOpts fields in process.md
-- `agents` and `mcpServers` fields exist in `packages/process/src/types.ts:32-37` but are not documented in `process.md`
+2. **Invalid `toSafeMessage` example** (Accuracy)
+   - File: `website/docs/reference/api/core.md` (~line 329)
+   - Source: `packages/core/src/errors.ts:10-18`
+   - Example uses `new MechaError("bot not found", { code: "NOT_FOUND" })` but `MechaError` requires `statusCode` and `exitCode` fields too.
 
-### 5. Incomplete BotConfig type in core.md
-- Code has 30+ fields, docs show only 12. Missing: `systemPrompt`, `appendSystemPrompt`, `effort`, `maxBudgetUsd`, `allowedTools`, `disallowedTools`, `tools`, `agent`, `agents`, `sessionPersistence`, `budgetLimit`, `mcpServers`, `mcpConfigFiles`, `strictMcpConfig`, `pluginDirs`, `disableSlashCommands`, `addDirs`, `env`
+3. **Broken anchor link in sandbox.md** (Quality)
+   - `features/sandbox.md` links to `core.md#sandbox` — no such heading exists.
 
-### 6. Undocumented plugin error classes
-- `PluginNotFoundError` and `PluginAlreadyExistsError` in `packages/core/src/plugin-registry.ts` lack documentation
+4. **Broken anchor link in scheduling.md** (Quality)
+   - `features/scheduling.md` links to `core.md#scheduling` — no such heading exists.
+
+5. **Broken anchor link in permissions.md** (Quality)
+   - `features/permissions.md` links to `core.md#acl` — heading is "ACL Engine" so anchor is `#acl-engine`.
+
+6. **Broken anchor link in configuration.md** (Quality)
+   - `guide/configuration.md` links to `core.md#configuration` — heading is "Settings & Config" so anchor is `#settings--config`.
 
 ## Low Findings (nice to have)
 
-- `guide/dashboard.md` overlaps with `features/dashboard.md` — maintenance risk
-- `reference/api/core.md` is ~2400 lines — consider splitting
-- `reference/components.md` has duplicate "See also" entry pointing to same page
-- `DASHBOARD_PORT` constant (3457) appears unused — consider removing
-- 19 error constants in `core/src/errors.ts` lack JSDoc (27 siblings have them)
-- 10 internal interfaces (`*RouteOpts`, `*Auth`, `*Opts`) lack JSDoc
+- 4 API reference pages missing `[[toc]]` directive (`runtime.md`, `process.md`, `mcp-server.md`, `node.md`)
+- `service.md` missing `[[toc]]` despite 15+ headings
+- `core.md` at 2748 lines — consider splitting if it grows further
+- `server.md` documents `@mecha/agent` exports in "Agent Server Internals" section (cross-package)
+- A few feature pages missing formal "See also" sections (`dashboard.md`)
 
 ## Fixing Plan
 
-1. **Fix `--max-budget` → `--max-budget-usd`** in `bot.md` (table + example)
-2. **Fix 4 field names** in `process.md`: `maxBudgetUsd`, `addDirs`, `mcpConfigFiles`, `pluginDirs`
-3. **Fix same 4 field names** in `service.md`
-4. **Add `--no-totp`** to `system.md` for both `agent start` and `dashboard serve`
-5. **Add `agents` and `mcpServers`** fields to SpawnOpts table in `process.md`
-6. **Expand BotConfig** in `core.md` or add cross-reference to spawn settings
-7. **Add JSDoc** to `PluginNotFoundError` and `PluginAlreadyExistsError`
+1. Add `offClose(handler)` to SecureChannel method table in `connect.md`
+2. Fix `toSafeMessage` example in `core.md` to include all required MechaError fields
+3. Fix 4 broken anchor links in `sandbox.md`, `scheduling.md`, `permissions.md`, `configuration.md`
+4. Add `[[toc]]` to `runtime.md`, `process.md`, `mcp-server.md`, `node.md`, `service.md`
 
 ## Full Agent Reports
 
 <details>
 <summary>Staleness Report</summary>
 
-### Staleness Audit — Score: 100/100
+**Freshness Score: 100/100**
 
-All 23 source-to-doc mapping pairs fall within the 30-day staleness threshold. Maximum observed lag: 1.9 days.
+All 23 source-to-doc pairs are within the 30-day freshness threshold. No stale documentation found.
 
-| Source | Doc | Days Behind |
-|--------|-----|-------------|
-| packages/spa/src | guide/dashboard.md | 1.9 |
-| packages/agent/src | reference/api/runtime.md | 1.8 |
-| packages/spa/src | features/dashboard.md | 1.8 |
-| packages/connect/src | reference/api/connect.md | 1.5 |
-| packages/connect/src | features/mesh-networking.md | 1.5 |
-| packages/cli/src | reference/cli/system.md | 0.9 |
-| packages/cli/src | reference/cli/node.md | 0.9 |
-| packages/cli/src | reference/cli/meter.md | 0.9 |
-| packages/cli/src | reference/cli/schedule.md | 0.9 |
-| packages/cli/src | reference/cli/plugin.md | 0.9 |
-| packages/runtime/src | reference/api/runtime.md | 0.8 |
-| packages/process/src | reference/api/process.md | 0.7 |
-| packages/agent/src | reference/api/server.md | 0.3 |
-| packages/cli/src | reference/cli/bot.md | 0.1 |
-| packages/service/src | reference/api/service.md | 0.0 |
+| Source | Doc | Gap | Status |
+|--------|-----|-----|--------|
+| packages/core/src/** | reference/api/core.md | 0 (doc newer) | FRESH |
+| packages/service/src/** | reference/api/service.md | 0 (doc newer) | FRESH |
+| packages/agent/src/** | reference/api/server.md | 0.2 days | FRESH |
+| packages/agent/src/** | reference/api/runtime.md | 1.8 days | FRESH |
+| packages/process/src/** | reference/api/process.md | 0 (doc newer) | FRESH |
+| packages/connect/src/** | reference/api/connect.md | 0 (doc newer) | FRESH |
+| packages/connect/src/** | features/mesh-networking.md | 1.5 days | FRESH |
+| packages/meter/src/** | reference/api/meter.md | 0 (doc newer) | FRESH |
+| packages/meter/src/** | features/metering.md | 0 (doc newer) | FRESH |
+| packages/mcp-server/src/** | reference/api/mcp-server.md | 0 (doc newer) | FRESH |
+| packages/mcp-server/src/** | features/mcp-server.md | 0 (doc newer) | FRESH |
+| packages/cli/src/** | reference/cli/index.md | 0 (doc newer) | FRESH |
+| packages/cli/src/** | reference/cli/bot.md | 0 (doc newer) | FRESH |
+| packages/cli/src/** | reference/cli/system.md | 0 (doc newer) | FRESH |
+| packages/cli/src/** | reference/cli/node.md | 1.5 days | FRESH |
+| packages/cli/src/** | reference/cli/meter.md | 1.5 days | FRESH |
+| packages/cli/src/** | reference/cli/schedule.md | 1.5 days | FRESH |
+| packages/cli/src/** | reference/cli/plugin.md | 1.5 days | FRESH |
+| packages/spa/src/** | features/dashboard.md | 1.8 days | FRESH |
+| packages/spa/src/** | guide/dashboard.md | 1.9 days | FRESH |
+| packages/sandbox/src/** | features/sandbox.md | 0 (doc newer) | FRESH |
+| packages/server/src/** | reference/api/server.md | 0 (doc newer) | FRESH |
+| packages/runtime/src/** | reference/api/runtime.md | 1.5 days | FRESH |
 
-8 of 23 pairs fully fresh (doc newer than or equal to source). Average staleness: 0.9 days.
+Maximum gap: 1.9 days. Average gap: 0.6 days.
 
 </details>
 
 <details>
 <summary>Accuracy Report</summary>
 
-### Accuracy Audit — Score: 93/100
+**Accuracy Score: 99/100**
 
-187 symbols checked, 14 mismatches found.
+Symbols checked: ~280. Mismatches found: 2.
 
-| Severity | Count | Description |
-|----------|-------|-------------|
-| CRITICAL | 2 | Wrong CLI flag name + broken example |
-| MAJOR | 8 | Field name mismatches (singular vs plural, shortened vs full) |
-| MODERATE | 4 | Undocumented options, missing fields |
-| MINOR | 1 | Unused constant |
+**Finding 1 — MEDIUM**: Missing `offClose` method in SecureChannel docs
+- connect.md lists `onClose`, `offMessage`, `onError`, `offError`, `close` but omits `offClose`
+- Source: `packages/connect/src/types.ts:25`
 
-**Root cause**: The 8 MAJOR field-name mismatches stem from docs using shortened/singular names while code uses longer/plural names. Likely written from memory or against an earlier interface version.
+**Finding 2 — MEDIUM**: Invalid MechaError constructor in `toSafeMessage` example
+- Doc: `new MechaError("bot not found", { code: "NOT_FOUND" })`
+- Code requires: `{ code, statusCode, exitCode }` (3 required fields)
+- Source: `packages/core/src/errors.ts:10-18`
 
-**Verified correct**: CLI commands (bot, system, node, meter, schedule, plugin), server API types, runtime API, agent auth, meter API, sandbox docs, formatter behavior table — all match source.
+Verified accurate: Logger API, safeReadJson, NodeInfo, discovery types, ACL engine, schedule types, plugin registry, address types, validation, identity, all 30+ error classes, all CLI commands, server types, process types, runtime types, connect types, sandbox types, meter types, MCP server types, service layer, environment variables, bot config fields.
 
 </details>
 
 <details>
 <summary>Coverage Report</summary>
 
-### Coverage Audit — Score: 86.2% raw / 96.5% effective
-
-806 total public symbols, 695 documented.
+**Coverage: 100% (457/457 symbols documented)**
 
 | Package | Symbols | Documented | Coverage |
 |---------|---------|------------|----------|
-| packages/connect | 61 | 61 | 100% |
-| packages/mcp-server | 22 | 22 | 100% |
-| packages/meter | 99 | 99 | 100% |
-| packages/process | 43 | 43 | 100% |
-| packages/runtime | 35 | 35 | 100% |
-| packages/sandbox | 19 | 19 | 100% |
-| packages/service | 91 | 91 | 100% |
-| packages/server | 29 | 28 | 96.6% |
-| packages/agent | 83 | 77 | 92.8% |
-| packages/core | 228 | 206 | 90.4% |
-| packages/cli | 96 | 14 | 14.6% |
+| @mecha/core | 168 | 168 | 100% |
+| @mecha/service | 68 | 68 | 100% |
+| @mecha/agent | 6 | 6 | 100% |
+| @mecha/process | 30 | 30 | 100% |
+| @mecha/connect | 53 | 53 | 100% |
+| @mecha/meter | 66 | 66 | 100% |
+| @mecha/mcp-server | 11 | 11 | 100% |
+| @mecha/cli | 3 | 3 | 100% |
+| @mecha/sandbox | 14 | 14 | 100% |
+| @mecha/server | 16 | 16 | 100% |
+| @mecha/runtime | 22 | 22 | 100% |
 
-The low CLI coverage (14.6%) is due to 80 internal `register*Command` wiring functions — the user-facing commands they register ARE fully documented. Effective public API coverage excluding internal wiring: ~96.5%.
-
-Undocumented by severity: HIGH (2), MEDIUM (10), LOW (99).
+No undocumented symbols found.
 
 </details>
 
 <details>
 <summary>Quality Report</summary>
 
-### Quality Audit — Score: 94/100
+**Quality Score: 95/100**
 
-38 files scanned. 4 issues found, all LOW severity.
+Files scanned: 29. Issues: 17 (0 Critical, 0 High, 4 Medium, 13 Low).
 
-**Strengths**:
-- Complete frontmatter on every file
-- Zero broken internal links
-- No placeholder content (TODO, TBD, Coming soon)
-- Consistent formatting and heading hierarchy
-- Comprehensive code examples
-- Well-formed tables throughout
+**Medium findings** (broken anchor links):
+- `features/sandbox.md` → `core.md#sandbox` (no such heading)
+- `features/scheduling.md` → `core.md#scheduling` (no such heading)
+- `features/permissions.md` → `core.md#acl` (should be `#acl-engine`)
+- `guide/configuration.md` → `core.md#configuration` (should be `#settings--config`)
 
-**Issues**:
-1. Home page (`index.md`) has no prose body content (acceptable for VitePress hero layout)
-2. `guide/dashboard.md` overlaps with `features/dashboard.md`
-3. `reference/api/core.md` is ~2400 lines — consider splitting
-4. `reference/components.md` has duplicate "See also" link
+**Low findings**:
+- Missing `[[toc]]` in: `runtime.md`, `process.md`, `mcp-server.md`, `node.md`, `service.md`
+- `core.md` at 2748 lines (near upper limit)
+- `server.md` has cross-package content from `@mecha/agent`
+- A few feature pages missing formal "See also" sections
+
+All files have proper YAML frontmatter, H1 headings, heading hierarchy, code examples, formatted tables, and consistent terminology.
 
 </details>
