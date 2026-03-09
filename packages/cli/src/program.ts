@@ -1,10 +1,9 @@
-import { createRequire } from "node:module";
 import { Command } from "commander";
 import type { CommandDeps } from "./types.js";
 import { registerStartCommand } from "./commands/start.js";
 
-const require = createRequire(import.meta.url);
-const { version: CLI_VERSION } = require("../package.json") as { version: string };
+import pkg from "../package.json" with { type: "json" };
+const CLI_VERSION: string = pkg.version;
 import { registerStopDaemonCommand } from "./commands/stop-daemon.js";
 import { registerRestartDaemonCommand } from "./commands/restart-daemon.js";
 import { registerInitCommand } from "./commands/init.js";
