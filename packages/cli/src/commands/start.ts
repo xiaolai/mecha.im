@@ -42,9 +42,12 @@ export function registerStartCommand(program: Command, deps: CommandDeps): void 
         }
 
         const { spawn } = await import("node:child_process");
-        const filteredArgs = process.argv.slice(1).filter(
-          (a) => a !== "-d" && a !== "--daemon",
-        );
+        // In Bun compiled binaries, process.argv contains VFS paths (/$bunfs/...) that
+        // must be stripped. Filter them out, then remove the daemon flag.
+        const filteredArgs = process.argv
+          .filter((a) => !a.startsWith("/$bunfs/"))
+          .slice(1)
+          .filter((a) => a !== "-d" && a !== "--daemon");
         // Resolve the real binary path — process.execPath returns VFS paths in Bun compiled binaries
         let selfBin = process.execPath;
         if (existsSync("/proc/self/exe")) {
