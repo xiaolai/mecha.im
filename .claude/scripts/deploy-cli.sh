@@ -3,7 +3,7 @@
 # Runs as PostToolUse hook — exits silently if nothing changed
 set -euo pipefail
 
-DEST="/home/user/Library/pnpm/mecha"
+DEST="${MECHA_CLI_DEST:-$(pnpm bin -g 2>/dev/null || echo "$HOME/.local/bin")/mecha}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CLI_DIST="$SCRIPT_DIR/../../packages/cli/dist/bin.js"
 

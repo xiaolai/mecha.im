@@ -100,7 +100,7 @@ alice/                              ← bot root (botDir = HOME)
 **No SQLite.** Session storage is pure filesystem:
 - `<session-id>.meta.json` — metadata (title, starred, createdAt, updatedAt)
 - `<session-id>.jsonl` — SDK native transcript (user, assistant, progress, file-history-snapshot events)
-- Path encoding: `/home/user/my.project` → `-home-alice-my-project` (same as Claude Code — `/`, `\`, `:`, and `.` are all replaced with `-`)
+- Path encoding: `/home/user/my.project` → `-home-user-my-project` (same as Claude Code — `/`, `\`, `:`, and `.` are all replaced with `-`)
 
 `config.json` includes core fields (port, token, workspace, model, tags, expose, sandboxMode, permissionMode, auth, home) plus optional spawn settings for LLM behavior (systemPrompt, appendSystemPrompt, effort, maxBudgetUsd), tool control (allowedTools, disallowedTools, tools), agent identity (agent, agents, addDirs, budgetLimit), MCP/plugins (mcpServers, mcpConfigFiles, strictMcpConfig, pluginDirs), session behavior (sessionPersistence, disableSlashCommands), permission overrides (dangerouslySkipPermissions, allowDangerouslySkipPermissions), model fallback (fallbackModel), and environment (env).
 
