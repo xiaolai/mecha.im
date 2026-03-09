@@ -1,5 +1,6 @@
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, renameSync } from "node:fs";
 import { join, dirname } from "node:path";
+import { randomBytes } from "node:crypto";
 import type { BudgetConfig, BudgetLimit, CostSummary } from "./types.js";
 
 /** Path to budgets.json */
@@ -25,11 +26,13 @@ export function readBudgets(meterDir: string): BudgetConfig {
   }
 }
 
-/** Write budgets to disk */
+/** Write budgets to disk (atomic: write tmp + rename). */
 export function writeBudgets(meterDir: string, config: BudgetConfig): void {
   const path = budgetsPath(meterDir);
   mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, JSON.stringify(config, null, 2) + "\n");
+  const tmp = `${path}.${randomBytes(4).toString("hex")}.tmp`;
+  writeFileSync(tmp, JSON.stringify(config, null, 2) + "\n");
+  renameSync(tmp, path);
 }
 
 export interface BudgetCheckResult {
