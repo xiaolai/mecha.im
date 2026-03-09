@@ -5,6 +5,8 @@ description: API reference for @mecha/process — process lifecycle management, 
 
 # @mecha/process
 
+[[toc]]
+
 The `@mecha/process` package manages bot process lifecycles: spawning, stopping, killing, port allocation, sandbox filesystem setup, schedule persistence, and event emission.
 
 ## Barrel Exports

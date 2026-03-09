@@ -5,6 +5,8 @@ description: API reference for @mecha/runtime — per-bot Fastify server with se
 
 # @mecha/runtime
 
+[[toc]]
+
 The `@mecha/runtime` package provides the Fastify-based HTTP server that runs inside each bot process. It is the per-bot runtime — one instance per spawned agent.
 
 ## Barrel Exports

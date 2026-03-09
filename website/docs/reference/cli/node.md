@@ -5,6 +5,8 @@ description: CLI reference for mecha node mesh networking commands
 
 # Node Commands
 
+[[toc]]
+
 All node commands live under `mecha node`.
 
 ## `mecha node init`
