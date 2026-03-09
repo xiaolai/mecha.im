@@ -25,6 +25,7 @@ import { registerAuditCommand } from "./commands/audit.js";
 import { registerDashboardCommand } from "./commands/dashboard.js";
 import { registerTotpCommand } from "./commands/totp.js";
 import { registerAuthConfigCommand } from "./commands/auth-config.js";
+import { registerStatusCommand } from "./commands/status.js";
 
 /**
  * Commands that mutate state and need the CLI singleton lock.
@@ -99,6 +100,7 @@ export function createProgram(deps: CommandDeps): Command {
   registerRestartDaemonCommand(program, deps);
   registerInitCommand(program, deps);
   registerDoctorCommand(program, deps);
+  registerStatusCommand(program, deps);
 
   // bot management (subgroup)
   registerBotCommand(program, deps);

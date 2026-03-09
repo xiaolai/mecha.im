@@ -78,6 +78,7 @@ describe("createProgram", () => {
     expect(commandNames).toContain("auth");
     expect(commandNames).toContain("acl");
     expect(commandNames).toContain("dashboard");
+    expect(commandNames).toContain("status");
   });
 
   it("parses --version without error", async () => {
