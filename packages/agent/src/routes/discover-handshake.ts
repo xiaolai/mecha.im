@@ -70,6 +70,9 @@ export function registerHandshakeRoute(app: FastifyInstance, opts: HandshakeRout
       };
       writeDiscoveredNode(opts.mechaDir, discovered);
 
+      // NOTE: meshApiKey is exchanged here so discovered peers can authenticate
+      // future mesh routing requests. This is protected by clusterKey authentication.
+      // For production deployments, use HTTPS to prevent network sniffing.
       return {
         accepted: true,
         nodeName: opts.nodeName,
