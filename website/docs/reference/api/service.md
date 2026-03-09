@@ -116,7 +116,7 @@ When spawning a bot via `POST /bots` or updating config via `PATCH /bots/:name/c
 | `systemPrompt` | `string` | System prompt override (mutually exclusive with `appendSystemPrompt`) |
 | `appendSystemPrompt` | `string` | Append to default system prompt (mutually exclusive with `systemPrompt`) |
 | `effort` | `"low" \| "medium" \| "high"` | Effort level for the LLM |
-| `maxBudget` | `number` | Max USD budget per session |
+| `maxBudgetUsd` | `number` | Max USD budget per session |
 
 **Tool Control**
 
@@ -131,16 +131,16 @@ When spawning a bot via `POST /bots` or updating config via `PATCH /bots/:name/c
 | Field | Type | Description |
 |-------|------|-------------|
 | `agent` | `string` | Agent preset name |
-| `addDir` | `string[]` | Additional directories to mount |
+| `addDirs` | `string[]` | Additional directories to mount |
 | `budgetLimit` | `number` | Mecha-level aggregate budget cap |
 
 **MCP & Plugins**
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `mcpConfig` | `string[]` | MCP config file paths |
+| `mcpConfigFiles` | `string[]` | MCP config file paths |
 | `strictMcpConfig` | `boolean` | Only use specified MCP servers |
-| `pluginDir` | `string[]` | Plugin directories |
+| `pluginDirs` | `string[]` | Plugin directories |
 
 **Session Behavior**
 
