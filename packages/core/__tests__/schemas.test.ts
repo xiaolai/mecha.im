@@ -24,12 +24,12 @@ describe("BotSpawnInput", () => {
       tags: ["dev", "gpu"],
       env: { API_KEY: "secret" },
       model: "claude-sonnet-4-20250514",
-      permissionMode: "full-auto",
+      permissionMode: "bypassPermissions",
       port: 7710,
       auth: "personal",
     });
     expect(result.tags).toEqual(["dev", "gpu"]);
-    expect(result.permissionMode).toBe("full-auto");
+    expect(result.permissionMode).toBe("bypassPermissions");
     expect(result.port).toBe(7710);
     expect(result.auth).toBe("personal");
   });
@@ -147,7 +147,10 @@ describe("PermissionMode", () => {
   it("accepts valid modes", () => {
     expect(PermissionMode.parse("default")).toBe("default");
     expect(PermissionMode.parse("plan")).toBe("plan");
-    expect(PermissionMode.parse("full-auto")).toBe("full-auto");
+    expect(PermissionMode.parse("bypassPermissions")).toBe("bypassPermissions");
+    expect(PermissionMode.parse("acceptEdits")).toBe("acceptEdits");
+    expect(PermissionMode.parse("dontAsk")).toBe("dontAsk");
+    expect(PermissionMode.parse("auto")).toBe("auto");
   });
 
   it("rejects invalid mode", () => {
