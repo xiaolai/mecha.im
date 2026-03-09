@@ -15,7 +15,7 @@ interface StartOpts {
 export function registerStartCommand(program: Command, deps: CommandDeps): void {
   program
     .command("start")
-    .description("Start agent server with embedded dashboard")
+    .description("Start Mecha with embedded dashboard")
     .option("--port <port>", "Agent server port", String(DEFAULTS.AGENT_PORT))
     .option("--host <host>", "Bind address", "127.0.0.1")
     .option("--open", "Open browser after starting", false)

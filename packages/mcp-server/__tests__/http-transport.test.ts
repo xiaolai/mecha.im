@@ -51,8 +51,10 @@ vi.mock("node:http", () => ({
     return {
       once: () => {},
       removeListener: () => {},
+      on: () => {},
       listen: (_port: number, _host: string, cb: () => void) => cb(),
       close: (cb: () => void) => cb(),
+      address: () => ({ port: 7680 }),
     };
   },
 }));

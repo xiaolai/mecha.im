@@ -3,12 +3,12 @@ set -euo pipefail
 
 # Build standalone mecha CLI binary using bun build --compile
 #
-# Single binary acts as both CLI and CASA runtime:
+# Single binary with embedded SPA dashboard:
 #   mecha <command>     → CLI mode
 #   mecha __runtime     → runtime mode (spawned internally as child process)
 #
-# The SPA dashboard is built first and copied alongside the binary
-# so the agent server can serve it on the same port.
+# The SPA is embedded inside the binary as a compressed archive.
+# On first run, it extracts to ~/.mecha/.spa-cache/<version>/
 #
 # Usage:
 #   ./scripts/build-binaries.sh                    # current platform
@@ -25,16 +25,26 @@ fi
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="$ROOT/dist/bin"
 ENTRY="$ROOT/packages/cli/src/bin-entry.ts"
-SPA_DIST="$ROOT/packages/spa/dist"
 
-# Build SPA dashboard first
+# Validate target BEFORE expensive build steps
+REQUESTED="${1:-current}"
+case "$REQUESTED" in
+  current|all|darwin-arm64|darwin-x64|linux-x64|linux-arm64|windows-x64) ;;
+  *)
+    echo "Usage: $0 [current|all|darwin-arm64|darwin-x64|linux-x64|linux-arm64|windows-x64]" >&2
+    exit 1
+    ;;
+esac
+
+# Build SPA dashboard
 echo "Building SPA dashboard..."
-if command -v pnpm &>/dev/null; then
-  pnpm --filter @mecha/spa build
-else
-  (cd "$ROOT/packages/spa" && npm run build)
-fi
-echo "  → SPA built at $SPA_DIST"
+(cd "$ROOT" && pnpm --filter @mecha/spa build)
+echo "  → SPA built"
+echo ""
+
+# Embed SPA into a generated TypeScript module
+echo "Embedding SPA into binary..."
+"$ROOT/scripts/embed-spa.sh"
 echo ""
 
 TARGETS=(
@@ -68,14 +78,8 @@ build_target() {
     --outfile "$dir/mecha${ext}" \
     "$ENTRY"
 
-  # Copy SPA dist alongside binary (clean first to avoid nested dirs)
-  if [[ -d "$SPA_DIST" ]]; then
-    rm -rf "$dir/spa"
-    cp -r "$SPA_DIST" "$dir/spa"
-  fi
-
   echo "  → $dir/mecha${ext}"
-  ls -lh "$dir/mecha${ext}" | awk '{print "    size: " $5}'
+  du -h "$dir/mecha${ext}" | awk '{print "    size: " $1}'
   echo ""
 }
 
@@ -90,17 +94,9 @@ build_current() {
     --outfile "$dir/mecha${ext}" \
     "$ENTRY"
 
-  # Copy SPA dist alongside binary (clean first to avoid nested dirs)
-  if [[ -d "$SPA_DIST" ]]; then
-    rm -rf "$dir/spa"
-    cp -r "$SPA_DIST" "$dir/spa"
-  fi
-
   echo "  → $dir/mecha${ext}"
-  ls -lh "$dir/mecha${ext}" | awk '{print "    size: " $5}'
+  du -h "$dir/mecha${ext}" | awk '{print "    size: " $1}'
 }
-
-REQUESTED="${1:-current}"
 
 case "$REQUESTED" in
   current)
@@ -114,9 +110,5 @@ case "$REQUESTED" in
     ;;
   darwin-arm64|darwin-x64|linux-x64|linux-arm64|windows-x64)
     build_target "bun-${REQUESTED}"
-    ;;
-  *)
-    echo "Usage: $0 [current|all|darwin-arm64|darwin-x64|linux-x64|linux-arm64|windows-x64]"
-    exit 1
     ;;
 esac
