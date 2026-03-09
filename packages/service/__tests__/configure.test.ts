@@ -49,15 +49,14 @@ describe("botConfigure", () => {
     const info: ProcessInfo = { name: "alice" as BotName, state: "running", workspacePath: "/ws", port: 7700 };
     const pm = createMockPM({ get: vi.fn().mockReturnValue(info) });
 
+    // Use valid combinations (systemPrompt/appendSystemPrompt and allowedTools/tools are mutually exclusive)
     botConfigure(mechaDir, pm, "alice" as BotName, {
       model: "claude-sonnet-4-20250514",
-      systemPrompt: "You are a helpful assistant.",
       appendSystemPrompt: "Always be concise.",
       effort: "high",
       maxBudgetUsd: 10,
       allowedTools: ["Read", "Write"],
       disallowedTools: ["Bash"],
-      tools: ["mcp-tool"],
       agent: "researcher",
       agents: { helper: { description: "A helper", prompt: "Help the user" } },
       sessionPersistence: true,
@@ -69,17 +68,16 @@ describe("botConfigure", () => {
       disableSlashCommands: true,
       addDirs: ["/extra"],
       env: { NODE_ENV: "production" },
+      fallbackModel: "claude-haiku-4-5-20251001",
     });
 
     const cfg = JSON.parse(readFileSync(join(botDir, "config.json"), "utf-8"));
     expect(cfg.model).toBe("claude-sonnet-4-20250514");
-    expect(cfg.systemPrompt).toBe("You are a helpful assistant.");
     expect(cfg.appendSystemPrompt).toBe("Always be concise.");
     expect(cfg.effort).toBe("high");
     expect(cfg.maxBudgetUsd).toBe(10);
     expect(cfg.allowedTools).toEqual(["Read", "Write"]);
     expect(cfg.disallowedTools).toEqual(["Bash"]);
-    expect(cfg.tools).toEqual(["mcp-tool"]);
     expect(cfg.agent).toBe("researcher");
     expect(cfg.agents).toEqual({ helper: { description: "A helper", prompt: "Help the user" } });
     expect(cfg.sessionPersistence).toBe(true);
@@ -91,6 +89,7 @@ describe("botConfigure", () => {
     expect(cfg.disableSlashCommands).toBe(true);
     expect(cfg.addDirs).toEqual(["/extra"]);
     expect(cfg.env).toEqual({ NODE_ENV: "production" });
+    expect(cfg.fallbackModel).toBe("claude-haiku-4-5-20251001");
     // Original fields preserved
     expect(cfg.port).toBe(7700);
     expect(cfg.workspace).toBe("/ws");

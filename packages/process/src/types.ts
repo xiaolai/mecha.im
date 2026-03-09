@@ -39,6 +39,11 @@ export interface SpawnOpts {
   strictMcpConfig?: boolean;
   pluginDirs?: string[];
   disableSlashCommands?: boolean;
+  // Permission overrides
+  dangerouslySkipPermissions?: boolean;
+  allowDangerouslySkipPermissions?: boolean;
+  // Model fallback
+  fallbackModel?: string;
   // Environment
   addDirs?: string[];
 }

@@ -102,7 +102,7 @@ alice/                              ← bot root (botDir = HOME)
 - `<session-id>.jsonl` — SDK native transcript (user, assistant, progress, file-history-snapshot events)
 - Path encoding: `/home/user/my.project` → `-home-alice-my-project` (same as Claude Code — `/`, `\`, `:`, and `.` are all replaced with `-`)
 
-`config.json` includes core fields (port, token, workspace, model, tags, expose, sandboxMode, permissionMode, auth, meterOff, home) plus optional spawn settings for LLM behavior (systemPrompt, appendSystemPrompt, effort, maxBudget), tool control (allowedTools, disallowedTools, tools), agent identity (agent, addDir, budgetLimit), MCP/plugins (mcpConfig, strictMcpConfig, pluginDir), and session behavior (sessionPersistence, disableSlashCommands).
+`config.json` includes core fields (port, token, workspace, model, tags, expose, sandboxMode, permissionMode, auth, home) plus optional spawn settings for LLM behavior (systemPrompt, appendSystemPrompt, effort, maxBudgetUsd), tool control (allowedTools, disallowedTools, tools), agent identity (agent, agents, addDirs, budgetLimit), MCP/plugins (mcpServers, mcpConfigFiles, strictMcpConfig, pluginDirs), session behavior (sessionPersistence, disableSlashCommands), permission overrides (dangerouslySkipPermissions, allowDangerouslySkipPermissions), model fallback (fallbackModel), and environment (env).
 
 Environment variable `MECHA_PROJECTS_DIR` points to the workspace-specific projects directory.
 
@@ -110,6 +110,7 @@ Environment variable `MECHA_PROJECTS_DIR` points to the workspace-specific proje
 - `systemPrompt` and `appendSystemPrompt` are mutually exclusive — set one or the other, not both
 - `allowedTools` and `tools` are mutually exclusive — use `allowedTools` for additive filtering or `tools` for a full override
 - `bypassPermissions` requires `sandboxMode: "require"` — only sandboxed bots may bypass permission prompts
+- `dangerouslySkipPermissions` requires `sandboxMode: "require"` — same safety constraint as bypassPermissions
 
 <!-- gitnexus:start -->
 # GitNexus MCP

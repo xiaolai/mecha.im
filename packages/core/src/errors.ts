@@ -63,6 +63,13 @@ export const InvalidAddressError = defError<[string]>(
   (input) => `Invalid address: "${input}"`,
 );
 
+// --- Config validation errors ---
+export const ConfigValidationError = defError<[string]>(
+  "ConfigValidationError",
+  { code: "CONFIG_VALIDATION_ERROR", statusCode: 400, exitCode: 1 },
+  (detail) => `Invalid bot config: ${detail}`,
+);
+
 // --- Bot lifecycle errors ---
 export const BotNotFoundError = defError<[string]>(
   "BotNotFoundError",

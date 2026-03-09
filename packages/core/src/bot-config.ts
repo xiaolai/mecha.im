@@ -4,6 +4,8 @@ import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { safeReadJson } from "./safe-read.js";
 import { createLogger } from "./logger.js";
+import { validateBotConfig } from "./bot-config-validation.js";
+import { ConfigValidationError } from "./errors.js";
 
 const log = createLogger("mecha:core");
 
@@ -24,7 +26,7 @@ export interface BotConfig {
   home?: string;
   model?: string;
   permissionMode?: string;
-  auth?: string;
+  auth?: string | null;
   tags?: string[];
   expose?: string[];
   sandboxMode?: SandboxMode;
@@ -72,6 +74,16 @@ export interface BotConfig {
   /** Disable all skills */
   disableSlashCommands?: boolean;
 
+  /* — Permission overrides — */
+  /** Skip all permission checks (requires sandboxMode: "require") */
+  dangerouslySkipPermissions?: boolean;
+  /** Allow --dangerously-skip-permissions without defaulting to it */
+  allowDangerouslySkipPermissions?: boolean;
+
+  /* — Model fallback — */
+  /** Fallback model when primary is overloaded */
+  fallbackModel?: string;
+
   /* — Environment — */
   /** Additional directories to allow access */
   addDirs?: string[];
@@ -87,7 +99,7 @@ const BotConfigSchema: z.ZodType<BotConfig> = z.object({
   home: z.string().min(1).optional(),
   model: z.string().optional(),
   permissionMode: z.string().optional(),
-  auth: z.string().optional(),
+  auth: z.string().nullable().optional(),
   tags: z.array(z.string()).optional(),
   expose: z.array(z.string()).optional(),
   sandboxMode: z.enum(["auto", "off", "require"]).optional(),
@@ -120,6 +132,13 @@ const BotConfigSchema: z.ZodType<BotConfig> = z.object({
   strictMcpConfig: z.boolean().optional(),
   pluginDirs: z.array(z.string()).optional(),
   disableSlashCommands: z.boolean().optional(),
+
+  // Permission overrides
+  dangerouslySkipPermissions: z.boolean().optional(),
+  allowDangerouslySkipPermissions: z.boolean().optional(),
+
+  // Model fallback
+  fallbackModel: z.string().optional(),
 
   // Environment
   addDirs: z.array(z.string()).optional(),
@@ -155,6 +174,11 @@ export function updateBotConfig(
   const merged = { ...base, ...updates, configVersion: BOT_CONFIG_VERSION };
   // Validate merged result against schema before persisting
   BotConfigSchema.parse(merged);
+  // Enforce cross-field safety constraints
+  const validation = validateBotConfig(merged);
+  if (!validation.ok) {
+    throw new ConfigValidationError(validation.errors.join("; "));
+  }
   const tmp = configPath + `.${randomBytes(4).toString("hex")}.tmp`;
   writeFileSync(tmp, JSON.stringify(merged, null, 2) + "\n", { mode: 0o600 });
   renameSync(tmp, configPath);

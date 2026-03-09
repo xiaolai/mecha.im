@@ -203,14 +203,13 @@ describe("BotConfig extended fields", () => {
       tempDir = makeTempDir();
       writeConfig(tempDir, BASE_CONFIG);
 
+      // Use valid combinations (systemPrompt/appendSystemPrompt and allowedTools/tools are mutually exclusive)
       const newFields = {
         systemPrompt: "Be helpful.",
-        appendSystemPrompt: "Be concise.",
         effort: "high" as const,
         maxBudgetUsd: 10,
         allowedTools: ["bash"],
         disallowedTools: ["write"],
-        tools: ["bash", "read"],
         agent: "coder",
         agents: { helper: { description: "A helper", prompt: "Help users." } },
         sessionPersistence: false,
@@ -222,18 +221,17 @@ describe("BotConfig extended fields", () => {
         disableSlashCommands: true,
         addDirs: ["/extra"],
         env: { KEY: "val" },
+        fallbackModel: "claude-haiku-4-5-20251001",
       };
 
       updateBotConfig(tempDir, newFields);
       const cfg = readBotConfig(tempDir);
 
       expect(cfg!.systemPrompt).toBe("Be helpful.");
-      expect(cfg!.appendSystemPrompt).toBe("Be concise.");
       expect(cfg!.effort).toBe("high");
       expect(cfg!.maxBudgetUsd).toBe(10);
       expect(cfg!.allowedTools).toEqual(["bash"]);
       expect(cfg!.disallowedTools).toEqual(["write"]);
-      expect(cfg!.tools).toEqual(["bash", "read"]);
       expect(cfg!.agent).toBe("coder");
       expect(cfg!.agents).toEqual({ helper: { description: "A helper", prompt: "Help users." } });
       expect(cfg!.sessionPersistence).toBe(false);
@@ -245,6 +243,7 @@ describe("BotConfig extended fields", () => {
       expect(cfg!.disableSlashCommands).toBe(true);
       expect(cfg!.addDirs).toEqual(["/extra"]);
       expect(cfg!.env).toEqual({ KEY: "val" });
+      expect(cfg!.fallbackModel).toBe("claude-haiku-4-5-20251001");
     });
 
     it("preserves existing fields when adding new ones", () => {

@@ -8,6 +8,7 @@ export interface BotConfigValidationInput {
   tools?: string[];
   maxBudgetUsd?: number;
   meterOff?: boolean;
+  dangerouslySkipPermissions?: boolean;
 }
 
 export interface BotConfigValidationResult {
@@ -29,6 +30,16 @@ export function validateBotConfig(
   ) {
     errors.push(
       "permissionMode 'bypassPermissions' requires sandboxMode 'require'",
+    );
+  }
+
+  // Rule 1b: dangerouslySkipPermissions requires sandboxMode "require"
+  if (
+    input.dangerouslySkipPermissions &&
+    input.sandboxMode !== "require"
+  ) {
+    errors.push(
+      "dangerouslySkipPermissions requires sandboxMode 'require'",
     );
   }
 
