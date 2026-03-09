@@ -149,21 +149,9 @@ describe("cli-lock", () => {
       ["stop", ["node", "mecha", "stop"]],
       ["restart", ["node", "mecha", "restart"]],
       ["init", ["node", "mecha", "init"]],
-      ["bot spawn", ["node", "mecha", "bot", "spawn", "alice", "/path"]],
-      ["bot start", ["node", "mecha", "bot", "start", "alice"]],
-      ["bot stop", ["node", "mecha", "bot", "stop", "alice"]],
-      ["bot kill", ["node", "mecha", "bot", "kill", "alice"]],
-      ["bot restart", ["node", "mecha", "bot", "restart", "alice"]],
-      ["bot remove", ["node", "mecha", "bot", "remove", "alice"]],
-      ["bot configure", ["node", "mecha", "bot", "configure", "alice"]],
       ["agent start", ["node", "mecha", "agent", "start"]],
       ["meter start", ["node", "mecha", "meter", "start"]],
       ["meter stop", ["node", "mecha", "meter", "stop"]],
-      ["schedule add", ["node", "mecha", "schedule", "add"]],
-      ["schedule remove", ["node", "mecha", "schedule", "remove"]],
-      ["schedule pause", ["node", "mecha", "schedule", "pause"]],
-      ["schedule resume", ["node", "mecha", "schedule", "resume"]],
-      ["schedule run", ["node", "mecha", "schedule", "run"]],
       ["acl grant", ["node", "mecha", "acl", "grant"]],
       ["acl revoke", ["node", "mecha", "acl", "revoke"]],
       ["auth add", ["node", "mecha", "auth", "add"]],
@@ -172,8 +160,6 @@ describe("cli-lock", () => {
       ["auth tag", ["node", "mecha", "auth", "tag"]],
       ["auth switch", ["node", "mecha", "auth", "switch"]],
       ["auth renew", ["node", "mecha", "auth", "renew"]],
-      ["budget set", ["node", "mecha", "budget", "set"]],
-      ["budget rm", ["node", "mecha", "budget", "rm"]],
       ["dashboard serve", ["node", "mecha", "dashboard", "serve"]],
     ])("returns true for %s", (_label, argv) => {
       expect(needsLock(argv)).toBe(true);
@@ -181,6 +167,13 @@ describe("cli-lock", () => {
 
     // Read-only commands skip the lock
     it.each([
+      ["bot spawn", ["node", "mecha", "bot", "spawn", "alice", "/path"]],
+      ["bot start", ["node", "mecha", "bot", "start", "alice"]],
+      ["bot stop", ["node", "mecha", "bot", "stop", "alice"]],
+      ["bot kill", ["node", "mecha", "bot", "kill", "alice"]],
+      ["bot restart", ["node", "mecha", "bot", "restart", "alice"]],
+      ["bot remove", ["node", "mecha", "bot", "remove", "alice"]],
+      ["bot configure", ["node", "mecha", "bot", "configure", "alice"]],
       ["bot ls", ["node", "mecha", "bot", "ls"]],
       ["bot status", ["node", "mecha", "bot", "status", "alice"]],
       ["bot logs", ["node", "mecha", "bot", "logs", "alice"]],
@@ -191,6 +184,11 @@ describe("cli-lock", () => {
       ["doctor", ["node", "mecha", "doctor"]],
       ["tools", ["node", "mecha", "tools"]],
       ["meter status", ["node", "mecha", "meter", "status"]],
+      ["schedule add", ["node", "mecha", "schedule", "add"]],
+      ["schedule remove", ["node", "mecha", "schedule", "remove"]],
+      ["schedule pause", ["node", "mecha", "schedule", "pause"]],
+      ["schedule resume", ["node", "mecha", "schedule", "resume"]],
+      ["schedule run", ["node", "mecha", "schedule", "run"]],
       ["schedule history", ["node", "mecha", "schedule", "history"]],
       ["acl show", ["node", "mecha", "acl", "show"]],
       ["node ls", ["node", "mecha", "node", "ls"]],
@@ -198,6 +196,8 @@ describe("cli-lock", () => {
       ["node rm", ["node", "mecha", "node", "rm"]],
       ["auth ls", ["node", "mecha", "auth", "ls"]],
       ["auth test", ["node", "mecha", "auth", "test"]],
+      ["budget set", ["node", "mecha", "budget", "set"]],
+      ["budget rm", ["node", "mecha", "budget", "rm"]],
       ["budget ls", ["node", "mecha", "budget", "ls"]],
       ["sandbox show", ["node", "mecha", "sandbox", "show"]],
       ["agent status", ["node", "mecha", "agent", "status"]],
@@ -218,7 +218,7 @@ describe("cli-lock", () => {
     });
 
     it("skips flags when finding command", () => {
-      expect(needsLock(["node", "mecha", "--json", "bot", "spawn", "alice", "/path"])).toBe(true);
+      expect(needsLock(["node", "mecha", "--json", "bot", "spawn", "alice", "/path"])).toBe(false);
       expect(needsLock(["node", "mecha", "--verbose", "bot", "ls"])).toBe(false);
     });
   });
