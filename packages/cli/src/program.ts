@@ -35,15 +35,13 @@ import { registerAuthConfigCommand } from "./commands/auth-config.js";
 export const MUTATING_COMMANDS = new Set([
   // Daemon-level mutating commands
   "start", "stop", "restart", "init",
-  // bot subcommands
-  "bot spawn", "bot start", "bot stop", "bot kill",
-  "bot restart", "bot remove", "bot configure",
+  // bot subcommands — run without lock; when server is running, they operate
+  // on the same ProcessManager filesystem state which handles concurrency safely.
   // agent subcommands (agent status is read-only)
   "agent start",
   // meter subcommands
   "meter start", "meter stop",
-  // schedule subcommands
-  "schedule add", "schedule remove", "schedule pause", "schedule resume", "schedule run",
+  // schedule subcommands — same reasoning, filesystem-level state.
   // acl subcommands
   "acl grant", "acl revoke",
   // node subcommands — node add/rm write to nodes.json only, safe while server runs.
@@ -51,8 +49,7 @@ export const MUTATING_COMMANDS = new Set([
   // but these are manual CLI ops that a single user runs sequentially.
   // auth subcommands (auth ls, auth test are read-only)
   "auth add", "auth rm", "auth default", "auth tag", "auth switch", "auth renew",
-  // budget subcommands
-  "budget set", "budget rm",
+  // budget subcommands — same reasoning, filesystem-level state.
   // plugin subcommands (ls, status, test are read-only)
   "plugin add", "plugin rm",
   // audit subcommands
