@@ -2,6 +2,9 @@ import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { withErrorHandler } from "../error-handler.js";
 import { stopDaemon, meterDir } from "@mecha/meter";
+import { readDaemonPid, removeDaemonPid } from "../daemon.js";
+import { unlinkSync } from "node:fs";
+import { join } from "node:path";
 
 /** Register the 'stop' command (stop daemon). */
 export function registerStopDaemonCommand(program: Command, deps: CommandDeps): void {
@@ -46,6 +49,28 @@ export function registerStopDaemonCommand(program: Command, deps: CommandDeps): 
       if (meterStopped) {
         deps.formatter.success("Metering proxy stopped");
       }
+
+      // Kill daemon process if running
+      const daemonPid = readDaemonPid(deps.mechaDir);
+      if (daemonPid !== null && daemonPid !== process.pid) {
+        try {
+          process.kill(daemonPid, "SIGTERM");
+          removeDaemonPid(deps.mechaDir);
+          deps.formatter.success(`Daemon process stopped (pid ${daemonPid})`);
+        /* v8 ignore start -- ESRCH expected if daemon already exited */
+        } catch {
+          removeDaemonPid(deps.mechaDir); // stale PID file
+        }
+        /* v8 ignore stop */
+      } else if (daemonPid === process.pid) {
+        // We ARE the daemon — clean up PID file (process will exit after this)
+        removeDaemonPid(deps.mechaDir);
+      }
+
+      // Clean up agent discovery file
+      /* v8 ignore start -- agent.json may not exist */
+      try { unlinkSync(join(deps.mechaDir, "agent.json")); } catch { /* ignore */ }
+      /* v8 ignore stop */
 
       deps.formatter.success("Daemon stopped");
     }));
