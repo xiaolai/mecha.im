@@ -174,7 +174,7 @@ import { parseTailscaleStatus } from "@mecha/core";
 
 const status = JSON.parse(stdout);
 const peers = parseTailscaleStatus(status);
-// [{ ip: "100.64.200.9", hostname: "overlay-node-3" }, ...]
+// [{ ip: "192.168.1.50", hostname: "server-01" }, ...]
 ```
 
 ### `scanTailscalePeers()`
@@ -690,7 +690,7 @@ import { writeDiscoveredNode } from "@mecha/core";
 
 writeDiscoveredNode("/home/alice/.mecha", {
   name: "bob",
-  host: "100.64.200.9",
+  host: "192.168.1.50",
   port: 7660,
   apiKey: "exchanged-key",
   source: "tailscale",

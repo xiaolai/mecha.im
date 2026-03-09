@@ -68,7 +68,7 @@ describe("sandbox-setup", () => {
 
   describe("encodeProjectPath", () => {
     it("replaces slashes with dashes", () => {
-      expect(encodeProjectPath("/home/testuser/project")).toBe("-home-alice-project");
+      expect(encodeProjectPath("/home/testuser/project")).toBe("-home-testuser-project");
     });
 
     it("handles root path", () => {
@@ -76,15 +76,15 @@ describe("sandbox-setup", () => {
     });
 
     it("handles Windows paths with backslashes and drive letter", () => {
-      expect(encodeProjectPath("C:\\Users\\joker\\project")).toBe("C--home-alice-project");
+      expect(encodeProjectPath("C:\\Users\\testuser\\project")).toBe("C--Users-testuser-project");
     });
 
     it("handles mixed separators", () => {
-      expect(encodeProjectPath("C:\\Users/joker\\project")).toBe("C--home-alice-project");
+      expect(encodeProjectPath("C:\\Users/testuser\\project")).toBe("C--Users-testuser-project");
     });
 
     it("replaces dots with dashes", () => {
-      expect(encodeProjectPath("/home/testuser/ori.gami.art")).toBe("-home-alice-ori-gami-art");
+      expect(encodeProjectPath("/home/testuser/ori.gami.art")).toBe("-home-testuser-ori-gami-art");
     });
   });
 
