@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createProgram } from "../../src/program.js";
@@ -88,5 +88,44 @@ describe("start command", () => {
 
     await program.parseAsync(["node", "mecha", "start", "--port", "7700"]);
     expect(mockServer.listen).toHaveBeenCalledWith(expect.objectContaining({ port: 7700 }));
+  });
+
+  it("registers --daemon option", () => {
+    const deps = makeDeps({ mechaDir: dir });
+    const program = createProgram(deps);
+    const startCmd = program.commands.find((c) => c.name() === "start");
+    expect(startCmd).toBeDefined();
+    const daemonOpt = startCmd!.options.find((o) => o.long === "--daemon");
+    expect(daemonOpt).toBeDefined();
+    expect(daemonOpt!.short).toBe("-d");
+    expect(daemonOpt!.defaultValue).toBe(false);
+  });
+
+  it("writes daemon.pid after server listen", async () => {
+    const { existsSync, readFileSync: readFs } = await import("node:fs");
+    const { join: joinPath } = await import("node:path");
+    const deps = makeDeps({ mechaDir: dir });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "start"]);
+    const pidFile = joinPath(dir, "daemon.pid");
+    expect(existsSync(pidFile)).toBe(true);
+    const pid = parseInt(readFs(pidFile, "utf-8").trim(), 10);
+    expect(pid).toBe(process.pid);
+  });
+
+  it("writes agent.json after starting", async () => {
+    const hooks: Array<() => Promise<void>> = [];
+    const deps = makeDeps({ mechaDir: dir, registerShutdownHook: (fn) => hooks.push(fn) });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "start"]);
+
+    const agentJson = JSON.parse(readFileSync(join(dir, "agent.json"), "utf8"));
+    expect(agentJson.port).toBe(7660);
+    expect(agentJson.pid).toBe(process.pid);
+    expect(agentJson.startedAt).toBeDefined();
   });
 });
