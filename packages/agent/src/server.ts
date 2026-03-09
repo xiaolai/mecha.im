@@ -34,6 +34,7 @@ import { createEventLog, emitEvent } from "./event-log.js";
 import { createPtyManager } from "./pty-manager.js";
 import { issueTicket, purgeTickets } from "./ws-tickets.js";
 
+/** Authentication configuration for the agent server. */
 export interface AgentServerAuth {
   /** TOTP secret (base32). When set, enables session-based TOTP auth. */
   totpSecret?: string;

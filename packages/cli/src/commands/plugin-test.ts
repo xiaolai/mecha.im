@@ -61,6 +61,7 @@ async function testHttpPlugin(
 }
 /* v8 ignore stop */
 
+/** Register the 'plugin test' subcommand. */
 export function registerPluginTestCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("test")

@@ -3,6 +3,7 @@ import type { CommandDeps } from "../types.js";
 import { removePlugin, PluginNotFoundError } from "@mecha/core";
 import { withErrorHandler } from "../error-handler.js";
 
+/** Register the 'plugin rm' subcommand. */
 export function registerPluginRmCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("rm")

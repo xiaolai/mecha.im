@@ -2,6 +2,7 @@ import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { withErrorHandler } from "../error-handler.js";
 
+/** Register the 'restart' command (restart daemon). */
 export function registerRestartDaemonCommand(program: Command, deps: CommandDeps): void {
   program
     .command("restart")

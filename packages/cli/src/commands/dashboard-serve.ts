@@ -12,6 +12,7 @@ interface DashboardServeOpts {
   totp: boolean;
 }
 
+/** Execute the dashboard serve logic (start Fastify server). */
 export async function executeDashboardServe(opts: DashboardServeOpts, deps: CommandDeps): Promise<void> {
   const port = parsePort(opts.port);
   if (port === undefined) {
@@ -100,6 +101,7 @@ export async function executeDashboardServe(opts: DashboardServeOpts, deps: Comm
   /* v8 ignore stop */
 }
 
+/** Register the 'dashboard serve' subcommand. */
 export function registerDashboardServeCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("serve")

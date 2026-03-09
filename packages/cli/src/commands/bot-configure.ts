@@ -4,6 +4,7 @@ import { botName, validateTags, validateCapabilities, readAuthProfiles, AuthProf
 import { botConfigure } from "@mecha/service";
 import { withErrorHandler } from "../error-handler.js";
 
+/** Register the 'bot configure' subcommand. */
 export function registerBotConfigureCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("configure")

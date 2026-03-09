@@ -3,6 +3,7 @@ import type { CommandDeps } from "../types.js";
 import { registerAgentStartCommand } from "./agent-start.js";
 import { registerAgentStatusCommand } from "./agent-status.js";
 
+/** Register the 'agent' command group. */
 export function registerAgentCommand(program: Command, deps: CommandDeps): void {
   const agent = program
     .command("agent")

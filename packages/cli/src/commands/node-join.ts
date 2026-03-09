@@ -6,6 +6,7 @@ import { readNodeName } from "@mecha/service";
 import { parseInviteCode } from "@mecha/connect";
 
 
+/** Register the 'node join' subcommand. */
 export function registerNodeJoinCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("join")

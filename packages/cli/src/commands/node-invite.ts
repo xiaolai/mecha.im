@@ -15,6 +15,7 @@ function parseDuration(duration: string): number {
 }
 
 
+/** Register the 'node invite' subcommand. */
 export function registerNodeInviteCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("invite")

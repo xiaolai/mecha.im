@@ -1,5 +1,6 @@
 import { DEFAULT_CONFIG } from "./types.js";
 
+/** Validated server environment configuration. */
 export interface ServerEnv {
   port: number;
   host: string;

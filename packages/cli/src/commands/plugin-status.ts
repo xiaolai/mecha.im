@@ -34,6 +34,7 @@ async function checkHttpPlugin(
 }
 /* v8 ignore stop */
 
+/** Register the 'plugin status' subcommand. */
 export function registerPluginStatusCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("status")

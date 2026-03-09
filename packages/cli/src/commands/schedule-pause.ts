@@ -4,6 +4,7 @@ import { botName } from "@mecha/core";
 import { botSchedulePause } from "@mecha/service";
 import { withErrorHandler } from "../error-handler.js";
 
+/** Register the 'schedule pause' subcommand. */
 export function registerSchedulePauseCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("pause")

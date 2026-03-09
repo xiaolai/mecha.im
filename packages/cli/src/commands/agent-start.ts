@@ -14,6 +14,7 @@ interface AgentStartOpts {
   rendezvous?: string;
 }
 
+/** Register the 'agent start' subcommand. */
 export function registerAgentStartCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("start")

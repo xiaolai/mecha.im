@@ -11,6 +11,7 @@ import {
   type HttpPluginConfig,
 } from "@mecha/core";
 
+/** Options for plugin management routes. */
 export interface PluginRouteOpts {
   mechaDir: string;
 }

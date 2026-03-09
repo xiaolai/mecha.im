@@ -27,6 +27,7 @@ function formatExpiry(expiresAt: number | null): string {
 }
 /* v8 ignore stop */
 
+/** Register the 'auth' command group. */
 export function registerAuthCommand(program: Command, deps: CommandDeps): void {
   const auth = program
     .command("auth")

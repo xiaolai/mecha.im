@@ -4,6 +4,7 @@ import { isValidAddress, isCapability, InvalidCapabilityError, InvalidAddressErr
 import type { Capability } from "@mecha/core";
 import { withErrorHandler } from "../error-handler.js";
 
+/** Register the 'acl' command group. */
 export function registerAclCommand(program: Command, deps: CommandDeps): void {
   const acl = program
     .command("acl")

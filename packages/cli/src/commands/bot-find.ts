@@ -3,6 +3,7 @@ import type { CommandDeps } from "../types.js";
 import { botFind } from "@mecha/service";
 import { withErrorHandler } from "../error-handler.js";
 
+/** Register the 'bot find' subcommand. */
 export function registerBotFindCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("find")

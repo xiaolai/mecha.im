@@ -2,6 +2,7 @@ import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { withErrorHandler } from "../error-handler.js";
 
+/** Register the 'mcp config' subcommand. */
 export function registerMcpConfigCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("config")

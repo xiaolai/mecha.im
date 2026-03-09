@@ -36,6 +36,7 @@ function parseKeyValue(pairs: string[]): Record<string, string> {
   return result;
 }
 
+/** Register the 'plugin add' subcommand. */
 export function registerPluginAddCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("add")

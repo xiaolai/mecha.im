@@ -2,10 +2,12 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { addNode, removeNode, readNodes, isValidName, promoteDiscoveredNode, NodeNotFoundError, DuplicateNodeError } from "@mecha/core";
 import { nodePing } from "@mecha/service";
 
+/** Options for node management routes. */
 export interface NodeRouteOpts {
   mechaDir: string;
 }
 
+/** Register node management routes (list, add, remove). */
 export function registerNodeRoutes(app: FastifyInstance, opts: NodeRouteOpts): void {
   const { mechaDir } = opts;
 

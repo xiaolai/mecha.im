@@ -3,6 +3,7 @@ import type { CommandDeps } from "../types.js";
 import { withErrorHandler } from "../error-handler.js";
 import { collectNodeInfo, fetchPublicIp, formatUptime } from "@mecha/core";
 
+/** Execute the node info display logic. */
 export async function executeNodeInfo(deps: CommandDeps): Promise<void> {
   const publicIp = await fetchPublicIp();
   const info = collectNodeInfo({
@@ -39,6 +40,7 @@ export async function executeNodeInfo(deps: CommandDeps): Promise<void> {
 }
 
 /* v8 ignore start -- commander wiring tested via executeNodeInfo */
+/** Register the 'node info' subcommand. */
 export function registerNodeInfoCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("info")

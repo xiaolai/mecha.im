@@ -4,6 +4,7 @@ import { botName } from "@mecha/core";
 import { botScheduleAdd } from "@mecha/service";
 import { withErrorHandler } from "../error-handler.js";
 
+/** Register the 'schedule add' subcommand. */
 export function registerScheduleAddCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("add")

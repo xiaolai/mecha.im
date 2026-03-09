@@ -5,6 +5,7 @@ import { checkBotBusy } from "@mecha/service";
 import { join } from "node:path";
 import { withErrorHandler } from "../error-handler.js";
 
+/** Register the 'bot restart' subcommand. */
 export function registerBotRestartCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("restart")

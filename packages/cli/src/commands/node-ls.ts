@@ -2,6 +2,7 @@ import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { readNodes, readDiscoveredNodes } from "@mecha/core";
 
+/** Register the 'node ls' subcommand. */
 export function registerNodeLsCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("ls")

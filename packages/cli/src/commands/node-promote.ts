@@ -3,6 +3,7 @@ import type { CommandDeps } from "../types.js";
 import { promoteDiscoveredNode } from "@mecha/core";
 import { withErrorHandler } from "../error-handler.js";
 
+/** Register the 'node promote' subcommand. */
 export function registerNodePromoteCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("promote")

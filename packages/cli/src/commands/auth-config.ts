@@ -7,6 +7,7 @@ interface AuthConfigOpts {
   totp?: boolean;
 }
 
+/** Execute the auth config display/edit logic. */
 export function executeAuthConfig(opts: AuthConfigOpts, deps: CommandDeps): void {
   const hasFlags = opts.totp !== undefined;
 
@@ -39,6 +40,7 @@ export function executeAuthConfig(opts: AuthConfigOpts, deps: CommandDeps): void
 }
 
 /* v8 ignore start -- commander wiring tested via executeAuthConfig */
+/** Register the 'auth config' subcommand. */
 export function registerAuthConfigCommand(program: Command, deps: CommandDeps): void {
   program
     .command("auth-config")

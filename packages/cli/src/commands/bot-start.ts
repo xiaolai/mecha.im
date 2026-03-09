@@ -4,6 +4,7 @@ import { botName, readBotConfig, BotNotFoundError, BotAlreadyRunningError } from
 import { join } from "node:path";
 import { withErrorHandler } from "../error-handler.js";
 
+/** Register the 'bot start' subcommand. */
 export function registerBotStartCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("start")

@@ -3,6 +3,7 @@ import type { CommandDeps } from "../types.js";
 import { withErrorHandler } from "../error-handler.js";
 import { stopDaemon, meterDir } from "@mecha/meter";
 
+/** Register the 'stop' command (stop daemon). */
 export function registerStopDaemonCommand(program: Command, deps: CommandDeps): void {
   program
     .command("stop")

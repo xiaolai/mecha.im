@@ -11,6 +11,7 @@ import { registerNodeHealthCommand } from "./node-health.js";
 import { registerNodeInfoCommand } from "./node-info.js";
 import { registerNodePromoteCommand } from "./node-promote.js";
 
+/** Register the 'node' command group. */
 export function registerNodeCommand(program: Command, deps: CommandDeps): void {
   const node = program
     .command("node")

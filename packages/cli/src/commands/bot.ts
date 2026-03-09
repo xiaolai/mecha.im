@@ -16,6 +16,7 @@ import { registerBotSessionsCommand } from "./bot-sessions.js";
 import { registerBotStopAllCommand } from "./bot-stop-all.js";
 import { registerBotRestartAllCommand } from "./bot-restart-all.js";
 
+/** Register the 'bot' command group. */
 export function registerBotCommand(program: Command, deps: CommandDeps): void {
   const bot = program
     .command("bot")

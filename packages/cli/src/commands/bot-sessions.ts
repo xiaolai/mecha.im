@@ -7,6 +7,7 @@ import {
 } from "@mecha/service";
 import { withErrorHandler } from "../error-handler.js";
 
+/** Register the 'bot sessions' subcommand. */
 export function registerBotSessionsCommand(parent: Command, deps: CommandDeps): void {
   const sessions = parent
     .command("sessions")

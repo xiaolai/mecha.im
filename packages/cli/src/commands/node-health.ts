@@ -70,6 +70,7 @@ async function checkNodeHealth(
   }
 }
 
+/** Execute the node health check logic. */
 export async function executeNodeHealth(name: string | undefined, deps: CommandDeps): Promise<void> {
   if (name) {
     const node = getNode(deps.mechaDir, name);
@@ -115,6 +116,7 @@ export async function executeNodeHealth(name: string | undefined, deps: CommandD
 }
 
 /* v8 ignore start -- commander wiring tested via executeNodeHealth */
+/** Register the 'node health' subcommand. */
 export function registerNodeHealthCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("health")

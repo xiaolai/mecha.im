@@ -1,8 +1,10 @@
 import { useState, useCallback } from "react";
 import { useAuth } from "@/auth-context";
 
+/** Bot lifecycle action type (start, stop, kill, restart, remove). */
 export type BotActionType = "stop" | "kill" | "start" | "restart";
 
+/** Warning state when a bot action is already in progress. */
 export interface BusyWarning {
   activeSessions: number;
   lastActivity?: string;

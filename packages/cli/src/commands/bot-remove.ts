@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { existsSync, rmSync } from "node:fs";
 import { withErrorHandler } from "../error-handler.js";
 
+/** Register the 'bot remove' subcommand. */
 export function registerBotRemoveCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("remove")

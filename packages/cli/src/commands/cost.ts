@@ -4,6 +4,7 @@ import { meterDir } from "@mecha/meter";
 import { queryCostToday, queryCostForBot } from "@mecha/meter";
 import { withErrorHandler } from "../error-handler.js";
 
+/** Register the 'cost' command group. */
 export function registerCostCommand(program: Command, deps: CommandDeps): void {
   program
     .command("cost")

@@ -9,6 +9,7 @@ interface BatchOpts {
   dryRun: boolean;
 }
 
+/** Register a batch subcommand (stop-all, restart-all). */
 export function registerBatchCommand(
   parent: Command,
   deps: CommandDeps,

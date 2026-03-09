@@ -3,6 +3,7 @@ import type { CommandDeps } from "../types.js";
 import { removeNode, NodeNotFoundError } from "@mecha/core";
 import { withErrorHandler } from "../error-handler.js";
 
+/** Register the 'node rm' subcommand. */
 export function registerNodeRmCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("rm")

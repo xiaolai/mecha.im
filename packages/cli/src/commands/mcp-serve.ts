@@ -15,6 +15,7 @@ function parsePort(value: string): number {
   return n;
 }
 
+/** Register the 'mcp serve' subcommand. */
 export function registerMcpServeCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("serve")
