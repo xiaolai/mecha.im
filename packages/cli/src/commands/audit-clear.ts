@@ -3,6 +3,7 @@ import type { CommandDeps } from "../types.js";
 import { withErrorHandler } from "../error-handler.js";
 import { createAuditLog } from "@mecha/mcp-server";
 
+/** Register the 'audit clear' subcommand. */
 export function registerAuditClearCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("clear")

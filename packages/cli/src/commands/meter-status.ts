@@ -4,6 +4,7 @@ import { getMeterStatus, meterDir } from "@mecha/meter";
 import { formatUptime } from "@mecha/core";
 import { withErrorHandler } from "../error-handler.js";
 
+/** Register the 'meter status' subcommand. */
 export function registerMeterStatusCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("status")

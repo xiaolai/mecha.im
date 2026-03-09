@@ -4,6 +4,7 @@ import { botName } from "@mecha/core";
 import { botScheduleRun } from "@mecha/service";
 import { withErrorHandler } from "../error-handler.js";
 
+/** Register the 'schedule run' subcommand. */
 export function registerScheduleRunCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("run")

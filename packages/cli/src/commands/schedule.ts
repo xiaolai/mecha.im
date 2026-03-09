@@ -8,6 +8,7 @@ import { registerScheduleResumeCommand } from "./schedule-resume.js";
 import { registerScheduleRunCommand } from "./schedule-run.js";
 import { registerScheduleHistoryCommand } from "./schedule-history.js";
 
+/** Register the 'schedule' command group. */
 export function registerScheduleCommand(program: Command, deps: CommandDeps): void {
   const schedule = program
     .command("schedule")

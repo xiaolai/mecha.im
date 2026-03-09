@@ -4,6 +4,7 @@ import { botName, BotBusyError } from "@mecha/core";
 import { checkBotBusy } from "@mecha/service";
 import { withErrorHandler } from "../error-handler.js";
 
+/** Register the 'bot stop' subcommand. */
 export function registerBotStopCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("stop")

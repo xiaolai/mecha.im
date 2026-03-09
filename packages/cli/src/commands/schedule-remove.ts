@@ -4,6 +4,7 @@ import { botName } from "@mecha/core";
 import { botScheduleRemove } from "@mecha/service";
 import { withErrorHandler } from "../error-handler.js";
 
+/** Register the 'schedule remove' subcommand. */
 export function registerScheduleRemoveCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("remove")

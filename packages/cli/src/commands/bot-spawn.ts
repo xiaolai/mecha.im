@@ -10,6 +10,7 @@ const SANDBOX_MODES: readonly string[] = ["auto", "off", "require"];
 const PERMISSION_MODES: readonly string[] = ["default", "plan", "bypassPermissions", "acceptEdits", "dontAsk", "auto"];
 const EFFORT_LEVELS: readonly string[] = ["low", "medium", "high"];
 
+/** Register the 'bot spawn' subcommand. */
 export function registerBotSpawnCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("spawn")

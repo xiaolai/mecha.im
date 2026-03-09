@@ -3,6 +3,7 @@ import type { CommandDeps } from "../types.js";
 import { mechaToolInstall, mechaToolLs, resolveClaudeRuntime } from "@mecha/service";
 import { withErrorHandler } from "../error-handler.js";
 
+/** Register the 'tools' command group. */
 export function registerToolsCommand(program: Command, deps: CommandDeps): void {
   const tools = program
     .command("tools")

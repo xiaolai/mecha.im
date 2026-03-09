@@ -4,6 +4,7 @@ import { MeterProxyNotRunningError } from "@mecha/core";
 import { stopDaemon, meterDir } from "@mecha/meter";
 import { withErrorHandler } from "../error-handler.js";
 
+/** Register the 'meter stop' subcommand. */
 export function registerMeterStopCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("stop")

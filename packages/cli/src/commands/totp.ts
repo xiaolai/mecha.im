@@ -4,6 +4,7 @@ import { readTotpSecret, writeTotpSecret, generateTotpSecret } from "@mecha/core
 import { withErrorHandler } from "../error-handler.js";
 import { displayTotpSetup } from "../totp-display.js";
 
+/** Execute the TOTP setup flow. */
 export async function executeTotpSetup(deps: CommandDeps, force = false): Promise<void> {
   const existing = readTotpSecret(deps.mechaDir);
   if (existing && !force) {
@@ -15,6 +16,7 @@ export async function executeTotpSetup(deps: CommandDeps, force = false): Promis
   await displayTotpSetup(secret, deps.formatter);
 }
 
+/** Execute the TOTP verify flow. */
 export async function executeTotpVerify(code: string, deps: CommandDeps): Promise<void> {
   const secret = readTotpSecret(deps.mechaDir);
   if (!secret) {
@@ -42,6 +44,7 @@ export async function executeTotpVerify(code: string, deps: CommandDeps): Promis
   }
 }
 
+/** Execute the TOTP status display logic. */
 export function executeTotpStatus(deps: CommandDeps): void {
   const secret = readTotpSecret(deps.mechaDir);
   if (secret) {
@@ -52,6 +55,7 @@ export function executeTotpStatus(deps: CommandDeps): void {
 }
 
 /* v8 ignore start -- commander wiring tested via execute* functions */
+/** Register the 'totp' command group. */
 export function registerTotpCommand(program: Command, deps: CommandDeps): void {
   const totp = program
     .command("totp")

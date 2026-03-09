@@ -3,6 +3,7 @@ import type { CommandDeps } from "../types.js";
 import { mechaDoctor } from "@mecha/service";
 import { withErrorHandler } from "../error-handler.js";
 
+/** Register the 'doctor' command. */
 export function registerDoctorCommand(program: Command, deps: CommandDeps): void {
   program
     .command("doctor")

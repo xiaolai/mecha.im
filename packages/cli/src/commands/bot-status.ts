@@ -6,6 +6,7 @@ import { readState } from "@mecha/process";
 import { join, sep } from "node:path";
 import { withErrorHandler } from "../error-handler.js";
 
+/** Register the 'bot status' subcommand. */
 export function registerBotStatusCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("status")

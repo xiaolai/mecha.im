@@ -3,6 +3,7 @@ import type { CommandDeps } from "../types.js";
 import { meterDir, readBudgets, writeBudgets, setBudget, removeBudget } from "@mecha/meter";
 import { withErrorHandler } from "../error-handler.js";
 
+/** Register the 'budget' command group. */
 export function registerBudgetCommand(program: Command, deps: CommandDeps): void {
   const budget = program
     .command("budget")

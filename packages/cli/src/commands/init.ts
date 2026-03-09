@@ -3,6 +3,7 @@ import type { CommandDeps } from "../types.js";
 import { mechaInit } from "@mecha/service";
 import { withErrorHandler } from "../error-handler.js";
 
+/** Register the 'init' command. */
 export function registerInitCommand(program: Command, deps: CommandDeps): void {
   program
     .command("init")
