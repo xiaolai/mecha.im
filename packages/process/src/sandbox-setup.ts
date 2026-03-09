@@ -68,8 +68,8 @@ export interface BotFilesystemResult {
 /**
  * Encode a workspace path into a directory name matching Claude Code's convention.
  * Replaces `/`, `\`, `:`, and `.` with `-`.
- * `/home/user/my.project` → `-home-alice-my-project`
- * `C:\Users\joker\project` → `C-home-alice-project`
+ * `/home/user/my.project` → `-home-user-my-project`
+ * `C:\Users\user\project` → `C-Users-user-project`
  */
 export function encodeProjectPath(workspacePath: string): string {
   return workspacePath.replace(/[/\\:.]/g, "-");
