@@ -3,6 +3,7 @@ import type { CommandDeps } from "../types.js";
 import { withErrorHandler } from "../error-handler.js";
 import { nodePing } from "@mecha/service";
 
+/** Register the 'node ping' subcommand. */
 export function registerNodePingCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("ping")

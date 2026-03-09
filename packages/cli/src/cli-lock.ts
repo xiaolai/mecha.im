@@ -4,6 +4,7 @@ import { isPidAlive } from "@mecha/core";
 
 const LOCK_FILE = "cli.lock";
 
+/** Information stored in the CLI lock file. */
 export interface CliLockInfo {
   pid: number;
   startedAt: string;

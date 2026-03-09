@@ -5,6 +5,7 @@ import type { CommandDeps } from "../types.js";
 import { botName } from "@mecha/core";
 import { withErrorHandler } from "../error-handler.js";
 
+/** Register the 'sandbox' command. */
 export function registerSandboxCommand(program: Command, deps: CommandDeps): void {
   const sandbox = program
     .command("sandbox")

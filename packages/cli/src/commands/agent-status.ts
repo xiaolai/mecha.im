@@ -3,6 +3,7 @@ import type { CommandDeps } from "../types.js";
 import { DEFAULTS, parsePort } from "@mecha/core";
 import { withErrorHandler } from "../error-handler.js";
 
+/** Register the 'agent status' subcommand. */
 export function registerAgentStatusCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("status")

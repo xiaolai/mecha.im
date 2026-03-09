@@ -6,6 +6,7 @@ import { registerPluginLsCommand } from "./plugin-ls.js";
 import { registerPluginStatusCommand } from "./plugin-status.js";
 import { registerPluginTestCommand } from "./plugin-test.js";
 
+/** Register the 'plugin' command group. */
 export function registerPluginCommand(program: Command, deps: CommandDeps): void {
   const plugin = program
     .command("plugin")

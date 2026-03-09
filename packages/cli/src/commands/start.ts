@@ -11,6 +11,7 @@ interface StartOpts {
   open: boolean;
 }
 
+/** Register the 'start' command. */
 export function registerStartCommand(program: Command, deps: CommandDeps): void {
   program
     .command("start")

@@ -4,6 +4,7 @@ import { DEFAULTS } from "@mecha/core";
 import { startDaemon, meterDir } from "@mecha/meter";
 import { withErrorHandler } from "../error-handler.js";
 
+/** Register the 'meter start' subcommand. */
 export function registerMeterStartCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("start")

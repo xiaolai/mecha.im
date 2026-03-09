@@ -2,6 +2,7 @@ import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { withErrorHandler } from "../error-handler.js";
 
+/** Execute the TOTP setup flow. */
 export async function executeTotpSetup(deps: CommandDeps): Promise<void> {
   const { TOTP, Secret } = await import("otpauth");
   const qrcode = await import("qrcode");
@@ -34,6 +35,7 @@ export async function executeTotpSetup(deps: CommandDeps): Promise<void> {
   deps.formatter.info(`MECHA_OTP=${base32}`);
 }
 
+/** Execute the TOTP verify flow. */
 export async function executeTotpVerify(code: string, deps: CommandDeps): Promise<void> {
   const secret = process.env.MECHA_OTP;
   if (!secret) {
@@ -63,6 +65,7 @@ export async function executeTotpVerify(code: string, deps: CommandDeps): Promis
 }
 
 /* v8 ignore start -- commander wiring tested via execute* functions */
+/** Register the 'dashboard totp' subcommand. */
 export function registerDashboardTotpCommand(parent: Command, deps: CommandDeps): void {
   const totp = parent
     .command("totp")

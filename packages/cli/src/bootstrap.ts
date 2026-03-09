@@ -8,6 +8,7 @@ import { createSandbox } from "@mecha/sandbox";
 import { acquireCliLock, needsLock, readCliLock, releaseCliLock } from "./cli-lock.js";
 import type { CommandDeps } from "./types.js";
 
+/** Options for bootstrapping the CLI process. */
 export interface BootstrapOpts {
   /** Override for runtimeEntrypoint (node + JS entrypoint mode) */
   runtimeEntrypoint?: string;

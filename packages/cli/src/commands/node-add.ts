@@ -3,6 +3,7 @@ import type { CommandDeps } from "../types.js";
 import { addNode, DEFAULTS, parsePort } from "@mecha/core";
 import { withErrorHandler } from "../error-handler.js";
 
+/** Register the 'node add' subcommand. */
 export function registerNodeAddCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("add")

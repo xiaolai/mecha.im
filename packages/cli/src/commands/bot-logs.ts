@@ -3,6 +3,7 @@ import type { CommandDeps } from "../types.js";
 import { botName } from "@mecha/core";
 import { withErrorHandler } from "../error-handler.js";
 
+/** Register the 'bot logs' subcommand. */
 export function registerBotLogsCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("logs")

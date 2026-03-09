@@ -3,6 +3,7 @@ import type { CommandDeps } from "../types.js";
 import { botFind, buildHierarchy, flattenHierarchy } from "@mecha/service";
 import { withErrorHandler } from "../error-handler.js";
 
+/** Register the 'bot ls' subcommand. */
 export function registerBotLsCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("ls")

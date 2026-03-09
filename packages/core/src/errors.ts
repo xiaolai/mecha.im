@@ -77,24 +77,28 @@ export const BotNotFoundError = defError<[string]>(
   (name) => `bot "${name}" not found`,
 );
 
+/** Error thrown when a bot with the given name already exists. */
 export const BotAlreadyExistsError = defError<[string]>(
   "BotAlreadyExistsError",
   { code: "BOT_ALREADY_EXISTS", statusCode: 409, exitCode: 1 },
   (name) => `bot "${name}" already exists`,
 );
 
+/** Error thrown when a bot is not in a running state. */
 export const BotNotRunningError = defError<[string]>(
   "BotNotRunningError",
   { code: "BOT_NOT_RUNNING", statusCode: 409, exitCode: 1 },
   (name) => `bot "${name}" is not running`,
 );
 
+/** Error thrown when attempting to start a bot that is already running. */
 export const BotAlreadyRunningError = defError<[string]>(
   "BotAlreadyRunningError",
   { code: "BOT_ALREADY_RUNNING", statusCode: 409, exitCode: 1 },
   (name) => `bot "${name}" is already running`,
 );
 
+/** Error thrown when a bot is busy processing another request. */
 export const BotBusyError = defError<[string, number]>(
   "BotBusyError",
   { code: "BOT_BUSY", statusCode: 409, exitCode: 1 },
@@ -108,6 +112,7 @@ export const PathNotFoundError = defError<[string]>(
   (path) => `Path not found: "${path}"`,
 );
 
+/** Error thrown when a path is not a valid directory. */
 export const PathNotDirectoryError = defError<[string]>(
   "PathNotDirectoryError",
   { code: "PATH_NOT_DIRECTORY", statusCode: 400, exitCode: 1 },
@@ -121,6 +126,7 @@ export const PortConflictError = defError<[number]>(
   (port) => `Port ${port} is already in use`,
 );
 
+/** Error thrown when a port number is invalid. */
 export const InvalidPortError = defError<[number]>(
   "InvalidPortError",
   { code: "INVALID_PORT", statusCode: 400, exitCode: 1 },
@@ -134,6 +140,7 @@ export const SessionNotFoundError = defError<[string]>(
   (id) => `Session "${id}" not found`,
 );
 
+/** Error thrown when a session is busy with another operation. */
 export const SessionBusyError = defError<[string]>(
   "SessionBusyError",
   { code: "SESSION_BUSY", statusCode: 409, exitCode: 1 },
@@ -147,6 +154,7 @@ export const AuthProfileNotFoundError = defError<[string]>(
   (name) => `Auth profile "${name}" not found`,
 );
 
+/** Error thrown when an auth token has expired. */
 export const AuthTokenExpiredError = defError<[string, string]>(
   "AuthTokenExpiredError",
   { code: "AUTH_TOKEN_EXPIRED", statusCode: 401, exitCode: 1 },
@@ -166,6 +174,7 @@ export const ProcessSpawnError = defError<[string]>(
   (reason) => `Failed to spawn bot: ${reason}`,
 );
 
+/** Error thrown when a process health check times out. */
 export const ProcessHealthTimeoutError = defError<[string]>(
   "ProcessHealthTimeoutError",
   { code: "PROCESS_HEALTH_TIMEOUT", statusCode: 500, exitCode: 2 },
@@ -186,6 +195,7 @@ export const IdentityNotFoundError = defError<[string]>(
   (name) => `Identity not found: "${name}"`,
 );
 
+/** Error thrown when an ACL capability is invalid. */
 export const InvalidCapabilityError = defError<[string]>(
   "InvalidCapabilityError",
   { code: "INVALID_CAPABILITY", statusCode: 400, exitCode: 2 },
@@ -279,18 +289,21 @@ export const ScheduleNotFoundError = defError<[string]>(
   (id) => `Schedule "${id}" not found`,
 );
 
+/** Error thrown when a schedule with the given ID already exists. */
 export const DuplicateScheduleError = defError<[string]>(
   "DuplicateScheduleError",
   { code: "DUPLICATE_SCHEDULE", statusCode: 409, exitCode: 1 },
   (id) => `Schedule "${id}" already exists`,
 );
 
+/** Error thrown when a schedule interval is invalid. */
 export const InvalidIntervalError = defError<[string]>(
   "InvalidIntervalError",
   { code: "INVALID_INTERVAL", statusCode: 400, exitCode: 1 },
   (interval) => `Invalid interval: "${interval}" (use format like "30s", "5m", "1h"; min 10s, max 24h)`,
 );
 
+/** Error thrown when the schedule limit is reached. */
 export const ScheduleLimitError = defError<[number]>(
   "ScheduleLimitError",
   { code: "SCHEDULE_LIMIT", statusCode: 409, exitCode: 1 },
@@ -311,24 +324,28 @@ export const ConnectError = defError<[string]>(
   (reason) => `Connection failed: ${reason}`,
 );
 
+/** Error thrown when a mesh invite code is invalid. */
 export const InvalidInviteError = defError<[string]>(
   "InvalidInviteError",
   { code: "INVALID_INVITE", statusCode: 400, exitCode: 1 },
   (reason) => `Invalid invite: ${reason}`,
 );
 
+/** Error thrown when a mesh handshake fails. */
 export const HandshakeError = defError<[string]>(
   "HandshakeError",
   { code: "HANDSHAKE_ERROR", statusCode: 502, exitCode: 1 },
   (reason) => `Handshake failed: ${reason}`,
 );
 
+/** Error thrown when a mesh peer is offline. */
 export const PeerOfflineError = defError<[string]>(
   "PeerOfflineError",
   { code: "PEER_OFFLINE", statusCode: 503, exitCode: 1 },
   (name) => `Peer "${name}" is offline`,
 );
 
+/** Error thrown when rendezvous signaling fails. */
 export const RendezvousError = defError<[string]>(
   "RendezvousError",
   { code: "RENDEZVOUS_ERROR", statusCode: 502, exitCode: 1 },
@@ -342,12 +359,14 @@ export const MeterProxyAlreadyRunningError = defError<[number]>(
   (pid) => `Metering proxy already running (pid ${pid})`,
 );
 
+/** Error thrown when the meter proxy is not running. */
 export const MeterProxyNotRunningError = defError<[]>(
   "MeterProxyNotRunningError",
   { code: "METER_PROXY_NOT_RUNNING", statusCode: 409, exitCode: 1 },
   () => "Metering proxy is not running",
 );
 
+/** Error thrown when metering is required but the proxy is not configured. */
 export const MeterProxyRequiredError = defError<[]>(
   "MeterProxyRequiredError",
   { code: "METER_PROXY_REQUIRED", statusCode: 503, exitCode: 2 },

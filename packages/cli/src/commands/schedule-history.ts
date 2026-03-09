@@ -4,6 +4,7 @@ import { botName } from "@mecha/core";
 import { botScheduleHistory } from "@mecha/service";
 import { withErrorHandler } from "../error-handler.js";
 
+/** Register the 'schedule history' subcommand. */
 export function registerScheduleHistoryCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("history")

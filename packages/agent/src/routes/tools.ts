@@ -1,10 +1,12 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { mechaToolLs, mechaToolInstall, mechaToolRemove, resolveClaudeRuntime } from "@mecha/service";
 
+/** Options for tool management routes. */
 export interface ToolRouteOpts {
   mechaDir: string;
 }
 
+/** Register tool management routes (list, install, remove). */
 export function registerToolRoutes(app: FastifyInstance, opts: ToolRouteOpts): void {
   const { mechaDir } = opts;
 

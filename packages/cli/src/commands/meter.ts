@@ -4,6 +4,7 @@ import { registerMeterStartCommand } from "./meter-start.js";
 import { registerMeterStopCommand } from "./meter-stop.js";
 import { registerMeterStatusCommand } from "./meter-status.js";
 
+/** Register the 'meter' command group. */
 export function registerMeterCommand(program: Command, deps: CommandDeps): void {
   const meter = program
     .command("meter")
