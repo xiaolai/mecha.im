@@ -47,10 +47,10 @@ mecha auth test mykey
 ## 4. Start the Runtime
 
 ```bash
-mecha start
+mecha start -d
 ```
 
-This starts three services on your machine:
+This starts three services in the background:
 
 | Service | Port | What it does |
 |---------|------|--------------|
@@ -58,9 +58,13 @@ This starts three services on your machine:
 | Meter proxy | 7600 | Tracks API costs per bot |
 | MCP server | 7680 | Exposes bots as MCP tools |
 
-The dashboard opens at `http://localhost:7660`. On first visit it asks for a TOTP code — scan the QR code shown in your terminal.
+The `-d` flag runs the server as a background daemon. On first run it displays a TOTP QR code — scan it with your authenticator app. The dashboard is at `http://localhost:7660`.
 
-Leave this running. Open a new terminal for the next steps.
+Check that everything is running:
+
+```bash
+mecha status
+```
 
 ## 5. Spawn a Bot
 
@@ -147,10 +151,11 @@ Bots that hit the budget are paused automatically.
 # Stop a specific bot
 mecha bot stop researcher
 
-# Stop everything (Ctrl+C in the terminal running `mecha start`)
+# Stop everything (bots + daemon)
+mecha stop
 ```
 
-Bot state persists across restarts. Next time you `mecha start`, you can respawn bots and their conversation history is still there.
+Bot state persists across restarts. Next time you `mecha start -d`, you can respawn bots and their conversation history is still there.
 
 ## What's Next?
 
