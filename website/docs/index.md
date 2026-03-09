@@ -22,7 +22,7 @@ features:
     details: Bots don't just wait for input. Schedule them on cron, have them respond to events, or let them work through tasks autonomously.
   - icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>'
     title: Tree Organization
-    details: Organize bots in a tree — group them by project, team, or role. Parent bots can delegate to children. See your entire army at a glance.
+    details: Each bot is a directory with a markdown file. Organize them in a tree — group by project, team, or role. The directory structure is your org chart.
   - icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>'
     title: Sandboxed Processes
     details: Each bot runs in OS-level isolation with its own workspace, permissions, and budget. No Docker required.
