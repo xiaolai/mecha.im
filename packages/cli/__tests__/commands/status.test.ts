@@ -29,7 +29,7 @@ describe("mecha status", () => {
   });
 
   it("shows stale PID when daemon.pid exists but process dead", async () => {
-    writeFileSync(join(dir, "daemon.pid"), "999999999");
+    writeFileSync(join(dir, "daemon.pid"), "999999999\nmecha-daemon\n");
     const deps = makeDeps({ mechaDir: dir });
     const program = createProgram(deps);
     program.exitOverride();

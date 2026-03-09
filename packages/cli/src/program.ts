@@ -36,8 +36,9 @@ import { registerStatusCommand } from "./commands/status.js";
 export const MUTATING_COMMANDS = new Set([
   // Daemon-level mutating commands
   "start", "stop", "restart", "init",
-  // bot subcommands — run without lock; when server is running, they operate
-  // on the same ProcessManager filesystem state which handles concurrency safely.
+  // bot subcommands — run without lock; ProcessManager writes per-bot state files
+  // (state.json, config.json) atomically. Concurrent bot ops on DIFFERENT bots are safe.
+  // Concurrent ops on the SAME bot are serialized by the server's request handler.
   // agent subcommands (agent status is read-only)
   "agent start",
   // meter subcommands
@@ -50,7 +51,8 @@ export const MUTATING_COMMANDS = new Set([
   // but these are manual CLI ops that a single user runs sequentially.
   // auth subcommands (auth ls, auth test are read-only)
   "auth add", "auth rm", "auth default", "auth tag", "auth switch", "auth renew",
-  // budget subcommands — same reasoning, filesystem-level state.
+  // budget subcommands — read-modify-write on budgets.json, needs lock
+  "budget set", "budget rm",
   // plugin subcommands (ls, status, test are read-only)
   "plugin add", "plugin rm",
   // audit subcommands

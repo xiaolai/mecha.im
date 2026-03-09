@@ -1,21 +1,28 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
-import { DEFAULTS } from "@mecha/core";
+import { DEFAULTS, parsePort } from "@mecha/core";
 import { withErrorHandler } from "../error-handler.js";
 import { readDaemonPid, isDaemonRunning } from "../daemon.js";
-import { AgentClient, detectAgentPort } from "../client.js";
+import { AgentClient, detectAgent } from "../client.js";
 
 /** Register the 'status' command. */
 export function registerStatusCommand(program: Command, deps: CommandDeps): void {
   program
     .command("status")
     .description("Show daemon, server, and bot status")
-    .option("--port <port>", "Agent server port", String(DEFAULTS.AGENT_PORT))
-    .action(async (opts: { port: string }) => withErrorHandler(deps, async () => {
-      // Detect port from agent.json or use option
-      const detectedPort = detectAgentPort(deps.mechaDir);
-      const port = detectedPort ?? (parseInt(opts.port, 10) || DEFAULTS.AGENT_PORT);
-      const client = new AgentClient(port);
+    .option("--port <port>", "Agent server port")
+    .action(async (opts: { port?: string }) => withErrorHandler(deps, async () => {
+      // Explicit --port takes precedence; fall back to agent.json auto-discovery
+      if (opts.port && !parsePort(opts.port)) {
+        deps.formatter.error(`Invalid port: ${opts.port}`);
+        process.exitCode = 1;
+        return;
+      }
+      const explicitPort = opts.port ? parsePort(opts.port) : undefined;
+      const detected = detectAgent(deps.mechaDir);
+      const port = explicitPort ?? detected?.port ?? DEFAULTS.AGENT_PORT;
+      const host = detected?.host ?? "127.0.0.1";
+      const client = new AgentClient(port, host);
       const alive = await client.isAlive();
 
       // Daemon status

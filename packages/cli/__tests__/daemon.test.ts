@@ -17,11 +17,13 @@ describe("daemon pid helpers", () => {
     expect(readDaemonPid(dir)).toBe(12345);
   });
 
-  it("writes file with mode 0o600", () => {
+  it("writes file with mode 0o600 and daemon marker", () => {
     dir = mkdtempSync(join(tmpdir(), "daemon-test-"));
     writeDaemonPid(dir, 99);
     const raw = readFileSync(join(dir, "daemon.pid"), "utf-8");
-    expect(raw.trim()).toBe("99");
+    const lines = raw.trim().split("\n");
+    expect(lines[0]).toBe("99");
+    expect(lines[1]).toBe("mecha-daemon");
   });
 
   it("read returns null when no file exists", () => {
@@ -72,6 +74,21 @@ describe("daemon pid helpers", () => {
     // Use a very high PID unlikely to be alive
     writeDaemonPid(dir, 2147483647);
     expect(isDaemonRunning(dir)).toBe(false);
+  });
+
+  it("isDaemonRunning returns false for PID file without marker", () => {
+    dir = mkdtempSync(join(tmpdir(), "daemon-test-"));
+    // Write PID file without the mecha-daemon marker (could be a different process)
+    const { writeFileSync: fsWrite } = require("node:fs");
+    fsWrite(join(dir, "daemon.pid"), `${process.pid}\n`);
+    expect(isDaemonRunning(dir)).toBe(false);
+  });
+
+  it("readDaemonPid rejects partial numeric strings like 123abc", () => {
+    dir = mkdtempSync(join(tmpdir(), "daemon-test-"));
+    const { writeFileSync: fsWrite } = require("node:fs");
+    fsWrite(join(dir, "daemon.pid"), "123abc\nmecha-daemon\n");
+    expect(readDaemonPid(dir)).toBeNull();
   });
 
   it("creates mechaDir if it does not exist", () => {
