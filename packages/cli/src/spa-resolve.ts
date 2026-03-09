@@ -53,6 +53,7 @@ async function extractEmbeddedSpa(): Promise<string | undefined> {
   try {
     // Dynamic import so Bun's bundler includes the generated file in compiled binaries.
     // createRequire does NOT work in Bun compiled binaries.
+    // @ts-ignore — generated at build time by scripts/embed-spa.sh (may not exist during tsc)
     mod = await import("./spa-embedded.generated.js");
   } catch {
     return undefined;
