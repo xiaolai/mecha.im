@@ -1,4 +1,4 @@
-import { resolveAuth, MeterProxyRequiredError, AuthProfileNotFoundError, createLogger } from "@mecha/core";
+import { resolveAuth, MeterProxyRequiredError, AuthProfileNotFoundError, ProcessSpawnError, createLogger } from "@mecha/core";
 import type { ResolvedAuth } from "@mecha/core";
 import { readProxyInfo, isPidAlive, meterDir } from "@mecha/meter";
 
@@ -101,6 +101,16 @@ export function buildBotEnv(opts: BuildBotEnvOpts): Record<string, string> {
   }
   if (resolved) {
     childEnv[resolved.envVar] = resolved.token;
+  }
+
+  // Fail fast if no API credentials are available from any source.
+  // Skip when auth is explicitly null (--no-auth) — user opted out of credentials.
+  if (opts.auth !== null && !childEnv["ANTHROPIC_API_KEY"] && !childEnv["CLAUDE_CODE_OAUTH_TOKEN"]) {
+    throw new ProcessSpawnError(
+      `No API credentials available for bot "${name}". ` +
+      `Set ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN in the environment, ` +
+      `or add an auth profile with: mecha auth add`,
+    );
   }
 
   // Meter proxy integration — set ANTHROPIC_BASE_URL if proxy is alive

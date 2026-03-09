@@ -58,6 +58,8 @@ describe("sandbox-setup", () => {
     botDir = join(tempDir, "bot");
     mechaDir = join(tempDir, "mecha");
     mkdirSync(mechaDir, { recursive: true });
+    // Provide a default API key so buildBotEnv doesn't throw for non-auth tests
+    process.env.ANTHROPIC_API_KEY = "sk-ant-test-placeholder";
   });
 
   afterEach(() => {
@@ -310,13 +312,13 @@ describe("sandbox-setup", () => {
         expect(existsSync(credPath)).toBe(false);
       });
 
-      it("seeds onboarding state even when auth resolution fails", () => {
-        // No auth profiles, no host env — auth resolution fails
+      it("throws when no API credentials available from any source", () => {
+        // No auth profiles, no host env — spawn must fail with descriptive error
         delete process.env.ANTHROPIC_API_KEY;
         delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
-        const result = prepareBotFilesystem(makeOpts());
-        const claudeJson = JSON.parse(readFileSync(join(result.homeDir, ".claude.json"), "utf-8"));
-        expect(claudeJson.hasCompletedOnboarding).toBe(true);
+        expect(() => prepareBotFilesystem(makeOpts())).toThrow(
+          /No API credentials available for bot "alice"/,
+        );
       });
     });
 
