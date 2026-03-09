@@ -8,6 +8,7 @@ interface BotListProps {
   node?: string;
 }
 
+/** Grid of bot cards with tag filtering, polling for updates. */
 export function BotList({ node }: BotListProps) {
   const url = node ? `/bots?node=${encodeURIComponent(node)}` : "/bots";
   const { data, loading, error } = useFetch<BotInfo[]>(url, { interval: 5000 });

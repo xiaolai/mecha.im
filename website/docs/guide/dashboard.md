@@ -5,6 +5,8 @@ description: Using the Mecha web dashboard
 
 # Dashboard
 
+[[toc]]
+
 The Mecha dashboard is a single-page application (SPA) that provides a visual interface for managing your bots, sessions, schedules, and system settings.
 
 ## Accessing the Dashboard

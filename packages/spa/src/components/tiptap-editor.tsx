@@ -19,6 +19,7 @@ interface TiptapEditorProps {
   placeholder?: string;
 }
 
+/** Renders a rich-text editor powered by Tiptap with markdown support and mermaid rendering. */
 export function TiptapEditor({ initialContent, onChange, placeholder }: TiptapEditorProps) {
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;

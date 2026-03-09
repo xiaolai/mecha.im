@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 
+/** Animated placeholder block for loading states. */
 function Skeleton({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div

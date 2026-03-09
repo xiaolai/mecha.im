@@ -142,6 +142,14 @@ When spawning a bot via `POST /bots` or updating config via `PATCH /bots/:name/c
 | `strictMcpConfig` | `boolean` | Only use specified MCP servers |
 | `pluginDirs` | `string[]` | Plugin directories |
 
+**Permissions & Fallback**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `dangerouslySkipPermissions` | `boolean` | Skip all permission prompts (requires `sandboxMode: "require"`) |
+| `allowDangerouslySkipPermissions` | `boolean` | Allow the bot to self-escalate to skip permissions |
+| `fallbackModel` | `string` | Fallback model when primary is unavailable |
+
 **Session Behavior**
 
 | Field | Type | Description |
@@ -152,6 +160,7 @@ When spawning a bot via `POST /bots` or updating config via `PATCH /bots/:name/c
 **Validation Rules:**
 - `systemPrompt` and `appendSystemPrompt` are mutually exclusive
 - `allowedTools` and `tools` are mutually exclusive
+- `dangerouslySkipPermissions` requires `sandboxMode: "require"`
 
 ## `botStatus(pm, name)`
 

@@ -19,6 +19,7 @@ const resultBadge = {
   "rate-limited": "warning" as const,
 };
 
+/** Table of MCP audit log entries with tool, client, result, and duration. */
 export function AuditView() {
   const { data: entries, loading, error } = useFetch<AuditEntry[]>("/audit?limit=100", { interval: 10000 });
 

@@ -316,7 +316,7 @@ This enables peer discovery across a decentralized mesh without relying on any s
 
 The `mesh_query` MCP tool supports an optional `sessionId` parameter for multi-turn conversations across the mesh:
 
-```
+```ts
 mesh_query({ target: "analyst@bob", message: "Analyze the data", sessionId: "abc123" })
 ```
 

@@ -33,6 +33,7 @@ interface Props {
   onCreated: () => void;
 }
 
+/** Sheet form for spawning a new bot with name, workspace, and spawn settings. */
 export function BotSpawnForm({ open, onOpenChange, onCreated }: Props) {
   const { authHeaders } = useAuth();
   const [name, setName] = useState("");

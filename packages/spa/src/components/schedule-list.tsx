@@ -22,6 +22,7 @@ interface ScheduleListProps {
   botState?: string;
 }
 
+/** Renders a bot's schedules with add, run, pause/resume, delete actions and expandable history. */
 export function ScheduleList({ botName, node, botState }: ScheduleListProps) {
   const isRunning = botState === "running" || botState === undefined;
   const nodeQuery = node && node !== "local" ? `?node=${encodeURIComponent(node)}` : "";

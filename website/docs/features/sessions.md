@@ -32,7 +32,7 @@ mecha bot sessions show researcher <session-id>
 
 Sessions are stored as plain files — no database:
 
-```
+```text
 ~/.mecha/researcher/home/.claude/projects/-Users-you-papers/
 ├── abc123.meta.json     ← metadata
 └── abc123.jsonl         ← transcript

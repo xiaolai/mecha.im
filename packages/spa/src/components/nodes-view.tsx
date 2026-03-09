@@ -179,6 +179,7 @@ function NodeCard({ node, isLocal, onClick, onPing, onRemove, onPromote, pinging
   );
 }
 
+/** Grid of mesh node cards with health status, ping, and management actions. */
 export function NodesView() {
   const navigate = useNavigate();
   const { authHeaders } = useAuth();

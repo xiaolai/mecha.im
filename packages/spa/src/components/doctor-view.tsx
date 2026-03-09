@@ -20,6 +20,7 @@ const statusIcon = {
   error: <XCircleIcon className="size-4 text-destructive" />,
 };
 
+/** Renders a diagnostics panel that runs health checks and displays pass/warn/error results. */
 export function DoctorView() {
   const { authHeaders } = useAuth();
   const [result, setResult] = useState<DoctorResult | null>(null);

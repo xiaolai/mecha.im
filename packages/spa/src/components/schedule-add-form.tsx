@@ -35,6 +35,7 @@ interface ScheduleAddFormProps {
   onCancel: () => void;
 }
 
+/** Renders a form to create a new schedule with ID, interval, and prompt fields. */
 export function ScheduleAddForm({ botName, node, onAdded, onCancel }: ScheduleAddFormProps) {
   const uid = useId();
   const [id, setId] = useState("");

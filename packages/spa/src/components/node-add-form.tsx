@@ -18,6 +18,7 @@ interface Props {
   onAdded: () => void;
 }
 
+/** Sheet form for registering a new remote node to the mesh. */
 export function NodeAddForm({ open, onOpenChange, onAdded }: Props) {
   const { authHeaders } = useAuth();
   const [name, setName] = useState("");

@@ -17,6 +17,7 @@ interface AuthProfile {
 
 type TestResult = { valid: boolean; error?: string } | null;
 
+/** Renders auth profiles as a table with create, test, set-default, and delete actions. */
 export function AuthProfilesView() {
   const { data: profiles, loading, error, refetch } = useFetch<AuthProfile[]>("/settings/auth-profiles");
   const { authHeaders } = useAuth();

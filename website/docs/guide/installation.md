@@ -5,6 +5,8 @@ description: Download and install the Mecha runtime binary.
 
 # Installation
 
+[[toc]]
+
 ## Download the Binary
 
 Mecha is distributed as a single binary — no package manager required.

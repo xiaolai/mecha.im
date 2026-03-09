@@ -27,6 +27,7 @@ interface AuthSwitcherProps {
  */
 type SwitcherPhase = "list" | "confirm" | "confirm-force";
 
+/** Renders a popover to switch a bot's auth profile with confirm/force-restart flow. */
 export function AuthSwitcher({ botName, currentAuth, currentAuthType, botState, node, onSwitched }: AuthSwitcherProps) {
   const [open, setOpen] = useState(false);
   const [phase, setPhase] = useState<SwitcherPhase>("list");

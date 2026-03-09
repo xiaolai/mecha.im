@@ -6,6 +6,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils";
 import { humanizeProfileName, isExpired, authTypeIcon } from "@/lib/auth-utils";
 
+/** Shape of an auth profile entry returned by the API. */
 export interface AuthProfile {
   name: string;
   type: "oauth" | "api-key";
@@ -15,6 +16,7 @@ export interface AuthProfile {
   expiresAt?: number | null;
 }
 
+/** Renders the selectable list of auth profiles inside the switcher popover. */
 export function ProfileList({
   profiles,
   profilesLoading,
@@ -147,6 +149,7 @@ export function ProfileList({
   );
 }
 
+/** Renders a confirmation panel asking whether to switch auth and restart the bot. */
 export function ConfirmView({
   label,
   switching,
@@ -182,6 +185,7 @@ export function ConfirmView({
   );
 }
 
+/** Renders a warning panel for force-restarting a bot with active sessions. */
 export function ForceConfirmView({
   switching,
   error,

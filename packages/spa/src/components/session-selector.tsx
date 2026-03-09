@@ -27,6 +27,7 @@ function formatSessionLabel(s: Session): string {
   return `${label} \u00b7 ${time}`;
 }
 
+/** Dropdown for selecting or creating a session, with delete support. */
 export function SessionSelector({ botName, node, currentSessionId, onSelect }: SessionSelectorProps) {
   const nodeQuery = node ? `?node=${encodeURIComponent(node)}` : "";
   const { data: sessions, loading, error, refetch } = useFetch<Session[]>(

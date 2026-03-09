@@ -50,7 +50,7 @@ mecha cost --json
 
 The cost report shows per-bot and total spending:
 
-```
+```text
 Daily Cost Summary (2026-02-26)
 ───────────────────────────────
 researcher    $1.23  (42 requests)

@@ -5,6 +5,8 @@ description: CLI reference for mecha meter proxy and budget management commands
 
 # Meter Commands
 
+[[toc]]
+
 All meter commands live under `mecha meter`. Budget and cost commands are top-level.
 
 ## `mecha meter start`

@@ -19,7 +19,7 @@ The SPA is built with React 19 + React Router + Tailwind CSS v4. It is served fr
 
 The app mounts the following provider hierarchy in `main.tsx`:
 
-```
+```text
 StrictMode
   BrowserRouter
     ThemeProvider (next-themes, light mode)

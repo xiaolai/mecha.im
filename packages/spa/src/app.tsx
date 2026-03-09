@@ -20,6 +20,7 @@ import { DoctorPage } from "@/pages/doctor";
 import { LoginPage } from "@/pages/login";
 import { NotFoundPage } from "@/pages/not-found";
 
+/** Root application component with route definitions and auth gate. */
 export function App() {
   const { authenticated, loading } = useAuth();
 
