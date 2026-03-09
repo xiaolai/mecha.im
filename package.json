@@ -1,6 +1,6 @@
 {
   "name": "mecha.im",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "description": "Local-first multi-agent runtime",
   "scripts": {
@@ -18,7 +18,14 @@
     "docs:dev": "pnpm --filter @mecha/website dev",
     "docs:build": "pnpm --filter @mecha/website build"
   },
-  "keywords": ["ai", "agent", "claude", "multi-agent", "runtime", "local-first"],
+  "keywords": [
+    "ai",
+    "agent",
+    "claude",
+    "multi-agent",
+    "runtime",
+    "local-first"
+  ],
   "author": "xiaolai",
   "license": "ISC",
   "packageManager": "pnpm@10.26.1",
@@ -31,6 +38,5 @@
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
   },
-  "pnpm": {
-  }
+  "pnpm": {}
 }
