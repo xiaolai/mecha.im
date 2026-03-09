@@ -19,7 +19,7 @@ export default withMermaid(
         { text: "Reference", link: "/reference/cli/" },
         {
           text: "GitHub",
-          link: "https://github.com/xiaolai/myprojects/tree/main/mecha.im",
+          link: "https://github.com/xiaolai/mecha.im",
         },
       ],
 
@@ -106,7 +106,7 @@ export default withMermaid(
       socialLinks: [
         {
           icon: "github",
-          link: "https://github.com/xiaolai/myprojects/tree/main/mecha.im",
+          link: "https://github.com/xiaolai/mecha.im",
         },
       ],
 
