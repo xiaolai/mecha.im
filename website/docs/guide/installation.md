@@ -1,125 +1,75 @@
 ---
 title: Installation
-description: Download and install the Mecha runtime binary.
+description: Install Mecha and set up your environment.
 ---
 
 # Installation
 
 [[toc]]
 
-## Download the Binary
-
-Mecha is distributed as a single binary — no package manager required.
-
-### macOS (Apple Silicon)
+## Homebrew (recommended)
 
 ```bash
-curl -L -o mecha https://github.com/xiaolai/mecha.im/releases/latest/download/mecha-darwin-arm64
-chmod +x mecha
+brew install xiaolai/tap/mecha
+```
+
+This installs the `mecha` binary and the dashboard SPA. Works on macOS (Apple Silicon and Intel) and Linux.
+
+## Manual Download
+
+Download the binary for your platform from the [latest release](https://github.com/xiaolai/mecha.im/releases/latest):
+
+::: code-group
+
+```bash [macOS (Apple Silicon)]
+curl -L https://github.com/xiaolai/mecha.im/releases/latest/download/mecha-darwin-arm64.tar.gz | tar xz
 sudo mv mecha /usr/local/bin/
 ```
 
-### macOS (Intel)
-
-```bash
-curl -L -o mecha https://github.com/xiaolai/mecha.im/releases/latest/download/mecha-darwin-x64
-chmod +x mecha
+```bash [macOS (Intel)]
+curl -L https://github.com/xiaolai/mecha.im/releases/latest/download/mecha-darwin-x64.tar.gz | tar xz
 sudo mv mecha /usr/local/bin/
 ```
 
-### Linux (x86_64)
-
-```bash
-curl -L -o mecha https://github.com/xiaolai/mecha.im/releases/latest/download/mecha-linux-x64
-chmod +x mecha
+```bash [Linux (x86_64)]
+curl -L https://github.com/xiaolai/mecha.im/releases/latest/download/mecha-linux-x64.tar.gz | tar xz
 sudo mv mecha /usr/local/bin/
 ```
 
-### Linux (ARM64)
-
-```bash
-curl -L -o mecha https://github.com/xiaolai/mecha.im/releases/latest/download/mecha-linux-arm64
-chmod +x mecha
+```bash [Linux (ARM64)]
+curl -L https://github.com/xiaolai/mecha.im/releases/latest/download/mecha-linux-arm64.tar.gz | tar xz
 sudo mv mecha /usr/local/bin/
 ```
+
+:::
 
 ## Build from Source
-
-If you prefer to build from source:
 
 ```bash
 git clone https://github.com/xiaolai/mecha.im.git
 cd mecha.im
-
-# Install dependencies
 pnpm install
-
-# Build all packages
 pnpm build
-
-# Build standalone binary (requires bun)
 ./scripts/build-binaries.sh
 ```
 
 The binary will be at `dist/bin/current/mecha`.
 
-## Prerequisites
-
-- **Anthropic API key** or **Claude Code OAuth token** — at least one is required to power agents
-- **Claude Code CLI** — `npm install -g @anthropic-ai/claude-code` (the SDK runtime that each agent uses)
-
-## Verify Installation
+## Verify
 
 ```bash
 mecha --version
 ```
 
-## Environment Setup
+## Prerequisites
 
-Set your API credentials:
+You need one of these to power your bots:
 
-```bash
-# Option 1: API key (never expires)
-export ANTHROPIC_API_KEY=sk-ant-api03-...
+- **Anthropic API key** — `ANTHROPIC_API_KEY=sk-ant-api03-...`
+- **Claude Code OAuth token** — `CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-...` (preferred, longer lifespan)
 
-# Option 2: OAuth token (preferred, 1-year lifespan)
-export CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-...
-```
-
-Or use the auth management commands:
-
-```bash
-# Add an API key profile
-mecha auth add mykey --api-key --token sk-ant-api03-...
-
-# Verify it works
-mecha auth test mykey
-```
-
-## System Check
-
-Run the built-in doctor to verify your environment:
-
-```bash
-mecha doctor
-```
-
-This checks:
-- Node.js availability (v20+)
-- Claude Code CLI installation
-- Sandbox support (macOS sandbox-exec or Linux bwrap)
-- Mecha directory structure (`~/.mecha/`)
-
-## Initialize
-
-Create the mecha directory structure:
-
-```bash
-mecha init
-```
-
-This creates `~/.mecha/` where all agent state, logs, and configuration are stored.
+Set it as an environment variable, or use the auth command (covered in the [Quick Start](/guide/quickstart)).
 
 ## Next Steps
 
-Head to the [Quick Start](/guide/quickstart) to create your first agent.
+Head to the [Quick Start](/guide/quickstart) to create your first bot.
