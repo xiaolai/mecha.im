@@ -2421,6 +2421,20 @@ if (!result.ok) {
 | `permissionMode 'auto' with sandboxMode 'off' has no safety net` | Warning | `permissionMode` is `"auto"` and `sandboxMode` is `"off"` |
 | `maxBudgetUsd set but metering is off` | Warning | `maxBudgetUsd` is set and `meterOff` is `true` |
 
+### `ConfigValidationError`
+
+```ts
+class ConfigValidationError extends MechaError {
+  code: "CONFIG_VALIDATION_ERROR";
+  statusCode: 400;
+  exitCode: 1;
+}
+```
+
+Thrown when bot configuration contains invalid field values. Message format: `"Invalid bot config: <detail>"`.
+
+**Source:** `packages/core/src/errors.ts`
+
 ## Server State
 
 **Source:** `packages/core/src/server-state.ts`

@@ -5,6 +5,8 @@ description: Complete command-line reference for the mecha CLI
 
 # CLI Reference
 
+[[toc]]
+
 Complete reference for the `mecha` command-line interface. Each command group is documented on its own page.
 
 ## Global Options

@@ -6,6 +6,11 @@ import { botFind, botStatus } from "@mecha/service";
 import type { MeshMcpContext } from "../types.js";
 import { textResult, errorResult, withAuditAndRateLimit, annotationsFor } from "./helpers.js";
 
+/** Derive MCP source identity for X-Mecha-Source header. */
+function mcpSource(ctx: MeshMcpContext): string {
+  return `mcp:${ctx.clientInfo?.name ?? "unknown"}`;
+}
+
 /** Register discovery tools: mecha_list_nodes, mecha_list_bots, mecha_bot_status, mecha_discover. */
 export function registerDiscoveryTools(server: McpServer, ctx: MeshMcpContext): void {
   // mecha_list_nodes
@@ -31,6 +36,7 @@ export function registerDiscoveryTools(server: McpServer, ctx: MeshMcpContext): 
             node,
             path: "/healthz",
             timeoutMs: DEFAULTS.AGENT_STATUS_TIMEOUT_MS,
+            source: mcpSource(ctx),
             allowPrivateHosts: true,
           });
           return {
@@ -76,7 +82,7 @@ export function registerDiscoveryTools(server: McpServer, ctx: MeshMcpContext): 
         if (!node) return errorResult(`Node not found: ${nodeFilter}`);
         if (node.managed) return errorResult("Managed (P2P) nodes do not support remote listing via HTTP");
         try {
-          const res = await ctx.agentFetch({ node, path: "/bots", allowPrivateHosts: true });
+          const res = await ctx.agentFetch({ node, path: "/bots", source: mcpSource(ctx), allowPrivateHosts: true });
           if (!res.ok) return errorResult(`Remote node returned ${res.status}`);
           const remote = await res.json() as Array<{ name: string; state: string; port?: number }>;
           const limited = limit !== undefined && limit > 0 ? remote.slice(0, limit) : remote;
@@ -127,6 +133,7 @@ export function registerDiscoveryTools(server: McpServer, ctx: MeshMcpContext): 
           const res = await ctx.agentFetch({
             node,
             path: `/bots/${encodeURIComponent(botName)}/status`,
+            source: mcpSource(ctx),
             allowPrivateHosts: true,
           });
           if (!res.ok) return errorResult(`Remote node returned ${res.status}`);

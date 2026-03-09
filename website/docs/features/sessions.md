@@ -5,6 +5,8 @@ description: Persistent conversation sessions stored as files on disk — resume
 
 # Sessions & Chat
 
+[[toc]]
+
 Every conversation with a Mecha agent is a **session** — a persistent thread of messages stored as files on disk.
 
 ## Chatting

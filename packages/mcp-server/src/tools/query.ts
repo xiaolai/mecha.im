@@ -76,6 +76,11 @@ async function queryLocal(
       sessionId: result.sessionId,
     }));
   } catch (err: unknown) {
+    if (err instanceof Error && err.message.includes("HTTP 501")) {
+      return errorResult(
+        `Bot "${bot}" does not support HTTP chat (SDK-only). Use the terminal or Claude Code CLI to interact with this bot.`,
+      );
+    }
     return errorResult(
       `Query to "${bot}" failed: ${err instanceof Error ? err.message : String(err)}`,
     );

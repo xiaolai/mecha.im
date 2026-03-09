@@ -133,21 +133,42 @@ describe("mecha_list_bots", () => {
   });
 
   it("queries remote node", async () => {
+    const mockAgentFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve([{ name: "remote-bot", state: "running", port: 7700 }]),
+    });
     const ctx = makeCtx({
       getNodes: vi.fn().mockReturnValue([
         { name: "peer1", host: "192.168.1.10", port: 7660, apiKey: "k1", addedAt: "2026-01-01" },
       ]),
-      agentFetch: vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: () => Promise.resolve([{ name: "remote-bot", state: "running", port: 7700 }]),
-      }) as never,
+      agentFetch: mockAgentFetch as never,
     });
 
     const result = await callTool(ctx, "mecha_list_bots", { node: "peer1" });
     const text = getText(result);
     expect(text).toContain("remote-bot");
     expect(text).toContain("peer1");
+  });
+
+  it("includes source header in remote agentFetch calls", async () => {
+    const mockAgentFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve([{ name: "bot-a", state: "running" }]),
+    });
+    const ctx = makeCtx({
+      getNodes: vi.fn().mockReturnValue([
+        { name: "peer1", host: "192.168.1.10", port: 7660, apiKey: "k1", addedAt: "2026-01-01" },
+      ]),
+      agentFetch: mockAgentFetch as never,
+      clientInfo: { name: "claude-desktop", version: "1.0" },
+    });
+
+    await callTool(ctx, "mecha_list_bots", { node: "peer1" });
+    expect(mockAgentFetch).toHaveBeenCalledWith(
+      expect.objectContaining({ source: "mcp:claude-desktop" }),
+    );
   });
 
   it("lists remote bots without port", async () => {
@@ -243,21 +264,26 @@ describe("mecha_bot_status", () => {
   });
 
   it("queries remote bot via name@node", async () => {
+    const mockAgentFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ name: "alice", state: "running", port: 7700 }),
+    });
     const ctx = makeCtx({
       getNodes: vi.fn().mockReturnValue([
         { name: "peer1", host: "192.168.1.10", port: 7660, apiKey: "k1", addedAt: "2026-01-01" },
       ]),
-      agentFetch: vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: () => Promise.resolve({ name: "alice", state: "running", port: 7700 }),
-      }) as never,
+      agentFetch: mockAgentFetch as never,
+      clientInfo: { name: "cursor", version: "2.0" },
     });
 
     const result = await callTool(ctx, "mecha_bot_status", { target: "alice@peer1" });
     const text = getText(result);
     expect(text).toContain("alice");
     expect(text).toContain("running");
+    expect(mockAgentFetch).toHaveBeenCalledWith(
+      expect.objectContaining({ source: "mcp:cursor" }),
+    );
   });
 
   it("errors on unknown remote node", async () => {
