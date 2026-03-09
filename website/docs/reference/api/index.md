@@ -51,6 +51,10 @@ All routes except those listed as **Public** require authentication (session coo
 | `PATCH` | `/bots/:name/config` | Required | Update bot config fields, optionally restart |
 | `GET` | `/bots/:name/logs` | Required | Read bot stdout/stderr logs |
 | `GET` | `/bots/:name/sandbox` | Required | Get bot sandbox profile |
+| **Bot Files** |
+| `GET` | `/bots/:name/files` | Required | List directory entries in bot home (supports `?path=`) |
+| `GET` | `/bots/:name/files/read` | Required | Read a markdown file (requires `?path=`) |
+| `PUT` | `/bots/:name/files/write` | Required | Write a markdown file (body: `{ path, content }`) |
 | **Sessions** |
 | `GET` | `/bots/:name/sessions` | Required | List bot sessions |
 | `GET` | `/bots/:name/sessions/:id` | Required | Get specific session |
@@ -96,6 +100,7 @@ All routes except those listed as **Public** require authentication (session coo
 | `POST` | `/nodes/:name/ping` | Required | Ping a mesh node |
 | `POST` | `/nodes/:name/promote` | Required | Promote a discovered node to managed |
 | **Tools** |
+| `GET` | `/tools/runtime` | Required | Claude runtime environment info |
 | `GET` | `/tools` | Required | List installed tools |
 | `POST` | `/tools` | Required | Install a tool |
 | `DELETE` | `/tools/:name` | Required | Remove a tool |
