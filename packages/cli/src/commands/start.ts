@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { DEFAULTS, parsePort, resolveAuthConfig, ensureTotpSecret } from "@mecha/core";
-import { writeFileSync, unlinkSync } from "node:fs";
+import { writeFileSync, unlinkSync, existsSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { withErrorHandler } from "../error-handler.js";
 import { resolveSpaDir } from "../spa-resolve.js";
@@ -45,7 +45,12 @@ export function registerStartCommand(program: Command, deps: CommandDeps): void 
         const filteredArgs = process.argv.slice(1).filter(
           (a) => a !== "-d" && a !== "--daemon",
         );
-        const child = spawn(process.execPath, filteredArgs, {
+        // Resolve the real binary path — process.execPath returns VFS paths in Bun compiled binaries
+        let selfBin = process.execPath;
+        if (existsSync("/proc/self/exe")) {
+          try { selfBin = realpathSync("/proc/self/exe"); } catch { /* keep process.execPath */ }
+        }
+        const child = spawn(selfBin, filteredArgs, {
           detached: true,
           stdio: "ignore",
         });
