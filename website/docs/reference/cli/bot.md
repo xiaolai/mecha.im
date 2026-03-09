@@ -37,7 +37,7 @@ mecha bot spawn <name> [path] [options]
 | `--system-prompt <prompt>` | System prompt override | |
 | `--append-system-prompt <prompt>` | Append to default system prompt | |
 | `--effort <level>` | Effort level: `low`, `medium`, `high` | |
-| `--max-budget <dollars>` | Max USD budget per session | |
+| `--max-budget-usd <dollars>` | Max USD budget per session | |
 | `--allowed-tools <tools>` | Comma-separated allowed tools | |
 | `--disallowed-tools <tools>` | Comma-separated disallowed tools | |
 | `--tools <tools>` | Override tool set (comma-separated) | |
@@ -60,7 +60,7 @@ mecha bot spawn worker ~/code --meter off
 mecha bot spawn alice --home /opt/bots/alice   # HOME and CWD both at /opt/bots/alice
 mecha bot spawn alice                           # HOME and CWD both at ~/.mecha/alice/
 mecha bot spawn writer ~/blog --system-prompt "You are a technical writer."
-mecha bot spawn coder ~/project --effort high --max-budget 5.00
+mecha bot spawn coder ~/project --effort high --max-budget-usd 5.00
 mecha bot spawn sandbox ~/code --allowed-tools Bash,Read,Write
 mecha bot spawn assistant ~/docs --agent reviewer --mcp-config ~/mcp.json
 ```

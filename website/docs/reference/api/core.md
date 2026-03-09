@@ -1187,6 +1187,15 @@ type PluginConfig = StdioPluginConfig | HttpPluginConfig;
 | `isPluginName` | `(mechaDir, name) => boolean` | Check if name is a registered plugin. |
 | `pluginName` | `(input) => PluginName` | Validate and brand a string as a `PluginName`. Throws on reserved names. |
 
+### Plugin Errors
+
+| Error | Code | Status | Description |
+|-------|------|--------|-------------|
+| `PluginNotFoundError` | `PLUGIN_NOT_FOUND` | 404 | Plugin name not in registry |
+| `PluginAlreadyExistsError` | `PLUGIN_ALREADY_EXISTS` | 409 | Plugin name already registered (use `--force` to overwrite) |
+| `PluginNameReservedError` | `PLUGIN_NAME_RESERVED` | 400 | Plugin name conflicts with a built-in capability |
+| `PluginEnvError` | `PLUGIN_ENV_ERROR` | 400 | Unresolved environment variable in plugin config |
+
 ### `PLUGIN_REGISTRY_VERSION`
 
 ```ts
@@ -2151,8 +2160,35 @@ interface BotConfig {
   expose?: string[];
   sandboxMode?: SandboxMode;
   allowNetwork?: boolean;
+  meterOff?: boolean;
+  // LLM behavior
+  systemPrompt?: string;
+  appendSystemPrompt?: string;
+  effort?: "low" | "medium" | "high";
+  maxBudgetUsd?: number;
+  // Tool control
+  allowedTools?: string[];
+  disallowedTools?: string[];
+  tools?: string[];
+  // Agent identity
+  agent?: string;
+  agents?: Record<string, { description: string; prompt: string }>;
+  // Session behavior
+  sessionPersistence?: boolean;
+  budgetLimit?: number;
+  disableSlashCommands?: boolean;
+  // MCP & plugins
+  mcpServers?: Record<string, unknown>;
+  mcpConfigFiles?: string[];
+  strictMcpConfig?: boolean;
+  pluginDirs?: string[];
+  // Environment
+  addDirs?: string[];
+  env?: Record<string, string>;
 }
 ```
+
+**Core fields:**
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -2168,6 +2204,50 @@ interface BotConfig {
 | `expose` | `string[]?` | Exposed capabilities |
 | `sandboxMode` | `SandboxMode?` | Sandbox enforcement mode |
 | `allowNetwork` | `boolean?` | Whether network access is permitted in sandbox |
+| `meterOff` | `boolean?` | Disable metering for this bot |
+
+**LLM behavior:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `systemPrompt` | `string?` | System prompt override (mutually exclusive with `appendSystemPrompt`) |
+| `appendSystemPrompt` | `string?` | Append to default system prompt (mutually exclusive with `systemPrompt`) |
+| `effort` | `"low" \| "medium" \| "high"?` | Effort level for the LLM |
+| `maxBudgetUsd` | `number?` | Max USD budget per session |
+
+**Tool control:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `allowedTools` | `string[]?` | Allowed tools (mutually exclusive with `tools`) |
+| `disallowedTools` | `string[]?` | Disallowed tools |
+| `tools` | `string[]?` | Override tool set (mutually exclusive with `allowedTools`) |
+
+**Agent identity & session:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `agent` | `string?` | Agent preset name |
+| `agents` | `Record<string, { description: string; prompt: string }>?` | Named agent definitions |
+| `sessionPersistence` | `boolean?` | Enable/disable session persistence |
+| `budgetLimit` | `number?` | Mecha-level aggregate budget cap |
+| `disableSlashCommands` | `boolean?` | Disable all skills |
+
+**MCP & plugins:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `mcpServers` | `Record<string, unknown>?` | Inline MCP server definitions |
+| `mcpConfigFiles` | `string[]?` | MCP config file paths |
+| `strictMcpConfig` | `boolean?` | Only use specified MCP servers |
+| `pluginDirs` | `string[]?` | Plugin directories |
+
+**Environment:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `addDirs` | `string[]?` | Additional directories to mount |
+| `env` | `Record<string, string>?` | Extra environment variables to set |
 
 ### `readBotConfig(botDir)`
 

@@ -113,6 +113,7 @@ mecha agent start [options]
 | `--server-port <port>` | Embedded server listen port | `7681` |
 | `--public-addr <url>` | Externally reachable address (e.g., `wss://myhost:7681`) | |
 | `--rendezvous <url>` | Rendezvous server URL for signaling registration | |
+| `--no-totp` | Disable TOTP authentication | |
 
 ```bash
 mecha agent start
@@ -530,6 +531,7 @@ mecha dashboard serve [options]
 | `--port <port>` | Dashboard port | `7660` |
 | `--host <host>` | Bind address | `127.0.0.1` |
 | `--open` | Open browser after starting | `false` |
+| `--no-totp` | Disable TOTP authentication | |
 
 The dashboard creates an agent server with the embedded SPA. Requires a built SPA directory (run `pnpm --filter @mecha/spa build` first).
 

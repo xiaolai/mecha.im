@@ -770,4 +770,3 @@ Convenience wrapper: a `Button` inside a `Tooltip`. Every icon-only button must 
 ## See also
 
 - [API Reference](/reference/api/) — Backend API routes that the dashboard calls
-- [Architecture](/reference/api/) — System architecture overview
