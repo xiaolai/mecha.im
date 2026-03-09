@@ -2,7 +2,7 @@ import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { withErrorHandler } from "../error-handler.js";
 import { stopDaemon, meterDir } from "@mecha/meter";
-import { readDaemonPid, removeDaemonPid } from "../daemon.js";
+import { readDaemonPid, removeDaemonPid, isDaemonRunning } from "../daemon.js";
 import { unlinkSync } from "node:fs";
 import { join } from "node:path";
 
@@ -50,27 +50,40 @@ export function registerStopDaemonCommand(program: Command, deps: CommandDeps): 
         deps.formatter.success("Metering proxy stopped");
       }
 
-      // Kill daemon process if running
+      // Kill daemon process if running (verify identity via marker before signaling)
       const daemonPid = readDaemonPid(deps.mechaDir);
       if (daemonPid !== null && daemonPid !== process.pid) {
-        try {
-          process.kill(daemonPid, "SIGTERM");
+        if (!isDaemonRunning(deps.mechaDir)) {
+          // PID file exists but process is dead or not a mecha daemon — stale
           removeDaemonPid(deps.mechaDir);
-          deps.formatter.success(`Daemon process stopped (pid ${daemonPid})`);
-        /* v8 ignore start -- ESRCH expected if daemon already exited */
-        } catch {
-          removeDaemonPid(deps.mechaDir); // stale PID file
+          deps.formatter.warn(`Removed stale daemon PID file (pid ${daemonPid})`);
+        } else {
+          try {
+            process.kill(daemonPid, "SIGTERM");
+            // Poll until the process actually exits (up to 5s)
+            for (let i = 0; i < 50; i++) {
+              await new Promise((r) => setTimeout(r, 100));
+              try { process.kill(daemonPid, 0); } catch { break; }
+            }
+            removeDaemonPid(deps.mechaDir);
+            deps.formatter.success(`Daemon process stopped (pid ${daemonPid})`);
+          /* v8 ignore start -- ESRCH expected if daemon exited between check and kill */
+          } catch {
+            removeDaemonPid(deps.mechaDir);
+          }
+          /* v8 ignore stop */
         }
-        /* v8 ignore stop */
       } else if (daemonPid === process.pid) {
         // We ARE the daemon — clean up PID file (process will exit after this)
         removeDaemonPid(deps.mechaDir);
       }
 
-      // Clean up agent discovery file
-      /* v8 ignore start -- agent.json may not exist */
-      try { unlinkSync(join(deps.mechaDir, "agent.json")); } catch { /* ignore */ }
-      /* v8 ignore stop */
+      // Clean up agent discovery file only if we stopped a daemon
+      if (daemonPid !== null) {
+        /* v8 ignore start -- agent.json may not exist */
+        try { unlinkSync(join(deps.mechaDir, "agent.json")); } catch { /* ignore */ }
+        /* v8 ignore stop */
+      }
 
       deps.formatter.success("Daemon stopped");
     }));

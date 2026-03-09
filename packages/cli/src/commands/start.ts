@@ -47,11 +47,24 @@ export function registerStartCommand(program: Command, deps: CommandDeps): void 
         );
         const child = spawn(process.execPath, filteredArgs, {
           detached: true,
-          stdio: "ignore",
+          stdio: ["ignore", "ignore", "ignore"],
         });
-        writeDaemonPid(deps.mechaDir, child.pid!);
+        const childPid = child.pid!;
         child.unref();
-        deps.formatter.success(`Mecha started in background (pid ${child.pid})`);
+
+        // Wait briefly for the child to boot (or fail)
+        const ok = await new Promise<boolean>((resolve) => {
+          child.on("error", () => resolve(false));
+          child.on("exit", () => resolve(false));
+          setTimeout(() => resolve(true), 1500);
+        });
+        if (!ok) {
+          deps.formatter.error("Daemon failed to start — check logs");
+          process.exitCode = 1;
+          return;
+        }
+        writeDaemonPid(deps.mechaDir, childPid);
+        deps.formatter.success(`Mecha started in background (pid ${childPid})`);
         return;
       }
       /* v8 ignore stop */
@@ -111,11 +124,12 @@ export function registerStartCommand(program: Command, deps: CommandDeps): void 
       /* v8 ignore stop */
 
       await server.listen({ port, host: opts.host });
+      // Foreground mode: write daemon.pid so `mecha stop` can find us
       writeDaemonPid(deps.mechaDir, process.pid);
 
-      // Write agent discovery file for CLI client commands
+      // Write agent discovery file for CLI client commands (includes host for remote binding)
       const agentInfoPath = join(deps.mechaDir, "agent.json");
-      writeFileSync(agentInfoPath, JSON.stringify({ port, pid: process.pid, startedAt: new Date().toISOString() }) + "\n", { mode: 0o600 });
+      writeFileSync(agentInfoPath, JSON.stringify({ port, host: opts.host, pid: process.pid, startedAt: new Date().toISOString() }) + "\n", { mode: 0o600 });
       /* v8 ignore start -- shutdown cleanup only fires on process signal */
       deps.registerShutdownHook?.(async () => {
         try { unlinkSync(agentInfoPath); } catch { /* already removed */ }

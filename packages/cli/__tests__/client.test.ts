@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { AgentClient, detectAgentPort } from "../src/client.js";
+import { AgentClient, detectAgent, detectAgentPort } from "../src/client.js";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -13,6 +13,11 @@ describe("AgentClient", () => {
   it("constructs with custom port", () => {
     const client = new AgentClient(8080);
     expect(client.baseUrl).toBe("http://127.0.0.1:8080");
+  });
+
+  it("constructs with custom host and port", () => {
+    const client = new AgentClient(8080, "0.0.0.0");
+    expect(client.baseUrl).toBe("http://0.0.0.0:8080");
   });
 
   it("isAlive returns false when no server", async () => {
@@ -58,5 +63,53 @@ describe("detectAgentPort", () => {
       JSON.stringify({ port: "not-a-number" }),
     );
     expect(detectAgentPort(dir)).toBeNull();
+  });
+});
+
+describe("detectAgent", () => {
+  let dir: string;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "client-test-"));
+  });
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("returns port and host from agent.json", () => {
+    writeFileSync(
+      join(dir, "agent.json"),
+      JSON.stringify({ port: 7660, host: "0.0.0.0", pid: 1234 }),
+    );
+    const info = detectAgent(dir);
+    expect(info).toEqual({ port: 7660, host: "0.0.0.0" });
+  });
+
+  it("defaults host to 127.0.0.1 when missing", () => {
+    writeFileSync(
+      join(dir, "agent.json"),
+      JSON.stringify({ port: 7660, pid: 1234 }),
+    );
+    const info = detectAgent(dir);
+    expect(info).toEqual({ port: 7660, host: "127.0.0.1" });
+  });
+
+  it("returns null for port out of range", () => {
+    writeFileSync(
+      join(dir, "agent.json"),
+      JSON.stringify({ port: 99999 }),
+    );
+    expect(detectAgent(dir)).toBeNull();
+  });
+
+  it("returns null for port 0", () => {
+    writeFileSync(
+      join(dir, "agent.json"),
+      JSON.stringify({ port: 0 }),
+    );
+    expect(detectAgent(dir)).toBeNull();
+  });
+
+  it("returns null when no agent.json", () => {
+    expect(detectAgent(dir)).toBeNull();
   });
 });
