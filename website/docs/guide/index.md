@@ -1,6 +1,6 @@
 ---
 title: What is Mecha?
-description: Mecha runs an army of Claude Code bots on your own machines — scheduled, sandboxed, and organized in a tree.
+description: Mecha runs an army of Claude Code bots on your machines — scheduled, sandboxed, and organized in a tree.
 ---
 
 # What is Mecha?
@@ -45,22 +45,23 @@ A bot sitting idle is a bot not earning its keep.
 
 ## Tree structure
 
-Bots are organized in a tree. A machine runs a node. A node manages bots. Multiple nodes form a mesh.
+Bots are organized in a tree. Group them by project, team, or role. A parent bot can delegate tasks to its children. You see your entire army in one view.
 
 ```
-mesh
-├── macbook (node)
-│   ├── coder
-│   ├── reviewer
-│   └── researcher
-├── server-01 (node)
-│   ├── monitor
-│   └── deployer
-└── server-02 (node)
-    └── data-analyst
+bots/
+├── frontend/
+│   ├── coder        ← writes React components
+│   ├── reviewer     ← reviews PRs in the frontend repo
+│   └── tester       ← runs and maintains tests
+├── backend/
+│   ├── api-dev      ← builds API endpoints
+│   └── db-admin     ← manages migrations
+└── ops/
+    ├── monitor      ← watches logs, alerts on errors
+    └── deployer     ← runs deployments on schedule
 ```
 
-Bots on different machines talk to each other through mesh queries. Permissions control who can talk to whom.
+Each bot has its own workspace, sessions, and budget. Bots can talk to each other through mesh queries — even across machines.
 
 ## Built on Claude Code
 
