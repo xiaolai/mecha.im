@@ -161,6 +161,8 @@ describe("cli-lock", () => {
       ["auth switch", ["node", "mecha", "auth", "switch"]],
       ["auth renew", ["node", "mecha", "auth", "renew"]],
       ["dashboard serve", ["node", "mecha", "dashboard", "serve"]],
+      ["budget set", ["node", "mecha", "budget", "set"]],
+      ["budget rm", ["node", "mecha", "budget", "rm"]],
     ])("returns true for %s", (_label, argv) => {
       expect(needsLock(argv)).toBe(true);
     });
@@ -196,8 +198,6 @@ describe("cli-lock", () => {
       ["node rm", ["node", "mecha", "node", "rm"]],
       ["auth ls", ["node", "mecha", "auth", "ls"]],
       ["auth test", ["node", "mecha", "auth", "test"]],
-      ["budget set", ["node", "mecha", "budget", "set"]],
-      ["budget rm", ["node", "mecha", "budget", "rm"]],
       ["budget ls", ["node", "mecha", "budget", "ls"]],
       ["sandbox show", ["node", "mecha", "sandbox", "show"]],
       ["agent status", ["node", "mecha", "agent", "status"]],

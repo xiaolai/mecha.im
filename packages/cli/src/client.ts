@@ -10,9 +10,9 @@ export class AgentClient {
   /** Base URL of the agent server (e.g. http://127.0.0.1:7660). */
   readonly baseUrl: string;
 
-  /** Create a client targeting the given port. */
-  constructor(port: number = DEFAULTS.AGENT_PORT) {
-    this.baseUrl = `http://127.0.0.1:${port}`;
+  /** Create a client targeting the given host and port. */
+  constructor(port: number = DEFAULTS.AGENT_PORT, host: string = "127.0.0.1") {
+    this.baseUrl = `http://${host}:${port}`;
   }
 
   /** Check if the agent server is reachable. */
@@ -30,18 +30,34 @@ export class AgentClient {
   }
 }
 
+/** Agent discovery info from agent.json. */
+export interface AgentInfo {
+  port: number;
+  host: string;
+}
+
 /**
- * Try to detect a running agent server port from mechaDir.
- * Returns the port number if agent.json exists and is valid, null otherwise.
+ * Try to detect a running agent server from mechaDir.
+ * Returns port and host if agent.json exists and is valid, null otherwise.
  */
-export function detectAgentPort(mechaDir: string): number | null {
+export function detectAgent(mechaDir: string): AgentInfo | null {
   try {
     const raw = readFileSync(join(mechaDir, "agent.json"), "utf8");
-    const data = JSON.parse(raw) as { port?: number };
-    return typeof data.port === "number" ? data.port : null;
+    const data = JSON.parse(raw) as { port?: number; host?: string };
+    if (typeof data.port !== "number" || !Number.isInteger(data.port) || data.port < 1 || data.port > 65535) return null;
+    return { port: data.port, host: typeof data.host === "string" ? data.host : "127.0.0.1" };
     /* v8 ignore start -- ENOENT/parse error expected when no server running */
   } catch {
     return null;
   }
   /* v8 ignore stop */
+}
+
+/**
+ * Try to detect a running agent server port from mechaDir.
+ * @deprecated Use detectAgent() for port + host. Kept for backward compatibility.
+ */
+export function detectAgentPort(mechaDir: string): number | null {
+  const info = detectAgent(mechaDir);
+  return info?.port ?? null;
 }
