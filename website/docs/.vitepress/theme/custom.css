@@ -1,10 +1,9 @@
 /* Feature cards: icon inline at the beginning of the heading */
-.VPFeature article .box {
+.VPFeature article.box {
   display: block !important;
-  flex-direction: unset !important;
 }
 
-.VPFeature .box .icon {
+.VPFeature article.box > .icon {
   display: inline !important;
   background: none !important;
   border-radius: 0 !important;
@@ -14,13 +13,13 @@
   height: auto !important;
 }
 
-.VPFeature .box .icon svg {
+.VPFeature article.box > .icon svg {
   display: inline !important;
-  width: 1.1em;
-  height: 1.1em;
-  vertical-align: -0.05em;
+  width: 1.1em !important;
+  height: 1.1em !important;
+  vertical-align: -0.15em;
 }
 
-.VPFeature .box h2.title {
+.VPFeature article.box > h2.title {
   display: inline !important;
 }
