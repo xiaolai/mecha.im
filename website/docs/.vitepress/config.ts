@@ -114,8 +114,8 @@ export default withMermaid(
       ],
 
       footer: {
-        message: "Released under the ISC License.",
-        copyright: "Copyright © 2024-present",
+        message: "Released under the <a href=\"/license\">ISC License</a>.",
+        copyright: "Copyright © 2026-present",
       },
     },
   }),
