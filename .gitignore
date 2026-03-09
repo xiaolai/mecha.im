@@ -73,6 +73,12 @@ vendor/
 venv/
 .gitnexus
 
+# Dev docs and scripts (internal only)
+dev-docs/
+dev-scripts/
+scripts/hotdeploy.sh
+infrastructure/
+
 # Generated files
 *.generated.ts
 *.generated.js

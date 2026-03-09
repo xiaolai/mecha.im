@@ -113,7 +113,7 @@ export function NodeAddForm({ open, onOpenChange, onAdded }: Props) {
               id="node-host"
               value={host}
               onChange={(e) => setHost(e.target.value)}
-              placeholder="100.100.1.9"
+              placeholder="192.168.1.100"
               className="h-11 sm:h-9 font-mono"
             />
           </div>

@@ -45,7 +45,7 @@ mecha node add <name> <host> [options]
 | `--api-key <key>` | API key for authentication (required) | |
 
 ```bash
-mecha node add bob 100.100.1.9 --api-key mysecret
+mecha node add bob 192.168.1.50 --api-key mysecret
 mecha node add server 192.168.1.10 --port 7661 --api-key mysecret
 ```
 
