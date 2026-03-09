@@ -1,18 +1,24 @@
-/* Feature cards: icon inline with heading, no background box */
+/* Feature cards: icon inline at the beginning of the heading */
+.VPFeature article .box {
+  display: block;
+}
+
 .VPFeature .box .icon {
-  display: inline-flex;
-  align-items: center;
+  display: inline;
   background: none;
   border-radius: 0;
   padding: 0;
-  margin-right: 0.35em;
+  margin: 0 0.4em 0 0;
   width: auto;
   height: auto;
+  vertical-align: middle;
 }
 
 .VPFeature .box .icon svg {
-  width: 1.2em;
-  height: 1.2em;
+  display: inline;
+  width: 1.1em;
+  height: 1.1em;
+  vertical-align: -0.15em;
 }
 
 .VPFeature .box h2.title {
