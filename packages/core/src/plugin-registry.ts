@@ -128,6 +128,7 @@ export class PluginNameReservedError extends MechaError {
   }
 }
 
+/** Thrown when a plugin lookup fails because the name is not in the registry. */
 export class PluginNotFoundError extends MechaError {
   constructor(name: string) {
     super(`Plugin "${name}" not found`, {
@@ -136,6 +137,7 @@ export class PluginNotFoundError extends MechaError {
   }
 }
 
+/** Thrown when adding a plugin whose name already exists (unless `--force` is used). */
 export class PluginAlreadyExistsError extends MechaError {
   constructor(name: string) {
     super(`Plugin "${name}" already exists (use --force to overwrite)`, {
