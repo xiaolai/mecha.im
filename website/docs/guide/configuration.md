@@ -77,7 +77,8 @@ Each bot has a `config.json`:
   "tags": ["dev", "backend"],
   "expose": ["query"],
   "sandboxMode": "auto",
-  "allowNetwork": false
+  "allowNetwork": false,
+  "fallbackModel": "claude-haiku-4-5-20251001"
 }
 ```
 
@@ -94,6 +95,9 @@ Each bot has a `config.json`:
 | `tags` | string[]? | Tags for organization and discovery |
 | `expose` | string[]? | Capabilities exposed to the mesh |
 | `sandboxMode` | string? | `auto`, `off`, or `require` |
+| `dangerouslySkipPermissions` | boolean? | Skip all permission checks (requires `sandboxMode: "require"`) |
+| `allowDangerouslySkipPermissions` | boolean? | Allow dangerous skip without defaulting to it |
+| `fallbackModel` | string? | Fallback model when primary is overloaded |
 | `allowNetwork` | boolean? | Allow outbound network access (reserved) |
 
 ### Permission Modes

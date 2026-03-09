@@ -56,6 +56,21 @@ export function buildClaudeArgs(
     args.push("--permission-mode", config.permissionMode);
   }
 
+  // 7b. --dangerously-skip-permissions
+  if (config.dangerouslySkipPermissions) {
+    args.push("--dangerously-skip-permissions");
+  }
+
+  // 7c. --allow-dangerously-skip-permissions
+  if (config.allowDangerouslySkipPermissions) {
+    args.push("--allow-dangerously-skip-permissions");
+  }
+
+  // 7d. --fallback-model
+  if (config.fallbackModel) {
+    args.push("--fallback-model", config.fallbackModel);
+  }
+
   // 8–10. Tool flags (allowedTools/disallowedTools and tools are mutually exclusive)
   if (config.allowedTools?.length && config.tools?.length) {
     throw new Error("allowedTools and tools are mutually exclusive");

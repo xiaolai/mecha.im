@@ -218,6 +218,36 @@ describe("buildClaudeArgs", () => {
     expect(buildClaudeArgs({ disableSlashCommands: false })).toEqual([]);
   });
 
+  // --- Permission overrides ---
+
+  it("adds --dangerously-skip-permissions when truthy", () => {
+    expect(buildClaudeArgs({ dangerouslySkipPermissions: true })).toEqual([
+      "--dangerously-skip-permissions",
+    ]);
+  });
+
+  it("skips --dangerously-skip-permissions when falsy", () => {
+    expect(buildClaudeArgs({ dangerouslySkipPermissions: false })).toEqual([]);
+  });
+
+  it("adds --allow-dangerously-skip-permissions when truthy", () => {
+    expect(buildClaudeArgs({ allowDangerouslySkipPermissions: true })).toEqual([
+      "--allow-dangerously-skip-permissions",
+    ]);
+  });
+
+  it("skips --allow-dangerously-skip-permissions when falsy", () => {
+    expect(buildClaudeArgs({ allowDangerouslySkipPermissions: false })).toEqual([]);
+  });
+
+  // --- Fallback model ---
+
+  it("adds --fallback-model when set", () => {
+    expect(buildClaudeArgs({ fallbackModel: "claude-haiku-4-5-20251001" })).toEqual([
+      "--fallback-model", "claude-haiku-4-5-20251001",
+    ]);
+  });
+
   // --- Combined ---
 
   it("builds combined args with --resume in correct order", () => {
@@ -226,6 +256,9 @@ describe("buildClaudeArgs", () => {
       effort: "high",
       maxBudgetUsd: 10,
       permissionMode: "plan",
+      dangerouslySkipPermissions: true,
+      allowDangerouslySkipPermissions: true,
+      fallbackModel: "claude-haiku-4-5-20251001",
       allowedTools: ["Bash"],
       agent: "coder",
       sessionPersistence: false,
@@ -238,6 +271,9 @@ describe("buildClaudeArgs", () => {
       "--effort", "high",
       "--max-budget-usd", "10",
       "--permission-mode", "plan",
+      "--dangerously-skip-permissions",
+      "--allow-dangerously-skip-permissions",
+      "--fallback-model", "claude-haiku-4-5-20251001",
       "--allowed-tools", "Bash",
       "--agent", "coder",
       "--no-session-persistence",

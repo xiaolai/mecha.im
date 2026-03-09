@@ -2207,6 +2207,11 @@ interface BotConfig {
   mcpConfigFiles?: string[];
   strictMcpConfig?: boolean;
   pluginDirs?: string[];
+  // Permission overrides
+  dangerouslySkipPermissions?: boolean;
+  allowDangerouslySkipPermissions?: boolean;
+  // Model fallback
+  fallbackModel?: string;
   // Environment
   addDirs?: string[];
   env?: Record<string, string>;
@@ -2266,6 +2271,19 @@ interface BotConfig {
 | `mcpConfigFiles` | `string[]?` | MCP config file paths |
 | `strictMcpConfig` | `boolean?` | Only use specified MCP servers |
 | `pluginDirs` | `string[]?` | Plugin directories |
+
+**Permission overrides:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `dangerouslySkipPermissions` | `boolean?` | Skip all permission checks (requires `sandboxMode: "require"`) |
+| `allowDangerouslySkipPermissions` | `boolean?` | Allow dangerous skip without defaulting to it |
+
+**Model fallback:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `fallbackModel` | `string?` | Fallback model when primary is overloaded |
 
 **Environment:**
 
@@ -2342,6 +2360,7 @@ interface BotConfigValidationInput {
   tools?: string[];
   maxBudgetUsd?: number;
   meterOff?: boolean;
+  dangerouslySkipPermissions?: boolean;
 }
 ```
 
@@ -2395,6 +2414,7 @@ if (!result.ok) {
 | Rule | Severity | Condition |
 |------|----------|-----------|
 | `permissionMode 'bypassPermissions' requires sandboxMode 'require'` | Error | `permissionMode` is `"bypassPermissions"` but `sandboxMode` is not `"require"` |
+| `dangerouslySkipPermissions requires sandboxMode 'require'` | Error | `dangerouslySkipPermissions` is `true` but `sandboxMode` is not `"require"` |
 | `systemPrompt and appendSystemPrompt are mutually exclusive` | Error | Both `systemPrompt` and `appendSystemPrompt` are set |
 | `allowedTools and tools are mutually exclusive` | Error | Both `allowedTools` and `tools` are non-empty |
 | `disallowedTools and tools are mutually exclusive` | Error | Both `disallowedTools` and `tools` are non-empty |
