@@ -79,7 +79,7 @@ export function registerStartCommand(program: Command, deps: CommandDeps): void 
       const nodeName = readNodeName(deps.mechaDir) ?? "unknown";
       /* v8 ignore stop */
 
-      const spaDir = resolveSpaDir();
+      const spaDir = await resolveSpaDir();
       const { fetchPublicIp } = await import("@mecha/core");
       const publicIp = await fetchPublicIp();
       // Derive internal mesh routing key from TOTP secret (not user-facing)

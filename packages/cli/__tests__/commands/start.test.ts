@@ -39,7 +39,7 @@ vi.mock("@mecha/process", async (importOriginal) => {
 });
 
 vi.mock("../../src/spa-resolve.js", () => ({
-  resolveSpaDir: vi.fn().mockReturnValue("/fake/spa/dist"),
+  resolveSpaDir: vi.fn().mockResolvedValue("/fake/spa/dist"),
 }));
 
 vi.mock("../../src/totp-display.js", () => ({
@@ -60,7 +60,7 @@ describe("start command", () => {
 
   it("warns when SPA not found", async () => {
     const { resolveSpaDir } = await import("../../src/spa-resolve.js");
-    vi.mocked(resolveSpaDir).mockReturnValueOnce(undefined);
+    vi.mocked(resolveSpaDir).mockResolvedValueOnce(undefined);
 
     const deps = makeDeps({ mechaDir: dir });
     const program = createProgram(deps);
