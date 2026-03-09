@@ -1,14 +1,18 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { DEFAULTS, parsePort, resolveAuthConfig, ensureTotpSecret } from "@mecha/core";
+import { writeFileSync, unlinkSync } from "node:fs";
+import { join } from "node:path";
 import { withErrorHandler } from "../error-handler.js";
 import { resolveSpaDir } from "../spa-resolve.js";
 import { displayTotpSetup } from "../totp-display.js";
+import { readDaemonPid, writeDaemonPid, removeDaemonPid, isDaemonRunning } from "../daemon.js";
 
 interface StartOpts {
   port: string;
   host: string;
   open: boolean;
+  daemon: boolean;
 }
 
 /** Register the 'start' command. */
@@ -19,6 +23,7 @@ export function registerStartCommand(program: Command, deps: CommandDeps): void 
     .option("--port <port>", "Agent server port", String(DEFAULTS.AGENT_PORT))
     .option("--host <host>", "Bind address", "127.0.0.1")
     .option("--open", "Open browser after starting", false)
+    .option("-d, --daemon", "Run in background", false)
     .action(async (opts: StartOpts) => withErrorHandler(deps, async () => {
       const port = parsePort(opts.port);
       if (port === undefined) {
@@ -26,6 +31,30 @@ export function registerStartCommand(program: Command, deps: CommandDeps): void 
         process.exitCode = 1;
         return;
       }
+
+      /* v8 ignore start -- daemon fork is a process-level concern */
+      if (opts.daemon) {
+        const existingPid = readDaemonPid(deps.mechaDir);
+        if (existingPid !== null && isDaemonRunning(deps.mechaDir)) {
+          deps.formatter.error(`Daemon already running (pid ${existingPid})`);
+          process.exitCode = 1;
+          return;
+        }
+
+        const { spawn } = await import("node:child_process");
+        const filteredArgs = process.argv.slice(1).filter(
+          (a) => a !== "-d" && a !== "--daemon",
+        );
+        const child = spawn(process.execPath, filteredArgs, {
+          detached: true,
+          stdio: "ignore",
+        });
+        writeDaemonPid(deps.mechaDir, child.pid!);
+        child.unref();
+        deps.formatter.success(`Mecha started in background (pid ${child.pid})`);
+        return;
+      }
+      /* v8 ignore stop */
 
       // Resolve auth config from file (TOTP is always required)
       const authConfig = resolveAuthConfig(deps.mechaDir);
@@ -78,9 +107,20 @@ export function registerStartCommand(program: Command, deps: CommandDeps): void 
 
       /* v8 ignore start -- shutdown hook only fires on process signal */
       deps.registerShutdownHook?.(() => server.close());
+      deps.registerShutdownHook?.(async () => removeDaemonPid(deps.mechaDir));
       /* v8 ignore stop */
 
       await server.listen({ port, host: opts.host });
+      writeDaemonPid(deps.mechaDir, process.pid);
+
+      // Write agent discovery file for CLI client commands
+      const agentInfoPath = join(deps.mechaDir, "agent.json");
+      writeFileSync(agentInfoPath, JSON.stringify({ port, pid: process.pid, startedAt: new Date().toISOString() }) + "\n", { mode: 0o600 });
+      /* v8 ignore start -- shutdown cleanup only fires on process signal */
+      deps.registerShutdownHook?.(async () => {
+        try { unlinkSync(agentInfoPath); } catch { /* already removed */ }
+      });
+      /* v8 ignore stop */
 
       // Auto-start meter daemon in-process
       /* v8 ignore start -- meter auto-start is best-effort */
