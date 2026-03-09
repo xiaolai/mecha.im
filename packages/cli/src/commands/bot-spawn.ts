@@ -7,7 +7,7 @@ import type { SandboxMode } from "@mecha/core";
 import { withErrorHandler } from "../error-handler.js";
 
 const SANDBOX_MODES: readonly string[] = ["auto", "off", "require"];
-const PERMISSION_MODES: readonly string[] = ["default", "plan", "full-auto"];
+const PERMISSION_MODES: readonly string[] = ["default", "plan", "bypassPermissions", "acceptEdits", "dontAsk", "auto"];
 const EFFORT_LEVELS: readonly string[] = ["low", "medium", "high"];
 
 export function registerBotSpawnCommand(parent: Command, deps: CommandDeps): void {
@@ -24,7 +24,7 @@ export function registerBotSpawnCommand(parent: Command, deps: CommandDeps): voi
     .option("--expose <caps>", "Comma-separated capabilities to expose (query, read_workspace, write_workspace, execute, read_sessions, lifecycle)")
     .option("--sandbox <mode>", "Sandbox mode: auto, off, require", "auto")
     .option("--model <model>", "Model to use")
-    .option("--permission-mode <mode>", "Permission mode (default, plan, full-auto)")
+    .option("--permission-mode <mode>", "Permission mode (default, plan, bypassPermissions, acceptEdits, dontAsk, auto)")
     .option("--meter <mode>", "Meter mode: on (default), off")
     .option("--system-prompt <prompt>", "System prompt override")
     .option("--append-system-prompt <prompt>", "Append to default system prompt")
@@ -84,7 +84,7 @@ export function registerBotSpawnCommand(parent: Command, deps: CommandDeps): voi
         return;
       }
       if (opts.permissionMode && !PERMISSION_MODES.includes(opts.permissionMode)) {
-        deps.formatter.error("Permission mode must be one of: default, plan, full-auto");
+        deps.formatter.error("Permission mode must be one of: default, plan, bypassPermissions, acceptEdits, dontAsk, auto");
         process.exitCode = 1;
         return;
       }

@@ -250,7 +250,10 @@ export function BotSpawnForm({ open, onOpenChange, onCreated }: Props) {
                 <SelectContent>
                   <SelectItem value="default">default</SelectItem>
                   <SelectItem value="plan">plan</SelectItem>
-                  <SelectItem value="full-auto">full-auto</SelectItem>
+                  <SelectItem value="bypassPermissions">bypassPermissions</SelectItem>
+                  <SelectItem value="acceptEdits">acceptEdits</SelectItem>
+                  <SelectItem value="dontAsk">dontAsk</SelectItem>
+                  <SelectItem value="auto">auto</SelectItem>
                 </SelectContent>
               </Select>
             </div>

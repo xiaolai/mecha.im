@@ -32,7 +32,7 @@ mecha bot spawn <name> [path] [options]
 | `--expose <caps>` | Comma-separated capabilities to expose (`query`, `read_workspace`, `write_workspace`, `execute`, `read_sessions`, `lifecycle`) | |
 | `--sandbox <mode>` | Sandbox mode: `auto`, `off`, `require` | `auto` |
 | `--model <model>` | Model to use | |
-| `--permission-mode <mode>` | Permission mode: `default`, `plan`, `full-auto` | |
+| `--permission-mode <mode>` | Permission mode: `default`, `plan`, `bypassPermissions`, `acceptEdits`, `dontAsk`, `auto` | |
 | `--meter <mode>` | Meter mode: `on`, `off` | `on` |
 | `--system-prompt <prompt>` | System prompt override | |
 | `--append-system-prompt <prompt>` | Append to default system prompt | |
@@ -54,7 +54,7 @@ When `[path]` is omitted, CWD defaults to `--home` (or `~/.mecha/<name>/` if `--
 
 ```bash
 mecha bot spawn researcher ~/papers --tags research,ml
-mecha bot spawn coder ~/project --permission-mode full-auto --port 7710
+mecha bot spawn coder ~/project --permission-mode bypassPermissions --sandbox require --port 7710
 mecha bot spawn helper ~/docs --no-auth
 mecha bot spawn worker ~/code --meter off
 mecha bot spawn alice --home /opt/bots/alice   # HOME and CWD both at /opt/bots/alice
