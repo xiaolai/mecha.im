@@ -62,7 +62,7 @@ mecha mcp serve --mode read-only   # read-only mode
 
 | Tool | Description |
 |------|-------------|
-| `mecha_query` | Send a message to a bot (wave 2 — currently stubbed) |
+| `mecha_query` | Send a message to a bot and get a response |
 
 ## Tool Reference
 
@@ -193,17 +193,17 @@ Reads a file from a local bot's workspace. Delegates to the bot runtime's embedd
 
 ### `mecha_query`
 
-Sends a message to a bot and returns the response. Currently stubbed (wave 2).
+Send a message to a bot and receive a response. Supports both local and remote bots.
 
 **Parameters:**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `target` | `string` | Yes | bot name (or `name@node` for remote). |
-| `message` | `string` | Yes | Message to send. |
+| `target` | `string` | Yes | Bot name (`bot-a`) or remote address (`bot-a@spark01`). |
+| `message` | `string` | Yes | Message to send (must be non-empty). |
 | `sessionId` | `string` | No | Session ID to continue an existing conversation. |
 
-**Returns:** Currently returns a stub message directing users to `mecha bot chat <bot>`.
+**Returns:** Bot's text response. If a session was created or continued, includes `[sessionId: ...]` for continuity. Remote queries include `X-Mecha-Source: mcp:<client-name>` for ACL enforcement.
 
 ## Audit Log
 
