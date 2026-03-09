@@ -420,6 +420,49 @@ WebSocket-based client for the rendezvous server. Handles peer discovery, signal
 | `onInviteAccepted(handler)` | Register a handler called when a peer accepts your invite code. |
 | `close()` | Close the WebSocket connection and reject all pending requests. |
 
+### `WebSocketLike`
+
+```ts
+interface WebSocketLike {
+  readonly readyState: number;
+  binaryType?: string;
+  send(data: Uint8Array): void;
+  close(): void;
+  onopen: ((ev: unknown) => void) | null;
+  onmessage: ((ev: { data: unknown }) => void) | null;
+  onclose: ((ev: { reason?: string }) => void) | null;
+  onerror: ((ev: unknown) => void) | null;
+}
+```
+
+Minimal WebSocket interface used by relay and rendezvous clients. Allows injecting custom WebSocket implementations (e.g., for testing or non-browser environments).
+
+### `CreateRendezvousClientOpts`
+
+```ts
+interface CreateRendezvousClientOpts {
+  url?: string;
+  signFn: (data: Uint8Array) => string;
+  reconnectBaseMs?: number;
+  reconnectMaxAttempts?: number;
+  createWebSocket?: (url: string) => WebSocketLike;
+}
+```
+
+Options for `createRendezvousClient()`. See the [function reference](#createrendezvousclient-opts) for field descriptions.
+
+### `MultiRendezvousOpts`
+
+```ts
+interface MultiRendezvousOpts {
+  urls: string[];
+  signFn: (data: Uint8Array) => string;
+  createWebSocket?: (url: string) => WebSocketLike;
+}
+```
+
+Options for `createMultiRendezvousClient()`. See the [function reference](#createmultirendezvousclient-opts) for field descriptions.
+
 ## Function Reference
 
 ### `createConnectManager(opts)`

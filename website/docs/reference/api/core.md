@@ -1573,6 +1573,8 @@ interface NoiseKeyPair {
 }
 ```
 
+Also exported as `NoiseKeyPairCore` from the core barrel to avoid naming collisions with `@mecha/connect`'s `NoiseKeyPair`.
+
 ### `generateKeyPair()`
 
 ```ts
@@ -1874,6 +1876,26 @@ interface AuthProfileStore {
 ```
 
 Stored format of `auth/profiles.json`.
+
+### `AuthCredentialStore`
+
+```ts
+interface AuthCredentialStore {
+  [name: string]: { token: string };
+}
+```
+
+Stored format of `auth/credentials.json`. Maps profile names to their token values. Read internally by `resolveAuth()`.
+
+### `AuthConfigOverrides`
+
+```ts
+interface AuthConfigOverrides {
+  totp?: boolean;
+}
+```
+
+CLI flag overrides for auth configuration. Merged with the persisted `auth-config.json` via `resolveAuthConfig()`.
 
 ### `ResolvedAuth`
 
@@ -2662,6 +2684,61 @@ interface CreateAclEngineOpts {
 |-------|------|----------|-------------|
 | `mechaDir` | `string` | Yes | Path to the Mecha data directory |
 | `getExpose` | `(name: string) => Capability[]` | No | Custom function to read bot expose config. Defaults to reading from bot `config.json`. |
+
+## Validation Constants
+
+Exported from `@mecha/core` for name, tag, and address validation.
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `NAME_PATTERN` | `/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/` | Valid bot/node name pattern |
+| `NAME_MAX_LENGTH` | `32` | Maximum name length |
+| `TAG_PATTERN` | `/^[a-z0-9][a-z0-9-]*$/` | Valid tag pattern |
+| `TAG_MAX_LENGTH` | `32` | Maximum tag length |
+| `MAX_TAGS` | `20` | Maximum number of tags per bot |
+
+## Directory Constants
+
+Constants for the standard `~/.mecha/` directory layout.
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `MECHA_DIR` | `".mecha"` | Base directory name |
+| `TOOLS_DIR` | `"tools"` | Managed tool installs directory |
+| `AUTH_DIR` | `"auth"` | Auth profiles and credentials directory |
+| `IDENTITY_DIR` | `"identity"` | Ed25519 and X25519 identity keys directory |
+
+### `MANAGED_TOOLS`
+
+```ts
+const MANAGED_TOOLS = {
+  claude: "@anthropic-ai/claude-code",
+  codex: "@openai/codex",
+} as const;
+```
+
+Map of tool names to their npm package names for `mecha tools install`.
+
+### `DEFAULTS`
+
+Operational defaults — single source of truth for all tuning knobs.
+
+| Key | Value | Description |
+|-----|-------|-------------|
+| `RUNTIME_PORT_BASE` | `7700` | First port in the bot runtime scan range |
+| `RUNTIME_PORT_MAX` | `7799` | Last port in the bot runtime scan range |
+| `AGENT_PORT` | `7660` | Agent server default port |
+| `MCP_HTTP_PORT` | `7680` | MCP HTTP transport default port |
+| `METER_PORT` | `7600` | Metering proxy default port |
+| `HEALTH_TIMEOUT_MS` | `10000` | Health check timeout |
+| `STOP_GRACE_MS` | `5000` | Grace period before SIGKILL |
+| `FORWARD_TIMEOUT_MS` | `60000` | HTTP forwarding request timeout |
+| `MAX_TRANSCRIPT_BYTES` | `10485760` | Max transcript file size (10 MB) |
+| `RENDEZVOUS_URL` | `"wss://rendezvous.mecha.im"` | Default rendezvous server |
+| `RELAY_URL` | `"wss://relay.mecha.im"` | Default relay server |
+| `INVITE_EXPIRY_S` | `86400` | Invite default expiry (24 hours) |
+
+See `packages/core/src/constants.ts` for the complete list including meter, relay, and reconnect tuning knobs.
 
 ## See also
 
