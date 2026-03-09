@@ -82,6 +82,7 @@ function LogoutButton({ logout, collapsed }: { logout: () => void; collapsed: bo
   );
 }
 
+/** Collapsible sidebar navigation with mobile drawer support. */
 export function Sidebar({ open, onClose, collapsed, onToggleCollapse }: SidebarProps) {
   const { pathname } = useLocation();
   const { logout } = useAuth();

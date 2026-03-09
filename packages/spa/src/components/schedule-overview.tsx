@@ -19,6 +19,7 @@ interface OverviewEntry {
 
 type ActionType = "run" | "pause" | "resume" | "delete";
 
+/** Renders a cross-bot schedule overview table with run, pause/resume, and delete actions. */
 export function ScheduleOverview() {
   const { data: schedules, loading, error, refetch } = useFetch<OverviewEntry[]>(
     "/bots/schedules/overview",

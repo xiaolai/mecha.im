@@ -19,6 +19,7 @@ export class MechaError extends Error {
   }
 }
 
+/** Error thrown when a bot name contains invalid characters. */
 export class InvalidNameError extends MechaError {
   constructor(input: string) {
     super(
@@ -57,6 +58,7 @@ function defError<A extends unknown[]>(
 }
 
 // --- Address errors ---
+/** Error thrown when a mesh address format is invalid. */
 export const InvalidAddressError = defError<[string]>(
   "InvalidAddressError",
   { code: "INVALID_ADDRESS", statusCode: 400, exitCode: 1 },
@@ -64,6 +66,7 @@ export const InvalidAddressError = defError<[string]>(
 );
 
 // --- Config validation errors ---
+/** Error thrown when bot config fails validation (e.g. mutually exclusive fields). */
 export const ConfigValidationError = defError<[string]>(
   "ConfigValidationError",
   { code: "CONFIG_VALIDATION_ERROR", statusCode: 400, exitCode: 1 },
@@ -71,6 +74,7 @@ export const ConfigValidationError = defError<[string]>(
 );
 
 // --- Bot lifecycle errors ---
+/** Error thrown when a bot with the given name does not exist. */
 export const BotNotFoundError = defError<[string]>(
   "BotNotFoundError",
   { code: "BOT_NOT_FOUND", statusCode: 404, exitCode: 1 },
@@ -106,6 +110,7 @@ export const BotBusyError = defError<[string, number]>(
 );
 
 // --- Path errors ---
+/** Error thrown when a filesystem path does not exist. */
 export const PathNotFoundError = defError<[string]>(
   "PathNotFoundError",
   { code: "PATH_NOT_FOUND", statusCode: 400, exitCode: 1 },
@@ -120,6 +125,7 @@ export const PathNotDirectoryError = defError<[string]>(
 );
 
 // --- Port errors ---
+/** Error thrown when a port is already in use by another process. */
 export const PortConflictError = defError<[number]>(
   "PortConflictError",
   { code: "PORT_CONFLICT", statusCode: 409, exitCode: 1 },
@@ -134,6 +140,7 @@ export const InvalidPortError = defError<[number]>(
 );
 
 // --- Session errors ---
+/** Error thrown when a session ID does not exist. */
 export const SessionNotFoundError = defError<[string]>(
   "SessionNotFoundError",
   { code: "SESSION_NOT_FOUND", statusCode: 404, exitCode: 1 },
@@ -148,6 +155,7 @@ export const SessionBusyError = defError<[string]>(
 );
 
 // --- Auth errors ---
+/** Error thrown when an auth profile name does not exist. */
 export const AuthProfileNotFoundError = defError<[string]>(
   "AuthProfileNotFoundError",
   { code: "AUTH_PROFILE_NOT_FOUND", statusCode: 404, exitCode: 1 },
@@ -161,6 +169,7 @@ export const AuthTokenExpiredError = defError<[string, string]>(
   (profile, date) => `Auth token "${profile}" expired on ${date}`,
 );
 
+/** Error thrown when an auth token fails validation. */
 export const AuthTokenInvalidError = defError<[string]>(
   "AuthTokenInvalidError",
   { code: "AUTH_TOKEN_INVALID", statusCode: 401, exitCode: 1 },
@@ -168,6 +177,7 @@ export const AuthTokenInvalidError = defError<[string]>(
 );
 
 // --- Process errors ---
+/** Error thrown when a bot process fails to spawn. */
 export const ProcessSpawnError = defError<[string]>(
   "ProcessSpawnError",
   { code: "PROCESS_SPAWN_ERROR", statusCode: 500, exitCode: 2 },
@@ -182,6 +192,7 @@ export const ProcessHealthTimeoutError = defError<[string]>(
 );
 
 // --- ACL errors (Phase 3) ---
+/** Error thrown when an ACL check denies access. */
 export const AclDeniedError = defError<[string, string, string]>(
   "AclDeniedError",
   { code: "ACL_DENIED", statusCode: 403, exitCode: 3 },
@@ -189,6 +200,7 @@ export const AclDeniedError = defError<[string, string, string]>(
 );
 
 // --- Identity errors (Phase 3) ---
+/** Error thrown when a node identity is not found. */
 export const IdentityNotFoundError = defError<[string]>(
   "IdentityNotFoundError",
   { code: "IDENTITY_NOT_FOUND", statusCode: 404, exitCode: 1 },
@@ -203,12 +215,14 @@ export const InvalidCapabilityError = defError<[string]>(
 );
 
 // --- Node errors (Phase 4) ---
+/** Error thrown when a mesh node name is not registered. */
 export const NodeNotFoundError = defError<[string]>(
   "NodeNotFoundError",
   { code: "NODE_NOT_FOUND", statusCode: 404, exitCode: 1 },
   (name) => `Node "${name}" not found`,
 );
 
+/** Error thrown when a node with the given name already exists. */
 export const DuplicateNodeError = defError<[string]>(
   "DuplicateNodeError",
   { code: "DUPLICATE_NODE", statusCode: 409, exitCode: 1 },
@@ -216,6 +230,7 @@ export const DuplicateNodeError = defError<[string]>(
 );
 
 // --- Auth profile errors ---
+/** Error thrown when an auth profile with the given name already exists. */
 export const AuthProfileAlreadyExistsError = defError<[string]>(
   "AuthProfileAlreadyExistsError",
   { code: "AUTH_PROFILE_ALREADY_EXISTS", statusCode: 409, exitCode: 1 },
@@ -223,6 +238,7 @@ export const AuthProfileAlreadyExistsError = defError<[string]>(
 );
 
 // --- Forwarding errors ---
+/** Error thrown when a forwarded request to a remote bot returns an error. */
 export const ForwardingError = defError<[number]>(
   "ForwardingError",
   { code: "FORWARDING_ERROR", statusCode: 502, exitCode: 2 },
@@ -234,6 +250,7 @@ export const ForwardingError = defError<[number]>(
 );
 
 // --- Tool errors ---
+/** Error thrown when an MCP tool name is invalid. */
 export const InvalidToolNameError = defError<[string]>(
   "InvalidToolNameError",
   { code: "INVALID_TOOL_NAME", statusCode: 400, exitCode: 1 },
@@ -241,6 +258,7 @@ export const InvalidToolNameError = defError<[string]>(
 );
 
 // --- Session fetch errors ---
+/** Error thrown when fetching session data from a bot fails. */
 export const SessionFetchError = defError<[string, number]>(
   "SessionFetchError",
   { code: "SESSION_FETCH_ERROR", statusCode: 502, exitCode: 2 },
@@ -248,6 +266,7 @@ export const SessionFetchError = defError<[string, number]>(
 );
 
 // --- Chat errors ---
+/** Error thrown when a chat request to a bot fails. */
 export const ChatRequestError = defError<[number, string]>(
   "ChatRequestError",
   { code: "CHAT_REQUEST_ERROR", statusCode: 502, exitCode: 2 },
@@ -255,6 +274,7 @@ export const ChatRequestError = defError<[number, string]>(
 );
 
 // --- Remote routing errors ---
+/** Error thrown when a remote mesh node returns an HTTP error. */
 export const RemoteRoutingError = defError<[string, number]>(
   "RemoteRoutingError",
   { code: "REMOTE_ROUTING_ERROR", statusCode: 502, exitCode: 2 },
@@ -262,6 +282,7 @@ export const RemoteRoutingError = defError<[string, number]>(
 );
 
 // --- Node config errors ---
+/** Error thrown when a configuration file is corrupt or unreadable. */
 export const CorruptConfigError = defError<[string]>(
   "CorruptConfigError",
   { code: "CORRUPT_CONFIG", statusCode: 500, exitCode: 1 },
@@ -269,6 +290,7 @@ export const CorruptConfigError = defError<[string]>(
 );
 
 // --- Port range exhaustion ---
+/** Error thrown when no available port exists in the 7700-7799 range. */
 export const PortRangeExhaustedError = defError<[number, number]>(
   "PortRangeExhaustedError",
   { code: "PORT_RANGE_EXHAUSTED", statusCode: 503, exitCode: 2 },
@@ -276,6 +298,7 @@ export const PortRangeExhaustedError = defError<[number, number]>(
 );
 
 // --- Group address not supported ---
+/** Error thrown when a group address (e.g. +tag) is used where unsupported. */
 export const GroupAddressNotSupportedError = defError<[string]>(
   "GroupAddressNotSupportedError",
   { code: "GROUP_ADDRESS_NOT_SUPPORTED", statusCode: 400, exitCode: 1 },
@@ -283,6 +306,7 @@ export const GroupAddressNotSupportedError = defError<[string]>(
 );
 
 // --- Schedule errors ---
+/** Error thrown when a schedule ID does not exist. */
 export const ScheduleNotFoundError = defError<[string]>(
   "ScheduleNotFoundError",
   { code: "SCHEDULE_NOT_FOUND", statusCode: 404, exitCode: 1 },
@@ -311,6 +335,7 @@ export const ScheduleLimitError = defError<[number]>(
 );
 
 // --- CLI errors ---
+/** Error thrown when another mecha CLI instance is already running. */
 export const CliAlreadyRunningError = defError<[number]>(
   "CliAlreadyRunningError",
   { code: "CLI_ALREADY_RUNNING", statusCode: 409, exitCode: 1 },
@@ -318,6 +343,7 @@ export const CliAlreadyRunningError = defError<[number]>(
 );
 
 // --- Connectivity errors (Phase 6) ---
+/** Error thrown when a mesh connection attempt fails. */
 export const ConnectError = defError<[string]>(
   "ConnectError",
   { code: "CONNECT_ERROR", statusCode: 503, exitCode: 1 },
@@ -353,6 +379,7 @@ export const RendezvousError = defError<[string]>(
 );
 
 // --- Meter errors ---
+/** Error thrown when the meter proxy is already running. */
 export const MeterProxyAlreadyRunningError = defError<[number]>(
   "MeterProxyAlreadyRunningError",
   { code: "METER_PROXY_ALREADY_RUNNING", statusCode: 409, exitCode: 1 },

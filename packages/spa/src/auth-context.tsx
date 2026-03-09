@@ -25,6 +25,7 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+/** Provides authentication state and methods to the component tree. */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [totpAuth, setTotpAuth] = useState(false);
   const [availableMethods, setAvailableMethods] = useState<{ totp: boolean }>({
@@ -88,6 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
+/** Returns the current authentication context value. */
 export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");

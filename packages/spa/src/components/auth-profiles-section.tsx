@@ -47,6 +47,7 @@ function Card({ children, className }: { children: React.ReactNode; className?: 
   );
 }
 
+/** Renders the auth profiles management card with add, test, set-default, renew, and remove actions. */
 export function AuthProfilesSection() {
   const { authHeaders } = useAuth();
   const { data: profiles, error: profilesError, refetch } = useFetch<AuthProfile[]>("/settings/auth-profiles");

@@ -3,6 +3,7 @@ import { AuditView } from "@/components/audit-view";
 import { EventsView } from "@/components/events-view";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
+/** Logs page with tabbed views for events and audit entries. */
 export function AuditPage() {
   return (
     <PageShell title="Logs">

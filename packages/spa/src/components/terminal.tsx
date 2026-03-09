@@ -35,6 +35,7 @@ const LIGHT_THEME = {
 const RESIZE_DEBOUNCE_MS = 100;
 
 
+/** Renders an xterm.js terminal connected to a bot's PTY session via WebSocket. */
 export function Terminal({ botName, sessionId, node, onSessionCreated, onNewSession }: TerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);

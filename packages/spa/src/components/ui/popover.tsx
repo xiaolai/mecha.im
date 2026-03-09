@@ -2,10 +2,14 @@ import * as React from "react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { cn } from "@/lib/utils";
 
+/** Radix popover root container. */
 const Popover = PopoverPrimitive.Root;
+/** Element that triggers the popover open/close. */
 const PopoverTrigger = PopoverPrimitive.Trigger;
+/** Virtual anchor element for popover positioning. */
 const PopoverAnchor = PopoverPrimitive.Anchor;
 
+/** Styled popover content panel rendered in a portal. */
 const PopoverContent = React.forwardRef<
   React.ComponentRef<typeof PopoverPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Content>

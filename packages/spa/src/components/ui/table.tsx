@@ -1,6 +1,7 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
+/** Responsive table wrapper with horizontal scroll overflow. */
 const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
   ({ className, ...props }, ref) => (
     <div className="relative w-full overflow-x-auto">
@@ -10,11 +11,13 @@ const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableE
 );
 Table.displayName = "Table";
 
+/** Table head section with bottom-bordered rows. */
 const TableHeader = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(
   ({ className, ...props }, ref) => <thead ref={ref} className={cn("[&_tr]:border-b", className)} {...props} />,
 );
 TableHeader.displayName = "TableHeader";
 
+/** Table body section containing data rows. */
 const TableBody = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(
   ({ className, ...props }, ref) => (
     <tbody ref={ref} className={cn("[&_tr:last-child]:border-0", className)} {...props} />
@@ -22,6 +25,7 @@ const TableBody = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes
 );
 TableBody.displayName = "TableBody";
 
+/** Table row with hover highlight and selection state. */
 const TableRow = React.forwardRef<HTMLTableRowElement, React.HTMLAttributes<HTMLTableRowElement>>(
   ({ className, ...props }, ref) => (
     <tr
@@ -33,6 +37,7 @@ const TableRow = React.forwardRef<HTMLTableRowElement, React.HTMLAttributes<HTML
 );
 TableRow.displayName = "TableRow";
 
+/** Table header cell with muted label styling. */
 const TableHead = React.forwardRef<HTMLTableCellElement, React.ThHTMLAttributes<HTMLTableCellElement>>(
   ({ className, ...props }, ref) => (
     <th
@@ -44,6 +49,7 @@ const TableHead = React.forwardRef<HTMLTableCellElement, React.ThHTMLAttributes<
 );
 TableHead.displayName = "TableHead";
 
+/** Table data cell with standard padding and alignment. */
 const TableCell = React.forwardRef<HTMLTableCellElement, React.TdHTMLAttributes<HTMLTableCellElement>>(
   ({ className, ...props }, ref) => (
     <td ref={ref} className={cn("px-3 py-2 align-middle [&:has([role=checkbox])]:pr-0", className)} {...props} />

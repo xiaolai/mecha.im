@@ -26,6 +26,7 @@ function formatTokens(n: number): string {
   return String(n);
 }
 
+/** Renders today's metering stats (requests, cost, tokens, latency) as summary cards. */
 export function MeterSummary() {
   const { data, loading, error } = useFetch<CostQueryResult>("/meter/cost", { interval: 30000 });
 

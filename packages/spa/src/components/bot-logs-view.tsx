@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 
 interface Props { name: string }
 
+/** Displays stdout/stderr log output for a bot with stream toggle. */
 export function BotLogsView({ name }: Props) {
   const [stream, setStream] = useState<"stdout" | "stderr">("stdout");
   const { data, loading, error } = useFetch<{ lines: string[] }>(

@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 
+/** 404 page displayed when a route does not match any known path. */
 export function NotFoundPage() {
   return (
     <div className="flex h-dvh flex-col items-center justify-center gap-4">

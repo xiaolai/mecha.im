@@ -37,6 +37,7 @@ const outcomeBadge: Record<string, { variant: "default" | "secondary" | "destruc
   skipped: { variant: "secondary", label: "skipped" },
 };
 
+/** Renders recent run history for a single schedule with outcome badges and durations. */
 export function ScheduleHistory({ botName, scheduleId, node, refreshToken }: ScheduleHistoryProps) {
   const nodeQuery = node && node !== "local" ? `&node=${encodeURIComponent(node)}` : "";
   const { data: runs, loading, error } = useFetch<ScheduleRunResult[]>(

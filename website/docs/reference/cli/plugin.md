@@ -5,6 +5,8 @@ description: CLI reference for mecha plugin MCP server management commands
 
 # Plugin Commands
 
+[[toc]]
+
 All plugin commands live under `mecha plugin`.
 
 ## `mecha plugin add`

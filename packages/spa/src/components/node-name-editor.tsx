@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { TooltipIconButton } from "@/components/ui/tooltip-icon-button";
 import { useAuth } from "@/auth-context";
 
+/** Inline editor for renaming the local node. */
 export function NodeNameEditor({ currentName }: { currentName: string }) {
   const { authHeaders } = useAuth();
   const [editing, setEditing] = useState(false);
