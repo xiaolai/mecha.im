@@ -205,6 +205,7 @@ export function createSignatureHook(opts: AuthOpts) {
 /** Inter-node paths that accept Bearer token auth (X-Mecha-Source required). */
 const MESH_BEARER_PATHS = [
   { method: "GET", match: (p: string) => p === "/bots" },
+  { method: "GET", match: (p: string) => p.startsWith("/bots/") && p.endsWith("/status") },
   { method: "POST", match: (p: string) => p.startsWith("/bots/") && p.endsWith("/query") },
 ];
 
