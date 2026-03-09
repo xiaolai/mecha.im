@@ -89,7 +89,7 @@ Each bot has a `config.json`:
 | `workspace` | string | Absolute path to the workspace directory (CWD) |
 | `home` | string? | Custom HOME directory. Defaults to `~/.mecha/<name>/` |
 | `model` | string? | Model override for this bot |
-| `permissionMode` | string? | `default`, `plan`, or `full-auto` (see below) |
+| `permissionMode` | string? | `default`, `plan`, `bypassPermissions`, `acceptEdits`, `dontAsk`, or `auto` (see below) |
 | `auth` | string? | Auth profile name |
 | `tags` | string[]? | Tags for organization and discovery |
 | `expose` | string[]? | Capabilities exposed to the mesh |
@@ -102,7 +102,10 @@ Each bot has a `config.json`:
 |------|----------|
 | `default` | Agent asks for approval before executing tools (safest) |
 | `plan` | Agent can read files and search, but asks approval for writes and commands |
-| `full-auto` | Agent executes all tools without asking (use with sandbox enforcement) |
+| `bypassPermissions` | Agent executes all tools without asking (requires `sandboxMode: require`) |
+| `acceptEdits` | Auto-accept file edits, prompt for other tools |
+| `dontAsk` | Skip tools that require permission instead of prompting |
+| `auto` | Automatically determine permission handling |
 
 Update configuration with:
 

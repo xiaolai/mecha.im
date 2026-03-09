@@ -390,17 +390,20 @@ Zod schemas for validating CLI and HTTP input payloads.
 ### `PermissionMode`
 
 ```ts
-const PermissionMode: z.ZodEnum<["default", "plan", "full-auto"]>;
-type PermissionMode = "default" | "plan" | "full-auto";
+const PermissionMode: z.ZodEnum<["default", "plan", "bypassPermissions", "acceptEdits", "dontAsk", "auto"]>;
+type PermissionMode = "default" | "plan" | "bypassPermissions" | "acceptEdits" | "dontAsk" | "auto";
 ```
 
-Permission modes for bot processes. Controls how the Claude SDK handles permission prompts.
+Permission modes for bot processes. Controls how the Claude Code CLI handles permission prompts.
 
 | Value | Description |
 |-------|-------------|
 | `"default"` | Standard permission handling (prompts for confirmation) |
 | `"plan"` | Plan mode (read-only, no writes) |
-| `"full-auto"` | Bypass all permission prompts |
+| `"bypassPermissions"` | Bypass all permission prompts (requires `sandboxMode: "require"`) |
+| `"acceptEdits"` | Auto-accept file edits, prompt for other tools |
+| `"dontAsk"` | Don't ask for permission, skip tools that require it |
+| `"auto"` | Automatically determine permission handling |
 
 ### `BotSpawnInput`
 

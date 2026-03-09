@@ -34,7 +34,10 @@ Each bot runs with restricted process capabilities. The Claude Agent SDK's permi
 |------|-------------|
 | `default` | Ask before dangerous operations |
 | `plan` | Plan-only mode (read, no write) |
-| `full-auto` | Autonomous execution (use with caution) |
+| `bypassPermissions` | Autonomous execution (requires `sandboxMode: require`) |
+| `acceptEdits` | Auto-accept file edits, prompt for other tools |
+| `dontAsk` | Skip tools that require permission |
+| `auto` | Automatically determine permission handling |
 
 ### Layer 4: OS Sandbox
 

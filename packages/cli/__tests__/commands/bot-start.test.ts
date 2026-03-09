@@ -92,7 +92,7 @@ describe("bot start command", () => {
     mechaDir = mkdtempSync(join(tmpdir(), "mecha-bot-start-"));
     writeConfig("alice", {
       port: 7700, token: "t", workspace: "/ws",
-      auth: "personal", expose: ["query"], sandboxMode: "require", permissionMode: "full-auto",
+      auth: "personal", expose: ["query"], sandboxMode: "require", permissionMode: "bypassPermissions",
     });
 
     const deps = makeDeps({ mechaDir, pm: defaultPm() });
@@ -105,7 +105,7 @@ describe("bot start command", () => {
         auth: "personal",
         expose: ["query"],
         sandboxMode: "require",
-        permissionMode: "full-auto",
+        permissionMode: "bypassPermissions",
       }),
     );
   });

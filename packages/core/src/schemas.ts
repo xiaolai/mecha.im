@@ -8,8 +8,8 @@ const nameSchema = z
   .max(NAME_MAX_LENGTH)
   .regex(NAME_PATTERN, "Must be lowercase alphanumeric with hyphens, no leading/trailing hyphen");
 
-/** Permission modes for bot processes */
-export const PermissionMode = z.enum(["default", "plan", "full-auto"]);
+/** Permission modes for bot processes (matches Claude Code CLI --permission-mode choices) */
+export const PermissionMode = z.enum(["default", "plan", "bypassPermissions", "acceptEdits", "dontAsk", "auto"]);
 export type PermissionMode = z.infer<typeof PermissionMode>;
 
 /** mecha spawn NAME PATH [options] */

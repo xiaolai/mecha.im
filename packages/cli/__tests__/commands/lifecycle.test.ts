@@ -149,9 +149,9 @@ describe("bot spawn command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await program.parseAsync(["node", "mecha", "bot", "spawn", "test", tmpdir(), "--permission-mode", "full-auto"]);
+    await program.parseAsync(["node", "mecha", "bot", "spawn", "test", tmpdir(), "--permission-mode", "bypassPermissions", "--sandbox", "require"]);
     expect(deps.processManager.spawn).toHaveBeenCalledWith(
-      expect.objectContaining({ permissionMode: "full-auto" }),
+      expect.objectContaining({ permissionMode: "bypassPermissions", sandboxMode: "require" }),
     );
   });
 
