@@ -21,6 +21,12 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
   res.end(JSON.stringify(body));
 }
 
+/** Get the actual bound port from a listening server. */
+function resolvePort(httpServer: Server, fallback: number): number {
+  const addr = httpServer.address();
+  return typeof addr === "object" && addr ? addr.port : fallback;
+}
+
 /** Configuration for the HTTP-based MCP transport. */
 export interface HttpTransportOpts {
   port: number;
@@ -41,6 +47,8 @@ function createMcpHttpServer(
   opts: HttpTransportOpts,
 ): { httpServer: Server; closeAllSessions: () => Promise<void> } {
   const sessions = new Map<string, Session>();
+  /** Track in-flight session creates to avoid exceeding cap under concurrency. */
+  let pendingCreates = 0;
 
   function touchSession(sessionId: string): void {
     const session = sessions.get(sessionId);
@@ -60,10 +68,14 @@ function createMcpHttpServer(
   }
 
   async function closeAllSessions(): Promise<void> {
-    const closing = [...sessions.entries()].map(async ([, s]) => {
+    const closing = [...sessions.entries()].map(async ([id, s]) => {
       clearTimeout(s.timer);
-      await s.transport.close();
-      await s.server.close();
+      try {
+        await s.transport.close();
+        await s.server.close();
+      } catch (err) {
+        process.stderr.write(`[mecha:mcp] session ${id} close error: ${err instanceof Error ? err.message : "unknown"}\n`);
+      }
     });
     await Promise.allSettled(closing);
     sessions.clear();
@@ -106,7 +118,7 @@ function createMcpHttpServer(
         return;
       }
       const parts = authHeader.split(" ");
-      if (parts.length !== 2 || parts[0] !== "Bearer" || !safeCompare(parts[1]!, opts.token)) {
+      if (parts.length !== 2 || parts[0]!.toLowerCase() !== "bearer" || !safeCompare(parts[1]!, opts.token)) {
         sendJson(res, 401, { error: "Invalid token" });
         return;
       }
@@ -121,12 +133,13 @@ function createMcpHttpServer(
     const sessionId = rawSessionId;
 
     if (method === "POST" && !sessionId) {
-      // #4: Enforce session cap
-      if (sessions.size >= MAX_SESSIONS) {
+      // #4: Enforce session cap (count pending creates to prevent race)
+      if (sessions.size + pendingCreates >= MAX_SESSIONS) {
         sendJson(res, 503, { error: "Too many sessions" });
         return;
       }
 
+      pendingCreates++;
       let transport: StreamableHTTPServerTransport | undefined;
       let server: McpServer | undefined;
       try {
@@ -155,7 +168,7 @@ function createMcpHttpServer(
           sessions.delete(newSessionId);
         };
       } catch (err: unknown) {
-        process.stderr.write(`[mecha:mcp] session create error: ${err instanceof Error ? err.message : String(err)}\n`);
+        process.stderr.write(`[mecha:mcp] session create error: ${err instanceof Error ? err.message : "unknown"}\n`);
         if (transport) await transport.close().catch(() => {});
         if (server) await server.close().catch(() => {});
         if (transport?.sessionId) {
@@ -168,6 +181,8 @@ function createMcpHttpServer(
           sendJson(res, 500, { error: "Internal server error" });
         }
         /* v8 ignore stop */
+      } finally {
+        pendingCreates--;
       }
       return;
     }
@@ -197,19 +212,20 @@ function createMcpHttpServer(
         return;
       }
 
-      touchSession(sessionId);
-
       // #3: Guard existing-session handleRequest
       try {
         await session.transport.handleRequest(req, res);
       } catch (err: unknown) {
-        process.stderr.write(`[mecha:mcp] session ${sessionId} error: ${err instanceof Error ? err.message : String(err)}\n`);
+        process.stderr.write(`[mecha:mcp] session ${sessionId} request error: ${err instanceof Error ? err.message : "unknown"}\n`);
         /* v8 ignore start -- res may already be sent */
         if (!res.headersSent) {
           sendJson(res, 500, { error: "Internal server error" });
         }
         /* v8 ignore stop */
       }
+
+      // Refresh idle timer after request completes (not before)
+      touchSession(sessionId);
       return;
     }
 
@@ -241,20 +257,28 @@ export async function runHttp(
   const { httpServer, closeAllSessions } = createMcpHttpServer(createMcpServer, opts);
 
   await listenHttpServer(httpServer, opts.port, opts.host);
-  process.stderr.write(`MCP HTTP server listening on http://${opts.host}:${opts.port}/mcp\n`);
+  const boundPort = resolvePort(httpServer, opts.port);
+  process.stderr.write(`MCP HTTP server listening on http://${opts.host}:${boundPort}/mcp\n`);
 
   // #5: Shutdown — close all sessions before closing HTTP server
   let shuttingDown = false;
+  const shutdown = async () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    await closeAllSessions();
+    httpServer.close();
+  };
+  const onSigInt = () => void shutdown();
+  const onSigTerm = () => void shutdown();
+
   await new Promise<void>((resolve) => {
-    const shutdown = async () => {
-      if (shuttingDown) return;
-      shuttingDown = true;
-      await closeAllSessions();
-      httpServer.close(() => resolve());
-    };
-    process.on("SIGINT", () => void shutdown());
-    process.on("SIGTERM", () => void shutdown());
+    httpServer.on("close", resolve);
+    process.on("SIGINT", onSigInt);
+    process.on("SIGTERM", onSigTerm);
   });
+
+  process.removeListener("SIGINT", onSigInt);
+  process.removeListener("SIGTERM", onSigTerm);
 }
 
 /**
@@ -268,9 +292,10 @@ export async function startHttpDaemon(
   const { httpServer, closeAllSessions } = createMcpHttpServer(createMcpServer, opts);
 
   await listenHttpServer(httpServer, opts.port, opts.host);
+  const boundPort = resolvePort(httpServer, opts.port);
 
   return {
-    port: opts.port,
+    port: boundPort,
     host: opts.host,
     close: async () => {
       await closeAllSessions();

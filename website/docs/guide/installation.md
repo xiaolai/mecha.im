@@ -13,11 +13,11 @@ description: Install Mecha and set up your environment.
 brew install xiaolai/tap/mecha
 ```
 
-This installs the `mecha` binary and the dashboard SPA. Works on macOS (Apple Silicon and Intel) and Linux.
+Works on macOS (Apple Silicon and Intel) and Linux.
 
 ## Manual Download
 
-Download the binary for your platform from the [latest release](https://github.com/xiaolai/mecha.im/releases/latest):
+Download the single binary for your platform from the [latest release](https://github.com/xiaolai/mecha.im/releases/latest):
 
 ::: code-group
 
@@ -42,6 +42,8 @@ sudo mv mecha /usr/local/bin/
 ```
 
 :::
+
+The dashboard is embedded inside the binary — no extra files needed.
 
 ## Build from Source
 

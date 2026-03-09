@@ -73,6 +73,10 @@ vendor/
 venv/
 .gitnexus
 
+# Generated files
+*.generated.ts
+*.generated.js
+
 # Playwright MCP
 .playwright-mcp/
 
