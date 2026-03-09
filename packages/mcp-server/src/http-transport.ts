@@ -1,4 +1,4 @@
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { createServer, type IncomingMessage, type ServerResponse, type Server } from "node:http";
 import { randomUUID } from "node:crypto";
 import { safeCompare } from "@mecha/core";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -28,16 +28,18 @@ export interface HttpTransportOpts {
   token?: string;
 }
 
-/**
- * Start an HTTP server exposing the MCP protocol via StreamableHTTP transport.
- *
- * Manages per-client sessions with idle timeout and optional bearer-token auth.
- * Blocks until SIGINT/SIGTERM, then gracefully closes all sessions.
- */
-export async function runHttp(
+/** Handle returned by startHttpDaemon for non-blocking in-process usage. */
+export interface McpHttpHandle {
+  port: number;
+  host: string;
+  close: () => Promise<void>;
+}
+
+/** Create session manager + HTTP server. Shared by runHttp and startHttpDaemon. */
+function createMcpHttpServer(
   createMcpServer: () => McpServer,
   opts: HttpTransportOpts,
-): Promise<void> {
+): { httpServer: Server; closeAllSessions: () => Promise<void> } {
   const sessions = new Map<string, Session>();
 
   function touchSession(sessionId: string): void {
@@ -214,17 +216,32 @@ export async function runHttp(
     sendJson(res, 400, { error: "Missing mcp-session-id header" });
   });
 
-  // #6: Handle listen errors (e.g. EADDRINUSE)
+  return { httpServer, closeAllSessions };
+}
+
+/** Listen on the given port/host. Resolves once bound. */
+async function listenHttpServer(httpServer: Server, port: number, host: string): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     httpServer.once("error", reject);
-    httpServer.listen(opts.port, opts.host, () => {
+    httpServer.listen(port, host, () => {
       httpServer.removeListener("error", reject);
-      process.stderr.write(
-        `MCP HTTP server listening on http://${opts.host}:${opts.port}/mcp\n`,
-      );
       resolve();
     });
   });
+}
+
+/**
+ * Start an HTTP server exposing the MCP protocol via StreamableHTTP transport.
+ * Blocks until SIGINT/SIGTERM, then gracefully closes all sessions.
+ */
+export async function runHttp(
+  createMcpServer: () => McpServer,
+  opts: HttpTransportOpts,
+): Promise<void> {
+  const { httpServer, closeAllSessions } = createMcpHttpServer(createMcpServer, opts);
+
+  await listenHttpServer(httpServer, opts.port, opts.host);
+  process.stderr.write(`MCP HTTP server listening on http://${opts.host}:${opts.port}/mcp\n`);
 
   // #5: Shutdown — close all sessions before closing HTTP server
   let shuttingDown = false;
@@ -238,4 +255,26 @@ export async function runHttp(
     process.on("SIGINT", () => void shutdown());
     process.on("SIGTERM", () => void shutdown());
   });
+}
+
+/**
+ * Start the MCP HTTP server in non-blocking daemon mode.
+ * Returns a handle with close() instead of blocking on signals.
+ */
+export async function startHttpDaemon(
+  createMcpServer: () => McpServer,
+  opts: HttpTransportOpts,
+): Promise<McpHttpHandle> {
+  const { httpServer, closeAllSessions } = createMcpHttpServer(createMcpServer, opts);
+
+  await listenHttpServer(httpServer, opts.port, opts.host);
+
+  return {
+    port: opts.port,
+    host: opts.host,
+    close: async () => {
+      await closeAllSessions();
+      await new Promise<void>((resolve) => httpServer.close(() => resolve()));
+    },
+  };
 }

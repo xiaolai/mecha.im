@@ -94,6 +94,32 @@ export function registerStartCommand(program: Command, deps: CommandDeps): void 
       }
       /* v8 ignore stop */
 
+      // Auto-start MCP server in-process
+      /* v8 ignore start -- MCP auto-start is best-effort */
+      try {
+        const { startHttpDaemon, createMeshMcpServer, createAuditLog, createRateLimiter } = await import("@mecha/mcp-server");
+        const { agentFetch } = await import("@mecha/service");
+        const { readNodes } = await import("@mecha/core");
+
+        const mcpHandle = await startHttpDaemon(
+          () => createMeshMcpServer({
+            mechaDir: deps.mechaDir,
+            pm: deps.processManager,
+            getNodes: () => readNodes(deps.mechaDir),
+            agentFetch,
+            mode: "query",
+            audit: createAuditLog(deps.mechaDir),
+            rateLimiter: createRateLimiter(),
+          }),
+          { port: 7680, host: "127.0.0.1" },
+        );
+        deps.registerShutdownHook?.(() => mcpHandle.close());
+        deps.formatter.success(`MCP server started on http://127.0.0.1:${mcpHandle.port}/mcp`);
+      } catch (err) {
+        deps.formatter.warn(`MCP auto-start failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      /* v8 ignore stop */
+
       /* v8 ignore start -- SPA presence varies by build configuration */
       if (spaDir) {
         deps.formatter.success(`Mecha started on http://${opts.host}:${port} (node: ${nodeName}, auth: TOTP)`);
