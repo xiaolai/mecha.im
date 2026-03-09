@@ -3,6 +3,9 @@ import { createProgram } from "../../src/program.js";
 import { makeDeps } from "../test-utils.js";
 import type { ProcessManager, ProcessInfo } from "@mecha/process";
 import type { BotName } from "@mecha/core";
+import { existsSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 
 afterEach(() => { process.exitCode = undefined as unknown as number; });
 
@@ -90,6 +93,24 @@ describe("stop command (daemon)", () => {
     await program.parseAsync(["node", "mecha", "stop"]);
     expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("Failed to stop alice"));
     expect(process.exitCode).toBe(1);
+  });
+
+  it("cleans up daemon.pid file", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "stop-daemon-"));
+    // Write a fake daemon.pid with a dead PID
+    writeFileSync(join(dir, "daemon.pid"), "999999999");
+
+    const deps = makeDeps({ mechaDir: dir, pm: defaultPm() });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "stop"]);
+
+    // daemon.pid should be cleaned up (stale PID)
+    expect(existsSync(join(dir, "daemon.pid"))).toBe(false);
+    expect(deps.formatter.success).toHaveBeenCalledWith("Daemon stopped");
+
+    rmSync(dir, { recursive: true, force: true });
   });
 
   it("stops meter if running", async () => {
