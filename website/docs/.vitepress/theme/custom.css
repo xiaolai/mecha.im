@@ -16,11 +16,17 @@
 
 .VPFeature .box .icon svg {
   display: inline;
-  width: 1.1em;
-  height: 1.1em;
   vertical-align: -0.15em;
 }
 
 .VPFeature .box h2.title {
   display: inline;
+}
+
+/* Match icon size to h2 font size */
+.VPFeature .box .icon,
+.VPFeature .box .icon svg {
+  font-size: inherit;
+  width: 1em;
+  height: 1em;
 }
