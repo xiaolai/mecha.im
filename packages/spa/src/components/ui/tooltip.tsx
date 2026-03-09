@@ -2,10 +2,14 @@ import * as React from "react";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import { cn } from "@/lib/utils";
 
+/** Context provider that configures tooltip delay and skip behavior. */
 const TooltipProvider = TooltipPrimitive.Provider;
+/** Radix tooltip root container. */
 const Tooltip = TooltipPrimitive.Root;
+/** Element that triggers the tooltip on hover/focus. */
 const TooltipTrigger = TooltipPrimitive.Trigger;
 
+/** Styled tooltip content rendered in a portal with animation. */
 const TooltipContent = React.forwardRef<
   React.ComponentRef<typeof TooltipPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>

@@ -18,6 +18,7 @@ const severityBadge = {
   error: "destructive" as const,
 };
 
+/** Table of system events with severity, category, and message columns. */
 export function EventsView() {
   const { data: events, loading, error } = useFetch<SystemEvent[]>("/events/log?limit=100", { interval: 10000 });
 

@@ -97,6 +97,7 @@ function Card({ children, className }: { children: React.ReactNode; className?: 
   );
 }
 
+/** Renders the system settings dashboard with node info, auth, network, meter, and discovery cards. */
 export function SettingsView() {
   const { authHeaders } = useAuth();
   const { data: info, loading: infoLoading } = useFetch<NodeInfo>("/node/info", { interval: 30_000 });

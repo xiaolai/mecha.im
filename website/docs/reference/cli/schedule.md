@@ -5,6 +5,8 @@ description: CLI reference for mecha schedule task management commands
 
 # Schedule Commands
 
+[[toc]]
+
 All schedule commands live under `mecha schedule`.
 
 ## `mecha schedule add`

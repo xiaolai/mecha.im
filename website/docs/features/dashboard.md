@@ -35,7 +35,7 @@ mecha dashboard serve --open
 
 The dashboard is a single-page application (SPA) served by the Mecha agent server (`@mecha/agent`). The agent server is a Fastify-based HTTP + WebSocket server that hosts the dashboard UI alongside all API routes in a single process on a single port.
 
-```
+```bash
 mecha start
   └── Agent Server (port 7660)
        ├── /healthz           → Health check (public)

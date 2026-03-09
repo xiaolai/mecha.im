@@ -5,6 +5,8 @@ description: Mecha is a local-first multi-agent runtime for running multiple Cla
 
 # What is Mecha?
 
+[[toc]]
+
 Mecha is a **local-first multi-agent runtime** that lets you run multiple Claude agents as isolated processes on your own machine. Each agent — called a **bot** (Claude Agent SDK App) — gets its own workspace, permissions, and identity.
 
 ## Why Mecha?
@@ -58,7 +60,7 @@ A bot is the unit of deployment in Mecha. Each bot is a Fastify server process t
 
 Every bot has a human-readable name:
 
-```
+```text
 researcher              ← local name
 researcher@alice        ← fully qualified (name@node)
 +research               ← group address (all bots tagged "research")

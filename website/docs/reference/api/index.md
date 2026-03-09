@@ -5,6 +5,8 @@ description: Complete API reference for all Mecha packages — route summary, se
 
 # API Reference
 
+[[toc]]
+
 Complete API reference for all Mecha packages.
 
 ## Package Overview

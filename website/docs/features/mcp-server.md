@@ -108,7 +108,7 @@ Lists all registered mesh nodes and checks their health by issuing a `/healthz` 
 
 **Returns:** One line per node in the format `<name>: <status> (<host>:<port>, <latency>)`. Status is `healthy`, `unreachable`, or `p2p (no http)` for managed nodes. Latency is reported in milliseconds or `n/a` if the node could not be reached.
 
-```
+```text
 my-server: healthy (10.0.0.5:7660, 12ms)
 cloud-node: unreachable (192.168.1.100:7660, n/a)
 p2p-peer: p2p (no http) (p2p:0, n/a)
@@ -127,7 +127,7 @@ Lists bots on the local machine or on a specified remote node. Managed (P2P) nod
 
 **Returns:** One line per bot in the format `<name>: <state> (port <port>) [tags]`. State is `running`, `stopped`, or `error`.
 
-```
+```text
 alice: running (port 7700) [backend, api]
 bob: stopped
 ```
@@ -144,7 +144,7 @@ Returns detailed status for a single bot, either local or remote.
 
 **Returns:** Multi-line status report with name, state, PID, port, and workspace path. Remote targets return the raw JSON from the remote node's `/bots/<name>/status` endpoint.
 
-```
+```text
 Name: alice
 State: running
 PID: 12345
@@ -166,7 +166,7 @@ Finds bots matching tag and/or capability filters. Local only.
 
 **Returns:** One line per matching bot with name, state, and tags.
 
-```
+```text
 alice: running [backend, api]
 charlie: running [frontend]
 ```
@@ -349,7 +349,7 @@ mecha mcp serve --transport http --host 0.0.0.0 --token "$MECHA_MCP_TOKEN"
 
 ## Architecture
 
-```
+```text
 ┌─────────────────┐     stdio      ┌─────────────────┐
 │  Claude Desktop │ ◄────────────► │  mecha mcp serve│
 │  Cursor         │                │  (MCP Server)   │

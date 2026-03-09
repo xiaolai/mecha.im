@@ -17,6 +17,7 @@ import { BusyWarningBanner } from "@/components/busy-warning-banner";
 import { ConfirmActionBanner } from "@/components/confirm-action-banner";
 import { formatUptimeFromIso } from "@/lib/format";
 
+/** Shape of bot status data returned by the API. */
 export interface BotInfo {
   name: string;
   state: "running" | "stopped" | "error";
@@ -85,6 +86,7 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+/** Card displaying bot status, metadata, and lifecycle action buttons. */
 export function BotCard({ bot, remoteNode }: BotCardProps) {
   const style = stateStyles[bot.state] ?? stateStyles.error;
   const isRemote = !!remoteNode;

@@ -21,6 +21,7 @@ interface SessionListProps {
   node?: string;
 }
 
+/** Table listing all sessions for a bot with links to session detail. */
 export function SessionList({ name, node }: SessionListProps) {
   const nodeQuery = node && node !== "local" ? `?node=${encodeURIComponent(node)}` : "";
   const { data: sessions, loading, error } = useFetch<SessionEntry[]>(

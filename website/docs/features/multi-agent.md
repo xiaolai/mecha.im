@@ -5,6 +5,8 @@ description: Organize and operate a fleet of specialized agents with tags, disco
 
 # Multi-Agent Management
 
+[[toc]]
+
 Mecha is designed for running many agents simultaneously. Tags, discovery, and group addressing let you organize and operate a fleet of specialized agents.
 
 ## Spawning Agents

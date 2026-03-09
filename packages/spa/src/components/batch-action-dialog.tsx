@@ -31,6 +31,7 @@ interface BatchActionDialogProps {
 
 type Phase = "preflight" | "ready" | "executing" | "done";
 
+/** Dialog for batch stop/restart of all bots with dry-run preview and force option. */
 export function BatchActionDialog({ action, open, onOpenChange, onComplete }: BatchActionDialogProps) {
   const [phase, setPhase] = useState<Phase>("preflight");
   const [dryRunResult, setDryRunResult] = useState<BatchResult | null>(null);

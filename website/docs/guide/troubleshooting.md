@@ -5,6 +5,8 @@ description: Common issues and solutions for the Mecha runtime.
 
 # Troubleshooting
 
+[[toc]]
+
 Common issues and how to resolve them.
 
 ## System Check

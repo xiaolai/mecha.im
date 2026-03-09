@@ -26,6 +26,7 @@ interface BotDetailProps {
   node?: string;
 }
 
+/** Full bot detail view with status, config, sessions, logs, and files tabs. */
 export function BotDetail({ name, node }: BotDetailProps) {
   const isRemote = !!node && node !== "local";
   const nodeQuery = isRemote ? `?node=${encodeURIComponent(node)}` : "";

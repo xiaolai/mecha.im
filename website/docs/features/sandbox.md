@@ -15,7 +15,7 @@ Mecha enforces **defense in depth** — five layers of isolation ensure that eac
 
 Each bot can only read and write its own workspace directory. Path traversal attacks are blocked by resolving symlinks and checking canonical paths.
 
-```
+```text
 researcher's workspace: ~/papers/
   ✅ ~/papers/notes.md          (inside workspace)
   ❌ ~/papers/../secrets.txt    (traversal blocked)
@@ -69,7 +69,7 @@ Each bot gets its own isolated Claude Code home directory. The host's real `~/.c
 
 When Mecha spawns a bot, it creates a complete `.claude/` mirror inside the bot directory:
 
-```
+```text
 ~/.mecha/researcher/             ← botDir (= HOME)
 ├── .claude/
 │   ├── settings.json            ← auto-generated hook config

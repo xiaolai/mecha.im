@@ -5,6 +5,8 @@ description: Create your first Mecha agent in 5 minutes.
 
 # Quick Start
 
+[[toc]]
+
 Create your first Mecha agent in 5 minutes.
 
 ## 1. Initialize
@@ -46,7 +48,7 @@ mecha bot status researcher
 
 You'll see something like:
 
-```
+```text
 researcher
   state:     running
   port:      7700

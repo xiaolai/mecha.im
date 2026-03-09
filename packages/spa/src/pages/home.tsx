@@ -7,6 +7,7 @@ import { MeterSummary } from "@/components/meter-summary";
 import { Button } from "@/components/ui/button";
 import { BatchActionDialog } from "@/components/batch-action-dialog";
 
+/** Dashboard home page displaying bot list, meter summary, and batch actions. */
 export function HomePage() {
   const [searchParams] = useSearchParams();
   const node = searchParams.get("node") ?? undefined;

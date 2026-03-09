@@ -47,7 +47,7 @@ mecha node invite
 
 Output:
 
-```
+```text
 mecha://invite/eyJpbnZpdGVyTm...
 Expires: 2026-02-28T12:00:00Z (24h)
 Share this code with your peer.
@@ -63,7 +63,7 @@ mecha node join mecha://invite/eyJpbnZpdGVyTm...
 
 Output:
 
-```
+```text
 Invite accepted on server (inviter notified)
 Peer added: alice (managed)
 ```
@@ -263,7 +263,7 @@ mecha node ls
 
 Example output:
 
-```
+```text
 Name    Type      Host           Port   Added
 alice   managed   —              —      2026-02-27T10:00:00Z
 bob     http      192.168.1.50   7660   2026-02-27T10:00:00Z

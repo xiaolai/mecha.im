@@ -3,11 +3,16 @@ import * as SheetPrimitive from "@radix-ui/react-dialog";
 import { XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+/** Radix dialog root used as a slide-in sheet panel. */
 const Sheet = SheetPrimitive.Root;
+/** Element that triggers the sheet open. */
 const SheetTrigger = SheetPrimitive.Trigger;
+/** Button that closes the sheet. */
 const SheetClose = SheetPrimitive.Close;
+/** Portal for rendering sheet outside the DOM hierarchy. */
 const SheetPortal = SheetPrimitive.Portal;
 
+/** Backdrop overlay with blur effect for sheets. */
 const SheetOverlay = React.forwardRef<
   React.ComponentRef<typeof SheetPrimitive.Overlay>,
   React.ComponentPropsWithoutRef<typeof SheetPrimitive.Overlay>
@@ -23,6 +28,7 @@ const SheetOverlay = React.forwardRef<
 ));
 SheetOverlay.displayName = SheetPrimitive.Overlay.displayName;
 
+/** Slide-in panel content from the right edge with close button. */
 const SheetContent = React.forwardRef<
   React.ComponentRef<typeof SheetPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof SheetPrimitive.Content>
@@ -47,14 +53,17 @@ const SheetContent = React.forwardRef<
 ));
 SheetContent.displayName = SheetPrimitive.Content.displayName;
 
+/** Header section of a sheet for title and description. */
 function SheetHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return <div className={cn("flex flex-col gap-2 text-center sm:text-left", className)} {...props} />;
 }
 
+/** Footer section of a sheet for action buttons. */
 function SheetFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return <div className={cn("flex flex-col-reverse gap-2 sm:flex-row sm:justify-end", className)} {...props} />;
 }
 
+/** Styled title heading for a sheet panel. */
 const SheetTitle = React.forwardRef<
   React.ComponentRef<typeof SheetPrimitive.Title>,
   React.ComponentPropsWithoutRef<typeof SheetPrimitive.Title>
@@ -63,6 +72,7 @@ const SheetTitle = React.forwardRef<
 ));
 SheetTitle.displayName = SheetPrimitive.Title.displayName;
 
+/** Muted description text within a sheet panel. */
 const SheetDescription = React.forwardRef<
   React.ComponentRef<typeof SheetPrimitive.Description>,
   React.ComponentPropsWithoutRef<typeof SheetPrimitive.Description>

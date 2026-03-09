@@ -15,6 +15,7 @@ interface ConfirmActionBannerProps {
   acting: boolean;
 }
 
+/** Renders a confirmation banner for destructive bot actions (stop, restart, kill). */
 export function ConfirmActionBanner({ action, name, onConfirm, onCancel, acting }: ConfirmActionBannerProps) {
   const { verb, description } = ACTION_LABELS[action] ?? ACTION_LABELS.stop;
 

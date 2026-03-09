@@ -36,7 +36,7 @@ Each bot has:
 
 Every bot has a unique name on its node:
 
-```
+```text
 researcher
 coder
 reviewer
@@ -48,7 +48,7 @@ Names must be lowercase alphanumeric with hyphens, max 32 characters.
 
 When communicating across machines, addresses include the node name:
 
-```
+```text
 researcher@alice       ← "researcher" on node "alice"
 coder@bob              ← "coder" on node "bob"
 ```
@@ -57,7 +57,7 @@ coder@bob              ← "coder" on node "bob"
 
 The `+` prefix addresses all bots with a matching tag:
 
-```
+```text
 +research              ← all bots tagged "research"
 +dev                   ← all bots tagged "dev"
 ```
@@ -70,7 +70,7 @@ An unqualified name like `researcher` resolves to `researcher@local` — the bot
 
 Each chat conversation is a **session** — stored as two files:
 
-```
+```text
 ~/.mecha/researcher/home/.claude/projects/<path>/
 ├── abc123.meta.json     ← metadata (title, timestamps)
 └── abc123.jsonl         ← transcript (messages, tool calls)
@@ -97,7 +97,7 @@ The agent can read and write files inside `~/my-project/` but nowhere else. The 
 
 The workspace path is encoded into the session storage path (matching Claude Code's convention):
 
-```
+```text
 /Users/you/my-project → -Users-you-my-project
 ```
 
@@ -149,7 +149,7 @@ mecha bot status coder    # single bot detail
 
 All Mecha state lives under `~/.mecha/`:
 
-```
+```text
 ~/.mecha/
 ├── researcher/                  ← bot directory
 │   ├── config.json              ← port, token, workspace, tags

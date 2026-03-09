@@ -5,6 +5,7 @@ interface TopbarProps {
   onMenuClick: () => void;
 }
 
+/** Mobile topbar header with hamburger menu toggle. */
 export function Topbar({ onMenuClick }: TopbarProps) {
   return (
     <header className="flex h-12 shrink-0 items-center border-b border-border px-4 md:hidden">

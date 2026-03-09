@@ -10,6 +10,7 @@ interface SandboxProfile {
   hooks: string[];
 }
 
+/** Displays sandbox mode, hooks, and settings for a selected bot. */
 export function SandboxView() {
   const { data: bots, error: botsError } = useFetch<Array<{ name: string; state: string }>>("/bots");
   const [selectedBot, setSelectedBot] = useState<string | null>(null);

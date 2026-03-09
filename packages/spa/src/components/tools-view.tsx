@@ -76,6 +76,7 @@ function ClaudeRuntimeCard() {
   );
 }
 
+/** Renders installed tools table with install/remove actions and Claude runtime info. */
 export function ToolsView() {
   const { data: tools, loading, error, refetch } = useFetch<ToolInfo[]>("/tools");
   const { authHeaders } = useAuth();

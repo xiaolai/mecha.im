@@ -24,6 +24,7 @@ interface FileContent {
   content: string;
 }
 
+/** File browser for a bot's home directory with markdown editing support. */
 export function BotFiles({ name }: { name: string }) {
   const [currentPath, setCurrentPath] = useState("");
   const [editingFile, setEditingFile] = useState<string | null>(null);

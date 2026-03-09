@@ -9,6 +9,7 @@ interface BusyWarningBannerProps {
   acting: boolean;
 }
 
+/** Renders a warning banner when a bot has active sessions, with force-action and cancel buttons. */
 export function BusyWarningBanner({ warning, onConfirm, onCancel, acting }: BusyWarningBannerProps) {
   const label = warning.pendingAction === "restart" ? "Force Restart" : "Force Stop";
 

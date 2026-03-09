@@ -211,6 +211,7 @@ function renderEvent(event: TranscriptEvent, mode: ViewMode, index: number) {
   }
 }
 
+/** Renders a session transcript as chat bubbles with messages/full toggle. */
 export function ConversationView({ events }: ConversationViewProps) {
   const [mode, setMode] = useState<ViewMode>("messages");
   const scrollRef = useRef<HTMLDivElement>(null);

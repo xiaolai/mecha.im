@@ -6,6 +6,7 @@ const TOTP_LENGTH = 6;
 
 const EMPTY_DIGITS = Array.from({ length: TOTP_LENGTH }, () => "");
 
+/** TOTP login page with 6-digit code input and auto-submit. */
 export function LoginPage() {
   const { setTotpAuthenticated, availableMethods, loading: authLoading } = useAuth();
   const [digits, setDigits] = useState<string[]>(EMPTY_DIGITS);

@@ -59,6 +59,7 @@ function typeBadgeVariant(type: string): "default" | "secondary" | "outline" {
   }
 }
 
+/** Renders installed MCP plugins as cards with add, test, and remove actions. */
 export function PluginsView() {
   const { data: plugins, loading, error, refetch } = useFetch<PluginEntry[]>("/plugins");
   const { authHeaders } = useAuth();

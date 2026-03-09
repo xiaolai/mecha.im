@@ -6,6 +6,7 @@ import { SessionSelector } from "@/components/session-selector";
 import { useFetch } from "@/lib/use-fetch";
 import { useAuth } from "@/auth-context";
 
+/** Terminal page providing an interactive PTY session for a bot. */
 export function TerminalPage() {
   const { name: botName } = useParams<{ name: string }>();
   const [searchParams, setSearchParams] = useSearchParams();

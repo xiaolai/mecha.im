@@ -23,6 +23,7 @@ interface Session {
   events: TranscriptEvent[];
 }
 
+/** Session detail page showing conversation transcript and session metadata. */
 export function SessionDetailPage() {
   const { name, id } = useParams<{ name: string; id: string }>();
   const [searchParams] = useSearchParams();

@@ -131,6 +131,9 @@ const info = await pm.spawn({ name: "researcher", workspacePath: "/path/to/works
 | `pluginDirs` | `string[]` | No | Plugin directories |
 | `disableSlashCommands` | `boolean` | No | Disable all skills |
 | `budgetLimit` | `number` | No | Mecha-level aggregate budget cap |
+| `dangerouslySkipPermissions` | `boolean` | No | Skip all permission prompts (requires `sandboxMode: "require"`) |
+| `allowDangerouslySkipPermissions` | `boolean` | No | Allow the bot to self-escalate to skip permissions |
+| `fallbackModel` | `string` | No | Fallback model when primary is unavailable |
 
 ### `ProcessInfo`
 
@@ -211,7 +214,7 @@ function prepareBotFilesystem(opts: BotFilesystemOpts): BotFilesystemResult
 
 The directory structure mirrors real Claude Code:
 
-```
+```text
 botDir/
   .claude/
     settings.json         <- hooks config

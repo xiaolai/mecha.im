@@ -1,6 +1,7 @@
 import { useParams, useSearchParams } from "react-router-dom";
 import { BotDetail } from "@/components/bot-detail";
 
+/** Bot detail page that renders the BotDetail component for a named bot. */
 export function BotDetailPage() {
   const { name } = useParams<{ name: string }>();
   const [searchParams] = useSearchParams();

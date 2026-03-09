@@ -45,6 +45,7 @@ function TokenInput({ id, value, onChange, placeholder, inputRef }: {
 
 // --- Add Profile Dialog ---
 
+/** Dialog for creating a new auth profile with name, type, and token fields. */
 export function AddProfileDialog({ open, onOpenChange, onCreated }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -177,6 +178,7 @@ export function AddProfileDialog({ open, onOpenChange, onCreated }: {
 
 // --- Renew Token Dialog ---
 
+/** Dialog for replacing an existing auth profile's token. */
 export function RenewTokenDialog({ open, onOpenChange, profileName, onRenewed }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;

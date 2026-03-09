@@ -16,6 +16,7 @@ interface AclRule {
   capabilities: string[];
 }
 
+/** ACL management panel with grant form and rules table. */
 export function AclView() {
   const { data: rules, loading, error, refetch } = useFetch<AclRule[]>("/acl");
   const { authHeaders } = useAuth();
