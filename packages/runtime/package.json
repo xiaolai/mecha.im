@@ -1,6 +1,6 @@
 {
   "name": "@mecha/runtime",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "CASA runtime server (Fastify) for mecha.im",
   "type": "module",
   "exports": {
