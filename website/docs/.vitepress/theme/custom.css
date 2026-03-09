@@ -15,8 +15,8 @@
 
 .VPFeature article.box > .icon svg {
   display: inline !important;
-  width: 1.1em !important;
-  height: 1.1em !important;
+  width: 0.8em !important;
+  height: 0.8em !important;
   vertical-align: -0.15em;
 }
 
