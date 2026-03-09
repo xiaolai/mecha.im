@@ -1,6 +1,10 @@
+import { createRequire } from "node:module";
 import { Command } from "commander";
 import type { CommandDeps } from "./types.js";
 import { registerStartCommand } from "./commands/start.js";
+
+const require = createRequire(import.meta.url);
+const { version: CLI_VERSION } = require("../package.json") as { version: string };
 import { registerStopDaemonCommand } from "./commands/stop-daemon.js";
 import { registerRestartDaemonCommand } from "./commands/restart-daemon.js";
 import { registerInitCommand } from "./commands/init.js";
@@ -87,7 +91,7 @@ export function createProgram(deps: CommandDeps): Command {
   program
     .name("mecha")
     .description("Local-first multi-agent runtime")
-    .version("0.2.0")
+    .version(CLI_VERSION)
     .option("--json", "Output JSON instead of human-readable", false)
     .option("--quiet", "Minimal output (errors only)", false)
     .option("--verbose", "Detailed output", false)

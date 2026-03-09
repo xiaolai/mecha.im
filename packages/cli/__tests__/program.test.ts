@@ -38,7 +38,7 @@ describe("createProgram", () => {
 
   it("has version set", () => {
     const program = createProgram(makeDeps());
-    expect(program.version()).toBe("0.2.0");
+    expect(program.version()).toMatch(/^\d+\.\d+\.\d+$/);
   });
 
   it("has --json option", () => {
