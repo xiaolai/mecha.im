@@ -45,23 +45,30 @@ A bot sitting idle is a bot not earning its keep.
 
 ## Tree structure
 
-Bots are organized in a tree. Group them by project, team, or role. A parent bot can delegate tasks to its children. You see your entire army in one view.
+Each bot is a directory with a markdown file. Organize them in a tree — group by project, team, or role. The directory structure is your org chart.
 
 ```
 bots/
 ├── frontend/
-│   ├── coder        ← writes React components
-│   ├── reviewer     ← reviews PRs in the frontend repo
-│   └── tester       ← runs and maintains tests
+│   ├── coder/
+│   │   └── CLAUDE.md     ← "You write React components..."
+│   ├── reviewer/
+│   │   └── CLAUDE.md     ← "You review PRs for quality..."
+│   └── tester/
+│       └── CLAUDE.md     ← "You write and maintain tests..."
 ├── backend/
-│   ├── api-dev      ← builds API endpoints
-│   └── db-admin     ← manages migrations
+│   ├── api-dev/
+│   │   └── CLAUDE.md     ← "You build API endpoints..."
+│   └── db-admin/
+│       └── CLAUDE.md     ← "You manage database migrations..."
 └── ops/
-    ├── monitor      ← watches logs, alerts on errors
-    └── deployer     ← runs deployments on schedule
+    ├── monitor/
+    │   └── CLAUDE.md     ← "You watch logs and alert on errors..."
+    └── deployer/
+        └── CLAUDE.md     ← "You run deployments on schedule..."
 ```
 
-Each bot has its own workspace, sessions, and budget. Bots can talk to each other through mesh queries — even across machines.
+Each markdown file defines a bot's identity, instructions, and constraints. Mecha reads the file and spawns a Claude Code process from it.
 
 ## Built on Claude Code
 
