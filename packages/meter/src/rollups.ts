@@ -86,48 +86,94 @@ function ensureMap(map: Record<string, CostSummary>, key: string): CostSummary {
   return map[key]!;
 }
 
-/** Update hourly rollup incrementally with a new event */
-export function updateHourlyRollup(rollup: HourlyRollup, event: MeterEvent): void {
-  const hour = new Date(event.ts).getUTCHours();
-  let bucket = rollup.hours.find(h => h.hour === hour);
+/** Index cache for O(1) rollup bucket lookups (lazily built per rollup instance) */
+type HourBucket = HourlyRollup["hours"][number];
+const hourlyIndexCache = new WeakMap<HourlyRollup, Map<number, HourBucket>>();
+
+function getHourBucket(rollup: HourlyRollup, hour: number): HourBucket {
+  let index = hourlyIndexCache.get(rollup);
+  if (!index) {
+    index = new Map();
+    for (const h of rollup.hours) index.set(h.hour, h);
+    hourlyIndexCache.set(rollup, index);
+  }
+  let bucket = index.get(hour);
   if (!bucket) {
     bucket = { hour, total: emptySummary(), byBot: {}, byModel: {} };
     rollup.hours.push(bucket);
+    index.set(hour, bucket);
   }
+  return bucket;
+}
+
+/** Update hourly rollup incrementally with a new event */
+export function updateHourlyRollup(rollup: HourlyRollup, event: MeterEvent): void {
+  const hour = new Date(event.ts).getUTCHours();
+  const bucket = getHourBucket(rollup, hour);
   accumulateEvent(bucket.total, event);
   accumulateEvent(ensureMap(bucket.byBot, event.bot), event);
   accumulateEvent(ensureMap(bucket.byModel, event.modelActual || event.model), event);
 }
 
-/** Update daily rollup incrementally with a new event */
-export function updateDailyRollup(rollup: DailyRollup, event: MeterEvent, date: string): void {
-  let day = rollup.days.find(d => d.date === date);
+type DayBucket = DailyRollup["days"][number];
+const dailyIndexCache = new WeakMap<DailyRollup, Map<string, DayBucket>>();
+
+function getDayBucket(rollup: DailyRollup, date: string): DayBucket {
+  let index = dailyIndexCache.get(rollup);
+  if (!index) {
+    index = new Map();
+    for (const d of rollup.days) index.set(d.date, d);
+    dailyIndexCache.set(rollup, index);
+  }
+  let day = index.get(date);
   if (!day) {
     day = {
       date, total: emptySummary(),
       byBot: {}, byModel: {}, byAuthProfile: {}, byTag: {}, byWorkspace: {},
     };
     rollup.days.push(day);
+    index.set(date, day);
   }
+  return day;
+}
+
+/** Update daily rollup incrementally with a new event */
+export function updateDailyRollup(rollup: DailyRollup, event: MeterEvent, date: string): void {
+  const day = getDayBucket(rollup, date);
   accumulateEvent(day.total, event);
   accumulateEvent(ensureMap(day.byBot, event.bot), event);
   accumulateEvent(ensureMap(day.byModel, event.modelActual || event.model), event);
   accumulateEvent(ensureMap(day.byAuthProfile, event.authProfile), event);
   accumulateEvent(ensureMap(day.byWorkspace, event.workspace), event);
-  for (const tag of event.tags) {
+  for (const tag of new Set(event.tags)) {
     accumulateEvent(ensureMap(day.byTag, tag), event);
   }
+}
+
+type BotDayEntry = BotRollup["byDay"][number];
+const botDayIndexCache = new WeakMap<BotRollup, Map<string, BotDayEntry>>();
+
+function getBotDayEntry(rollup: BotRollup, date: string): BotDayEntry {
+  let index = botDayIndexCache.get(rollup);
+  if (!index) {
+    index = new Map();
+    for (const d of rollup.byDay) index.set(d.date, d);
+    botDayIndexCache.set(rollup, index);
+  }
+  let entry = index.get(date);
+  if (!entry) {
+    entry = { date, summary: emptySummary() };
+    rollup.byDay.push(entry);
+    index.set(date, entry);
+  }
+  return entry;
 }
 
 /** Update per-bot rollup incrementally */
 export function updateBotRollup(rollup: BotRollup, event: MeterEvent, date: string): void {
   accumulateEvent(rollup.allTime, event);
   accumulateEvent(ensureMap(rollup.byModel, event.modelActual || event.model), event);
-  let dayEntry = rollup.byDay.find(d => d.date === date);
-  if (!dayEntry) {
-    dayEntry = { date, summary: emptySummary() };
-    rollup.byDay.push(dayEntry);
-  }
+  const dayEntry = getBotDayEntry(rollup, date);
   accumulateEvent(dayEntry.summary, event);
 }
 

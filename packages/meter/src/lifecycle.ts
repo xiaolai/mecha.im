@@ -1,4 +1,5 @@
 import { readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync } from "node:fs";
+import { randomBytes } from "node:crypto";
 import { join } from "node:path";
 import { isPidAlive } from "@mecha/core";
 import type { ProxyInfo } from "./types.js";
@@ -26,7 +27,7 @@ export function readProxyInfo(meterDir: string): ProxyInfo | null {
 export function writeProxyInfo(meterDir: string, info: ProxyInfo): void {
   mkdirSync(meterDir, { recursive: true });
   const target = join(meterDir, PROXY_JSON);
-  const tmp = target + ".tmp";
+  const tmp = `${target}.${randomBytes(4).toString("hex")}.tmp`;
   writeFileSync(tmp, JSON.stringify(info, null, 2) + "\n");
   renameSync(tmp, target);
 }
@@ -41,6 +42,20 @@ export function deleteProxyInfo(meterDir: string): void {
       console.error("[mecha:meter] Failed to delete proxy.json:", (err as Error).message);
     }
     /* v8 ignore stop */
+  }
+}
+
+/**
+ * Check if a PID belongs to a mecha process (guards against PID reuse).
+ * On Linux, reads /proc/<pid>/cmdline. On other platforms, returns true (optimistic).
+ */
+export function isPidMecha(pid: number): boolean {
+  try {
+    const cmdline = readFileSync(`/proc/${pid}/cmdline`, "utf-8");
+    return cmdline.includes("mecha");
+  } catch {
+    // /proc not available (macOS) or PID gone — assume valid on macOS, dead if ENOENT
+    return isPidAlive(pid);
   }
 }
 
@@ -68,7 +83,7 @@ export function getMeterStatus(meterDir: string): MeterStatus {
   const info = readProxyInfo(meterDir);
   if (!info) return { running: false };
 
-  if (!isPidAlive(info.pid)) {
+  if (!isPidMecha(info.pid)) {
     deleteProxyInfo(meterDir);
     return { running: false };
   }
