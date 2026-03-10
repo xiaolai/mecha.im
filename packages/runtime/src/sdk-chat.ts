@@ -29,11 +29,19 @@ function resolveClaudePath(): string | undefined {
   }
 }
 
-const claudePath = resolveClaudePath();
-if (claudePath) {
-  log.info("Resolved claude CLI", { path: claudePath });
-} else {
-  log.warn("claude CLI not found — install with: npm install -g @anthropic-ai/claude-code");
+/** Lazily resolved claude CLI path — avoids import-time side effects. */
+let claudePath: string | undefined | null = null; // null = not yet resolved
+
+function getClaudePath(): string | undefined {
+  if (claudePath === null) {
+    claudePath = resolveClaudePath();
+    if (claudePath) {
+      log.info("Resolved claude CLI", { path: claudePath });
+    } else {
+      log.warn("claude CLI not found — install with: npm install -g @anthropic-ai/claude-code");
+    }
+  }
+  return claudePath ?? undefined;
 }
 
 export interface SdkChatOpts {
@@ -66,25 +74,34 @@ export async function sdkChat(
 
   // Bridge external AbortSignal to SDK's abortController
   const ac = new AbortController();
+  const onAbort = () => ac.abort();
   if (signal) {
-    signal.addEventListener("abort", () => ac.abort(), { once: true });
+    if (signal.aborted) {
+      ac.abort();
+    } else {
+      signal.addEventListener("abort", onAbort, { once: true });
+    }
   }
 
-  for await (const event of query({
-    prompt: message,
-    options: {
-      cwd: opts.workspacePath,
-      resume: sessionId,
-      pathToClaudeCodeExecutable: claudePath,
-      settingSources: [...(opts.settingSources ?? ["project"])],
-      maxTurns: 25,
-      env: opts.env,
-      abortController: ac,
-    },
-  })) {
-    if (event.type === "result") {
-      result = event;
+  try {
+    for await (const event of query({
+      prompt: message,
+      options: {
+        cwd: opts.workspacePath,
+        resume: sessionId,
+        pathToClaudeCodeExecutable: getClaudePath(),
+        settingSources: [...(opts.settingSources ?? ["project"])],
+        maxTurns: 25,
+        env: opts.env,
+        abortController: ac,
+      },
+    })) {
+      if (event.type === "result") {
+        result = event;
+      }
     }
+  } finally {
+    signal?.removeEventListener("abort", onAbort);
   }
 
   if (!result) {
@@ -101,7 +118,7 @@ export async function sdkChat(
   }
 
   // Error result
-  const errorMsg = result.errors?.join("; ") ?? "SDK query failed";
+  const errorMsg = result.errors?.length ? result.errors.join("; ") : "SDK query failed";
   log.error("SDK chat error", { sessionId, errors: result.errors });
   throw new Error(errorMsg);
 }
