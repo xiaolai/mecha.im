@@ -521,6 +521,7 @@ describe("AgentServer", () => {
     it("returns 403 when ACL denies", async () => {
       const acl = makeAcl({ check: vi.fn().mockReturnValue({ allowed: false, reason: "no_connect" }) });
       const app = createServer({ acl });
+      writeBotConfig(mechaDir, "researcher", { port: 7700, token: "tok", workspace: "/ws", expose: ["query"] });
 
       const res = await app.inject({
         method: "POST",
@@ -534,8 +535,9 @@ describe("AgentServer", () => {
       expect(res.statusCode).toBe(403);
     });
 
-    it("returns 404 when bot config not found", async () => {
-      const app = createServer();
+    it("returns 404 when bot config not found and skips ACL", async () => {
+      const acl = makeAcl({ check: vi.fn() });
+      const app = createServer({ acl });
       const res = await app.inject({
         method: "POST",
         url: "/bots/ghost/query",
@@ -543,6 +545,7 @@ describe("AgentServer", () => {
         payload: { message: "hello" },
       });
       expect(res.statusCode).toBe(404);
+      expect(acl.check).not.toHaveBeenCalled();
     });
 
     it("returns 502 when upstream bot fails", async () => {
@@ -561,7 +564,27 @@ describe("AgentServer", () => {
         payload: { message: "hello" },
       });
       expect(res.statusCode).toBe(502);
-      expect(res.json().error).toContain("Upstream bot unavailable");
+      expect(res.json().error).toContain("Upstream bot unavailable:");
+    });
+
+    it("returns 504 when upstream bot times out", async () => {
+      const app = createServer();
+      writeBotConfig(mechaDir, "researcher", { port: 7700, token: "tok", workspace: "/ws", expose: ["query"] });
+
+      const timeoutErr = Object.assign(new Error("connect timed out"), { code: "UND_ERR_CONNECT_TIMEOUT" });
+      vi.spyOn(globalThis, "fetch").mockRejectedValue(timeoutErr);
+
+      const res = await app.inject({
+        method: "POST",
+        url: "/bots/researcher/query",
+        headers: {
+          cookie: authCookie(),
+          "x-mecha-source": "coder@remote",
+        },
+        payload: { message: "hello" },
+      });
+      expect(res.statusCode).toBe(504);
+      expect(res.json().error).toBe("Upstream bot timed out");
     });
   });
 

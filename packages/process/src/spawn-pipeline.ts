@@ -250,9 +250,14 @@ async function _spawnBotInner(
   // Handle child exit
   child.on("exit", (code, signal) => {
     live.delete(name);
-    // error: non-zero exit code OR killed by unexpected signal (SIGKILL, SIGABRT, etc.)
-    // SIGTERM is normal (sent by `bot stop`), so only non-SIGTERM signals are errors
-    const isError = (code != null && code !== 0) || (signal != null && signal !== "SIGTERM");
+    // Determine if exit was abnormal:
+    // - Non-zero exit code → error
+    // - Unexpected signal (SIGKILL, SIGABRT, etc.) → error; SIGTERM is normal (`bot stop`)
+    // - code=null && signal=null → detached/unref'd child was killed externally (e.g. SIGKILL);
+    //   Node.js can't determine the signal for detached children, treat as error
+    // - code=0 → clean exit
+    const isCleanExit = code === 0 || (code === null && signal === "SIGTERM");
+    const isError = !isCleanExit;
     const state: BotState = {
       name,
       state: isError ? "error" : "stopped",
