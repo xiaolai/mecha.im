@@ -1,8 +1,17 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
+import { tmpdir, platform } from "node:os";
 import { spawn as spawnChild } from "node:child_process";
+
+// On Linux, isPidMecha reads /proc/<pid>/cmdline and rejects non-mecha processes (e.g. `sleep`).
+// Mock the lifecycle module so stopDaemon skips the process identity check in tests.
+vi.mock("../../../meter/src/lifecycle.js", async (importOriginal) => {
+  const mod = await importOriginal<Record<string, unknown>>();
+  if (platform() !== "linux") return mod;
+  return { ...mod, isPidMecha: () => true };
+});
+
 import { createProgram } from "../../src/program.js";
 import { makeDeps } from "../test-utils.js";
 
