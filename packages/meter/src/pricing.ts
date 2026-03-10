@@ -58,21 +58,20 @@ export function initPricing(meterDir: string): void {
 }
 
 /**
- * Find the highest outputPerMillion rate in the table (fallback for unknown models).
- * Returns the most expensive model pricing to overestimate rather than underestimate.
+ * Build conservative fallback pricing by taking the max rate per category.
+ * Ensures unknown models are overestimated rather than underestimated.
  */
 export function getFallbackPricing(table: PricingTable): ModelPricing {
-  let fallback: ModelPricing | undefined;
-  let maxOutput = -1;
-  for (const pricing of Object.values(table.models)) {
-    if (pricing.outputPerMillion > maxOutput) {
-      maxOutput = pricing.outputPerMillion;
-      fallback = pricing;
-    }
-  }
+  const models = Object.values(table.models);
   /* v8 ignore start -- empty pricing table fallback */
-  return fallback ?? DEFAULT_PRICING.models["claude-opus-4-6"]!;
+  if (models.length === 0) return DEFAULT_PRICING.models["claude-opus-4-6"]!;
   /* v8 ignore stop */
+  return {
+    inputPerMillion: Math.max(...models.map(m => m.inputPerMillion)),
+    outputPerMillion: Math.max(...models.map(m => m.outputPerMillion)),
+    cacheCreationPerMillion: Math.max(...models.map(m => m.cacheCreationPerMillion)),
+    cacheReadPerMillion: Math.max(...models.map(m => m.cacheReadPerMillion)),
+  };
 }
 
 /** Compute USD cost from token counts and pricing */

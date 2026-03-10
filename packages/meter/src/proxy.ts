@@ -204,8 +204,8 @@ function handleStreamResponse(
   }
 
   upstreamRes.on("error", () => {
-    clientDisconnected = true;
-    finalizeStream(-1);
+    // Upstream failure: status -2 distinguishes from client disconnect (-1)
+    finalizeStream(-2);
   });
 
   upstreamRes.on("end", () => {

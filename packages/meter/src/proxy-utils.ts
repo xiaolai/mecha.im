@@ -81,8 +81,8 @@ export function buildMeterEvent(
   },
 ): MeterEvent {
   const pricing = resolvePricing(ctx.pricing, usage.modelActual || model);
-  // Compute cost for 200 and -1 (client disconnect with partial usage consumed)
-  const costUsd = (status === 200 || status === -1) ? computeCost(pricing, usage) : 0;
+  // Compute cost for 200, -1 (client disconnect), and -2 (upstream error) with partial usage consumed
+  const costUsd = (status === 200 || status === -1 || status === -2) ? computeCost(pricing, usage) : 0;
 
   return {
     id: ulid(),
@@ -126,9 +126,15 @@ export function enforceBudget(
     if (bucket) tagSummaries[tag] = { today: bucket.today, month: bucket.thisMonth };
   }
 
-  // Add estimated cost for in-flight requests to prevent concurrent budget bypass
-  const pending = ctx.pendingRequests.get(bot) ?? 0;
-  const pendingCostUsd = pending * ESTIMATED_REQUEST_COST_USD;
+  // Per-bot pending cost for bot-specific budget checks
+  const botPending = ctx.pendingRequests.get(bot) ?? 0;
+  const botPendingCostUsd = botPending * ESTIMATED_REQUEST_COST_USD;
+
+  // Global pending cost sums all in-flight requests across all bots
+  let globalPendingCostUsd = 0;
+  for (const count of ctx.pendingRequests.values()) {
+    globalPendingCostUsd += count * ESTIMATED_REQUEST_COST_USD;
+  }
 
   return checkBudgets({
     config: ctx.budgets,
@@ -139,7 +145,8 @@ export function enforceBudget(
     perBot: casaBucket ? { today: casaBucket.today, month: casaBucket.thisMonth } : undefined,
     perAuth: authBucket ? { today: authBucket.today, month: authBucket.thisMonth } : undefined,
     perTag: tagSummaries,
-    pendingCostUsd,
+    pendingCostUsd: botPendingCostUsd,
+    globalPendingCostUsd,
   });
 }
 
