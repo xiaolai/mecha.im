@@ -58,6 +58,10 @@ export function buildUpstreamHeaders(
   headers["host"] = "api.anthropic.com";
   // Strip proxy authorization to prevent leaking proxy tokens upstream
   delete headers["authorization"];
+  // Strip Accept-Encoding so upstream returns uncompressed responses.
+  // The proxy needs to parse SSE text to extract token usage; compressed
+  // responses are opaque binary and the SSE parser cannot read them.
+  delete headers["accept-encoding"];
   return headers;
 }
 

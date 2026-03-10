@@ -110,6 +110,15 @@ describe("proxy", () => {
       const headers = buildUpstreamHeaders({ "x-custom": undefined });
       expect(headers["x-custom"]).toBeUndefined();
     });
+
+    it("strips accept-encoding to prevent compressed responses", () => {
+      const headers = buildUpstreamHeaders({
+        "accept-encoding": "gzip, br",
+        "x-api-key": "sk-ant-test",
+      });
+      expect(headers["accept-encoding"]).toBeUndefined();
+      expect(headers["x-api-key"]).toBe("sk-ant-test");
+    });
   });
 
   describe("buildMeterEvent", () => {
