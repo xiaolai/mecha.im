@@ -2765,7 +2765,7 @@ Operational defaults — single source of truth for all tuning knobs.
 | `RUNTIME_PORT_BASE` | `7700` | First port in the bot runtime scan range |
 | `RUNTIME_PORT_MAX` | `7799` | Last port in the bot runtime scan range |
 | `AGENT_PORT` | `7660` | Agent server default port |
-| `MCP_HTTP_PORT` | `7680` | MCP HTTP transport default port |
+| `MCP_HTTP_PORT` | `7682` | MCP HTTP transport default port |
 | `METER_PORT` | `7600` | Metering proxy default port |
 | `HEALTH_TIMEOUT_MS` | `10000` | Health check timeout |
 | `STOP_GRACE_MS` | `5000` | Grace period before SIGKILL |

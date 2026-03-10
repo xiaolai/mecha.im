@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { createProcessManager } from "@mecha/process";
 import { agentFetch } from "@mecha/service";
-import { readNodes, MECHA_DIR } from "@mecha/core";
+import { readNodes, MECHA_DIR, DEFAULTS } from "@mecha/core";
 import { createMeshMcpServer } from "./server.js";
 import { createAuditLog } from "./audit.js";
 import { createRateLimiter } from "./rate-limit.js";
@@ -18,7 +18,7 @@ const VALID_TRANSPORTS = ["stdio", "http"] as const;
  *
  * @param opts.mode - Access mode: "read-only" or "query" (default: "query")
  * @param opts.transport - Transport type: "stdio" or "http" (default: "stdio")
- * @param opts.port - HTTP listen port (default: 7680, ignored for stdio)
+ * @param opts.port - HTTP listen port (default: 7682, ignored for stdio)
  * @param opts.host - HTTP bind address (default: "127.0.0.1")
  * @param opts.token - Bearer token for HTTP auth (required for non-loopback hosts)
  */
@@ -80,7 +80,7 @@ export async function main(opts: {
       throw new Error("--token is required when binding to non-loopback address");
     }
     await runHttp(createServer, {
-      port: opts.port ?? 7680,
+      port: opts.port ?? DEFAULTS.MCP_HTTP_PORT,
       host,
       token: opts.token,
     });

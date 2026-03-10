@@ -313,7 +313,7 @@ mecha mcp serve --transport http --port 8080 --host 0.0.0.0
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--transport` | `stdio` | Transport: `stdio` or `http` |
-| `--port` | `7680` | HTTP port |
+| `--port` | `7682` | HTTP port |
 | `--host` | `127.0.0.1` | Bind address |
 | `--token` | — | Bearer token for HTTP authentication (required for non-loopback hosts) |
 

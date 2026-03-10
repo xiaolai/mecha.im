@@ -17,7 +17,8 @@ import { waitForHealthy } from "./health.js";
 import { readState, writeState } from "./state-store.js";
 import type { BotState } from "./state-store.js";
 import type { ProcessEventEmitter } from "./events.js";
-import { isPidAlive } from "./process-lifecycle.js";
+import { isPidAlive, waitForPidExit } from "./process-lifecycle.js";
+import { checkPort } from "./port.js";
 import { prepareBotFilesystem } from "./sandbox-setup.js";
 import type { SpawnOpts, ProcessInfo, LiveProcess, CreateProcessManagerOpts } from "./types.js";
 
@@ -62,6 +63,31 @@ export async function spawnBot(ctx: SpawnContext, spawnOpts: SpawnOpts): Promise
   if (existing && existing.state === "running" && existing.pid && isPidAlive(existing.pid)) {
     throw new BotAlreadyExistsError(name);
   }
+  // Kill stale process if state says stopped/error but PID is still alive (R4-002 fix).
+  // This prevents token mismatch: new spawn writes new token to config.json while
+  // old process is still running with old token on the same port.
+  // Port validation prevents killing an unrelated process after PID reuse:
+  // only kill if our recorded port is still in use (i.e. the stale bot is listening).
+  // Note: TOCTOU race between isPidAlive and kill is inherent to Unix process
+  // management; the port check narrows the window to near-zero probability.
+  /* v8 ignore start -- stale PID cleanup: requires real zombie process with active port */
+  if (existing?.pid && isPidAlive(existing.pid) && existing.port) {
+    const portFree = await checkPort(existing.port);
+    if (!portFree) {
+      try {
+        process.kill(existing.pid, "SIGKILL");
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code !== "ESRCH") throw err;
+      }
+      const exited = await waitForPidExit(existing.pid, 3_000);
+      if (!exited) {
+        throw new ProcessSpawnError(
+          `Stale process ${existing.pid} did not exit after SIGKILL (port ${existing.port})`,
+        );
+      }
+    }
+  }
+  /* v8 ignore stop */
 
   // Allocate port — serialized via mutex to prevent concurrent spawns racing
   let port: number;
