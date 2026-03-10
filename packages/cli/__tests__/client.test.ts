@@ -15,9 +15,24 @@ describe("AgentClient", () => {
     expect(client.baseUrl).toBe("http://127.0.0.1:8080");
   });
 
-  it("constructs with custom host and port", () => {
+  it("normalizes wildcard 0.0.0.0 to loopback", () => {
     const client = new AgentClient(8080, "0.0.0.0");
-    expect(client.baseUrl).toBe("http://0.0.0.0:8080");
+    expect(client.baseUrl).toBe("http://127.0.0.1:8080");
+  });
+
+  it("normalizes wildcard :: to IPv6 loopback", () => {
+    const client = new AgentClient(8080, "::");
+    expect(client.baseUrl).toBe("http://[::1]:8080");
+  });
+
+  it("wraps IPv6 literals in brackets", () => {
+    const client = new AgentClient(8080, "::1");
+    expect(client.baseUrl).toBe("http://[::1]:8080");
+  });
+
+  it("constructs with custom hostname", () => {
+    const client = new AgentClient(8080, "example.com");
+    expect(client.baseUrl).toBe("http://example.com:8080");
   });
 
   it("isAlive returns false when no server", async () => {

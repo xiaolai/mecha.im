@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, writeFileSync, unlinkSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, unlinkSync, renameSync, rmSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -71,17 +71,30 @@ async function extractEmbeddedSpa(): Promise<string | undefined> {
     return cacheDir;
   }
 
-  // Extract tar.gz from base64
-  mkdirSync(cacheDir, { recursive: true });
+  // Extract to a temp directory, then atomically rename to avoid races
+  const tmpExtractDir = `${cacheDir}-${process.pid}`;
+  mkdirSync(tmpExtractDir, { recursive: true });
   const archiveBuffer = Buffer.from(SPA_ARCHIVE_B64, "base64");
 
-  // Write archive to unique temp file (PID avoids race between concurrent processes), extract, clean up
-  const tmpTar = join(cacheDir, `.spa-${process.pid}.tar.gz`);
+  const tmpTar = join(tmpExtractDir, `spa.tar.gz`);
   writeFileSync(tmpTar, archiveBuffer, { mode: 0o600 });
   try {
-    execFileSync("tar", ["-xzf", tmpTar, "-C", cacheDir]);
+    execFileSync("tar", ["-xzf", tmpTar, "-C", tmpExtractDir]);
   } finally {
     try { unlinkSync(tmpTar); } catch { /* best-effort cleanup */ }
+  }
+
+  if (!existsSync(join(tmpExtractDir, "index.html"))) {
+    try { rmSync(tmpExtractDir, { recursive: true, force: true }); } catch { /* best-effort */ }
+    return undefined;
+  }
+
+  // Atomic rename — if another process already placed cacheDir, use it
+  try {
+    renameSync(tmpExtractDir, cacheDir);
+  } catch {
+    // rename failed (another process won the race) — clean up our temp dir
+    try { rmSync(tmpExtractDir, { recursive: true, force: true }); } catch { /* best-effort */ }
   }
 
   if (existsSync(join(cacheDir, "index.html"))) {

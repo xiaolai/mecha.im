@@ -61,12 +61,18 @@ export function registerStopDaemonCommand(program: Command, deps: CommandDeps): 
           try {
             process.kill(daemonPid, "SIGTERM");
             // Poll until the process actually exits (up to 5s)
+            let exited = false;
             for (let i = 0; i < 50; i++) {
               await new Promise((r) => setTimeout(r, 100));
-              try { process.kill(daemonPid, 0); } catch { break; }
+              try { process.kill(daemonPid, 0); } catch { exited = true; break; }
             }
-            removeDaemonPid(deps.mechaDir);
-            deps.formatter.success(`Daemon process stopped (pid ${daemonPid})`);
+            if (exited) {
+              removeDaemonPid(deps.mechaDir);
+              deps.formatter.success(`Daemon process stopped (pid ${daemonPid})`);
+            } else {
+              deps.formatter.warn(`Daemon process (pid ${daemonPid}) did not exit within 5s — may need manual kill`);
+              process.exitCode = 1;
+            }
           /* v8 ignore start -- ESRCH expected if daemon exited between check and kill */
           } catch {
             removeDaemonPid(deps.mechaDir);
@@ -85,6 +91,8 @@ export function registerStopDaemonCommand(program: Command, deps: CommandDeps): 
         /* v8 ignore stop */
       }
 
-      deps.formatter.success("Daemon stopped");
+      if (!process.exitCode) {
+        deps.formatter.success("Daemon stopped");
+      }
     }));
 }

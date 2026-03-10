@@ -9,7 +9,6 @@ interface DashboardServeOpts {
   port: string;
   host: string;
   open: boolean;
-  totp: boolean;
 }
 
 /** Execute the dashboard serve logic (start Fastify server). */
@@ -21,10 +20,8 @@ export async function executeDashboardServe(opts: DashboardServeOpts, deps: Comm
     return;
   }
 
-  // Resolve auth config
-  const authConfig = resolveAuthConfig(deps.mechaDir, {
-    totp: opts.totp === false ? false : undefined,
-  });
+  // Resolve auth config (TOTP is always required)
+  const authConfig = resolveAuthConfig(deps.mechaDir);
 
   // Ensure TOTP secret if TOTP is enabled
   let totpSecret: string | undefined;
@@ -109,6 +106,5 @@ export function registerDashboardServeCommand(parent: Command, deps: CommandDeps
     .option("--port <port>", "Dashboard port", String(DEFAULTS.AGENT_PORT))
     .option("--host <host>", "Bind address", "127.0.0.1")
     .option("--open", "Open browser after starting", false)
-    .option("--no-totp", "Disable TOTP authentication")
     .action(async (opts: DashboardServeOpts) => withErrorHandler(deps, () => executeDashboardServe(opts, deps)));
 }
