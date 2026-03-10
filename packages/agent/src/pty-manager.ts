@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { join, delimiter } from "node:path";
 import { homedir } from "node:os";
@@ -147,6 +147,14 @@ export function createPtyManager(opts: CreatePtyManagerOpts): PtyManager {
       const isNewSession = !sessionId || sessionId.startsWith("new-");
       const claudeSessionId = isNewSession ? randomUUID() : sessionId;
       const key = `${botName}:${claudeSessionId}`;
+
+      // Prevent orphaned PTY: kill existing session with same key before replacing
+      const existing = sessions.get(key);
+      if (existing) {
+        existing.pty.kill();
+        clearIdleTimer(key);
+        sessions.delete(key);
+      }
       const args = buildClaudeArgs(config, isNewSession
         ? { newSessionId: claudeSessionId }
         : { resume: claudeSessionId },
@@ -165,6 +173,7 @@ export function createPtyManager(opts: CreatePtyManagerOpts): PtyManager {
         workspacePath: config.workspace, port: config.port,
         token: config.token, name: botName, mechaDir,
         auth: config.auth,
+        userEnv: config.env,
       });
       // PTY needs TERM for proper terminal rendering
       botEnv.TERM = "xterm-256color";

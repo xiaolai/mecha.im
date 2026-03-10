@@ -16,6 +16,7 @@ function makeMockRendezvous(): RendezvousClient {
     requestRelay: vi.fn(),
     onSignal: vi.fn(),
     onInviteAccepted: vi.fn(),
+    onDisconnect: vi.fn(),
     close: vi.fn(),
   };
 }

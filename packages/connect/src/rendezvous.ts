@@ -35,11 +35,13 @@ export function createRendezvousClient(opts: CreateRendezvousClientOpts): Rendez
   let registered = false;
   let reconnectAttempts = 0;
   let closedByUser = false;
+  let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
   let savedIdentity: { name: string; publicKey: string; noisePublicKey: string; fingerprint: string } | undefined;
   const RECONNECT_MAX_MS = 30_000;
 
   const signalHandlers: Array<(from: NodeName, data: SignalData) => void> = [];
   const inviteAcceptedHandlers: Array<(peer: string, pubKey: string, noisePubKey: string, fp: string) => void> = [];
+  const disconnectHandlers: Array<() => void> = [];
   const pendingRequests = new Map<string, PendingRequest>();
   let requestCounter = 0;
 
@@ -116,6 +118,7 @@ export function createRendezvousClient(opts: CreateRendezvousClientOpts): Rendez
 
   const client: RendezvousClient = {
     async connect(): Promise<void> {
+      closedByUser = false;
       return new Promise<void>((resolve, reject) => {
         /* v8 ignore start -- real WebSocket fallback, tests always inject createWebSocket */
         const socket = createWebSocket
@@ -180,7 +183,9 @@ export function createRendezvousClient(opts: CreateRendezvousClientOpts): Rendez
           if (!closedByUser && reconnectAttempts < reconnectMaxAttempts) {
             const delay = Math.min(reconnectBaseMs * Math.pow(2, reconnectAttempts), RECONNECT_MAX_MS);
             reconnectAttempts++;
-            setTimeout(async () => {
+            reconnectTimer = setTimeout(async () => {
+              reconnectTimer = undefined;
+              if (closedByUser) return;
               try {
                 await client.connect();
                 reconnectAttempts = 0;
@@ -192,6 +197,9 @@ export function createRendezvousClient(opts: CreateRendezvousClientOpts): Rendez
                 // Reconnect failed — onclose will fire again and retry
               }
             }, delay);
+          } else if (!closedByUser) {
+            // All reconnect attempts exhausted — notify disconnect handlers
+            for (const handler of disconnectHandlers) handler();
           }
           /* v8 ignore stop */
         };
@@ -224,6 +232,7 @@ export function createRendezvousClient(opts: CreateRendezvousClientOpts): Rendez
       if (!registered) return;
       sendMsg({ type: "unregister" });
       registered = false;
+      savedIdentity = undefined;
     },
 
     async lookup(peer: NodeName): Promise<PeerInfo | undefined> {
@@ -249,9 +258,17 @@ export function createRendezvousClient(opts: CreateRendezvousClientOpts): Rendez
       inviteAcceptedHandlers.push(handler);
     },
 
+    onDisconnect(handler: () => void): void {
+      disconnectHandlers.push(handler);
+    },
+
     close(): void {
       closedByUser = true;
       registered = false;
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = undefined;
+      }
       /* v8 ignore start -- close() with pending requests requires specific async timing */
       for (const [, pending] of pendingRequests) {
         clearTimeout(pending.timer);

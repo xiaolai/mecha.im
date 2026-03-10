@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useMemo, useEffect, type ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef, type ReactNode } from "react";
 
 type AuthMode = "totp" | null;
 
@@ -67,13 +67,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setTotpAuth(true);
   }, []);
 
+  const logoutInFlight = useRef(false);
   const logout = useCallback(async () => {
+    if (logoutInFlight.current) return;
+    logoutInFlight.current = true;
     setTotpAuth(false);
     // Clear server session cookie
     try {
       await fetch("/auth/logout", { method: "POST", credentials: "include" });
     } catch {
       // Ignore — server may be unreachable
+    } finally {
+      logoutInFlight.current = false;
     }
   }, []);
 
