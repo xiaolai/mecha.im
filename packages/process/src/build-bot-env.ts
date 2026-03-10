@@ -1,9 +1,13 @@
 import { resolveAuth, MeterProxyRequiredError, AuthProfileNotFoundError, ProcessSpawnError, createLogger } from "@mecha/core";
 import type { ResolvedAuth } from "@mecha/core";
 import { execFileSync } from "node:child_process";
+import { accessSync, constants } from "node:fs";
 import { readProxyInfo, isPidAlive, meterDir } from "@mecha/meter";
 
 const log = createLogger("mecha:process");
+
+/** Cached claude CLI path — resolved once per process. */
+let cachedClaudePath: string | undefined | null = null; // null = not yet resolved
 
 /** Options for building bot environment variables. */
 export interface BuildBotEnvOpts {
@@ -117,11 +121,28 @@ export function buildBotEnv(opts: BuildBotEnvOpts): Record<string, string> {
 
   // Resolve claude CLI path in the parent process (before sandbox restricts PATH)
   // and pass it to the child so the Agent SDK can spawn it.
+  // Cached per process to avoid repeated execFileSync calls.
   /* v8 ignore start -- claude path resolution */
-  try {
-    const claudePath = execFileSync("which", ["claude"], { encoding: "utf-8" }).trim();
-    if (claudePath) childEnv["MECHA_CLAUDE_PATH"] = claudePath;
-  } catch { /* claude not installed — SDK will log a warning */ }
+  if (cachedClaudePath === null) {
+    try {
+      const resolved = execFileSync("which", ["claude"], { encoding: "utf-8" }).trim();
+      if (resolved) {
+        // Verify the path is executable (not a dangling symlink or inaccessible)
+        try {
+          accessSync(resolved, constants.X_OK);
+          cachedClaudePath = resolved;
+        } catch {
+          log.warn("claude CLI found but not executable", { path: resolved });
+          cachedClaudePath = undefined;
+        }
+      } else {
+        cachedClaudePath = undefined;
+      }
+    } catch {
+      cachedClaudePath = undefined;
+    }
+  }
+  if (cachedClaudePath) childEnv["MECHA_CLAUDE_PATH"] = cachedClaudePath;
   /* v8 ignore stop */
 
   // Meter proxy integration — set ANTHROPIC_BASE_URL if proxy is alive
