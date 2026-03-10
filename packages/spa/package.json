@@ -1,6 +1,6 @@
 {
   "name": "@mecha/spa",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "private": true,
   "description": "Vite React SPA dashboard for mecha.im",
   "type": "module",
