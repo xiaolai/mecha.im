@@ -76,7 +76,7 @@ export interface PeerInfo {
   noisePublicKey: string;
   fingerprint: string;
   online: boolean;
-  sameLan: boolean;
+  sameLan?: boolean;
   privateCandidates?: string[];
 }
 
@@ -207,5 +207,7 @@ export interface RendezvousClient {
   requestRelay(peer: NodeName): Promise<string>;
   onSignal(handler: (from: NodeName, data: SignalData) => void): void;
   onInviteAccepted(handler: (peer: string, publicKey: string, noisePublicKey: string, fingerprint: string) => void): void;
+  /** Register a handler called when the connection is lost and cannot be recovered. */
+  onDisconnect(handler: () => void): void;
   close(): void;
 }

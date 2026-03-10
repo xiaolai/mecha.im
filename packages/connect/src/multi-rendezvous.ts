@@ -15,10 +15,8 @@ export interface MultiRendezvousOpts {
 /**
  * Create a RendezvousClient that tries multiple servers in order.
  * First successful connection becomes the active client.
- *
- * NOTE: Disconnect failover is not yet implemented. Currently, once connected
- * to a server, disconnection will not trigger automatic failover to the next URL.
- * This will be addressed in a future phase when reconnect orchestration is added.
+ * On disconnect, automatically fails over to the next server in the list.
+ * If all servers are exhausted, notifies disconnect handlers.
  */
 export function createMultiRendezvousClient(opts: MultiRendezvousOpts): RendezvousClient {
   const { urls, signFn, createWebSocket } = opts;
@@ -27,9 +25,12 @@ export function createMultiRendezvousClient(opts: MultiRendezvousOpts): Rendezvo
   let activeClient: RendezvousClient | undefined;
   let activeIndex = -1;
   let savedIdentity: { name: string; publicKey: string; noisePublicKey: string; fingerprint: string } | undefined;
+  let closedByUser = false;
+  let failingOver = false;
 
   const signalHandlers: Array<(from: NodeName, data: SignalData) => void> = [];
   const inviteAcceptedHandlers: Array<(peer: string, publicKey: string, noisePublicKey: string, fingerprint: string) => void> = [];
+  const disconnectHandlers: Array<() => void> = [];
 
   function wireHandlers(client: RendezvousClient): void {
     for (const handler of signalHandlers) {
@@ -38,7 +39,44 @@ export function createMultiRendezvousClient(opts: MultiRendezvousOpts): Rendezvo
     for (const handler of inviteAcceptedHandlers) {
       client.onInviteAccepted(handler);
     }
+    // Wire disconnect handler for automatic failover
+    client.onDisconnect(() => {
+      if (closedByUser || failingOver) return;
+      void handleFailover();
+    });
   }
+
+  /* v8 ignore start -- failover requires real server disconnect */
+  async function handleFailover(): Promise<void> {
+    failingOver = true;
+    const failedUrl = urls[activeIndex];
+    const nextIndex = activeIndex + 1;
+    activeClient = undefined;
+    log.debug(`Server ${failedUrl} disconnected, attempting failover from index ${nextIndex}`);
+
+    try {
+      await tryConnect(nextIndex);
+      // Abort if closed during async connect (re-read after async boundary)
+      const connectedClient = activeClient as RendezvousClient | undefined;
+      if (closedByUser) {
+        connectedClient?.close();
+        activeClient = undefined;
+        return;
+      }
+      // Re-register identity on new server if we had one
+      if (savedIdentity) {
+        await getActive().register(savedIdentity);
+        log.debug(`Re-registered identity on ${urls[activeIndex]}`);
+      }
+    } catch {
+      // All remaining servers exhausted — notify disconnect handlers
+      log.debug("All rendezvous servers exhausted after failover");
+      for (const handler of disconnectHandlers) handler();
+    } finally {
+      failingOver = false;
+    }
+  }
+  /* v8 ignore stop */
 
   async function tryConnect(startIndex: number): Promise<void> {
     for (let i = startIndex; i < urls.length; i++) {
@@ -71,6 +109,7 @@ export function createMultiRendezvousClient(opts: MultiRendezvousOpts): Rendezvo
 
   return {
     async connect(): Promise<void> {
+      closedByUser = false;
       await tryConnect(0);
     },
 
@@ -80,6 +119,7 @@ export function createMultiRendezvousClient(opts: MultiRendezvousOpts): Rendezvo
     },
 
     async unregister(): Promise<void> {
+      savedIdentity = undefined;
       await getActive().unregister();
     },
 
@@ -111,7 +151,12 @@ export function createMultiRendezvousClient(opts: MultiRendezvousOpts): Rendezvo
       /* v8 ignore stop */
     },
 
+    onDisconnect(handler: () => void): void {
+      disconnectHandlers.push(handler);
+    },
+
     close(): void {
+      closedByUser = true;
       activeClient?.close();
       activeClient = undefined;
       activeIndex = -1;

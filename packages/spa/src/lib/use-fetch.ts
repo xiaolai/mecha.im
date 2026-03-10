@@ -69,7 +69,6 @@ export function useFetch<T>(url: string | null, opts: UseFetchOptions = {}): Use
     } finally {
       if (!controller.signal.aborted) setLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url, authHeaders, logout, depsKey]);
 
   useEffect(() => {

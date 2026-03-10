@@ -11,9 +11,10 @@ import type { RendezvousClient, PeerInfo, SignalData } from "../src/types.js";
 
 const mockCreate = vi.mocked(createRendezvousClient);
 
-function makeMockClient(opts?: { failConnect?: boolean }): RendezvousClient {
+function makeMockClient(opts?: { failConnect?: boolean }): RendezvousClient & { _fireDisconnect: () => void } {
   const signalHandlers: Array<(from: string, data: SignalData) => void> = [];
   const inviteHandlers: Array<(peer: string, pk: string, npk: string, fp: string) => void> = [];
+  const disconnectHandlers: Array<() => void> = [];
   return {
     connect: opts?.failConnect ? vi.fn().mockRejectedValue(new Error("connection refused")) : vi.fn().mockResolvedValue(undefined),
     register: vi.fn().mockResolvedValue(undefined),
@@ -23,7 +24,9 @@ function makeMockClient(opts?: { failConnect?: boolean }): RendezvousClient {
     requestRelay: vi.fn().mockResolvedValue("relay-token"),
     onSignal: vi.fn((handler) => { signalHandlers.push(handler); }),
     onInviteAccepted: vi.fn((handler) => { inviteHandlers.push(handler); }),
+    onDisconnect: vi.fn((handler) => { disconnectHandlers.push(handler); }),
     close: vi.fn(),
+    _fireDisconnect: () => { for (const h of disconnectHandlers) h(); },
   };
 }
 
@@ -134,5 +137,72 @@ describe("createMultiRendezvousClient", () => {
   it("close() is safe when not connected", () => {
     const multi = createMultiRendezvousClient({ urls: ["ws://ok"], signFn });
     expect(() => multi.close()).not.toThrow();
+  });
+
+  it("wires onDisconnect on active client during connect", async () => {
+    const client = makeMockClient();
+    mockCreate.mockReturnValueOnce(client);
+
+    const multi = createMultiRendezvousClient({ urls: ["ws://ok"], signFn });
+    await multi.connect();
+
+    expect(client.onDisconnect).toHaveBeenCalled();
+  });
+
+  it("fails over to next server on disconnect", async () => {
+    const client1 = makeMockClient();
+    const client2 = makeMockClient();
+    mockCreate.mockReturnValueOnce(client1).mockReturnValueOnce(client2);
+
+    const multi = createMultiRendezvousClient({ urls: ["ws://server1", "ws://server2"], signFn });
+    await multi.connect();
+
+    // Register identity so failover re-registers
+    const identity = { name: "alice", publicKey: "pk", noisePublicKey: "npk", fingerprint: "fp" };
+    await multi.register(identity);
+
+    // Simulate disconnect from server1
+    client1._fireDisconnect();
+
+    // Allow async failover to complete (connect + re-register)
+    await vi.waitFor(() => {
+      expect(client2.connect).toHaveBeenCalled();
+      expect(client2.register).toHaveBeenCalledWith(identity);
+    });
+  });
+
+  it("notifies disconnect handlers when all servers exhausted", async () => {
+    const client1 = makeMockClient();
+    const failClient = makeMockClient({ failConnect: true });
+    mockCreate.mockReturnValueOnce(client1).mockReturnValueOnce(failClient);
+
+    const multi = createMultiRendezvousClient({ urls: ["ws://server1", "ws://server2"], signFn });
+    await multi.connect();
+
+    const disconnectHandler = vi.fn();
+    multi.onDisconnect(disconnectHandler);
+
+    // Simulate disconnect — server2 also fails
+    client1._fireDisconnect();
+
+    await vi.waitFor(() => {
+      expect(disconnectHandler).toHaveBeenCalled();
+    });
+  });
+
+  it("does not failover after explicit close()", async () => {
+    const client1 = makeMockClient();
+    const client2 = makeMockClient();
+    mockCreate.mockReturnValueOnce(client1).mockReturnValueOnce(client2);
+
+    const multi = createMultiRendezvousClient({ urls: ["ws://server1", "ws://server2"], signFn });
+    await multi.connect();
+
+    multi.close();
+    client1._fireDisconnect();
+
+    // Give time for any async failover (should not happen)
+    await new Promise((r) => setTimeout(r, 50));
+    expect(client2.connect).not.toHaveBeenCalled();
   });
 });

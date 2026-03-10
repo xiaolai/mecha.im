@@ -1,5 +1,4 @@
 import type { FastifyInstance } from "fastify";
-import type { WebSocket } from "@fastify/websocket";
 import { randomBytes } from "node:crypto";
 import type { RelayPair, ServerConfig } from "./types.js";
 import { validateRelayToken } from "./relay-tokens.js";
@@ -122,6 +121,9 @@ function toBytes(data: unknown): Uint8Array | undefined {
   if (data instanceof Buffer) return new Uint8Array(data);
   if (data instanceof Uint8Array) return data;
   if (data instanceof ArrayBuffer) return new Uint8Array(data);
+  if (Array.isArray(data) && data.every((b) => Buffer.isBuffer(b))) {
+    return new Uint8Array(Buffer.concat(data as Buffer[]));
+  }
   return undefined;
 }
 /* v8 ignore stop */

@@ -91,6 +91,7 @@ function makeMockRendezvous(): RendezvousClient & {
     requestRelay: vi.fn().mockResolvedValue("relay-token"),
     onSignal(handler) { signalHandlers.push(handler); },
     onInviteAccepted(handler) { inviteAcceptedHandlers.push(handler); },
+    onDisconnect: vi.fn(),
     close: vi.fn(),
     _signalHandlers: signalHandlers,
     _inviteAcceptedHandlers: inviteAcceptedHandlers,

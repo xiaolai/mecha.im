@@ -3,8 +3,8 @@ import websocket from "@fastify/websocket";
 import { randomBytes } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { registerSignaling, nodes } from "./signaling.js";
-import { registerInviteRoutes, invites } from "./invites.js";
-import { registerRelay, relayPairs } from "./relay.js";
+import { registerInviteRoutes } from "./invites.js";
+import { registerRelay } from "./relay.js";
 import { registerGossip } from "./gossip.js";
 import { createGossipCache } from "./gossip-cache.js";
 import { DEFAULT_CONFIG } from "./types.js";
@@ -79,16 +79,29 @@ export async function createServer(overrides: Partial<ServerConfig> = {}): Promi
   if (config.mechaDir) {
     // Lazy import to avoid circular dependency
     const { readNodes } = await import("@mecha/core");
-    const serverId = config.host + ":" + config.port;
+    // Use loopback for non-routable bind addresses (0.0.0.0, ::)
+    const advertiseHost = config.host === "0.0.0.0" || config.host === "::" ? "127.0.0.1" : config.host;
+    const serverId = advertiseHost + ":" + config.port;
+
+    // Cache node keys in memory to avoid sync disk reads on every auth check
+    let cachedNodeKeys = new Map<string, string>();
+    let cacheTime = 0;
+    const CACHE_TTL_MS = 30_000;
+    function lookupPeerKey(name: string): string | undefined {
+      const now = Date.now();
+      if (now - cacheTime > CACHE_TTL_MS) {
+        cachedNodeKeys = new Map(
+          readNodes(config.mechaDir!).flatMap((n) => n.publicKey ? [[n.name, n.publicKey] as const] : []),
+        );
+        cacheTime = now;
+      }
+      return cachedNodeKeys.get(name);
+    }
 
     registerGossip(app, {
       config,
       gossipCache,
-      lookupPeerKey: (name: string) => {
-        const nodes = readNodes(config.mechaDir!);
-        const entry = nodes.find((n) => n.name === name);
-        return entry?.publicKey;
-      },
+      lookupPeerKey,
       getLocalRecords: (): PeerRecord[] => {
         const now = Math.floor(Date.now() / 1000);
         const records: PeerRecord[] = [];
@@ -98,7 +111,7 @@ export async function createServer(overrides: Partial<ServerConfig> = {}): Promi
             publicKey: node.publicKey,
             noisePublicKey: node.noisePublicKey,
             fingerprint: node.fingerprint,
-            serverUrl: `ws://${config.host}:${config.port}`,
+            serverUrl: `ws://${advertiseHost}:${config.port}`,
             lastSeen: now,
             hopCount: 0,
           });
