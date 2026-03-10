@@ -1,5 +1,6 @@
 import { resolveAuth, MeterProxyRequiredError, AuthProfileNotFoundError, ProcessSpawnError, createLogger } from "@mecha/core";
 import type { ResolvedAuth } from "@mecha/core";
+import { execFileSync } from "node:child_process";
 import { readProxyInfo, isPidAlive, meterDir } from "@mecha/meter";
 
 const log = createLogger("mecha:process");
@@ -32,7 +33,7 @@ export function buildBotEnv(opts: BuildBotEnvOpts): Record<string, string> {
   const resolvedUserEnv = userEnv ?? {};
   const reservedKeys = new Set([
     "MECHA_BOT_NAME", "MECHA_PORT", "MECHA_WORKSPACE", "MECHA_PROJECTS_DIR",
-    "MECHA_AUTH_TOKEN", "MECHA_LOG_DIR", "MECHA_SANDBOX_ROOT", "MECHA_DIR", "HOME", "TMPDIR",
+    "MECHA_AUTH_TOKEN", "MECHA_LOG_DIR", "MECHA_SANDBOX_ROOT", "MECHA_DIR", "MECHA_CLAUDE_PATH", "HOME", "TMPDIR",
     // Block PATH (we construct our own), shell startup vars, and dangerous Node.js/linker env vars
     "PATH", "BASH_ENV", "ENV",
     "NODE_OPTIONS", "NODE_PATH", "NODE_DEBUG", "NODE_EXTRA_CA_CERTS", "NODE_REDIRECT_WARNINGS",
@@ -60,6 +61,7 @@ export function buildBotEnv(opts: BuildBotEnvOpts): Record<string, string> {
       : [
           ...new Set([
             ...(process.execPath ? [process.execPath.replace(/\/[^/]+$/, "")] : []),
+            ...(process.platform === "darwin" ? ["/opt/homebrew/bin"] : []),
             "/usr/local/bin",
             "/usr/bin",
             "/bin",
@@ -112,6 +114,15 @@ export function buildBotEnv(opts: BuildBotEnvOpts): Record<string, string> {
       `or add an auth profile with: mecha auth add`,
     );
   }
+
+  // Resolve claude CLI path in the parent process (before sandbox restricts PATH)
+  // and pass it to the child so the Agent SDK can spawn it.
+  /* v8 ignore start -- claude path resolution */
+  try {
+    const claudePath = execFileSync("which", ["claude"], { encoding: "utf-8" }).trim();
+    if (claudePath) childEnv["MECHA_CLAUDE_PATH"] = claudePath;
+  } catch { /* claude not installed — SDK will log a warning */ }
+  /* v8 ignore stop */
 
   // Meter proxy integration — set ANTHROPIC_BASE_URL if proxy is alive
   if (!opts.meterOff) {
