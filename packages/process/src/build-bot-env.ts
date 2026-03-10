@@ -157,6 +157,8 @@ export function buildBotEnv(opts: BuildBotEnvOpts): Record<string, string> {
       } else {
         log.warn("Meter proxy is not running (stale proxy.json), skipping metering");
       }
+    } else {
+      log.warn("Meter proxy not configured — bot API usage will not be tracked. Start meter with: mecha meter start");
     }
   }
 

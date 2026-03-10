@@ -28,6 +28,7 @@ export async function main(opts: {
   port?: number;
   host?: string;
   token?: string;
+  mechaDir?: string;
 }): Promise<void> {
   // #9: Strict mode validation — fail-closed instead of defaulting to "query"
   const mode = opts.mode ?? "query";
@@ -47,7 +48,7 @@ export async function main(opts: {
     }
   }
 
-  const mechaDir = process.env.MECHA_DIR ?? join(homedir(), MECHA_DIR);
+  const mechaDir = opts.mechaDir ?? process.env.MECHA_DIR ?? join(homedir(), MECHA_DIR);
 
   // Validate mechaDir exists before starting
   if (!existsSync(mechaDir)) {
