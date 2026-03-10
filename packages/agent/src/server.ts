@@ -238,7 +238,7 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
   });
   app.get("/models", async () => CLAUDE_MODELS);
   registerBotRoutes(app, opts.processManager, opts.mechaDir, opts.nodeName);
-  registerRoutingRoutes(app, { mechaDir: opts.mechaDir, acl: opts.acl });
+  registerRoutingRoutes(app, { mechaDir: opts.mechaDir, acl: opts.acl, nodeName: opts.nodeName });
   registerDiscoverRoutes(app, { mechaDir: opts.mechaDir, pm: opts.processManager });
   registerSessionRoutes(app, opts.processManager, opts.mechaDir, opts.nodeName);
   registerScheduleRoutes(app, opts.processManager);

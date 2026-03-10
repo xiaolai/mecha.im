@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { DEFAULTS, parsePort, resolveAuthConfig, ensureTotpSecret } from "@mecha/core";
-import { writeFileSync, unlinkSync, existsSync, realpathSync } from "node:fs";
+import { writeFileSync, unlinkSync, existsSync, realpathSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { withErrorHandler } from "../error-handler.js";
 import { resolveSpaDir } from "../spa-resolve.js";
@@ -53,11 +53,37 @@ export function registerStartCommand(program: Command, deps: CommandDeps): void 
         if (existsSync("/proc/self/exe")) {
           try { selfBin = realpathSync("/proc/self/exe"); } catch { /* keep process.execPath */ }
         }
+        // Load .env from mechaDir so daemon inherits API keys etc.
+        // Simple parser: KEY=value with optional surrounding quotes. Does not
+        // handle escaped quotes, multi-line values, or `export` prefix.
+        const envFile = join(deps.mechaDir, ".env");
+        const daemonEnv = { ...process.env };
+        if (existsSync(envFile)) {
+          for (const line of readFileSync(envFile, "utf-8").split("\n")) {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith("#")) continue;
+            const eq = trimmed.indexOf("=");
+            if (eq <= 0) continue;
+            const key = trimmed.slice(0, eq);
+            let val = trimmed.slice(eq + 1);
+            // Strip surrounding quotes
+            if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+              val = val.slice(1, -1);
+            }
+            daemonEnv[key] = val;
+          }
+        }
         const child = spawn(selfBin, filteredArgs, {
           detached: true,
           stdio: "ignore",
+          env: daemonEnv,
         });
-        const childPid = child.pid!;
+        if (!child.pid) {
+          deps.formatter.error("Failed to fork daemon process");
+          process.exitCode = 1;
+          return;
+        }
+        const childPid = child.pid;
         child.unref();
         writeDaemonPid(deps.mechaDir, childPid);
         deps.formatter.success(`Mecha started in background (pid ${childPid})`);
@@ -80,11 +106,11 @@ export function registerStartCommand(program: Command, deps: CommandDeps): void 
 
       // Start agent server
       const { createAgentServer } = await import("@mecha/agent");
-      const { readNodeName } = await import("@mecha/service");
+      const { ensureNodeName } = await import("@mecha/service");
       const { createBunPtySpawn } = await import("@mecha/process");
 
-      /* v8 ignore start -- readNodeName returns null only if mesh.json missing */
-      const nodeName = readNodeName(deps.mechaDir) ?? "unknown";
+      /* v8 ignore start -- auto-init node name from hostname if not set */
+      const nodeName = ensureNodeName(deps.mechaDir);
       /* v8 ignore stop */
 
       const spaDir = await resolveSpaDir();

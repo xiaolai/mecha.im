@@ -150,8 +150,6 @@ describe("cli-lock", () => {
       ["restart", ["node", "mecha", "restart"]],
       ["init", ["node", "mecha", "init"]],
       ["agent start", ["node", "mecha", "agent", "start"]],
-      ["acl grant", ["node", "mecha", "acl", "grant"]],
-      ["acl revoke", ["node", "mecha", "acl", "revoke"]],
       ["dashboard serve", ["node", "mecha", "dashboard", "serve"]],
     ])("returns true for %s", (_label, argv) => {
       expect(needsLock(argv)).toBe(true);
@@ -182,6 +180,8 @@ describe("cli-lock", () => {
       ["schedule resume", ["node", "mecha", "schedule", "resume"]],
       ["schedule run", ["node", "mecha", "schedule", "run"]],
       ["schedule history", ["node", "mecha", "schedule", "history"]],
+      ["acl grant", ["node", "mecha", "acl", "grant"]],
+      ["acl revoke", ["node", "mecha", "acl", "revoke"]],
       ["acl show", ["node", "mecha", "acl", "show"]],
       ["node ls", ["node", "mecha", "node", "ls"]],
       ["node add", ["node", "mecha", "node", "add"]],

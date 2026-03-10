@@ -5,7 +5,7 @@ const log = createLogger("mecha:process");
 /** Lifecycle events emitted by ProcessManager */
 export type ProcessEvent =
   | { type: "spawned"; name: BotName; pid: number; port: number }
-  | { type: "stopped"; name: BotName; exitCode?: number }
+  | { type: "stopped"; name: BotName; exitCode?: number; signal?: string }
   | { type: "error"; name: BotName; error: string }
   | { type: "warning"; name: BotName; message: string };
 

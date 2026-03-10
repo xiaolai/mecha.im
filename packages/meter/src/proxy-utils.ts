@@ -1,10 +1,11 @@
+import { statSync } from "node:fs";
 import type { MeterEvent, PricingTable, BudgetConfig, BotRegistryEntry, CostSummary } from "./types.js";
 import type { HotCounters } from "./hot-counters.js";
 import { ingestEvent } from "./hot-counters.js";
 import { computeCost, resolvePricing } from "./pricing.js";
 import { ulid } from "./ulid.js";
 import { appendEvent } from "./events.js";
-import { readBudgets, checkBudgets } from "./budgets.js";
+import { readBudgets, checkBudgets, budgetsPath } from "./budgets.js";
 import type { BudgetCheckResult } from "./budgets.js";
 import { createLogger } from "@mecha/core";
 
@@ -111,12 +112,46 @@ export function buildMeterEvent(
  */
 export const ESTIMATED_REQUEST_COST_USD = 0.03;
 
+/**
+ * Auto-reload budgets.json when the file changes on disk.
+ * Uses mtime comparison with a 2s stat cache to avoid excessive I/O.
+ */
+let _budgetStatCache: { mtimeMs: number; checkedAt: number } | undefined;
+const BUDGET_STAT_TTL_MS = 2_000;
+
+/** Reset budget stat cache (for testing). */
+export function resetBudgetStatCache(): void {
+  _budgetStatCache = undefined;
+  _cachedBudgetsPath = undefined;
+}
+
+let _cachedBudgetsPath: string | undefined;
+
+function maybeReloadBudgets(ctx: ProxyContext): void {
+  const now = Date.now();
+  if (_budgetStatCache && now - _budgetStatCache.checkedAt < BUDGET_STAT_TTL_MS) return;
+  const bPath = (_cachedBudgetsPath ??= budgetsPath(ctx.meterDir));
+  try {
+    const st = statSync(bPath);
+    const mtimeMs = st.mtimeMs;
+    if (!_budgetStatCache || mtimeMs !== _budgetStatCache.mtimeMs) {
+      ctx.budgets = readBudgets(ctx.meterDir);
+    }
+    _budgetStatCache = { mtimeMs, checkedAt: now };
+  /* v8 ignore start -- stat failure: file may not exist yet */
+  } catch {
+    _budgetStatCache = { mtimeMs: 0, checkedAt: now };
+  }
+  /* v8 ignore stop */
+}
+
 /** Run budget check for a bot request. Returns null if allowed. */
 export function enforceBudget(
   ctx: ProxyContext,
   bot: string,
   botInfo: BotRegistryEntry,
 ): BudgetCheckResult {
+  maybeReloadBudgets(ctx);
   const counters = ctx.counters;
   const casaBucket = counters.byBot[bot];
   const authBucket = counters.byAuth[botInfo.authProfile];

@@ -41,11 +41,11 @@ export async function executeDashboardServe(opts: DashboardServeOpts, deps: Comm
   }
 
   const { createAgentServer } = await import("@mecha/agent");
-  const { readNodeName } = await import("@mecha/service");
+  const { ensureNodeName } = await import("@mecha/service");
   const { createBunPtySpawn } = await import("@mecha/process");
 
-  /* v8 ignore start -- readNodeName returns null only if mesh.json missing */
-  const nodeName = readNodeName(deps.mechaDir) ?? "unknown";
+  /* v8 ignore start -- auto-init node name from hostname if not set */
+  const nodeName = ensureNodeName(deps.mechaDir);
   /* v8 ignore stop */
 
   const { fetchPublicIp } = await import("@mecha/core");

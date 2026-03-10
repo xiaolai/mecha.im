@@ -52,6 +52,11 @@ export function nodeInit(mechaDir: string, opts?: { name?: string }): NodeInitRe
   return { name: nodeName(name), created: true };
 }
 
+/** Read or auto-initialize the node name. Convenience wrapper used by CLI commands. */
+export function ensureNodeName(mechaDir: string): NodeName {
+  return readNodeName(mechaDir) ?? nodeInit(mechaDir).name;
+}
+
 /** Read the current node name, if initialized. */
 export function readNodeName(mechaDir: string): NodeName | undefined {
   const nodePath = join(mechaDir, NODE_FILE);

@@ -37,7 +37,7 @@ export { buildHierarchy, flattenHierarchy } from "./hierarchy.js";
 export type { HierarchyNode } from "./hierarchy.js";
 export { createBotRouter } from "./router.js";
 export type { BotRouter, CreateRouterOpts } from "./router.js";
-export { nodeInit, readNodeName } from "./node-init.js";
+export { nodeInit, readNodeName, ensureNodeName } from "./node-init.js";
 export type { NodeInitResult } from "./node-init.js";
 export { agentFetch } from "./agent-fetch.js";
 export type { AgentFetchOpts, SecureChannelLike } from "./agent-fetch.js";

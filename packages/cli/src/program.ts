@@ -42,8 +42,8 @@ export const MUTATING_COMMANDS = new Set([
   // agent subcommands (agent status is read-only)
   "agent start",
   // schedule subcommands — same reasoning, filesystem-level state.
-  // acl subcommands
-  "acl grant", "acl revoke",
+  // acl subcommands — grant/revoke write to acl.json only, safe while server runs.
+  // Not locked: same reasoning as meter/auth/budget — single-user manual ops.
   // node subcommands — node add/rm write to nodes.json only, safe while server runs.
   // Not locked: concurrent node add/rm has a theoretical read-modify-write race,
   // but these are manual CLI ops that a single user runs sequentially.
@@ -59,10 +59,8 @@ export const MUTATING_COMMANDS = new Set([
   "audit clear",
   // dashboard subcommands
   "dashboard serve",
-  // totp subcommands (verify, status are read-only)
-  "totp setup",
-  // auth-config
-  "auth-config",
+  // totp subcommands — setup writes to totp-secret file only, safe while server runs.
+  // auth-config — writes to auth-profiles/ only, safe while server runs.
 ]);
 
 /**
