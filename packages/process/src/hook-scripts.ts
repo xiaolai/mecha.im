@@ -48,7 +48,7 @@ if [ -z "$TARGET" ]; then
   exit 2  # No path extracted — deny by default (fail-closed)
 fi
 # Canonicalize target path, following symlinks
-RESOLVED=$(realpath -m "$TARGET" 2>/dev/null || (cd "$(dirname "$TARGET")" 2>/dev/null && pwd)/$(basename "$TARGET"))
+RESOLVED=$(realpath -m "$TARGET" 2>/dev/null) || RESOLVED="$(cd "$(dirname "$TARGET")" 2>/dev/null && pwd)/$(basename "$TARGET")"
 # Canonicalize allowed roots
 SANDBOX=$(realpath -m "$MECHA_SANDBOX_ROOT" 2>/dev/null || echo "$MECHA_SANDBOX_ROOT")
 WORKSPACE=$(realpath -m "$MECHA_WORKSPACE" 2>/dev/null || echo "$MECHA_WORKSPACE")
@@ -78,6 +78,8 @@ WORKSPACE=$(realpath -m "$MECHA_WORKSPACE" 2>/dev/null || echo "$MECHA_WORKSPACE
 # Extract file path arguments from the command
 # Use process substitution to avoid subshell — exit 2 exits the main script
 while read -r FPATH; do
+  # Reject ~user forms — shell expands these to other users' home directories
+  case "$FPATH" in ~[a-zA-Z_]*) echo "BLOCKED: tilde expansion $FPATH" >&2; exit 2 ;; esac
   RESOLVED=$(realpath -m "$FPATH" 2>/dev/null || echo "$FPATH")
   case "$RESOLVED" in
     "$SANDBOX"/*|"$SANDBOX") ;;
@@ -85,7 +87,7 @@ while read -r FPATH; do
     /usr/bin/*|/usr/local/bin/*|/bin/*|/usr/sbin/*|/dev/null|/dev/stdin|/dev/stdout|/dev/stderr|/tmp/*) ;;
     *) echo "BLOCKED: $RESOLVED is outside sandbox" >&2; exit 2 ;;
   esac
-done < <(echo "$COMMAND" | grep -oE '((~|/|\\.\\./|\\./)([^ ;"'"'"'|&>]*))')
+done < <(echo "$COMMAND" | grep -oE '((~|/|\\.\\./|\\./)([^ ;"'"'"'|&>]*))' | grep -v '^//[a-zA-Z][a-zA-Z0-9-]*\\.' | sed 's|^//\\+|/|')
 # Also block shell variable expansions that could reference paths outside sandbox
 if echo "$COMMAND" | grep -qE '\\$HOME|\\$\\{HOME\\}|\\$MECHA_DIR'; then
   echo "BLOCKED: command references shell variable paths" >&2; exit 2
