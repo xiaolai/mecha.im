@@ -49,8 +49,8 @@ export function BotDetail({ name, node }: BotDetailProps) {
   if (error || !bot) {
     return (
       <div className="flex flex-col gap-4">
-        <Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeftIcon className="size-4" /> Back to bots
+        <Link to={isRemote ? `/nodes` : "/"} className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+          <ArrowLeftIcon className="size-4" /> {isRemote ? "Back to nodes" : "Back to bots"}
         </Link>
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
           {error ?? "bot not found"}
@@ -66,7 +66,7 @@ export function BotDetail({ name, node }: BotDetailProps) {
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <Link to="/" className="min-h-11 min-w-11 sm:min-h-0 sm:min-w-0 inline-flex items-center justify-center text-muted-foreground hover:text-foreground" aria-label="Back to bots">
+          <Link to={isRemote ? "/nodes" : "/"} className="min-h-11 min-w-11 sm:min-h-0 sm:min-w-0 inline-flex items-center justify-center text-muted-foreground hover:text-foreground" aria-label={isRemote ? "Back to nodes" : "Back to bots"}>
             <ArrowLeftIcon className="size-4" />
           </Link>
           <span className={cn("size-2.5 rounded-full", style.dot)} />
