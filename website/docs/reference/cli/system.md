@@ -562,7 +562,6 @@ mecha dashboard serve [options]
 | `--port <port>` | Dashboard port | `7660` |
 | `--host <host>` | Bind address | `127.0.0.1` |
 | `--open` | Open browser after starting | `false` |
-| `--no-totp` | Disable TOTP authentication | |
 
 The dashboard creates an agent server with the embedded SPA. Requires a built SPA directory (run `pnpm --filter @mecha/spa build` first).
 
