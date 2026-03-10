@@ -41,18 +41,18 @@ export const MUTATING_COMMANDS = new Set([
   // Concurrent ops on the SAME bot are serialized by the server's request handler.
   // agent subcommands (agent status is read-only)
   "agent start",
-  // meter subcommands
-  "meter start", "meter stop",
   // schedule subcommands — same reasoning, filesystem-level state.
   // acl subcommands
   "acl grant", "acl revoke",
   // node subcommands — node add/rm write to nodes.json only, safe while server runs.
   // Not locked: concurrent node add/rm has a theoretical read-modify-write race,
   // but these are manual CLI ops that a single user runs sequentially.
-  // auth subcommands (auth ls, auth test are read-only)
-  "auth add", "auth rm", "auth default", "auth tag", "auth switch", "auth renew",
-  // budget subcommands — read-modify-write on budgets.json, needs lock
-  "budget set", "budget rm",
+  // meter, auth, budget subcommands write to separate files (proxy.json, auth-profiles/,
+  // budgets.json) that don't conflict with the daemon server. Running these while
+  // the daemon holds the lock would deadlock the CLI.
+  // Trade-off: concurrent auth/budget CLI ops on the same file have a theoretical
+  // read-modify-write race, but these are manual single-user ops run sequentially.
+  // TODO: Add per-resource file locks if concurrent CLI usage becomes a real scenario.
   // plugin subcommands (ls, status, test are read-only)
   "plugin add", "plugin rm",
   // audit subcommands
