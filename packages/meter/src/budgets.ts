@@ -8,15 +8,39 @@ export function budgetsPath(meterDir: string): string {
   return join(meterDir, "budgets.json");
 }
 
+/** Sanitize a budget limit object: coerce to finite positive numbers, drop invalid. */
+function sanitizeLimit(raw: unknown): BudgetLimit {
+  if (!raw || typeof raw !== "object") return {};
+  const obj = raw as Record<string, unknown>;
+  const limit: BudgetLimit = {};
+  if (typeof obj.dailyUsd === "number" && Number.isFinite(obj.dailyUsd) && obj.dailyUsd > 0) {
+    limit.dailyUsd = obj.dailyUsd;
+  }
+  if (typeof obj.monthlyUsd === "number" && Number.isFinite(obj.monthlyUsd) && obj.monthlyUsd > 0) {
+    limit.monthlyUsd = obj.monthlyUsd;
+  }
+  return limit;
+}
+
+/** Sanitize a record of budget limits. */
+function sanitizeLimitMap(raw: unknown): Record<string, BudgetLimit> {
+  if (!raw || typeof raw !== "object") return {};
+  const result: Record<string, BudgetLimit> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    result[key] = sanitizeLimit(value);
+  }
+  return result;
+}
+
 /** Read budgets from disk. Returns empty config if missing or corrupt. */
 export function readBudgets(meterDir: string): BudgetConfig {
   try {
     const raw = JSON.parse(readFileSync(budgetsPath(meterDir), "utf-8")) as Partial<BudgetConfig>;
     return {
-      global: raw.global ?? {},
-      byBot: raw.byBot ?? {},
-      byAuthProfile: raw.byAuthProfile ?? {},
-      byTag: raw.byTag ?? {},
+      global: sanitizeLimit(raw.global),
+      byBot: sanitizeLimitMap(raw.byBot),
+      byAuthProfile: sanitizeLimitMap(raw.byAuthProfile),
+      byTag: sanitizeLimitMap(raw.byTag),
     };
   } catch {
     /* v8 ignore start -- missing or corrupt budgets.json */
@@ -52,19 +76,22 @@ export interface BudgetCheckInput {
   perBot?: { today: CostSummary; month: CostSummary };
   perAuth?: { today: CostSummary; month: CostSummary };
   perTag: Record<string, { today: CostSummary; month: CostSummary }>;
-  /** Estimated cost of in-flight requests (for pre-accounting). */
+  /** Estimated cost of in-flight requests for this bot (for per-bot/auth/tag budgets). */
   pendingCostUsd?: number;
+  /** Estimated cost of all in-flight requests globally (for global budget). */
+  globalPendingCostUsd?: number;
 }
 
 /** Check all applicable budgets for a request */
 export function checkBudgets(input: BudgetCheckInput): BudgetCheckResult {
-  const { config, bot, authProfile, tags, pendingCostUsd = 0 } = input;
+  const { config, bot, authProfile, tags, pendingCostUsd = 0, globalPendingCostUsd } = input;
   const warnings: string[] = [];
   let exceeded: string | null = null;
 
-  // Check global limits
+  // Check global limits (use global pending cost if provided, otherwise fall back to per-bot)
   if (config.global.dailyUsd !== undefined || config.global.monthlyUsd !== undefined) {
-    const r = checkLimit(config.global, "global", input.global.today, input.global.month, pendingCostUsd);
+    const globalPending = globalPendingCostUsd ?? pendingCostUsd;
+    const r = checkLimit(config.global, "global", input.global.today, input.global.month, globalPending);
     if (r.exceeded) exceeded = r.exceeded;
     warnings.push(...r.warnings);
   }

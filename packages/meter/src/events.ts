@@ -7,6 +7,9 @@ const log = createLogger("mecha:meter");
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+/** Cache of directories already confirmed to exist (avoids repeated mkdirSync) */
+const ensuredDirs = new Set<string>();
+
 /** Get the UTC date string (YYYY-MM-DD) for an ISO timestamp */
 export function utcDate(ts: string): string {
   return ts.slice(0, 10);
@@ -27,7 +30,10 @@ export function eventsDir(meterDir: string): string {
 /** Append a MeterEvent to the day's JSONL file */
 export function appendEvent(meterDir: string, event: MeterEvent): void {
   const dir = eventsDir(meterDir);
-  mkdirSync(dir, { recursive: true });
+  if (!ensuredDirs.has(dir)) {
+    mkdirSync(dir, { recursive: true });
+    ensuredDirs.add(dir);
+  }
   const file = join(dir, `${validateDate(utcDate(event.ts))}.jsonl`);
   appendFileSync(file, JSON.stringify(event) + "\n");
 }

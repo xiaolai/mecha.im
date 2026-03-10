@@ -24,8 +24,9 @@ export function parseSSEChunk(
   state._lineBuffer = lines.pop() ?? "";
   /* v8 ignore stop */
   for (const line of lines) {
-    if (!line.startsWith("data: ")) continue;
-    const json = line.slice(6);
+    // SSE spec: "data:" with optional single space before value
+    if (!line.startsWith("data:")) continue;
+    const json = line[5] === " " ? line.slice(6) : line.slice(5);
     if (json === "[DONE]") continue;
 
     try {
@@ -55,7 +56,7 @@ export function parseSSEChunk(
       }
     /* v8 ignore start -- malformed SSE data fallback */
     } catch {
-      // Malformed SSE data — skip, log is handled by caller
+      state._parseErrors++;
     }
     /* v8 ignore stop */
   }
@@ -71,6 +72,8 @@ export interface SSEParseState {
   requestStartMs: number;
   /** @internal partial line buffer for cross-chunk accumulation */
   _lineBuffer: string;
+  /** @internal count of malformed SSE data lines (for diagnostics) */
+  _parseErrors: number;
 }
 
 export function createSSEParseState(requestStartMs: number, model: string): SSEParseState {
@@ -83,6 +86,7 @@ export function createSSEParseState(requestStartMs: number, model: string): SSEP
     ttftMs: null,
     requestStartMs,
     _lineBuffer: "",
+    _parseErrors: 0,
   };
 }
 

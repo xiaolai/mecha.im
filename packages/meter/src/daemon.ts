@@ -3,7 +3,7 @@ import { timingSafeEqual } from "node:crypto";
 import { join } from "node:path";
 import { MeterProxyAlreadyRunningError, PortConflictError, createLogger, DEFAULTS } from "@mecha/core";
 import {
-  readProxyInfo, isPidAlive, writeProxyInfo, deleteProxyInfo,
+  readProxyInfo, isPidAlive, writeProxyInfo, deleteProxyInfo, isPidMecha,
 } from "./lifecycle.js";
 import { initPricing, loadPricing } from "./pricing.js";
 import { handleProxyRequest, reloadBudgets, getDroppedEventCount, type ProxyContext } from "./proxy.js";
@@ -86,15 +86,30 @@ export async function startDaemon(opts: DaemonOpts): Promise<DaemonHandle> {
   const server = createServer((req: IncomingMessage, res: ServerResponse) => {
     // Auth check: if authToken is configured, verify Bearer token (timing-safe)
     if (opts.authToken) {
-      const authHeader = req.headers.authorization;
-      const expected = `Bearer ${opts.authToken}`;
-      if (!authHeader || !timingSafeCompare(authHeader, expected)) {
+      const authHeader = req.headers.authorization ?? "";
+      // Parse scheme case-insensitively (RFC 7235 §2.1)
+      const spaceIdx = authHeader.indexOf(" ");
+      const scheme = spaceIdx > 0 ? authHeader.slice(0, spaceIdx).toLowerCase() : "";
+      const token = spaceIdx > 0 ? authHeader.slice(spaceIdx + 1) : "";
+      if (scheme !== "bearer" || !timingSafeCompare(token, opts.authToken)) {
         res.writeHead(401, { "content-type": "application/json" });
         res.end(JSON.stringify({ error: "Unauthorized" }));
         return;
       }
     }
-    handleProxyRequest(req, res, ctx);
+    try {
+      handleProxyRequest(req, res, ctx);
+    /* v8 ignore start -- uncaught request handler exception */
+    } catch (err) {
+      log.error("Unhandled request error", { error: err instanceof Error ? err.message : String(err) });
+      if (!res.headersSent) {
+        res.writeHead(500, { "content-type": "application/json" });
+      }
+      if (!res.writableEnded) {
+        res.end(JSON.stringify({ error: "Internal server error" }));
+      }
+    }
+    /* v8 ignore stop */
   });
 
   // Periodic snapshot flush + day rollover check (every 5 seconds)
@@ -139,6 +154,10 @@ export async function startDaemon(opts: DaemonOpts): Promise<DaemonHandle> {
 
   return new Promise<DaemonHandle>((resolve, reject) => {
     server.on("error", (err: NodeJS.ErrnoException) => {
+      // Clean up timers/listeners on startup failure
+      clearInterval(snapshotTimer);
+      clearInterval(registryTimer);
+      process.removeListener("SIGHUP", sighupHandler);
       /* v8 ignore start -- only EADDRINUSE is testable; other server errors are runtime-only */
       if (err.code === "EADDRINUSE") {
         reject(new PortConflictError(port));
@@ -184,12 +203,19 @@ export async function startDaemon(opts: DaemonOpts): Promise<DaemonHandle> {
 /**
  * Stop a running proxy by sending SIGTERM.
  * Returns true if signal was sent, false if not running.
+ * Verifies process identity via startedAt to prevent PID reuse attacks.
  */
 export function stopDaemon(meterDir: string): boolean {
   const info = readProxyInfo(meterDir);
   if (!info) return false;
 
   if (!isPidAlive(info.pid)) {
+    deleteProxyInfo(meterDir);
+    return false;
+  }
+
+  // Guard against PID reuse: verify the process is actually a mecha process
+  if (!isPidMecha(info.pid)) {
     deleteProxyInfo(meterDir);
     return false;
   }
