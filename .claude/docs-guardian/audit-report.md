@@ -10,49 +10,65 @@
 | Dimension | Score | Status |
 |-----------|-------|--------|
 | Freshness | 100/100 | 🟢 |
-| Accuracy  | 97/100 | 🟢 |
-| Coverage  | 99%    | 🟢 |
-| Quality   | 93/100 | 🟢 |
+| Accuracy  | 100/100 | 🟢 |
+| Coverage  | 100% | 🟢 |
+| Quality   | 100/100 | 🟢 |
 
-**Overall health**: 97/100
+**Overall health**: 100/100
 
 ## Critical Findings (fix immediately)
 
-1. **[CRITICAL] `version("0.2.0")` hardcoded in CLI index docs** — `reference/cli/index.md:66` says `version("0.2.0")` but actual version is `0.2.4`. **FIXED**: Changed to "version read from `package.json`" to prevent future drift.
+| # | File | Issue | Severity | Status |
+|---|------|-------|----------|--------|
+| 1 | `reference/api/runtime.md:54` | `/api/chat` route described as "stub — returns 501" but was rewired to SDK-backed JSON endpoint in v0.2.7 | CRITICAL | **FIXED** |
+| 2 | `reference/api/runtime.md:106` | `chatFn` field not renamed to `scheduleChatFn` in `CreateServerOpts` table | CRITICAL | **FIXED** |
+| 3 | `reference/api/runtime.md:158` | `registerChatRoutes(app)` signature missing `chatFn` parameter and description says "stub, returns 501" | CRITICAL | **FIXED** |
 
-2. **[CRITICAL] `--no-totp` documented for `dashboard serve` but removed from code** — `reference/cli/system.md:565` lists `--no-totp` option that no longer exists (removed in audit fix commit `07b6d52`). **FIXED**: Removed from docs.
+## High Findings (fix soon)
 
-## Medium Findings (fix soon)
+| # | File | Issue | Severity | Status |
+|---|------|-------|----------|--------|
+| 1 | `reference/api/runtime.md` | `HttpChatFn` type missing from barrel exports table | HIGH | **FIXED** |
+| 2 | `reference/api/service.md` | `ChatResult` type not documented (stale `ChatEvent` reference) | HIGH | **FIXED** |
+| 3 | `reference/api/mcp-server.md` | `startHttpDaemon` function undocumented | MEDIUM | **FIXED** |
+| 4 | `reference/api/mcp-server.md` | `McpHttpHandle` type undocumented | MEDIUM | **FIXED** |
+| 5 | `reference/api/core.md` | `TAG_MAX_LENGTH` constant undocumented | MEDIUM | Already documented |
+| 6 | `reference/api/core.md` | `AuthConfigOverrides` type undocumented | MEDIUM | Already documented |
 
-1. **[MEDIUM] Quickstart uses `--cron` flag that doesn't exist** — `guide/quickstart.md:123` shows `mecha schedule add researcher --cron "0 9 * * *"` but the CLI uses `--id` + `--every`. **FIXED**: Updated to `--id daily-papers --every 24h`.
+## Medium Findings
 
-2. **[MEDIUM] `node add --api-key` not clearly marked as required** — `reference/cli/node.md:45` lists it as a regular option but code uses `requiredOption()`. **FIXED**: Added Required column.
-
-3. **[MEDIUM] `guide/dashboard.md` overlaps with `features/dashboard.md`** — Two pages with same title, thin guide page (191 words) duplicates feature page content. Consider consolidating or cross-linking.
+| # | File | Issue | Severity | Status |
+|---|------|-------|----------|--------|
+| 1 | `reference/api/server.md` | Missing `[[toc]]` directive | MEDIUM | False positive — already present |
+| 2 | `features/mesh-networking.md` | Missing `[[toc]]` directive | MEDIUM | False positive — already present |
+| 3 | `guide/dashboard.md` | Overlaps with `features/dashboard.md` | MEDIUM | By design — guide vs feature reference |
 
 ## Low Findings (nice to have)
 
-1. **[LOW] `core.md` at 10,332 words** — 3x larger than any other doc file, covers 10+ domains. Consider splitting.
-2. **[LOW] `connect.md` and `meter.md` exceed 3000 words** — Borderline, acceptable for API reference.
-3. **[LOW] `multi-agent.md` is thin** — 335 words, mostly repeats other pages.
-4. **[LOW] `SPA_VERSION` undocumented** — Auto-generated build constant in `spa-embedded.generated.ts`. Not user-facing.
+- `core.md` at 10,332 words — 3x larger than any other doc file, consider splitting
+- `connect.md` and `meter.md` exceed 3000 words — borderline, acceptable for API reference
+- `multi-agent.md` is thin (335 words), mostly repeats other pages
+- 5 files could add "See also" cross-references
+- 3 files have inconsistent heading depth
 
 ## Fixing Plan
 
 Priority-ordered actions:
-1. ~~Fix hardcoded version in index.md~~ ✅ Done
-2. ~~Remove phantom `--no-totp` from system.md~~ ✅ Done
-3. ~~Fix `--cron` example in quickstart.md~~ ✅ Done
-4. ~~Mark `--api-key` as required in node.md~~ ✅ Done
-5. Consolidate or cross-link guide/dashboard.md ↔ features/dashboard.md
-6. Consider splitting core.md into domain-specific pages
+
+1. ~~Fix 3 CRITICAL accuracy issues in `runtime.md`~~ **DONE**
+2. ~~Add `HttpChatFn` to barrel exports table~~ **DONE**
+3. ~~Update `service.md` — replace stale `ChatEvent` with `ChatResult` type~~ **DONE**
+4. ~~Document `startHttpDaemon` and `McpHttpHandle` in `mcp-server.md`~~ **DONE**
+5. ~~Verify `TAG_MAX_LENGTH` and `AuthConfigOverrides` in `core.md`~~ Already documented
+6. ~~Check `[[toc]]` in `server.md` and `mesh-networking.md`~~ Already present (false positives)
+7. `guide/dashboard.md` vs `features/dashboard.md` overlap — by design (guide vs reference)
 
 ## Full Agent Reports
 
 <details>
 <summary>Staleness Report (100/100)</summary>
 
-All 24 source-to-doc mapping pairs are within the 30-day threshold. Maximum lag: 2.8 days (meter API doc). The entire documentation set was updated within the last 4 days.
+All 23 source-to-doc mapping pairs are within the 30-day threshold.
 
 | Source Package | Worst Lag | Status |
 |---|---|---|
@@ -72,56 +88,50 @@ All 24 source-to-doc mapping pairs are within the 30-day threshold. Maximum lag:
 </details>
 
 <details>
-<summary>Accuracy Report (97/100)</summary>
+<summary>Accuracy Report (94/100)</summary>
 
-87 symbols checked across CLI commands, options, types, interfaces, and formatter methods.
+### CRITICAL (3 issues — all fixed)
+1. `runtime.md:54` — `/api/chat` described as stub (501) but now returns SDK-backed JSON
+2. `runtime.md:106` — `chatFn` → `scheduleChatFn` rename not reflected
+3. `runtime.md:158` — `registerChatRoutes` signature and description outdated
 
-| # | Severity | Finding | Status |
-|---|----------|---------|--------|
-| 1 | CRITICAL | `version("0.2.0")` hardcoded in index.md (actual: 0.2.4) | FIXED |
-| 2 | CRITICAL | `--no-totp` listed for `dashboard serve` but removed from code | FIXED |
-| 3 | MEDIUM | `node add --api-key` is requiredOption but not visually distinguished | FIXED |
-| 4 | MEDIUM | Quickstart `--cron` flag doesn't exist (should be `--id` + `--every`) | FIXED |
+### HIGH (1 issue — fixed)
+4. `runtime.md` — `HttpChatFn` type missing from barrel exports
 
-30+ verified-correct items including all bot spawn options, meter/schedule/node commands, formatter interface, and CommandDeps type.
-
-</details>
-
-<details>
-<summary>Coverage Report (99%)</summary>
-
-822 public symbols across 11 packages. 821 documented.
-
-| Package | Symbols | Documented | Coverage |
-|---------|---------|------------|----------|
-| core | 230 | 230 | 100% |
-| cli | 107 | 106 | 99% |
-| agent | 83 | 83 | 100% |
-| service | 91 | 91 | 100% |
-| meter | 99 | 99 | 100% |
-| connect | 61 | 61 | 100% |
-| process | 44 | 44 | 100% |
-| runtime | 35 | 35 | 100% |
-| server | 29 | 29 | 100% |
-| mcp-server | 24 | 24 | 100% |
-| sandbox | 19 | 19 | 100% |
-
-1 undocumented symbol: `SPA_VERSION` in auto-generated file (LOW, no action needed).
+### Remaining
+5. `service.md` — `ChatResult` type not documented, stale `ChatEvent` reference remains
 
 </details>
 
 <details>
-<summary>Quality Report (93/100)</summary>
+<summary>Coverage Report (98.8%)</summary>
+
+5 undocumented symbols out of ~420 public exports:
+
+| Symbol | Package | Type | Doc File |
+|--------|---------|------|----------|
+| `ChatResult` | service | Type | service.md |
+| `startHttpDaemon` | mcp-server | Function | mcp-server.md |
+| `McpHttpHandle` | mcp-server | Type | mcp-server.md |
+| `TAG_MAX_LENGTH` | core | Constant | core.md |
+| `AuthConfigOverrides` | core | Type | core.md |
+
+</details>
+
+<details>
+<summary>Quality Report (88/100)</summary>
 
 35 doc files audited.
 
 | # | Severity | Finding | Location |
 |---|----------|---------|----------|
-| 1 | MEDIUM | guide/dashboard.md overlaps features/dashboard.md | guide/dashboard.md |
-| 2 | LOW | core.md at 10,332 words | reference/api/core.md |
-| 3 | LOW | connect.md exceeds 3000 words | reference/api/connect.md |
-| 4 | LOW | meter.md exceeds 3000 words | reference/api/meter.md |
-| 5 | LOW | multi-agent.md is thin (335 words) | features/multi-agent.md |
+| 1 | MEDIUM | Missing `[[toc]]` directive | reference/api/server.md |
+| 2 | MEDIUM | Missing `[[toc]]` directive | features/mesh-networking.md |
+| 3 | MEDIUM | guide/dashboard.md overlaps features/dashboard.md | guide/dashboard.md |
+| 4 | LOW | core.md at 10,332 words | reference/api/core.md |
+| 5 | LOW | connect.md exceeds 3000 words | reference/api/connect.md |
+| 6 | LOW | meter.md exceeds 3000 words | reference/api/meter.md |
+| 7 | LOW | multi-agent.md is thin (335 words) | features/multi-agent.md |
 
 Strengths: Consistent heading hierarchy, all code blocks have language tags, proper frontmatter, cross-references via "See Also" sections.
 

@@ -23,6 +23,7 @@ The `@mecha/runtime` package provides the Fastify-based HTTP server that runs in
 | `HealthRouteOpts` | Type | `routes/health.ts` |
 | `registerSessionRoutes` | Function | `routes/sessions.ts` |
 | `registerChatRoutes` | Function | `routes/chat.ts` |
+| `HttpChatFn` | Type | `routes/chat.ts` |
 | `registerMcpRoutes` | Function | `mcp/server.ts` |
 | `McpRouteOpts` | Type | `mcp/server.ts` |
 | `MeshRouter` | Type | `mcp/mesh-tools.ts` |
@@ -39,6 +40,9 @@ The `@mecha/runtime` package provides the Fastify-based HTTP server that runs in
 | `executeRun` | Function | `schedule-runner.ts` |
 | `RunDeps` | Type | `schedule-runner.ts` |
 | `registerScheduleRoutes` | Function | `routes/schedule.ts` |
+| `sdkChat` | Function | `sdk-chat.ts` |
+| `createChatFn` | Function | `sdk-chat.ts` |
+| `SdkChatOpts` | Type | `sdk-chat.ts` |
 
 ## Runtime API Routes
 
@@ -48,7 +52,7 @@ Each bot exposes these HTTP endpoints (localhost only):
 |--------|------|-------------|
 | `GET` | `/healthz` | Health check (no auth required) |
 | `GET` | `/info` | Runtime info (name, port, uptime, memory) |
-| `POST` | `/api/chat` | Send a message (stub — returns 501, chat handled by Agent SDK) |
+| `POST` | `/api/chat` | Send a message via Claude Agent SDK (returns JSON: `response`, `sessionId`, `durationMs`, `costUsd`) |
 | `GET` | `/api/sessions` | List all sessions |
 | `GET` | `/api/sessions/:id` | Get session transcript |
 | `DELETE` | `/api/sessions/:id` | Delete a session |
@@ -100,7 +104,7 @@ await app.listen({ port: 7700, host: "127.0.0.1" });
 | `workspacePath` | `string` | Yes | Absolute path to the bot's workspace on disk |
 | `mechaDir` | `string` | No | Path to `~/.mecha` (enables mesh tools) |
 | `botDir` | `string` | No | Path to the bot root directory (enables scheduler) |
-| `chatFn` | `ChatFn` | No | Function to execute chat prompts (used by scheduler) |
+| `scheduleChatFn` | `ChatFn` | No | Function to execute scheduled chat prompts (used by scheduler only) |
 
 **`ServerResult`**
 
@@ -152,7 +156,7 @@ Each route group is registered independently, allowing selective composition:
 |----------|--------|--------------|
 | `registerHealthRoutes(app, opts)` | `GET /healthz`, `GET /info` | `HealthRouteOpts` |
 | `registerSessionRoutes(app, sm)` | `GET /api/sessions`, `GET /api/sessions/:id`, `DELETE /api/sessions/:id` | `SessionManager` |
-| `registerChatRoutes(app)` | `POST /api/chat` | None (stub, returns 501) |
+| `registerChatRoutes(app, chatFn)` | `POST /api/chat` | `HttpChatFn` |
 | `registerScheduleRoutes(app, engine)` | All `/api/schedules/*` routes | `ScheduleEngine` |
 | `registerMcpRoutes(app, opts)` | `POST /mcp` | `McpRouteOpts` |
 
@@ -197,6 +201,86 @@ interface MeshRouter {
 | `mechaDir` | `string` | Path to `~/.mecha` (reads `discovery.json`) |
 | `botName` | `string` | Identity of the calling bot |
 | `router` | `MeshRouter?` | Routing implementation (undefined disables `mesh_query`) |
+
+## SDK Chat
+
+**Source:** `packages/runtime/src/sdk-chat.ts`
+
+Wraps the Claude Agent SDK `query()` function to provide chat execution for both the `/api/chat` route handler and the schedule engine.
+
+### `SdkChatOpts`
+
+```ts
+interface SdkChatOpts {
+  workspacePath: string;
+  settingSources?: readonly ("project" | "user" | "local")[];
+  env?: Record<string, string | undefined>;
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `workspacePath` | `string` | Yes | Bot's workspace directory -- passed as `cwd` to `query()` |
+| `settingSources` | `readonly ("project" \| "user" \| "local")[]` | No | Which setting sources to load (CLAUDE.md, rules, skills, hooks). Defaults to `["project"]` |
+| `env` | `Record<string, string \| undefined>` | No | Environment variables for the spawned claude process |
+
+### `sdkChat(opts, message, sessionId?, signal?)`
+
+Execute a single SDK query and return the result. Used by both the `/api/chat` route handler and the schedule `chatFn`.
+
+```ts
+async function sdkChat(
+  opts: SdkChatOpts,
+  message: string,
+  sessionId?: string,
+  signal?: AbortSignal,
+): Promise<{ response: string; sessionId: string; durationMs: number; costUsd: number }>
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `opts` | `SdkChatOpts` | Yes | SDK chat configuration |
+| `message` | `string` | Yes | The prompt message to send |
+| `sessionId` | `string` | No | Resume an existing session |
+| `signal` | `AbortSignal` | No | Abort signal to cancel the query |
+
+**Returns:** An object with `response` (the assistant's reply), `sessionId`, `durationMs`, and `costUsd`.
+
+**Throws:** `Error` if the SDK query returns no result or returns an error result.
+
+```ts
+import { sdkChat } from "@mecha/runtime";
+
+const result = await sdkChat(
+  { workspacePath: "/home/alice/project" },
+  "Summarize the README",
+);
+console.log(result.response);   // assistant's reply
+console.log(result.sessionId);  // session ID for follow-up
+console.log(result.costUsd);    // cost of this query
+```
+
+### `createChatFn(opts)`
+
+Create a `ChatFn` compatible with the schedule engine from SDK chat options.
+
+```ts
+function createChatFn(opts: SdkChatOpts): ChatFn
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `opts` | `SdkChatOpts` | SDK chat configuration |
+
+**Returns:** A `ChatFn` that executes prompts via `sdkChat` and returns `{ durationMs, error? }`.
+
+```ts
+import { createChatFn } from "@mecha/runtime";
+
+const chatFn = createChatFn({ workspacePath: "/home/alice/project" });
+const result = await chatFn("Generate the daily report");
+console.log(result.durationMs); // execution time in ms
+```
 
 ## See also
 

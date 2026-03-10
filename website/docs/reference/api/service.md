@@ -25,7 +25,7 @@ The `@mecha/service` package is the high-level business logic layer that CLI com
 | `BotConfigUpdates` | Type | `bot.ts` |
 | `botChat` | Function | `chat.ts` |
 | `ChatOpts` | Type | `chat.ts` |
-| `ChatEvent` | Type | `chat.ts` |
+| `ChatResult` | Type | `chat.ts` |
 | `botSessionList` | Function | `sessions.ts` |
 | `botSessionGet` | Function | `sessions.ts` |
 | `botSessionDelete` | Function | `sessions.ts` |
@@ -203,15 +203,15 @@ const results = botFind("/Users/you/.mecha", pm, { tags: ["dev"] });
 
 ## `botChat(pm, name, opts, signal?)`
 
-Send a chat message to a bot and stream the response. Returns a promise resolving to an async iterable of `ChatEvent` objects.
+Send a chat message to a bot via its runtime `/api/chat` endpoint. Returns the assistant's response, session ID, duration, and cost.
 
 ```ts
 import { botChat } from "@mecha/service";
 
-const stream = await botChat(pm, "coder", { message: "Explain this function" });
-for await (const event of stream) {
-  if (event.type === "text") process.stdout.write(event.content ?? "");
-}
+const result = await botChat(pm, "coder", { message: "Explain this function" });
+console.log(result.response);    // assistant's reply
+console.log(result.sessionId);   // session ID for follow-up
+console.log(result.costUsd);     // cost of this query
 ```
 
 | Parameter | Type | Required | Description |
@@ -228,7 +228,16 @@ for await (const event of stream) {
 | `message` | `string` | Yes | Message to send |
 | `sessionId` | `string` | No | Session ID (creates new if omitted) |
 
-**`ChatEvent`** — `{ type: "text" | "done", content?: string, sessionId?: string }`.
+**`ChatResult`**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `response` | `string` | The assistant's reply |
+| `sessionId` | `string` | Session ID (for multi-turn follow-up) |
+| `durationMs` | `number` | Execution time in milliseconds |
+| `costUsd` | `number` | Cost of this query in USD |
+
+**Throws:** `ChatRequestError` if the bot's runtime returns a non-OK HTTP status.
 
 ## `mechaInit(mechaDir)`
 

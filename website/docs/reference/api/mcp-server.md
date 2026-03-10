@@ -18,6 +18,8 @@ The `@mecha/mcp-server` package exposes the Mecha control plane as an [MCP](http
 | `createRateLimiter` | Function | Creates a sliding-window `RateLimiter` with optional custom limits. |
 | `runStdio` | Function | Connects an `McpServer` to stdio transport. |
 | `runHttp` | Function | Starts an HTTP server with session management and optional auth. |
+| `startHttpDaemon` | Function | Starts the MCP HTTP server in non-blocking daemon mode. |
+| `McpHttpHandle` | Type | Handle returned by `startHttpDaemon` for in-process usage. |
 | `main` | Function | CLI entrypoint — validates options and starts the server. |
 | `TOOL_ANNOTATIONS` | Constant | Read-only map of tool names to MCP annotation objects. |
 | `MeshMcpContext` | Type | Context interface for server dependencies. |
@@ -143,6 +145,41 @@ await main({
 ```
 
 Validates all inputs (mode, transport, port range 1-65535), ensures `MECHA_DIR` exists, creates the process manager, audit log, and rate limiter, then starts the appropriate transport.
+
+## `startHttpDaemon(createMcpServer, opts)`
+
+Starts the MCP HTTP server in non-blocking daemon mode. Unlike `runHttp` (which blocks on process signals), this returns a handle with a `close()` method for in-process usage.
+
+```ts
+import { startHttpDaemon, createMeshMcpServer } from "@mecha/mcp-server";
+
+const handle = await startHttpDaemon(
+  () => createMeshMcpServer(ctx),
+  { port: 7680, host: "127.0.0.1" },
+);
+
+console.log(`MCP server on port ${handle.port}`);
+
+// Later: shut down
+await handle.close();
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `createMcpServer` | `() => McpServer` | Yes | Factory function that creates a configured `McpServer` |
+| `opts` | `HttpTransportOpts` | Yes | Transport options (port, host, token) |
+
+**Returns:** `Promise<McpHttpHandle>`
+
+### `McpHttpHandle`
+
+Handle returned by `startHttpDaemon` for non-blocking in-process usage.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `port` | `number` | Port the server is listening on |
+| `host` | `string` | Bind address |
+| `close` | `() => Promise<void>` | Gracefully shuts down the MCP HTTP server |
 
 ## See also
 
