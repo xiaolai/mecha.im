@@ -12,6 +12,11 @@ vi.mock("@mecha/service", async (importOriginal) => {
   return { ...orig, checkBotBusy: vi.fn().mockResolvedValue({ busy: false, activeSessions: 0 }) };
 });
 
+vi.mock("@mecha/process", async (importOriginal) => {
+  const orig = await importOriginal<typeof import("@mecha/process")>();
+  return { ...orig, checkPort: vi.fn().mockResolvedValue(true) };
+});
+
 import { checkBotBusy } from "@mecha/service";
 const mockCheckBusy = vi.mocked(checkBotBusy);
 

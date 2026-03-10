@@ -20,6 +20,13 @@ import { isPidAlive } from "./process-lifecycle.js";
 import { prepareBotFilesystem } from "./sandbox-setup.js";
 import type { SpawnOpts, ProcessInfo, LiveProcess, CreateProcessManagerOpts } from "./types.js";
 
+/**
+ * Module-level set of ports reserved by in-flight spawns.
+ * Prevents parallel spawns from allocating the same port before
+ * either enters the live map. Entries are cleaned up after spawn completes.
+ */
+const reservedPorts = new Set<number>();
+
 export interface SpawnContext {
   opts: CreateProcessManagerOpts;
   mechaDir: string;
@@ -48,10 +55,11 @@ export async function spawnBot(ctx: SpawnContext, spawnOpts: SpawnOpts): Promise
     throw new BotAlreadyExistsError(name);
   }
 
-  // Allocate port
-  const usedPorts = new Set<number>();
+  // Allocate port — include both live and in-flight reserved ports
+  const usedPorts = new Set<number>(reservedPorts);
   for (const lp of live.values()) usedPorts.add(lp.port);
   const port = spawnOpts.port ?? await allocatePort(undefined, undefined, usedPorts);
+  reservedPorts.add(port);
   const token = "mecha_" + randomBytes(24).toString("hex");
 
   // Prepare filesystem and environment
@@ -151,6 +159,7 @@ export async function spawnBot(ctx: SpawnContext, spawnOpts: SpawnOpts): Promise
     /* v8 ignore start -- FD cleanup on log open failure */
     if (stdoutFd !== -1) closeSync(stdoutFd);
     if (stderrFd !== -1) closeSync(stderrFd);
+    reservedPorts.delete(port);
     throw new ProcessSpawnError(err instanceof Error ? err.message : String(err), { cause: err });
     /* v8 ignore stop */
   }
@@ -167,6 +176,7 @@ export async function spawnBot(ctx: SpawnContext, spawnOpts: SpawnOpts): Promise
   } catch (err) {
     closeSync(stdoutFd);
     closeSync(stderrFd);
+    reservedPorts.delete(port);
     throw new ProcessSpawnError(err instanceof Error ? err.message : String(err), { cause: err });
   }
 
@@ -195,6 +205,7 @@ export async function spawnBot(ctx: SpawnContext, spawnOpts: SpawnOpts): Promise
   closeSync(stderrFd);
 
   if (!child.pid) {
+    reservedPorts.delete(port);
     throw new ProcessSpawnError("Failed to get child PID");
   }
 
@@ -203,6 +214,7 @@ export async function spawnBot(ctx: SpawnContext, spawnOpts: SpawnOpts): Promise
 
   const lp: LiveProcess = { child, port, token, name };
   live.set(name, lp);
+  reservedPorts.delete(port); // now tracked in live map
 
   // Handle child exit
   child.on("exit", (code) => {
@@ -235,6 +247,7 @@ export async function spawnBot(ctx: SpawnContext, spawnOpts: SpawnOpts): Promise
     await waitForHealthy(port, token, ctx.healthTimeoutMs, name);
   } catch (err) {
     live.delete(name);
+    reservedPorts.delete(port);
     child.kill("SIGKILL");
     const failState: BotState = {
       name, state: "error", pid: child.pid, port, workspacePath, startedAt,
