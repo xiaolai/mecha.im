@@ -4,6 +4,17 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { request } from "node:http";
 import { spawn as spawnChild } from "node:child_process";
+import { platform } from "node:os";
+
+// On Linux, isPidMecha reads /proc/<pid>/cmdline and rejects non-mecha processes.
+// Tests spawn `sleep` as a stand-in, so mock isPidMecha to always return true on Linux.
+if (platform() === "linux") {
+  vi.mock("../src/lifecycle.js", async (importOriginal) => {
+    const mod = await importOriginal<typeof import("../src/lifecycle.js")>();
+    return { ...mod, isPidMecha: () => true };
+  });
+}
+
 import { startDaemon, stopDaemon, meterDir } from "../src/daemon.js";
 import type { DaemonHandle } from "../src/daemon.js";
 import { createHotCounters, toSnapshot, ingestEvent } from "../src/hot-counters.js";

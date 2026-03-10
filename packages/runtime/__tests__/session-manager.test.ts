@@ -118,7 +118,7 @@ describe("createSessionManager", () => {
     });
 
     it("skips .jsonl files with invalid IDs", () => {
-      writeFileSync(join(projectsDir, "../../../bad.jsonl"), "data");
+      writeFileSync(join(projectsDir, "bad..invalid.jsonl"), "data");
       // Only valid IDs pass the filter
       const sessions = sm.list();
       expect(sessions).toEqual([]);
