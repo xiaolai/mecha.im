@@ -33,6 +33,7 @@ describe("mecha mcp serve", () => {
       port: undefined,
       host: undefined,
       token: undefined,
+      mechaDir: deps.mechaDir,
     });
   });
 

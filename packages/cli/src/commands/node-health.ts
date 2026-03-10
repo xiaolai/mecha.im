@@ -77,6 +77,11 @@ export async function executeNodeHealth(name: string | undefined, deps: CommandD
     if (!node) throw new NodeNotFoundError(name);
 
     const result = await checkNodeHealth(node, DEFAULTS.RENDEZVOUS_URL);
+    if (deps.formatter.isJson) {
+      deps.formatter.json(result);
+      if (result.status !== "online") process.exitCode = 1;
+      return;
+    }
     if (result.status === "online") {
       const parts = [`${result.name}: ${result.latencyMs}ms`];
       if (result.botCount !== undefined) parts.push(`${result.botCount} bots running`);
@@ -92,6 +97,7 @@ export async function executeNodeHealth(name: string | undefined, deps: CommandD
   // All nodes
   const nodes = readNodes(deps.mechaDir);
   if (nodes.length === 0) {
+    if (deps.formatter.isJson) { deps.formatter.json([]); return; }
     deps.formatter.info("No remote nodes configured");
     return;
   }
@@ -99,6 +105,12 @@ export async function executeNodeHealth(name: string | undefined, deps: CommandD
   const results = await Promise.all(
     nodes.map((n) => checkNodeHealth(n, DEFAULTS.RENDEZVOUS_URL)),
   );
+
+  if (deps.formatter.isJson) {
+    deps.formatter.json(results);
+    if (results.some((r) => r.status !== "online")) process.exitCode = 1;
+    return;
+  }
 
   let hasFailure = false;
   for (const result of results) {
