@@ -1,6 +1,6 @@
 {
   "name": "@mecha/cli",
-  "version": "0.2.8",
+  "version": "0.2.9",
   "description": "CLI for mecha.im — local-first multi-agent runtime",
   "type": "module",
   "bin": {
