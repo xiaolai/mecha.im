@@ -1,6 +1,6 @@
 {
   "name": "@mecha/service",
-  "version": "0.2.9",
+  "version": "0.2.10",
   "description": "High-level service layer for mecha.im CLI and dashboard",
   "type": "module",
   "exports": {
