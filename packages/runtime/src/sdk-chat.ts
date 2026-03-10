@@ -6,10 +6,35 @@
  * - ChatFn for the schedule engine
  */
 import { query, type SDKResultMessage } from "@anthropic-ai/claude-agent-sdk";
+import { execFileSync } from "node:child_process";
 import { createLogger } from "@mecha/core";
 import type { ChatFn } from "./scheduler.js";
 
 const log = createLogger("mecha:sdk-chat");
+
+/**
+ * Resolve the path to the `claude` CLI binary.
+ * The bot process runs inside a bwrap sandbox where the claude binary may not
+ * be accessible. The parent process passes the resolved path via MECHA_CLAUDE_PATH.
+ * Falls back to `which claude` for unsandboxed bots.
+ */
+function resolveClaudePath(): string | undefined {
+  if (process.env["MECHA_CLAUDE_PATH"]) {
+    return process.env["MECHA_CLAUDE_PATH"];
+  }
+  try {
+    return execFileSync("which", ["claude"], { encoding: "utf-8" }).trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+const claudePath = resolveClaudePath();
+if (claudePath) {
+  log.info("Resolved claude CLI", { path: claudePath });
+} else {
+  log.warn("claude CLI not found — install with: npm install -g @anthropic-ai/claude-code");
+}
 
 export interface SdkChatOpts {
   /** Bot's workspace directory — passed as cwd to query(). */
@@ -50,6 +75,7 @@ export async function sdkChat(
     options: {
       cwd: opts.workspacePath,
       resume: sessionId,
+      pathToClaudeCodeExecutable: claudePath,
       settingSources: [...(opts.settingSources ?? ["project"])],
       maxTurns: 25,
       env: opts.env,
