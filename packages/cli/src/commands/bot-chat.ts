@@ -14,18 +14,11 @@ export function registerBotChatCommand(parent: Command, deps: CommandDeps): void
     .option("-s, --session <id>", "Session ID")
     .action(async (name: string, message: string, opts: { session?: string }) => withErrorHandler(deps, async () => {
       const validated = botName(name);
-      const stream = await botChat(deps.processManager, validated, {
+      const result = await botChat(deps.processManager, validated, {
         message,
         sessionId: opts.session,
       });
-      for await (const event of stream) {
-        if (event.type === "text" && event.content) {
-          process.stdout.write(event.content);
-        }
-        if (event.type === "done") {
-          process.stdout.write("\n");
-          deps.formatter.info(`Session: ${event.sessionId}`);
-        }
-      }
+      process.stdout.write(result.response + "\n");
+      deps.formatter.info(`Session: ${result.sessionId}`);
     }));
 }

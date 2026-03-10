@@ -13,17 +13,15 @@ describe("botChat", () => {
   let pm: ProcessManager;
 
   beforeEach(async () => {
-    // Create a mock SSE chat server
     app = Fastify();
-    app.post("/api/chat", async (_req, reply) => {
-      reply.raw.writeHead(200, {
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
-        Connection: "keep-alive",
+    app.post("/api/chat", async (req, reply) => {
+      const body = req.body as { message: string; sessionId?: string };
+      reply.send({
+        response: `Echo: ${body.message}`,
+        sessionId: body.sessionId ?? "s1",
+        durationMs: 42,
+        costUsd: 0.001,
       });
-      reply.raw.write(`data: ${JSON.stringify({ type: "text", content: "Hello " })}\n\n`);
-      reply.raw.write(`data: ${JSON.stringify({ type: "done", sessionId: "s1" })}\n\n`);
-      reply.raw.end();
     });
     await app.listen({ port: 0, host: "127.0.0.1" });
     const addr = app.server.address();
@@ -45,32 +43,23 @@ describe("botChat", () => {
     await app.close();
   });
 
-  it("streams chat events", async () => {
-    const stream = await botChat(pm, BOT, { message: "Hello world" });
-    const events: Array<{ type: string }> = [];
-
-    for await (const event of stream) {
-      events.push(event);
-    }
-
-    expect(events.length).toBeGreaterThan(0);
-    const textEvents = events.filter((e) => e.type === "text");
-    expect(textEvents.length).toBeGreaterThan(0);
-    const doneEvents = events.filter((e) => e.type === "done");
-    expect(doneEvents).toHaveLength(1);
+  it("returns chat result", async () => {
+    const result = await botChat(pm, BOT, { message: "Hello world" });
+    expect(result.response).toBe("Echo: Hello world");
+    expect(result.sessionId).toBe("s1");
+    expect(result.durationMs).toBe(42);
+    expect(result.costUsd).toBe(0.001);
   });
 
-  it("streams chat events with external AbortSignal", async () => {
+  it("passes sessionId through", async () => {
+    const result = await botChat(pm, BOT, { message: "Hi", sessionId: "my-session" });
+    expect(result.sessionId).toBe("my-session");
+  });
+
+  it("works with external AbortSignal", async () => {
     const ac = new AbortController();
-    const stream = await botChat(pm, BOT, { message: "Hello world" }, ac.signal);
-    const events: Array<{ type: string }> = [];
-
-    for await (const event of stream) {
-      events.push(event);
-    }
-
-    expect(events.length).toBeGreaterThan(0);
-    expect(events.filter((e) => e.type === "done")).toHaveLength(1);
+    const result = await botChat(pm, BOT, { message: "Hello" }, ac.signal);
+    expect(result.response).toBe("Echo: Hello");
   });
 
   it("throws BotNotFoundError for unknown bot", async () => {

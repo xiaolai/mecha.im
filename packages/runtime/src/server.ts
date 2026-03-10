@@ -4,10 +4,11 @@ import { createSessionManager } from "./session-manager.js";
 import { createAuthHook } from "./auth.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerSessionRoutes } from "./routes/sessions.js";
-import { registerChatRoutes } from "./routes/chat.js";
+import { registerChatRoutes, type HttpChatFn } from "./routes/chat.js";
 import { registerScheduleRoutes } from "./routes/schedule.js";
 import { registerMcpRoutes } from "./mcp/server.js";
 import { createScheduleEngine, type ChatFn, type ScheduleEngine } from "./scheduler.js";
+import { sdkChat, createChatFn } from "./sdk-chat.js";
 
 /** Options for creating a bot runtime Fastify server. */
 export interface CreateServerOpts {
@@ -18,7 +19,8 @@ export interface CreateServerOpts {
   workspacePath: string;
   mechaDir?: string;
   botDir?: string;
-  chatFn?: ChatFn;
+  /** Override the SDK-backed schedule chatFn (for testing). Does not affect /api/chat route. */
+  scheduleChatFn?: ChatFn;
 }
 
 /** Return value from {@link createServer}: the Fastify app and optional scheduler. */
@@ -51,6 +53,22 @@ export function createServer(opts: CreateServerOpts): ServerResult {
   // Session manager (filesystem-only)
   const sm = createSessionManager(opts.projectsDir);
 
+  // SDK chat options (used for /api/chat and schedule chatFn)
+  const chatOpts = {
+    workspacePath: opts.workspacePath,
+    settingSources: ["project"] as const,
+  };
+
+  // HTTP chat handler for /api/chat route
+  /* v8 ignore start -- SDK boundary lambda, tested via chat.test.ts with mock */
+  const httpChatFn: HttpChatFn = async (message, sessionId, signal) => {
+    return await sdkChat(chatOpts, message, sessionId, signal);
+  };
+  /* v8 ignore stop */
+
+  // Schedule-compatible chatFn
+  const chatFn: ChatFn = opts.scheduleChatFn ?? createChatFn(chatOpts);
+
   // Routes
   registerHealthRoutes(app, {
     botName: opts.botName,
@@ -58,7 +76,7 @@ export function createServer(opts: CreateServerOpts): ServerResult {
     startedAt: new Date().toISOString(),
   });
   registerSessionRoutes(app, sm);
-  registerChatRoutes(app);
+  registerChatRoutes(app, httpChatFn);
   registerMcpRoutes(app, {
     workspacePath: opts.workspacePath,
     mechaDir: opts.mechaDir,
@@ -68,13 +86,6 @@ export function createServer(opts: CreateServerOpts): ServerResult {
   // Schedule engine (requires botDir)
   let scheduler: ScheduleEngine | undefined;
   if (opts.botDir) {
-    /* v8 ignore start -- default chatFn when chat not wired */
-    const chatFn: ChatFn = opts.chatFn ?? (async () => ({
-      durationMs: 0,
-      error: "Chat not wired yet (501)",
-    }));
-    /* v8 ignore stop */
-
     scheduler = createScheduleEngine({
       botDir: opts.botDir,
       botName: opts.botName,
