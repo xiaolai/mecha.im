@@ -102,7 +102,8 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
     const lp = live.get(name);
 
     if (!lp && state.state === "running" && state.pid && !isPidAlive(state.pid)) {
-      state.state = "stopped";
+      // Dead PID found — mark as "error" (unexpected death), not "stopped" (clean exit)
+      state.state = "error";
       state.stoppedAt = new Date().toISOString();
       writeState(botDir, state);
       _updateDiscoveryIndex();
@@ -129,7 +130,8 @@ export function createProcessManager(opts: CreateProcessManagerOpts): ProcessMan
       if (!state) continue;
       const lp = live.get(state.name);
       if (!lp && state.state === "running" && state.pid && !isPidAlive(state.pid)) {
-        state.state = "stopped";
+        // Dead PID found — mark as "error" (unexpected death), not "stopped" (clean exit)
+        state.state = "error";
         state.stoppedAt = new Date().toISOString();
         writeState(botDir, state);
         livenessChanged = true;

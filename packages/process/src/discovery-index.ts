@@ -42,14 +42,15 @@ export function recoverState(mechaDir: string, emitter: ProcessEventEmitter): vo
     if (!state) continue;
     if (state.state === "running" && state.pid) {
       if (!isPidAlive(state.pid)) {
-        state.state = "stopped";
+        // Dead PID found — mark as "error" (unexpected death), not "stopped" (clean exit)
+        state.state = "error";
         state.stoppedAt = new Date().toISOString();
         writeState(botDir, state);
         changed = true;
       }
     }
-    /* v8 ignore start -- error state recovery: requires bot in error state with dead PID on disk at startup */
-    if (state.state === "error" && state.pid) {
+    // Recover pre-existing error state (from prior daemon run) — dead PID confirmed gone → "stopped"
+    else if (state.state === "error" && state.pid) {
       if (!isPidAlive(state.pid)) {
         state.state = "stopped";
         state.stoppedAt = new Date().toISOString();
@@ -57,7 +58,6 @@ export function recoverState(mechaDir: string, emitter: ProcessEventEmitter): vo
         changed = true;
       }
     }
-    /* v8 ignore stop */
   }
   if (changed) updateDiscoveryIndex(mechaDir, emitter);
 }
