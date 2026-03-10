@@ -516,7 +516,7 @@ describe("createProcessManager", () => {
     expect(events[0].name).toBe(testName);
   });
 
-  it("recovers stopped state on init when PID is dead", () => {
+  it("marks dead running PID as error on init", () => {
     // Write a "running" state with a PID that doesn't exist
     const botDir = join(tempDir, "ghost");
     const state: BotState = {
@@ -531,7 +531,27 @@ describe("createProcessManager", () => {
 
     const pm = createProcessManager({ mechaDir: tempDir });
     const info = pm.get("ghost" as BotName);
+    expect(info?.state).toBe("error");
+  });
+
+  it("recovers error state to stopped on init when PID is dead", () => {
+    // Write an "error" state with a dead PID — simulates prior daemon leaving error state
+    const botDir = join(tempDir, "err-recovery");
+    const state: BotState = {
+      name: "err-recovery",
+      state: "error",
+      pid: 999999998,
+      port: 7702,
+      workspacePath: "/tmp",
+      startedAt: "2026-01-01T00:00:00Z",
+      stoppedAt: "2026-01-01T00:01:00Z",
+    };
+    writeState(botDir, state);
+
+    const pm = createProcessManager({ mechaDir: tempDir });
+    const info = pm.get("err-recovery" as BotName);
     expect(info?.state).toBe("stopped");
+    expect(info?.stoppedAt).toBeDefined();
   });
 
   it("logs returns readable stream for existing bot", async () => {
@@ -889,7 +909,7 @@ describe("createProcessManager", () => {
     const pm = createProcessManager({ mechaDir: tempDir });
     const all = pm.list();
     expect(all).toHaveLength(1);
-    expect(all[0]!.state).toBe("stopped");
+    expect(all[0]!.state).toBe("error");
   });
 
   it("get recovers dead PID state for non-live bot", () => {
@@ -906,7 +926,7 @@ describe("createProcessManager", () => {
 
     const pm = createProcessManager({ mechaDir: tempDir });
     const info = pm.get("get-dead" as BotName);
-    expect(info?.state).toBe("stopped");
+    expect(info?.state).toBe("error");
     expect(info?.stoppedAt).toBeDefined();
   });
 
@@ -1258,7 +1278,7 @@ describe("createProcessManager", () => {
     });
 
     const info = pm.get("late-dead" as BotName);
-    expect(info?.state).toBe("stopped");
+    expect(info?.state).toBe("error");
     expect(info?.stoppedAt).toBeDefined();
   });
 
@@ -1278,7 +1298,7 @@ describe("createProcessManager", () => {
 
     const all = pm.list();
     expect(all).toHaveLength(1);
-    expect(all[0]!.state).toBe("stopped");
+    expect(all[0]!.state).toBe("error");
   });
 
   it("list skips bots with corrupted state file", () => {

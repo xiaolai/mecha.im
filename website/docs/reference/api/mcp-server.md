@@ -138,7 +138,7 @@ CLI entrypoint for `mecha mcp serve`:
 await main({
   mode: "query",       // "read-only" | "query"
   transport: "stdio",  // "stdio" | "http"
-  port: 7680,          // HTTP port (http transport only)
+  port: 7682,          // HTTP port (http transport only)
   host: "127.0.0.1",   // Bind address (http transport only)
   token: "my-secret",  // Bearer token (http transport only)
 });
