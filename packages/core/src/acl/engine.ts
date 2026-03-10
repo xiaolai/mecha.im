@@ -37,7 +37,13 @@ export interface CreateAclEngineOpts {
  */
 export function createAclEngine(opts: CreateAclEngineOpts): AclEngine {
   const { mechaDir } = opts;
-  const data = loadAcl(mechaDir);
+  // Re-read acl.json on read operations to pick up external changes (hot-reload).
+  // Skip reload if there are unsaved in-memory mutations (from grant/revoke).
+  let data = loadAcl(mechaDir);
+  let dirty = false;
+  function reload(): void {
+    if (!dirty) data = loadAcl(mechaDir);
+  }
 
   /* v8 ignore start -- default getExpose always overridden in tests */
   const getExpose = opts.getExpose ?? ((name: string): Capability[] => {
@@ -68,6 +74,7 @@ export function createAclEngine(opts: CreateAclEngineOpts): AclEngine {
       } else {
         data.rules.push({ source, target, capabilities: [...caps] });
       }
+      dirty = true;
     },
 
     revoke(source, target, caps) {
@@ -78,10 +85,12 @@ export function createAclEngine(opts: CreateAclEngineOpts): AclEngine {
       if (existing.capabilities.length === 0) {
         data.rules = data.rules.filter((r) => r !== existing);
       }
+      dirty = true;
     },
 
     check(source, target, cap) {
       validateNames(source, target);
+      reload();
       // Check 1: connect rule exists
       const rule = findRule(source, target);
       if (!rule || !rule.capabilities.includes(cap)) {
@@ -98,10 +107,12 @@ export function createAclEngine(opts: CreateAclEngineOpts): AclEngine {
     },
 
     listRules() {
+      reload();
       return data.rules.map((r) => ({ ...r, capabilities: [...r.capabilities] }));
     },
 
     listConnections(source) {
+      reload();
       return data.rules
         .filter((r) => r.source === source)
         .map((r) => ({ target: r.target, caps: [...r.capabilities] }));
@@ -109,6 +120,7 @@ export function createAclEngine(opts: CreateAclEngineOpts): AclEngine {
 
     save() {
       saveAcl(mechaDir, data);
+      dirty = false;
     },
   };
 
