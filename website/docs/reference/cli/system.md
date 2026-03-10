@@ -496,13 +496,13 @@ mecha mcp serve [options]
 |--------|-------------|---------|
 | `--mode <mode>` | Operating mode: `query` or `read-only` | `query` |
 | `--transport <transport>` | Transport: `stdio` or `http` | `stdio` |
-| `--port <port>` | HTTP port | `7680` |
+| `--port <port>` | HTTP port | `7682` |
 | `--host <host>` | HTTP bind address | `127.0.0.1` |
 | `--token <token>` | Bearer token for HTTP authentication (required for non-loopback hosts) | |
 
 ```bash
 mecha mcp serve                                   # stdio (default)
-mecha mcp serve --transport http                   # HTTP on 127.0.0.1:7680
+mecha mcp serve --transport http                   # HTTP on 127.0.0.1:7682
 mecha mcp serve --transport http --port 8080       # HTTP on custom port
 mecha mcp serve --transport http --host 0.0.0.0 --token secret  # HTTP on all interfaces
 ```
