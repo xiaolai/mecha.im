@@ -1,4 +1,4 @@
-import { readdir, writeFile, lstat, mkdir, open } from "node:fs/promises";
+import { readdir, lstat, mkdir, open } from "node:fs/promises";
 import { join, dirname, extname, resolve } from "node:path";
 import { constants } from "node:fs";
 import { safePath, PathTraversalError } from "@mecha/core";
@@ -43,6 +43,7 @@ export function resolveBotHome(mechaDir: string, botName: string, configHome?: s
  * @param relPath  - Relative path within home (empty string = root)
  */
 export async function listBotDir(homeDir: string, relPath: string): Promise<DirEntry[]> {
+  if (relPath && hasHiddenSegment(relPath)) throw new PathTraversalError(relPath);
   const target = relPath ? safePath(homeDir, relPath) : homeDir;
   let entries;
   try {
@@ -53,12 +54,21 @@ export async function listBotDir(homeDir: string, relPath: string): Promise<DirE
     throw err;
   }
   const visible = entries.filter((e) => !e.name.startsWith("."));
-  const stats = await Promise.all(
+  const statsRaw = await Promise.all(
     visible.map(async (entry) => {
-      const info = await lstat(join(target, entry.name));
-      return { entry, info };
+      try {
+        const info = await lstat(join(target, entry.name));
+        return { entry, info };
+      /* v8 ignore start -- race: entry vanishes between readdir and lstat */
+      } catch (err) {
+        const code = (err as NodeJS.ErrnoException).code;
+        if (code === "ENOENT" || code === "ENOTDIR") return null;
+        throw err;
+      }
+      /* v8 ignore stop */
     }),
   );
+  const stats = statsRaw.filter((s): s is NonNullable<typeof s> => s !== null);
   const results: DirEntry[] = [];
   for (const { entry, info } of stats) {
     // Skip symlinks entirely to prevent symlink-based escapes
