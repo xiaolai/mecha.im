@@ -63,7 +63,7 @@ await program.parseAsync(["node", "mecha", "bot", "ls"]);
 
 **Returns:** `Command` -- a fully configured Commander.js `Command` instance with all subcommands registered.
 
-The program is created with `name("mecha")`, `version("0.2.0")`, and the global options listed in [Global Options](#global-options).
+The program is created with `name("mecha")`, a version read from `package.json`, and the global options listed in [Global Options](#global-options).
 
 ### `createFormatter(opts?)`
 
