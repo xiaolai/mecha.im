@@ -9,7 +9,13 @@ export function registerNodeLsCommand(parent: Command, deps: CommandDeps): void 
     .description("List registered peer nodes")
     .action(() => {
       const nodes = readNodes(deps.mechaDir);
-      const discovered = readDiscoveredNodes(deps.mechaDir);
+      const allDiscovered = readDiscoveredNodes(deps.mechaDir);
+      // Exclude discovered nodes that duplicate a manual node by name or host:port
+      const manualNames = new Set(nodes.map((n) => n.name));
+      const manualHosts = new Set(nodes.map((n) => `${n.host}:${n.port}`));
+      const discovered = allDiscovered.filter(
+        (d) => !manualNames.has(d.name) && !manualHosts.has(`${d.host}:${d.port}`),
+      );
       if (nodes.length === 0 && discovered.length === 0) {
         deps.formatter.info("No peer nodes registered");
         return;
