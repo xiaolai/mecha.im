@@ -202,19 +202,18 @@ export function createSignatureHook(opts: AuthOpts) {
   };
 }
 
-/** Inter-node paths that accept Bearer token auth (X-Mecha-Source required). */
-const MESH_BEARER_PATHS = [
-  { method: "GET", match: (p: string) => p === "/bots" },
-  { method: "GET", match: (p: string) => p.startsWith("/bots/") && p.endsWith("/status") },
-  { method: "POST", match: (p: string) => p.startsWith("/bots/") && p.endsWith("/query") },
-  { method: "GET", match: (p: string) => p === "/node/info" },
-];
+/**
+ * Path prefixes that accept Bearer token auth for mesh proxy routing.
+ * All bot operations, node info, and discover are proxy-eligible.
+ */
+const MESH_BEARER_PREFIXES = ["/bots", "/node/", "/discover"];
 
 /** Check if a request is a mesh/inter-node request eligible for Bearer auth. */
 function isMeshRoutingRequest(request: FastifyRequest): boolean {
+  // Require X-Mecha-Source header — only inter-node requests set this
   if (typeof request.headers["x-mecha-source"] !== "string") return false;
   const pathname = request.url.split("?")[0]!;
-  return MESH_BEARER_PATHS.some((r) => r.method === request.method && r.match(pathname));
+  return MESH_BEARER_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(prefix + "/"));
 }
 
 /** Extract X-Mecha-Source header from request */

@@ -28,6 +28,13 @@ import type { SpawnOpts, ProcessInfo, LiveProcess, CreateProcessManagerOpts } fr
  */
 const reservedPorts = new Set<number>();
 
+/**
+ * Mutex for port allocation to prevent concurrent spawns from racing.
+ * Each allocation awaits the previous one before scanning ports.
+ * The finally block in spawnBot guarantees resolveLock() is always called.
+ */
+let portAllocationLock = Promise.resolve();
+
 export interface SpawnContext {
   opts: CreateProcessManagerOpts;
   mechaDir: string;
@@ -56,11 +63,24 @@ export async function spawnBot(ctx: SpawnContext, spawnOpts: SpawnOpts): Promise
     throw new BotAlreadyExistsError(name);
   }
 
-  // Allocate port — include both live and in-flight reserved ports
-  const usedPorts = new Set<number>(reservedPorts);
-  for (const lp of live.values()) usedPorts.add(lp.port);
-  const port = spawnOpts.port ?? await allocatePort(undefined, undefined, usedPorts);
-  reservedPorts.add(port);
+  // Allocate port — serialized via mutex to prevent concurrent spawns racing
+  let port: number;
+  if (spawnOpts.port) {
+    port = spawnOpts.port;
+  } else {
+    const prev = portAllocationLock;
+    let resolveLock!: () => void;
+    portAllocationLock = new Promise<void>((r) => { resolveLock = r; });
+    await prev;
+    try {
+      const usedPorts = new Set<number>(reservedPorts);
+      for (const lp of live.values()) usedPorts.add(lp.port);
+      port = await allocatePort(undefined, undefined, usedPorts);
+      reservedPorts.add(port);
+    } finally {
+      resolveLock();
+    }
+  }
   try {
   return await _spawnBotInner(ctx, spawnOpts, name, workspacePath, botDir, port);
   } finally {
@@ -228,11 +248,14 @@ async function _spawnBotInner(
   live.set(name, lp);
 
   // Handle child exit
-  child.on("exit", (code) => {
+  child.on("exit", (code, signal) => {
     live.delete(name);
+    // error: non-zero exit code OR killed by unexpected signal (SIGKILL, SIGABRT, etc.)
+    // SIGTERM is normal (sent by `bot stop`), so only non-SIGTERM signals are errors
+    const isError = (code != null && code !== 0) || (signal != null && signal !== "SIGTERM");
     const state: BotState = {
       name,
-      state: code != null && code !== 0 ? "error" : "stopped",
+      state: isError ? "error" : "stopped",
       /* v8 ignore start -- pid always set after spawn guard */
       pid: child.pid ?? undefined,
       /* v8 ignore stop */
@@ -250,7 +273,7 @@ async function _spawnBotInner(
     }
     /* v8 ignore stop */
     ctx.onStateChange?.();
-    emitter.emit({ type: "stopped", name, exitCode: code ?? undefined });
+    emitter.emit({ type: "stopped", name, exitCode: code ?? undefined, signal: signal ?? undefined });
   });
 
   // Wait for healthy — clean up on failure

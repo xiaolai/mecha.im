@@ -483,7 +483,7 @@ describe("AgentServer", () => {
       expect(res.json().response).toBe("Found papers");
     });
 
-    it("returns 400 when source header missing", async () => {
+    it("defaults source to 'admin' when header missing", async () => {
       const app = createServer();
       const res = await app.inject({
         method: "POST",
@@ -491,8 +491,9 @@ describe("AgentServer", () => {
         headers: { cookie: authCookie() },
         payload: { message: "hello" },
       });
-      expect(res.statusCode).toBe(400);
-      expect(res.json().error).toContain("X-Mecha-Source");
+      // No X-Mecha-Source → defaults to "admin", ACL passes (mock allows all),
+      // but bot "researcher" not found → 404
+      expect(res.statusCode).toBe(404);
     });
 
     it("returns 400 when message missing", async () => {

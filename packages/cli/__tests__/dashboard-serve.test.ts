@@ -25,6 +25,8 @@ vi.mock("@mecha/agent", () => ({
 
 vi.mock("@mecha/service", () => ({
   readNodeName: vi.fn().mockReturnValue("test-node"),
+  nodeInit: vi.fn().mockReturnValue({ name: "test-node", created: false }),
+  ensureNodeName: vi.fn().mockReturnValue("test-node"),
 }));
 
 vi.mock("@mecha/process", async (importOriginal) => {

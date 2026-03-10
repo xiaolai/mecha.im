@@ -94,7 +94,7 @@ describe("mesh security: authentication", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns 400 when X-Mecha-Source header is missing", async () => {
+  it("returns 403 when X-Mecha-Source header is missing (defaults to 'admin', ACL denied)", async () => {
     const res = await fetch(`http://127.0.0.1:${bobPort}/bots/analyst/query`, {
       method: "POST",
       headers: {
@@ -103,7 +103,7 @@ describe("mesh security: authentication", () => {
       },
       body: JSON.stringify({ message: "hello" }),
     });
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(403);
   });
 
   it("returns 200 with valid session cookie and source header", async () => {
