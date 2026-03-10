@@ -30,7 +30,7 @@ export function registerMcpServeCommand(parent: Command, deps: CommandDeps): voi
         .choices(["stdio", "http"])
         .default("stdio"),
     )
-    .option("--port <port>", "HTTP port (default: 7680)", parsePort)
+    .option("--port <port>", "HTTP port (default: 7682)", parsePort)
     .option("--host <host>", "HTTP bind address (default: 127.0.0.1, use with caution on non-loopback)")
     .option("--token <token>", "Bearer token for HTTP authentication (required for non-loopback hosts)")
     .action(

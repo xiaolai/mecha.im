@@ -24,8 +24,10 @@ export const DEFAULTS = {
   RUNTIME_PORT_MAX: 7799,
   /** Agent server port (Phase 4) */
   AGENT_PORT: 7660,
-  /** MCP HTTP transport port (Phase 7) */
-  MCP_HTTP_PORT: 7680,
+  /** MCP HTTP transport port for standalone `mcp serve` (Phase 7).
+   *  7680 is reserved for the daemon's embedded MCP server;
+   *  7681 is reserved for the embedded rendezvous server. */
+  MCP_HTTP_PORT: 7682,
   /** Dashboard port (Phase 7) */
   DASHBOARD_PORT: 3457,
   /** Health check timeout (ms) */

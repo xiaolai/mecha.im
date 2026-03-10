@@ -12,7 +12,8 @@ export interface AuthOpts {
   apiKey?: string;
   /**
    * Optional: map of node name → public key PEM.
-   * When provided, routing requests must include a valid X-Mecha-Signature.
+   * When provided, routing requests that include X-Mecha-Signature are verified.
+   * Unsigned requests are allowed through (Bearer token auth handles those).
    */
   nodePublicKeys?: Map<string, string>;
   /** Signature verification function — defaults to @mecha/core verifySignature */
@@ -132,8 +133,13 @@ export function createSignatureHook(opts: AuthOpts) {
     const source = getSource(request);
     const sigHeader = request.headers["x-mecha-signature"];
 
-    if (!source || typeof sigHeader !== "string") {
-      reply.code(401).send({ error: "Missing signature or source header" });
+    // No signature header → skip verification (Bearer auth handles these requests).
+    // Only verify when a signature IS provided — prevents blocking unsigned
+    // cross-node routing that relies solely on Bearer token auth (R4-003).
+    if (typeof sigHeader !== "string") return;
+
+    if (!source) {
+      reply.code(401).send({ error: "Missing X-Mecha-Source header for signed request" });
       return;
     }
 

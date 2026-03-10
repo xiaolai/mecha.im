@@ -18,7 +18,7 @@ const VALID_TRANSPORTS = ["stdio", "http"] as const;
  *
  * @param opts.mode - Access mode: "read-only" or "query" (default: "query")
  * @param opts.transport - Transport type: "stdio" or "http" (default: "stdio")
- * @param opts.port - HTTP listen port (default: 7680, ignored for stdio)
+ * @param opts.port - HTTP listen port (default: 7682, ignored for stdio)
  * @param opts.host - HTTP bind address (default: "127.0.0.1")
  * @param opts.token - Bearer token for HTTP auth (required for non-loopback hosts)
  */
@@ -80,7 +80,7 @@ export async function main(opts: {
       throw new Error("--token is required when binding to non-loopback address");
     }
     await runHttp(createServer, {
-      port: opts.port ?? 7680,
+      port: opts.port ?? 7682,
       host,
       token: opts.token,
     });

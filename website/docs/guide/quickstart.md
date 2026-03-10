@@ -56,7 +56,7 @@ This starts three services in the background:
 |---------|------|--------------|
 | Agent server | 7660 | Manages bots, serves the dashboard |
 | Meter proxy | 7600 | Tracks API costs per bot |
-| MCP server | 7680 | Exposes bots as MCP tools |
+| MCP server | 7682 | Exposes bots as MCP tools |
 
 The `-d` flag runs the server as a background daemon. On first run it displays a TOTP QR code — scan it with your authenticator app. The dashboard is at `http://localhost:7660`.
 
