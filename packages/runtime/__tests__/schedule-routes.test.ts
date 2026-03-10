@@ -25,7 +25,7 @@ describe("schedule routes", () => {
       projectsDir,
       workspacePath,
       botDir,
-      chatFn: async () => ({ durationMs: 50 }),
+      scheduleChatFn: async () => ({ durationMs: 50 }),
     });
     app = result.app;
     await app.ready();

@@ -2,23 +2,22 @@ import { describe, it, expect, vi } from "vitest";
 import { createProgram } from "../../src/program.js";
 import { makeDeps } from "../test-utils.js";
 
-// Mock botChat to return an async iterable
+// Mock botChat to return a ChatResult
 vi.mock("@mecha/service", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@mecha/service")>();
   return {
     ...actual,
     botChat: vi.fn().mockResolvedValue({
-      async *[Symbol.asyncIterator]() {
-        yield { type: "text", content: "Hello " };
-        yield { type: "text", content: "world" };
-        yield { type: "done", sessionId: "s1" };
-      },
+      response: "Hello world",
+      sessionId: "s1",
+      durationMs: 42,
+      costUsd: 0.001,
     }),
   };
 });
 
 describe("chat command", () => {
-  it("streams chat response", async () => {
+  it("prints chat response", async () => {
     const deps = makeDeps();
     const program = createProgram(deps);
     program.exitOverride();
@@ -34,7 +33,7 @@ describe("chat command", () => {
       process.stdout.write = origWrite;
     }
 
-    expect(writes.join("")).toContain("Hello ");
+    expect(writes.join("")).toContain("Hello world");
     expect(deps.formatter.info).toHaveBeenCalledWith(expect.stringContaining("Session: s1"));
   });
 
@@ -48,10 +47,10 @@ describe("chat command", () => {
     ).rejects.toThrow(); // Commander throws on missing required argument <message>
   });
 
-  it("handles runtime 501 error from chat endpoint", async () => {
+  it("handles runtime error from chat endpoint", async () => {
     const { botChat } = await import("@mecha/service");
     vi.mocked(botChat).mockRejectedValueOnce(
-      new Error("Chat is handled by Claude Agent SDK. Use 'claude' CLI or Agent SDK directly."),
+      new Error("SDK query failed"),
     );
 
     const deps = makeDeps();
@@ -60,6 +59,6 @@ describe("chat command", () => {
 
     await expect(
       program.parseAsync(["node", "mecha", "bot", "chat", "researcher", "Hello"]),
-    ).rejects.toThrow("Chat is handled by Claude Agent SDK");
+    ).rejects.toThrow("SDK query failed");
   });
 });

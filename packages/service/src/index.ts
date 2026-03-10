@@ -5,7 +5,7 @@ export type { RuntimeFetchOpts, RuntimeFetchResult } from "./helpers.js";
 export { botStatus, botFind, botConfigure } from "./bot.js";
 export type { FindResult, BotConfigUpdates } from "./bot.js";
 export { botChat } from "./chat.js";
-export type { ChatOpts, ChatEvent } from "./chat.js";
+export type { ChatOpts, ChatResult } from "./chat.js";
 export {
   botSessionList,
   botSessionGet,

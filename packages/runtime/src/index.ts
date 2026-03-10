@@ -13,6 +13,7 @@ export { registerHealthRoutes } from "./routes/health.js";
 export type { HealthRouteOpts } from "./routes/health.js";
 export { registerSessionRoutes } from "./routes/sessions.js";
 export { registerChatRoutes } from "./routes/chat.js";
+export type { HttpChatFn } from "./routes/chat.js";
 export { registerMcpRoutes } from "./mcp/server.js";
 export type { McpRouteOpts } from "./mcp/server.js";
 export type { MeshRouter } from "./mcp/mesh-tools.js";
@@ -25,3 +26,5 @@ export type { ScheduleEngine, ChatFn, CreateScheduleEngineOpts, ScheduleLog } fr
 export { executeRun } from "./schedule-runner.js";
 export type { RunDeps } from "./schedule-runner.js";
 export { registerScheduleRoutes } from "./routes/schedule.js";
+export { sdkChat, createChatFn } from "./sdk-chat.js";
+export type { SdkChatOpts } from "./sdk-chat.js";
