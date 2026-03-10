@@ -18,7 +18,12 @@ vi.mock("@mecha/agent", () => ({
 
 vi.mock("@mecha/service", async (importOriginal) => {
   const orig = await importOriginal<Record<string, unknown>>();
-  return { ...orig, readNodeName: vi.fn().mockReturnValue("test-node") };
+  return {
+    ...orig,
+    readNodeName: vi.fn().mockReturnValue("test-node"),
+    nodeInit: vi.fn().mockReturnValue({ name: "test-node", created: false }),
+    ensureNodeName: vi.fn().mockReturnValue("test-node"),
+  };
 });
 
 vi.mock("@mecha/process", async (importOriginal) => {
@@ -85,9 +90,9 @@ describe("agent commands", () => {
       );
     });
 
-    it("falls back to unknown node name when not initialized", async () => {
-      const { readNodeName } = await import("@mecha/service");
-      vi.mocked(readNodeName).mockReturnValue(undefined);
+    it("auto-initializes node name when not set", async () => {
+      const { ensureNodeName } = await import("@mecha/service");
+      vi.mocked(ensureNodeName).mockReturnValue("auto-node" as ReturnType<typeof ensureNodeName>);
 
       const deps = makeDeps({ mechaDir: dir });
       const program = createProgram(deps);
@@ -95,7 +100,7 @@ describe("agent commands", () => {
 
       await program.parseAsync(["node", "mecha", "agent", "start"]);
       expect(deps.formatter.success).toHaveBeenCalledWith(
-        expect.stringContaining("node: unknown"),
+        expect.stringContaining("node: auto-node"),
       );
     });
   });

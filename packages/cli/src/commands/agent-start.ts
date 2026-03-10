@@ -51,10 +51,12 @@ export function registerAgentStartCommand(parent: Command, deps: CommandDeps): v
 
       // Lazy import to avoid pulling in fastify when not needed
       const { createAgentServer } = await import("@mecha/agent");
-      const { readNodeName } = await import("@mecha/service");
+      const { ensureNodeName } = await import("@mecha/service");
       const { createBunPtySpawn } = await import("@mecha/process");
 
-      const nodeName = readNodeName(deps.mechaDir) ?? "unknown";
+      /* v8 ignore start -- auto-init node name from hostname if not set */
+      const nodeName = ensureNodeName(deps.mechaDir);
+      /* v8 ignore stop */
       const { fetchPublicIp } = await import("@mecha/core");
       const publicIp = await fetchPublicIp();
       // Derive internal mesh routing key from TOTP secret (not user-facing)

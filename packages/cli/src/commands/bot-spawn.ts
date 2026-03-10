@@ -159,11 +159,8 @@ export function registerBotSpawnCommand(parent: Command, deps: CommandDeps): voi
       if (!statSync(resolvedPath).isDirectory()) {
         throw new PathNotDirectoryError(resolvedPath);
       }
-      // Warn if CWD is not under HOME
-      const effectiveHome = resolvedHome ?? join(deps.mechaDir, validated);
-      if (!resolvedPath.startsWith(effectiveHome + "/") && resolvedPath !== effectiveHome) {
-        deps.formatter.warn(`Workspace ${resolvedPath} is not under home ${effectiveHome}`);
-      }
+      // Note: workspace outside bot HOME is normal — no warning needed.
+      // The bot's Claude Code process handles its own path encoding.
       // Subscribe to warning events before spawn (scoped to this bot)
       /* v8 ignore start -- event handler callback; wiring tested via onEvent call check */
       const unsub = deps.processManager.onEvent((event) => {
