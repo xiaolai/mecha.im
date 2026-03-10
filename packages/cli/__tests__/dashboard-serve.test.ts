@@ -71,7 +71,7 @@ describe("executeDashboardServe", () => {
     const deps = makeDeps();
     const errorSpy = vi.spyOn(deps.formatter, "error");
 
-    await executeDashboardServe({ port: "not-a-port", host: "127.0.0.1", open: false, totp: true }, deps);
+    await executeDashboardServe({ port: "not-a-port", host: "127.0.0.1", open: false }, deps);
 
     expect(process.exitCode).toBe(1);
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("Invalid port"));
@@ -81,18 +81,10 @@ describe("executeDashboardServe", () => {
     const deps = makeDeps();
     const successSpy = vi.spyOn(deps.formatter, "success");
 
-    await executeDashboardServe({ port: "3457", host: "127.0.0.1", open: false, totp: true }, deps);
+    await executeDashboardServe({ port: "3457", host: "127.0.0.1", open: false }, deps);
 
     expect(process.exitCode).toBeUndefined();
     expect(successSpy).toHaveBeenCalledWith(expect.stringContaining("TOTP"));
-  });
-
-  it("errors when TOTP disabled", async () => {
-    const deps = makeDeps();
-
-    await expect(
-      executeDashboardServe({ port: "7660", host: "127.0.0.1", open: false, totp: false }, deps),
-    ).rejects.toThrow("TOTP must be enabled");
   });
 
   it("errors when SPA not found", async () => {
@@ -102,7 +94,7 @@ describe("executeDashboardServe", () => {
     const deps = makeDeps();
     const errorSpy = vi.spyOn(deps.formatter, "error");
 
-    await executeDashboardServe({ port: "7660", host: "127.0.0.1", open: false, totp: true }, deps);
+    await executeDashboardServe({ port: "7660", host: "127.0.0.1", open: false }, deps);
 
     expect(process.exitCode).toBe(1);
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("SPA not found"));
@@ -112,7 +104,7 @@ describe("executeDashboardServe", () => {
     const deps = makeDeps();
     const successSpy = vi.spyOn(deps.formatter, "success");
 
-    await executeDashboardServe({ port: "3457", host: "127.0.0.1", open: false, totp: true }, deps);
+    await executeDashboardServe({ port: "3457", host: "127.0.0.1", open: false }, deps);
 
     expect(deps.registerShutdownHook).toHaveBeenCalled();
     expect(successSpy).toHaveBeenCalledWith(expect.stringContaining("3457"));
@@ -121,7 +113,7 @@ describe("executeDashboardServe", () => {
   it("works when registerShutdownHook is undefined", async () => {
     const deps = makeDeps({ registerShutdownHook: undefined });
 
-    await executeDashboardServe({ port: "3457", host: "127.0.0.1", open: false, totp: true }, deps);
+    await executeDashboardServe({ port: "3457", host: "127.0.0.1", open: false }, deps);
 
     expect(process.exitCode).toBeUndefined();
   });
@@ -129,7 +121,7 @@ describe("executeDashboardServe", () => {
   it("calls openBrowser when open is true", async () => {
     const deps = makeDeps();
 
-    await executeDashboardServe({ port: "3457", host: "127.0.0.1", open: true, totp: true }, deps);
+    await executeDashboardServe({ port: "3457", host: "127.0.0.1", open: true }, deps);
 
     expect(deps.registerShutdownHook).toHaveBeenCalled();
   });

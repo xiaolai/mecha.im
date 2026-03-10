@@ -12,7 +12,12 @@ export class AgentClient {
 
   /** Create a client targeting the given host and port. */
   constructor(port: number = DEFAULTS.AGENT_PORT, host: string = "127.0.0.1") {
-    this.baseUrl = `http://${host}:${port}`;
+    // Wrap IPv6 literals in brackets for valid URL, replace wildcards with loopback
+    const normalized = host === "0.0.0.0" ? "127.0.0.1"
+      : host === "::" ? "[::1]"
+      : host.includes(":") ? `[${host}]`
+      : host;
+    this.baseUrl = `http://${normalized}:${port}`;
   }
 
   /** Check if the agent server is reachable. */

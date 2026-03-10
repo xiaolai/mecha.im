@@ -134,18 +134,6 @@ describe("dashboard commands", () => {
       expect(process.exitCode).toBe(1);
     });
 
-    it("errors when --no-totp disables auth", async () => {
-      const deps = makeDeps({ mechaDir: dir });
-      const program = createProgram(deps);
-      program.exitOverride();
-
-      await program.parseAsync(["node", "mecha", "dashboard", "serve", "--no-totp"]);
-      expect(deps.formatter.error).toHaveBeenCalledWith(
-        expect.stringContaining("TOTP must be enabled"),
-      );
-      expect(process.exitCode).toBe(1);
-    });
-
     it("errors when SPA not found", async () => {
       const { resolveSpaDir } = await import("../../src/spa-resolve.js");
       vi.mocked(resolveSpaDir).mockResolvedValueOnce(undefined);
