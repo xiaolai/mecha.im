@@ -1,6 +1,6 @@
 {
   "name": "@mecha/mcp-server",
-  "version": "0.2.8",
+  "version": "0.2.9",
   "description": "Mesh MCP server for mecha.im — exposes control plane to MCP clients",
   "type": "module",
   "exports": {
