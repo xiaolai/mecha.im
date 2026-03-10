@@ -6,6 +6,14 @@ vi.mock("@mecha/core", async (importOriginal) => {
   return { ...actual, readBotConfig: vi.fn() };
 });
 
+vi.mock("@mecha/process", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@mecha/process")>();
+  return {
+    ...actual,
+    buildBotEnv: vi.fn().mockReturnValue({ PATH: "/usr/bin", HOME: "/tmp/test-home" }),
+  };
+});
+
 import { readBotConfig } from "@mecha/core";
 import { createPtyManager } from "../src/pty-manager.js";
 import type { ProcessManager, MechaPty } from "@mecha/process";
