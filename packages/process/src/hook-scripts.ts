@@ -85,7 +85,7 @@ while read -r FPATH; do
     /usr/bin/*|/usr/local/bin/*|/bin/*|/usr/sbin/*|/dev/null|/dev/stdin|/dev/stdout|/dev/stderr|/tmp/*) ;;
     *) echo "BLOCKED: $RESOLVED is outside sandbox" >&2; exit 2 ;;
   esac
-done < <(echo "$COMMAND" | grep -oE '((~|/|\\.\\./|\\./)([^ ;"'"'"'|&>]*))')
+done < <(echo "$COMMAND" | grep -oE '((~|/|\\.\\./|\\./)([^ ;"'"'"'|&>]*))' | grep -v '^//')
 # Also block shell variable expansions that could reference paths outside sandbox
 if echo "$COMMAND" | grep -qE '\\$HOME|\\$\\{HOME\\}|\\$MECHA_DIR'; then
   echo "BLOCKED: command references shell variable paths" >&2; exit 2

@@ -221,7 +221,7 @@ export async function spawnBot(ctx: SpawnContext, spawnOpts: SpawnOpts): Promise
     live.delete(name);
     const state: BotState = {
       name,
-      state: "stopped",
+      state: code != null && code !== 0 ? "error" : "stopped",
       /* v8 ignore start -- pid always set after spawn guard */
       pid: child.pid ?? undefined,
       /* v8 ignore stop */
