@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { EventEmitter } from "node:events";
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from "node:http";
 import { createProcessManager } from "../src/process-manager.js";
-import { writeState } from "../src/state-store.js";
+import { readState, writeState } from "../src/state-store.js";
 import type { BotState } from "../src/state-store.js";
 import type { ProcessEvent } from "../src/events.js";
 import type { BotName } from "@mecha/core";
@@ -1309,8 +1309,8 @@ describe("createProcessManager", () => {
       port: healthPort,
     });
 
-    // Emit exit with null code (simulates signal termination)
-    mockChild.emit("exit", null);
+    // Emit exit with null code and null signal (simulates external SIGKILL on detached child)
+    mockChild.emit("exit", null, null);
 
     // Wait for the stopped event to be emitted
     await vi.waitFor(() => {
@@ -1320,6 +1320,73 @@ describe("createProcessManager", () => {
     const stopEvent = events.find((e): e is Extract<ProcessEvent, { type: "stopped" }> => e.type === "stopped");
     expect(stopEvent).toBeDefined();
     expect(stopEvent!.exitCode).toBeUndefined();
+
+    // code=null + signal=null/undefined = unexpected death → state should be "error"
+    const state = readState(join(tempDir, testName));
+    expect(state?.state).toBe("error");
+  });
+
+  it("SIGTERM exit sets state to stopped (not error)", async () => {
+    const mockChild = createMockChild();
+    const mockSpawn = createMockSpawn(mockChild);
+
+    const pm = createProcessManager({
+      mechaDir: tempDir,
+      healthTimeoutMs: 3000,
+      spawnFn: mockSpawn as any,
+      runtimeEntrypoint: "/fake/runtime.js",
+    });
+
+    const events: ProcessEvent[] = [];
+    pm.onEvent((e) => events.push(e));
+
+    await pm.spawn({
+      name: testName,
+      workspacePath: tempDir,
+      port: healthPort,
+    });
+
+    // Emit exit with signal=SIGTERM (normal bot stop)
+    mockChild.emit("exit", null, "SIGTERM");
+
+    await vi.waitFor(() => {
+      expect(events.find((e) => e.type === "stopped")).toBeDefined();
+    });
+
+    const state = readState(join(tempDir, testName));
+    expect(state?.state).toBe("stopped");
+  });
+
+  it("non-zero exit code sets state to error", async () => {
+    const mockChild = createMockChild();
+    const mockSpawn = createMockSpawn(mockChild);
+
+    const pm = createProcessManager({
+      mechaDir: tempDir,
+      healthTimeoutMs: 3000,
+      spawnFn: mockSpawn as any,
+      runtimeEntrypoint: "/fake/runtime.js",
+    });
+
+    const events: ProcessEvent[] = [];
+    pm.onEvent((e) => events.push(e));
+
+    await pm.spawn({
+      name: testName,
+      workspacePath: tempDir,
+      port: healthPort,
+    });
+
+    // Emit exit with non-zero code
+    mockChild.emit("exit", 1, null);
+
+    await vi.waitFor(() => {
+      expect(events.find((e) => e.type === "stopped")).toBeDefined();
+    });
+
+    const state = readState(join(tempDir, testName));
+    expect(state?.state).toBe("error");
+    expect(state?.exitCode).toBe(1);
   });
 
   it("stop handles running state without live handle and dead PID", async () => {

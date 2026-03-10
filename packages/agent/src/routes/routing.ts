@@ -86,16 +86,17 @@ export function registerRoutingRoutes(app: FastifyInstance, opts: RoutingRouteOp
         return;
       }
 
+      // Check bot exists before ACL — prevents leaking ACL state for nonexistent bots
+      const config = readBotConfig(join(mechaDir, target));
+      if (!config) {
+        reply.code(404).send({ error: new BotNotFoundError(target).message });
+        return;
+      }
+
       // ACL check — always enforced
       const aclResult = acl.check(source, target, "query" as Capability);
       if (!aclResult.allowed) {
         reply.code(403).send({ error: new AclDeniedError(source, "query", target).message });
-        return;
-      }
-
-      const config = readBotConfig(join(mechaDir, target));
-      if (!config) {
-        reply.code(404).send({ error: new BotNotFoundError(target).message });
         return;
       }
 
@@ -106,8 +107,16 @@ export function registerRoutingRoutes(app: FastifyInstance, opts: RoutingRouteOp
         /* v8 ignore start -- upstream connection errors are runtime-only */
         const detail = err instanceof Error ? err.message : String(err);
         request.log.error(`Routing to bot "${target}" failed: ${detail}`);
-        const code = err instanceof Error && "code" in err && (err as { code: string }).code === "UND_ERR_CONNECT_TIMEOUT" ? 504 : 502;
-        reply.code(code).send({ error: "Upstream bot unavailable" });
+        const isTimeout = err instanceof Error && (
+          (err as { code?: string }).code === "UND_ERR_CONNECT_TIMEOUT" ||
+          (err.cause as { code?: string } | undefined)?.code === "UND_ERR_CONNECT_TIMEOUT" ||
+          err.name === "TimeoutError" ||
+          (err.cause instanceof Error && err.cause.name === "TimeoutError")
+        );
+        const code = isTimeout ? 504 : 502;
+        // Surface upstream error detail for actionable diagnostics (e.g. "No API credentials")
+        const msg = isTimeout ? "Upstream bot timed out" : `Upstream bot unavailable: ${detail}`;
+        reply.code(code).send({ error: msg });
         /* v8 ignore stop */
       }
     },
