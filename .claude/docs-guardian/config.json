@@ -2,7 +2,7 @@
   "language": "typescript",
   "framework": "vitepress",
   "docRoot": "website/docs",
-  "strictness": "off",
+  "strictness": "warn",
   "stalenessThresholdDays": 30,
   "excludePatterns": [
     "node_modules/**",
