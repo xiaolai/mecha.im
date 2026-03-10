@@ -21,7 +21,7 @@ export function HomePage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             {node && (
-              <Link to="/" className="inline-flex items-center justify-center text-muted-foreground hover:text-foreground min-h-11 min-w-11 sm:min-h-0 sm:min-w-0" aria-label="Back to all bots">
+              <Link to="/nodes" className="inline-flex items-center justify-center text-muted-foreground hover:text-foreground min-h-11 min-w-11 sm:min-h-0 sm:min-w-0" aria-label="Back to nodes">
                 <ArrowLeftIcon className="size-4" />
               </Link>
             )}
