@@ -26,10 +26,13 @@ describe("sandbox-setup extended fields", () => {
     botDir = join(tempDir, "bot");
     mechaDir = join(tempDir, "mecha");
     mkdirSync(mechaDir, { recursive: true });
+    // Provide a default API key so buildBotEnv doesn't throw in CI
+    process.env.ANTHROPIC_API_KEY = "sk-ant-test-placeholder";
   });
 
   afterEach(() => {
     rmSync(tempDir, { recursive: true, force: true });
+    delete process.env.ANTHROPIC_API_KEY;
   });
 
   it("persists LLM behavior fields to config.json", () => {
