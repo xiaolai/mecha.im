@@ -50,6 +50,9 @@ export const MUTATING_COMMANDS = new Set([
   // meter, auth, budget subcommands write to separate files (proxy.json, auth-profiles/,
   // budgets.json) that don't conflict with the daemon server. Running these while
   // the daemon holds the lock would deadlock the CLI.
+  // Trade-off: concurrent auth/budget CLI ops on the same file have a theoretical
+  // read-modify-write race, but these are manual single-user ops run sequentially.
+  // TODO: Add per-resource file locks if concurrent CLI usage becomes a real scenario.
   // plugin subcommands (ls, status, test are read-only)
   "plugin add", "plugin rm",
   // audit subcommands

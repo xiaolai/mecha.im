@@ -78,6 +78,8 @@ WORKSPACE=$(realpath -m "$MECHA_WORKSPACE" 2>/dev/null || echo "$MECHA_WORKSPACE
 # Extract file path arguments from the command
 # Use process substitution to avoid subshell — exit 2 exits the main script
 while read -r FPATH; do
+  # Reject ~user forms — shell expands these to other users' home directories
+  case "$FPATH" in ~[a-zA-Z_]*) echo "BLOCKED: tilde expansion $FPATH" >&2; exit 2 ;; esac
   RESOLVED=$(realpath -m "$FPATH" 2>/dev/null || echo "$FPATH")
   case "$RESOLVED" in
     "$SANDBOX"/*|"$SANDBOX") ;;
@@ -85,7 +87,7 @@ while read -r FPATH; do
     /usr/bin/*|/usr/local/bin/*|/bin/*|/usr/sbin/*|/dev/null|/dev/stdin|/dev/stdout|/dev/stderr|/tmp/*) ;;
     *) echo "BLOCKED: $RESOLVED is outside sandbox" >&2; exit 2 ;;
   esac
-done < <(echo "$COMMAND" | grep -oE '((~|/|\\.\\./|\\./)([^ ;"'"'"'|&>]*))' | grep -v '^//')
+done < <(echo "$COMMAND" | grep -oE '((~|/|\\.\\./|\\./)([^ ;"'"'"'|&>]*))' | grep -v '^//[a-zA-Z][a-zA-Z0-9-]*\\.' | sed 's|^//\\+|/|')
 # Also block shell variable expansions that could reference paths outside sandbox
 if echo "$COMMAND" | grep -qE '\\$HOME|\\$\\{HOME\\}|\\$MECHA_DIR'; then
   echo "BLOCKED: command references shell variable paths" >&2; exit 2

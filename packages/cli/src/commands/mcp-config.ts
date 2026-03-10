@@ -2,8 +2,9 @@ import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { withErrorHandler } from "../error-handler.js";
 import { realpathSync } from "node:fs";
+import { resolve } from "node:path";
 
-/** Resolve the real path to the mecha binary, handling Bun's virtual /$bunfs/ paths. */
+/** Resolve the real absolute path to the mecha binary, handling Bun's virtual /$bunfs/ paths. */
 function resolveMechaPath(): string {
   /* v8 ignore start -- process.argv[1] is always defined at runtime */
   const raw = process.argv[1] ?? "mecha";
@@ -12,7 +13,7 @@ function resolveMechaPath(): string {
   if (raw.startsWith("/$bunfs/") || raw.startsWith("/$bunfs\\")) {
     try { return realpathSync(process.execPath); } catch { return process.execPath; }
   }
-  return raw;
+  return resolve(raw);
 }
 
 /** Register the 'mcp config' subcommand. */

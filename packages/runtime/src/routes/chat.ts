@@ -24,7 +24,7 @@ export function registerChatRoutes(
     if (!message || typeof message !== "string") {
       return reply.code(400).send({ error: "message is required" });
     }
-    if (message.length > DEFAULTS.RELAY_MAX_MESSAGE_BYTES) {
+    if (Buffer.byteLength(message, "utf8") > DEFAULTS.RELAY_MAX_MESSAGE_BYTES) {
       return reply.code(413).send({ error: "message too large" });
     }
 
@@ -40,10 +40,13 @@ export function registerChatRoutes(
       );
       return reply.send(result);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      request.log.error({ err: msg }, "Chat request failed");
-      const status = msg.includes("API") || msg.includes("credentials") || msg.includes("key") ? 401 : 500;
-      return reply.code(status).send({ error: msg });
+      const internal = err instanceof Error ? err.message : String(err);
+      request.log.error({ err: internal }, "Chat request failed");
+      // SDK query() throws plain Error — string prefix match is the stable contract
+      const isAuthError = err instanceof Error && err.message.startsWith("No API credentials");
+      const status = isAuthError ? 401 : 500;
+      const clientMsg = isAuthError ? "Missing API credentials — configure auth for this bot" : "Chat request failed";
+      return reply.code(status).send({ error: clientMsg });
     }
   });
 }

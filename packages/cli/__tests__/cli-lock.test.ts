@@ -157,7 +157,7 @@ describe("cli-lock", () => {
       expect(needsLock(argv)).toBe(true);
     });
 
-    // Read-only commands skip the lock
+    // Commands that run without the global lock (read-only + per-resource writers)
     it.each([
       ["bot spawn", ["node", "mecha", "bot", "spawn", "alice", "/path"]],
       ["bot start", ["node", "mecha", "bot", "start", "alice"]],
