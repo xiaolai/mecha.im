@@ -70,6 +70,7 @@ async function checkNodeHealth(node: NodeEntry): Promise<NodeStatus> {
       node,
       path: "/node/info",
       method: "GET",
+      source: "mesh-health",
       timeoutMs: PROXY_TIMEOUT_MS,
     });
     const latencyMs = Math.round(performance.now() - start);
@@ -79,7 +80,7 @@ async function checkNodeHealth(node: NodeEntry): Promise<NodeStatus> {
     }
     // Fall back to /healthz for basic online check
     if (res.status === 401 || res.status === 404) {
-      const hRes = await agentFetch({ node, path: "/healthz", method: "GET", timeoutMs: PROXY_TIMEOUT_MS });
+      const hRes = await agentFetch({ node, path: "/healthz", method: "GET", source: "mesh-health", timeoutMs: PROXY_TIMEOUT_MS });
       const hLatencyMs = Math.round(performance.now() - start);
       return hRes.ok
         ? { name: node.name, status: "online", latencyMs: hLatencyMs }
@@ -138,13 +139,14 @@ export function registerMeshRoutes(app: FastifyInstance, opts: MeshRouteOpts): v
     }
     /* v8 ignore stop */
 
-    // Merge discovered nodes (exclude names already in manual registry)
+    // Merge discovered nodes (exclude entries already in manual registry by name OR host:port)
     const manualNames = new Set(entries.map((e) => e.name));
+    const manualHosts = new Set(entries.map((e) => `${e.host}:${e.port}`));
     let discoveredEntries: NodeEntry[] = [];
     /* v8 ignore start -- discovered nodes file may not exist */
     try {
       discoveredEntries = readDiscoveredNodes(opts.mechaDir)
-        .filter((d) => !manualNames.has(d.name))
+        .filter((d) => !manualNames.has(d.name) && !manualHosts.has(`${d.host}:${d.port}`))
         .map((d): NodeEntry => ({
           name: d.name,
           host: d.host,
