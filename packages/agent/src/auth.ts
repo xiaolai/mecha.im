@@ -136,6 +136,8 @@ export function createSignatureHook(opts: AuthOpts) {
     // No signature header → skip verification (Bearer auth handles these requests).
     // Only verify when a signature IS provided — prevents blocking unsigned
     // cross-node routing that relies solely on Bearer token auth (R4-003).
+    // Security boundary: unsigned requests are still gated by createAuthHook
+    // (Bearer token + X-Mecha-Source required for mesh paths).
     if (typeof sigHeader !== "string") return;
 
     if (!source) {

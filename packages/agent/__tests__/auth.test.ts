@@ -252,7 +252,7 @@ describe("agent auth", () => {
       await app.close();
     });
 
-    it("skips verification for unsigned routing requests (Bearer auth handles these)", async () => {
+    it("skips signature verification for unsigned routing requests", async () => {
       const keys = new Map([["remote", "pk"]]);
       const verify = vi.fn();
       const app = await buildSigApp({ keys, verify });
@@ -261,7 +261,7 @@ describe("agent auth", () => {
         url: "/bots/alice/query",
         payload: { message: "hi" },
       });
-      // No x-mecha-signature header → signature hook skips, falls through to route handler
+      // No x-mecha-signature header → signature hook passes through (auth hook handles these)
       expect(res.statusCode).toBe(200);
       expect(verify).not.toHaveBeenCalled();
       await app.close();

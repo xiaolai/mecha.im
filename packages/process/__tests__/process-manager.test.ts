@@ -516,7 +516,7 @@ describe("createProcessManager", () => {
     expect(events[0].name).toBe(testName);
   });
 
-  it("recovers stopped state on init when PID is dead", () => {
+  it("marks dead running PID as error on init", () => {
     // Write a "running" state with a PID that doesn't exist
     const botDir = join(tempDir, "ghost");
     const state: BotState = {

@@ -34,7 +34,7 @@ export function updateDiscoveryIndex(mechaDir: string, emitter: ProcessEventEmit
   /* v8 ignore stop */
 }
 
-/** On init, scan for existing state and mark dead processes as stopped. */
+/** On init, scan for existing state: mark dead "running" as "error", recover stale "error" to "stopped". */
 export function recoverState(mechaDir: string, emitter: ProcessEventEmitter): void {
   let changed = false;
   for (const botDir of listBotDirs(mechaDir)) {
