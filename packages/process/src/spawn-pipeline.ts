@@ -42,10 +42,10 @@ export interface SpawnContext {
 }
 
 export async function spawnBot(ctx: SpawnContext, spawnOpts: SpawnOpts): Promise<ProcessInfo> {
-  const { name, model, permissionMode, auth, tags, home } = spawnOpts;
+  const { name } = spawnOpts;
   const workspacePath = resolve(spawnOpts.workspacePath);
   const botDir = ctx.botDir(name);
-  const { mechaDir, emitter, live } = ctx;
+  const { live } = ctx;
 
   // Check not already exists and running
   if (live.has(name)) {
