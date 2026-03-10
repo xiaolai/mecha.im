@@ -1,9 +1,20 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
-import { botName, readBotConfig, BotNotFoundError, BotBusyError } from "@mecha/core";
+import { botName, readBotConfig, BotNotFoundError, BotBusyError, PortConflictError } from "@mecha/core";
 import { checkBotBusy } from "@mecha/service";
+import { checkPort } from "@mecha/process";
 import { join } from "node:path";
 import { withErrorHandler } from "../error-handler.js";
+
+/** Wait until a port is free. Throws if still occupied after timeout. */
+async function waitForPortFree(port: number, timeoutMs = 5000): Promise<void> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (await checkPort(port)) return;
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  throw new PortConflictError(port);
+}
 
 /** Register the 'bot restart' subcommand. */
 export function registerBotRestartCommand(parent: Command, deps: CommandDeps): void {
@@ -37,6 +48,11 @@ export function registerBotRestartCommand(parent: Command, deps: CommandDeps): v
         } else {
           await deps.processManager.stop(validated);
         }
+      }
+
+      // Wait for port to be released before re-spawning
+      if (config.port) {
+        await waitForPortFree(config.port);
       }
 
       // Re-spawn from config

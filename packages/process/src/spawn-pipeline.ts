@@ -3,6 +3,7 @@ import { openSync, closeSync, chmodSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { randomBytes } from "node:crypto";
 import {
+  type BotName,
   BotAlreadyExistsError,
   ProcessSpawnError,
   readBotConfig,
@@ -19,6 +20,13 @@ import type { ProcessEventEmitter } from "./events.js";
 import { isPidAlive } from "./process-lifecycle.js";
 import { prepareBotFilesystem } from "./sandbox-setup.js";
 import type { SpawnOpts, ProcessInfo, LiveProcess, CreateProcessManagerOpts } from "./types.js";
+
+/**
+ * Module-level set of ports reserved by in-flight spawns.
+ * Prevents parallel spawns from allocating the same port before
+ * either enters the live map. Entries are cleaned up after spawn completes.
+ */
+const reservedPorts = new Set<number>();
 
 export interface SpawnContext {
   opts: CreateProcessManagerOpts;
@@ -48,10 +56,25 @@ export async function spawnBot(ctx: SpawnContext, spawnOpts: SpawnOpts): Promise
     throw new BotAlreadyExistsError(name);
   }
 
-  // Allocate port
-  const usedPorts = new Set<number>();
+  // Allocate port — include both live and in-flight reserved ports
+  const usedPorts = new Set<number>(reservedPorts);
   for (const lp of live.values()) usedPorts.add(lp.port);
   const port = spawnOpts.port ?? await allocatePort(undefined, undefined, usedPorts);
+  reservedPorts.add(port);
+  try {
+  return await _spawnBotInner(ctx, spawnOpts, name, workspacePath, botDir, port);
+  } finally {
+    reservedPorts.delete(port);
+  }
+}
+
+/** Inner spawn logic — separated so reservedPorts cleanup is guaranteed by the caller's finally. */
+async function _spawnBotInner(
+  ctx: SpawnContext, spawnOpts: SpawnOpts,
+  name: BotName, workspacePath: string, botDir: string, port: number,
+): Promise<ProcessInfo> {
+  const { mechaDir, emitter, live } = ctx;
+  const { model, permissionMode, auth, tags, home } = spawnOpts;
   const token = "mecha_" + randomBytes(24).toString("hex");
 
   // Prepare filesystem and environment
@@ -209,7 +232,7 @@ export async function spawnBot(ctx: SpawnContext, spawnOpts: SpawnOpts): Promise
     live.delete(name);
     const state: BotState = {
       name,
-      state: "stopped",
+      state: code != null && code !== 0 ? "error" : "stopped",
       /* v8 ignore start -- pid always set after spawn guard */
       pid: child.pid ?? undefined,
       /* v8 ignore stop */

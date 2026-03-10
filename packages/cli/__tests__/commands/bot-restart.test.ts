@@ -12,13 +12,22 @@ vi.mock("@mecha/service", async (importOriginal) => {
   return { ...orig, checkBotBusy: vi.fn().mockResolvedValue({ busy: false, activeSessions: 0 }) };
 });
 
+vi.mock("@mecha/process", async (importOriginal) => {
+  const orig = await importOriginal<typeof import("@mecha/process")>();
+  return { ...orig, checkPort: vi.fn().mockResolvedValue(true) };
+});
+
 import { checkBotBusy } from "@mecha/service";
+import { checkPort } from "@mecha/process";
 const mockCheckBusy = vi.mocked(checkBotBusy);
+const mockCheckPort = vi.mocked(checkPort);
 
 afterEach(() => {
   process.exitCode = undefined as unknown as number;
   mockCheckBusy.mockClear();
   mockCheckBusy.mockResolvedValue({ busy: false, activeSessions: 0 });
+  mockCheckPort.mockClear();
+  mockCheckPort.mockResolvedValue(true);
 });
 
 const RUNNING_INFO: ProcessInfo = {
@@ -127,6 +136,22 @@ describe("bot restart command", () => {
     expect(deps.processManager.stop).not.toHaveBeenCalled();
     expect(deps.processManager.spawn).not.toHaveBeenCalled();
   });
+
+  it("errors when port stays occupied after stop", async () => {
+    mechaDir = mkdtempSync(join(tmpdir(), "mecha-bot-restart-"));
+    writeConfig("alice", { port: 7700, token: "t", workspace: "/workspace" });
+    // Port never becomes free
+    mockCheckPort.mockResolvedValue(false);
+
+    const deps = makeDeps({ mechaDir, pm: defaultPm() });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "bot", "restart", "alice"]);
+    expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("already in use"));
+    expect(process.exitCode).toBe(1);
+    expect(deps.processManager.spawn).not.toHaveBeenCalled();
+  }, 10_000);
 
   it("restarts busy bot with --force (skips task check)", async () => {
     mechaDir = mkdtempSync(join(tmpdir(), "mecha-bot-restart-"));

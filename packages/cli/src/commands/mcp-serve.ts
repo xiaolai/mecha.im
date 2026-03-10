@@ -42,6 +42,7 @@ export function registerMcpServeCommand(parent: Command, deps: CommandDeps): voi
             port: opts.port,
             host: opts.host,
             token: opts.token,
+            mechaDir: deps.mechaDir,
           });
         }),
     );
