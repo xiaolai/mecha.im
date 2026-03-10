@@ -58,6 +58,19 @@ Bump version across all monorepo packages, commit, tag, and push.
 
 10. **Report**: show the tag URL and summary
 
+11. **Post-push (automated by CI)**:
+    - GitHub Actions (`.github/workflows/release.yml`) triggers on the `v*` tag push
+    - Builds binaries for all platforms (linux-x64, linux-arm64, darwin-arm64, darwin-x64)
+    - Apple codesigns and notarizes macOS binaries
+    - Creates GitHub Release with tarballs
+    - Updates the Homebrew tap (`xiaolai/homebrew-tap`) with new version and SHA256 hashes
+    - **Do NOT build binaries locally for releases** — CI handles this
+    - Optionally verify: `gh run list --workflow release.yml --limit 1`
+
+12. **Local upgrade** (if requested):
+    - `brew update && brew upgrade mecha` to get the codesigned binary
+    - Restart daemon: `mecha start --host 0.0.0.0 --daemon`
+
 ## Rules
 
 - All packages stay in lockstep (same version)
