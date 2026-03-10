@@ -48,7 +48,7 @@ if [ -z "$TARGET" ]; then
   exit 2  # No path extracted — deny by default (fail-closed)
 fi
 # Canonicalize target path, following symlinks
-RESOLVED=$(realpath -m "$TARGET" 2>/dev/null || (cd "$(dirname "$TARGET")" 2>/dev/null && pwd)/$(basename "$TARGET"))
+RESOLVED=$(realpath -m "$TARGET" 2>/dev/null) || RESOLVED="$(cd "$(dirname "$TARGET")" 2>/dev/null && pwd)/$(basename "$TARGET")"
 # Canonicalize allowed roots
 SANDBOX=$(realpath -m "$MECHA_SANDBOX_ROOT" 2>/dev/null || echo "$MECHA_SANDBOX_ROOT")
 WORKSPACE=$(realpath -m "$MECHA_WORKSPACE" 2>/dev/null || echo "$MECHA_WORKSPACE")
