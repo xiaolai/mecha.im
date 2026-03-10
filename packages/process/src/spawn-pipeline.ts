@@ -17,7 +17,7 @@ import { waitForHealthy } from "./health.js";
 import { readState, writeState } from "./state-store.js";
 import type { BotState } from "./state-store.js";
 import type { ProcessEventEmitter } from "./events.js";
-import { isPidAlive } from "./process-lifecycle.js";
+import { isPidAlive, waitForPidExit } from "./process-lifecycle.js";
 import { prepareBotFilesystem } from "./sandbox-setup.js";
 import type { SpawnOpts, ProcessInfo, LiveProcess, CreateProcessManagerOpts } from "./types.js";
 
@@ -62,6 +62,19 @@ export async function spawnBot(ctx: SpawnContext, spawnOpts: SpawnOpts): Promise
   if (existing && existing.state === "running" && existing.pid && isPidAlive(existing.pid)) {
     throw new BotAlreadyExistsError(name);
   }
+  // Kill stale process if state says stopped/error but PID is still alive (R4-002 fix).
+  // This prevents token mismatch: new spawn writes new token to config.json while
+  // old process is still running with old token on the same port.
+  /* v8 ignore start -- stale PID cleanup: requires real zombie process surviving state transition */
+  if (existing?.pid && isPidAlive(existing.pid)) {
+    try {
+      process.kill(existing.pid, "SIGKILL");
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "ESRCH") throw err;
+    }
+    await waitForPidExit(existing.pid, 3_000);
+  }
+  /* v8 ignore stop */
 
   // Allocate port — serialized via mutex to prevent concurrent spawns racing
   let port: number;

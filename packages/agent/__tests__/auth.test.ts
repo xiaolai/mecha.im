@@ -252,16 +252,32 @@ describe("agent auth", () => {
       await app.close();
     });
 
-    it("rejects routing requests without source header", async () => {
+    it("skips verification for unsigned routing requests (Bearer auth handles these)", async () => {
       const keys = new Map([["remote", "pk"]]);
-      const app = await buildSigApp({ keys, verify: vi.fn() });
+      const verify = vi.fn();
+      const app = await buildSigApp({ keys, verify });
       const res = await app.inject({
         method: "POST",
         url: "/bots/alice/query",
         payload: { message: "hi" },
       });
+      // No x-mecha-signature header → signature hook skips, falls through to route handler
+      expect(res.statusCode).toBe(200);
+      expect(verify).not.toHaveBeenCalled();
+      await app.close();
+    });
+
+    it("rejects signed request without source header", async () => {
+      const keys = new Map([["remote", "pk"]]);
+      const app = await buildSigApp({ keys, verify: vi.fn() });
+      const res = await app.inject({
+        method: "POST",
+        url: "/bots/alice/query",
+        headers: { "x-mecha-signature": "sig" },
+        payload: { message: "hi" },
+      });
       expect(res.statusCode).toBe(401);
-      expect(res.json().error).toContain("signature");
+      expect(res.json().error).toContain("X-Mecha-Source");
       await app.close();
     });
 
