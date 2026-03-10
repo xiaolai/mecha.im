@@ -32,12 +32,18 @@ export function registerChatRoutes(
       return reply.code(400).send({ error: "sessionId must be a string" });
     }
 
-    const result = await chatFn(
-      message,
-      sessionId,
-      AbortSignal.timeout(DEFAULTS.FORWARD_TIMEOUT_MS),
-    );
-
-    return reply.send(result);
+    try {
+      const result = await chatFn(
+        message,
+        sessionId,
+        AbortSignal.timeout(DEFAULTS.FORWARD_TIMEOUT_MS),
+      );
+      return reply.send(result);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      request.log.error({ err: msg }, "Chat request failed");
+      const status = msg.includes("API") || msg.includes("credentials") || msg.includes("key") ? 401 : 500;
+      return reply.code(status).send({ error: msg });
+    }
   });
 }

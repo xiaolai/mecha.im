@@ -225,7 +225,7 @@ export function prepareBotFilesystem(opts: BotFilesystemOpts): BotFilesystemResu
   const config = {
     configVersion: BOT_CONFIG_VERSION, port, token, workspace: workspacePath,
     ...(opts.home != null && { home: opts.home }), model, permissionMode, auth, tags,
-    ...(opts.expose != null && { expose: opts.expose }),
+    expose: opts.expose ?? ["query"],
     ...(opts.systemPrompt != null && { systemPrompt: opts.systemPrompt }),
     ...(opts.appendSystemPrompt != null && { appendSystemPrompt: opts.appendSystemPrompt }),
     ...(opts.effort != null && { effort: opts.effort }),
