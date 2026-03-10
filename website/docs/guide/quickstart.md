@@ -120,10 +120,10 @@ mecha bot chat coder "Ask the researcher to summarize recent papers on transform
 Make the researcher check for new papers every morning:
 
 ```bash
-mecha schedule add researcher --cron "0 9 * * *" --prompt "Check for new papers published today and summarize the top 3"
+mecha schedule add researcher --id daily-papers --every 24h --prompt "Check for new papers published today and summarize the top 3"
 ```
 
-The bot will run this task automatically at 9 AM every day. No need to be at your terminal.
+The bot will run this task automatically every 24 hours. No need to be at your terminal.
 
 ## 10. Monitor Costs
 

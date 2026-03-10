@@ -39,10 +39,10 @@ mecha node add <name> <host> [options]
 | `<name>` | Peer node name |
 | `<host>` | Peer node hostname or IP |
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `--port <port>` | Agent server port | `7660` |
-| `--api-key <key>` | API key for authentication (required) | |
+| Option | Description | Default | Required |
+|--------|-------------|---------|----------|
+| `--port <port>` | Agent server port | `7660` | No |
+| `--api-key <key>` | API key for authentication | | **Yes** |
 
 ```bash
 mecha node add bob 192.168.1.50 --api-key mysecret

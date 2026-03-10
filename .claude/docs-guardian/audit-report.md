@@ -1,7 +1,7 @@
 # Documentation Audit Report
 
 **Project**: mecha.im
-**Date**: 2026-03-09
+**Date**: 2026-03-10
 **Language**: TypeScript
 **Framework**: VitePress
 
@@ -10,94 +10,119 @@
 | Dimension | Score | Status |
 |-----------|-------|--------|
 | Freshness | 100/100 | 🟢 |
-| Accuracy  | 98/100 | 🟡 |
-| Coverage  | 90%    | 🟡 |
-| Quality   | 90/100 | 🟡 |
+| Accuracy  | 97/100 | 🟢 |
+| Coverage  | 99%    | 🟢 |
+| Quality   | 93/100 | 🟢 |
 
-**Overall health**: 94/100
+**Overall health**: 97/100
 
 ## Critical Findings (fix immediately)
 
-No critical findings.
+1. **[CRITICAL] `version("0.2.0")` hardcoded in CLI index docs** — `reference/cli/index.md:66` says `version("0.2.0")` but actual version is `0.2.4`. **FIXED**: Changed to "version read from `package.json`" to prevent future drift.
+
+2. **[CRITICAL] `--no-totp` documented for `dashboard serve` but removed from code** — `reference/cli/system.md:565` lists `--no-totp` option that no longer exists (removed in audit fix commit `07b6d52`). **FIXED**: Removed from docs.
 
 ## Medium Findings (fix soon)
 
-1. **[MEDIUM] Missing SpawnOpts fields in process.md and service.md** — `dangerouslySkipPermissions`, `allowDangerouslySkipPermissions`, and `fallbackModel` fields are present in SpawnOpts but not documented in `website/docs/reference/api/process.md` or `website/docs/reference/api/service.md`.
+1. **[MEDIUM] Quickstart uses `--cron` flag that doesn't exist** — `guide/quickstart.md:123` shows `mecha schedule add researcher --cron "0 9 * * *"` but the CLI uses `--id` + `--every`. **FIXED**: Updated to `--id daily-papers --every 24h`.
 
-2. **[MEDIUM] SPA package at 21% coverage** — 62 React component exports in `packages/spa/src/` lack JSDoc documentation. Components include: MechaChat, LogViewer, SessionList, BotCard, MeshMap, and many others.
+2. **[MEDIUM] `node add --api-key` not clearly marked as required** — `reference/cli/node.md:45` lists it as a regular option but code uses `requiredOption()`. **FIXED**: Added Required column.
 
-3. **[MEDIUM] Core package at 92% coverage** — 18 error factory constants in `packages/core/src/errors.ts` still lack JSDoc.
+3. **[MEDIUM] `guide/dashboard.md` overlaps with `features/dashboard.md`** — Two pages with same title, thin guide page (191 words) duplicates feature page content. Consider consolidating or cross-linking.
 
 ## Low Findings (nice to have)
 
-1. **[LOW] Missing `[[toc]]` directive** — 9 documentation pages missing table of contents: `sandbox.md`, `mesh-networking.md`, `metering.md`, `multi-machine.md`, `api/runtime.md`, `api/server.md`, `api/process.md`, `api/service.md`, `cli/meter.md`.
-
-2. **[LOW] Untagged code blocks** — 24 fenced code blocks across documentation pages missing language tags (e.g., ` ```bash `, ` ```json `).
-
-3. **[LOW] Thin page** — `website/docs/reference/cli/plugin.md` has minimal content that could be expanded.
+1. **[LOW] `core.md` at 10,332 words** — 3x larger than any other doc file, covers 10+ domains. Consider splitting.
+2. **[LOW] `connect.md` and `meter.md` exceed 3000 words** — Borderline, acceptable for API reference.
+3. **[LOW] `multi-agent.md` is thin** — 335 words, mostly repeats other pages.
+4. **[LOW] `SPA_VERSION` undocumented** — Auto-generated build constant in `spa-embedded.generated.ts`. Not user-facing.
 
 ## Fixing Plan
 
-Priority-ordered list of actions:
-1. Add missing SpawnOpts fields to process.md and service.md docs
-2. Add JSDoc to 62 SPA component exports
-3. Add JSDoc to 18 remaining core error constants
-4. Add `[[toc]]` to 9 pages
-5. Tag 24 untagged code blocks
+Priority-ordered actions:
+1. ~~Fix hardcoded version in index.md~~ ✅ Done
+2. ~~Remove phantom `--no-totp` from system.md~~ ✅ Done
+3. ~~Fix `--cron` example in quickstart.md~~ ✅ Done
+4. ~~Mark `--api-key` as required in node.md~~ ✅ Done
+5. Consolidate or cross-link guide/dashboard.md ↔ features/dashboard.md
+6. Consider splitting core.md into domain-specific pages
 
 ## Full Agent Reports
 
 <details>
-<summary>Staleness Report</summary>
+<summary>Staleness Report (100/100)</summary>
 
-**Freshness Score: 100/100**
+All 24 source-to-doc mapping pairs are within the 30-day threshold. Maximum lag: 2.8 days (meter API doc). The entire documentation set was updated within the last 4 days.
 
-All source-to-doc pairs are within the 30-day freshness threshold. No stale documentation found.
-
-</details>
-
-<details>
-<summary>Accuracy Report</summary>
-
-**Accuracy Score: 98/100**
-
-| # | Severity | Finding | Location | Recommendation |
-|---|----------|---------|----------|----------------|
-| 1 | MEDIUM | Missing `dangerouslySkipPermissions` field | process.md, service.md | Add field to SpawnOpts table |
-| 2 | MEDIUM | Missing `allowDangerouslySkipPermissions` field | process.md, service.md | Add field to SpawnOpts table |
-| 3 | MEDIUM | Missing `fallbackModel` field | process.md, service.md | Add field to SpawnOpts table |
-
-</details>
-
-<details>
-<summary>Coverage Report</summary>
-
-**Coverage: 90% (backend 100%, SPA 21%)**
-
-| Package | Documented | Total | Coverage |
-|---------|-----------|-------|----------|
-| core | 170 | 185 | 92% |
-| cli | 82 | 82 | 100% |
-| agent | 45 | 45 | 100% |
-| process | 38 | 38 | 100% |
-| meter | 22 | 22 | 100% |
-| sandbox | 12 | 12 | 100% |
-| service | 8 | 8 | 100% |
-| spa | 16 | 78 | 21% |
-
-62 undocumented SPA component exports + 18 core error constants = 80 symbols remaining.
+| Source Package | Worst Lag | Status |
+|---|---|---|
+| packages/core/src | 0 days | FRESH |
+| packages/cli/src | 0.9 days | FRESH |
+| packages/agent/src | 1.3 days | FRESH |
+| packages/meter/src | 2.8 days | FRESH |
+| packages/service/src | 0 days | FRESH |
+| packages/connect/src | 0 days | FRESH |
+| packages/process/src | 0.3 days | FRESH |
+| packages/mcp-server/src | 0.4 days | FRESH |
+| packages/server/src | 1.3 days | FRESH |
+| packages/runtime/src | 0 days | FRESH |
+| packages/sandbox/src | 0 days | FRESH |
+| packages/spa/src | 0.1 days | FRESH |
 
 </details>
 
 <details>
-<summary>Quality Report</summary>
+<summary>Accuracy Report (97/100)</summary>
 
-**Quality Score: 90/100**
+87 symbols checked across CLI commands, options, types, interfaces, and formatter methods.
+
+| # | Severity | Finding | Status |
+|---|----------|---------|--------|
+| 1 | CRITICAL | `version("0.2.0")` hardcoded in index.md (actual: 0.2.4) | FIXED |
+| 2 | CRITICAL | `--no-totp` listed for `dashboard serve` but removed from code | FIXED |
+| 3 | MEDIUM | `node add --api-key` is requiredOption but not visually distinguished | FIXED |
+| 4 | MEDIUM | Quickstart `--cron` flag doesn't exist (should be `--id` + `--every`) | FIXED |
+
+30+ verified-correct items including all bot spawn options, meter/schedule/node commands, formatter interface, and CommandDeps type.
+
+</details>
+
+<details>
+<summary>Coverage Report (99%)</summary>
+
+822 public symbols across 11 packages. 821 documented.
+
+| Package | Symbols | Documented | Coverage |
+|---------|---------|------------|----------|
+| core | 230 | 230 | 100% |
+| cli | 107 | 106 | 99% |
+| agent | 83 | 83 | 100% |
+| service | 91 | 91 | 100% |
+| meter | 99 | 99 | 100% |
+| connect | 61 | 61 | 100% |
+| process | 44 | 44 | 100% |
+| runtime | 35 | 35 | 100% |
+| server | 29 | 29 | 100% |
+| mcp-server | 24 | 24 | 100% |
+| sandbox | 19 | 19 | 100% |
+
+1 undocumented symbol: `SPA_VERSION` in auto-generated file (LOW, no action needed).
+
+</details>
+
+<details>
+<summary>Quality Report (93/100)</summary>
+
+35 doc files audited.
 
 | # | Severity | Finding | Location |
 |---|----------|---------|----------|
-| 1 | LOW | Missing `[[toc]]` | 9 pages |
-| 2 | LOW | Untagged code blocks | 24 blocks across multiple pages |
-| 3 | LOW | Thin page | cli/plugin.md |
+| 1 | MEDIUM | guide/dashboard.md overlaps features/dashboard.md | guide/dashboard.md |
+| 2 | LOW | core.md at 10,332 words | reference/api/core.md |
+| 3 | LOW | connect.md exceeds 3000 words | reference/api/connect.md |
+| 4 | LOW | meter.md exceeds 3000 words | reference/api/meter.md |
+| 5 | LOW | multi-agent.md is thin (335 words) | features/multi-agent.md |
+
+Strengths: Consistent heading hierarchy, all code blocks have language tags, proper frontmatter, cross-references via "See Also" sections.
 
 </details>
