@@ -35,7 +35,8 @@ import { registerStatusCommand } from "./commands/status.js";
  */
 export const MUTATING_COMMANDS = new Set([
   // Daemon-level mutating commands
-  "start", "stop", "restart", "init",
+  // NOTE: "stop" and "restart" are NOT locked — they must run while the daemon holds the lock.
+  "start", "init",
   // bot subcommands — run without lock; ProcessManager writes per-bot state files
   // (state.json, config.json) atomically. Concurrent bot ops on DIFFERENT bots are safe.
   // Concurrent ops on the SAME bot are serialized by the server's request handler.

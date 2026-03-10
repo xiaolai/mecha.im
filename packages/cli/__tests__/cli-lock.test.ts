@@ -146,8 +146,6 @@ describe("cli-lock", () => {
     // Mutating commands need the lock
     it.each([
       ["start", ["node", "mecha", "start"]],
-      ["stop", ["node", "mecha", "stop"]],
-      ["restart", ["node", "mecha", "restart"]],
       ["init", ["node", "mecha", "init"]],
       ["agent start", ["node", "mecha", "agent", "start"]],
       ["dashboard serve", ["node", "mecha", "dashboard", "serve"]],
@@ -200,6 +198,8 @@ describe("cli-lock", () => {
       ["meter start", ["node", "mecha", "meter", "start"]],
       ["meter stop", ["node", "mecha", "meter", "stop"]],
       ["sandbox show", ["node", "mecha", "sandbox", "show"]],
+      ["stop", ["node", "mecha", "stop"]],
+      ["restart", ["node", "mecha", "restart"]],
       ["agent status", ["node", "mecha", "agent", "status"]],
     ])("returns false for %s", (_label, argv) => {
       expect(needsLock(argv)).toBe(false);
