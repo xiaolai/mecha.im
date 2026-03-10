@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { createProcessManager } from "@mecha/process";
 import { agentFetch } from "@mecha/service";
-import { readNodes, MECHA_DIR } from "@mecha/core";
+import { readNodes, MECHA_DIR, DEFAULTS } from "@mecha/core";
 import { createMeshMcpServer } from "./server.js";
 import { createAuditLog } from "./audit.js";
 import { createRateLimiter } from "./rate-limit.js";
@@ -80,7 +80,7 @@ export async function main(opts: {
       throw new Error("--token is required when binding to non-loopback address");
     }
     await runHttp(createServer, {
-      port: opts.port ?? 7682,
+      port: opts.port ?? DEFAULTS.MCP_HTTP_PORT,
       host,
       token: opts.token,
     });
