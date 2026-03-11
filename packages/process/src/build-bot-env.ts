@@ -1,13 +1,18 @@
 import { resolveAuth, MeterProxyRequiredError, AuthProfileNotFoundError, ProcessSpawnError, createLogger } from "@mecha/core";
 import type { ResolvedAuth } from "@mecha/core";
 import { execFileSync } from "node:child_process";
-import { accessSync, constants } from "node:fs";
+import { accessSync, constants, existsSync } from "node:fs";
+import { join, dirname } from "node:path";
 import { readProxyInfo, isPidAlive, meterDir } from "@mecha/meter";
 
 const log = createLogger("mecha:process");
 
 /** Cached claude CLI path — resolved once per process. */
 let cachedClaudePath: string | undefined | null = null; // null = not yet resolved
+
+/** Cached node + cli.js paths for running claude under Node.js instead of Bun SEA. */
+let cachedNodePath: string | undefined | null = null;
+let cachedCliJsPath: string | undefined | null = null;
 
 /** Options for building bot environment variables. */
 export interface BuildBotEnvOpts {
@@ -34,10 +39,39 @@ export interface BuildBotEnvOpts {
 export function buildBotEnv(opts: BuildBotEnvOpts): Record<string, string> {
   const { botDir, homeDir, tmpDir, logsDir, projectsDir, workspacePath, port, token, name, userEnv } = opts;
 
+  // Resolve external tool paths early (before constructing PATH and childEnv).
+  // These are cached per process to avoid repeated execFileSync calls.
+  /* v8 ignore start -- tool path resolution */
+  if (cachedClaudePath === null) {
+    try {
+      const r = execFileSync("which", ["claude"], { encoding: "utf-8" }).trim();
+      if (r) { accessSync(r, constants.X_OK); cachedClaudePath = r; }
+      else cachedClaudePath = undefined;
+    } catch { cachedClaudePath = undefined; }
+  }
+  if (cachedNodePath === null) {
+    try {
+      const r = execFileSync("which", ["node"], { encoding: "utf-8" }).trim();
+      if (r) { accessSync(r, constants.X_OK); cachedNodePath = r; }
+      else cachedNodePath = undefined;
+    } catch { cachedNodePath = undefined; }
+  }
+  if (cachedCliJsPath === null && cachedNodePath) {
+    const packages = ["@anthropic-ai/claude-agent-sdk/cli.js", "@anthropic-ai/claude-code/cli.js"];
+    const nodePrefix = dirname(dirname(cachedNodePath));
+    for (const pkg of packages) {
+      const candidate = join(nodePrefix, "lib/node_modules", pkg);
+      if (existsSync(candidate)) { cachedCliJsPath = candidate; break; }
+    }
+    if (!cachedCliJsPath) cachedCliJsPath = undefined;
+  }
+  /* v8 ignore stop */
+
   const resolvedUserEnv = userEnv ?? {};
   const reservedKeys = new Set([
     "MECHA_BOT_NAME", "MECHA_PORT", "MECHA_WORKSPACE", "MECHA_PROJECTS_DIR",
-    "MECHA_AUTH_TOKEN", "MECHA_LOG_DIR", "MECHA_SANDBOX_ROOT", "MECHA_DIR", "MECHA_CLAUDE_PATH", "HOME", "TMPDIR",
+    "MECHA_AUTH_TOKEN", "MECHA_LOG_DIR", "MECHA_SANDBOX_ROOT", "MECHA_DIR", "MECHA_CLAUDE_PATH",
+    "MECHA_NODE_PATH", "MECHA_CLAUDE_CLI_JS", "HOME", "TMPDIR",
     // Block PATH (we construct our own), shell startup vars, and dangerous Node.js/linker env vars
     "PATH", "BASH_ENV", "ENV",
     "NODE_OPTIONS", "NODE_PATH", "NODE_DEBUG", "NODE_EXTRA_CA_CERTS", "NODE_REDIRECT_WARNINGS",
@@ -65,6 +99,8 @@ export function buildBotEnv(opts: BuildBotEnvOpts): Record<string, string> {
       : [
           ...new Set([
             ...(process.execPath ? [process.execPath.replace(/\/[^/]+$/, "")] : []),
+            // Include node's directory so the SDK can run cli.js under Node.js
+            ...(cachedNodePath ? [dirname(cachedNodePath)] : []),
             ...(process.platform === "darwin" ? ["/opt/homebrew/bin"] : []),
             "/usr/local/bin",
             "/usr/bin",
@@ -119,30 +155,11 @@ export function buildBotEnv(opts: BuildBotEnvOpts): Record<string, string> {
     );
   }
 
-  // Resolve claude CLI path in the parent process (before sandbox restricts PATH)
-  // and pass it to the child so the Agent SDK can spawn it.
-  // Cached per process to avoid repeated execFileSync calls.
-  /* v8 ignore start -- claude path resolution */
-  if (cachedClaudePath === null) {
-    try {
-      const resolved = execFileSync("which", ["claude"], { encoding: "utf-8" }).trim();
-      if (resolved) {
-        // Verify the path is executable (not a dangling symlink or inaccessible)
-        try {
-          accessSync(resolved, constants.X_OK);
-          cachedClaudePath = resolved;
-        } catch {
-          log.warn("claude CLI found but not executable", { path: resolved });
-          cachedClaudePath = undefined;
-        }
-      } else {
-        cachedClaudePath = undefined;
-      }
-    } catch {
-      cachedClaudePath = undefined;
-    }
-  }
+  // Pass resolved tool paths to the child process
+  /* v8 ignore start -- tool path env vars */
   if (cachedClaudePath) childEnv["MECHA_CLAUDE_PATH"] = cachedClaudePath;
+  if (cachedNodePath) childEnv["MECHA_NODE_PATH"] = cachedNodePath;
+  if (cachedCliJsPath) childEnv["MECHA_CLAUDE_CLI_JS"] = cachedCliJsPath;
   /* v8 ignore stop */
 
   // Meter proxy integration — set ANTHROPIC_BASE_URL if proxy is alive

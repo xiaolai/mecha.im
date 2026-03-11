@@ -27,20 +27,16 @@ function makeAuthCookie(secret = TEST_TOTP_SECRET): string {
  * - alice uses BotRouter + locator + agentFetch to route a query
  *   from alice's bot "coder" → bob's bot "analyst"
  *
- * forwardQueryToBot is mocked (no real bot processes), but the HTTP
+ * daemonChat is mocked (no real bot processes), but the HTTP
  * chain through agentFetch → agent server → routing route is real.
  */
 
-// Mock forwardQueryToBot so we don't need a real bot process
-vi.mock("@mecha/core", async (importOriginal) => {
-  const orig = await importOriginal<Record<string, unknown>>();
-  return {
-    ...orig,
-    forwardQueryToBot: vi.fn().mockResolvedValue({
-      text: "analyst says hello",
-      sessionId: "sess-123",
-    }),
-  };
+// Mock chat function — no real Claude processes
+const mockChatFn = vi.fn().mockResolvedValue({
+  response: "analyst says hello",
+  sessionId: "sess-123",
+  durationMs: 100,
+  costUsd: 0.01,
 });
 
 describe("mesh e2e: cross-node query", () => {
@@ -71,6 +67,7 @@ describe("mesh e2e: cross-node query", () => {
       mechaDir: bobDir,
       nodeName: "bob",
       startedAt: new Date().toISOString(),
+      chatFn: mockChatFn,
     });
 
     // Listen on a random available port

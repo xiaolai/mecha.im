@@ -27,16 +27,12 @@ function makeAuthCookie(secret = TEST_TOTP_SECRET): string {
   return `mecha-session=${token}`;
 }
 
-// Mock forwardQueryToBot
-vi.mock("@mecha/core", async (importOriginal) => {
-  const orig = await importOriginal<Record<string, unknown>>();
-  return {
-    ...orig,
-    forwardQueryToBot: vi.fn().mockResolvedValue({
-      text: "acl-test-response",
-      sessionId: "acl-sess",
-    }),
-  };
+// Mock chat function — no real Claude processes
+const mockChatFn = vi.fn().mockResolvedValue({
+  response: "acl-test-response",
+  sessionId: "acl-sess",
+  durationMs: 100,
+  costUsd: 0.01,
 });
 
 describe("mesh ACL: source-side enforcement", () => {
@@ -63,7 +59,7 @@ describe("mesh ACL: source-side enforcement", () => {
 
     bobServer = createAgentServer({
       port: 0, auth: { totpSecret: TEST_TOTP_SECRET, apiKey: "mesh-routing-key" }, processManager: makePm(),
-      acl: bobAcl, mechaDir: bobDir, nodeName: "bob",
+      acl: bobAcl, mechaDir: bobDir, nodeName: "bob", chatFn: mockChatFn, chatFn: mockChatFn,
     });
     const addr = await bobServer.listen({ port: 0, host: "127.0.0.1" });
     bobPort = parseInt(new URL(addr).port, 10);
@@ -176,7 +172,7 @@ describe("mesh ACL: destination-side enforcement", () => {
 
     const bobServer = createAgentServer({
       port: 0, auth: { totpSecret: TEST_TOTP_SECRET, apiKey: "mesh-routing-key" }, processManager: makePm(),
-      acl: bobAcl, mechaDir: bobDir, nodeName: "bob",
+      acl: bobAcl, mechaDir: bobDir, nodeName: "bob", chatFn: mockChatFn,
     });
     const addr = await bobServer.listen({ port: 0, host: "127.0.0.1" });
     const bobPort = parseInt(new URL(addr).port, 10);
@@ -211,7 +207,7 @@ describe("mesh ACL: destination-side enforcement", () => {
 
     const bobServer = createAgentServer({
       port: 0, auth: { totpSecret: TEST_TOTP_SECRET, apiKey: "mesh-routing-key" }, processManager: makePm(),
-      acl: bobAcl, mechaDir: bobDir, nodeName: "bob",
+      acl: bobAcl, mechaDir: bobDir, nodeName: "bob", chatFn: mockChatFn,
     });
     const addr = await bobServer.listen({ port: 0, host: "127.0.0.1" });
     const bobPort = parseInt(new URL(addr).port, 10);
@@ -244,7 +240,7 @@ describe("mesh ACL: destination-side enforcement", () => {
 
     const bobServer = createAgentServer({
       port: 0, auth: { totpSecret: TEST_TOTP_SECRET, apiKey: "mesh-routing-key" }, processManager: makePm(),
-      acl: bobAcl, mechaDir: bobDir, nodeName: "bob",
+      acl: bobAcl, mechaDir: bobDir, nodeName: "bob", chatFn: mockChatFn,
     });
     const addr = await bobServer.listen({ port: 0, host: "127.0.0.1" });
     const bobPort = parseInt(new URL(addr).port, 10);

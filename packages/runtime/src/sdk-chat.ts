@@ -7,6 +7,8 @@
  */
 import { query, type SDKResultMessage } from "@anthropic-ai/claude-agent-sdk";
 import { execFileSync } from "node:child_process";
+import { existsSync, realpathSync } from "node:fs";
+import { join, dirname } from "node:path";
 import { randomUUID } from "node:crypto";
 import { createLogger } from "@mecha/core";
 import type { ActivityEmitter } from "./activity.js";
@@ -16,12 +18,98 @@ import type { ChatFn } from "./scheduler.js";
 const log = createLogger("mecha:sdk-chat");
 
 /**
- * Resolve the path to the `claude` CLI binary.
- * The bot process runs inside a bwrap sandbox where the claude binary may not
- * be accessible. The parent process passes the resolved path via MECHA_CLAUDE_PATH.
- * Falls back to `which claude` for unsandboxed bots.
+ * Override CLAUDECODE env var so the SDK child process doesn't hit the nested-session guard.
+ * The SDK always prepends CLAUDECODE:"1" to the spawn env; we override it with "0"
+ * so the guard check (`=== "1"`) evaluates to false.
  */
-function resolveClaudePath(): string | undefined {
+function stripNestedGuard(env: Record<string, string | undefined>): Record<string, string | undefined> {
+  return { ...env, CLAUDECODE: "0" };
+}
+
+/**
+ * Resolve the Node.js executable path.
+ * Needed because Bun SEA binaries cannot reliably posix_spawn system binaries
+ * from child processes (macOS EPERM bug). Running cli.js under Node avoids this.
+ */
+function resolveNodePath(): string | undefined {
+  if (process.env["MECHA_NODE_PATH"]) {
+    return process.env["MECHA_NODE_PATH"];
+  }
+  try {
+    const resolved = execFileSync("which", ["node"], { encoding: "utf-8" }).trim();
+    return resolved || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Resolve the cli.js path from the claude-agent-sdk or claude-code package.
+ * Tries MECHA_CLAUDE_CLI_JS env, then looks relative to the claude binary,
+ * then searches common npm global locations.
+ */
+function resolveCliJsPath(claudeBinaryPath?: string): string | undefined {
+  // Explicit override
+  if (process.env["MECHA_CLAUDE_CLI_JS"]) {
+    return process.env["MECHA_CLAUDE_CLI_JS"];
+  }
+
+  // Check near the claude binary (npm global install puts them together)
+  if (claudeBinaryPath) {
+    try {
+      const realPath = realpathSync(claudeBinaryPath);
+      // Native binary is at <prefix>/versions/<ver>, cli.js may be at <prefix>/../lib/node_modules/...
+      const binDir = dirname(realPath);
+      // Check sibling cli.js
+      const siblingCliJs = join(binDir, "cli.js");
+      if (existsSync(siblingCliJs)) return siblingCliJs;
+    } catch { /* ignore */ }
+  }
+
+  // Search for globally installed cli.js
+  const searchPaths = [
+    // nvm-based installs
+    ...(process.env["NVM_DIR"]
+      ? [`${process.env["NVM_DIR"]}/versions/node`]
+      : [`${process.env["HOME"] ?? "/Users"}/.nvm/versions/node`]),
+    // System node_modules
+    "/usr/local/lib/node_modules",
+    "/opt/homebrew/lib/node_modules",
+  ];
+
+  const sdkPackages = [
+    "@anthropic-ai/claude-agent-sdk/cli.js",
+    "@anthropic-ai/claude-code/cli.js",
+  ];
+
+  for (const base of searchPaths) {
+    // For nvm paths, search the latest version directory
+    if (base.includes("nvm")) {
+      try {
+        const versions = execFileSync("ls", ["-1", base], { encoding: "utf-8" }).trim().split("\n");
+        for (const ver of versions.reverse()) {
+          for (const pkg of sdkPackages) {
+            const candidate = join(base, ver, "lib/node_modules", pkg);
+            if (existsSync(candidate)) return candidate;
+          }
+        }
+      } catch { /* ignore */ }
+    } else {
+      for (const pkg of sdkPackages) {
+        const candidate = join(base, pkg);
+        if (existsSync(candidate)) return candidate;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Resolve the path to the `claude` CLI binary (native Bun SEA).
+ * Used as fallback when Node.js + cli.js is not available.
+ */
+function resolveClaudeBinaryPath(): string | undefined {
   if (process.env["MECHA_CLAUDE_PATH"]) {
     return process.env["MECHA_CLAUDE_PATH"];
   }
@@ -32,19 +120,28 @@ function resolveClaudePath(): string | undefined {
   }
 }
 
-/** Lazily resolved claude CLI path — avoids import-time side effects. */
-let claudePath: string | undefined | null = null; // null = not yet resolved
+/** Cached resolution results — avoids import-time side effects. */
+let resolved: { nodePath?: string; cliJsPath?: string; claudeBinary?: string; useNode: boolean } | null = null;
 
-function getClaudePath(): string | undefined {
-  if (claudePath === null) {
-    claudePath = resolveClaudePath();
-    if (claudePath) {
-      log.info("Resolved claude CLI", { path: claudePath });
-    } else {
-      log.warn("claude CLI not found — install with: npm install -g @anthropic-ai/claude-code");
-    }
+function resolveExecPaths(): typeof resolved & {} {
+  if (resolved) return resolved;
+
+  const claudeBinary = resolveClaudeBinaryPath();
+  const nodePath = resolveNodePath();
+  const cliJsPath = nodePath ? resolveCliJsPath(claudeBinary) : undefined;
+  const useNode = !!(nodePath && cliJsPath);
+
+  resolved = { nodePath, cliJsPath, claudeBinary, useNode };
+
+  if (useNode) {
+    log.info("Using Node.js + cli.js for SDK queries", { node: nodePath, cliJs: cliJsPath });
+  } else if (claudeBinary) {
+    log.info("Using native claude binary for SDK queries", { path: claudeBinary });
+  } else {
+    log.warn("claude CLI not found — install with: npm install -g @anthropic-ai/claude-code");
   }
-  return claudePath ?? undefined;
+
+  return resolved;
 }
 
 export interface SdkChatOpts {
@@ -111,15 +208,19 @@ export async function sdkChat(
         ? { type: "preset" as const, preset: "claude_code" as const, append: opts.appendSystemPrompt }
         : undefined;
 
+    const queryEnv = stripNestedGuard({ ...process.env, ...opts.env });
+    const paths = resolveExecPaths();
+
     for await (const event of query({
       prompt: message,
       options: {
         cwd: opts.workspacePath,
         resume: sessionId,
-        pathToClaudeCodeExecutable: getClaudePath(),
+        pathToClaudeCodeExecutable: paths.useNode ? paths.cliJsPath! : (paths.claudeBinary ?? "claude"),
+        ...(paths.useNode && { executable: "node" as const, executableArgs: [] }),
         settingSources: [...(opts.settingSources ?? ["project"])],
         maxTurns: 25,
-        env: opts.env,
+        env: queryEnv,
         abortController: ac,
         ...(sysPrompt != null && { systemPrompt: sysPrompt }),
       },

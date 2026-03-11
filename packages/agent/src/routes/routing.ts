@@ -5,25 +5,31 @@ import {
   AclDeniedError,
   BotNotFoundError,
   readBotConfig,
-  forwardQueryToBot,
   isValidName,
 } from "@mecha/core";
 import { join } from "node:path";
 import { getSource } from "../auth.js";
 import { resolveNodeEntry } from "../node-resolve.js";
 import { agentFetch } from "@mecha/service";
+import { daemonChat, type DaemonChatResult } from "../daemon-chat.js";
+
+/** Chat function signature — matches daemonChat, injectable for testing. */
+export type ChatFn = (mechaDir: string, botName: string, message: string, sessionId?: string) => Promise<DaemonChatResult>;
 
 /** Options for inter-bot query routing routes. */
 export interface RoutingRouteOpts {
   mechaDir: string;
   acl: AclEngine;
   nodeName?: string;
+  /** Override the daemon chat function (for testing). Defaults to daemonChat. */
+  chatFn?: ChatFn;
 }
 
 /** Register POST /bots/:name/query for ACL-gated inter-bot message routing. */
 export function registerRoutingRoutes(app: FastifyInstance, opts: RoutingRouteOpts): void {
   const { mechaDir, acl } = opts;
   const node = opts.nodeName ?? "local";
+  const chat = opts.chatFn ?? daemonChat;
 
   app.post(
     "/bots/:name/query",
@@ -73,11 +79,17 @@ export function registerRoutingRoutes(app: FastifyInstance, opts: RoutingRouteOp
       /* v8 ignore start -- Fastify always parses POST body; ?? is defensive */
       const { message, sessionId } = request.body ?? {};
       /* v8 ignore stop */
-      // Default to "admin" for dashboard/session-authenticated requests
+      // Default to "admin" for dashboard/session-authenticated requests.
+      // Local-first: session auth = machine owner = admin identity.
       const source = getSource(request) ?? "admin";
 
-      if (typeof message !== "string" || !message) {
+      if (typeof message !== "string" || !message.trim()) {
         reply.code(400).send({ error: "Missing required field: message (string)" });
+        return;
+      }
+
+      if (sessionId !== undefined && typeof sessionId !== "string") {
+        reply.code(400).send({ error: "Invalid field: sessionId must be a string" });
         return;
       }
 
@@ -94,29 +106,24 @@ export function registerRoutingRoutes(app: FastifyInstance, opts: RoutingRouteOp
       }
 
       // ACL check — always enforced
-      const aclResult = acl.check(source, target, "query" as Capability);
+      const capability: Capability = "query";
+      const aclResult = acl.check(source, target, capability);
       if (!aclResult.allowed) {
         reply.code(403).send({ error: new AclDeniedError(source, "query", target).message });
         return;
       }
 
       try {
-        const fwd = await forwardQueryToBot(config.port, config.token, message, sessionId);
-        return { response: fwd.text, sessionId: fwd.sessionId };
+        // Execute SDK query in the daemon process (not the bot runtime).
+        // Bot runtimes run as Bun SEA child processes which cannot posix_spawn
+        // external binaries on macOS. The daemon (top-level process) can spawn.
+        const result = await chat(mechaDir, target, message, sessionId);
+        return { response: result.response, sessionId: result.sessionId };
       } catch (err) {
-        /* v8 ignore start -- upstream connection errors are runtime-only */
+        /* v8 ignore start -- SDK errors are runtime-only */
         const detail = err instanceof Error ? err.message : String(err);
-        request.log.error(`Routing to bot "${target}" failed: ${detail}`);
-        const isTimeout = err instanceof Error && (
-          (err as { code?: string }).code === "UND_ERR_CONNECT_TIMEOUT" ||
-          (err.cause as { code?: string } | undefined)?.code === "UND_ERR_CONNECT_TIMEOUT" ||
-          err.name === "TimeoutError" ||
-          (err.cause instanceof Error && err.cause.name === "TimeoutError")
-        );
-        const code = isTimeout ? 504 : 502;
-        // Surface upstream error detail for actionable diagnostics (e.g. "No API credentials")
-        const msg = isTimeout ? "Upstream bot timed out" : `Upstream bot unavailable: ${detail}`;
-        reply.code(code).send({ error: msg });
+        request.log.error(`SDK chat for bot "${target}" failed: ${detail}`);
+        reply.code(502).send({ error: `Chat failed: ${detail}` });
         /* v8 ignore stop */
       }
     },

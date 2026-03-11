@@ -38,6 +38,9 @@ importers:
 
   packages/agent:
     dependencies:
+      '@anthropic-ai/claude-agent-sdk':
+        specifier: ^0.2.72
+        version: 0.2.72(zod@3.25.76)
       '@fastify/cors':
         specifier: ^11.2.0
         version: 11.2.0
