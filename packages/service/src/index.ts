@@ -65,3 +65,5 @@ export { resolveClaudeRuntime, invalidateClaudeRuntimeCache } from "./claude-run
 export type { ClaudeRuntimeInfo, ResolvedFrom } from "./claude-runtime.js";
 export { resolveBotHome, listBotDir, readBotFile, writeBotFile, FileNotFoundError, NotMarkdownError, FileTooLargeError } from "./bot-files.js";
 export type { DirEntry } from "./bot-files.js";
+export { botActivitySnapshot, botActivityStream } from "./activity.js";
+export type { ActivitySnapshot } from "./activity.js";
