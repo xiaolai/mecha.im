@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "composite": true,
+    "outDir": "./dist",
+    "rootDir": "."
+  },
+  "include": ["shared/**/*.ts", "src/**/*.ts", "agent/types.ts"]
+}

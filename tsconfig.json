@@ -1,23 +1,22 @@
 {
-  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "composite": false,
-    "declaration": false,
-    "declarationMap": false,
-    "sourceMap": false
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "./dist",
+    "rootDir": ".",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true
   },
   "references": [
-    { "path": "packages/core" },
-    { "path": "packages/mcp-server" },
-    { "path": "packages/cli" },
-    { "path": "packages/process" },
-    { "path": "packages/sandbox" },
-    { "path": "packages/runtime" },
-    { "path": "packages/service" },
-    { "path": "packages/agent" },
-    { "path": "packages/meter" },
-    { "path": "packages/server" }
+    { "path": "./tsconfig.cli.json" },
+    { "path": "./tsconfig.agent.json" }
   ],
-  "include": [],
-  "exclude": ["node_modules", "dist", "coverage"]
+  "files": []
 }

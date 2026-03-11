@@ -1,0 +1,4 @@
+#!/bin/bash
+echo "mecha-agent exited with code $1, signal $2"
+# Give time for graceful shutdown
+sleep 2

@@ -3,35 +3,15 @@
     "allow": [],
     "deny": []
   },
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "cd \"$(git rev-parse --show-toplevel)\" && .claude/scripts/deploy-cli.sh"
-          }
-        ]
+  "extraKnownMarketplaces": {
+    "mecha-local": {
+      "source": {
+        "source": "directory",
+        "path": "/Users/joker/github/xiaolai/myprojects/mecha.im.v3/.claude/plugins"
       }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "cd \"$(git rev-parse --show-toplevel)\" && .claude/scripts/docs-sync-check.sh"
-          }
-        ]
-      }
-    ]
+    }
   },
   "enabledPlugins": {
-    "grill@xiaolai": true,
-    "loc-guardian@xiaolai": true,
-    "tdd-guardian@xiaolai": true,
-    "codex-toolkit@xiaolai": true,
-    "echo-sleuth@xiaolai": true,
-    "docs-guardian@xiaolai": true
+    "claude-guru@mecha-local": true
   }
 }

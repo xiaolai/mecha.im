@@ -1,0 +1,22 @@
+# Dev files
+.claude/
+.codex/
+.gemini/
+.mcp.json
+dev-docs/
+test/
+grill-report-*.md
+FIXING-PLAN.md
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+
+# Build artifacts not needed
+node_modules/
+*.tsbuildinfo
+
+# Dashboard source (only dist is shipped)
+dashboard/src/
+dashboard/node_modules/
+agent/dashboard/src/
+agent/dashboard/node_modules/
