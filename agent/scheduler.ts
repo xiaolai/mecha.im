@@ -206,6 +206,7 @@ export class Scheduler {
     nextRunAt: string | null;
     lastRunAt: string | null;
     lastResult: string | null;
+    runCount: number;
     runsToday: number;
     consecutiveErrors: number;
   }> {
@@ -217,6 +218,7 @@ export class Scheduler {
       nextRunAt: e.nextRunAt,
       lastRunAt: e.lastRunAt,
       lastResult: e.lastResult,
+      runCount: e.runCount,
       runsToday: e.runsToday,
       consecutiveErrors: e.consecutiveErrors,
     }));
