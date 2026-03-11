@@ -1,4 +1,5 @@
-export { checkPort, allocatePort } from "./port.js";
+export { checkPort, allocatePort, claimPort } from "./port.js";
+export type { PortClaim } from "./port.js";
 export { waitForHealthy } from "./health.js";
 export { readState, writeState, listBotDirs } from "./state-store.js";
 export type { BotState } from "./state-store.js";

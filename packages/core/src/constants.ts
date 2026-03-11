@@ -42,6 +42,8 @@ export const DEFAULTS = {
   AGENT_STATUS_TIMEOUT_MS: 5_000,
   /** Port availability check socket timeout (ms) */
   PORT_CHECK_TIMEOUT_MS: 2_000,
+  /** Timeout (ms) for waiting on a stale process to exit after SIGKILL */
+  STALE_PROCESS_KILL_TIMEOUT_MS: 3_000,
   /** Default metering proxy port */
   METER_PORT: 7600,
   /** Metering proxy shutdown grace period (ms) */
