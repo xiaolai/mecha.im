@@ -16,7 +16,7 @@ function createMockSpawn(mockChild: EventEmitter & { pid: number; killed: boolea
   return vi.fn().mockReturnValue(mockChild);
 }
 
-function createMockChild(pid = 12345) {
+function createMockChild(pid = 4_000_001) {
   const child = new EventEmitter() as EventEmitter & {
     pid: number;
     killed: boolean;
@@ -96,7 +96,7 @@ describe("createProcessManager", () => {
 
     expect(info.name).toBe(testName);
     expect(info.state).toBe("running");
-    expect(info.pid).toBe(12345);
+    expect(info.pid).toBe(4_000_001);
     expect(info.port).toBe(healthPort);
     expect(info.token).toBeDefined();
     expect(info.startedAt).toBeDefined();
@@ -1000,8 +1000,9 @@ describe("createProcessManager", () => {
   });
 
   it("re-spawns bot after stop", async () => {
-    const mockChild1 = createMockChild(111);
-    const mockChild2 = createMockChild(222);
+    // Use high PIDs that won't match real system processes on Linux CI
+    const mockChild1 = createMockChild(4_000_111);
+    const mockChild2 = createMockChild(4_000_222);
     let callCount = 0;
     const mockSpawn = vi.fn(() => {
       callCount++;
@@ -1030,12 +1031,12 @@ describe("createProcessManager", () => {
       port: healthPort,
     });
     expect(info2.state).toBe("running");
-    expect(info2.pid).toBe(222);
+    expect(info2.pid).toBe(4_000_222);
   });
 
   it("tracks multiple concurrent bots in live map", async () => {
-    const mockChild1 = createMockChild(111);
-    const mockChild2 = createMockChild(222);
+    const mockChild1 = createMockChild(4_000_111);
+    const mockChild2 = createMockChild(4_000_222);
     let callCount = 0;
     const mockSpawn = vi.fn(() => {
       callCount++;
@@ -1066,7 +1067,7 @@ describe("createProcessManager", () => {
     // Both bots are live and tracked
     expect(info1.port).toBe(healthPort);
     expect(info2.name).toBe("second-bot");
-    expect(info2.pid).toBe(222);
+    expect(info2.pid).toBe(4_000_222);
     expect(info2.port).toBe(healthPort);
 
     // Verify both are in the live list
