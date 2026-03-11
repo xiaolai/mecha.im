@@ -1,6 +1,6 @@
 {
   "name": "@mecha/agent",
-  "version": "0.2.11",
+  "version": "0.2.12",
   "description": "Agent server for cross-CASA routing and discovery",
   "type": "module",
   "exports": {
