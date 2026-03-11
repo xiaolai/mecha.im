@@ -1,94 +1,112 @@
-
-__pycache__/
-!.env.example              # Keep example files for documentation
-.claude/*.local.*
-.claude/.docs-sync-enabled
-.claude/CLAUDE.local.md
-.claude/settings.local.json
-.claude/tdd-guardian/state.json
-.codex/config.local.json
-.DS_Store
-.env
-.env.*
-.gemini/settings.local.json
-.idea/
-.next/
-.nyc_output/
-.turbo/
-.venv/
-.vscode/
-*.egg-info/
-*.key
-*.log
-*.pem
-*.pyc
-*.swo
-*.swp
-*.tsbuildinfo
-*~
 # =============================================================================
 # AI CODING ASSISTANTS
-# BUILD OUTPUTS
+# =============================================================================
+
 # Claude Code - local settings contain personal preferences and may include tokens
-# Codex CLI - local files (sessions, logs, config)
-# Common build directories
-# Credential files
-# DEPENDENCIES
-# EDITORS & IDEs
-# Environment files often contain API keys, database credentials, etc.
-# Gemini CLI - local files (settings, tmp)
-# JavaScript/TypeScript
-# JetBrains (IntelliJ, WebStorm, PyCharm, etc.)
-# LOGS & TEMPORARY FILES
-# macOS - Finder metadata
-# Node.js
-# OPERATING SYSTEM
-# PHP (Composer)
-# Private keys and certificates
-# Python
-# Python package build
-# Rust/Cargo
-# SECRETS & ENVIRONMENT
-# TEST COVERAGE
-# Turborepo cache
-# TypeScript incremental build info
-# Vim/Neovim swap and backup files
-# Visual Studio Code
-# Windows - thumbnail cache
-build/
+.claude/settings.local.json
+.claude/CLAUDE.local.md
+.claude/*.local.*
 CLAUDE.local.md
-coverage/
-reports/
+
+# Claude Code - local plugin symlinks (machine-specific paths)
+.claude/plugins/claude-guru
+
+# Codex CLI - local files (sessions, logs, config)
+.codex/*
+!.codex/skills/
+!.codex/prompts/
+
+# Gemini CLI - local files (settings, tmp)
+.gemini/*
+!.gemini/skills/
+!.gemini/commands/
+
+# =============================================================================
+# SECRETS & ENVIRONMENT
+# =============================================================================
+
+# Environment files often contain API keys, database credentials, etc.
+.env
+.env.*
+!.env.example              # Keep example files for documentation
+
+# Private keys and certificates
+*.pem
+*.key
+
+# Credential files
 credentials.json
-dist/
-htmlcov/
-logs/
-next-env.d.ts
-node_modules/
 secrets.json
-target/
+
+# =============================================================================
+# OPERATING SYSTEM
+# =============================================================================
+
+# macOS - Finder metadata
+.DS_Store
+
+# Windows - thumbnail cache
 Thumbs.db
-tsconfig.tsbuildinfo
+
+# =============================================================================
+# EDITORS & IDEs
+# =============================================================================
+
+# JetBrains (IntelliJ, WebStorm, PyCharm, etc.)
+.idea/
+
+# Visual Studio Code
+.vscode/
+
+# Vim/Neovim swap and backup files
+*.swp
+*.swo
+*~
+
+# =============================================================================
+# DEPENDENCIES
+# =============================================================================
+
+# Node.js
+node_modules/
+
+# PHP (Composer)
 vendor/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
 venv/
-.gitnexus
 
-# Dev docs and scripts (internal only)
-dev-docs/
-dev-scripts/
-scripts/hotdeploy.sh
-infrastructure/
+# =============================================================================
+# BUILD OUTPUTS
+# =============================================================================
 
-# Generated files
-*.generated.ts
-*.generated.js
+# Common build directories
+dist/
+build/
 
-# Pixel art tilesets (raw assets, not for distribution)
-packages/spa/public/pixel-assets/
+# Python package build
+*.egg-info/
 
-# Playwright MCP
-.playwright-mcp/
+# Rust/Cargo
+target/
 
-# VitePress
-website/.vitepress/
-website/docs/.vitepress/cache/
+# =============================================================================
+# LOGS & TEMPORARY FILES
+# =============================================================================
+
+*.log
+logs/
+
+# =============================================================================
+# TEST COVERAGE
+# =============================================================================
+
+# JavaScript/TypeScript
+coverage/
+.nyc_output/
+
+# Python
+htmlcov/

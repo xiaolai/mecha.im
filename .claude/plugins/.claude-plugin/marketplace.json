@@ -1,0 +1,17 @@
+{
+  "name": "mecha-local",
+  "owner": {
+    "name": "mecha.im"
+  },
+  "plugins": [
+    {
+      "name": "claude-guru",
+      "source": "./claude-guru",
+      "description": "Anthropic/Claude documentation RAG — semantic search, change tracking, and knowledge extraction",
+      "version": "0.1.0",
+      "author": {
+        "name": "xiaolai"
+      }
+    }
+  ]
+}
