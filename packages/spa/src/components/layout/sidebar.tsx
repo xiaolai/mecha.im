@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   BoxIcon,
+  BuildingIcon,
   CalendarClockIcon,
   NetworkIcon,
   ScrollTextIcon,
@@ -25,6 +26,7 @@ const navSections = [
       { href: "/", label: "Bots", icon: BoxIcon },
       { href: "/schedules", label: "Schedules", icon: CalendarClockIcon },
       { href: "/budgets", label: "Budgets", icon: DollarSignIcon },
+      { href: "/office", label: "Office", icon: BuildingIcon },
     ],
   },
   {
