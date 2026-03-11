@@ -19,6 +19,10 @@ export interface CreateServerOpts {
   workspacePath: string;
   mechaDir?: string;
   botDir?: string;
+  /** Full system prompt override (R6-004). */
+  systemPrompt?: string;
+  /** Append to default system prompt (R6-004). */
+  appendSystemPrompt?: string;
   /** Override the SDK-backed schedule chatFn (for testing). Does not affect /api/chat route. */
   scheduleChatFn?: ChatFn;
 }
@@ -57,6 +61,8 @@ export function createServer(opts: CreateServerOpts): ServerResult {
   const chatOpts = {
     workspacePath: opts.workspacePath,
     settingSources: ["project"] as const,
+    ...(opts.systemPrompt !== undefined && { systemPrompt: opts.systemPrompt }),
+    ...(opts.appendSystemPrompt !== undefined && { appendSystemPrompt: opts.appendSystemPrompt }),
   };
 
   // HTTP chat handler for /api/chat route

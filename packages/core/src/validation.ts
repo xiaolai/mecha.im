@@ -12,9 +12,10 @@ export function isValidName(input: string): boolean {
   return NAME_PATTERN.test(input);
 }
 
-/** Test if a string is a valid address: bare name ("coder") or name@node ("coder@alice") */
+/** Test if a string is a valid address: bare name ("coder"), name@node ("coder@alice"), or wildcard ("*") */
 export function isValidAddress(input: string): boolean {
   if (!input) return false;
+  if (input === "*") return true; // wildcard matches all (R6-002)
   const atIndex = input.indexOf("@");
   if (atIndex === -1) return isValidName(input);
   // Must have exactly one @
