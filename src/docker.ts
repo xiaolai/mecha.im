@@ -176,6 +176,7 @@ export async function spawn(config: BotConfig, botPath?: string): Promise<string
     const botToken = "mecha_" + randomBytes(24).toString("hex");
 
     const env = [
+      `S6_KEEP_ENV=1`,
       `ANTHROPIC_API_KEY=${auth.apiKey}`,
       `MECHA_BOT_NAME=${config.name}`,
       `MECHA_BOT_TOKEN=${botToken}`,
@@ -243,11 +244,14 @@ export async function spawn(config: BotConfig, botPath?: string): Promise<string
     await container.start();
 
     // Health check with exponential backoff
+    // On colima/macOS, container IPs are not reachable from the host — use port mapping
     const containerInfo = await container.inspect();
     const containerIp = containerInfo.NetworkSettings.IPAddress;
+    const hostBindings = containerInfo.HostConfig?.PortBindings?.["3000/tcp"] as Array<{ HostPort: string }> | undefined;
+    const mappedPort = hostBindings?.[0]?.HostPort;
     const healthUrl = containerIp
       ? `http://${containerIp}:3000/health`
-      : `http://localhost:${config.expose ?? 3000}/health`;
+      : `http://localhost:${mappedPort ?? config.expose ?? 3000}/health`;
 
     let healthy = false;
     let delay = 200;
@@ -273,9 +277,10 @@ export async function spawn(config: BotConfig, botPath?: string): Promise<string
     if (!healthy) {
       // Show logs on failure, then clean up orphaned container
       const logStream = await container.logs({ stdout: true, stderr: true, tail: 20 });
-      // Truncate and redact potential secrets from container logs before logging
-      const rawLogs = logStream.toString().slice(0, 4096);
-      const redactedLogs = rawLogs.replace(/(ANTHROPIC_API_KEY|MECHA_BOT_TOKEN|MECHA_TS_AUTH_KEY|MECHA_HEADSCALE_API_KEY)=[^\s]*/g, "$1=***");
+      // Redact potential secrets before truncating to avoid splitting a secret at the boundary
+      const redactedLogs = logStream.toString()
+        .replace(/(ANTHROPIC_API_KEY|MECHA_BOT_TOKEN|MECHA_TS_AUTH_KEY|MECHA_HEADSCALE_API_KEY)=[^\s]*/g, "$1=***")
+        .slice(0, 4096);
       log.error("Container logs on health failure", { logs: redactedLogs });
       try {
         await container.stop({ t: 5 });
@@ -298,6 +303,22 @@ export async function spawn(config: BotConfig, botPath?: string): Promise<string
   } catch (err) {
     if (err instanceof ProcessHealthTimeoutError) throw err;
     throw new ProcessSpawnError(err instanceof Error ? err.message : String(err));
+  } finally {
+    release();
+  }
+}
+
+export async function start(name: string): Promise<void> {
+  const mutex = getMutex(`bot:${name}`);
+  const release = await mutex.acquire();
+  try {
+    const container = docker.getContainer(`mecha-${name}`);
+    await container.start();
+  } catch (err) {
+    if (isDockerError(err, "No such container")) {
+      throw new BotNotRunningError(name);
+    }
+    throw err;
   } finally {
     release();
   }

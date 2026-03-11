@@ -149,14 +149,9 @@ program
       console.error(`Bot "${name}" not found in registry. Use "mecha spawn" first.`);
       process.exit(1);
     }
-    if (!entry.config) {
-      console.error(`No saved config for bot "${name}"`);
-      process.exit(1);
-    }
-    const config = loadBotConfig(entry.config);
     console.log(`Starting bot "${name}"...`);
-    const containerId = await docker.spawn(config, entry.path);
-    console.log(`Bot "${name}" is running (container: ${containerId.slice(0, 12)})`);
+    await docker.start(name);
+    console.log(`Bot "${name}" is running (container: ${entry.containerId?.slice(0, 12) ?? "unknown"})`);
   });
 
 // --- stop ---
@@ -265,10 +260,32 @@ program
     const botToken = botEntry?.botToken;
     let url: string | undefined;
 
-    // Try local docker IP first
+    // Try local docker IP first (may not be reachable on Colima/VM setups)
     const ip = await docker.getContainerIp(name);
     if (ip) {
-      url = `http://${ip}:3000/prompt`;
+      try {
+        const probe = await fetch(`http://${ip}:3000/health`, { signal: AbortSignal.timeout(2000) });
+        if (probe.ok) url = `http://${ip}:3000/prompt`;
+      } catch {
+        // Container IP not reachable from host (e.g. Colima VM)
+      }
+    }
+
+    // Try exposed port on localhost
+    if (!url && botEntry) {
+      const containers = await docker.list();
+      const container = containers.find((c) => c.name === name);
+      if (container?.ports) {
+        const match = container.ports.match(/(\d+)→3000/);
+        if (match) {
+          try {
+            const probe = await fetch(`http://localhost:${match[1]}/health`, { signal: AbortSignal.timeout(2000) });
+            if (probe.ok) url = `http://localhost:${match[1]}/prompt`;
+          } catch {
+            // port not reachable
+          }
+        }
+      }
     }
 
     // Try MagicDNS (Tailscale)

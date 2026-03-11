@@ -1,5 +1,6 @@
 #!/command/execlineb -P
 fdmove -c 2 1
 s6-setuidgid appuser
+export HOME /home/appuser
 cd /app
 node agent/entry.js

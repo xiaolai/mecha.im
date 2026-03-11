@@ -1,3 +1,14 @@
-#!/command/execlineb -P
-fdmove -c 2 1
-/usr/sbin/tailscaled --state=/state/tailscale/tailscaled.state --socket=/var/run/tailscale/tailscaled.sock
+#!/bin/bash
+exec 2>&1
+
+# If /dev/net/tun doesn't exist, Tailscale cannot run.
+# Sleep forever so s6 considers this longrun service "up",
+# allowing dependent services (tailscale-up → mecha-agent) to proceed.
+if [ ! -c /dev/net/tun ]; then
+  echo "WARNING: /dev/net/tun not available, tailscaled disabled"
+  exec sleep infinity
+fi
+
+exec /usr/sbin/tailscaled \
+  --state=/state/tailscale/tailscaled.state \
+  --socket=/var/run/tailscale/tailscaled.sock

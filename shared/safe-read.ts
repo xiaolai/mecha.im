@@ -3,7 +3,7 @@ import type { ZodType } from "zod";
 
 export type SafeReadResult<T> =
   | { ok: true; data: T }
-  | { ok: false; reason: "missing" | "corrupt" | "unreadable"; detail: string };
+  | { ok: false; reason: "missing" | "corrupt" | "schema" | "unreadable"; detail: string };
 
 export function safeReadJson<T>(
   path: string,
@@ -42,7 +42,7 @@ export function safeReadJson<T>(
   if (schema) {
     const result = schema.safeParse(parsed);
     if (!result.success) {
-      return { ok: false, reason: "corrupt", detail: `${label}: schema validation failed` };
+      return { ok: false, reason: "schema", detail: `${label}: schema validation failed` };
     }
     return { ok: true, data: result.data };
   }

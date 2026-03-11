@@ -10,20 +10,30 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { existsSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import assert from "node:assert/strict";
 
-const MECHA = join(import.meta.dirname, "..", "dist", "src", "cli.js");
+const MECHA = join(import.meta.dirname, "..", "src", "cli.ts");
 const BOT_NAME = "test-integration";
 
 function mecha(...args: string[]): string {
-  return execFileSync("node", [MECHA, ...args], {
+  return execFileSync("npx", ["tsx", MECHA, ...args], {
     encoding: "utf-8",
-    timeout: 60_000,
+    timeout: 120_000,
     env: { ...process.env },
   }).trim();
+}
+
+function getBotToken(name: string): string {
+  const regPath = join(homedir(), ".mecha", "registry.json");
+  const reg = JSON.parse(readFileSync(regPath, "utf-8"));
+  return reg.bots?.[name]?.botToken ?? "";
+}
+
+function authHeaders(token: string): Record<string, string> {
+  return { Authorization: `Bearer ${token}` };
 }
 
 async function waitFor(url: string, timeoutMs = 30_000): Promise<boolean> {
@@ -87,9 +97,14 @@ async function run() {
   console.log(`   Response: ${chatOut.slice(0, 100)}...`);
   console.log("   PASS\n");
 
+  // Get bot token for authenticated API calls
+  const botToken = getBotToken(BOT_NAME);
+  assert.ok(botToken.length > 0, "bot token exists in registry");
+  const headers = authHeaders(botToken);
+
   // 6. API: tasks
   console.log("6. API: /api/tasks");
-  const tasksResp = await fetch("http://localhost:13000/api/tasks");
+  const tasksResp = await fetch("http://localhost:13000/api/tasks", { headers });
   const tasks = await tasksResp.json() as unknown[];
   assert.ok(Array.isArray(tasks), "tasks is array");
   assert.ok(tasks.length > 0, "at least one task");
@@ -97,7 +112,7 @@ async function run() {
 
   // 7. API: costs
   console.log("7. API: /api/costs");
-  const costsResp = await fetch("http://localhost:13000/api/costs");
+  const costsResp = await fetch("http://localhost:13000/api/costs", { headers });
   const costs = await costsResp.json() as { lifetime: number };
   assert.ok(typeof costs.lifetime === "number", "lifetime cost is number");
   console.log(`   Lifetime cost: $${costs.lifetime.toFixed(4)}`);
@@ -105,7 +120,7 @@ async function run() {
 
   // 8. API: status
   console.log("8. API: /api/status");
-  const statusResp = await fetch("http://localhost:13000/api/status");
+  const statusResp = await fetch("http://localhost:13000/api/status", { headers });
   const status = await statusResp.json() as { state: string; name: string };
   assert.equal(status.name, BOT_NAME);
   assert.equal(status.state, "idle");
@@ -113,7 +128,7 @@ async function run() {
 
   // 9. API: config (redacted)
   console.log("9. API: /api/config");
-  const configResp = await fetch("http://localhost:13000/api/config");
+  const configResp = await fetch("http://localhost:13000/api/config", { headers });
   const config = await configResp.json() as { name: string; auth?: string };
   assert.equal(config.name, BOT_NAME);
   console.log("   PASS\n");
