@@ -1,19 +1,9 @@
 {
   "mcpServers": {
-    "gitnexus": {
-      "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "gitnexus", "mcp"]
-    },
     "codex-cli": {
       "type": "stdio",
       "command": "npx",
       "args": ["-y", "codex-mcp-server"]
-    },
-    "chrome-devtools": {
-      "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "chrome-devtools-mcp@latest"]
     }
   }
 }

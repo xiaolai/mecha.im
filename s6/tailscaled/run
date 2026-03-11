@@ -1,0 +1,3 @@
+#!/command/execlineb -P
+fdmove -c 2 1
+/usr/sbin/tailscaled --state=/state/tailscale/tailscaled.state --socket=/var/run/tailscale/tailscaled.sock

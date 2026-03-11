@@ -1,112 +1,143 @@
 # Mecha
 
-Run an army of bots on your own machines. Each bot is a Claude Code process with its own workspace, identity, and schedule.
+An army of agents. Run autonomous Claude bots in Docker containers with scheduling, webhooks, and bot-to-bot communication over Tailscale.
 
-## Why
-
-You need more than one AI assistant. You need a team — a coder, a reviewer, a researcher, a monitor — each focused on its own job, running on your hardware, under your control.
-
-Mecha makes this possible. It wraps Claude Code (specifically) into managed processes called **bots**. You define a bot with a markdown file — its system prompt, permissions, schedule, tools. Then Mecha spawns it, sandboxes it, and keeps it running.
-
-## What a bot is
-
-A bot is a markdown file that becomes a Claude Code process.
-
-The markdown file defines who the bot is — its personality, instructions, and constraints. Mecha reads the file, spawns a Claude Code session with those settings, and manages the process lifecycle.
-
-```
-bots/
-├── coder/
-│   ├── CLAUDE.md          ← the bot's identity and instructions
-│   ├── config.json        ← port, workspace, model, schedule
-│   └── sessions/          ← conversation history (JSONL)
-├── reviewer/
-│   ├── CLAUDE.md
-│   ├── config.json
-│   └── sessions/
-└── researcher/
-    ├── CLAUDE.md
-    ├── config.json
-    └── sessions/
-```
-
-## Active, not passive
-
-Most AI setups wait for you to type something. Mecha bots can be **active**:
-
-- **Scheduled** — run tasks on a cron schedule (check logs every hour, review PRs daily)
-- **Responsive** — listen for events via webhooks or mesh queries from other bots
-- **Autonomous** — work through multi-step tasks independently within their sandbox
-
-A bot sitting idle is a bot not earning its keep.
-
-## Tree structure
-
-Each bot is a directory with a markdown file. Organize them in a tree — group by project, team, or role. The directory structure is your org chart.
-
-```
-bots/
-├── frontend/
-│   ├── coder/
-│   │   └── CLAUDE.md     ← "You write React components..."
-│   ├── reviewer/
-│   │   └── CLAUDE.md     ← "You review PRs for quality..."
-│   └── tester/
-│       └── CLAUDE.md     ← "You write and maintain tests..."
-├── backend/
-│   ├── api-dev/
-│   │   └── CLAUDE.md     ← "You build API endpoints..."
-│   └── db-admin/
-│       └── CLAUDE.md     ← "You manage database migrations..."
-└── ops/
-    ├── monitor/
-    │   └── CLAUDE.md     ← "You watch logs and alert on errors..."
-    └── deployer/
-        └── CLAUDE.md     ← "You run deployments on schedule..."
-```
-
-Each markdown file defines a bot's identity, instructions, and constraints. Mecha reads the file and spawns a Claude Code process from it.
-
-## Built on Claude Code
-
-Mecha is not a generic AI framework. It runs Claude Code — the same CLI tool Anthropic ships. Every bot gets the full Claude Code toolset: file editing, bash execution, web search, MCP servers.
-
-This means your bots can do real work: write code, run tests, read documentation, manage files. They operate in real workspaces on real filesystems.
-
-## Install
+## Quickstart
 
 ```bash
-brew install xiaolai/tap/mecha
-```
+# Install
+npm install -g mecha
 
-## Quick start
-
-```bash
-# Initialize
+# Initialize (builds Docker image)
 mecha init
 
-# Start the runtime (background)
-mecha start -d
+# Set your API key
+export ANTHROPIC_API_KEY=sk-ant-...
+# Or use a profile:
+mecha auth add anthropic-main sk-ant-...
 
-# Spawn a bot
-mecha bot spawn coder ~/my-project
+# Spawn a bot inline
+mecha spawn --name greeter --system "You greet people warmly."
 
 # Chat with it
-mecha bot chat coder "refactor the auth module"
+mecha chat greeter "Hello!"
 
-# Give it a schedule
-mecha schedule add coder --cron "0 9 * * *" --prompt "review open PRs and summarize"
+# List bots
+mecha ls
+
+# Stop / restart / remove
+mecha stop greeter
+mecha start greeter
+mecha rm greeter
 ```
 
-## Features
+## Config File
 
-- **CLI-first** — every feature works from the terminal. The dashboard is optional.
-- **Sandboxed** — each bot runs in OS-level isolation (macOS sandbox-exec, Linux bwrap)
-- **Metered** — track API costs per bot, set daily budgets, auto-pause overspenders
-- **Networked** — bots query each other through a permission-controlled mesh
-- **Persistent** — conversation history survives restarts as plain JSONL files
-- **Multi-machine** — deploy across machines, manage from one place
+```yaml
+name: reviewer
+system: |
+  You are a code reviewer. You review PRs for bugs,
+  security issues, and style violations.
+model: sonnet
+auth: anthropic-main
+max_turns: 25
+max_budget_usd: 1.00
 
-## License
+schedule:
+  - cron: "*/30 * * * *"
+    prompt: "Check for new unreviewed PRs."
 
-ISC
+webhooks:
+  accept:
+    - "pull_request.opened"
+    - "pull_request.synchronize"
+
+workspace: ./myproject
+expose: 8080
+```
+
+```bash
+mecha spawn reviewer.yaml
+```
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `mecha init [--headscale]` | Initialize mecha, build Docker image |
+| `mecha spawn <config> [--dir] [--expose]` | Spawn bot from config file |
+| `mecha spawn --name X --system "..." [--model M]` | Spawn bot inline |
+| `mecha start <name>` | Start a stopped bot |
+| `mecha stop <name>` | Stop a running bot |
+| `mecha rm <name>` | Remove a bot |
+| `mecha ls` | List all bots |
+| `mecha chat <name> "prompt"` | Send a prompt to a bot |
+| `mecha logs <name> [-f]` | Show bot logs |
+| `mecha auth add <profile> <key>` | Add auth profile |
+| `mecha auth list` | List auth profiles |
+| `mecha auth swap <bot> <profile>` | Swap auth for a bot |
+| `mecha token` | Generate a bot token |
+| `mecha dashboard [--port N]` | Start fleet dashboard |
+
+## Architecture
+
+```
+Host (CLI)                    Container (Agent)
+─────────────────────────     ──────────────────────────
+src/cli.ts                    agent/entry.ts
+src/docker.ts (dockerode)     agent/server.ts (Hono)
+src/store.ts (~/.mecha/)      agent/session.ts
+src/config.ts                 agent/scheduler.ts (croner)
+src/auth.ts                   agent/webhook.ts
+src/dashboard-server.ts       agent/costs.ts
+                              agent/activity.ts
+                              agent/tools/mecha-server.ts
+                              agent/tools/mecha-call.ts
+                              agent/tools/mecha-list.ts
+```
+
+## Bot-to-Bot Communication
+
+Bots discover each other via Tailscale/Headscale and communicate using built-in MCP tools:
+
+- `mecha_call` — send a prompt to another bot
+- `mecha_list` — discover available bots on the network
+- `mecha_new_session` — start a fresh conversation
+
+## Scheduling
+
+Bots run prompts on cron schedules with safety rails:
+- Max 50 runs per day
+- 10 minute timeout per run
+- Auto-pause after 5 consecutive errors
+- Skip if busy
+
+## Dashboard
+
+```bash
+mecha dashboard
+# Opens http://localhost:7700
+```
+
+Fleet dashboard shows all bots with status, costs, and a communication map. Click a bot to access its individual dashboard with chat, tasks, schedule, logs, and config views.
+
+## Auth
+
+Auth works via environment variable or named profiles:
+
+```bash
+# Environment variable (simplest)
+export ANTHROPIC_API_KEY=sk-ant-...
+
+# Named profile
+mecha auth add anthropic-main sk-ant-...
+mecha auth add tailscale-main tskey-auth-...
+```
+
+Profiles are stored at `~/.mecha/auth/<name>.json`.
+
+## Requirements
+
+- Node.js 22+
+- Docker (Colima, Docker Desktop, or any OCI runtime)
+- Tailscale (optional, for multi-machine mesh)
