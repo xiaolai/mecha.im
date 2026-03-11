@@ -37,34 +37,15 @@ export const MUTATING_COMMANDS = new Set([
   // Daemon-level mutating commands
   // NOTE: "stop" and "restart" are NOT locked — they must run while the daemon holds the lock.
   "start", "init",
-  // bot spawn — must be locked to serialize port allocation across CLI processes.
-  // Without the lock, concurrent spawns race to allocate the same port (R5-001).
-  "bot spawn",
-  // Other bot subcommands — run without lock; ProcessManager writes per-bot state files
-  // (state.json, config.json) atomically. Concurrent bot ops on DIFFERENT bots are safe.
-  // Concurrent ops on the SAME bot are serialized by the server's request handler.
   // agent subcommands (agent status is read-only)
   "agent start",
-  // schedule subcommands — same reasoning, filesystem-level state.
-  // acl subcommands — grant/revoke write to acl.json only, safe while server runs.
-  // Not locked: same reasoning as meter/auth/budget — single-user manual ops.
-  // node subcommands — node add/rm write to nodes.json only, safe while server runs.
-  // Not locked: concurrent node add/rm has a theoretical read-modify-write race,
-  // but these are manual CLI ops that a single user runs sequentially.
-  // meter, auth, budget subcommands write to separate files (proxy.json, auth-profiles/,
-  // budgets.json) that don't conflict with the daemon server. Running these while
-  // the daemon holds the lock would deadlock the CLI.
-  // Trade-off: concurrent auth/budget CLI ops on the same file have a theoretical
-  // read-modify-write race, but these are manual single-user ops run sequentially.
-  // TODO: Add per-resource file locks if concurrent CLI usage becomes a real scenario.
-  // plugin subcommands (ls, status, test are read-only)
-  "plugin add", "plugin rm",
-  // audit subcommands
-  "audit clear",
   // dashboard subcommands
   "dashboard serve",
-  // totp subcommands — setup writes to totp-secret file only, safe while server runs.
-  // auth-config — writes to auth-profiles/ only, safe while server runs.
+  // --- Commands NOT locked (R6-001) ---
+  // "bot spawn" is proxied to the daemon API when daemon is running.
+  // The daemon's ProcessManager serializes spawns via withBotLock(), so the CLI
+  // does not need cli.lock. Locking here deadlocks because the daemon holds cli.lock.
+  // Same applies to: plugin add/rm, audit clear — all proxied to the daemon API.
 ]);
 
 /**

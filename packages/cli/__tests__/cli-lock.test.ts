@@ -149,7 +149,6 @@ describe("cli-lock", () => {
       ["init", ["node", "mecha", "init"]],
       ["agent start", ["node", "mecha", "agent", "start"]],
       ["dashboard serve", ["node", "mecha", "dashboard", "serve"]],
-      ["bot spawn", ["node", "mecha", "bot", "spawn", "alice", "/path"]],
     ])("returns true for %s", (_label, argv) => {
       expect(needsLock(argv)).toBe(true);
     });
@@ -165,6 +164,7 @@ describe("cli-lock", () => {
       ["bot ls", ["node", "mecha", "bot", "ls"]],
       ["bot status", ["node", "mecha", "bot", "status", "alice"]],
       ["bot logs", ["node", "mecha", "bot", "logs", "alice"]],
+      ["bot spawn", ["node", "mecha", "bot", "spawn", "alice", "/path"]],
       ["bot find", ["node", "mecha", "bot", "find"]],
       ["bot chat", ["node", "mecha", "bot", "chat", "alice"]],
       ["bot sessions", ["node", "mecha", "bot", "sessions", "list", "alice"]],
@@ -197,6 +197,10 @@ describe("cli-lock", () => {
       ["budget rm", ["node", "mecha", "budget", "rm"]],
       ["meter start", ["node", "mecha", "meter", "start"]],
       ["meter stop", ["node", "mecha", "meter", "stop"]],
+      ["plugin add", ["node", "mecha", "plugin", "add", "test"]],
+      ["plugin rm", ["node", "mecha", "plugin", "rm", "test"]],
+      ["plugin ls", ["node", "mecha", "plugin", "ls"]],
+      ["audit clear", ["node", "mecha", "audit", "clear"]],
       ["sandbox show", ["node", "mecha", "sandbox", "show"]],
       ["stop", ["node", "mecha", "stop"]],
       ["restart", ["node", "mecha", "restart"]],
@@ -218,7 +222,7 @@ describe("cli-lock", () => {
     });
 
     it("skips flags when finding command", () => {
-      expect(needsLock(["node", "mecha", "--json", "bot", "spawn", "alice", "/path"])).toBe(true);
+      expect(needsLock(["node", "mecha", "--json", "agent", "start"])).toBe(true);
       expect(needsLock(["node", "mecha", "--verbose", "bot", "ls"])).toBe(false);
     });
   });
