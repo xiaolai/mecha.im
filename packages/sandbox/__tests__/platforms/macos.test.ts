@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { mkdtempSync, rmSync, readFileSync } from "node:fs";
+import { mkdtempSync, rmSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { generateSbpl, escapeSbpl, wrapMacos, writeProfileMacos } from "../../src/platforms/macos.js";
@@ -12,9 +12,9 @@ describe("generateSbpl", () => {
     allowedProcesses: ["/usr/local/bin/node"],
     allowNetwork: true,
   };
+  const sbpl = generateSbpl(profile);
 
   it("generates valid SBPL with deny default and system permissions", () => {
-    const sbpl = generateSbpl(profile);
     expect(sbpl).toContain("(version 1)");
     expect(sbpl).toContain("(deny default)");
     expect(sbpl).toContain("(allow sysctl-read)");
@@ -24,16 +24,17 @@ describe("generateSbpl", () => {
     // Unrestricted file-read* — Bun compiled binary requires access to
     // paths that can't be enumerated (kernel pseudo-filesystems, Apple-internal)
     expect(sbpl).toContain("(allow file-read*)");
+    // /dev/null write access — Bun's child_process.spawn opens /dev/null for
+    // stdio fds set to "ignore"; without this, posix_spawn fails with EPERM (R7-001)
+    expect(sbpl).toContain('(allow file-write* (literal "/dev/null"))');
   });
 
   it("includes write path rules", () => {
-    const sbpl = generateSbpl(profile);
     expect(sbpl).toContain('(allow file-write* (subpath "/mecha/alice/home"))');
     expect(sbpl).toContain('(allow file-write* (subpath "/mecha/alice/logs"))');
   });
 
   it("includes network access when allowed", () => {
-    const sbpl = generateSbpl(profile);
     expect(sbpl).toContain("(allow network*)");
   });
 
@@ -43,14 +44,13 @@ describe("generateSbpl", () => {
   });
 
   it("includes allowed process rules", () => {
-    const sbpl = generateSbpl(profile);
     expect(sbpl).toContain('(allow process-exec (literal "/usr/local/bin/node"))');
   });
 
   it("does not include global process-exec", () => {
-    const sbpl = generateSbpl(profile);
     // Should only have per-process literal rules, not global (allow process-exec)
     const execLines = sbpl.split("\n").filter(l => l.includes("process-exec"));
+    expect(execLines).toHaveLength(profile.allowedProcesses.length);
     for (const line of execLines) {
       expect(line).toContain("(literal");
     }
@@ -83,6 +83,12 @@ describe("escapeSbpl", () => {
   it("passes through safe strings unchanged", () => {
     expect(escapeSbpl("/usr/bin/node")).toBe("/usr/bin/node");
   });
+
+  it("rejects control characters", () => {
+    expect(() => escapeSbpl("/path/with\nnewline")).toThrow("control characters");
+    expect(() => escapeSbpl("/path/with\ttab")).toThrow("control characters");
+    expect(() => escapeSbpl("/path/with\x00null")).toThrow("control characters");
+  });
 });
 
 describe("wrapMacos", () => {
@@ -109,5 +115,6 @@ describe("writeProfileMacos", () => {
 
     expect(path).toBe(join(tempDir, "sandbox.sbpl"));
     expect(readFileSync(path, "utf-8")).toBe(sbpl);
+    expect(statSync(path).mode & 0o777).toBe(0o600);
   });
 });
