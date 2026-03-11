@@ -1,6 +1,6 @@
 {
   "name": "@mecha/integration",
-  "version": "0.2.15",
+  "version": "0.2.16",
   "private": true,
   "type": "module",
   "description": "Multi-node integration tests for mecha mesh networking",
