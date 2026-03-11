@@ -3,6 +3,7 @@ import { cors } from "hono/cors";
 import { streamSSE } from "hono/streaming";
 import { z } from "zod";
 import { resolve, normalize } from "node:path";
+import { existsSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { Mutex } from "../shared/mutex.js";
@@ -25,6 +26,93 @@ const BOT_TOKEN = process.env.MECHA_BOT_TOKEN || ("mecha_agent_" + randomBytes(2
 if (!process.env.MECHA_BOT_TOKEN) {
   log.warn("MECHA_BOT_TOKEN not set — auto-generated token for this session. Set MECHA_BOT_TOKEN for stable auth.");
   log.info(`Auto-generated agent token: ${BOT_TOKEN}`);
+}
+
+interface QueryResult {
+  text: string;
+  costUsd: number;
+  sessionId: string;
+  durationMs: number;
+  success: boolean;
+}
+
+/** Run claude via SDK query() and iterate async events */
+async function runClaude(
+  message: string,
+  config: BotConfig,
+  resumeSessionId?: string,
+  onEvent?: (event: { type: string; data: unknown }) => void,
+  mcpServers?: Record<string, unknown>[],
+): Promise<QueryResult> {
+  const cwd = existsSync("/workspace") ? "/workspace" : "/app";
+
+  const options: Record<string, unknown> = {
+    model: config.model,
+    cwd,
+    maxTurns: config.max_turns ?? 25,
+    env: { ...process.env },
+    permissionMode: config.permission_mode,
+    settingSources: ["user", "project"],
+  };
+
+  if (config.permission_mode === "bypassPermissions") {
+    options.allowDangerouslySkipPermissions = true;
+  }
+
+  if (config.system) {
+    options.systemPrompt = config.system;
+  }
+
+  if (config.max_budget_usd) {
+    options.maxBudgetUsd = config.max_budget_usd;
+  }
+
+  if (resumeSessionId) {
+    options.resume = resumeSessionId;
+  }
+
+  if (mcpServers?.length) {
+    options.mcpServers = mcpServers;
+  }
+
+  const response = query({ prompt: message, options });
+
+  let resultText = "";
+  let costUsd = 0;
+  let sessionId = "";
+  let durationMs = 0;
+  let success = false;
+
+  for await (const event of response) {
+    // Capture session ID from init event
+    if (event.type === "system" && (event as any).subtype === "init" && (event as any).session_id) {
+      sessionId = (event as any).session_id;
+    }
+
+    // Stream assistant text and tool use
+    if (event.type === "assistant" && (event as any).message?.content) {
+      for (const block of (event as any).message.content) {
+        if (block.type === "text" && block.text) {
+          resultText += block.text;
+          onEvent?.({ type: "text", data: { content: block.text } });
+        }
+        if (block.type === "tool_use") {
+          onEvent?.({ type: "tool_use", data: { tool: block.name, input: block.input } });
+        }
+      }
+    }
+
+    // Capture final result
+    if (event.type === "result") {
+      costUsd = (event as any).total_cost_usd ?? 0;
+      sessionId = (event as any).session_id ?? sessionId;
+      durationMs = (event as any).duration_ms ?? 0;
+      success = (event as any).subtype === "success";
+      resultText = (event as any).result ?? resultText;
+    }
+  }
+
+  return { text: resultText, costUsd, sessionId, durationMs, success };
 }
 
 export function createApp(config: BotConfig, startedAt: number) {
@@ -54,97 +142,16 @@ export function createApp(config: BotConfig, startedAt: number) {
   const isBusy = () => busy.isLocked;
   const setScheduler = (s: Scheduler) => { schedulerRef = s; };
 
-  async function runQuery(message: string, stream?: {
-    writeSSE: (data: { event: string; data: string }) => Promise<void>;
-  }): Promise<void> {
-    const task = sessions.ensureActiveTask();
-    const resumeSessionId = sessions.getResumeSessionId();
-
-    if (stream) {
-      await stream.writeSSE({ event: "start", data: JSON.stringify({ task_id: task.id }) });
-    }
-
-    const conversation = query({
-      prompt: message,
-      options: {
-        model: config.model,
-        maxTurns: config.max_turns ?? 25,
-        systemPrompt: config.system,
-        cwd: "/workspace",
-        permissionMode: config.permission_mode,
-        allowDangerouslySkipPermissions: config.permission_mode === "bypassPermissions",
-        ...(config.max_budget_usd ? { maxBudgetUsd: config.max_budget_usd } : {}),
-        pathToClaudeCodeExecutable: "/usr/local/bin/claude",
-        mcpServers: { "mecha-tools": mechaTools },
-        ...(resumeSessionId ? { resume: resumeSessionId } : {}),
-      },
-    });
-
-    for await (const msg of conversation) {
-      switch (msg.type) {
-        case "assistant": {
-          if (!stream) break;
-          const betaMsg = msg.message;
-          if (betaMsg && typeof betaMsg === "object" && "content" in betaMsg && Array.isArray((betaMsg as { content: unknown[] }).content)) {
-            for (const block of (betaMsg as { content: Array<{ type: string; text?: string; name?: string; input?: unknown }> }).content) {
-              if (block.type === "text" && block.text) {
-                await stream.writeSSE({ event: "text", data: JSON.stringify({ content: block.text }) });
-              }
-              if (block.type === "tool_use") {
-                await stream.writeSSE({ event: "tool_use", data: JSON.stringify({ tool: block.name, input: block.input }) });
-              }
-            }
-          }
-          break;
-        }
-        case "tool_use_summary": {
-          if (!stream) break;
-          const summaryMsg = msg as Record<string, unknown>;
-          if (typeof summaryMsg.summary === "string") {
-            await stream.writeSSE({ event: "tool_summary", data: JSON.stringify({ summary: summaryMsg.summary }) });
-          }
-          break;
-        }
-        case "tool_progress": {
-          if (!stream) break;
-          const toolMsg = msg as Record<string, unknown>;
-          await stream.writeSSE({ event: "tool_progress", data: JSON.stringify({ tool: toolMsg.tool_name, elapsed: toolMsg.elapsed_time_seconds }) });
-          break;
-        }
-        case "result": {
-          const result = msg as Record<string, unknown>;
-          const costUsd = typeof result.total_cost_usd === "number" ? result.total_cost_usd : 0;
-          const sessionId = typeof result.session_id === "string" ? result.session_id : "";
-          const durationMs = typeof result.duration_ms === "number" ? result.duration_ms : 0;
-          const subtype = typeof result.subtype === "string" ? result.subtype : "";
-
-          if (sessionId) sessions.captureSessionId(sessionId);
-          sessions.addCost(costUsd);
-          costs.add(costUsd);
-
-          if (stream) {
-            await stream.writeSSE({
-              event: "done",
-              data: JSON.stringify({
-                cost_usd: costUsd,
-                session_id: sessionId,
-                duration_ms: durationMs,
-                success: subtype === "success",
-              }),
-            });
-          }
-          break;
-        }
-      }
-    }
-  }
-
   // Handle prompt from scheduler/webhook (no SSE stream)
   async function handlePrompt(prompt: string): Promise<void> {
     const release = await busy.acquire();
     activity.transition("thinking");
     try {
-      await runQuery(prompt);
+      const resumeSessionId = sessions.getResumeSessionId();
+      const result = await runClaude(prompt, config, resumeSessionId, undefined, [mechaTools]);
+      if (result.sessionId) sessions.captureSessionId(result.sessionId);
+      sessions.addCost(result.costUsd);
+      costs.add(result.costUsd);
     } finally {
       activity.transition("idle");
       release();
@@ -154,7 +161,7 @@ export function createApp(config: BotConfig, startedAt: number) {
   // --- Routes ---
 
   app.get("/health", (c) => {
-    return c.json({ status: "ok" });
+    return c.json({ status: "ok", name: config.name });
   });
 
   app.post("/prompt", async (c) => {
@@ -174,9 +181,39 @@ export function createApp(config: BotConfig, startedAt: number) {
     }
     activity.transition("thinking");
 
+    const task = sessions.ensureActiveTask();
+    const resumeSessionId = sessions.getResumeSessionId();
+
     return streamSSE(c, async (stream) => {
       try {
-        await runQuery(parsed.data.message, stream);
+        await stream.writeSSE({ event: "start", data: JSON.stringify({ task_id: task.id }) });
+
+        const result = await runClaude(
+          parsed.data.message,
+          config,
+          resumeSessionId,
+          async (event) => {
+            await stream.writeSSE({
+              event: event.type,
+              data: JSON.stringify(event.data),
+            });
+          },
+          [mechaTools],
+        );
+
+        if (result.sessionId) sessions.captureSessionId(result.sessionId);
+        sessions.addCost(result.costUsd);
+        costs.add(result.costUsd);
+
+        await stream.writeSSE({
+          event: "done",
+          data: JSON.stringify({
+            cost_usd: result.costUsd,
+            session_id: result.sessionId,
+            duration_ms: result.durationMs,
+            success: result.success,
+          }),
+        });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         log.error("Prompt stream error", { error: message });
