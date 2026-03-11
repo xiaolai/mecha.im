@@ -37,7 +37,10 @@ export const MUTATING_COMMANDS = new Set([
   // Daemon-level mutating commands
   // NOTE: "stop" and "restart" are NOT locked — they must run while the daemon holds the lock.
   "start", "init",
-  // bot subcommands — run without lock; ProcessManager writes per-bot state files
+  // bot spawn — must be locked to serialize port allocation across CLI processes.
+  // Without the lock, concurrent spawns race to allocate the same port (R5-001).
+  "bot spawn",
+  // Other bot subcommands — run without lock; ProcessManager writes per-bot state files
   // (state.json, config.json) atomically. Concurrent bot ops on DIFFERENT bots are safe.
   // Concurrent ops on the SAME bot are serialized by the server's request handler.
   // agent subcommands (agent status is read-only)
