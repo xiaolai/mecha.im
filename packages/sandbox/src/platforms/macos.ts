@@ -5,6 +5,9 @@ import type { SandboxProfile, SandboxWrapResult } from "../types.js";
 
 /** Escape a string for safe inclusion in an SBPL quoted literal. */
 export function escapeSbpl(s: string): string {
+  if (/[\x00-\x1f\x7f]/.test(s)) {
+    throw new Error(`Invalid path: contains control characters`);
+  }
   return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
@@ -25,13 +28,17 @@ export function generateSbpl(profile: SandboxProfile): string {
     // what can be enumerated (kernel pseudo-filesystems, Apple-internal paths).
     // Security is enforced via file-write* restrictions and process-exec restrictions.
     "(allow file-read*)",
+    // Bun's child_process.spawn opens /dev/null for stdio fds set to "ignore".
+    // Without this, posix_spawn fails with EPERM inside the sandbox (R7-001).
+    '(allow file-write* (literal "/dev/null"))',
   ];
 
   if (profile.allowNetwork) {
     lines.push("(allow network*)");
   }
 
-  // readPaths are covered by unrestricted file-read* above.
+  // readPaths are intentionally unused — covered by unrestricted file-read* above.
+  // The field exists in SandboxProfile for other platforms (e.g., Linux seccomp).
   // Write access is explicitly restricted to specific paths.
   for (const p of profile.writePaths) {
     lines.push(`(allow file-write* (subpath "${escapeSbpl(p)}"))`);

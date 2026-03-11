@@ -1,6 +1,6 @@
 {
   "name": "@mecha/meter",
-  "version": "0.2.14",
+  "version": "0.2.15",
   "description": "Metering proxy for tracking API usage across CASAs",
   "type": "module",
   "exports": {
