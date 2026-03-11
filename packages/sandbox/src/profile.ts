@@ -1,7 +1,11 @@
 import { join, resolve, dirname } from "node:path";
 import { existsSync, realpathSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import type { BotConfig } from "@mecha/core";
 import type { SandboxProfile } from "./types.js";
+
+/** Lazily cached claude CLI path — resolved once per process via `which`. */
+let _cachedClaudePath: string | undefined | null; // null = already looked up, not found
 
 export interface ProfileFromConfigOpts {
   config: BotConfig;
@@ -87,6 +91,24 @@ export function profileFromConfig(opts: ProfileFromConfigOpts): SandboxProfile {
   const allowedProcesses: string[] = [
     resolve(process.execPath),
   ];
+
+  // Include the claude CLI binary so the SDK can spawn it inside the sandbox (R5-004).
+  // The parent process resolves the path via MECHA_CLAUDE_PATH; if that's not set,
+  // try `which claude` once per process (cached) to avoid per-spawn blocking subprocess.
+  /* v8 ignore start -- claude CLI path resolution depends on host installation */
+  const claudeEnv = process.env["MECHA_CLAUDE_PATH"];
+  if (claudeEnv) {
+    allowedProcesses.push(claudeEnv);
+  } else {
+    if (_cachedClaudePath === undefined) {
+      try {
+        const found = execFileSync("which", ["claude"], { encoding: "utf-8" }).trim();
+        _cachedClaudePath = found || null;
+      } catch { _cachedClaudePath = null; }
+    }
+    if (_cachedClaudePath) allowedProcesses.push(_cachedClaudePath);
+  }
+  /* v8 ignore stop */
 
   return {
     readPaths: dedup(readPaths),

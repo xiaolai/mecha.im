@@ -19,7 +19,9 @@ export function registerChatRoutes(
   app.post<{
     Body: { message: string; sessionId?: string };
   }>("/api/chat", async (request, reply) => {
+    /* v8 ignore start -- Fastify always parses body; ?? {} is a defensive guard */
     const { message, sessionId } = request.body ?? {};
+    /* v8 ignore stop */
 
     if (!message || typeof message !== "string") {
       return reply.code(400).send({ error: "message is required" });
@@ -42,10 +44,17 @@ export function registerChatRoutes(
     } catch (err) {
       const internal = err instanceof Error ? err.message : String(err);
       request.log.error({ err: internal }, "Chat request failed");
-      // SDK query() throws plain Error — string prefix match is the stable contract
-      const isAuthError = err instanceof Error && err.message.startsWith("No API credentials");
+      // SDK query() throws plain Error — detect auth failures by known exact prefixes.
+      // Case-sensitive matching on known SDK error signatures only (not loose substring) (R5-005).
+      const isAuthError = err instanceof Error && (
+        err.message.startsWith("No API credentials") ||
+        err.message.startsWith("ANTHROPIC_API_KEY") ||
+        err.message.startsWith("authentication failed")
+      );
       const status = isAuthError ? 401 : 500;
-      const clientMsg = isAuthError ? "Missing API credentials — configure auth for this bot" : "Chat request failed";
+      const clientMsg = isAuthError
+        ? "Missing API credentials — configure auth for this bot"
+        : "Chat request failed";
       return reply.code(status).send({ error: clientMsg });
     }
   });
