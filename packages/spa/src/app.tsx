@@ -18,6 +18,7 @@ import { PluginsPage } from "@/pages/plugins";
 import { ToolsPage } from "@/pages/tools";
 import { DoctorPage } from "@/pages/doctor";
 import { LoginPage } from "@/pages/login";
+import { OfficePage } from "@/pages/office";
 import { NotFoundPage } from "@/pages/not-found";
 
 /** Root application component with route definitions and auth gate. */
@@ -54,6 +55,7 @@ export function App() {
         <Route path="sandbox" element={<SandboxPage />} />
         <Route path="plugins" element={<PluginsPage />} />
         <Route path="tools" element={<ToolsPage />} />
+        <Route path="office" element={<OfficePage />} />
         <Route path="doctor" element={<DoctorPage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>
