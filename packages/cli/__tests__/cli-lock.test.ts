@@ -149,13 +149,13 @@ describe("cli-lock", () => {
       ["init", ["node", "mecha", "init"]],
       ["agent start", ["node", "mecha", "agent", "start"]],
       ["dashboard serve", ["node", "mecha", "dashboard", "serve"]],
+      ["bot spawn", ["node", "mecha", "bot", "spawn", "alice", "/path"]],
     ])("returns true for %s", (_label, argv) => {
       expect(needsLock(argv)).toBe(true);
     });
 
     // Commands that run without the global lock (read-only + per-resource writers)
     it.each([
-      ["bot spawn", ["node", "mecha", "bot", "spawn", "alice", "/path"]],
       ["bot start", ["node", "mecha", "bot", "start", "alice"]],
       ["bot stop", ["node", "mecha", "bot", "stop", "alice"]],
       ["bot kill", ["node", "mecha", "bot", "kill", "alice"]],
@@ -218,7 +218,7 @@ describe("cli-lock", () => {
     });
 
     it("skips flags when finding command", () => {
-      expect(needsLock(["node", "mecha", "--json", "bot", "spawn", "alice", "/path"])).toBe(false);
+      expect(needsLock(["node", "mecha", "--json", "bot", "spawn", "alice", "/path"])).toBe(true);
       expect(needsLock(["node", "mecha", "--verbose", "bot", "ls"])).toBe(false);
     });
   });
