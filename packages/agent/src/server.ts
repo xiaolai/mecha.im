@@ -79,14 +79,53 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
     credentials: true,
   });
 
+  // Override Fastify's default JSON parser to handle empty bodies (R6-005).
+  // The default parser throws on Content-Type: application/json with no body.
+  // Many POST endpoints (bot stop, restart, kill) accept optional JSON bodies.
+  /* v8 ignore start -- Fastify parser hook tested via integration */
+  app.removeContentTypeParser("application/json");
+  app.addContentTypeParser("application/json", { parseAs: "string" }, (_req, body, done) => {
+    const text = typeof body === "string" ? body : (body as Buffer).toString("utf-8");
+    if (!text || text.trim() === "") {
+      done(null, {});
+      return;
+    }
+    try {
+      const parsed: unknown = JSON.parse(text);
+      // Guard against prototype pollution (__proto__, constructor.prototype).
+      // Use hasOwnProperty to only catch explicit poisoning keys in the payload.
+      if (typeof parsed === "object" && parsed !== null) {
+        const obj = parsed as Record<string, unknown>;
+        if (Object.prototype.hasOwnProperty.call(obj, "__proto__")
+          || Object.prototype.hasOwnProperty.call(obj, "constructor")) {
+          const err = new Error("JSON body contains forbidden keys");
+          (err as Error & { statusCode?: number }).statusCode = 400;
+          done(err, undefined);
+          return;
+        }
+      }
+      done(null, parsed);
+    } catch (err) {
+      const parseErr = err instanceof Error ? err : new Error(String(err));
+      (parseErr as Error & { statusCode?: number }).statusCode = 400;
+      done(parseErr, undefined);
+    }
+  });
+  /* v8 ignore stop */
+
   // Global error handler — map MechaError to correct HTTP status
   /* v8 ignore start -- error handler tested via route-level integration tests */
   app.setErrorHandler((err, _req, reply) => {
     if (err instanceof MechaError) {
       reply.code(err.statusCode).send({ error: err.message, code: err.code });
     } else {
-      app.log.error(err);
-      reply.code(500).send({ error: "Internal server error" });
+      const status = (err as Error & { statusCode?: number }).statusCode;
+      if (status && status >= 400 && status < 500) {
+        reply.code(status).send({ error: (err as Error).message });
+      } else {
+        app.log.error(err);
+        reply.code(500).send({ error: "Internal server error" });
+      }
     }
   });
   /* v8 ignore stop */

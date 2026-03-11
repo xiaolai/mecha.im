@@ -107,6 +107,10 @@ describe("isValidAddress", () => {
   it("rejects empty node after @", () => {
     expect(isValidAddress("coder@")).toBe(false);
   });
+
+  it("accepts wildcard '*' as valid address (R6-002)", () => {
+    expect(isValidAddress("*")).toBe(true);
+  });
 });
 
 describe("NAME_PATTERN", () => {
