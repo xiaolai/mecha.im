@@ -116,7 +116,7 @@ export class ActivityAggregator {
             if (line.startsWith("data: ")) {
               try {
                 const event = JSON.parse(line.slice(6)) as AggregatedActivityEvent;
-                if (event.type === "activity" || (event as Record<string, unknown>).type === "snapshot") {
+                if (event.type === "activity" || (event as unknown as Record<string, unknown>).type === "snapshot") {
                   this.injectEvent({ ...event, type: "activity", name });
                 }
               } catch {

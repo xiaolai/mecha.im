@@ -1,9 +1,11 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
 import type { ProcessManager } from "@mecha/process";
+import type { ActivityAggregator } from "../activity-aggregator.js";
 
 /** Options for SSE event stream route registration. */
 export interface EventsRouteOpts {
   processManager: ProcessManager;
+  activityAggregator?: ActivityAggregator;
 }
 
 const MAX_CONNECTIONS = 10;
@@ -41,6 +43,14 @@ export function registerEventsRoutes(app: FastifyInstance, opts: EventsRouteOpts
       }
     });
 
+    const unsubActivity = opts.activityAggregator?.subscribe((event) => {
+      try {
+        reply.raw.write(`data: ${JSON.stringify(event)}\n\n`);
+      } catch {
+        cleanup();
+      }
+    });
+
     const heartbeat = setInterval(() => {
       try {
         reply.raw.write(": heartbeat\n\n");
@@ -53,6 +63,7 @@ export function registerEventsRoutes(app: FastifyInstance, opts: EventsRouteOpts
       if (cleanedUp) return;
       cleanedUp = true;
       unsubscribe();
+      unsubActivity?.();
       clearInterval(heartbeat);
       activeConnections--;
     }
