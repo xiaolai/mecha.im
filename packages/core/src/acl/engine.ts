@@ -54,8 +54,30 @@ export function createAclEngine(opts: CreateAclEngineOpts): AclEngine {
   });
   /* v8 ignore stop */
 
-  function findRule(source: string, target: string): AclRule | undefined {
+  /** Exact match — used by grant/revoke to find the literal rule entry. */
+  function findExactRule(source: string, target: string): AclRule | undefined {
     return data.rules.find((r) => r.source === source && r.target === target);
+  }
+
+  /**
+   * Precedence match — used by check() to evaluate access.
+   * Order: exact > wildcard-source > wildcard-target > both-wildcard (R6-002).
+   */
+  function findRule(source: string, target: string): AclRule | undefined {
+    let wildcardSrc: AclRule | undefined;
+    let wildcardTgt: AclRule | undefined;
+    let wildcardBoth: AclRule | undefined;
+    for (const r of data.rules) {
+      const srcMatch = r.source === source;
+      const tgtMatch = r.target === target;
+      const srcWild = r.source === "*";
+      const tgtWild = r.target === "*";
+      if (srcMatch && tgtMatch) return r; // exact — highest priority
+      if (srcWild && tgtMatch && !wildcardSrc) wildcardSrc = r;
+      if (srcMatch && tgtWild && !wildcardTgt) wildcardTgt = r;
+      if (srcWild && tgtWild && !wildcardBoth) wildcardBoth = r;
+    }
+    return wildcardSrc ?? wildcardTgt ?? wildcardBoth;
   }
 
   function validateNames(source: string, target: string): void {
@@ -66,7 +88,7 @@ export function createAclEngine(opts: CreateAclEngineOpts): AclEngine {
   const engine: AclEngine = {
     grant(source, target, caps) {
       validateNames(source, target);
-      const existing = findRule(source, target);
+      const existing = findExactRule(source, target);
       if (existing) {
         const set = new Set(existing.capabilities);
         for (const c of caps) set.add(c);
@@ -79,7 +101,7 @@ export function createAclEngine(opts: CreateAclEngineOpts): AclEngine {
 
     revoke(source, target, caps) {
       validateNames(source, target);
-      const existing = findRule(source, target);
+      const existing = findExactRule(source, target);
       if (!existing) return;
       existing.capabilities = existing.capabilities.filter((c) => !caps.includes(c));
       if (existing.capabilities.length === 0) {
@@ -114,7 +136,7 @@ export function createAclEngine(opts: CreateAclEngineOpts): AclEngine {
     listConnections(source) {
       reload();
       return data.rules
-        .filter((r) => r.source === source)
+        .filter((r) => r.source === source || r.source === "*")
         .map((r) => ({ target: r.target, caps: [...r.capabilities] }));
     },
 

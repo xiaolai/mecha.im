@@ -1,5 +1,7 @@
-import { dirname } from "node:path";
-import { describe, it, expect } from "vitest";
+import { dirname, join, resolve } from "node:path";
+import { mkdtempSync, symlinkSync, writeFileSync, rmSync, realpathSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { describe, it, expect, afterEach } from "vitest";
 import { profileFromConfig, nodePrefix, findProjectRoot } from "../src/profile.js";
 import type { BotConfig } from "@mecha/core";
 
@@ -128,5 +130,30 @@ describe("profileFromConfig", () => {
 
     // Only: nodePrefix, discovery.json, botDir, workspace
     expect(profile.readPaths).toHaveLength(4);
+  });
+
+  it("preserves symlink paths alongside resolved targets (R6-003)", () => {
+    // Create a temp dir with a real file and a symlink to it
+    const tempDir = mkdtempSync(join(tmpdir(), "mecha-dedup-"));
+    const realFile = join(tempDir, "real-binary");
+    const symlinkFile = join(tempDir, "symlink-binary");
+    writeFileSync(realFile, "#!/bin/sh\n");
+    symlinkSync(realFile, symlinkFile);
+
+    const resolvedReal = realpathSync(realFile);
+    const resolvedSymlink = resolve(symlinkFile);
+
+    const profile = profileFromConfig({
+      config: { ...baseConfig, workspace: symlinkFile },
+      botDir: "/mecha/alice",
+      mechaDir: "/mecha",
+    });
+
+    // dedup should include the resolved target (realpathSync follows symlink)
+    expect(profile.readPaths).toContain(resolvedReal);
+    // AND the original symlink path (needed by Seatbelt)
+    expect(profile.readPaths).toContain(resolvedSymlink);
+
+    rmSync(tempDir, { recursive: true, force: true });
   });
 });

@@ -14,11 +14,31 @@ export interface ProfileFromConfigOpts {
   runtimeEntrypoint?: string;
 }
 
-/** Resolve symlinks and deduplicate paths. */
+/**
+ * Resolve symlinks and deduplicate paths.
+ * Keeps both the original path AND the resolved target when they differ (R6-003).
+ * macOS Seatbelt checks the literal spawn path, not the resolved symlink target,
+ * so both must be in allowedProcesses for sandbox exec to work.
+ */
 function dedup(paths: string[]): string[] {
-  return [...new Set(paths.map((p) => {
-    try { return realpathSync(p); } catch { return resolve(p); }
-  }))];
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const p of paths) {
+    let resolved: string;
+    try { resolved = realpathSync(p); } catch { resolved = resolve(p); }
+    // Always include the resolved path
+    if (!seen.has(resolved)) {
+      seen.add(resolved);
+      result.push(resolved);
+    }
+    // Also include the original if it differs (symlink → target)
+    const original = resolve(p);
+    if (original !== resolved && !seen.has(original)) {
+      seen.add(original);
+      result.push(original);
+    }
+  }
+  return result;
 }
 
 /** Get the Node.js installation prefix (e.g. /usr/local or ~/.nvm/versions/node/vX). */
