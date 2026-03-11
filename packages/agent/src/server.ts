@@ -9,7 +9,7 @@ import { createAuthHook, createSignatureHook, API_PREFIXES } from "./auth.js";
 import { deriveSessionKey } from "./session.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerBotRoutes } from "./routes/bots.js";
-import { registerRoutingRoutes } from "./routes/routing.js";
+import { registerRoutingRoutes, type ChatFn } from "./routes/routing.js";
 import { registerDiscoverRoutes } from "./routes/discover.js";
 import { registerSessionRoutes } from "./routes/sessions.js";
 import { registerTerminalRoutes } from "./routes/terminal.js";
@@ -61,6 +61,8 @@ export interface AgentServerOpts {
   ptySpawnFn?: PtySpawnFn;
   /** Path to SPA dist directory. When set, serves static SPA files. */
   spaDir?: string;
+  /** Override the daemon chat function (for testing). */
+  chatFn?: ChatFn;
 }
 
 /** Fetch public IP for server startup. Call before createAgentServer(). */
@@ -77,7 +79,6 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
   // CORS: deny cross-origin by default, allow same-origin SPA requests
   app.register(fastifyCors, {
     origin: false, // deny all cross-origin requests
-    credentials: true,
   });
 
   // Override Fastify's default JSON parser to handle empty bodies (R6-005).
@@ -305,7 +306,7 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
   });
   app.get("/models", async () => CLAUDE_MODELS);
   registerBotRoutes(app, opts.processManager, opts.mechaDir, opts.nodeName);
-  registerRoutingRoutes(app, { mechaDir: opts.mechaDir, acl: opts.acl, nodeName: opts.nodeName });
+  registerRoutingRoutes(app, { mechaDir: opts.mechaDir, acl: opts.acl, nodeName: opts.nodeName, chatFn: opts.chatFn });
   registerDiscoverRoutes(app, { mechaDir: opts.mechaDir, pm: opts.processManager });
   registerSessionRoutes(app, opts.processManager, opts.mechaDir, opts.nodeName);
   registerScheduleRoutes(app, opts.processManager);

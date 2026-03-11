@@ -7,7 +7,7 @@
  * - Bidirectional routing
  * - Error paths (unknown bot, unknown node)
  *
- * forwardQueryToBot is mocked — no real Claude processes.
+ * daemonChat is mocked — no real Claude processes.
  */
 
 import { describe, it, expect, vi, afterEach, afterAll, beforeAll } from "vitest";
@@ -28,20 +28,13 @@ function makeAuthCookie(secret = TEST_TOTP_SECRET): string {
   return `mecha-session=${token}`;
 }
 
-// Mock forwardQueryToBot so we don't need real bot processes
-vi.mock("@mecha/core", async (importOriginal) => {
-  const orig = await importOriginal<Record<string, unknown>>();
-  return {
-    ...orig,
-    forwardQueryToBot: vi.fn().mockResolvedValue({
-      text: "analyst says hello",
-      sessionId: "sess-123",
-    }),
-  };
+// Mock chat function — no real Claude processes
+const mockChatFn = vi.fn().mockResolvedValue({
+  response: "analyst says hello",
+  sessionId: "sess-123",
+  durationMs: 100,
+  costUsd: 0.01,
 });
-
-// Import after mock setup
-const { forwardQueryToBot } = await import("@mecha/core");
 
 describe("mesh query: cross-node routing", () => {
   let bobDir: string;
@@ -62,6 +55,7 @@ describe("mesh query: cross-node routing", () => {
       acl: makeMockAcl(),
       mechaDir: bobDir,
       nodeName: "bob",
+      chatFn: mockChatFn,
     });
     const address = await bobServer.listen({ port: 0, host: "127.0.0.1" });
     bobPort = parseInt(new URL(address).port, 10);
@@ -118,9 +112,11 @@ describe("mesh query: cross-node routing", () => {
     expect(r1.sessionId).toBe("sess-123");
 
     // Second turn with sessionId from first
-    vi.mocked(forwardQueryToBot).mockResolvedValueOnce({
-      text: "continued response",
+    mockChatFn.mockResolvedValueOnce({
+      response: "continued response",
       sessionId: "sess-123",
+      durationMs: 100,
+      costUsd: 0.01,
     });
     const r2 = await router.routeQuery("coder", "analyst@bob", "follow up", r1.sessionId);
     expect(r2.text).toBe("continued response");
@@ -131,8 +127,8 @@ describe("mesh query: cross-node routing", () => {
     const router = makeAliceRouter();
     await router.routeQuery("coder", "analyst@bob", "hello");
 
-    // The forwardQueryToBot mock was called on bob's side, verifying the request reached bob
-    expect(forwardQueryToBot).toHaveBeenCalled();
+    // The daemonChat mock was called on bob's side, verifying the request reached bob
+    expect(mockChatFn).toHaveBeenCalled();
   });
 
   it("returns BotNotFoundError for query to unknown node", async () => {
@@ -199,11 +195,11 @@ describe("mesh query: bidirectional routing", () => {
 
     aliceServer = createAgentServer({
       port: 0, auth: { totpSecret: TEST_TOTP_SECRET, apiKey: "mesh-routing-key" }, processManager: makePm(),
-      acl: makeMockAcl(), mechaDir: aliceDir, nodeName: "alice",
+      acl: makeMockAcl(), mechaDir: aliceDir, nodeName: "alice", chatFn: mockChatFn,
     });
     bobServer = createAgentServer({
       port: 0, auth: { totpSecret: TEST_TOTP_SECRET, apiKey: "mesh-routing-key" }, processManager: makePm(),
-      acl: makeMockAcl(), mechaDir: bobDir, nodeName: "bob",
+      acl: makeMockAcl(), mechaDir: bobDir, nodeName: "bob", chatFn: mockChatFn,
     });
 
     const aliceAddr = await aliceServer.listen({ port: 0, host: "127.0.0.1" });
