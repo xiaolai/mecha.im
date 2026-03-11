@@ -66,6 +66,7 @@ const projects = [
       sequence: { concurrent: false },
     },
   },
+  { test: { name: "spa", include: ["packages/spa/__tests__/**/*.test.ts"] } },
 ];
 
 export { projects };
