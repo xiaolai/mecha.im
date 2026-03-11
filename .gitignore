@@ -83,6 +83,9 @@ infrastructure/
 *.generated.ts
 *.generated.js
 
+# Pixel art tilesets (raw assets, not for distribution)
+packages/spa/public/pixel-assets/
+
 # Playwright MCP
 .playwright-mcp/
 
