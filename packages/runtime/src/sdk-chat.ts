@@ -51,6 +51,10 @@ export interface SdkChatOpts {
   settingSources?: readonly ("project" | "user" | "local")[];
   /** Environment variables for the spawned claude process. */
   env?: Record<string, string | undefined>;
+  /** Full system prompt override (mutually exclusive with appendSystemPrompt). */
+  systemPrompt?: string;
+  /** Append to default system prompt (mutually exclusive with systemPrompt). */
+  appendSystemPrompt?: string;
 }
 
 interface ChatResult {
@@ -84,6 +88,19 @@ export async function sdkChat(
   }
 
   try {
+    // systemPrompt and appendSystemPrompt are mutually exclusive — prefer systemPrompt if both set.
+    if (opts.systemPrompt && opts.appendSystemPrompt) {
+      log.warn("Both systemPrompt and appendSystemPrompt set — using systemPrompt (full override)");
+    }
+
+    // Build systemPrompt option for SDK query (R6-004).
+    // SDK accepts string (full override) or { type: "preset", preset: "claude_code", append: "..." }.
+    const sysPrompt = opts.systemPrompt
+      ? opts.systemPrompt
+      : opts.appendSystemPrompt
+        ? { type: "preset" as const, preset: "claude_code" as const, append: opts.appendSystemPrompt }
+        : undefined;
+
     for await (const event of query({
       prompt: message,
       options: {
@@ -94,6 +111,7 @@ export async function sdkChat(
         maxTurns: 25,
         env: opts.env,
         abortController: ac,
+        ...(sysPrompt != null && { systemPrompt: sysPrompt }),
       },
     })) {
       if (event.type === "result") {

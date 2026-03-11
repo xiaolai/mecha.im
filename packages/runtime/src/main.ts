@@ -1,6 +1,6 @@
 import { createServer } from "./server.js";
 import { parseRuntimeEnv } from "./env.js";
-import { createLogger } from "@mecha/core";
+import { createLogger, readBotConfig } from "@mecha/core";
 
 /* v8 ignore start -- entrypoint validated via env.test.ts */
 const log = createLogger("mecha:runtime");
@@ -13,6 +13,9 @@ try {
   process.exit(1);
 }
 
+// Read bot config for systemPrompt/appendSystemPrompt (R6-004)
+const botConfig = env.MECHA_SANDBOX_ROOT ? readBotConfig(env.MECHA_SANDBOX_ROOT) : undefined;
+
 const { app } = createServer({
   botName: env.MECHA_BOT_NAME,
   port: env.MECHA_PORT,
@@ -21,6 +24,8 @@ const { app } = createServer({
   workspacePath: env.MECHA_WORKSPACE,
   mechaDir: env.MECHA_DIR,
   botDir: env.MECHA_SANDBOX_ROOT,
+  systemPrompt: botConfig?.systemPrompt,
+  appendSystemPrompt: botConfig?.appendSystemPrompt,
 });
 
 app.listen({ port: env.MECHA_PORT, host: "127.0.0.1" }, (err) => {

@@ -57,6 +57,24 @@ describe("acl command", () => {
       expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("Invalid address"));
       expect(process.exitCode).toBe(1);
     });
+
+    it("accepts wildcard '*' as source (R6-002)", async () => {
+      const deps = makeDeps();
+      const program = createProgram(deps);
+      program.exitOverride();
+
+      await program.parseAsync(["node", "mecha", "acl", "grant", "*", "query", "researcher"]);
+      expect(deps.acl.grant).toHaveBeenCalledWith("*", "researcher", ["query"]);
+    });
+
+    it("accepts wildcard '*' as target (R6-002)", async () => {
+      const deps = makeDeps();
+      const program = createProgram(deps);
+      program.exitOverride();
+
+      await program.parseAsync(["node", "mecha", "acl", "grant", "coder", "query", "*"]);
+      expect(deps.acl.grant).toHaveBeenCalledWith("coder", "*", ["query"]);
+    });
   });
 
   describe("revoke", () => {

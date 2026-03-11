@@ -194,6 +194,106 @@ describe("AclEngine", () => {
     });
   });
 
+  describe("wildcard rules (R6-002)", () => {
+    it("wildcard source grants access from any bot", () => {
+      exposeMap["researcher"] = ["query"];
+      const acl = makeEngine();
+      acl.grant("*", "researcher", ["query"]);
+      expect(acl.check("coder", "researcher", "query")).toEqual({ allowed: true });
+      expect(acl.check("observer", "researcher", "query")).toEqual({ allowed: true });
+    });
+
+    it("wildcard target grants access to any bot", () => {
+      exposeMap["researcher"] = ["query"];
+      exposeMap["writer"] = ["query"];
+      const acl = makeEngine();
+      acl.grant("coder", "*", ["query"]);
+      expect(acl.check("coder", "researcher", "query")).toEqual({ allowed: true });
+      expect(acl.check("coder", "writer", "query")).toEqual({ allowed: true });
+    });
+
+    it("wildcard source still requires target to expose capability", () => {
+      exposeMap["researcher"] = []; // no expose
+      const acl = makeEngine();
+      acl.grant("*", "researcher", ["query"]);
+      expect(acl.check("coder", "researcher", "query")).toEqual({
+        allowed: false,
+        reason: "not_exposed",
+      });
+    });
+
+    it("wildcard does not match when no rule exists", () => {
+      exposeMap["researcher"] = ["query"];
+      const acl = makeEngine();
+      // No wildcard rule, no explicit rule
+      expect(acl.check("coder", "researcher", "query")).toEqual({
+        allowed: false,
+        reason: "no_connect",
+      });
+    });
+
+    it("revoke works on wildcard rules", () => {
+      const acl = makeEngine();
+      acl.grant("*", "researcher", ["query"]);
+      acl.revoke("*", "researcher", ["query"]);
+      expect(acl.listRules()).toHaveLength(0);
+    });
+
+    it("listConnections includes wildcard source rules", () => {
+      const acl = makeEngine();
+      acl.grant("*", "researcher", ["query"]);
+      const conns = acl.listConnections("*");
+      expect(conns).toHaveLength(1);
+      expect(conns[0]!.target).toBe("researcher");
+    });
+
+    it("exact rule takes precedence over wildcard-source (insertion order independent)", () => {
+      exposeMap["researcher"] = ["query", "read_workspace"];
+      const acl = makeEngine();
+      // Wildcard first, then exact — exact should still win
+      acl.grant("*", "researcher", ["query"]);
+      acl.grant("coder", "researcher", ["query", "read_workspace"]);
+      // check should match the exact rule (has read_workspace)
+      expect(acl.check("coder", "researcher", "read_workspace")).toEqual({ allowed: true });
+      // A different source should still match via wildcard
+      expect(acl.check("observer", "researcher", "read_workspace")).toEqual({
+        allowed: false,
+        reason: "no_connect",
+      });
+    });
+
+    it("exact rule takes precedence when wildcard is added after exact", () => {
+      exposeMap["researcher"] = ["query", "read_workspace"];
+      const acl = makeEngine();
+      // Exact first, then wildcard
+      acl.grant("coder", "researcher", ["read_workspace"]);
+      acl.grant("*", "researcher", ["query"]);
+      // Exact rule should be found for coder (has read_workspace, not query)
+      expect(acl.check("coder", "researcher", "read_workspace")).toEqual({ allowed: true });
+      // Wildcard rule only has query — coder should match exact (no query in exact)
+      expect(acl.check("coder", "researcher", "query")).toEqual({
+        allowed: false,
+        reason: "no_connect",
+      });
+    });
+
+    it("wildcard target rule matched when no exact rule exists", () => {
+      exposeMap["researcher"] = ["query"];
+      const acl = makeEngine();
+      acl.grant("coder", "*", ["query"]);
+      expect(acl.check("coder", "researcher", "query")).toEqual({ allowed: true });
+    });
+
+    it("listConnections includes wildcard-source rules for concrete source", () => {
+      const acl = makeEngine();
+      acl.grant("*", "researcher", ["query"]);
+      acl.grant("coder", "writer", ["execute"]);
+      const conns = acl.listConnections("coder");
+      expect(conns).toHaveLength(2);
+      expect(conns.map((c) => c.target).sort()).toEqual(["researcher", "writer"]);
+    });
+  });
+
   describe("listConnections", () => {
     it("returns targets for a source", () => {
       const acl = makeEngine();
