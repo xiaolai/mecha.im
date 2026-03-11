@@ -87,7 +87,7 @@ describe("chat routes", () => {
     expect(res.json().error).toContain("sessionId must be a string");
   });
 
-  it("returns 500 when chatFn throws", async () => {
+  it("returns 500 with generic message when chatFn throws", async () => {
     const failApp = Fastify();
     const failChatFn: HttpChatFn = async () => {
       throw new Error("SDK exploded");
@@ -101,6 +101,79 @@ describe("chat routes", () => {
       payload: { message: "Hello" },
     });
     expect(res.statusCode).toBe(500);
+    expect(res.json().error).toBe("Chat request failed");
+    await failApp.close();
+  });
+
+  it("returns 500 when chatFn throws a non-Error value", async () => {
+    const failApp = Fastify();
+    const failChatFn: HttpChatFn = async () => {
+      throw "string error"; // eslint-disable-line no-throw-literal
+    };
+    registerChatRoutes(failApp, failChatFn);
+    await failApp.ready();
+
+    const res = await failApp.inject({
+      method: "POST",
+      url: "/api/chat",
+      payload: { message: "Hello" },
+    });
+    expect(res.statusCode).toBe(500);
+    expect(res.json().error).toBe("Chat request failed");
+    await failApp.close();
+  });
+
+  it("returns 401 when chatFn throws 'No API credentials' error", async () => {
+    const failApp = Fastify();
+    const failChatFn: HttpChatFn = async () => {
+      throw new Error("No API credentials configured");
+    };
+    registerChatRoutes(failApp, failChatFn);
+    await failApp.ready();
+
+    const res = await failApp.inject({
+      method: "POST",
+      url: "/api/chat",
+      payload: { message: "Hello" },
+    });
+    expect(res.statusCode).toBe(401);
+    expect(res.json().error).toBe("Missing API credentials — configure auth for this bot");
+    await failApp.close();
+  });
+
+  it("returns 401 when chatFn throws 'ANTHROPIC_API_KEY' error", async () => {
+    const failApp = Fastify();
+    const failChatFn: HttpChatFn = async () => {
+      throw new Error("ANTHROPIC_API_KEY is not set");
+    };
+    registerChatRoutes(failApp, failChatFn);
+    await failApp.ready();
+
+    const res = await failApp.inject({
+      method: "POST",
+      url: "/api/chat",
+      payload: { message: "Hello" },
+    });
+    expect(res.statusCode).toBe(401);
+    expect(res.json().error).toBe("Missing API credentials — configure auth for this bot");
+    await failApp.close();
+  });
+
+  it("returns 401 when chatFn throws 'authentication failed' error", async () => {
+    const failApp = Fastify();
+    const failChatFn: HttpChatFn = async () => {
+      throw new Error("authentication failed: invalid key");
+    };
+    registerChatRoutes(failApp, failChatFn);
+    await failApp.ready();
+
+    const res = await failApp.inject({
+      method: "POST",
+      url: "/api/chat",
+      payload: { message: "Hello" },
+    });
+    expect(res.statusCode).toBe(401);
+    expect(res.json().error).toBe("Missing API credentials — configure auth for this bot");
     await failApp.close();
   });
 });

@@ -1,5 +1,5 @@
 import { type ChildProcess } from "node:child_process";
-import { openSync, closeSync, chmodSync } from "node:fs";
+import { openSync, closeSync, chmodSync, realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { randomBytes } from "node:crypto";
 import {
@@ -51,7 +51,22 @@ export interface SpawnContext {
 
 export async function spawnBot(ctx: SpawnContext, spawnOpts: SpawnOpts): Promise<ProcessInfo> {
   const { name } = spawnOpts;
-  const workspacePath = resolve(spawnOpts.workspacePath);
+  // Resolve symlinks so session path encoding matches the Claude SDK's realpathSync behavior.
+  // On macOS, /tmp → /private/tmp; without this, sessions are stored under a different
+  // encoded directory than the session manager looks for (R5-002).
+  const resolved = resolve(spawnOpts.workspacePath);
+  let workspacePath: string;
+  try {
+    workspacePath = realpathSync(resolved);
+  /* v8 ignore start -- fallback for nonexistent workspace paths in tests */
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      workspacePath = resolved;
+    } else {
+      throw err;
+    }
+  }
+  /* v8 ignore stop */
   const botDir = ctx.botDir(name);
   const { live } = ctx;
 
