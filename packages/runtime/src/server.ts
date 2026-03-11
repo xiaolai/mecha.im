@@ -9,6 +9,8 @@ import { registerScheduleRoutes } from "./routes/schedule.js";
 import { registerMcpRoutes } from "./mcp/server.js";
 import { createScheduleEngine, type ChatFn, type ScheduleEngine } from "./scheduler.js";
 import { sdkChat, createChatFn } from "./sdk-chat.js";
+import { ActivityEmitter } from "./activity.js";
+import { registerActivityEventsRoutes } from "./routes/events.js";
 
 /** Options for creating a bot runtime Fastify server. */
 export interface CreateServerOpts {
@@ -57,10 +59,15 @@ export function createServer(opts: CreateServerOpts): ServerResult {
   // Session manager (filesystem-only)
   const sm = createSessionManager(opts.projectsDir);
 
+  // Activity emitter for real-time bot activity events
+  const activityEmitter = new ActivityEmitter();
+
   // SDK chat options (used for /api/chat and schedule chatFn)
   const chatOpts = {
     workspacePath: opts.workspacePath,
     settingSources: ["project"] as const,
+    activityEmitter,
+    botName: opts.botName,
     ...(opts.systemPrompt !== undefined && { systemPrompt: opts.systemPrompt }),
     ...(opts.appendSystemPrompt !== undefined && { appendSystemPrompt: opts.appendSystemPrompt }),
   };
@@ -83,6 +90,7 @@ export function createServer(opts: CreateServerOpts): ServerResult {
   });
   registerSessionRoutes(app, sm);
   registerChatRoutes(app, httpChatFn);
+  registerActivityEventsRoutes(app, { activityEmitter, botName: opts.botName });
   registerMcpRoutes(app, {
     workspacePath: opts.workspacePath,
     mechaDir: opts.mechaDir,

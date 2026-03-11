@@ -15,6 +15,7 @@ import { registerBotChatCommand } from "./bot-chat.js";
 import { registerBotSessionsCommand } from "./bot-sessions.js";
 import { registerBotStopAllCommand } from "./bot-stop-all.js";
 import { registerBotRestartAllCommand } from "./bot-restart-all.js";
+import { registerBotActivityCommand } from "./bot-activity.js";
 
 /** Register the 'bot' command group. */
 export function registerBotCommand(program: Command, deps: CommandDeps): void {
@@ -37,4 +38,5 @@ export function registerBotCommand(program: Command, deps: CommandDeps): void {
   registerBotSessionsCommand(bot, deps);
   registerBotStopAllCommand(bot, deps);
   registerBotRestartAllCommand(bot, deps);
+  registerBotActivityCommand(bot, deps);
 }
