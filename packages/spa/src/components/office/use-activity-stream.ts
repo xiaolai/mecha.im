@@ -20,17 +20,18 @@ export function useActivityStream(onEvent: (event: ActivityEvent) => void): void
   onEventRef.current = onEvent;
 
   useEffect(() => {
-    let cancelled = false;
+    const ac = new AbortController();
     let reconnectTimer: ReturnType<typeof setTimeout>;
     let backoff = 1000;
     const MAX_BACKOFF = 30_000;
 
     async function connect() {
-      if (cancelled) return;
+      if (ac.signal.aborted) return;
 
       try {
         const response = await fetch("/events", {
           headers: { accept: "text/event-stream" },
+          signal: ac.signal,
         });
 
         if (!response.ok || !response.body) {
@@ -42,26 +43,30 @@ export function useActivityStream(onEvent: (event: ActivityEvent) => void): void
         const decoder = new TextDecoder();
         let buffer = "";
 
-        while (!cancelled) {
-          const { done, value } = await reader.read();
-          if (done) break;
+        try {
+          while (!ac.signal.aborted) {
+            const { done, value } = await reader.read();
+            if (done) break;
 
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() ?? "";
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() ?? "";
 
-          for (const line of lines) {
-            const event = parseSSELine(line);
-            if (event && event.type === "activity") {
-              onEventRef.current(event);
+            for (const line of lines) {
+              const event = parseSSELine(line);
+              if (event && event.type === "activity") {
+                onEventRef.current(event);
+              }
             }
           }
+        } finally {
+          reader.cancel().catch(() => {});
         }
       } catch {
-        // Reconnect with backoff
+        // Reconnect with backoff (AbortError exits below)
       }
 
-      if (!cancelled) {
+      if (!ac.signal.aborted) {
         reconnectTimer = setTimeout(connect, backoff);
         backoff = Math.min(backoff * 2, MAX_BACKOFF);
       }
@@ -70,7 +75,7 @@ export function useActivityStream(onEvent: (event: ActivityEvent) => void): void
     connect();
 
     return () => {
-      cancelled = true;
+      ac.abort();
       clearTimeout(reconnectTimer);
     };
   }, []);

@@ -16,22 +16,21 @@ function getBotColor(deskIndex: number): string {
   return BOT_COLORS[deskIndex % BOT_COLORS.length]!;
 }
 
-/** Interpolate position toward target. Returns true if still moving. */
-export function updatePosition(state: BotState): boolean {
+/** Interpolate position toward target. */
+export function updatePosition(state: BotState): void {
   const dx = state.targetPosition.x * TILE_SIZE - state.position.x * TILE_SIZE;
   const dy = state.targetPosition.y * TILE_SIZE - state.position.y * TILE_SIZE;
   const dist = Math.sqrt(dx * dx + dy * dy);
 
   if (dist < MOVE_SPEED) {
     state.position = { ...state.targetPosition };
-    return false;
+    return;
   }
 
   state.position = {
     x: state.position.x + (dx / dist) * MOVE_SPEED / TILE_SIZE,
     y: state.position.y + (dy / dist) * MOVE_SPEED / TILE_SIZE,
   };
-  return true;
 }
 
 /** Render a single bot sprite. */

@@ -40,6 +40,11 @@ export function InspectPanel({ botName, onClose }: InspectPanelProps) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ message }),
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` })) as { error?: string };
+        setResponse(`Error: ${err.error ?? res.statusText}`);
+        return;
+      }
       const data = (await res.json()) as { response?: string };
       setResponse(data.response ?? "No response");
       setMessage("");

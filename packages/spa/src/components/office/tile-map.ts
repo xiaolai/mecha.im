@@ -1,3 +1,5 @@
+import { DESK_POSITIONS } from "./types";
+
 const TILE_SIZE = 32;
 
 /** Office grid dimensions (in tiles). */
@@ -38,16 +40,13 @@ export function renderTileMap(ctx: CanvasRenderingContext2D): void {
   ctx.fillStyle = "#555566";
   ctx.fillRect(10 * TILE_SIZE, 3 * TILE_SIZE, TILE_SIZE / 2, 9 * TILE_SIZE);
 
-  // Desks (6 positions)
-  const deskPositions = [
-    [2, 4], [6, 4], [2, 7], [6, 7], [2, 10], [6, 10],
-  ];
+  // Desks (from shared DESK_POSITIONS)
   ctx.fillStyle = "#665544";
-  for (const [dx, dy] of deskPositions) {
-    ctx.fillRect(dx! * TILE_SIZE - 8, dy! * TILE_SIZE - 4, TILE_SIZE + 16, TILE_SIZE + 8);
+  for (const pos of DESK_POSITIONS) {
+    ctx.fillRect(pos.x * TILE_SIZE - 8, pos.y * TILE_SIZE - 4, TILE_SIZE + 16, TILE_SIZE + 8);
     // Monitor
     ctx.fillStyle = "#4488aa";
-    ctx.fillRect(dx! * TILE_SIZE + 4, dy! * TILE_SIZE - 2, TILE_SIZE - 8, TILE_SIZE - 12);
+    ctx.fillRect(pos.x * TILE_SIZE + 4, pos.y * TILE_SIZE - 2, TILE_SIZE - 8, TILE_SIZE - 12);
     ctx.fillStyle = "#665544";
   }
 

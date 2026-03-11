@@ -36,6 +36,9 @@ export class OfficeActivityManager {
       this.bots.set(event.name, state);
     }
 
+    // Capture previous activity before mutation for transition checks
+    const previousActivity = state.activity;
+
     // Update activity
     state.activity = event.activity;
     state.toolName = event.toolName;
@@ -49,7 +52,7 @@ export class OfficeActivityManager {
     if (this.isWorkingState(event.activity)) {
       // Move to desk
       const deskPos = DESK_POSITIONS[state.deskIndex % DESK_POSITIONS.length]!;
-      if (timeSinceLastChange >= DEBOUNCE_MS || !this.isWorkingState(state.activity)) {
+      if (timeSinceLastChange >= DEBOUNCE_MS || !this.isWorkingState(previousActivity)) {
         state.targetPosition = { ...deskPos };
       }
     } else if (event.activity === "idle") {
@@ -91,8 +94,9 @@ export class OfficeActivityManager {
     const idleBots = [...this.bots.values()].filter(b => b.activity === "idle");
     const idleIndex = idleBots.findIndex(b => b.name === name);
 
-    if (idleBots.length >= 2 && idleIndex < 2) {
-      return { ...WATER_COOLER_POSITION };
+    if (idleBots.length >= 2 && idleIndex >= 0 && idleIndex < 2) {
+      // Offset second bot by 1 tile so they don't overlap
+      return { x: WATER_COOLER_POSITION.x + idleIndex * 2, y: WATER_COOLER_POSITION.y };
     }
 
     const loungeIndex = Math.max(0, idleIndex) % LOUNGE_POSITIONS.length;
