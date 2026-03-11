@@ -20,6 +20,7 @@ import { registerMeterRoutes } from "./routes/meter.js";
 import { registerSettingsRoutes } from "./routes/settings.js";
 import { registerNodeRoutes } from "./routes/nodes.js";
 import { registerEventsRoutes } from "./routes/events.js";
+import { ActivityAggregator } from "./activity-aggregator.js";
 import { registerEventLogRoutes } from "./routes/event-log.js";
 import { registerHandshakeRoute } from "./routes/discover-handshake.js";
 import { startDiscoveryLoop } from "./discovery-loop.js";
@@ -259,6 +260,33 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
     emitEvent(eventLog, "info", "server", "server.shutdown", "Server shutting down");
   });
 
+  // --- Activity aggregator (SSE fan-in from bot runtimes) ---
+  const activityAggregator = new ActivityAggregator();
+
+  // Subscribe to process events FIRST (before scanning existing bots) to avoid race
+  const unsubActivityWiring = opts.processManager.onEvent((event) => {
+    if (event.type === "spawned") {
+      const info = opts.processManager.get(event.name);
+      if (info?.token) {
+        activityAggregator.addBot(event.name, event.port, info.token);
+      }
+    } else if (event.type === "stopped") {
+      activityAggregator.removeBot(event.name);
+    }
+  });
+
+  // Connect to already-running bots (after subscription, no race)
+  for (const bot of opts.processManager.list()) {
+    if (bot.state === "running" && bot.port && bot.token) {
+      activityAggregator.addBot(bot.name, bot.port, bot.token);
+    }
+  }
+
+  app.addHook("onClose", () => {
+    unsubActivityWiring();
+    activityAggregator.shutdown();
+  });
+
   // Auth routes (public: /auth/status, /auth/login, /auth/logout)
   registerAuthRoutes(app, {
     totpSecret: opts.auth.totpSecret,
@@ -318,7 +346,7 @@ export function createAgentServer(opts: AgentServerOpts): FastifyInstance {
   registerToolRoutes(app, { mechaDir: opts.mechaDir });
   registerBudgetRoutes(app, { mechaDir: opts.mechaDir });
   registerBotFileRoutes(app, opts.mechaDir);
-  registerEventsRoutes(app, { processManager: opts.processManager });
+  registerEventsRoutes(app, { processManager: opts.processManager, activityAggregator });
   registerEventLogRoutes(app, { eventLog });
 
   /* v8 ignore start -- WS ticket endpoint tested via auth + ws-tickets unit tests */
