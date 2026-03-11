@@ -7,7 +7,10 @@
  */
 import { query, type SDKResultMessage } from "@anthropic-ai/claude-agent-sdk";
 import { execFileSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { createLogger } from "@mecha/core";
+import type { ActivityEmitter } from "./activity.js";
+import { emitActivityFromEvent } from "./sdk-chat-activity.js";
 import type { ChatFn } from "./scheduler.js";
 
 const log = createLogger("mecha:sdk-chat");
@@ -55,6 +58,10 @@ export interface SdkChatOpts {
   systemPrompt?: string;
   /** Append to default system prompt (mutually exclusive with systemPrompt). */
   appendSystemPrompt?: string;
+  /** Optional activity emitter for real-time visualization. */
+  activityEmitter?: ActivityEmitter;
+  /** Bot name used as the activity event source. */
+  botName?: string;
 }
 
 interface ChatResult {
@@ -75,6 +82,7 @@ export async function sdkChat(
   signal?: AbortSignal,
 ): Promise<ChatResult> {
   let result: SDKResultMessage | undefined;
+  const queryId = randomUUID();
 
   // Bridge external AbortSignal to SDK's abortController
   const ac = new AbortController();
@@ -86,6 +94,8 @@ export async function sdkChat(
       signal.addEventListener("abort", onAbort, { once: true });
     }
   }
+
+  let queryEnded = false;
 
   try {
     // systemPrompt and appendSystemPrompt are mutually exclusive — prefer systemPrompt if both set.
@@ -114,12 +124,24 @@ export async function sdkChat(
         ...(sysPrompt != null && { systemPrompt: sysPrompt }),
       },
     })) {
+      if (opts.activityEmitter && opts.botName) {
+        emitActivityFromEvent(opts.activityEmitter, { name: opts.botName, queryId }, event as Record<string, unknown>);
+      }
       if (event.type === "result") {
         result = event;
       }
     }
+
+    queryEnded = true;
   } finally {
     signal?.removeEventListener("abort", onAbort);
+    // Emit idle for abort/throw paths — skip if query ended normally (result handler already emitted)
+    if (!queryEnded && opts.activityEmitter && opts.botName) {
+      opts.activityEmitter.emit({
+        type: "activity", name: opts.botName, activity: "idle",
+        queryId, timestamp: new Date().toISOString(),
+      });
+    }
   }
 
   if (!result) {
