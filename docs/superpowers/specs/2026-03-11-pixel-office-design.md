@@ -79,10 +79,12 @@ type ActivityState =
 
 ```typescript
 interface ActivityEvent {
-  botName: string;
+  type: "activity";        // Discriminant for DaemonSSEEvent union
+  name: string;            // Bot name (matches ProcessEvent.name convention)
   activity: ActivityState;
   toolName?: string;       // Present when activity === "tool_use"
   sessionId?: string;      // Active session ID
+  queryId?: string;        // Per-query tracking (supports concurrent queries)
   timestamp: string;       // ISO 8601
 }
 ```
@@ -99,7 +101,7 @@ interface ActivityEvent {
 | `system` (subtype: `task_started` / `task_progress`) | `subagent` |
 | `rate_limit_event` | `waiting` |
 | `result` (success) | `idle` |
-| `result` (error) | `error` → `idle` (after brief display) |
+| `result` (error) | `error` (backend emits error only; `error → idle` display timer is UI-side) |
 | No active query | `idle` |
 
 ### State Transitions
@@ -109,7 +111,7 @@ idle → thinking → tool_use → responding → idle
                     ↕            ↕
                   subagent    tool_use
                     ↓
-                  error → idle (after 5s display)
+                  error (UI shows for 5s then transitions to idle)
 
 waiting can interrupt any active state
 ```
@@ -137,17 +139,22 @@ Currently `sdkChat()` discards all non-`result` events in the `for await...of` l
   - On `system.task_started`: emit `{ activity: "subagent" }`
   - On `rate_limit_event`: emit `{ activity: "waiting" }`
   - On `result` success: emit `{ activity: "idle" }`
-  - On error: emit `{ activity: "error" }`, then after result emit `{ activity: "idle" }`
+  - On error: emit `{ activity: "error" }`; on `result` after error, emit `{ activity: "idle" }`
+  - In `finally` block: emit `{ activity: "idle" }` for abort/throw paths (not just result)
+- Track activity per query via `queryId` (crypto.randomUUID); derive bot-level state from active queries (supports concurrent `/api/chat` + scheduler)
 - Debounce rapid transitions (no duplicate consecutive states)
+- Log unknown SDK event types at debug level (SDK versions may add new types)
 
 #### New: `src/routes/events.ts` (bot-level)
 
 - `GET /api/events` SSE endpoint on bot runtime
 - Streams `ActivityEvent` objects
 - Heartbeat every 10s
-- Max 5 connections per bot
+- Max 5 connections per bot (1 reserved for daemon aggregator)
 - Uses `request.socket.on("close")` for disconnect detection (per AGENTS.md)
 - Uses `reply.hijack()` to bypass Fastify response handling
+- On connect: sends initial `snapshot` event with current activity state of all active queries
+- Coalesce rapid events to max 10Hz per subscriber to avoid backpressure on slow clients
 
 #### Modified: `src/server.ts`
 
@@ -194,7 +201,7 @@ Currently `sdkChat()` discards all non-`result` events in the `for await...of` l
 type ProcessEvent = { type: "spawned" } | { type: "stopped" } | { type: "error" } | { type: "warning" };
 
 // packages/runtime/src/activity.ts — NEW
-type ActivityEvent = { type: "activity"; botName: string; activity: ActivityState; ... };
+type ActivityEvent = { type: "activity"; name: string; activity: ActivityState; queryId?: string; ... };
 
 // packages/agent/src/routes/events.ts — MULTIPLEXED at SSE serialization
 type DaemonSSEEvent = ProcessEvent | ActivityEvent;
@@ -332,7 +339,7 @@ When 2+ bots are idle simultaneously:
 | `packages/runtime/__tests__/routes/events.test.ts` | SSE endpoint, heartbeat, max connections, disconnect cleanup |
 | `packages/runtime/__tests__/sdk-chat-activity.test.ts` | sdkChat emits correct activity transitions for each SDK event type |
 | `packages/agent/__tests__/activity-aggregator.test.ts` | EventSource management, reconnect, cleanup on bot stop |
-| `packages/process/__tests__/events.test.ts` | Extended ProcessEvent type includes activity events |
+| `packages/agent/__tests__/routes/events.test.ts` | Unified SSE stream multiplexes ProcessEvent + ActivityEvent |
 
 ### Frontend Tests
 
@@ -360,8 +367,8 @@ When 2+ bots are idle simultaneously:
 ### Phase 2: Daemon Aggregation (Backend)
 
 - `ActivityAggregator` in `packages/agent`
-- Enhanced daemon `GET /events` with unified stream
-- Extended `ProcessEvent` type
+- Enhanced daemon `GET /events` with unified stream (multiplexes ProcessEvent + ActivityEvent)
+- `ProcessEvent` type unchanged — activity events multiplexed at SSE serialization boundary only
 - Tests for aggregation
 
 ### Phase 3: Office Canvas (Frontend)
@@ -378,6 +385,17 @@ When 2+ bots are idle simultaneously:
 - DM (send message to bot)
 - Quest markers (error, budget)
 - Context menu actions
+
+### Deferred (ship after Phase 3)
+
+Per Codex review, these are cut from Phase 1-2 for speed:
+
+- `subagent` and `waiting` activity states — ship `idle | thinking | tool_use | responding | error` first
+- Tool-level granularity (specific tool names) — initially just `tool_use` without `toolName`
+- Water cooler chat snippets — needs response text payload in ActivityEvent
+- Budget quest — needs `maxBudgetUsd` added to enriched bot response
+- Cross-node activity aggregation — ship local-node-only first
+- CLI snapshot mode (`mecha bot activity` without `--watch`) — ship `--watch` first
 
 ### Phase 5: Polish
 
