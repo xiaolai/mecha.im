@@ -1,6 +1,6 @@
 {
   "name": "@mecha/process",
-  "version": "0.2.13",
+  "version": "0.2.14",
   "description": "CASA process lifecycle management for mecha.im",
   "type": "module",
   "exports": {
