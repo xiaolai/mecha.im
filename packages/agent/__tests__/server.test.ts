@@ -9,6 +9,9 @@ import type { ProcessInfo, ProcessManager } from "@mecha/process";
 import { makeAcl, writeBotConfig } from "../../core/__tests__/test-utils.js";
 import { makePm } from "../../service/__tests__/test-utils.js";
 
+// Mock chat function — SDK spawns external process, not available in unit tests
+const mockChatFn = vi.fn();
+
 const TEST_TOTP_SECRET = "JBSWY3DPEHPK3PXP";
 const TEST_SESSION_KEY = deriveSessionKey(TEST_TOTP_SECRET);
 
@@ -31,6 +34,7 @@ describe("AgentServer", () => {
       mechaDir,
       nodeName: "alice",
       startedAt: "2026-03-02T12:00:00.000Z",
+      chatFn: mockChatFn,
     });
   }
 
@@ -462,12 +466,12 @@ describe("AgentServer", () => {
       const app = createServer();
       writeBotConfig(mechaDir, "researcher", { port: 7700, token: "tok", workspace: "/ws", expose: ["query"] });
 
-      vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        new Response(JSON.stringify({ response: "Found papers" }), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        }),
-      );
+      mockChatFn.mockResolvedValue({
+        response: "Found papers",
+        sessionId: "sess-1",
+        durationMs: 100,
+        costUsd: 0.01,
+      });
 
       const res = await app.inject({
         method: "POST",
@@ -481,6 +485,7 @@ describe("AgentServer", () => {
 
       expect(res.statusCode).toBe(200);
       expect(res.json().response).toBe("Found papers");
+      expect(mockChatFn).toHaveBeenCalledWith(mechaDir, "researcher", "find papers", undefined);
     });
 
     it("defaults source to 'admin' when header missing", async () => {
@@ -548,11 +553,11 @@ describe("AgentServer", () => {
       expect(acl.check).not.toHaveBeenCalled();
     });
 
-    it("returns 502 when upstream bot fails", async () => {
+    it("returns 502 when SDK chat fails", async () => {
       const app = createServer();
       writeBotConfig(mechaDir, "researcher", { port: 7700, token: "tok", workspace: "/ws", expose: ["query"] });
 
-      vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("ECONNREFUSED"));
+      mockChatFn.mockRejectedValue(new Error("SDK query failed"));
 
       const res = await app.inject({
         method: "POST",
@@ -564,27 +569,7 @@ describe("AgentServer", () => {
         payload: { message: "hello" },
       });
       expect(res.statusCode).toBe(502);
-      expect(res.json().error).toContain("Upstream bot unavailable:");
-    });
-
-    it("returns 504 when upstream bot times out", async () => {
-      const app = createServer();
-      writeBotConfig(mechaDir, "researcher", { port: 7700, token: "tok", workspace: "/ws", expose: ["query"] });
-
-      const timeoutErr = Object.assign(new Error("connect timed out"), { code: "UND_ERR_CONNECT_TIMEOUT" });
-      vi.spyOn(globalThis, "fetch").mockRejectedValue(timeoutErr);
-
-      const res = await app.inject({
-        method: "POST",
-        url: "/bots/researcher/query",
-        headers: {
-          cookie: authCookie(),
-          "x-mecha-source": "coder@remote",
-        },
-        payload: { message: "hello" },
-      });
-      expect(res.statusCode).toBe(504);
-      expect(res.json().error).toBe("Upstream bot timed out");
+      expect(res.json().error).toContain("Chat failed:");
     });
   });
 
