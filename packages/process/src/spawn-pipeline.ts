@@ -5,6 +5,7 @@ import { randomBytes } from "node:crypto";
 import {
   type BotName,
   BotAlreadyExistsError,
+  DEFAULTS,
   ProcessSpawnError,
   readBotConfig,
 } from "@mecha/core";
@@ -21,20 +22,6 @@ import { isPidAlive, waitForPidExit } from "./process-lifecycle.js";
 import { checkPort } from "./port.js";
 import { prepareBotFilesystem } from "./sandbox-setup.js";
 import type { SpawnOpts, ProcessInfo, LiveProcess, CreateProcessManagerOpts } from "./types.js";
-
-/**
- * Module-level set of ports reserved by in-flight spawns.
- * Prevents parallel spawns from allocating the same port before
- * either enters the live map. Entries are cleaned up after spawn completes.
- */
-const reservedPorts = new Set<number>();
-
-/**
- * Mutex for port allocation to prevent concurrent spawns from racing.
- * Each allocation awaits the previous one before scanning ports.
- * The finally block in spawnBot guarantees resolveLock() is always called.
- */
-let portAllocationLock = Promise.resolve();
 
 export interface SpawnContext {
   opts: CreateProcessManagerOpts;
@@ -94,7 +81,7 @@ export async function spawnBot(ctx: SpawnContext, spawnOpts: SpawnOpts): Promise
       } catch (err) {
         if ((err as NodeJS.ErrnoException).code !== "ESRCH") throw err;
       }
-      const exited = await waitForPidExit(existing.pid, 3_000);
+      const exited = await waitForPidExit(existing.pid, DEFAULTS.STALE_PROCESS_KILL_TIMEOUT_MS);
       if (!exited) {
         throw new ProcessSpawnError(
           `Stale process ${existing.pid} did not exit after SIGKILL (port ${existing.port})`,
@@ -104,35 +91,44 @@ export async function spawnBot(ctx: SpawnContext, spawnOpts: SpawnOpts): Promise
   }
   /* v8 ignore stop */
 
-  // Allocate port — serialized via mutex to prevent concurrent spawns racing
+  // Allocate port — uses atomic TCP bind to prevent cross-process races (R7-004).
+  // claimPort() holds the port until release() is called after the bot binds it.
   let port: number;
-  if (spawnOpts.port) {
+  let releasePort: (() => Promise<void>) | undefined;
+  if (spawnOpts.port !== undefined) {
     port = spawnOpts.port;
   } else {
-    const prev = portAllocationLock;
-    let resolveLock!: () => void;
-    portAllocationLock = new Promise<void>((r) => { resolveLock = r; });
-    await prev;
-    try {
-      const usedPorts = new Set<number>(reservedPorts);
-      for (const lp of live.values()) usedPorts.add(lp.port);
-      port = await allocatePort(undefined, undefined, usedPorts);
-      reservedPorts.add(port);
-    } finally {
-      resolveLock();
-    }
+    const usedPorts = new Set<number>();
+    for (const lp of live.values()) usedPorts.add(lp.port);
+    const claim = await allocatePort(undefined, undefined, usedPorts);
+    port = claim.port;
+    releasePort = claim.release;
   }
   try {
-  return await _spawnBotInner(ctx, spawnOpts, name, workspacePath, botDir, port);
+    return await _spawnBotInner(ctx, spawnOpts, name, workspacePath, botDir, port, releasePort);
   } finally {
-    reservedPorts.delete(port);
+    // Ensure port claim is released even if _spawnBotInner fails before its own release call.
+    // claimPort release is idempotent — safe to call again after _spawnBotInner already released.
+    await releasePort?.();
   }
 }
 
-/** Inner spawn logic — separated so reservedPorts cleanup is guaranteed by the caller's finally. */
+/** Best-effort state write — logs failures instead of crashing event handlers. */
+function safeWriteState(botDir: string, state: BotState, name: string): void {
+  try {
+    writeState(botDir, state);
+  /* v8 ignore start -- disk-full guard */
+  } catch (err) {
+    console.error(`[mecha:process] Failed to write state for ${name}: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  /* v8 ignore stop */
+}
+
+/** Inner spawn logic — separated so port claim cleanup is guaranteed by the caller. */
 async function _spawnBotInner(
   ctx: SpawnContext, spawnOpts: SpawnOpts,
   name: BotName, workspacePath: string, botDir: string, port: number,
+  releasePort?: () => Promise<void>,
 ): Promise<ProcessInfo> {
   const { mechaDir, emitter, live } = ctx;
   const { model, permissionMode, auth, tags, home } = spawnOpts;
@@ -186,37 +182,13 @@ async function _spawnBotInner(
 
   // Sandbox wrapping — BEFORE FD open to prevent leaks on failure
   const sandboxMode = spawnOpts.sandboxMode ?? "auto";
-  let sandboxPlatform: SandboxPlatform | undefined;
   /* v8 ignore start -- sandbox integration tested via CLI E2E, unit tests don't inject sandbox DI */
-  if (sandboxMode !== "off" && ctx.sandbox) {
-    const available = ctx.sandbox.isAvailable();
-    if (sandboxMode === "require" && !available) {
-      throw new ProcessSpawnError(`Sandbox required but ${ctx.sandbox.describe()}`);
-    }
-    if (available) {
-      const config = readBotConfig(botDir);
-      if (!config && sandboxMode === "require") {
-        throw new ProcessSpawnError("Sandbox required but config.json could not be read for profile generation");
-      }
-      if (config) {
-        const profile = profileFromConfig({
-          config, botDir, mechaDir, runtimeEntrypoint: ctx.opts.runtimeEntrypoint,
-        });
-        const wrapped = await ctx.sandbox.wrap(profile, spawnBin, spawnArgs, botDir);
-        spawnBin = wrapped.bin;
-        spawnArgs = wrapped.args;
-        sandboxPlatform = ctx.sandbox.platform;
-        const persisted: PersistedSandboxProfile = {
-          platform: ctx.sandbox.platform, profile, createdAt: new Date().toISOString(),
-        };
-        const sandboxProfilePath = join(botDir, "sandbox-profile.json");
-        writeFileSync(sandboxProfilePath, JSON.stringify(persisted, null, 2) + "\n", { mode: 0o600 });
-        chmodSync(sandboxProfilePath, 0o600);
-      }
-    } else if (sandboxMode === "auto") {
-      emitter.emit({ type: "warning", name, message: "Kernel sandbox not available, running without sandbox" });
-    }
-  }
+  const { bin: spawnBinFinal, args: spawnArgsFinal, platform: sandboxPlatform } =
+    await applySandboxWrapping({
+      ctx, sandboxMode, botDir, mechaDir, name, spawnBin, spawnArgs, emitter,
+    });
+  spawnBin = spawnBinFinal;
+  spawnArgs = spawnArgsFinal;
   /* v8 ignore stop */
 
   // Open log files as FDs and enforce 0o600 permissions (owner-only read/write).
@@ -239,6 +211,11 @@ async function _spawnBotInner(
     /* v8 ignore stop */
   }
 
+  // Release port claim just before spawn — the bot process needs to bind it.
+  // The claim prevented other concurrent allocatePort() calls from choosing this port.
+  // Await ensures the OS has fully released the socket before the child tries to bind.
+  await releasePort?.();
+
   // Spawn child process
   let child: ChildProcess;
   try {
@@ -260,18 +237,14 @@ async function _spawnBotInner(
   // the queued event becomes an unhandled 'error' that crashes the process.
   /* v8 ignore start -- async spawn error handler: requires binary to fail after initial spawn */
   child.on("error", (err) => {
-    try {
-      live.delete(name);
-      const errorState: BotState = {
-        name, state: "error", pid: child.pid ?? undefined, port, workspacePath,
-        startedAt: new Date().toISOString(), stoppedAt: new Date().toISOString(),
-      };
-      writeState(botDir, errorState);
-      ctx.onStateChange?.();
-      emitter.emit({ type: "error", name, error: err.message });
-    } catch (writeErr) {
-      console.error(`[mecha:process] Failed to handle spawn error for ${name}: ${writeErr instanceof Error ? writeErr.message : String(writeErr)}`);
-    }
+    live.delete(name);
+    const errorState: BotState = {
+      name, state: "error", pid: child.pid ?? undefined, port, workspacePath,
+      startedAt: new Date().toISOString(), stoppedAt: new Date().toISOString(),
+    };
+    safeWriteState(botDir, errorState, name);
+    ctx.onStateChange?.();
+    emitter.emit({ type: "error", name, error: err.message });
   });
   /* v8 ignore stop */
 
@@ -311,13 +284,7 @@ async function _spawnBotInner(
       stoppedAt: new Date().toISOString(),
       exitCode: code ?? undefined,
     };
-    /* v8 ignore start -- disk-full guard: prevent crash in event handler */
-    try {
-      writeState(ctx.botDir(name), state);
-    } catch (err) {
-      console.error(`[mecha:process] Failed to write exit state for ${name}: ${err instanceof Error ? err.message : String(err)}`);
-    }
-    /* v8 ignore stop */
+    safeWriteState(ctx.botDir(name), state, name);
     ctx.onStateChange?.();
     emitter.emit({ type: "stopped", name, exitCode: code ?? undefined, signal: signal ?? undefined });
   });
@@ -332,13 +299,7 @@ async function _spawnBotInner(
       name, state: "error", pid: child.pid, port, workspacePath, startedAt,
       stoppedAt: new Date().toISOString(),
     };
-    /* v8 ignore start -- disk-full guard: prevent crash masking original health error */
-    try {
-      writeState(botDir, failState);
-    } catch (writeErr) {
-      console.error(`[mecha:process] Failed to write error state for ${name}: ${writeErr instanceof Error ? writeErr.message : String(writeErr)}`);
-    }
-    /* v8 ignore stop */
+    safeWriteState(botDir, failState, name);
     ctx.onStateChange?.();
     /* v8 ignore start -- waitForHealthy always throws Error */
     emitter.emit({ type: "error", name, error: err instanceof Error ? err.message : String(err) });
@@ -360,7 +321,7 @@ async function _spawnBotInner(
       name, state: "error", pid: child.pid, port, workspacePath, startedAt,
       stoppedAt: new Date().toISOString(),
     };
-    try { writeState(botDir, errState); } catch { /* best-effort */ }
+    safeWriteState(botDir, errState, name);
     ctx.onStateChange?.();
     throw new ProcessSpawnError(
       `Failed to write running state: ${err instanceof Error ? err.message : String(err)}`,
@@ -373,3 +334,48 @@ async function _spawnBotInner(
 
   return { name, state: "running", pid: child.pid, port, workspacePath, token, startedAt };
 }
+
+/** Apply sandbox wrapping to spawn binary/args if sandbox is available and enabled. */
+/* v8 ignore start -- sandbox integration tested via CLI E2E */
+async function applySandboxWrapping(opts: {
+  ctx: SpawnContext; sandboxMode: string; botDir: string; mechaDir: string;
+  name: BotName; spawnBin: string; spawnArgs: string[]; emitter: ProcessEventEmitter;
+}): Promise<{ bin: string; args: string[]; platform: SandboxPlatform | undefined }> {
+  const { ctx, sandboxMode, botDir, mechaDir, name, emitter } = opts;
+  let bin = opts.spawnBin;
+  let args = opts.spawnArgs;
+  let platform: SandboxPlatform | undefined;
+
+  if (sandboxMode !== "off" && ctx.sandbox) {
+    const available = ctx.sandbox.isAvailable();
+    if (sandboxMode === "require" && !available) {
+      throw new ProcessSpawnError(`Sandbox required but ${ctx.sandbox.describe()}`);
+    }
+    if (available) {
+      const config = readBotConfig(botDir);
+      if (!config && sandboxMode === "require") {
+        throw new ProcessSpawnError("Sandbox required but config.json could not be read for profile generation");
+      }
+      if (config) {
+        const profile = profileFromConfig({
+          config, botDir, mechaDir, runtimeEntrypoint: ctx.opts.runtimeEntrypoint,
+        });
+        const wrapped = await ctx.sandbox.wrap(profile, bin, args, botDir);
+        bin = wrapped.bin;
+        args = wrapped.args;
+        platform = ctx.sandbox.platform;
+        const persisted: PersistedSandboxProfile = {
+          platform: ctx.sandbox.platform, profile, createdAt: new Date().toISOString(),
+        };
+        const sandboxProfilePath = join(botDir, "sandbox-profile.json");
+        writeFileSync(sandboxProfilePath, JSON.stringify(persisted, null, 2) + "\n", { mode: 0o600 });
+        chmodSync(sandboxProfilePath, 0o600);
+      }
+    } else if (sandboxMode === "auto") {
+      emitter.emit({ type: "warning", name, message: "Kernel sandbox not available, running without sandbox" });
+    }
+  }
+
+  return { bin, args, platform };
+}
+/* v8 ignore stop */
