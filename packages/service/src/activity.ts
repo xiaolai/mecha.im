@@ -50,22 +50,30 @@ export async function* botActivityStream(
     throw new Error("No response body");
   }
 
+  const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
 
-  for await (const chunk of response.body) {
-    buffer += decoder.decode(chunk as Uint8Array, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
 
-    for (const line of lines) {
-      if (line.startsWith("data: ")) {
-        try {
-          yield JSON.parse(line.slice(6)) as Record<string, unknown>;
-        } catch {
-          // skip malformed data lines
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          try {
+            yield JSON.parse(line.slice(6)) as Record<string, unknown>;
+          } catch {
+            // skip malformed data lines
+          }
         }
       }
     }
+  } finally {
+    reader.cancel().catch(() => {});
   }
 }
