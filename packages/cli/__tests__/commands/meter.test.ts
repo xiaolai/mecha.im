@@ -142,8 +142,9 @@ describe("meter command", () => {
 
     it("sends SIGTERM to running proxy", async () => {
       tempDir = mkdtempSync(join(tmpdir(), "mecha-cli-meter-"));
-      // Spawn a child process to act as proxy
-      const child = spawnChild("sleep", ["60"], { detached: true, stdio: "ignore" });
+      // Spawn a child process to act as proxy.
+      // Use node with "mecha" in argv so isPidMecha() passes on Linux (/proc/<pid>/cmdline).
+      const child = spawnChild(process.execPath, ["-e", "setInterval(()=>{},9e6)/*mecha*/"], { detached: true, stdio: "ignore" });
       child.unref();
       const pid = child.pid!;
       try {
