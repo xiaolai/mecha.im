@@ -1,8 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { getRoute, ZONE_IDS } from "./routes";
+import { ZONES } from "./zones";
+import { WALKABLE } from "./tilemap-data";
+import { MAP_COLS } from "./tilemap-data";
 
-describe("routes", () => {
-  it("has routes for all 30 zone pairs", () => {
+describe("routes (BFS)", () => {
+  it("finds routes for all 30 zone pairs", () => {
     let count = 0;
     for (const from of ZONE_IDS) {
       for (const to of ZONE_IDS) {
@@ -16,12 +19,17 @@ describe("routes", () => {
   });
 
   it("route starts at source zone and ends at target zone", () => {
-    const route = getRoute("desk", "phone");
-    expect(route[0]).toEqual([7, 7]);
-    expect(route[route.length - 1]).toEqual([12, 4]);
+    for (const from of ZONE_IDS) {
+      for (const to of ZONE_IDS) {
+        if (from === to) continue;
+        const route = getRoute(from, to);
+        expect(route[0]).toEqual([ZONES[from].tileX, ZONES[from].tileY]);
+        expect(route[route.length - 1]).toEqual([ZONES[to].tileX, ZONES[to].tileY]);
+      }
+    }
   });
 
-  it("all coordinates are within 16x14 grid", () => {
+  it("all coordinates are within 16x14 grid and on walkable tiles", () => {
     for (const from of ZONE_IDS) {
       for (const to of ZONE_IDS) {
         if (from === to) continue;
@@ -30,14 +38,14 @@ describe("routes", () => {
           expect(x).toBeLessThan(16);
           expect(y).toBeGreaterThanOrEqual(0);
           expect(y).toBeLessThan(14);
+          expect(WALKABLE[y * MAP_COLS + x]).toBe(true);
         }
       }
     }
   });
 
-  it("reverse route is the reverse of forward route", () => {
-    const forward = getRoute("desk", "sofa");
-    const reverse = getRoute("sofa", "desk");
-    expect(reverse).toEqual([...forward].reverse());
+  it("same-zone route returns single point", () => {
+    const route = getRoute("desk", "desk");
+    expect(route).toEqual([[ZONES.desk.tileX, ZONES.desk.tileY]]);
   });
 });
