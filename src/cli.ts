@@ -7,6 +7,7 @@ process.on("unhandledRejection", (reason) => {
 
 import { Command } from "commander";
 import { resolve, dirname } from "node:path";
+import type { BotInfo } from "./docker.types.js";
 import { existsSync, statSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { execFile } from "node:child_process";
@@ -23,6 +24,7 @@ import {
 import * as docker from "./docker.js";
 import { stringify as stringifyYaml } from "yaml";
 import { resolveHostBotBaseUrl } from "./resolve-endpoint.js";
+import { printTable, setupHeadscale, fetchRemoteBots, readPromptSSE } from "./cli.utils.js";
 
 const program = new Command();
 
@@ -41,43 +43,7 @@ program
     console.log("Created ~/.mecha/ directory structure");
 
     if (opts.headscale) {
-      console.log("Starting Headscale container...");
-      const Docker = (await import("dockerode")).default;
-      const d = new Docker();
-      try {
-        console.log("Pulling headscale image...");
-        await d.pull("headscale/headscale:latest");
-      } catch (err) {
-        console.warn("Failed to pull headscale image (using cached if available):", err instanceof Error ? err.message : String(err));
-      }
-      const container = await d.createContainer({
-        Image: "headscale/headscale:latest",
-        name: "mecha-headscale",
-        Cmd: ["serve"],
-        ExposedPorts: { "8080/tcp": {} },
-        HostConfig: {
-          PortBindings: { "8080/tcp": [{ HostPort: "8080" }] },
-          RestartPolicy: { Name: "unless-stopped" },
-        },
-      });
-      await container.start();
-      const exec = await container.exec({ Cmd: ["headscale", "apikeys", "create"], AttachStdout: true });
-      const stream = await exec.start({ hijack: true, stdin: false });
-      let apiKey = "";
-      stream.on("data", (chunk: Buffer) => { apiKey += chunk.toString(); });
-      await new Promise<void>((r) => stream.on("end", r));
-      apiKey = apiKey.trim();
-
-      const settingsPath = resolve(process.env.HOME ?? "~", ".mecha", "mecha.json");
-      const { atomicWriteJson } = await import("../shared/atomic-write.js");
-      const settings = readSettings();
-      atomicWriteJson(settingsPath, {
-        ...settings,
-        headscale_url: "http://localhost:8080",
-        headscale_api_key: apiKey,
-      });
-      console.log(`Headscale running at http://localhost:8080`);
-      console.log(`API key saved to ~/.mecha/mecha.json`);
+      await setupHeadscale(readSettings());
     }
 
     await docker.ensureImage();
@@ -188,43 +154,10 @@ program
   .description("List bots")
   .action(async () => {
     const bots = await docker.list();
-
-    // Try to get remote bots from Headscale
     const settings = readSettings();
-    const remoteBots: docker.BotInfo[] = [];
-    if (settings.headscale_url && settings.headscale_api_key) {
-      try {
-        const resp = await fetch(`${settings.headscale_url}/api/v1/machine`, {
-          headers: { Authorization: `Bearer ${settings.headscale_api_key}` },
-          signal: AbortSignal.timeout(5000),
-        });
-        if (resp.ok) {
-          const data = await resp.json() as {
-            machines: Array<{ name: string; ipAddresses: string[]; online: boolean }>;
-          };
-          for (const m of data.machines) {
-            if (!m.name.startsWith("mecha-")) continue;
-            const name = m.name.replace(/^mecha-/, "");
-            if (bots.some((b) => b.name === name)) {
-              const local = bots.find((b) => b.name === name)!;
-              (local as docker.BotInfo & { ip: string; node: string }).ip = m.ipAddresses[0] ?? "";
-              (local as docker.BotInfo & { node: string }).node = "local";
-              continue;
-            }
-            remoteBots.push({
-              name,
-              status: m.online ? "running" : "offline",
-              model: "unknown",
-              containerId: "remote",
-              ports: "",
-            });
-          }
-        }
-      } catch {
-        // Headscale not available
-      }
-    }
-
+    const remoteBots = (settings.headscale_url && settings.headscale_api_key)
+      ? await fetchRemoteBots(bots, settings.headscale_url, settings.headscale_api_key)
+      : [];
     const allBots = [...bots, ...remoteBots];
 
     if (allBots.length === 0) {
@@ -238,21 +171,13 @@ program
       : ["NAME", "STATUS", "MODEL", "CONTAINER", "PORTS"];
 
     const rows = allBots.map((b) => {
-      const ext = b as docker.BotInfo & { node?: string; ip?: string };
+      const ext = b as BotInfo & { node?: string; ip?: string };
       return hasRemote
         ? [b.name, b.status, b.model, b.containerId, ext.node ?? (b.containerId === "remote" ? "remote" : "local"), ext.ip ?? "", b.ports]
         : [b.name, b.status, b.model, b.containerId, b.ports];
     });
 
-    const widths = header.map((h, i) =>
-      Math.max(h.length, ...rows.map((r) => r[i].length)),
-    );
-    const formatRow = (row: string[]) =>
-      row.map((cell, i) => cell.padEnd(widths[i])).join("  ");
-
-    console.log(formatRow(header));
-    console.log(widths.map((w) => "─".repeat(w)).join("  "));
-    rows.forEach((row) => console.log(formatRow(row)));
+    printTable(header, rows);
   });
 
 // --- chat ---
@@ -296,39 +221,7 @@ program
       console.error("No response body");
       process.exit(1);
     }
-
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
-
-      for (const line of lines) {
-        if (line.startsWith("data: ")) {
-          const data = line.slice(6);
-          try {
-            const parsed = JSON.parse(data);
-            if (parsed.content) {
-              process.stdout.write(parsed.content);
-            } else if (parsed.summary) {
-              process.stdout.write(`\n[tool] ${parsed.summary}\n`);
-            } else if (parsed.message && !parsed.task_id) {
-              console.error(`\nError: ${parsed.message}`);
-            } else if (parsed.cost_usd !== undefined) {
-              console.log(`\n\n---\nCost: $${parsed.cost_usd.toFixed(4)} | Duration: ${parsed.duration_ms}ms | Session: ${parsed.session_id}`);
-            }
-          } catch {
-            // non-JSON data
-          }
-        }
-      }
-    }
-    console.log();
+    await readPromptSSE(reader);
   });
 
 // --- logs ---
@@ -382,7 +275,6 @@ authCmd
       console.log("No credentials configured. Run: mecha auth add <name> <key>");
       return;
     }
-    // Table header
     const header = ["Name", "Type", "Env", "Account", "Created"];
     const rows = creds.map((c) => [
       c.name,
@@ -391,14 +283,7 @@ authCmd
       c.account ?? "",
       c.created_at ?? "",
     ]);
-    const widths = header.map((h, i) =>
-      Math.max(h.length, ...rows.map((r) => r[i].length)),
-    );
-    const formatRow = (row: string[]) =>
-      row.map((cell, i) => cell.padEnd(widths[i])).join("  ");
-    console.log(formatRow(header));
-    console.log(widths.map((w) => "─".repeat(w)).join("  "));
-    rows.forEach((row) => console.log(formatRow(row)));
+    printTable(header, rows);
   });
 
 authCmd
