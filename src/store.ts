@@ -7,25 +7,24 @@ import { safeReadJson } from "../shared/safe-read.js";
 import { atomicWriteJson } from "../shared/atomic-write.js";
 import { log } from "../shared/logger.js";
 
-const MECHA_DIR = join(homedir(), ".mecha");
+const DEFAULT_MECHA_DIR = join(homedir(), ".mecha");
 const REGISTRY_SCHEMA_VERSION = 1;
 const SETTINGS_SCHEMA_VERSION = 1;
 
 export function getMechaDir(): string {
-  return MECHA_DIR;
+  return process.env.MECHA_HOME ?? DEFAULT_MECHA_DIR;
 }
 
 export function ensureMechaDir(): void {
-  mkdirSync(join(MECHA_DIR, "auth"), { recursive: true });
-  mkdirSync(join(MECHA_DIR, "bots"), { recursive: true });
+  mkdirSync(join(getMechaDir(), "bots"), { recursive: true });
   // Ensure registry.json exists
-  const regPath = join(MECHA_DIR, "registry.json");
+  const regPath = join(getMechaDir(), "registry.json");
   if (!existsSync(regPath)) {
     atomicWriteJson(regPath, { schema_version: REGISTRY_SCHEMA_VERSION, bots: {} });
   }
   try { chmodSync(regPath, 0o600); } catch { /* best-effort */ }
   // Ensure mecha.json exists with restrictive permissions
-  const settingsPath = join(MECHA_DIR, "mecha.json");
+  const settingsPath = join(getMechaDir(), "mecha.json");
   if (!existsSync(settingsPath)) {
     atomicWriteJson(settingsPath, { schema_version: SETTINGS_SCHEMA_VERSION });
   }
@@ -49,10 +48,10 @@ const registrySchema = z.object({
 type Registry = z.infer<typeof registrySchema>;
 
 function registryPath(): string {
-  return join(MECHA_DIR, "registry.json");
+  return join(getMechaDir(), "registry.json");
 }
 
-const LOCK_DIR = join(MECHA_DIR, ".registry.lock");
+function lockDir(): string { return join(getMechaDir(), ".registry.lock"); }
 const LOCK_STALE_MS = 30_000;
 
 function withRegistryLock<T>(fn: () => T): T {
@@ -60,33 +59,39 @@ function withRegistryLock<T>(fn: () => T): T {
   let acquired = false;
   while (true) {
     try {
-      mkdirSync(LOCK_DIR);
+      mkdirSync(lockDir());
       acquired = true;
       break;
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
       // Check for stale lock
       try {
-        const stat = statSync(LOCK_DIR);
+        const stat = statSync(lockDir());
         if (Date.now() - stat.mtimeMs > LOCK_STALE_MS) {
-          try { rmdirSync(LOCK_DIR); } catch { /* race with other process */ }
+          try { rmdirSync(lockDir()); } catch { /* race with other process */ }
           continue;
         }
       } catch { /* lock dir gone, retry */ continue; }
       if (Date.now() >= deadline) {
         throw new Error("Registry lock timeout — another mecha process may be stuck. Remove ~/.mecha/.registry.lock manually if needed.");
       }
-      // Brief spin wait
-      const waitMs = 50;
-      const start = Date.now();
-      while (Date.now() - start < waitMs) { /* spin */ }
+      // Synchronous wait — we need this to be sync for withRegistryLock.
+      // Use Atomics.wait on a dummy buffer for a non-spinning delay.
+      const waitMs = 10;
+      try {
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, waitMs);
+      } catch {
+        // Fallback: brief spin (environments without SharedArrayBuffer)
+        const start = Date.now();
+        while (Date.now() - start < waitMs) { /* spin */ }
+      }
     }
   }
   try {
     return fn();
   } finally {
     if (acquired) {
-      try { rmdirSync(LOCK_DIR); } catch { /* best-effort */ }
+      try { rmdirSync(lockDir()); } catch { /* best-effort */ }
     }
   }
 }
@@ -145,24 +150,18 @@ const settingsSchema = z.object({
 type MechaSettings = z.infer<typeof settingsSchema>;
 
 export function readSettings(): MechaSettings {
-  const result = safeReadJson(join(MECHA_DIR, "mecha.json"), "mecha.json", settingsSchema);
+  const result = safeReadJson(join(getMechaDir(), "mecha.json"), "mecha.json", settingsSchema);
   if (!result.ok) {
     if (result.reason !== "missing") {
       log.warn(`Settings read failed: ${result.reason} — ${result.detail}`);
     }
     return { schema_version: SETTINGS_SCHEMA_VERSION };
   }
-  return {
-    schema_version: result.data.schema_version ?? SETTINGS_SCHEMA_VERSION,
-    default_auth: result.data.default_auth,
-    headscale_url: result.data.headscale_url,
-    headscale_api_key: result.data.headscale_api_key,
-    fleet_internal_secret: result.data.fleet_internal_secret,
-  };
+  return { ...result.data, schema_version: result.data.schema_version ?? SETTINGS_SCHEMA_VERSION };
 }
 
 export function getOrCreateFleetInternalSecret(): string {
-  const settingsPath = join(MECHA_DIR, "mecha.json");
+  const settingsPath = join(getMechaDir(), "mecha.json");
   const settings = readSettings();
   if (settings.fleet_internal_secret) return settings.fleet_internal_secret;
 

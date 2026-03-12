@@ -4,7 +4,7 @@ import { streamSSE } from "hono/streaming";
 import { z } from "zod";
 import { resolve, normalize } from "node:path";
 import { existsSync } from "node:fs";
-import { randomBytes, timingSafeEqual } from "node:crypto";
+import { randomBytes, timingSafeEqual, createHmac } from "node:crypto";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { Mutex } from "../shared/mutex.js";
 import { log } from "../shared/logger.js";
@@ -27,7 +27,7 @@ const BOT_TOKEN = process.env.MECHA_BOT_TOKEN || ("mecha_agent_" + randomBytes(2
 const FLEET_INTERNAL_SECRET = process.env.MECHA_FLEET_INTERNAL_SECRET;
 if (!process.env.MECHA_BOT_TOKEN) {
   log.warn("MECHA_BOT_TOKEN not set — auto-generated token for this session. Set MECHA_BOT_TOKEN for stable auth.");
-  log.info(`Auto-generated agent token: ${BOT_TOKEN}`);
+  log.info(`Auto-generated agent token: ${BOT_TOKEN.slice(0, 14)}...`);
 }
 
 interface QueryResult {
@@ -37,6 +37,36 @@ interface QueryResult {
   durationMs: number;
   success: boolean;
 }
+
+// Typed SDK event shapes (the SDK emits plain objects; define the shapes we consume)
+interface SdkSystemEvent {
+  type: "system";
+  subtype?: string;
+  session_id?: string;
+}
+
+interface ContentBlock {
+  type: string;
+  text?: string;
+  name?: string;
+  input?: unknown;
+}
+
+interface SdkAssistantEvent {
+  type: "assistant";
+  message?: { content?: ContentBlock[] };
+}
+
+interface SdkResultEvent {
+  type: "result";
+  subtype?: string;
+  total_cost_usd?: number;
+  session_id?: string;
+  duration_ms?: number;
+  result?: string;
+}
+
+type SdkEvent = SdkSystemEvent | SdkAssistantEvent | SdkResultEvent | { type: string };
 
 function getWorkspaceContext(): { cwd: string; settingSources: Array<"user" | "project"> | ["user"] } {
   const configuredCwd = process.env.MECHA_WORKSPACE_CWD;
@@ -116,32 +146,41 @@ async function runClaude(
   let durationMs = 0;
   let success = false;
 
-  for await (const event of response) {
+  for await (const rawEvent of response) {
+    const event = rawEvent as SdkEvent;
+
     // Capture session ID from init event
-    if (event.type === "system" && (event as any).subtype === "init" && (event as any).session_id) {
-      sessionId = (event as any).session_id;
+    if (event.type === "system") {
+      const sysEvent = event as SdkSystemEvent;
+      if (sysEvent.subtype === "init" && sysEvent.session_id) {
+        sessionId = sysEvent.session_id;
+      }
     }
 
     // Stream assistant text and tool use
-    if (event.type === "assistant" && (event as any).message?.content) {
-      for (const block of (event as any).message.content) {
-        if (block.type === "text" && block.text) {
-          resultText += block.text;
-          onEvent?.({ type: "text", data: { content: block.text } });
-        }
-        if (block.type === "tool_use") {
-          onEvent?.({ type: "tool_use", data: { tool: block.name, input: block.input } });
+    if (event.type === "assistant") {
+      const assistEvent = event as SdkAssistantEvent;
+      if (assistEvent.message?.content) {
+        for (const block of assistEvent.message.content) {
+          if (block.type === "text" && block.text) {
+            resultText += block.text;
+            onEvent?.({ type: "text", data: { content: block.text } });
+          }
+          if (block.type === "tool_use") {
+            onEvent?.({ type: "tool_use", data: { tool: block.name, input: block.input } });
+          }
         }
       }
     }
 
     // Capture final result
     if (event.type === "result") {
-      costUsd = (event as any).total_cost_usd ?? 0;
-      sessionId = (event as any).session_id ?? sessionId;
-      durationMs = (event as any).duration_ms ?? 0;
-      success = (event as any).subtype === "success";
-      resultText = (event as any).result ?? resultText;
+      const resEvent = event as SdkResultEvent;
+      costUsd = resEvent.total_cost_usd ?? 0;
+      sessionId = resEvent.session_id ?? sessionId;
+      durationMs = resEvent.duration_ms ?? 0;
+      success = resEvent.subtype === "success";
+      resultText = resEvent.result ?? resultText;
     }
   }
 
@@ -175,14 +214,18 @@ export function createApp(config: BotConfig, startedAt: number) {
   app.use("/*", cors({ origin: allowedOrigin }));
 
   // Auth middleware for API routes (health and dashboard are public)
+  const hasBearerAuth = (auth: string | undefined): boolean => {
+    if (!auth) return false;
+    const received = Buffer.from(auth);
+    const expected = Buffer.from(`Bearer ${BOT_TOKEN}`);
+    return received.length === expected.length && timingSafeEqual(received, expected);
+  };
   const requireApiAuth = async (c: import("hono").Context, next: () => Promise<void>) => {
-    const auth = c.req.header("authorization");
-    if (auth !== `Bearer ${BOT_TOKEN}`) return c.json({ error: "Unauthorized" }, 401);
+    if (!hasBearerAuth(c.req.header("authorization"))) return c.json({ error: "Unauthorized" }, 401);
     await next();
   };
   const requirePromptAuth = async (c: import("hono").Context, next: () => Promise<void>) => {
-    const auth = c.req.header("authorization");
-    if (auth === `Bearer ${BOT_TOKEN}` || hasInternalAuthHeader(c.req.header(INTERNAL_AUTH_HEADER))) {
+    if (hasBearerAuth(c.req.header("authorization")) || hasInternalAuthHeader(c.req.header(INTERNAL_AUTH_HEADER))) {
       await next();
       return;
     }

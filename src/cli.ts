@@ -13,9 +13,13 @@ import { execFile } from "node:child_process";
 import { MechaError } from "../shared/errors.js";
 import { parsePort, isValidName } from "../shared/validation.js";
 import { atomicWriteText } from "../shared/atomic-write.js";
-import { ensureMechaDir, getBot, readSettings } from "./store.js";
+import { ensureMechaDir, getMechaDir, getBot, readSettings } from "./store.js";
 import { loadBotConfig, buildInlineConfig } from "./config.js";
-import { addAuthProfile, listAuthProfiles, getAuthProfile } from "./auth.js";
+import {
+  addCredential, listCredentials, getCredential, removeCredential,
+  detectCredentialType, credentialTypes,
+  type Credential,
+} from "./auth.js";
 import * as docker from "./docker.js";
 import { stringify as stringifyYaml } from "yaml";
 import { resolveHostBotBaseUrl } from "./resolve-endpoint.js";
@@ -340,37 +344,82 @@ program
 // --- auth ---
 const authCmd = program
   .command("auth")
-  .description("Manage auth profiles");
+  .description("Manage credentials (credentials.yaml)");
 
 authCmd
-  .command("add <profile> <key>")
-  .description("Add an auth profile")
-  .action((profile: string, key: string) => {
+  .command("add <name> <key>")
+  .description("Add a credential (auto-detects type from key prefix)")
+  .option("--type <type>", "Override type: api_key, oauth_token, bot_token, secret, tailscale")
+  .option("--env <env>", "Override env var name")
+  .option("--account <account>", "Account label (e.g. email)")
+  .option("--created-at <date>", "Creation date (YYYY-MM-DD), defaults to today")
+  .action((name: string, key: string, opts: { type?: string; env?: string; account?: string; createdAt?: string }) => {
     ensureMechaDir();
-    addAuthProfile(profile, key);
-    const type = key.startsWith("tskey-") ? "tailscale" : "api_key";
-    console.log(`Added auth profile "${profile}" (type: ${type})`);
+    const detected = detectCredentialType(key);
+    if (opts.type && !(credentialTypes as readonly string[]).includes(opts.type)) {
+      console.error(`Invalid credential type: "${opts.type}" (valid: ${credentialTypes.join(", ")})`);
+      process.exit(1);
+    }
+    const createdAt = opts.createdAt ?? new Date().toISOString().slice(0, 10);
+    const cred: Credential = {
+      name,
+      type: (opts.type as Credential["type"]) ?? detected.type,
+      env: opts.env ?? detected.env,
+      key,
+      created_at: createdAt,
+      ...(opts.account ? { account: opts.account } : {}),
+    };
+    addCredential(cred);
+    console.log(`Added credential "${name}" (type: ${cred.type}, env: ${cred.env})`);
   });
 
 authCmd
   .command("list")
-  .description("List auth profiles")
+  .description("List all credentials")
   .action(() => {
-    const profiles = listAuthProfiles();
-    if (profiles.length === 0) {
-      console.log("No auth profiles configured");
+    const creds = listCredentials();
+    if (creds.length === 0) {
+      console.log("No credentials configured. Run: mecha auth add <name> <key>");
       return;
     }
-    profiles.forEach((p) => console.log(`  ${p}`));
+    // Table header
+    const header = ["Name", "Type", "Env", "Account", "Created"];
+    const rows = creds.map((c) => [
+      c.name,
+      c.type,
+      c.env,
+      c.account ?? "",
+      c.created_at ?? "",
+    ]);
+    const widths = header.map((h, i) =>
+      Math.max(h.length, ...rows.map((r) => r[i].length)),
+    );
+    const formatRow = (row: string[]) =>
+      row.map((cell, i) => cell.padEnd(widths[i])).join("  ");
+    console.log(formatRow(header));
+    console.log(widths.map((w) => "─".repeat(w)).join("  "));
+    rows.forEach((row) => console.log(formatRow(row)));
+  });
+
+authCmd
+  .command("rm <name>")
+  .description("Remove a credential")
+  .action((name: string) => {
+    if (removeCredential(name)) {
+      console.log(`Removed credential "${name}"`);
+    } else {
+      console.error(`Credential "${name}" not found`);
+      process.exit(1);
+    }
   });
 
 authCmd
   .command("swap <bot> <profile>")
-  .description("Swap auth profile for a running bot (restarts the bot)")
+  .description("Swap auth credential for a running bot (restarts the bot)")
   .action(async (botName: string, profileName: string) => {
     if (!isValidName(botName)) { console.error(`Invalid bot name: "${botName}"`); process.exit(1); }
     if (!isValidName(profileName)) { console.error(`Invalid profile name: "${profileName}"`); process.exit(1); }
-    getAuthProfile(profileName);
+    getCredential(profileName); // validate exists
 
     const entry = getBot(botName);
     if (!entry?.config) {

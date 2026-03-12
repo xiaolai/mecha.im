@@ -12,6 +12,7 @@ export interface EventEntry {
 
 let writeFailureWarned = false;
 let dirEnsured = false;
+let writeChain: Promise<void> = Promise.resolve();
 
 const MAX_LOG_BYTES = 10 * 1024 * 1024; // 10MB
 const MAX_ROTATED_FILES = 5;
@@ -40,8 +41,8 @@ export function logEvent(entry: { type: string; [key: string]: unknown }): void 
   };
   const line = JSON.stringify(full) + "\n";
 
-  // Fire-and-forget async write (non-blocking)
-  (async () => {
+  // Serialize writes through a promise chain to prevent rotate/append races
+  writeChain = writeChain.then(async () => {
     try {
       if (!dirEnsured) {
         await mkdir(dirname(PATHS.eventsLog), { recursive: true });
@@ -56,7 +57,7 @@ export function logEvent(entry: { type: string; [key: string]: unknown }): void 
         writeFailureWarned = true;
       }
     }
-  })();
+  });
 }
 
 export function readEvents(limit = 100): EventEntry[] {

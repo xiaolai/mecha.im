@@ -5,12 +5,12 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { realpathSync } from "node:fs";
-import { randomBytes } from "node:crypto";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import * as docker from "./docker.js";
 import { listBots as listRegistered } from "./store.js";
 import { loadBotConfig, buildInlineConfig } from "./config.js";
-import { addAuthProfile, listAuthProfiles } from "./auth.js";
+import { addCredential, detectCredentialType, listCredentials } from "./auth.js";
 import { existsSync } from "node:fs";
 import { isValidName } from "../shared/validation.js";
 import { MechaError } from "../shared/errors.js";
@@ -66,10 +66,18 @@ function dashboardSessionCookie(): string {
   return `${DASHBOARD_COOKIE}=${DASHBOARD_TOKEN}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`;
 }
 
+function constantTimeEquals(a: string, b: string): boolean {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return timingSafeEqual(bufA, bufB);
+}
+
 function hasDashboardAccess(c: Context): boolean {
   const auth = c.req.header("authorization");
-  if (auth === `Bearer ${DASHBOARD_TOKEN}`) return true;
-  return readCookie(c.req.header("cookie"), DASHBOARD_COOKIE) === DASHBOARD_TOKEN;
+  if (auth && constantTimeEquals(auth, `Bearer ${DASHBOARD_TOKEN}`)) return true;
+  const cookie = readCookie(c.req.header("cookie"), DASHBOARD_COOKIE);
+  return cookie !== undefined && constantTimeEquals(cookie, DASHBOARD_TOKEN);
 }
 
 function shouldBootstrapDashboardSession(c: Context): boolean {
@@ -198,7 +206,7 @@ export function startDashboardServer(port: number) {
   // --- Auth API ---
 
   app.get("/api/auth", (c) => {
-    return c.json(listAuthProfiles());
+    return c.json(listCredentials().map((c) => c.name));
   });
 
   app.post("/api/auth", async (c) => {
@@ -207,7 +215,8 @@ export function startDashboardServer(port: number) {
     if (!parsed.success) {
       return c.json({ error: "profile and key required" }, 400);
     }
-    addAuthProfile(parsed.data.profile, parsed.data.key);
+    const detected = detectCredentialType(parsed.data.key);
+    addCredential({ name: parsed.data.profile, ...detected, key: parsed.data.key });
     return c.json({ status: "added", profile: parsed.data.profile });
   });
 
@@ -316,7 +325,7 @@ export function startDashboardServer(port: number) {
   const server = serve({ fetch: app.fetch, port, hostname }, () => {
     console.log(`Mecha dashboard running at http://${hostname}:${port}`);
     if (!process.env.MECHA_DASHBOARD_TOKEN) {
-      console.log(`Dashboard token (auto-generated): ${DASHBOARD_TOKEN}`);
+      console.log(`Dashboard token (auto-generated): ${DASHBOARD_TOKEN.slice(0, 16)}...`);
     }
   });
 
