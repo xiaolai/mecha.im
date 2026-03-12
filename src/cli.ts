@@ -168,14 +168,16 @@ program
 
     const hasRemote = remoteBots.length > 0;
     const header = hasRemote
-      ? ["NAME", "STATUS", "MODEL", "CONTAINER", "NODE", "IP", "PORTS"]
-      : ["NAME", "STATUS", "MODEL", "CONTAINER", "PORTS"];
+      ? ["NAME", "STATUS", "MODEL", "CONTAINER", "NODE", "IP", "PORTS", "PATH"]
+      : ["NAME", "STATUS", "MODEL", "CONTAINER", "PORTS", "PATH"];
 
     const rows = allBots.map((b) => {
+      const entry = getBot(b.name);
+      const path = entry?.path ?? "";
       const ext = b as BotInfo & { node?: string; ip?: string };
       return hasRemote
-        ? [b.name, b.status, b.model, b.containerId, ext.node ?? (b.containerId === "remote" ? "remote" : "local"), ext.ip ?? "", b.ports]
-        : [b.name, b.status, b.model, b.containerId, b.ports];
+        ? [b.name, b.status, b.model, b.containerId, ext.node ?? (b.containerId === "remote" ? "remote" : "local"), ext.ip ?? "", b.ports, path]
+        : [b.name, b.status, b.model, b.containerId, b.ports, path];
     });
 
     printTable(header, rows);
