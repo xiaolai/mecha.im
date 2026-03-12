@@ -177,8 +177,49 @@ export function mockApiPlugin(): Plugin {
       server.middlewares.use("/api/sessions", (req, res, next) => {
         if (req.method !== "GET") return next();
 
+        const url = new URL(req.url ?? "/", "http://localhost");
+
+        // /api/sessions/search?q=...
+        if (url.pathname === "/search") {
+          const q = (url.searchParams.get("q") ?? "").toLowerCase();
+          if (!q) {
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end("[]");
+            return;
+          }
+          const results: unknown[] = [];
+          for (const [id, lines] of sessions) {
+            const summary = buildSummary(id, lines);
+            if (!summary) continue;
+            const matches: { role: string; snippet: string; timestamp: string }[] = [];
+            for (const line of lines) {
+              if (SKIP.has(line.type)) continue;
+              const content = line.message?.content;
+              if (!Array.isArray(content)) continue;
+              if (isRealUser(line)) {
+                const text = extractText(content);
+                if (text.toLowerCase().includes(q)) {
+                  matches.push({ role: "user", snippet: text.slice(0, 160), timestamp: line.timestamp ?? "" });
+                }
+              }
+              if (line.type === "assistant" && line.message?.stop_reason === "end_turn") {
+                const text = extractText(content);
+                if (text.toLowerCase().includes(q)) {
+                  matches.push({ role: "assistant", snippet: text.slice(0, 160), timestamp: line.timestamp ?? "" });
+                }
+              }
+            }
+            if (matches.length > 0) {
+              results.push({ id, title: summary.title, model: summary.model, lastActivity: summary.lastActivity, matches: matches.slice(0, 5) });
+            }
+          }
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify(results));
+          return;
+        }
+
         // /api/sessions/:id
-        const match = req.url?.match(/^\/([0-9a-f-]{36})$/);
+        const match = url.pathname.match(/^\/([0-9a-f-]{36})$/);
         if (match) {
           const id = match[1];
           const lines = sessions.get(id);
