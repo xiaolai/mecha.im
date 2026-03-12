@@ -9,9 +9,9 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      "/api": "http://localhost:3000",
-      "/prompt": "http://localhost:3000",
-      "/health": "http://localhost:3000",
+      "/api": `http://localhost:${process.env.MECHA_PORT ?? "7801"}`,
+      "/prompt": `http://localhost:${process.env.MECHA_PORT ?? "7801"}`,
+      "/health": `http://localhost:${process.env.MECHA_PORT ?? "7801"}`,
     },
   },
 });

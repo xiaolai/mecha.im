@@ -3,7 +3,7 @@ import { cors } from "hono/cors";
 import { streamSSE } from "hono/streaming";
 import { z } from "zod";
 import { existsSync } from "node:fs";
-import { randomBytes, timingSafeEqual, createHmac } from "node:crypto";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { Mutex } from "../shared/mutex.js";
 import { log } from "../shared/logger.js";
@@ -16,6 +16,8 @@ import { ActivityTracker } from "./activity.js";
 import { readEvents } from "./event-log.js";
 import type { Scheduler } from "./scheduler.js";
 import { createDashboardRoutes, verifySessionCookie } from "./routes/dashboard.js";
+import { SessionHistory } from "./session-history.js";
+import type { PtyManager } from "./pty-manager.js";
 import type {
   QueryResult, SdkEvent, SdkSystemEvent, SdkAssistantEvent, SdkResultEvent,
 } from "./server.types.js";
@@ -189,7 +191,7 @@ function activityStateForSource(source: TaskSource): "thinking" | "calling" | "s
   return "thinking";
 }
 
-export function createApp(config: BotConfig, startedAt: number) {
+export function createApp(config: BotConfig, startedAt: number, ptyManager?: PtyManager) {
   const app = new Hono();
 
   // CORS — default to same-origin (localhost:PORT); override with MECHA_CORS_ORIGIN
@@ -438,19 +440,34 @@ export function createApp(config: BotConfig, startedAt: number) {
     return c.json({ status: "triggered" });
   });
 
-  // PTY sessions endpoint — list tasks with session IDs for terminal attach
-  app.get("/api/sessions", (c) => {
-    const taskList = sessions.listTasks();
-    return c.json(taskList.map((t: { id: string; session_id?: string; status: string; created: string; cost_usd: number }) => ({
-      id: t.id,
-      session_id: t.session_id,
-      status: t.status,
-      created: t.created,
-    })));
+  // Session history — JSONL-based conversation browser
+  const workspace = getWorkspaceContext();
+  const sessionHistory = new SessionHistory(workspace.cwd, ptyManager);
+
+  app.get("/api/sessions", async (c) => {
+    try {
+      const list = await sessionHistory.list();
+      return c.json(list);
+    } catch (err) {
+      log.error("Failed to list sessions", { error: err instanceof Error ? err.message : String(err) });
+      return c.json({ error: "Failed to list sessions" }, 500);
+    }
+  });
+
+  app.get("/api/sessions/:id", async (c) => {
+    try {
+      const id = c.req.param("id");
+      const detail = await sessionHistory.getConversation(id);
+      if (!detail) return c.json({ error: "Session not found" }, 404);
+      return c.json(detail);
+    } catch (err) {
+      log.error("Failed to get session", { error: err instanceof Error ? err.message : String(err) });
+      return c.json({ error: "Failed to get session" }, 500);
+    }
   });
 
   // Bot dashboard static files
   app.route("/", createDashboardRoutes(BOT_TOKEN));
 
-  return { app, isBusy, handlePrompt, activity, setScheduler };
+  return { app, isBusy, handlePrompt, activity, setScheduler, botToken: BOT_TOKEN };
 }
