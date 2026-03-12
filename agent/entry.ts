@@ -78,7 +78,18 @@ const startedAt = Date.now();
 mkdirSync(`${STATE_DIR}/sessions`, { recursive: true });
 mkdirSync(`${STATE_DIR}/logs`, { recursive: true });
 
-const { app, isBusy, handlePrompt, setScheduler } = createApp(config, startedAt);
+// PTY manager for interactive terminal sessions (created before app so it can be passed)
+let ptyManager: ReturnType<typeof createPtyManager> | undefined;
+try {
+  const { createNodePtySpawn } = await import("./node-pty-adapter.js");
+  ptyManager = createPtyManager({ spawnFn: createNodePtySpawn(), botConfig: config });
+  log.info("PTY terminal support enabled (node-pty)");
+} catch (err) {
+  const msg = err instanceof Error ? err.message : String(err);
+  log.info("PTY terminal support disabled", { reason: msg });
+}
+
+const { app, isBusy, handlePrompt, setScheduler, botToken } = createApp(config, startedAt, ptyManager);
 
 // Start scheduler if configured
 let scheduler: Scheduler | undefined;
@@ -88,24 +99,13 @@ if (config.schedule && config.schedule.length > 0) {
   scheduler.start();
 }
 
-// PTY manager for interactive terminal sessions
-let ptyManager: ReturnType<typeof createPtyManager> | undefined;
-try {
-  const { createNodePtySpawn } = await import("./node-pty-adapter.js");
-  ptyManager = createPtyManager({ spawnFn: createNodePtySpawn(), botConfig: config });
-  log.info("PTY terminal support enabled (node-pty)");
-} catch {
-  log.info("PTY terminal support disabled (node-pty not available)");
-}
-
 const server = serve({ fetch: app.fetch, port: PORT }, () => {
   log.info(`mecha-agent "${config.name}" listening on :${PORT}`);
 });
 
 // Attach WebSocket terminal server if PTY is available
 if (ptyManager) {
-  const BOT_TOKEN = process.env.MECHA_BOT_TOKEN || "";
-  attachTerminalWs(server, ptyManager, BOT_TOKEN);
+  attachTerminalWs(server, ptyManager, botToken);
 }
 
 function gracefulShutdown(signal: string) {

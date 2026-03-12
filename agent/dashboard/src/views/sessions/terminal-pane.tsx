@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { botFetch } from "../lib/api";
 import "@xterm/xterm/css/xterm.css";
 
 const RESIZE_DEBOUNCE_MS = 100;
@@ -12,33 +11,21 @@ const DARK_THEME = {
   selectionBackground: "rgba(255,255,255,0.2)",
 };
 
-interface TaskInfo {
-  id: string;
-  session_id?: string;
-  status: string;
-  created: string;
+interface Props {
+  sessionId?: string;
+  className?: string;
+  onSessionId?: (id: string) => void;
 }
 
-export default function TerminalView() {
+export default function TerminalPane({ sessionId, className, onSessionId }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const termRef = useRef<import("@xterm/xterm").Terminal | null>(null);
   const fitRef = useRef<import("@xterm/addon-fit").FitAddon | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [status, setStatus] = useState<"idle" | "connecting" | "connected" | "disconnected">("idle");
+  const [status, setStatus] = useState<"connecting" | "connected" | "disconnected">("connecting");
   const [exitCode, setExitCode] = useState<number | null>(null);
-  const [sessions, setSessions] = useState<TaskInfo[]>([]);
-  const [selectedSession, setSelectedSession] = useState<string | undefined>();
-  const [activeSessionId, setActiveSessionId] = useState<string | undefined>();
-
-  // Load existing sessions/tasks
-  useEffect(() => {
-    botFetch("/api/sessions")
-      .then((r) => r.json())
-      .then((data: TaskInfo[]) => setSessions(data))
-      .catch(() => {});
-  }, []);
 
   const sendResize = useCallback(() => {
     const ws = wsRef.current;
@@ -48,18 +35,11 @@ export default function TerminalView() {
     }
   }, []);
 
-  const connect = useCallback((sessionId?: string) => {
+  useEffect(() => {
     if (!containerRef.current) return;
-
-    // Cleanup previous
-    wsRef.current?.close();
-    termRef.current?.dispose();
-    if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current);
-    resizeObserverRef.current?.disconnect();
 
     setStatus("connecting");
     setExitCode(null);
-    setActiveSessionId(sessionId);
 
     let disposed = false;
     let gotExitMessage = false;
@@ -90,7 +70,6 @@ export default function TerminalView() {
         termRef.current = term;
         fitRef.current = fit;
 
-        // Build WebSocket URL
         const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
         const params = new URLSearchParams();
         if (sessionId) params.set("session", sessionId);
@@ -114,7 +93,7 @@ export default function TerminalView() {
             term.write(new Uint8Array(event.data));
           } else {
             const text = event.data as string;
-            if (text.startsWith('{"__mecha":true,')) {
+            if (text.charAt(0) === "{") {
               try {
                 const msg = JSON.parse(text) as {
                   __mecha?: boolean; type: string;
@@ -122,7 +101,7 @@ export default function TerminalView() {
                 };
                 if (msg.__mecha) {
                   if (msg.type === "session" && msg.id) {
-                    setActiveSessionId(msg.id);
+                    onSessionId?.(msg.id);
                   } else if (msg.type === "exit") {
                     gotExitMessage = true;
                     setExitCode(typeof msg.code === "number" ? msg.code : -1);
@@ -174,92 +153,39 @@ export default function TerminalView() {
 
     return () => {
       disposed = true;
+      if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current);
+      resizeObserverRef.current?.disconnect();
+      wsRef.current?.close();
+      termRef.current?.dispose();
     };
-  }, [sendResize]);
+  }, [sessionId, sendResize, onSessionId]);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)]">
-      {/* Toolbar */}
-      <div className="flex items-center gap-3 mb-3">
-        <h2 className="text-lg font-semibold">Terminal</h2>
-
-        {status === "idle" && (
-          <>
-            <select
-              className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm"
-              value={selectedSession ?? "new"}
-              onChange={(e) => setSelectedSession(e.target.value === "new" ? undefined : e.target.value)}
-            >
-              <option value="new">New Session</option>
-              {sessions
-                .filter((s) => s.session_id)
-                .map((s) => (
-                  <option key={s.id} value={s.session_id}>
-                    Resume: {s.session_id!.slice(0, 8)}... ({s.status})
-                  </option>
-                ))}
-            </select>
-            <button
-              onClick={() => connect(selectedSession)}
-              className="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm font-medium"
-            >
-              Connect
-            </button>
-          </>
-        )}
-
+    <div className={`flex flex-col ${className ?? ""}`}>
+      {/* Status bar */}
+      <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-900/80 border-b border-gray-800 text-xs">
         {status === "connecting" && (
-          <span className="text-yellow-400 text-sm">Connecting...</span>
+          <span className="text-yellow-400">Connecting...</span>
         )}
-
         {status === "connected" && (
-          <span className="text-green-400 text-sm flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-            Connected
-            {activeSessionId && (
-              <span className="text-gray-500 font-mono">
-                ({activeSessionId.slice(0, 8)})
-              </span>
-            )}
+          <span className="text-green-400 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+            Terminal connected
           </span>
         )}
-
         {status === "disconnected" && (
-          <div className="flex items-center gap-2">
-            <span className={`text-sm ${exitCode === 0 ? "text-green-400" : "text-red-400"}`}>
-              {exitCode !== null ? `Exited (${exitCode})` : "Disconnected"}
-            </span>
-            <button
-              onClick={() => connect(activeSessionId)}
-              className="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs"
-            >
-              Resume
-            </button>
-            <button
-              onClick={() => {
-                setStatus("idle");
-                setActiveSessionId(undefined);
-              }}
-              className="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs"
-            >
-              New Session
-            </button>
-          </div>
+          <span className={exitCode === 0 ? "text-green-400" : "text-red-400"}>
+            {exitCode !== null ? `Exited (${exitCode})` : "Disconnected"}
+          </span>
         )}
       </div>
 
-      {/* Terminal container */}
+      {/* Terminal */}
       <div
         ref={containerRef}
-        className="flex-1 min-h-0 rounded-lg overflow-hidden border border-gray-700 bg-gray-900"
-        style={{ padding: status !== "idle" ? "8px" : undefined }}
-      >
-        {status === "idle" && (
-          <div className="flex items-center justify-center h-full text-gray-500">
-            <p>Select a session to resume or start a new one</p>
-          </div>
-        )}
-      </div>
+        className="flex-1 min-h-0 overflow-hidden"
+        style={{ padding: "4px" }}
+      />
     </div>
   );
 }
