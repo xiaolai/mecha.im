@@ -1,13 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { marked } from "marked";
-import DOMPurify from "dompurify";
 import { botFetch } from "../../lib/api";
-
-// Configure marked for safe rendering
-marked.setOptions({
-  breaks: true,
-  gfm: true,
-});
+import { sanitizeMarkdown } from "../../lib/sanitize";
 
 interface ConversationMessage {
   role: "user" | "assistant" | "tool_use" | "tool_result";
@@ -32,21 +25,18 @@ interface SessionDetail {
 
 // --- Markdown renderer with DOMPurify sanitization ---
 
-function MarkdownContent({ text }: { text: string }) {
-  const html = useMemo(() => {
-    const raw = marked.parse(text) as string;
-    return DOMPurify.sanitize(raw);
-  }, [text]);
+function MarkdownContent({ text, variant }: { text: string; variant?: "user" | "assistant" }) {
+  const html = useMemo(() => sanitizeMarkdown(text), [text]);
   return (
     <div
-      className="prose prose-invert prose-sm max-w-none
-        prose-pre:bg-gray-900 prose-pre:border prose-pre:border-gray-700 prose-pre:text-xs
-        prose-code:bg-gray-700 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs prose-code:before:content-none prose-code:after:content-none
-        prose-table:border-collapse prose-th:border prose-th:border-gray-600 prose-th:px-2 prose-th:py-1
-        prose-td:border prose-td:border-gray-700 prose-td:px-2 prose-td:py-1
-        prose-a:text-blue-400 prose-headings:text-gray-200
-        prose-blockquote:border-l-gray-600 prose-blockquote:text-gray-400
-        prose-hr:border-gray-700"
+      className={`prose prose-sm max-w-none
+        ${variant === "user" ? "prose-headings:text-msg-user-foreground prose-p:text-msg-user-foreground prose-li:text-msg-user-foreground prose-strong:text-msg-user-foreground prose-a:text-msg-user-foreground" : "dark:prose-invert prose-headings:text-foreground"}
+        prose-pre:bg-code-bg prose-pre:border prose-pre:border-code-border prose-pre:text-xs
+        prose-code:bg-code-bg prose-code:text-code-text prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs prose-code:before:content-none prose-code:after:content-none
+        prose-table:border-collapse prose-th:border prose-th:border-border prose-th:px-2 prose-th:py-1
+        prose-td:border prose-td:border-border prose-td:px-2 prose-td:py-1
+        prose-a:text-primary prose-blockquote:border-l-border prose-blockquote:text-muted-foreground
+        prose-hr:border-border`}
       dangerouslySetInnerHTML={{ __html: html }}
     />
   );
@@ -60,20 +50,20 @@ function ToolCard({ msg, result }: { msg: ConversationMessage; result?: Conversa
   const toolLabel = formatToolLabel(msg.toolName ?? "tool", msg.toolInput);
 
   return (
-    <div className="my-1.5 border border-gray-700 rounded bg-gray-800/40">
+    <div className="my-1.5 border border-msg-tool-border rounded-md bg-msg-tool">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full text-left px-3 py-2 flex items-center gap-2 text-xs hover:bg-gray-800/60"
+        className="w-full text-left px-3 py-2 flex items-center gap-2 text-xs hover:bg-accent/50 transition-colors rounded-md"
       >
-        <span className="text-gray-500">{expanded ? "▼" : "▶"}</span>
-        <span className="text-blue-400 font-mono">{msg.toolName}</span>
-        <span className="text-gray-500 truncate flex-1">{toolLabel}</span>
+        <span className="text-muted-foreground">{expanded ? "▼" : "▶"}</span>
+        <span className="text-primary font-mono">{msg.toolName}</span>
+        <span className="text-muted-foreground truncate flex-1">{toolLabel}</span>
       </button>
       {expanded && (
         <div className="px-3 pb-2 space-y-2">
           <div>
-            <div className="text-xs text-gray-500 mb-1">Input:</div>
-            <pre className="text-xs bg-gray-900 rounded p-2 overflow-x-auto max-h-60 overflow-y-auto">
+            <div className="text-xs text-muted-foreground mb-1">Input:</div>
+            <pre className="text-xs bg-code-bg text-code-text border border-code-border rounded-md p-2 overflow-x-auto max-h-60 overflow-y-auto">
               {typeof msg.toolInput === "string"
                 ? msg.toolInput
                 : JSON.stringify(msg.toolInput, null, 2)}
@@ -81,8 +71,8 @@ function ToolCard({ msg, result }: { msg: ConversationMessage; result?: Conversa
           </div>
           {result && result.content && (
             <div>
-              <div className="text-xs text-gray-500 mb-1">Output:</div>
-              <pre className="text-xs bg-gray-900 rounded p-2 overflow-x-auto max-h-60 overflow-y-auto">
+              <div className="text-xs text-muted-foreground mb-1">Output:</div>
+              <pre className="text-xs bg-code-bg text-code-text border border-code-border rounded-md p-2 overflow-x-auto max-h-60 overflow-y-auto">
                 {result.content}
               </pre>
             </div>
@@ -122,13 +112,13 @@ function ThinkingBlock({ content }: { content: string }) {
     <div className="my-1">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="text-xs text-gray-600 hover:text-gray-400 flex items-center gap-1"
+        className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
       >
         <span>{expanded ? "▼" : "▶"}</span>
         <span className="italic">thinking...</span>
       </button>
       {expanded && (
-        <pre className="text-xs text-gray-500 bg-gray-900/50 rounded p-2 mt-1 whitespace-pre-wrap max-h-40 overflow-y-auto">
+        <pre className="text-xs text-muted-foreground bg-muted rounded-md p-2 mt-1 whitespace-pre-wrap max-h-40 overflow-y-auto">
           {content}
         </pre>
       )}
@@ -152,20 +142,24 @@ export default function ConversationViewer({ sessionId, className }: Props) {
   useEffect(() => {
     setLoading(true);
     setError(null);
-    botFetch(`/api/sessions/${sessionId}`)
+    const controller = new AbortController();
+    botFetch(`/api/sessions/${sessionId}`, { signal: controller.signal })
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       })
       .then((data) => {
+        if (controller.signal.aborted) return;
         if (!data || !Array.isArray(data.messages)) throw new Error("Invalid session data");
         setDetail(data as SessionDetail);
         setLoading(false);
       })
       .catch((err) => {
+        if (controller.signal.aborted) return;
         setError(err instanceof Error ? err.message : "Failed to load");
         setLoading(false);
       });
+    return () => controller.abort();
   }, [sessionId]);
 
   useEffect(() => {
@@ -176,7 +170,7 @@ export default function ConversationViewer({ sessionId, className }: Props) {
 
   if (loading) {
     return (
-      <div className={`flex items-center justify-center text-gray-500 ${className ?? ""}`}>
+      <div className={`flex items-center justify-center text-muted-foreground ${className ?? ""}`}>
         Loading conversation...
       </div>
     );
@@ -184,7 +178,7 @@ export default function ConversationViewer({ sessionId, className }: Props) {
 
   if (error) {
     return (
-      <div className={`flex items-center justify-center text-red-400 ${className ?? ""}`}>
+      <div className={`flex items-center justify-center text-destructive ${className ?? ""}`}>
         Error: {error}
       </div>
     );
@@ -192,7 +186,7 @@ export default function ConversationViewer({ sessionId, className }: Props) {
 
   if (!detail || detail.messages.length === 0) {
     return (
-      <div className={`flex items-center justify-center text-gray-500 ${className ?? ""}`}>
+      <div className={`flex items-center justify-center text-muted-foreground ${className ?? ""}`}>
         No messages in this session
       </div>
     );
@@ -207,13 +201,13 @@ export default function ConversationViewer({ sessionId, className }: Props) {
   }
 
   return (
-    <div className={`overflow-y-auto overflow-x-hidden ${className ?? ""}`}>
+    <div className={`overflow-y-auto overflow-x-hidden scrollbar-thin ${className ?? ""}`}>
       {/* Header */}
-      <div className="sticky top-0 bg-gray-900/90 backdrop-blur border-b border-gray-800 px-4 py-2 flex items-center gap-3 text-xs text-gray-500 z-10">
+      <div className="sticky top-0 bg-background/90 backdrop-blur border-b border-border px-4 py-2 flex items-center gap-3 text-xs text-muted-foreground z-10">
         <span className="font-mono">{detail.id.slice(0, 8)}</span>
-        <span className="text-gray-700">·</span>
+        <span className="opacity-30">·</span>
         <span>{detail.model}</span>
-        <span className="text-gray-700">·</span>
+        <span className="opacity-30">·</span>
         <span>{detail.messages.filter((m) => m.role === "user" || m.role === "assistant").length} messages</span>
       </div>
 
@@ -223,11 +217,13 @@ export default function ConversationViewer({ sessionId, className }: Props) {
           // Skip tool_result — shown inside ToolCard
           if (msg.role === "tool_result") return null;
 
+          const key = msg.toolUseId ?? `${msg.role}-${msg.timestamp}-${i}`;
+
           if (msg.role === "user") {
             return (
-              <div key={i} className="ml-12">
-                <div className="bg-blue-900/30 rounded-lg p-3 text-sm">
-                  <MarkdownContent text={msg.content} />
+              <div key={key} className="ml-12">
+                <div className="bg-msg-user text-msg-user-foreground rounded-lg p-3 text-sm">
+                  <MarkdownContent text={msg.content} variant="user" />
                 </div>
               </div>
             );
@@ -235,18 +231,18 @@ export default function ConversationViewer({ sessionId, className }: Props) {
 
           if (msg.role === "tool_use") {
             const result = msg.toolUseId ? toolResults.get(msg.toolUseId) : undefined;
-            return <ToolCard key={i} msg={msg} result={result} />;
+            return <ToolCard key={key} msg={msg} result={result} />;
           }
 
           if (msg.role === "assistant") {
             return (
-              <div key={i} className="mr-12">
+              <div key={key} className="mr-12">
                 {msg.thinkingContent && <ThinkingBlock content={msg.thinkingContent} />}
-                <div className="bg-gray-800/40 rounded-lg p-3 text-sm">
-                  <MarkdownContent text={msg.content} />
+                <div className="bg-msg-assistant text-msg-assistant-foreground rounded-lg p-3 text-sm">
+                  <MarkdownContent text={msg.content} variant="assistant" />
                 </div>
                 {msg.tokensIn != null && (
-                  <div className="text-xs text-gray-600 mt-1">
+                  <div className="text-xs text-muted-foreground mt-1">
                     {msg.tokensIn?.toLocaleString()} in / {msg.tokensOut?.toLocaleString()} out
                   </div>
                 )}

@@ -8,7 +8,8 @@
     "dev:mock": "npx tsx scripts/generate-fixtures.ts && vite --config vite.mock.config.ts",
     "dev:generate": "npx tsx scripts/generate-fixtures.ts",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run"
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.19",
@@ -22,14 +23,18 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.0",
     "autoprefixer": "^10.4.0",
+    "jsdom": "^28.1.0",
     "postcss": "^8.5.0",
     "tailwindcss": "^3.4.0",
     "tsx": "^4.21.0",
     "typescript": "^5.8.0",
-    "vite": "^6.0.0"
+    "vite": "^6.0.0",
+    "vitest": "^4.0.18"
   }
 }
