@@ -127,7 +127,7 @@ async function spawnUnlocked(config: BotConfig, botPath?: string, opts?: SpawnOp
     }
 
     const resolvedPath = validateBotPath(botPath ?? join(BOTS_BASE, config.name));
-    for (const sub of ["sessions", "data", "logs", "dot-claude", "dot-codex", "tailscale", "home-workspace"]) {
+    for (const sub of ["sessions", "data", "logs", "home-dot-claude", "home-dot-codex", "tailscale", "home-workspace"]) {
       mkdirSync(join(resolvedPath, sub), { recursive: true });
     }
 
