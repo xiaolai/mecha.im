@@ -16,11 +16,13 @@ import { isValidName } from "../shared/validation.js";
 import { MechaError } from "../shared/errors.js";
 import { log } from "../shared/logger.js";
 import type { Context } from "hono";
+import { resolveHostBotBaseUrl } from "./resolve-endpoint.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // Auto-generate dashboard token if not set
 const DASHBOARD_TOKEN = process.env.MECHA_DASHBOARD_TOKEN || ("mecha_dash_" + randomBytes(24).toString("hex"));
+const DASHBOARD_COOKIE = "mecha_dashboard_session";
 
 const HOP_BY_HOP = new Set([
   "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
@@ -48,24 +50,57 @@ function safeError(c: Context, err: unknown) {
   return c.json({ error: "Internal server error" }, 500);
 }
 
+function readCookie(cookieHeader: string | undefined, name: string): string | undefined {
+  if (!cookieHeader) return undefined;
+  const cookies = cookieHeader.split(";").map((part) => part.trim());
+  for (const cookie of cookies) {
+    const eq = cookie.indexOf("=");
+    if (eq === -1) continue;
+    const key = cookie.slice(0, eq).trim();
+    if (key === name) return cookie.slice(eq + 1);
+  }
+  return undefined;
+}
+
+function dashboardSessionCookie(): string {
+  return `${DASHBOARD_COOKIE}=${DASHBOARD_TOKEN}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`;
+}
+
+function hasDashboardAccess(c: Context): boolean {
+  const auth = c.req.header("authorization");
+  if (auth === `Bearer ${DASHBOARD_TOKEN}`) return true;
+  return readCookie(c.req.header("cookie"), DASHBOARD_COOKIE) === DASHBOARD_TOKEN;
+}
+
+function shouldBootstrapDashboardSession(c: Context): boolean {
+  if (!(c.req.method === "GET" || c.req.method === "HEAD")) return false;
+  if (c.req.path.startsWith("/api/")) return false;
+  return readCookie(c.req.header("cookie"), DASHBOARD_COOKIE) !== DASHBOARD_TOKEN;
+}
+
 export function startDashboardServer(port: number) {
   const app = new Hono();
 
   // CORS — only allow same-origin
   app.use("/*", cors({ origin: `http://localhost:${port}` }));
 
+  app.use("/*", async (c, next) => {
+    await next();
+    if (shouldBootstrapDashboardSession(c)) {
+      c.header("Set-Cookie", dashboardSessionCookie());
+    }
+  });
+
   // Auth middleware for all API and proxy routes (token always required)
   app.use("/api/*", async (c, next) => {
-    const auth = c.req.header("authorization");
-    if (auth !== `Bearer ${DASHBOARD_TOKEN}`) {
+    if (!hasDashboardAccess(c)) {
       return c.json({ error: "Unauthorized" }, 401);
     }
     await next();
   });
 
   app.use("/bot/*", async (c, next) => {
-    const auth = c.req.header("authorization");
-    if (auth !== `Bearer ${DASHBOARD_TOKEN}`) {
+    if (!hasDashboardAccess(c)) {
       return c.json({ error: "Unauthorized" }, 401);
     }
     await next();
@@ -76,6 +111,10 @@ export function startDashboardServer(port: number) {
   app.get("/api/bots", async (c) => {
     const bots = await docker.list();
     return c.json(bots);
+  });
+
+  app.get("/api/session", (c) => {
+    return c.json({ authenticated: true });
   });
 
   app.post("/api/bots", async (c) => {
@@ -149,16 +188,7 @@ export function startDashboardServer(port: number) {
     const name = c.req.param("name");
     if (!isValidName(name)) return c.json({ error: "Invalid bot name" }, 400);
     try {
-      await docker.stop(name).catch((err) => {
-        // Only ignore "not running" errors; propagate real failures
-        if (!(err instanceof MechaError && err.code === "BOT_NOT_RUNNING")) {
-          throw err;
-        }
-      });
-      const entry = listRegistered()[name];
-      if (!entry?.config) return c.json({ error: "No saved config" }, 404);
-      const config = loadBotConfig(entry.config);
-      const containerId = await docker.spawn(config, entry.path);
+      const containerId = await docker.restart(name);
       return c.json({ status: "restarted", name, containerId: containerId.slice(0, 12) });
     } catch (err) {
       return safeError(c, err);
@@ -189,12 +219,12 @@ export function startDashboardServer(port: number) {
 
     const results = await Promise.allSettled(
       runningBots.map(async (bot) => {
-        const ip = await docker.getContainerIp(bot.name);
-        if (!ip) return [];
+        const resolved = await resolveHostBotBaseUrl(bot.name, { allowRemote: false });
+        if (!resolved) return [];
         const botEntry = listRegistered()[bot.name];
         const fetchHeaders: Record<string, string> = {};
         if (botEntry?.botToken) fetchHeaders["Authorization"] = `Bearer ${botEntry.botToken}`;
-        const resp = await fetch(`http://${ip}:3000/api/logs?limit=50`, {
+        const resp = await fetch(`${resolved.baseUrl}/api/logs?limit=50`, {
           headers: fetchHeaders,
           signal: AbortSignal.timeout(3000),
         });
@@ -218,8 +248,8 @@ export function startDashboardServer(port: number) {
     const name = c.req.param("name");
     if (!isValidName(name)) return c.json({ error: "Invalid bot name" }, 400);
 
-    const ip = await docker.getContainerIp(name);
-    if (!ip) return c.json({ error: `Bot "${name}" not reachable` }, 502);
+    const resolved = await resolveHostBotBaseUrl(name, { allowRemote: false });
+    if (!resolved) return c.json({ error: `Bot "${name}" not reachable` }, 502);
 
     const rawPath = c.req.path.replace(`/bot/${name}`, "") || "/";
     // Decode and normalize to catch encoded traversal variants (%2e%2e, etc.)
@@ -231,7 +261,7 @@ export function startDashboardServer(port: number) {
     }
     if (path.includes("..") || path.includes("\0")) return c.json({ error: "Invalid path" }, 400);
     const url = new URL(c.req.url);
-    const targetUrl = `http://${ip}:3000${path}${url.search}`;
+    const targetUrl = `${resolved.baseUrl}${path}${url.search}`;
 
     // Filter headers: remove hop-by-hop and sensitive headers, inject bot token
     const forwardHeaders: Record<string, string> = {};

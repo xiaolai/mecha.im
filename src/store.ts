@@ -1,12 +1,15 @@
 import { mkdirSync, existsSync, chmodSync, rmdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
+import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { safeReadJson } from "../shared/safe-read.js";
 import { atomicWriteJson } from "../shared/atomic-write.js";
 import { log } from "../shared/logger.js";
 
 const MECHA_DIR = join(homedir(), ".mecha");
+const REGISTRY_SCHEMA_VERSION = 1;
+const SETTINGS_SCHEMA_VERSION = 1;
 
 export function getMechaDir(): string {
   return MECHA_DIR;
@@ -18,13 +21,13 @@ export function ensureMechaDir(): void {
   // Ensure registry.json exists
   const regPath = join(MECHA_DIR, "registry.json");
   if (!existsSync(regPath)) {
-    atomicWriteJson(regPath, { bots: {} });
+    atomicWriteJson(regPath, { schema_version: REGISTRY_SCHEMA_VERSION, bots: {} });
   }
   try { chmodSync(regPath, 0o600); } catch { /* best-effort */ }
   // Ensure mecha.json exists with restrictive permissions
   const settingsPath = join(MECHA_DIR, "mecha.json");
   if (!existsSync(settingsPath)) {
-    atomicWriteJson(settingsPath, {});
+    atomicWriteJson(settingsPath, { schema_version: SETTINGS_SCHEMA_VERSION });
   }
   try { chmodSync(settingsPath, 0o600); } catch { /* best-effort */ }
 }
@@ -32,6 +35,7 @@ export function ensureMechaDir(): void {
 // --- Registry ---
 
 const registrySchema = z.object({
+  schema_version: z.number().int().optional(),
   bots: z.record(z.string(), z.object({
     path: z.string(),
     config: z.string().optional(),
@@ -93,9 +97,12 @@ function readRegistry(): Registry {
     if (result.reason !== "missing") {
       log.warn(`Registry read failed: ${result.reason} — ${result.detail}`);
     }
-    return { bots: {} };
+    return { schema_version: REGISTRY_SCHEMA_VERSION, bots: {} };
   }
-  return result.data;
+  return {
+    schema_version: result.data.schema_version ?? REGISTRY_SCHEMA_VERSION,
+    bots: result.data.bots,
+  };
 }
 
 export function getBot(name: string): Registry["bots"][string] | undefined {
@@ -105,6 +112,7 @@ export function getBot(name: string): Registry["bots"][string] | undefined {
 export function setBot(name: string, entry: Registry["bots"][string]): void {
   withRegistryLock(() => {
     const reg = readRegistry();
+    reg.schema_version = REGISTRY_SCHEMA_VERSION;
     reg.bots[name] = entry;
     atomicWriteJson(registryPath(), reg);
     try { chmodSync(registryPath(), 0o600); } catch { /* best-effort */ }
@@ -114,6 +122,7 @@ export function setBot(name: string, entry: Registry["bots"][string]): void {
 export function removeBot(name: string): void {
   withRegistryLock(() => {
     const reg = readRegistry();
+    reg.schema_version = REGISTRY_SCHEMA_VERSION;
     delete reg.bots[name];
     atomicWriteJson(registryPath(), reg);
   });
@@ -126,9 +135,11 @@ export function listBots(): Registry["bots"] {
 // --- Settings ---
 
 const settingsSchema = z.object({
+  schema_version: z.number().int().optional(),
   default_auth: z.string().optional(),
   headscale_url: z.string().url().optional(),
   headscale_api_key: z.string().optional(),
+  fleet_internal_secret: z.string().optional(),
 });
 
 type MechaSettings = z.infer<typeof settingsSchema>;
@@ -139,7 +150,28 @@ export function readSettings(): MechaSettings {
     if (result.reason !== "missing") {
       log.warn(`Settings read failed: ${result.reason} — ${result.detail}`);
     }
-    return {};
+    return { schema_version: SETTINGS_SCHEMA_VERSION };
   }
-  return result.data;
+  return {
+    schema_version: result.data.schema_version ?? SETTINGS_SCHEMA_VERSION,
+    default_auth: result.data.default_auth,
+    headscale_url: result.data.headscale_url,
+    headscale_api_key: result.data.headscale_api_key,
+    fleet_internal_secret: result.data.fleet_internal_secret,
+  };
+}
+
+export function getOrCreateFleetInternalSecret(): string {
+  const settingsPath = join(MECHA_DIR, "mecha.json");
+  const settings = readSettings();
+  if (settings.fleet_internal_secret) return settings.fleet_internal_secret;
+
+  const fleetInternalSecret = randomBytes(24).toString("hex");
+  atomicWriteJson(settingsPath, {
+    ...settings,
+    schema_version: SETTINGS_SCHEMA_VERSION,
+    fleet_internal_secret: fleetInternalSecret,
+  });
+  try { chmodSync(settingsPath, 0o600); } catch { /* best-effort */ }
+  return fleetInternalSecret;
 }

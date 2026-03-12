@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { botFetch } from "../lib/api";
 
 interface LogEntry {
   type: string;
@@ -10,14 +11,14 @@ export default function Logs() {
   const [entries, setEntries] = useState<LogEntry[]>([]);
 
   useEffect(() => {
-    fetch("/api/logs?limit=100")
+    botFetch("/api/logs?limit=100")
       .then((r) => r.json())
       .then((data) => setEntries(data.reverse()))
       .catch(() => {});
   }, []);
 
   function refresh() {
-    fetch("/api/logs?limit=100")
+    botFetch("/api/logs?limit=100")
       .then((r) => r.json())
       .then((data) => setEntries(data.reverse()))
       .catch(() => {});

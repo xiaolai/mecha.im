@@ -4,12 +4,12 @@ import { streamSSE } from "hono/streaming";
 import { z } from "zod";
 import { resolve, normalize } from "node:path";
 import { existsSync } from "node:fs";
-import { randomBytes } from "node:crypto";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { Mutex } from "../shared/mutex.js";
 import { log } from "../shared/logger.js";
 import type { BotConfig } from "./types.js";
-import { SessionManager } from "./session.js";
+import { SessionManager, type TaskSource } from "./session.js";
 import { CostTracker } from "./costs.js";
 import { createMechaToolServer } from "./tools/mecha-server.js";
 import { createWebhookRoutes } from "./webhook.js";
@@ -20,9 +20,11 @@ import type { Scheduler } from "./scheduler.js";
 const promptSchema = z.object({
   message: z.string().min(1),
 });
+const INTERNAL_AUTH_HEADER = "x-mecha-internal-auth";
 
 // Always require auth — auto-generate a token if none provided
 const BOT_TOKEN = process.env.MECHA_BOT_TOKEN || ("mecha_agent_" + randomBytes(24).toString("hex"));
+const FLEET_INTERNAL_SECRET = process.env.MECHA_FLEET_INTERNAL_SECRET;
 if (!process.env.MECHA_BOT_TOKEN) {
   log.warn("MECHA_BOT_TOKEN not set — auto-generated token for this session. Set MECHA_BOT_TOKEN for stable auth.");
   log.info(`Auto-generated agent token: ${BOT_TOKEN}`);
@@ -36,23 +38,42 @@ interface QueryResult {
   success: boolean;
 }
 
-/** Run claude via SDK query() and iterate async events */
-async function runClaude(
-  message: string,
+function getWorkspaceContext(): { cwd: string; settingSources: Array<"user" | "project"> | ["user"] } {
+  const configuredCwd = process.env.MECHA_WORKSPACE_CWD;
+  const enableProjectSettings = process.env.MECHA_ENABLE_PROJECT_SETTINGS === "1";
+  if (configuredCwd) {
+    return {
+      cwd: configuredCwd,
+      settingSources: enableProjectSettings ? ["user", "project"] : ["user"],
+    };
+  }
+
+  if (existsSync("/workspace")) {
+    return {
+      cwd: "/workspace",
+      settingSources: ["user", "project"],
+    };
+  }
+
+  return {
+    cwd: "/state/workspace",
+    settingSources: ["user"],
+  };
+}
+
+export function buildClaudeOptions(
   config: BotConfig,
   resumeSessionId?: string,
-  onEvent?: (event: { type: string; data: unknown }) => void,
   mcpServers?: Record<string, unknown>[],
-): Promise<QueryResult> {
-  const cwd = existsSync("/workspace") ? "/workspace" : "/app";
-
+): Record<string, unknown> {
+  const workspace = getWorkspaceContext();
   const options: Record<string, unknown> = {
     model: config.model,
-    cwd,
+    cwd: workspace.cwd,
     maxTurns: config.max_turns ?? 25,
     env: { ...process.env },
     permissionMode: config.permission_mode,
-    settingSources: ["user", "project"],
+    settingSources: [...workspace.settingSources],
   };
 
   if (config.permission_mode === "bypassPermissions") {
@@ -75,6 +96,18 @@ async function runClaude(
     options.mcpServers = mcpServers;
   }
 
+  return options;
+}
+
+/** Run claude via SDK query() and iterate async events */
+async function runClaude(
+  message: string,
+  config: BotConfig,
+  resumeSessionId?: string,
+  onEvent?: (event: { type: string; data: unknown }) => void,
+  mcpServers?: Record<string, unknown>[],
+): Promise<QueryResult> {
+  const options = buildClaudeOptions(config, resumeSessionId, mcpServers);
   const response = query({ prompt: message, options });
 
   let resultText = "";
@@ -115,6 +148,24 @@ async function runClaude(
   return { text: resultText, costUsd, sessionId, durationMs, success };
 }
 
+function hasInternalAuthHeader(value: string | undefined): boolean {
+  if (!FLEET_INTERNAL_SECRET || !value) return false;
+  const received = Buffer.from(value);
+  const expected = Buffer.from(FLEET_INTERNAL_SECRET);
+  return received.length === expected.length && timingSafeEqual(received, expected);
+}
+
+function promptSourceForRequest(c: import("hono").Context): TaskSource {
+  return hasInternalAuthHeader(c.req.header(INTERNAL_AUTH_HEADER)) ? "interbot" : "interactive";
+}
+
+function activityStateForSource(source: TaskSource): "thinking" | "calling" | "scheduled" | "webhook" {
+  if (source === "interbot") return "calling";
+  if (source === "schedule") return "scheduled";
+  if (source === "webhook") return "webhook";
+  return "thinking";
+}
+
 export function createApp(config: BotConfig, startedAt: number) {
   const app = new Hono();
 
@@ -124,13 +175,21 @@ export function createApp(config: BotConfig, startedAt: number) {
   app.use("/*", cors({ origin: allowedOrigin }));
 
   // Auth middleware for API routes (health and dashboard are public)
-  const requireAuth = async (c: import("hono").Context, next: () => Promise<void>) => {
+  const requireApiAuth = async (c: import("hono").Context, next: () => Promise<void>) => {
     const auth = c.req.header("authorization");
     if (auth !== `Bearer ${BOT_TOKEN}`) return c.json({ error: "Unauthorized" }, 401);
     await next();
   };
-  app.use("/prompt", requireAuth);
-  app.use("/api/*", requireAuth);
+  const requirePromptAuth = async (c: import("hono").Context, next: () => Promise<void>) => {
+    const auth = c.req.header("authorization");
+    if (auth === `Bearer ${BOT_TOKEN}` || hasInternalAuthHeader(c.req.header(INTERNAL_AUTH_HEADER))) {
+      await next();
+      return;
+    }
+    return c.json({ error: "Unauthorized" }, 401);
+  };
+  app.use("/prompt", requirePromptAuth);
+  app.use("/api/*", requireApiAuth);
 
   const busy = new Mutex();
   const sessions = new SessionManager();
@@ -143,15 +202,24 @@ export function createApp(config: BotConfig, startedAt: number) {
   const setScheduler = (s: Scheduler) => { schedulerRef = s; };
 
   // Handle prompt from scheduler/webhook (no SSE stream)
-  async function handlePrompt(prompt: string): Promise<void> {
+  async function handlePrompt(prompt: string, source: Exclude<TaskSource, "interactive"> = "schedule"): Promise<void> {
     const release = await busy.acquire();
-    activity.transition("thinking");
+    sessions.beginIsolatedTask(source);
+    activity.transition(activityStateForSource(source));
     try {
-      const resumeSessionId = sessions.getResumeSessionId();
-      const result = await runClaude(prompt, config, resumeSessionId, undefined, [mechaTools]);
+      const result = await runClaude(prompt, config, undefined, undefined, [mechaTools]);
       if (result.sessionId) sessions.captureSessionId(result.sessionId);
       sessions.addCost(result.costUsd);
       costs.add(result.costUsd);
+      if (result.success) {
+        sessions.completeTask();
+      } else {
+        sessions.markError("Prompt run failed");
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      sessions.markError(message);
+      throw err;
     } finally {
       activity.transition("idle");
       release();
@@ -179,10 +247,14 @@ export function createApp(config: BotConfig, startedAt: number) {
         409,
       );
     }
-    activity.transition("thinking");
+    const source = promptSourceForRequest(c);
+    const isolatedTask = source !== "interactive";
+    activity.transition(activityStateForSource(source));
 
-    const task = sessions.ensureActiveTask();
-    const resumeSessionId = sessions.getResumeSessionId();
+    const task = isolatedTask
+      ? sessions.beginIsolatedTask(source)
+      : sessions.ensureActiveTask("interactive");
+    const resumeSessionId = isolatedTask ? undefined : sessions.getResumeSessionId();
 
     return streamSSE(c, async (stream) => {
       try {
@@ -204,6 +276,13 @@ export function createApp(config: BotConfig, startedAt: number) {
         if (result.sessionId) sessions.captureSessionId(result.sessionId);
         sessions.addCost(result.costUsd);
         costs.add(result.costUsd);
+        if (isolatedTask) {
+          if (result.success) {
+            sessions.completeTask();
+          } else {
+            sessions.markError("Prompt run failed");
+          }
+        }
 
         await stream.writeSSE({
           event: "done",
@@ -217,6 +296,7 @@ export function createApp(config: BotConfig, startedAt: number) {
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         log.error("Prompt stream error", { error: message });
+        sessions.markError(message);
         await stream.writeSSE({ event: "error", data: JSON.stringify({ message: "Internal error processing request" }) });
       } finally {
         activity.transition("idle");
@@ -229,7 +309,7 @@ export function createApp(config: BotConfig, startedAt: number) {
   if (config.webhooks) {
     const webhookApp = createWebhookRoutes(config, async (prompt) => {
       try {
-        await handlePrompt(prompt);
+        await handlePrompt(prompt, "webhook");
         return true;
       } catch (err) {
         log.error("Webhook handler error", { error: err instanceof Error ? err.message : String(err) });

@@ -121,6 +121,8 @@ mecha dashboard
 
 Fleet dashboard shows all bots with status, costs, and a communication map. Click a bot to access its individual dashboard with chat, tasks, schedule, logs, and config views.
 
+The dashboard now uses a local browser session on `localhost` so the SPA and proxied bot dashboards work without manually copying bearer tokens into browser requests.
+
 ## Auth
 
 Auth works via environment variable or named profiles:
@@ -135,6 +137,25 @@ mecha auth add tailscale-main tskey-auth-...
 ```
 
 Profiles are stored at `~/.mecha/auth/<name>.json`.
+
+## Container Runtime Notes
+
+- Workspace-mounted bots load project settings (`.claude/settings.json`, `CLAUDE.md`, skills) from the mounted workspace.
+- Bots without a mounted workspace run from a stable state-backed working directory and only load user settings.
+- Host Codex auth is not copied into containers by default. Opt in with `MECHA_COPY_HOST_CODEX_AUTH=1` if you explicitly want that behavior.
+
+## Testing
+
+```bash
+# Fast local tests
+npm test
+
+# Docker-dependent suites
+npm run test:docker
+
+# Live SDK/API suite (costs money)
+npm run test:live
+```
 
 ## Requirements
 

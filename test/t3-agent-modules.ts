@@ -45,6 +45,8 @@ await test("T3.1 Session create task", () => {
   assert.ok(task.id, "task has id");
   assert.equal(task.status, "active");
   assert.ok(task.created, "task has created timestamp");
+  assert.equal(task.source, "interactive");
+  assert.equal(typeof task.started_at, "string");
 });
 
 // T3.2 Session: capture sessionId
@@ -74,8 +76,18 @@ await test("T3.4 Session newSession completes previous", () => {
   assert.equal(previousTask?.id, first.id);
   assert.equal(previousTask?.status, "completed");
   assert.equal(previousTask?.summary, "done with first");
+  assert.ok(previousTask?.ended_at, "completed task has ended_at");
   assert.notEqual(newTask.id, first.id);
   assert.equal(newTask.status, "active");
+});
+
+// T3.4b Session: begin isolated task records non-interactive source
+await test("T3.4b Session begin isolated task", () => {
+  const sm = new SessionManager();
+  sm.ensureActiveTask();
+  const task = sm.beginIsolatedTask("schedule");
+  assert.equal(task.source, "schedule");
+  assert.equal(task.status, "active");
 });
 
 // T3.5 Session: getResumeSessionId
@@ -97,6 +109,16 @@ await test("T3.6 Session listTasks newest first", () => {
   assert.ok(tasks.length >= 2);
   // Newest first — the active task should be first
   assert.equal(tasks[0].status, "active");
+});
+
+// T3.6b Session: markError sets error + ended_at
+await test("T3.6b Session markError", () => {
+  const sm = new SessionManager();
+  sm.ensureActiveTask();
+  const task = sm.markError("boom");
+  assert.equal(task?.status, "error");
+  assert.equal(task?.error, "boom");
+  assert.ok(task?.ended_at, "error task has ended_at");
 });
 
 // T3.7 Costs: add + daily rollover
