@@ -1,4 +1,5 @@
 import Docker from "dockerode";
+import { docker } from "./docker.utils.js";
 
 export type CheckResult = { ok: boolean; label: string; detail?: string };
 
@@ -45,31 +46,30 @@ export async function fileExists(container: Docker.Container, path: string): Pro
   return exitCode === 0;
 }
 
-export async function dirWritable(container: Docker.Container, path: string): Promise<boolean> {
-  const { exitCode } = await dockerRun(container, ["sh", "-c", `touch ${path}/.doctor-test && rm ${path}/.doctor-test`]);
+export async function dirWritable(container: Docker.Container, dirPath: string): Promise<boolean> {
+  const testFile = `${dirPath}/.doctor-test`;
+  const { exitCode } = await dockerRun(container, ["sh", "-c", "touch '$1' && rm '$1'", "sh", testFile]);
   return exitCode === 0;
 }
 
 // ─── Bot check sections ───
 
-export async function checkContainer(name: string): Promise<{ checks: CheckResult[]; container?: Docker.Container }> {
-  const d = new Docker();
+export async function checkContainer(name: string): Promise<{ checks: CheckResult[]; container?: Docker.Container; cInfo?: Docker.ContainerInspectInfo }> {
   const checks: CheckResult[] = [];
   try {
-    const container = d.getContainer(`mecha-${name}`);
+    const container = docker.getContainer(`mecha-${name}`);
     const cInfo = await container.inspect();
     const running = cInfo.State?.Running === true;
     checks.push({ ok: running, label: `Container "mecha-${name}" running`, detail: running ? undefined : `state: ${cInfo.State?.Status}` });
-    return { checks, container: running ? container : undefined };
+    return { checks, container: running ? container : undefined, cInfo };
   } catch {
     checks.push({ ok: false, label: `Container "mecha-${name}" exists`, detail: "not found" });
     return { checks };
   }
 }
 
-export async function checkHealth(name: string, container: Docker.Container): Promise<CheckResult[]> {
+export async function checkHealth(cInfo: Docker.ContainerInspectInfo): Promise<CheckResult[]> {
   const checks: CheckResult[] = [];
-  const cInfo = await container.inspect();
   const hostPort = cInfo.NetworkSettings?.Ports?.["3000/tcp"]?.[0]?.HostPort;
   if (!hostPort) {
     checks.push({ ok: false, label: "Health endpoint", detail: "no host port binding" });
@@ -113,11 +113,10 @@ export function checkMounts(cInfo: Docker.ContainerInspectInfo): CheckResult[] {
   return checks;
 }
 
-export async function checkEnv(container: Docker.Container): Promise<CheckResult[]> {
+export function checkEnv(cInfo: Docker.ContainerInspectInfo): CheckResult[] {
   const checks: CheckResult[] = [];
-  const cInfo = await container.inspect();
   const envList: string[] = cInfo.Config?.Env ?? [];
-  const env = Object.fromEntries(envList.map(e => { const i = e.indexOf("="); return [e.slice(0, i), e.slice(i + 1)]; }));
+  const env = Object.fromEntries(envList.map(e => { const i = e.indexOf("="); return i >= 0 ? [e.slice(0, i), e.slice(i + 1)] : [e, ""]; }));
 
   const hasAuth = !!env.ANTHROPIC_API_KEY || !!env.CLAUDE_CODE_OAUTH_TOKEN;
   checks.push(hasAuth
@@ -131,11 +130,13 @@ export async function checkEnv(container: Docker.Container): Promise<CheckResult
   } else { checks.push({ ok: false, label: "MECHA_WORKSPACE_CWD", detail: "not set" }); }
 
   const ps = env.MECHA_ENABLE_PROJECT_SETTINGS;
-  checks.push({ ok: ps === "1", label: `MECHA_ENABLE_PROJECT_SETTINGS = ${ps ?? "(unset)"}`,
-    detail: ps !== "1" ? "skills, rules, CLAUDE.md won't load from workspace" : undefined });
+  const hasExplicitWorkspace = cwd?.startsWith("/home/appuser/");
+  const psExpected = hasExplicitWorkspace ? ps === "1" : true; // only fail if workspace set but settings disabled
+  checks.push({ ok: psExpected, label: `MECHA_ENABLE_PROJECT_SETTINGS = ${ps ?? "(unset)"}`,
+    detail: !psExpected ? "skills, rules, CLAUDE.md won't load from workspace" : undefined });
 
   checks.push({ ok: !!env.MECHA_BOT_NAME, label: `MECHA_BOT_NAME = ${env.MECHA_BOT_NAME ?? "(unset)"}` });
-  checks.push({ ok: !!env.MECHA_BOT_TOKEN, label: `MECHA_BOT_TOKEN = ${env.MECHA_BOT_TOKEN ? env.MECHA_BOT_TOKEN.slice(0, 14) + "..." : "(unset)"}` });
+  checks.push({ ok: !!env.MECHA_BOT_TOKEN, label: `MECHA_BOT_TOKEN ${env.MECHA_BOT_TOKEN ? "set" : "(unset)"}` });
 
   return checks;
 }
