@@ -54,8 +54,8 @@ console.log("--- T17: Auth Swap + Restart ---\n");
 const TMP = join(homedir(), `.mecha-t17-${randomBytes(4).toString("hex")}`);
 mkdirSync(join(TMP, "sessions"), { recursive: true });
 mkdirSync(join(TMP, "logs"), { recursive: true });
-mkdirSync(join(TMP, "claude"), { recursive: true });
-mkdirSync(join(TMP, "codex"), { recursive: true });
+mkdirSync(join(TMP, "dot-claude"), { recursive: true });
+mkdirSync(join(TMP, "dot-codex"), { recursive: true });
 mkdirSync(join(TMP, "workspace"), { recursive: true });
 
 // Two different bot tokens to distinguish auth configs
@@ -107,8 +107,8 @@ await test("T17.1 Spawn bot with token A", async () => {
       Binds: [
         `${TMP}:/state:rw`,
         `${join(TMP, "bot.yaml")}:/config/bot.yaml:ro`,
-        `${join(TMP, "claude")}:/home/appuser/.claude:rw`,
-        `${join(TMP, "codex")}:/home/appuser/.codex:rw`,
+        `${join(TMP, "dot-claude")}:/home/appuser/.claude:rw`,
+        `${join(TMP, "dot-codex")}:/home/appuser/.codex:rw`,
       ],
       PortBindings: { "3000/tcp": [{ HostPort: String(HOST_PORT) }] },
     },
@@ -163,8 +163,8 @@ await test("T17.4 Restart with token B picks up new auth", async () => {
       Binds: [
         `${TMP}:/state:rw`,
         `${join(TMP, "bot.yaml")}:/config/bot.yaml:ro`,
-        `${join(TMP, "claude")}:/home/appuser/.claude:rw`,
-        `${join(TMP, "codex")}:/home/appuser/.codex:rw`,
+        `${join(TMP, "dot-claude")}:/home/appuser/.claude:rw`,
+        `${join(TMP, "dot-codex")}:/home/appuser/.codex:rw`,
       ],
       PortBindings: { "3000/tcp": [{ HostPort: String(HOST_PORT) }] },
     },
@@ -221,8 +221,8 @@ await test("T17.6 Restart with different API key credential", async () => {
       Binds: [
         `${TMP}:/state:rw`,
         `${join(TMP, "bot.yaml")}:/config/bot.yaml:ro`,
-        `${join(TMP, "claude")}:/home/appuser/.claude:rw`,
-        `${join(TMP, "codex")}:/home/appuser/.codex:rw`,
+        `${join(TMP, "dot-claude")}:/home/appuser/.claude:rw`,
+        `${join(TMP, "dot-codex")}:/home/appuser/.codex:rw`,
       ],
       PortBindings: { "3000/tcp": [{ HostPort: String(HOST_PORT) }] },
     },
