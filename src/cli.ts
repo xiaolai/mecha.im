@@ -25,6 +25,7 @@ import * as docker from "./docker.js";
 import { stringify as stringifyYaml } from "yaml";
 import { resolveHostBotBaseUrl } from "./resolve-endpoint.js";
 import { printTable, setupHeadscale, fetchRemoteBots, readPromptSSE } from "./cli.utils.js";
+import { doctorMecha, doctorBot } from "./doctor.js";
 
 const program = new Command();
 
@@ -338,6 +339,15 @@ program
   .action(() => {
     const token = "mecha_" + randomBytes(24).toString("hex");
     console.log(token);
+  });
+
+// --- doctor ---
+program
+  .command("doctor [name]")
+  .description("Diagnose mecha or a specific bot")
+  .action(async (name?: string) => {
+    const exitCode = name ? await doctorBot(name) : await doctorMecha();
+    if (exitCode > 0) process.exit(exitCode);
   });
 
 // --- dashboard ---
