@@ -2,7 +2,7 @@
 
 **Date**: 2026-03-13
 **Branch**: `feat/pixel-office`
-**Status**: Draft
+**Status**: Reviewed (Codex gpt-5.4)
 
 ## Overview
 
@@ -15,7 +15,7 @@ A pixel-art office view in the bot dashboard that visualizes bot status in real 
 | Scope | Single bot first, multi-bot extension later |
 | Integration | New "Office" tab in bot dashboard |
 | Office size | Small office (~512×448), 6 zones |
-| Rendering | Phaser 3 embedded in React container |
+| Rendering | Phaser 3.90.0 embedded in React container |
 | Monitor interaction | Click-to-expand overlays |
 | Character | Visual editor (skin, hair, outfit) |
 | Zone mapping | Hybrid: activity→zone + tool→sub-animation |
@@ -37,51 +37,52 @@ A pixel-art office view in the bot dashboard that visualizes bot status in real 
 **Phaser owns:**
 - Tilemap rendering (office layout from tile data)
 - Character sprite compositing and animation (body + hair + outfit layers)
-- Pathfinding between zones (A* on walkable tile grid)
+- Zone-to-zone routing (precomputed routes, not A*)
 - Furniture click zones (interactive hitboxes)
 - Ambient effects (clock hands, coffee cup count, plant state, window light tint)
 - Subagent clone sprites (spawn/despawn translucent copies)
 - Particle effects (error sparks, webhook alert flash)
 
-**Phaser lazy loading:** The Office tab dynamically imports Phaser via `React.lazy()` + `import("phaser")`. Users who never open the Office tab pay zero bundle cost. A loading spinner shows while Phaser initializes (~1MB).
+**Phaser lazy loading:** The `OfficeView` React component is loaded via `React.lazy(() => import("./views/office/office-view"))`. Inside that component, Phaser is imported dynamically with `await import("phaser")`. Users who never open the Office tab pay zero bundle cost. A loading spinner shows while the chunk loads.
+
+**React.StrictMode guard:** In development, StrictMode double-fires mount effects. The Phaser game instance must be created with a guard (e.g., a module-level `let game: Phaser.Game | null`) and destroyed with `game.destroy(true)` in the cleanup function. Only create if `game === null`.
 
 ### Bridge (shared state object)
 
 ```typescript
 interface OfficeBridge {
   // React writes → Phaser reads in update() loop
+  revision: number;  // incremented on every write — Phaser skips diffing if unchanged
   state: {
     activity: "idle" | "thinking" | "calling" | "scheduled" | "webhook" | "error";
     talkingTo: string | null;
     currentTool: string | null;
-    currentToolContext: string | null;  // file path, command, search query
+    currentToolContext: string | null;
     subagents: { id: string; type: string; description: string }[];
-    taskStartedAt: string | null;      // ISO timestamp of active task start
+    currentSessionId: string | null;   // for "computer" click → open session
+    taskStartedAt: string | null;
     costToday: number;
-    consecutiveErrors: number;         // from scheduler state
+    consecutiveErrors: number;
     scheduleNextRunAt: string | null;
     ptyClientsConnected: number;
-    idleSinceSec: number;              // seconds since last non-idle activity
+    idleSinceSec: number;
   };
   character: {
-    skin: number;    // 0-2
+    skin: number;    // 0-5 (6 palette rows in body sheet)
     hair: number;    // 0-7
     outfit: string;  // "outfit1"-"outfit6" | "suit1"-"suit4"
   };
 
   // Phaser writes → React reads via callback
-  onFurnitureClick: ((zone: ClickableItem) => void) | null;
+  onFurnitureClick: ((item: ClickableItem) => void) | null;
 }
 
-// Clickable items in the scene — distinct from zones
 type ClickableItem = "computer" | "phone" | "printer" | "server" | "door" | "character";
 ```
 
-The bridge is a plain object (not reactive). React writes to it on every SSE event or poll response. Phaser reads it every frame in `update()` and drives animation state changes. This avoids coupling Phaser to React's render cycle.
+The bridge is stored as a `useRef` in the React component (stable across renders, never recreated). React writes to it on every SSE event or poll response and increments `revision`. Phaser reads it every frame in `update()`, compares `revision` to its last-seen value, and only processes changes when they differ.
 
 ### Zone ↔ ClickableItem Mapping
-
-Zones are where the character walks. ClickableItems are interactive furniture. They overlap but are not the same:
 
 | Zone Name | Character walks here when | ClickableItem at this zone | Click opens |
 |-----------|--------------------------|---------------------------|-------------|
@@ -93,116 +94,139 @@ Zones are where the character walks. ClickableItems are interactive furniture. T
 | door | `webhook` | `door` | Webhook event log |
 | *(any)* | *(any)* | `character` | Character editor modal |
 
-The calendar was removed — the printer click already opens the schedule, and a wall calendar would be redundant.
-
 ### Data Flow
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  Server-side changes needed                             │
+│  Server-side changes                                    │
 │                                                         │
-│  ActivityTracker.transition() already emits "change"    │
-│  events to SSE. We add an EventEmitter on the server:   │
-│                                                         │
-│  officeEvents.emit("tool", { name, context })           │
-│    ← called in server.ts onEvent callback when          │
-│      SDK emits tool_use events during runClaude()       │
-│                                                         │
-│  officeEvents.emit("subagent", { action, id, type })    │
-│    ← called when tool_use has name="Agent" (spawn)      │
-│    ← called when tool_result follows Agent (complete)   │
-│                                                         │
-│  /api/status/stream subscribes to both                  │
-│  activity.on("change") AND officeEvents                 │
+│  1. officeEvents EventEmitter relays tool/subagent      │
+│     events from SDK onEvent callback                    │
+│  2. activity.transition("error") now called on task     │
+│     failure, held for 5s before transitioning to idle   │
+│  3. /api/status enhanced with current_session_id        │
+│  4. /api/logs gains ?source= filter param               │
+│  5. /api/status/stream sends initial snapshot on connect│
 └─────────────────────────────────────────────────────────┘
           │
           ▼ SSE events
 ┌─────────────────────────────────────────────────────────┐
 │  React: OfficeStatusProvider                            │
 │                                                         │
+│  0. Bootstrap: on SSE connect, process the initial      │
+│     "snapshot" event to populate full bridge state.      │
+│     Also fetch GET /api/status + /api/tasks +           │
+│     /api/costs + /api/schedule for complete picture.    │
+│                                                         │
 │  1. Subscribe to /api/status/stream (SSE)               │
-│     - "state" events → bridge.state.activity,           │
-│       bridge.state.talkingTo                            │
-│     - "tool" events → bridge.state.currentTool,         │
-│       bridge.state.currentToolContext                   │
-│     - "subagent" events → add/remove from               │
-│       bridge.state.subagents[]                          │
+│     - "state" events → activity, talkingTo              │
+│     - "tool" events → currentTool, currentToolContext   │
+│     - "subagent" events → add/remove from subagents[]   │
 │                                                         │
 │  2. Poll every 10s (ONLY when Office tab is active):    │
-│     - GET /api/costs → bridge.state.costToday           │
-│     - GET /api/tasks → bridge.state.taskStartedAt       │
-│       (from active task's started_at field)             │
-│     - GET /api/schedule → bridge.state.scheduleNextRunAt│
-│       (earliest nextRunAt from active entries),          │
-│       bridge.state.consecutiveErrors                    │
-│       (max consecutiveErrors across all entries)        │
+│     - GET /api/costs → costToday                        │
+│     - GET /api/tasks → taskStartedAt, currentSessionId  │
+│     - GET /api/schedule → scheduleNextRunAt,            │
+│       consecutiveErrors                                 │
 │                                                         │
 │  3. Derive locally:                                     │
-│     - idleSinceSec: timer started when activity→"idle", │
-│       reset when activity changes to non-idle           │
+│     - idleSinceSec: timer started when activity→"idle"  │
 │     - ptyClientsConnected: from GET /api/sessions       │
-│       (count sessions where hasPty=true)                │
 │                                                         │
-│  4. Write all values to OfficeBridge.state              │
+│  4. Write to bridge + increment bridge.revision         │
 │                                                         │
-│  Polling stops when Office tab is unmounted             │
-│  (cleanup in useEffect return)                          │
+│  On SSE disconnect: reconnect with exponential backoff, │
+│  re-bootstrap on reconnect.                             │
+│                                                         │
+│  Polling stops when Office tab unmounts (useEffect      │
+│  cleanup). SSE also disconnects on unmount.             │
 └─────────────────────────────────────────────────────────┘
           │
           ▼ reads bridge every frame
 ┌─────────────────────────────────────────────────────────┐
 │  Phaser: OfficeScene.update()                           │
 │                                                         │
-│  - Compares bridge.state to previous frame snapshot     │
-│  - On activity change → pathfind to new zone            │
-│  - On currentTool change → switch sub-animation         │
-│  - On subagents change → spawn/despawn clone sprites    │
-│  - On ambient signals → update clock/coffee/plant       │
+│  - Check bridge.revision vs lastSeenRevision            │
+│  - If changed:                                          │
+│    - On activity change → route to new zone             │
+│    - On currentTool change → switch sub-animation       │
+│    - On subagents change → spawn/despawn clones         │
+│    - On ambient signals → update clock/coffee/plant     │
+│  - If prefers-reduced-motion: skip walk animation,      │
+│    teleport character to zone instantly                  │
 │                                                         │
 │  On furniture click:                                    │
 │  - Calls bridge.onFurnitureClick("computer")            │
-│  - React opens overlay panel                            │
+│  - React reads bridge.state.currentSessionId            │
+│    and opens ConversationViewer for that session         │
 └─────────────────────────────────────────────────────────┘
 ```
 
 ## Server-Side Changes
+
+### Error State in Activity Tracker
+
+Currently, task errors transition directly back to `idle`. Change to:
+
+```typescript
+// In server.ts error handling path:
+activity.transition("error");
+setTimeout(() => {
+  if (activity.getState() === "error") {
+    activity.transition("idle");
+  }
+}, 5000);  // Hold error state for 5 seconds so the office can show it
+```
+
+This gives the pixel office time to animate the character walking to the server rack and showing the error animation before returning to idle.
 
 ### Enhanced SSE Stream (`/api/status/stream`)
 
 Currently subscribes only to `activity.on("change")`. Add:
 
 ```typescript
-// In server.ts — the runClaude / SDK execution path
-
 // 1. Create a shared EventEmitter for office events
 const officeEvents = new EventEmitter();
 
-// 2. In the onEvent callback of SDK query():
+// 2. In the SDK query() onEvent callback:
 onEvent: (event) => {
   if (event.type === "tool_use") {
     const toolContext = formatToolLabel(event.data.tool, event.data.input);
     officeEvents.emit("tool", { name: event.data.tool, context: toolContext });
 
-    // Detect subagent spawn
+    // Detect subagent spawn — use toolUseId as stable correlation ID
     if (event.data.tool === "Agent") {
       const input = event.data.input as Record<string, unknown>;
       officeEvents.emit("subagent", {
         action: "spawn",
-        id: String(input.task_id ?? crypto.randomUUID()),
+        id: event.data.toolUseId,  // stable ID from SDK, not random
         type: String(input.subagent_type ?? "general"),
         description: String(input.description ?? ""),
       });
     }
   }
-  if (event.type === "tool_result" && event.data.tool === "Agent") {
-    officeEvents.emit("subagent", {
-      action: "complete",
-      id: String(event.data.task_id ?? ""),
-    });
+  // Detect subagent completion — match by toolUseId
+  if (event.type === "tool_result") {
+    if (event.data.toolUseId) {
+      officeEvents.emit("subagent", {
+        action: "complete",
+        id: event.data.toolUseId,
+      });
+    }
   }
 }
 
-// 3. In /api/status/stream handler — subscribe to both:
+// 3. In /api/status/stream handler:
+
+// Send initial snapshot on connect (bootstrap)
+const snapshot = {
+  activity: activity.getState(),
+  talkingTo: activity.getTalkingTo(),
+  lastActive: activity.getLastActive(),
+};
+writer.write(`event: snapshot\ndata: ${JSON.stringify(snapshot)}\n\n`);
+
+// Then subscribe to deltas:
 activity.on("change", (data) => {
   writer.write(`event: state\ndata: ${JSON.stringify(data)}\n\n`);
 });
@@ -212,9 +236,37 @@ officeEvents.on("tool", (data) => {
 officeEvents.on("subagent", (data) => {
   writer.write(`event: subagent\ndata: ${JSON.stringify(data)}\n\n`);
 });
+
+// Heartbeat every 30s to detect dead connections
+const heartbeat = setInterval(() => {
+  writer.write(`: heartbeat\n\n`);
+}, 30_000);
+// Clean up on disconnect:
+// clearInterval(heartbeat); remove all listeners
 ```
 
-**Note on subagent detection**: The Claude SDK's `Agent` tool uses `subagent_type` (optional), `description`, and `prompt` fields. We read `subagent_type` if present, otherwise fall back to `"general"`. The `description` field contains a short summary (e.g., "Explore codebase structure"). If the SDK event format changes, this parsing is isolated in one place.
+### Enhanced `/api/status`
+
+Add `current_session_id` to the existing response:
+
+```typescript
+// In GET /api/status handler:
+{
+  name, state, model, uptime, current_task, talking_to, last_active,
+  current_session_id: sessions.getActiveTask()?.session_id ?? null,  // NEW
+}
+```
+
+### Filtered Event Log
+
+Add `?source=` query parameter to `GET /api/logs`:
+
+```typescript
+// GET /api/logs?limit=50&source=interbot
+// GET /api/logs?limit=50&source=webhook
+// GET /api/logs?limit=50&source=error
+// Filters events by matching the source/type field
+```
 
 ### New Endpoints
 
@@ -226,14 +278,10 @@ GET  /api/config/character
 
 POST /api/config/character
   Body: { skin: number, hair: number, outfit: string }
-  Validates: skin 0-2, hair 0-7, outfit matches /^(outfit[1-6]|suit[1-4])$/
+  Validates: skin 0-5, hair 0-7, outfit matches /^(outfit[1-6]|suit[1-4])$/
   Writes to: $MECHA_STATE_DIR/character.json
   Response: { ok: true }
 ```
-
-### No changes to `/api/status` snapshot
-
-The `/api/status` GET endpoint remains unchanged. The Office tab gets all real-time data from SSE + polling individual endpoints. No need to bloat the status snapshot.
 
 ## File Structure
 
@@ -249,12 +297,13 @@ agent/dashboard/
 │   ├── app.tsx                   # Add "Office" to tabs array + icon
 │   ├── views/
 │   │   └── office/
-│   │       ├── office-view.tsx       # React wrapper: lazy-loads Phaser, overlays, status bar
-│   │       ├── office-bridge.ts      # OfficeBridge type + singleton factory
+│   │       ├── office-view.tsx       # React wrapper: lazy Phaser, overlays, status bar
+│   │       ├── office-bridge.ts      # OfficeBridge type + useRef factory
 │   │       ├── office-status.ts      # SSE subscription + polling → writes bridge
 │   │       ├── office-scene.ts       # Phaser Scene: preload, create, update
+│   │       ├── asset-manifest.ts     # Explicit map of logical names → actual file paths
 │   │       ├── character.ts          # Character: compositing, animation state machine
-│   │       ├── pathfinding.ts        # A* on walkable tile grid
+│   │       ├── routes.ts            # Precomputed route table between 6 zones
 │   │       ├── tilemap-data.ts       # Office layout as tile index array (hand-authored)
 │   │       ├── zones.ts             # Zone definitions: position, furniture, hitbox
 │   │       ├── ambient.ts           # Clock, coffee, plant, window light logic
@@ -265,13 +314,15 @@ agent/dashboard/
 │       └── api.ts                # Existing botFetch + new SSE helper
 │
 agent/
-├── server.ts                     # Add officeEvents emitter, enhanced SSE, character endpoints
+├── server.ts                     # officeEvents emitter, enhanced SSE, character endpoints
 └── character-config.ts           # Read/write $MECHA_STATE_DIR/character.json
 ```
 
 ## Office Layout
 
 Small office, ~16×14 tiles at 32×32px = 512×448px canvas.
+
+Phaser config: `pixelArt: true`, `antialias: false`, `roundPixels: true`, fixed internal resolution 512×448, scaled with `Scale.FIT` mode. Integer scaling for HiDPI/retina displays.
 
 ```
 ┌──────────────────────────────────┐
@@ -308,27 +359,72 @@ Small office, ~16×14 tiles at 32×32px = 512×448px canvas.
 | `server` | (2,4) | Server rack, cables, warning light | `error` |
 | `door` | (7,13) | Door, mailbox/package area | `webhook` |
 
-The desk is central — the character's "home" position. All other zones are reachable within 4-8 tiles of walking.
+The desk is central. All zones reachable within 4-8 tiles.
+
+### Routing
+
+**Precomputed route table**, not A*. For 6 zones on a 16×14 grid, we store 30 routes (6×5 zone pairs) as arrays of tile coordinates. Generated once during development, stored in `routes.ts` as a static lookup:
+
+```typescript
+const ROUTES: Record<string, [number, number][]> = {
+  "desk→phone": [[7,7], [8,6], [9,5], [10,4], [12,4]],
+  "desk→sofa":  [[7,7], [8,8], [9,9], [10,10], [12,11]],
+  // ... all 30 pairs
+};
+```
+
+If future versions need dynamic routing (multi-bot collision avoidance, layout editor), upgrade to BFS at that point.
 
 ## Character System
 
-### Sprite Compositing
+### Asset Manifest
 
-Four layers rendered in order (bottom to top):
+All sprite paths are mapped in `asset-manifest.ts` to avoid string concatenation with space-containing filenames:
 
-1. **Shadow** — `metrocity/CharacterModel/Shadow.png` (32×32 static, rendered at character feet)
-2. **Body** — `metrocity/CharacterModel/Character Model.png` (768×192 sheet)
-   - 24 columns × 6 rows of 32×32 frames
-   - Each row is one skin-tone variant (rows 0-5 provide 3 skin tones × 2 rows each)
-   - Within each pair of rows: row 0 is used for the walk cycle, row 1 may be idle/alternate poses
-   - **Implementation note**: The exact row-pair meaning must be verified against the actual sprite sheet during implementation. If both rows in a pair are identical walk frames, use row 0 only. If they differ, row 1 provides alternate poses for sub-animations.
-   - Columns: 4 directions × 6 frames = 24. Direction order: down (0-5), left (6-11), right (12-17), up (18-23)
-3. **Hair** — `metrocity/Hair/Hairs.png` (768×256, 24 cols × 8 rows)
-   - 8 hair styles, same column layout as body
-4. **Outfit** — `metrocity/Outfits/Outfit{1-6}.png` (768×32 each, 24 cols × 1 row)
-   - OR `metrocity-2.0/Suit.png` (768×128, 24 cols × 4 rows) for suit variants
+```typescript
+export const ASSETS = {
+  body: "/dashboard/pixel-assets/metrocity/CharacterModel/Character Model.png",
+  shadow: "/dashboard/pixel-assets/metrocity/CharacterModel/Shadow.png",
+  hairs: "/dashboard/pixel-assets/metrocity/Hair/Hairs.png",
+  outfit1: "/dashboard/pixel-assets/metrocity/Outfits/Outfit1.png",
+  outfit2: "/dashboard/pixel-assets/metrocity/Outfits/Outfit2.png",
+  // ... all outfits
+  suit: "/dashboard/pixel-assets/metrocity-2.0/Suit.png",
+  tileset32: "/dashboard/pixel-assets/office-tileset/Office Tileset All 32x32.png",
+  // overlay sprites (created for this feature):
+  thoughtBubble: "/dashboard/pixel-assets/overlays/thought-bubble.png",
+  speechBubble: "/dashboard/pixel-assets/overlays/speech-bubble.png",
+  zzz: "/dashboard/pixel-assets/overlays/zzz.png",
+  sparks: "/dashboard/pixel-assets/overlays/sparks.png",
+  paper: "/dashboard/pixel-assets/overlays/paper.png",
+  phone: "/dashboard/pixel-assets/overlays/phone-handset.png",
+  coffeeCup: "/dashboard/pixel-assets/overlays/coffee-cup.png",
+  // plant variants:
+  plantHealthy: "/dashboard/pixel-assets/overlays/plant-healthy.png",
+  plantDrooping: "/dashboard/pixel-assets/overlays/plant-drooping.png",
+  plantWilted: "/dashboard/pixel-assets/overlays/plant-wilted.png",
+  plantDead: "/dashboard/pixel-assets/overlays/plant-dead.png",
+} as const;
+```
 
-All layers share the same 32×32 grid and 24-column layout. Phaser renders them as stacked sprites with matching frame indices.
+### Sprite Sheet Layout (verified by Codex review)
+
+The body sheet (`Character Model.png`, 768×192) contains:
+
+- **24 columns × 6 rows** of 32×32 frames
+- **6 rows are palette/color recolors** — NOT 3 skin tones × 2 pose rows. Each row is a distinct character color variant. `skin` index 0-5 maps directly to row 0-5.
+- **Direction strips within each row**: 4 directions × 6 frames = 24 columns
+  - The direction order needs **in-engine verification** during implementation. Codex review indicates it is `front, side, back, mirrored-side` — not `down, left, right, up`.
+  - Implementation must test each 6-frame strip and map to `{ down, left, right, up }` based on visual inspection.
+  - `left` and `right` may be the same strip with `flipX = true`.
+
+The hair sheet (`Hairs.png`, 768×256) has **reversed row order** relative to the individual Hair preview files:
+- Row 0 = `Hair7.png` appearance, Row 7 = `Hair.png` appearance
+- The `hair` config index 0-7 maps to sheet rows, but the character editor preview must show them in visual order (row 7 first).
+
+Outfit sheets (`Outfit1-6.png`, 768×32 each) and suit sheet (`Suit.png`, 768×128) share the same 24-column layout.
+
+All layers are composited by rendering them at the same position with matching frame indices.
 
 ### Animation State Machine
 
@@ -349,9 +445,11 @@ All layers share the same 32×32 grid and 24-column layout. Phaser renders them 
                         └────────┘
 ```
 
-**Walking**: Uses the 6-frame walk cycle from the sprite sheet. Direction set by pathfinding vector. Speed: 2 tiles/second (~64px/s).
+**Walking**: 6-frame walk cycle, direction set by route vector. Speed: 2 tiles/second (~64px/s).
 
-**Idle sub-animations at zone**: The character's idle pose changes based on `currentTool`:
+**Reduced motion**: If `prefers-reduced-motion` media query matches, skip walk animation entirely — teleport character to target zone position instantly.
+
+**Idle sub-animations at zone**:
 
 | At Zone | Tool / Signal | Sub-animation |
 |---------|--------------|---------------|
@@ -371,162 +469,121 @@ All layers share the same 32×32 grid and 24-column layout. Phaser renders them 
 | server | error, `consecutiveErrors` ≤ 3 | Examining server, sparks flying |
 | server | error, `consecutiveErrors` > 3 | Head-on-desk, frustration marks |
 
-**Implementation note**: Sub-animations are composed from:
-- 2-3 frames of the existing walk cycle (character facing direction of furniture)
-- Small overlay sprites (thought bubble, paper, phone, speech bubble, `Zzz`, sparks)
-- Monitor screen tint changes (green for terminal, blue for web, white for default)
-
-No new character sprite sheets are needed. Overlay sprites are small PNGs (~16×16 to 32×32) created as part of this feature.
+Sub-animations are composed from existing walk frames (character facing furniture direction) + small overlay sprites. No new character sprite sheets needed.
 
 ### Character Editor
 
-React modal accessible from clicking the character sprite or a button on the Office tab.
+React modal triggered by clicking the character sprite or a toolbar button.
 
-```
-┌─────────────────────────────────┐
-│  Character Editor               │
-│                                 │
-│  ┌───────┐  Skin: [○ ○ ●]      │
-│  │       │                      │
-│  │ Live  │  Hair: [grid of 8]   │
-│  │Preview│        ○○○○          │
-│  │       │        ○○○○          │
-│  │       │                      │
-│  └───────┘  Outfit: [grid of 10]│
-│             ○○○○○               │
-│             ○○○○○               │
-│                                 │
-│         [Save]  [Cancel]        │
-└─────────────────────────────────┘
-```
-
-- Live preview: Canvas element rendering composited character with walk animation
-- On Save: `POST /api/config/character` → writes `$MECHA_STATE_DIR/character.json`
-- On mount: `GET /api/config/character` → loads current config
-- Preview renders at 2× or 3× scale for clarity (64×64 or 96×96)
+- Live preview: Canvas rendering composited character at 3× scale (96×96)
+- Skin selector: 6 options (one per body sheet row)
+- Hair selector: grid of 8 (shown in visual order, mapping to reversed sheet rows)
+- Outfit selector: grid of 10 (6 casual + 4 suits)
+- Save: `POST /api/config/character`
+- Load: `GET /api/config/character`
 
 ## Subagent Clone System
 
-When the bot spawns subagents (via the `Agent` tool), translucent clone sprites appear:
+When the bot spawns subagents, translucent clone sprites appear:
 
-1. SSE emits `event: subagent` with `action: "spawn"` → React adds to `bridge.state.subagents[]`
-2. Phaser's `SubagentCloneManager` spawns a new character sprite:
-   - Same appearance as main character but at 50% alpha
-   - Positioned at a relevant zone (heuristic: `code-reviewer` → desk, `Explore` → desk, `general-purpose` → desk, default → desk)
-   - Small floating label above: subagent `type` text
-   - If multiple clones at same zone, offset by 16px horizontally to avoid overlap
-3. SSE emits `event: subagent` with `action: "complete"` → React removes from `bridge.state.subagents[]`
-4. Phaser fades out the clone over 500ms and destroys the sprite
+1. SSE `subagent` event with `action: "spawn"` → React adds to `bridge.state.subagents[]` using `toolUseId` as stable ID
+2. Phaser spawns clone: same appearance, 50% alpha, positioned at desk zone (offset 16px per clone to avoid overlap), floating label with subagent type
+3. SSE `subagent` event with `action: "complete"` (same `toolUseId`) → React removes from subagents[]
+4. Phaser fades clone out over 500ms
 
-**Max clones**: 5 visible simultaneously. If more spawn, show a `+N` counter badge on the last visible clone.
+**Max visible**: 5 clones. Overflow shows `+N` badge.
 
-**Fallback**: If SSE `subagent` events are not available (e.g., older server version), clones are simply not shown. The feature degrades gracefully.
+**Graceful degradation**: If the server doesn't emit `subagent` events (older version), the feature is simply absent.
 
 ## Ambient Environment
 
 ### Clock (wall)
-- Shows real time (browser's local time)
-- Phaser graphics: circle face + 2 rotating line sprites (hour hand, minute hand)
-- Updates every 60 seconds in `update()` loop
+- Browser local time, updating every 60s
+- Phaser Graphics: circle + 2 rotating lines
 
-### Coffee Cups (on desk side table)
-- Client-side counter: increments by 1 each time `bridge.state.activity` transitions from `"idle"` to any other state
-- Visual: small coffee cup sprites (16×16) placed on the side table
-- Max 5 visible cups; after 5, show a stacked-cups sprite
-- Resets to 0 when `bridge.state.idleSinceSec` exceeds 1800 (30 minutes)
-- Counter is ephemeral (not persisted — resets on page reload)
+### Coffee Cups (side table)
+- Ephemeral client-side counter (resets on reload)
+- +1 each time activity transitions from `idle` to non-idle
+- Max 5 visible (then stacked sprite). Resets after 30min idle.
 
-### Plant (on shelf)
-- Visual state derived from `bridge.state.consecutiveErrors`:
-  - 0: healthy green plant sprite
-  - 1-2: slightly drooping sprite
-  - 3-4: wilted/brown sprite
-  - 5+: dead plant sprite
-- Recovers when `consecutiveErrors` drops (polled from `/api/schedule`)
-- Uses 4 pre-made plant sprite variants (16×16 or 32×32)
+### Plant (shelf)
+- Derived from `consecutiveErrors`: 0=healthy, 1-2=drooping, 3-4=wilted, 5+=dead
+- 4 pre-made 32×32 plant sprites
 
 ### Window Light
-- Tint overlay on window sprites based on browser's local hour:
-  - 6-10: warm yellow tint (0xFFF8E1, alpha 0.3)
-  - 10-16: no tint (bright daylight)
-  - 16-19: orange tint (0xFFE0B2, alpha 0.3)
-  - 19-6: dark blue tint (0x1A237E, alpha 0.5), small star sprites visible
+- Tint based on local hour: morning yellow, midday clear, evening orange, night blue+stars
 
 ## Furniture Click Zones
 
-Each clickable furniture piece has a Phaser `Zone` with `setInteractive()`. On pointerdown:
-
 | ClickableItem | Furniture Sprite | React Overlay |
 |---------------|-----------------|---------------|
-| `computer` | Monitor on desk | ConversationViewer for active session |
-| `phone` | Wall phone | Event log filtered to `source: "interbot"` |
-| `printer` | Printer + file cabinet | ScheduleView (existing component) |
-| `server` | Server rack | Event log filtered to `status: "error"` |
-| `door` | Door + mailbox | Event log filtered to `source: "webhook"` |
-| `character` | The character sprite itself | Character editor modal |
+| `computer` | Monitor on desk | ConversationViewer for `currentSessionId` |
+| `phone` | Wall phone | Event log via `GET /api/logs?source=interbot` |
+| `printer` | Printer + cabinet | ScheduleView (existing component) |
+| `server` | Server rack | Event log via `GET /api/logs?source=error` |
+| `door` | Door + mailbox | Event log via `GET /api/logs?source=webhook` |
+| `character` | The character sprite | Character editor modal |
 
-Sofa is **not clickable** — it's a rest zone with no associated data view.
+Sofa is **not clickable**.
 
-Overlays are React components rendered as absolutely-positioned panels above the Phaser canvas `<div>`. Styled with existing dashboard theme CSS variables. Dismissed by clicking outside or pressing Escape.
+Overlays: absolutely-positioned React panels above Phaser canvas. Dismissed by click-outside or Escape.
 
 ## Status Bar
-
-A thin React `<div>` below the Phaser canvas:
 
 ```
 [●] thinking · editing src/app.ts · 2m 34s · $0.03 today
 ```
 
-Components (left to right):
-- **Status dot**: colored circle (green=idle, yellow=thinking, blue=calling, purple=scheduled, orange=webhook, red=error)
-- **Activity label**: `bridge.state.activity`
-- **Tool context**: `bridge.state.currentTool` + `bridge.state.currentToolContext` (using existing `formatToolLabel` from `lib/format.ts`)
-- **Task duration**: derived from `bridge.state.taskStartedAt` (live timer, updates every second)
-- **Cost today**: `$${bridge.state.costToday.toFixed(2)} today`
+- Status dot: green=idle, yellow=thinking, blue=calling, purple=scheduled, orange=webhook, red=error
+- Activity label
+- Tool context (via `formatToolLabel`)
+- Task duration (live timer from `taskStartedAt`)
+- Cost today
 
-When idle: `[●] idle · last active 5m ago`
+Idle: `[●] idle · last active 5m ago`
 
 ## Asset Loading & Error Handling
 
-### Preload Phase
-Phaser's `preload()` loads all sprite sheets and tileset images. A loading bar is shown in the Phaser scene during load.
+### Preload
+Phaser `preload()` loads all assets from the manifest. Loading bar shown in scene.
 
 ### Missing Assets
-If any asset fails to load in Phaser's `preload()`:
-- Log a warning to console
-- Use a colored rectangle placeholder (Phaser `Graphics`) for missing sprites
-- The scene still renders — missing textures appear as colored blocks rather than crashing
-- This allows development to proceed before all custom overlay sprites (thought bubble, etc.) are created
+- Console warning, colored rectangle placeholder via Phaser `Graphics`
+- Scene still renders — allows iterative development
 
 ### Phaser Load Failure
-If `import("phaser")` fails (e.g., network error):
-- The React wrapper shows a retry button: "Failed to load Pixel Office. [Retry]"
+- React wrapper shows: "Failed to load Pixel Office. [Retry]"
+
+### Visibility Pause
+- When browser tab is hidden (`document.hidden`), Phaser scene pauses to save CPU
+- Resumes on visibility change
 
 ## Dependencies
 
-Add to `agent/dashboard/package.json`:
 ```json
 {
-  "phaser": "^3.80.1"
+  "phaser": "3.90.0"
 }
 ```
 
-No other new dependencies. Phaser is dynamically imported — not in the main bundle.
+Pinned version (not caret range). Matches official Phaser React template. Dynamically imported — not in main bundle.
 
 ## Testing Strategy
 
-- **Unit tests** (vitest): Pathfinding A* correctness, zone mapping (activity→zone ID), bridge state parsing, `formatToolLabel` (already tested)
-- **Visual manual testing**: Phaser scene rendering, character walk cycle, furniture click zones, overlay positioning
-- **Integration**: Mock SSE in dev mode (extend existing `mock-api.ts`) to emit state/tool/subagent events on a timer
-- **Character editor**: Test layer compositing logic (correct frame indices for skin/hair/outfit combinations)
-- **Ambient**: Manual verification of clock, coffee cups, plant states, window tint
+- **Unit tests** (vitest): Route table correctness, zone mapping (activity→zone ID), bridge state parsing, asset manifest completeness
+- **Visual manual**: Phaser scene rendering, character walk, furniture clicks, overlay positioning
+- **Integration**: Mock SSE in `mock-api.ts` emitting state/tool/subagent events on a timer
+- **Character editor**: Layer compositing (correct frame indices for skin/hair/outfit)
+- **Ambient**: Manual verification of clock, coffee, plant, window tint
+- **Accessibility**: `prefers-reduced-motion` disables walk animation
 
 ## Out of Scope (v1)
 
-- Multi-bot shared office (v2 — add more characters to same scene)
+- Multi-bot shared office (v2)
 - Sound effects
 - Mobile/touch optimization
-- Office layout editor (use hand-authored tilemap data)
-- Saving/loading office furniture arrangement
-- Chat bubbles with actual message text (status indicators only)
-- Custom overlay sprites for every tool (v1 uses monitor tint changes + generic overlays)
+- Office layout editor (hand-authored tilemap)
+- Saving/loading furniture arrangement
+- Chat bubbles with actual message text
+- Custom overlay sprites for every tool (v1 uses monitor tint + generic overlays)
+- Keyboard navigation within canvas (v2 — add ARIA labels on overlay triggers)
