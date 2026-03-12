@@ -454,6 +454,18 @@ export function createApp(config: BotConfig, startedAt: number, ptyManager?: Pty
     }
   });
 
+  app.get("/api/sessions/search", async (c) => {
+    try {
+      const q = (c.req.query("q") ?? "").slice(0, 500);
+      if (!q.trim()) return c.json([]);
+      const results = await sessionHistory.search(q);
+      return c.json(results);
+    } catch (err) {
+      log.error("Failed to search sessions", { error: err instanceof Error ? err.message : String(err) });
+      return c.json({ error: "Failed to search sessions" }, 500);
+    }
+  });
+
   app.get("/api/sessions/:id", async (c) => {
     try {
       const id = c.req.param("id");

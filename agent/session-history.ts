@@ -6,6 +6,21 @@ import type { PtyManager } from "./pty-manager.js";
 
 // --- Types ---
 
+export interface SearchMatch {
+  role: "user" | "assistant";
+  snippet: string;
+  timestamp: string;
+}
+
+export interface SearchResult {
+  id: string;
+  title: string;
+  model: string;
+  lastActivity: string;
+  hasPty: boolean;
+  matches: SearchMatch[];
+}
+
 export interface SessionSummary {
   id: string;
   title: string;
@@ -123,6 +138,18 @@ function parseLines(raw: string): JLine[] {
     }
   }
   return lines;
+}
+
+export function extractSnippet(text: string, needle: string, contextChars = 80): string {
+  const lower = text.toLowerCase();
+  const idx = lower.indexOf(needle);
+  if (idx === -1) return text.slice(0, contextChars * 2);
+  const start = Math.max(0, idx - contextChars);
+  const end = Math.min(text.length, idx + needle.length + contextChars);
+  let snippet = text.slice(start, end).replace(/\n/g, " ");
+  if (start > 0) snippet = "..." + snippet;
+  if (end < text.length) snippet = snippet + "...";
+  return snippet;
 }
 
 // --- Main class ---
@@ -311,5 +338,113 @@ export class SessionHistory {
       totalCostUsd: 0,
       model: model || "unknown",
     };
+  }
+
+  /**
+   * Search across all sessions for messages containing the query string.
+   * Returns matched sessions with snippet context around each hit.
+   */
+  async search(query: string, limit = 20): Promise<SearchResult[]> {
+    if (!query.trim() || !existsSync(this.projectDir)) return [];
+
+    const needle = query.toLowerCase();
+    const files = await readdir(this.projectDir);
+    const jsonlFiles = files.filter((f) => {
+      const id = f.replace(".jsonl", "");
+      return f.endsWith(".jsonl") && UUID_RE.test(id);
+    });
+
+    const ptySessions = new Set(
+      this.ptyManager?.listSessions().map((s) => s.claudeSessionId) ?? [],
+    );
+
+    // Search files concurrently in batches of 10
+    const BATCH_SIZE = 10;
+    const results: SearchResult[] = [];
+
+    for (let i = 0; i < jsonlFiles.length; i += BATCH_SIZE) {
+      const batch = jsonlFiles.slice(i, i + BATCH_SIZE);
+      const batchResults = await Promise.all(
+        batch.map((file) => this.searchFile(file, needle, ptySessions)),
+      );
+      for (const r of batchResults) {
+        if (r) results.push(r);
+      }
+      if (results.length >= limit) break;
+    }
+
+    // Sort by lastActivity descending, then trim to limit
+    results.sort((a, b) => b.lastActivity.localeCompare(a.lastActivity));
+    return results.slice(0, limit);
+  }
+
+  private async searchFile(file: string, needle: string, ptySessions: Set<string>): Promise<SearchResult | null> {
+    const id = file.replace(".jsonl", "");
+    try {
+      const filePath = join(this.projectDir, file);
+      const raw = await readFile(filePath, "utf-8");
+      const lines = parseLines(raw);
+
+      let title = "";
+      let model = "";
+      let lastActivity = "";
+      const matches: SearchMatch[] = [];
+
+      for (const line of lines) {
+        if (SKIP_TYPES.has(line.type)) continue;
+        const content = line.message?.content;
+        if (!Array.isArray(content)) continue;
+
+        if (line.timestamp) lastActivity = line.timestamp;
+
+        // Extract title from first user message
+        if (!title && isRealUserMessage(line)) {
+          title = extractTextFromContent(content).slice(0, 100);
+        }
+
+        // Track model (consistent with list(): only from final assistant turn)
+        if (!model && line.type === "assistant" && line.message?.stop_reason === "end_turn" && line.message.model) {
+          model = line.message.model;
+        }
+
+        // Search in user messages
+        if (isRealUserMessage(line)) {
+          const text = extractTextFromContent(content);
+          if (text.toLowerCase().includes(needle)) {
+            matches.push({
+              role: "user",
+              snippet: extractSnippet(text, needle),
+              timestamp: line.timestamp ?? "",
+            });
+          }
+        }
+
+        // Search in assistant messages (final turn only)
+        if (line.type === "assistant" && line.message?.stop_reason === "end_turn") {
+          const text = extractTextFromContent(content);
+          if (text.toLowerCase().includes(needle)) {
+            matches.push({
+              role: "assistant",
+              snippet: extractSnippet(text, needle),
+              timestamp: line.timestamp ?? "",
+            });
+          }
+        }
+      }
+
+      if (matches.length > 0) {
+        return {
+          id,
+          title: title || "(no prompt)",
+          model: model || "unknown",
+          lastActivity,
+          hasPty: ptySessions.has(id),
+          matches: matches.slice(0, 5),
+        };
+      }
+    } catch {
+      // skip unreadable files
+    }
+    return null;
   }
 }

@@ -1,6 +1,40 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { botFetch } from "../../lib/api";
 import { sanitizeMarkdown } from "../../lib/sanitize";
+import { formatToolLabel } from "../../lib/format";
+
+// --- Copy button ---
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    }).catch(() => {
+      // Clipboard API may fail in non-HTTPS or unfocused contexts — ignore silently
+    });
+  }, [text]);
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="opacity-0 group-hover:opacity-100 p-1 rounded transition-opacity text-muted-foreground hover:text-foreground hover:bg-accent"
+      title="Copy to clipboard"
+    >
+      {copied ? (
+        <svg className="w-4 h-4 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+        </svg>
+      ) : (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+        </svg>
+      )}
+    </button>
+  );
+}
 
 interface ConversationMessage {
   role: "user" | "assistant" | "tool_use" | "tool_result";
@@ -49,16 +83,25 @@ function ToolCard({ msg, result }: { msg: ConversationMessage; result?: Conversa
 
   const toolLabel = formatToolLabel(msg.toolName ?? "tool", msg.toolInput);
 
+  const copyText = typeof msg.toolInput === "string"
+    ? msg.toolInput
+    : JSON.stringify(msg.toolInput, null, 2);
+
   return (
-    <div className="my-1.5 border border-msg-tool-border rounded-md bg-msg-tool">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full text-left px-3 py-2 flex items-center gap-2 text-xs hover:bg-accent/50 transition-colors rounded-md"
-      >
-        <span className="text-muted-foreground">{expanded ? "▼" : "▶"}</span>
-        <span className="text-primary font-mono">{msg.toolName}</span>
-        <span className="text-muted-foreground truncate flex-1">{toolLabel}</span>
-      </button>
+    <div className="my-1.5 border border-msg-tool-border rounded-md bg-msg-tool group">
+      <div className="flex items-center">
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="flex-1 text-left px-3 py-2 flex items-center gap-2 text-xs hover:bg-accent/50 transition-colors rounded-md"
+        >
+          <span className="text-muted-foreground">{expanded ? "▼" : "▶"}</span>
+          <span className="text-primary font-mono">{msg.toolName}</span>
+          <span className="text-muted-foreground truncate flex-1">{toolLabel}</span>
+        </button>
+        <div className="pr-2">
+          <CopyButton text={copyText} />
+        </div>
+      </div>
       {expanded && (
         <div className="px-3 pb-2 space-y-2">
           <div>
@@ -81,26 +124,6 @@ function ToolCard({ msg, result }: { msg: ConversationMessage; result?: Conversa
       )}
     </div>
   );
-}
-
-function formatToolLabel(toolName: string, input: unknown): string {
-  if (!input || typeof input !== "object") return "";
-  const obj = input as Record<string, unknown>;
-  switch (toolName) {
-    case "Read":
-    case "Edit":
-    case "Write":
-      return String(obj.file_path ?? "");
-    case "Bash":
-      return String(obj.command ?? "").slice(0, 80);
-    case "Grep":
-    case "Glob":
-      return String(obj.pattern ?? "");
-    case "WebSearch":
-      return String(obj.query ?? "");
-    default:
-      return Object.keys(obj).slice(0, 2).join(", ");
-  }
 }
 
 // --- Thinking block ---
@@ -221,9 +244,12 @@ export default function ConversationViewer({ sessionId, className }: Props) {
 
           if (msg.role === "user") {
             return (
-              <div key={key} className="ml-12">
-                <div className="bg-msg-user text-msg-user-foreground rounded-lg p-3 text-sm">
+              <div key={key} className="mr-12">
+                <div className="group relative bg-msg-user text-msg-user-foreground rounded-lg p-3 text-sm">
                   <MarkdownContent text={msg.content} variant="user" />
+                  <div className="absolute top-1.5 right-1.5">
+                    <CopyButton text={msg.content} />
+                  </div>
                 </div>
               </div>
             );
@@ -236,10 +262,13 @@ export default function ConversationViewer({ sessionId, className }: Props) {
 
           if (msg.role === "assistant") {
             return (
-              <div key={key} className="mr-12">
+              <div key={key} className="ml-12">
                 {msg.thinkingContent && <ThinkingBlock content={msg.thinkingContent} />}
-                <div className="bg-msg-assistant text-msg-assistant-foreground rounded-lg p-3 text-sm">
+                <div className="group relative bg-msg-assistant text-msg-assistant-foreground rounded-lg p-3 text-sm">
                   <MarkdownContent text={msg.content} variant="assistant" />
+                  <div className="absolute top-1.5 right-1.5">
+                    <CopyButton text={msg.content} />
+                  </div>
                 </div>
                 {msg.tokensIn != null && (
                   <div className="text-xs text-muted-foreground mt-1">
