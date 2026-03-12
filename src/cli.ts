@@ -6,15 +6,15 @@ process.on("unhandledRejection", (reason) => {
 });
 
 import { Command } from "commander";
-import { resolve, dirname } from "node:path";
+import { resolve, dirname, join, basename } from "node:path";
 import type { BotInfo } from "./docker.types.js";
-import { existsSync, statSync } from "node:fs";
+import { existsSync, statSync, readFileSync, readdirSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { execFile } from "node:child_process";
 import { MechaError } from "../shared/errors.js";
 import { parsePort, isValidName } from "../shared/validation.js";
 import { atomicWriteText } from "../shared/atomic-write.js";
-import { ensureMechaDir, getMechaDir, getBot, readSettings } from "./store.js";
+import { ensureMechaDir, getBot, readSettings } from "./store.js";
 import { loadBotConfig, buildInlineConfig } from "./config.js";
 import {
   addCredential, listCredentials, getCredential, removeCredential,
@@ -183,48 +183,129 @@ program
     printTable(header, rows);
   });
 
-// --- chat ---
+// --- query (one-shot CLI) ---
+
+/** Escape a string for use in an XML attribute */
+function escapeAttr(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/** Collect file contents from a list of paths (files or directories, recursive) */
+function collectAttachments(paths: string[]): string {
+  const MAX_BYTES = 512 * 1024; // 512KB total limit
+  let totalBytes = 0;
+  const parts: string[] = [];
+
+  function addFile(filePath: string, label: string) {
+    if (totalBytes >= MAX_BYTES) return;
+    const stat = statSync(filePath);
+    if (!stat.isFile()) return;
+    const raw = readFileSync(filePath);
+    const remaining = MAX_BYTES - totalBytes;
+    const trimmedBuf = raw.length > remaining ? raw.subarray(0, remaining) : raw;
+    const trimmed = trimmedBuf.toString("utf-8");
+    totalBytes += trimmedBuf.length;
+    parts.push(`<file path="${escapeAttr(label)}">\n${trimmed}\n</file>`);
+  }
+
+  function walkDir(dirPath: string, base: string) {
+    if (totalBytes >= MAX_BYTES) return;
+    for (const entry of readdirSync(dirPath, { withFileTypes: true })) {
+      if (totalBytes >= MAX_BYTES) return;
+      if (entry.name.startsWith(".")) continue;
+      const full = join(dirPath, entry.name);
+      const label = join(base, entry.name);
+      if (entry.isDirectory()) walkDir(full, label);
+      else addFile(full, label);
+    }
+  }
+
+  for (const p of paths) {
+    if (totalBytes >= MAX_BYTES) break;
+    const abs = resolve(p);
+    if (!existsSync(abs)) {
+      console.error(`Attachment not found: ${abs}`);
+      process.exit(1);
+    }
+    if (statSync(abs).isDirectory()) walkDir(abs, basename(abs));
+    else addFile(abs, basename(abs));
+  }
+
+  if (totalBytes >= MAX_BYTES) {
+    console.warn("Warning: attachments truncated at 512KB total");
+  }
+  return parts.join("\n\n");
+}
+
 program
-  .command("chat <name> <message>")
-  .description("Send a prompt to a bot")
-  .action(async (name: string, message: string) => {
+  .command("query <name> <message>")
+  .description("Send a one-shot prompt to a bot")
+  .option("--model <model>", "Override model (e.g. sonnet, opus, haiku)")
+  .option("--system <prompt>", "Override system prompt")
+  .option("--max-turns <n>", "Override max turns")
+  .option("--resume <session>", "Resume a specific session ID")
+  .option("--effort <level>", "Thinking effort: low, medium, high, max")
+  .option("--budget <usd>", "Max budget in USD")
+  .option("--attach <paths...>", "Attach file/folder contents to the prompt")
+  .action(async (name: string, message: string, opts) => {
     if (!isValidName(name)) { console.error(`Invalid bot name: "${name}"`); process.exit(1); }
-    // Look up bot token from registry for authenticated calls
     const botEntry = getBot(name);
     const botToken = botEntry?.botToken;
     const resolved = await resolveHostBotBaseUrl(name);
-    const url = resolved ? `${resolved.baseUrl}/prompt` : undefined;
+    if (!resolved) { console.error(`Bot "${name}" not found or not reachable`); process.exit(1); }
 
-    if (!url) {
-      console.error(`Bot "${name}" not found or not reachable`);
-      process.exit(1);
+    let fullMessage = message;
+    if (opts.attach?.length) {
+      fullMessage = `${collectAttachments(opts.attach)}\n\n${message}`;
     }
 
-    const chatHeaders: Record<string, string> = { "Content-Type": "application/json" };
-    if (botToken) chatHeaders["Authorization"] = `Bearer ${botToken}`;
-    const resp = await fetch(url, {
+    const body: Record<string, unknown> = { message: fullMessage };
+    if (opts.model) body.model = opts.model;
+    if (opts.system) body.system = opts.system;
+    if (opts.maxTurns) {
+      const n = parseInt(opts.maxTurns, 10);
+      if (!Number.isFinite(n) || n < 1) { console.error(`Invalid max-turns: "${opts.maxTurns}"`); process.exit(1); }
+      body.max_turns = n;
+    }
+    if (opts.resume) body.resume = opts.resume;
+    if (opts.effort) {
+      if (!["low", "medium", "high", "max"].includes(opts.effort)) {
+        console.error(`Invalid effort: "${opts.effort}" (valid: low, medium, high, max)`);
+        process.exit(1);
+      }
+      body.effort = opts.effort;
+    }
+    if (opts.budget) {
+      const b = parseFloat(opts.budget);
+      if (!Number.isFinite(b) || b <= 0) { console.error(`Invalid budget: "${opts.budget}"`); process.exit(1); }
+      body.max_budget_usd = b;
+    }
+
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (botToken) headers["Authorization"] = `Bearer ${botToken}`;
+    const resp = await fetch(`${resolved.baseUrl}/prompt`, {
       method: "POST",
-      headers: chatHeaders,
-      body: JSON.stringify({ message }),
-      signal: AbortSignal.timeout(5 * 60 * 1000), // 5 minute timeout
+      headers,
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(5 * 60 * 1000),
     });
 
-    if (resp.status === 409) {
-      console.error(`Bot "${name}" is busy processing another request`);
-      process.exit(1);
-    }
-
-    if (!resp.ok) {
-      console.error(`Error from bot: ${resp.status} ${resp.statusText}`);
-      process.exit(1);
-    }
+    if (resp.status === 409) { console.error(`Bot "${name}" is busy processing another request`); process.exit(1); }
+    if (!resp.ok) { console.error(`Error from bot: ${resp.status} ${resp.statusText}`); process.exit(1); }
 
     const reader = resp.body?.getReader();
-    if (!reader) {
-      console.error("No response body");
-      process.exit(1);
-    }
-    await readPromptSSE(reader);
+    if (!reader) { console.error("No response body"); process.exit(1); }
+    const ok = await readPromptSSE(reader);
+    if (!ok) process.exit(1);
+  });
+
+// --- mcp (MCP stdio server — proxy to all bots) ---
+program
+  .command("mcp")
+  .description("Start MCP stdio server (add to .mcp.json to use bots as tools)")
+  .action(async () => {
+    const { startMcpServer } = await import("./mcp-proxy.js");
+    await startMcpServer();
   });
 
 // --- logs ---

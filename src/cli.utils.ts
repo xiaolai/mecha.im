@@ -93,10 +93,11 @@ export async function fetchRemoteBots(
   return remoteBots;
 }
 
-/** Read an SSE stream from a bot prompt response and print to stdout */
-export async function readPromptSSE(reader: ReadableStreamDefaultReader<Uint8Array>): Promise<void> {
+/** Read an SSE stream from a bot prompt response and print to stdout. Returns true on success. */
+export async function readPromptSSE(reader: ReadableStreamDefaultReader<Uint8Array>): Promise<boolean> {
   const decoder = new TextDecoder();
   let buffer = "";
+  let success = true;
 
   while (true) {
     const { done, value } = await reader.read();
@@ -117,7 +118,9 @@ export async function readPromptSSE(reader: ReadableStreamDefaultReader<Uint8Arr
             process.stdout.write(`\n[tool] ${parsed.summary}\n`);
           } else if (parsed.message && !parsed.task_id) {
             console.error(`\nError: ${parsed.message}`);
+            success = false;
           } else if (parsed.cost_usd !== undefined) {
+            if (parsed.success === false) success = false;
             console.log(`\n\n---\nCost: $${parsed.cost_usd.toFixed(4)} | Duration: ${parsed.duration_ms}ms | Session: ${parsed.session_id}`);
           }
         } catch {
@@ -127,4 +130,5 @@ export async function readPromptSSE(reader: ReadableStreamDefaultReader<Uint8Arr
     }
   }
   console.log();
+  return success;
 }

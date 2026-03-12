@@ -10,7 +10,7 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import assert from "node:assert/strict";
@@ -90,11 +90,11 @@ async function run() {
   assert.ok(lsOut.includes("running"), `ls shows running status`);
   console.log("   PASS\n");
 
-  // 5. Chat
-  console.log("5. mecha chat");
-  const chatOut = mecha("chat", BOT_NAME, "Hello test");
-  assert.ok(chatOut.length > 0, "chat returned a response");
-  console.log(`   Response: ${chatOut.slice(0, 100)}...`);
+  // 5. Query
+  console.log("5. mecha query");
+  const queryOut = mecha("query", BOT_NAME, "Hello test");
+  assert.ok(queryOut.length > 0, "query returned a response");
+  console.log(`   Response: ${queryOut.slice(0, 100)}...`);
   console.log("   PASS\n");
 
   // Get bot token for authenticated API calls
@@ -149,8 +149,8 @@ async function run() {
 
   // 12. Session persistence
   console.log("12. Session persistence");
-  const chatOut2 = mecha("chat", BOT_NAME, "What did we discuss?");
-  assert.ok(chatOut2.length > 0, "resumed chat returned response");
+  const queryOut2 = mecha("query", BOT_NAME, "What did we discuss?");
+  assert.ok(queryOut2.length > 0, "resumed query returned response");
   console.log("   PASS\n");
 
   // 13. Remove
@@ -164,9 +164,8 @@ async function run() {
   mecha("auth", "add", "test-profile", "sk-ant-test-fake-key");
   const authList = mecha("auth", "list");
   assert.ok(authList.includes("test-profile"), "profile listed");
-  // Cleanup
-  const profilePath = join(homedir(), ".mecha", "auth", "test-profile.json");
-  if (existsSync(profilePath)) rmSync(profilePath);
+  // Cleanup via CLI
+  try { mecha("auth", "rm", "test-profile"); } catch { /* ok if already removed */ }
   console.log("   PASS\n");
 
   // 15. Token generation
