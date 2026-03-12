@@ -1,11 +1,12 @@
 import { useState } from "react";
 import Chat from "./views/chat";
 import Tasks from "./views/tasks";
+import TerminalView from "./views/terminal";
 import Schedule from "./views/schedule";
 import Logs from "./views/logs";
 import Config from "./views/config";
 
-const tabs = ["Chat", "Tasks", "Schedule", "Logs", "Config"] as const;
+const tabs = ["Chat", "Tasks", "Terminal", "Schedule", "Logs", "Config"] as const;
 type Tab = (typeof tabs)[number];
 
 export default function App() {
@@ -34,6 +35,7 @@ export default function App() {
       <main className="flex-1 p-6">
         {tab === "Chat" && <Chat />}
         {tab === "Tasks" && <Tasks />}
+        {tab === "Terminal" && <TerminalView />}
         {tab === "Schedule" && <Schedule />}
         {tab === "Logs" && <Logs />}
         {tab === "Config" && <Config />}

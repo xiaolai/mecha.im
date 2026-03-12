@@ -59,8 +59,8 @@ const TMP = join(homedir(), `.mecha-t10-${randomBytes(4).toString("hex")}`);
 mkdirSync(join(TMP, "sessions"), { recursive: true });
 mkdirSync(join(TMP, "logs"), { recursive: true });
 mkdirSync(join(TMP, "home-workspace"), { recursive: true });
-mkdirSync(join(TMP, "dot-claude"), { recursive: true });
-mkdirSync(join(TMP, "dot-codex"), { recursive: true });
+mkdirSync(join(TMP, "home-dot-claude"), { recursive: true });
+mkdirSync(join(TMP, "home-dot-codex"), { recursive: true });
 
 writeFileSync(join(TMP, "bot.yaml"), stringifyYaml({
   name: TEST_NAME,
@@ -102,8 +102,8 @@ await test("T10.1 Start container", async () => {
       Binds: [
         `${TMP}:/state:rw`,
         `${join(TMP, "bot.yaml")}:/config/bot.yaml:ro`,
-        `${join(TMP, "dot-claude")}:/home/appuser/.claude:rw`,
-        `${join(TMP, "dot-codex")}:/home/appuser/.codex:rw`,
+        `${join(TMP, "home-dot-claude")}:/home/appuser/.claude:rw`,
+        `${join(TMP, "home-dot-codex")}:/home/appuser/.codex:rw`,
       ],
       PortBindings: { "3000/tcp": [{ HostPort: String(HOST_PORT) }] },
     },

@@ -13,5 +13,5 @@ export function botUrl(path: string): string {
 }
 
 export function botFetch(path: string, init?: RequestInit): Promise<Response> {
-  return fetch(botUrl(path), init);
+  return fetch(botUrl(path), { ...init, credentials: "same-origin" });
 }

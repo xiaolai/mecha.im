@@ -9,6 +9,6 @@ if [ ! -c /dev/net/tun ]; then
   exec sleep infinity
 fi
 
-exec /usr/sbin/tailscaled \
+exec /home/appuser/.local/bin/tailscaled \
   --state=/state/tailscale/tailscaled.state \
   --socket=/var/run/tailscale/tailscaled.sock
