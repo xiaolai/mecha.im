@@ -11,12 +11,16 @@ export interface ZoneDef {
   facingDir: "down" | "left" | "right" | "up";
 }
 
+/**
+ * Zone positions mapped to Office Level 3 background (512×448).
+ * Each zone sits on a walkable tile adjacent to the matching furniture.
+ */
 export const ZONES: Record<ZoneId, ZoneDef> = {
-  desk:    { id: "desk",    tileX: 7,  tileY: 7,  label: "Desk",        clickable: "computer", facingDir: "up" },
-  phone:   { id: "phone",   tileX: 12, tileY: 4,  label: "Phone",       clickable: "phone",    facingDir: "up" },
-  sofa:    { id: "sofa",    tileX: 12, tileY: 11, label: "Sofa",        clickable: null,       facingDir: "down" },
-  printer: { id: "printer", tileX: 2,  tileY: 11, label: "Printer",     clickable: "printer",  facingDir: "right" },
-  server:  { id: "server",  tileX: 2,  tileY: 4,  label: "Server Rack", clickable: "server",   facingDir: "right" },
+  desk:    { id: "desk",    tileX: 4,  tileY: 4,  label: "Desk",        clickable: "computer", facingDir: "up" },
+  phone:   { id: "phone",   tileX: 13, tileY: 3,  label: "Phone",       clickable: "phone",    facingDir: "up" },
+  sofa:    { id: "sofa",    tileX: 13, tileY: 10, label: "Sofa",        clickable: null,       facingDir: "down" },
+  printer: { id: "printer", tileX: 1,  tileY: 10, label: "Printer",     clickable: "printer",  facingDir: "right" },
+  server:  { id: "server",  tileX: 8,  tileY: 2,  label: "Server Rack", clickable: "server",   facingDir: "right" },
   door:    { id: "door",    tileX: 7,  tileY: 13, label: "Door",        clickable: "door",     facingDir: "down" },
 };
 

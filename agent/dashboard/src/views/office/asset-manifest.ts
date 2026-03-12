@@ -9,11 +9,8 @@ export const ASSETS = {
   outfit5: "/dashboard/pixel-assets/metrocity/Outfits/Outfit5.png",
   outfit6: "/dashboard/pixel-assets/metrocity/Outfits/Outfit6.png",
   suit1: "/dashboard/pixel-assets/metrocity-2.0/Suit.png",
-  suit2: "/dashboard/pixel-assets/metrocity-2.0/Suit.png",
-  suit3: "/dashboard/pixel-assets/metrocity-2.0/Suit.png",
-  suit4: "/dashboard/pixel-assets/metrocity-2.0/Suit.png",
-  tileset32: "/dashboard/pixel-assets/office-tileset/Office Tileset All 32x32.png",
-  officeLevel3: "/dashboard/pixel-assets/office-tileset/Office Designs/Office Level 3.png",
+  tileset32: "/dashboard/pixel-assets/office-tileset/Office Tileset All 32x32 no shadow.png",
+  officeBackground: "/dashboard/pixel-assets/office-tileset/Office Designs/Office Level 3.png",
 } as const;
 
 export const FRAME = { width: 32, height: 32 } as const;
@@ -28,3 +25,6 @@ export const BODY_SHEET = {
 export const HAIR_SHEET = { columns: 24, rows: 8 } as const;
 export const OUTFIT_SHEET = { columns: 24, rows: 1 } as const;
 export const SUIT_SHEET = { columns: 24, rows: 4 } as const;
+
+/** Tileset spritesheet config: 16 cols × 32 rows at 32×32px */
+export const TILESET_SHEET = { columns: 16, rows: 32, frameWidth: 32, frameHeight: 32 } as const;

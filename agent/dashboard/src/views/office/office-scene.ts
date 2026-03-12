@@ -1,11 +1,12 @@
 import type { OfficeBridge, ClickableItem } from "./office-bridge";
-import { ASSETS, FRAME, BODY_SHEET, HAIR_SHEET, OUTFIT_SHEET, SUIT_SHEET } from "./asset-manifest";
-import { TILE_SIZE, MAP_COLS, MAP_ROWS, FLOOR_LAYER } from "./tilemap-data";
+import { ASSETS, FRAME, BODY_SHEET, TILESET_SHEET } from "./asset-manifest";
+import { TILE_SIZE, MAP_COLS, MAP_ROWS, WALKABLE } from "./tilemap-data";
 import { ZONES, zoneForActivity, type ZoneId } from "./zones";
 import { getRoute } from "./routes";
 import { Character } from "./character";
 import { SubagentCloneManager } from "./subagent-clones";
 import { getWindowTint, CoffeeCounter } from "./ambient";
+import { generateDecorations, type Decoration } from "./room-generator";
 
 export class OfficeScene extends Phaser.Scene {
   private bridge!: OfficeBridge;
@@ -40,6 +41,15 @@ export class OfficeScene extends Phaser.Scene {
     });
     this.load.on("complete", () => bar.destroy());
 
+    // Office background image (Office Level 3 — exact 512×448 match)
+    this.load.image("office-bg", ASSETS.officeBackground);
+
+    // Tileset spritesheet for decorations
+    this.load.spritesheet("tileset", ASSETS.tileset32, {
+      frameWidth: TILESET_SHEET.frameWidth,
+      frameHeight: TILESET_SHEET.frameHeight,
+    });
+
     // Character sprites
     this.load.spritesheet("body", ASSETS.body, {
       frameWidth: FRAME.width, frameHeight: FRAME.height,
@@ -64,9 +74,6 @@ export class OfficeScene extends Phaser.Scene {
       frameWidth: FRAME.width, frameHeight: FRAME.height,
     });
 
-    // Tileset image
-    this.load.image("tileset", ASSETS.tileset32);
-
     // Missing asset handler
     this.load.on("loaderror", (file: { key: string }) => {
       console.warn(`[OfficeScene] Failed to load: ${file.key}`);
@@ -76,8 +83,11 @@ export class OfficeScene extends Phaser.Scene {
   create(): void {
     this.cameras.main.setBackgroundColor("#2a2a3e");
 
-    this.drawFloor();
-    this.drawFurniture();
+    // Draw the pre-rendered office background
+    this.add.image(0, 0, "office-bg").setOrigin(0, 0);
+
+    // Place random decorations from tileset
+    this.placeDecorations();
 
     // Create character at sofa (default idle zone)
     const startZone = ZONES.sofa;
@@ -169,54 +179,26 @@ export class OfficeScene extends Phaser.Scene {
     this.cloneManager.sync(state.subagents);
   }
 
-  private drawFloor(): void {
-    const g = this.add.graphics();
-    for (let row = 0; row < MAP_ROWS; row++) {
-      for (let col = 0; col < MAP_COLS; col++) {
-        const tile = FLOOR_LAYER[row * MAP_COLS + col];
-        if (tile === -1) {
-          g.fillStyle(0x4a4a5e, 1);
-        } else {
-          g.fillStyle(0x6b6b8a, 1);
-        }
-        g.fillRect(col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE);
-      }
-    }
-    g.lineStyle(1, 0x555570, 0.3);
-    for (let row = 0; row <= MAP_ROWS; row++) {
-      g.lineBetween(0, row * TILE_SIZE, MAP_COLS * TILE_SIZE, row * TILE_SIZE);
-    }
-    for (let col = 0; col <= MAP_COLS; col++) {
-      g.lineBetween(col * TILE_SIZE, 0, col * TILE_SIZE, MAP_ROWS * TILE_SIZE);
-    }
-  }
+  private placeDecorations(): void {
+    // Derive seed from bot name (available via bridge state or fallback)
+    const seed = this.bridge.state.currentSessionId ?? "default-bot";
 
-  private drawFurniture(): void {
-    const g = this.add.graphics();
-    const colors: Record<ZoneId, number> = {
-      desk: 0x8b6914,
-      phone: 0x2e7d32,
-      sofa: 0x7b1fa2,
-      printer: 0x1565c0,
-      server: 0xc62828,
-      door: 0x6d4c41,
-    };
+    // Collect occupied tiles (zone positions)
+    const occupied = new Set<string>();
+    for (const zone of Object.values(ZONES)) {
+      occupied.add(`${zone.tileX},${zone.tileY}`);
+    }
 
-    for (const [id, zone] of Object.entries(ZONES) as [ZoneId, typeof ZONES[ZoneId]][]) {
-      g.fillStyle(colors[id], 0.6);
-      g.fillRect(
-        zone.tileX * TILE_SIZE + 2,
-        zone.tileY * TILE_SIZE + 2,
-        TILE_SIZE - 4,
-        TILE_SIZE - 4,
+    const decorations: Decoration[] = generateDecorations(WALKABLE, seed, occupied);
+
+    for (const deco of decorations) {
+      const sprite = this.add.sprite(
+        deco.tileX * TILE_SIZE + TILE_SIZE / 2,
+        deco.tileY * TILE_SIZE + TILE_SIZE / 2,
+        "tileset",
+        deco.frame,
       );
-
-      this.add.text(
-        zone.tileX * TILE_SIZE + TILE_SIZE / 2,
-        zone.tileY * TILE_SIZE - 6,
-        zone.label,
-        { fontSize: "8px", color: "#ffffff" },
-      ).setOrigin(0.5, 1);
+      if (deco.alpha !== undefined) sprite.setAlpha(deco.alpha);
     }
   }
 
