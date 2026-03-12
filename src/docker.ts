@@ -8,7 +8,7 @@ import { log } from "../shared/logger.js";
 import { stringify as stringifyYaml } from "yaml";
 import { getMutex } from "../shared/mutex.js";
 import { getBot, getOrCreateFleetInternalSecret, setBot, removeBot, readSettings } from "./store.js";
-import { resolveAuth, getAuthProfile } from "./auth.js";
+import { resolveAuth, getCredential, getPassthroughCredentials } from "./auth.js";
 import {
   BotAlreadyExistsError,
   BotAlreadyRunningError,
@@ -28,6 +28,7 @@ const docker = new Docker();
 const IMAGE_NAME = "mecha-agent";
 const REGISTRY_IMAGE = "ghcr.io/xiaolai/mecha.im";
 const BOTS_BASE = join(homedir(), ".mecha", "bots");
+const HEALTH_CHECK_TIMEOUT_MS = 30_000;
 
 interface SpawnOptions {
   allowRegistryEntry?: boolean;
@@ -241,7 +242,7 @@ async function spawnUnlocked(config: BotConfig, botPath?: string, opts?: SpawnOp
 
     const env = [
       `S6_KEEP_ENV=1`,
-      `ANTHROPIC_API_KEY=${auth.apiKey}`,
+      `${auth.env}=${auth.key}`,
       `MECHA_BOT_NAME=${config.name}`,
       `MECHA_BOT_TOKEN=${botToken}`,
       `MECHA_FLEET_INTERNAL_SECRET=${getOrCreateFleetInternalSecret()}`,
@@ -249,10 +250,16 @@ async function spawnUnlocked(config: BotConfig, botPath?: string, opts?: SpawnOp
       `MECHA_ENABLE_PROJECT_SETTINGS=${config.workspace ? "1" : "0"}`,
     ];
 
-    // OpenAI API key for Codex CLI (pass through from host if available)
-    const openaiKey = process.env.OPENAI_API_KEY;
-    if (openaiKey) {
-      env.push(`OPENAI_API_KEY=${openaiKey}`);
+    // Pass through additional credentials from credentials.yaml
+    const passthrough = getPassthroughCredentials(["OPENAI_API_KEY", "GEMINI_API_KEY", "XAI_API_KEY"]);
+    for (const pt of passthrough) {
+      env.push(`${pt.env}=${pt.key}`);
+    }
+
+    // Fall back to env vars if credentials.yaml doesn't have them
+    if (!passthrough.some((p) => p.env === "OPENAI_API_KEY")) {
+      const openaiKey = process.env.OPENAI_API_KEY;
+      if (openaiKey) env.push(`OPENAI_API_KEY=${openaiKey}`);
     }
 
     // Copy host Codex auth only when the operator explicitly opts in.
@@ -268,7 +275,7 @@ async function spawnUnlocked(config: BotConfig, botPath?: string, opts?: SpawnOp
       if (config.tailscale.auth_key) {
         env.push(`MECHA_TS_AUTH_KEY=${config.tailscale.auth_key}`);
       } else if (config.tailscale.auth_key_profile) {
-        const tsProfile = getAuthProfile(config.tailscale.auth_key_profile);
+        const tsProfile = getCredential(config.tailscale.auth_key_profile);
         env.push(`MECHA_TS_AUTH_KEY=${tsProfile.key}`);
       }
       if (config.tailscale.login_server) {
@@ -315,7 +322,7 @@ async function spawnUnlocked(config: BotConfig, botPath?: string, opts?: SpawnOp
 
     let healthy = false;
     let delay = 200;
-    const deadline = Date.now() + 30_000;
+    const deadline = Date.now() + HEALTH_CHECK_TIMEOUT_MS;
 
     while (Date.now() < deadline) {
       const candidates = await listHostBotEndpointCandidates(config.name, { allowRemote: false });
@@ -348,7 +355,7 @@ async function spawnUnlocked(config: BotConfig, botPath?: string, opts?: SpawnOp
       const logStream = await container.logs({ stdout: true, stderr: true, tail: 20 });
       // Redact potential secrets before truncating to avoid splitting a secret at the boundary
       const redactedLogs = logStream.toString()
-        .replace(/(ANTHROPIC_API_KEY|MECHA_BOT_TOKEN|MECHA_TS_AUTH_KEY|MECHA_HEADSCALE_API_KEY)=[^\s]*/g, "$1=***")
+        .replace(/(ANTHROPIC_API_KEY|CLAUDE_CODE_OAUTH_TOKEN|MECHA_BOT_TOKEN|MECHA_TS_AUTH_KEY|MECHA_HEADSCALE_API_KEY|OPENAI_API_KEY|GEMINI_API_KEY|XAI_API_KEY)=[^\s]*/g, "$1=***")
         .slice(0, 4096);
       log.error("Container logs on health failure", { logs: redactedLogs });
       try {

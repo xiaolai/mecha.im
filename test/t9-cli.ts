@@ -5,7 +5,7 @@
  * Prerequisites:
  *   - Docker running (colima start)
  *   - mecha-agent image built
- *   - ANTHROPIC_API_KEY available (via ~/.mecha/.env or env)
+ *   - ANTHROPIC_API_KEY available (via credentials.yaml, .env, or env)
  */
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
@@ -30,14 +30,9 @@ async function test(name: string, fn: () => void | Promise<void>) {
 
 console.log("--- T9: CLI Commands ---\n");
 
-// Load API key from ~/.mecha/.env if not set
-if (!process.env.ANTHROPIC_API_KEY) {
-  try {
-    const envFile = readFileSync(join(homedir(), ".mecha/.env"), "utf-8");
-    const match = envFile.match(/^ANTHROPIC_API_KEY=(.+)$/m);
-    if (match) process.env.ANTHROPIC_API_KEY = match[1].trim();
-  } catch { /* ignore */ }
-}
+// Load API key from credentials.yaml or .env
+import { loadApiKey } from "./load-api-key.js";
+loadApiKey();
 
 const CLI = join(import.meta.dirname, "..", "src", "cli.ts");
 const BOT_NAME = `t9-${randomBytes(3).toString("hex")}`;

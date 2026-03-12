@@ -137,6 +137,91 @@ await test("T4.9 permission_mode enum values", () => {
   assert.equal(bad.success, false);
 });
 
+// --- Credential tests ---
+
+// Override MECHA home dir for credential tests
+const CRED_TMP = join(tmpdir(), `mecha-t4-creds-${randomBytes(4).toString("hex")}`);
+mkdirSync(CRED_TMP, { recursive: true });
+const origHome = process.env.MECHA_HOME;
+process.env.MECHA_HOME = CRED_TMP;
+
+const auth = await import("../src/auth.js");
+
+// T4.10 Add and get credential
+await test("T4.10 addCredential + getCredential roundtrip", () => {
+  auth.addCredential({
+    name: "test-api",
+    type: "api_key",
+    env: "ANTHROPIC_API_KEY",
+    key: "sk-ant-api03-test123",
+  });
+  const cred = auth.getCredential("test-api");
+  assert.equal(cred.name, "test-api");
+  assert.equal(cred.type, "api_key");
+  assert.equal(cred.env, "ANTHROPIC_API_KEY");
+  assert.equal(cred.key, "sk-ant-api03-test123");
+});
+
+// T4.11 List credentials
+await test("T4.11 listCredentials", () => {
+  auth.addCredential({
+    name: "test-oauth",
+    type: "oauth_token",
+    env: "CLAUDE_CODE_OAUTH_TOKEN",
+    key: "sk-ant-oat01-test456",
+    account: "user@example.com",
+    created_at: "2026-02-13",
+  });
+  const list = auth.listCredentials();
+  assert.equal(list.length, 2);
+  assert.ok(list.some((c) => c.name === "test-api"));
+  assert.ok(list.some((c) => c.name === "test-oauth"));
+});
+
+// T4.12 Remove credential
+await test("T4.12 removeCredential", () => {
+  assert.ok(auth.removeCredential("test-api"));
+  assert.equal(auth.listCredentials().length, 1);
+  assert.ok(!auth.removeCredential("nonexistent"));
+});
+
+// T4.13 detectCredentialType
+await test("T4.13 detectCredentialType", () => {
+  assert.deepEqual(auth.detectCredentialType("sk-ant-oat01-xyz"), { type: "oauth_token", env: "CLAUDE_CODE_OAUTH_TOKEN" });
+  assert.deepEqual(auth.detectCredentialType("sk-ant-api03-xyz"), { type: "api_key", env: "ANTHROPIC_API_KEY" });
+  assert.deepEqual(auth.detectCredentialType("tskey-abc"), { type: "tailscale", env: "MECHA_TS_AUTH_KEY" });
+  assert.deepEqual(auth.detectCredentialType("sk-openai123"), { type: "api_key", env: "OPENAI_API_KEY" });
+  assert.deepEqual(auth.detectCredentialType("xai-test"), { type: "api_key", env: "XAI_API_KEY" });
+  assert.deepEqual(auth.detectCredentialType("AIzaSyTest"), { type: "api_key", env: "GEMINI_API_KEY" });
+});
+
+// T4.14 resolveAuth with credential
+await test("T4.14 resolveAuth from credential", () => {
+  const resolved = auth.resolveAuth("test-oauth");
+  assert.equal(resolved.key, "sk-ant-oat01-test456");
+  assert.equal(resolved.env, "CLAUDE_CODE_OAUTH_TOKEN");
+  assert.equal(resolved.source, "profile:test-oauth");
+});
+
+// T4.15 Update existing credential
+await test("T4.15 addCredential updates existing", () => {
+  auth.addCredential({
+    name: "test-oauth",
+    type: "oauth_token",
+    env: "CLAUDE_CODE_OAUTH_TOKEN",
+    key: "sk-ant-oat01-updated",
+  });
+  const cred = auth.getCredential("test-oauth");
+  assert.equal(cred.key, "sk-ant-oat01-updated");
+  // Should still have 1 credential (updated, not duplicated)
+  assert.equal(auth.listCredentials().length, 1);
+});
+
+// Restore
+if (origHome) process.env.MECHA_HOME = origHome;
+else delete process.env.MECHA_HOME;
+rmSync(CRED_TMP, { recursive: true, force: true });
+
 rmSync(TMP, { recursive: true, force: true });
 
 console.log(`\n--- T4 Results: ${passed} passed, ${failed} failed ---`);
