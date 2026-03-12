@@ -8,4 +8,5 @@ export const PATHS = {
   eventsLog: `${STATE_DIR}/logs/events.jsonl`,
   scheduleState: `${STATE_DIR}/logs/schedule-state.json`,
   costs: `${STATE_DIR}/costs.json`,
+  characterConfig: `${STATE_DIR}/character.json`,
 } as const;
