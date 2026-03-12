@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { botFetch } from "../lib/api";
 
 export default function Config() {
   const [config, setConfig] = useState<Record<string, unknown> | null>(null);
@@ -7,9 +8,9 @@ export default function Config() {
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/config").then((r) => r.json()),
-      fetch("/api/status").then((r) => r.json()),
-      fetch("/api/costs").then((r) => r.json()),
+      botFetch("/api/config").then((r) => r.json()),
+      botFetch("/api/status").then((r) => r.json()),
+      botFetch("/api/costs").then((r) => r.json()),
     ]).then(([c, s, co]) => {
       setConfig(c);
       setStatus(s);

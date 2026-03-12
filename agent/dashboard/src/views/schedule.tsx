@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { botFetch } from "../lib/api";
 
 interface ScheduleEntry {
   id: string;
@@ -16,16 +17,16 @@ export default function Schedule() {
   const [entries, setEntries] = useState<ScheduleEntry[]>([]);
 
   useEffect(() => {
-    fetch("/api/schedule")
+    botFetch("/api/schedule")
       .then((r) => r.json())
       .then(setEntries)
       .catch(() => {});
   }, []);
 
   async function trigger(id: string) {
-    await fetch(`/api/schedule/trigger/${encodeURIComponent(id)}`, { method: "POST" });
+    await botFetch(`/api/schedule/trigger/${encodeURIComponent(id)}`, { method: "POST" });
     // Refresh
-    const r = await fetch("/api/schedule");
+    const r = await botFetch("/api/schedule");
     setEntries(await r.json());
   }
 

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { botFetch } from "../lib/api";
 
 interface Message {
   role: "user" | "assistant" | "tool" | "error";
@@ -23,7 +24,7 @@ export default function Chat() {
     setBusy(true);
 
     try {
-      const resp = await fetch("/prompt", {
+      const resp = await botFetch("/prompt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: prompt }),

@@ -18,6 +18,7 @@ import { loadBotConfig, buildInlineConfig } from "./config.js";
 import { addAuthProfile, listAuthProfiles, getAuthProfile } from "./auth.js";
 import * as docker from "./docker.js";
 import { stringify as stringifyYaml } from "yaml";
+import { resolveHostBotBaseUrl } from "./resolve-endpoint.js";
 
 const program = new Command();
 
@@ -144,13 +145,14 @@ program
   .description("Start a previously stopped bot")
   .action(async (name: string) => {
     if (!isValidName(name)) { console.error(`Invalid bot name: "${name}"`); process.exit(1); }
-    const entry = getBot(name);
+    let entry = getBot(name);
     if (!entry) {
       console.error(`Bot "${name}" not found in registry. Use "mecha spawn" first.`);
       process.exit(1);
     }
     console.log(`Starting bot "${name}"...`);
     await docker.start(name);
+    entry = getBot(name) ?? entry;
     console.log(`Bot "${name}" is running (container: ${entry.containerId?.slice(0, 12) ?? "unknown"})`);
   });
 
@@ -258,71 +260,8 @@ program
     // Look up bot token from registry for authenticated calls
     const botEntry = getBot(name);
     const botToken = botEntry?.botToken;
-    let url: string | undefined;
-
-    // Try local docker IP first (may not be reachable on Colima/VM setups)
-    const ip = await docker.getContainerIp(name);
-    if (ip) {
-      try {
-        const probe = await fetch(`http://${ip}:3000/health`, { signal: AbortSignal.timeout(2000) });
-        if (probe.ok) url = `http://${ip}:3000/prompt`;
-      } catch {
-        // Container IP not reachable from host (e.g. Colima VM)
-      }
-    }
-
-    // Try exposed port on localhost
-    if (!url && botEntry) {
-      const containers = await docker.list();
-      const container = containers.find((c) => c.name === name);
-      if (container?.ports) {
-        const match = container.ports.match(/(\d+)→3000/);
-        if (match) {
-          try {
-            const probe = await fetch(`http://localhost:${match[1]}/health`, { signal: AbortSignal.timeout(2000) });
-            if (probe.ok) url = `http://localhost:${match[1]}/prompt`;
-          } catch {
-            // port not reachable
-          }
-        }
-      }
-    }
-
-    // Try MagicDNS (Tailscale)
-    if (!url) {
-      try {
-        const resp = await fetch(`http://mecha-${name}:3000/health`, {
-          signal: AbortSignal.timeout(2000),
-        });
-        if (resp.ok) url = `http://mecha-${name}:3000/prompt`;
-      } catch {
-        // not on tailnet
-      }
-    }
-
-    // Fallback: Headscale API
-    if (!url) {
-      const settings = readSettings();
-      if (settings.headscale_url && settings.headscale_api_key) {
-        try {
-          const resp = await fetch(`${settings.headscale_url}/api/v1/machine`, {
-            headers: { Authorization: `Bearer ${settings.headscale_api_key}` },
-            signal: AbortSignal.timeout(5000),
-          });
-          if (resp.ok) {
-            const data = await resp.json() as {
-              machines: Array<{ name: string; ipAddresses: string[] }>;
-            };
-            const machine = data.machines.find((m) => m.name === `mecha-${name}`);
-            if (machine?.ipAddresses[0]) {
-              url = `http://${machine.ipAddresses[0]}:3000/prompt`;
-            }
-          }
-        } catch {
-          // headscale not available
-        }
-      }
-    }
+    const resolved = await resolveHostBotBaseUrl(name);
+    const url = resolved ? `${resolved.baseUrl}/prompt` : undefined;
 
     if (!url) {
       console.error(`Bot "${name}" not found or not reachable`);

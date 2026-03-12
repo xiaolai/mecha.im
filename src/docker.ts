@@ -7,14 +7,19 @@ import { randomBytes } from "node:crypto";
 import { log } from "../shared/logger.js";
 import { stringify as stringifyYaml } from "yaml";
 import { getMutex } from "../shared/mutex.js";
-import { setBot, removeBot, readSettings } from "./store.js";
+import { getBot, getOrCreateFleetInternalSecret, setBot, removeBot, readSettings } from "./store.js";
 import { resolveAuth, getAuthProfile } from "./auth.js";
 import {
+  BotAlreadyExistsError,
+  BotAlreadyRunningError,
+  BotNotFoundError,
   BotNotRunningError,
   ProcessSpawnError,
   ProcessHealthTimeoutError,
 } from "../shared/errors.js";
 import type { BotConfig } from "./config.js";
+import { loadBotConfig } from "./config.js";
+import { listHostBotEndpointCandidates } from "./resolve-endpoint.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -23,6 +28,21 @@ const docker = new Docker();
 const IMAGE_NAME = "mecha-agent";
 const REGISTRY_IMAGE = "ghcr.io/xiaolai/mecha.im";
 const BOTS_BASE = join(homedir(), ".mecha", "bots");
+
+interface SpawnOptions {
+  allowRegistryEntry?: boolean;
+  replaceExisting?: boolean;
+}
+
+async function withBotLock<T>(name: string, fn: () => Promise<T>): Promise<T> {
+  const mutex = getMutex(`bot:${name}`);
+  const release = await mutex.acquire();
+  try {
+    return await fn();
+  } finally {
+    release();
+  }
+}
 
 // Read version from package.json at the installed package location
 function getVersion(): string {
@@ -131,10 +151,53 @@ function validateBotPath(botPath: string): string {
 }
 
 export async function spawn(config: BotConfig, botPath?: string): Promise<string> {
-  const mutex = getMutex(`bot:${config.name}`);
-  const release = await mutex.acquire();
+  return withBotLock(config.name, () => spawnUnlocked(config, botPath));
+}
+
+async function inspectContainer(name: string): Promise<Docker.ContainerInspectInfo | null> {
+  try {
+    return await docker.getContainer(`mecha-${name}`).inspect();
+  } catch (err) {
+    if (isDockerError(err, "No such container")) return null;
+    throw err;
+  }
+}
+
+async function removeContainerOnly(name: string): Promise<void> {
+  const container = docker.getContainer(`mecha-${name}`);
+  try {
+    await container.stop({ t: 10 });
+  } catch (err) {
+    if (!isDockerError(err, "is not running") && !isDockerError(err, "No such container")) {
+      throw err;
+    }
+  }
 
   try {
+    await container.remove();
+  } catch (err) {
+    if (!isDockerError(err, "No such container")) {
+      throw err;
+    }
+  }
+}
+
+async function spawnUnlocked(config: BotConfig, botPath?: string, opts?: SpawnOptions): Promise<string> {
+  try {
+    const existingEntry = getBot(config.name);
+    if (existingEntry && !opts?.allowRegistryEntry) {
+      throw new BotAlreadyExistsError(config.name);
+    }
+
+    const existingContainer = await inspectContainer(config.name);
+    if (existingContainer) {
+      if (opts?.replaceExisting) {
+        await removeContainerOnly(config.name);
+      } else {
+        throw new BotAlreadyExistsError(config.name);
+      }
+    }
+
     // Resolve and validate bot path
     const resolvedPath = validateBotPath(botPath ?? join(BOTS_BASE, config.name));
     mkdirSync(join(resolvedPath, "sessions"), { recursive: true });
@@ -143,6 +206,7 @@ export async function spawn(config: BotConfig, botPath?: string): Promise<string
     mkdirSync(join(resolvedPath, "claude"), { recursive: true });
     mkdirSync(join(resolvedPath, "codex"), { recursive: true });
     mkdirSync(join(resolvedPath, "tailscale"), { recursive: true });
+    mkdirSync(join(resolvedPath, "workspace"), { recursive: true });
 
     // Pre-create costs.json if missing
     const costsPath = join(resolvedPath, "costs.json");
@@ -180,6 +244,9 @@ export async function spawn(config: BotConfig, botPath?: string): Promise<string
       `ANTHROPIC_API_KEY=${auth.apiKey}`,
       `MECHA_BOT_NAME=${config.name}`,
       `MECHA_BOT_TOKEN=${botToken}`,
+      `MECHA_FLEET_INTERNAL_SECRET=${getOrCreateFleetInternalSecret()}`,
+      `MECHA_WORKSPACE_CWD=${config.workspace ? "/workspace" : "/state/workspace"}`,
+      `MECHA_ENABLE_PROJECT_SETTINGS=${config.workspace ? "1" : "0"}`,
     ];
 
     // OpenAI API key for Codex CLI (pass through from host if available)
@@ -188,10 +255,10 @@ export async function spawn(config: BotConfig, botPath?: string): Promise<string
       env.push(`OPENAI_API_KEY=${openaiKey}`);
     }
 
-    // Copy host's Codex CLI login state into the bot's codex dir (one-time snapshot)
+    // Copy host Codex auth only when the operator explicitly opts in.
     const hostCodexAuth = join(homedir(), ".codex", "auth.json");
     const botCodexAuth = join(resolvedPath, "codex", "auth.json");
-    if (existsSync(hostCodexAuth) && !existsSync(botCodexAuth)) {
+    if (process.env.MECHA_COPY_HOST_CODEX_AUTH === "1" && existsSync(hostCodexAuth) && !existsSync(botCodexAuth)) {
       const authData = readFileSync(hostCodexAuth, "utf-8");
       writeFileSync(botCodexAuth, authData, { mode: 0o600 });
     }
@@ -219,9 +286,12 @@ export async function spawn(config: BotConfig, botPath?: string): Promise<string
     }
 
     const exposedPorts: Record<string, object> = { "3000/tcp": {} };
-    const portBindings: Record<string, Array<{ HostPort: string }>> = {};
+    const portBindings: Record<string, Array<{ HostIp?: string; HostPort?: string }>> = {};
     if (config.expose) {
       portBindings["3000/tcp"] = [{ HostPort: String(config.expose) }];
+    } else {
+      // Always publish a loopback-only management port so host features work on Colima/Docker Desktop.
+      portBindings["3000/tcp"] = [{ HostIp: "127.0.0.1", HostPort: "" }];
     }
 
     const container = await docker.createContainer({
@@ -243,32 +313,31 @@ export async function spawn(config: BotConfig, botPath?: string): Promise<string
 
     await container.start();
 
-    // Health check with exponential backoff
-    // On colima/macOS, container IPs are not reachable from the host — use port mapping
-    const containerInfo = await container.inspect();
-    const containerIp = containerInfo.NetworkSettings.IPAddress;
-    const hostBindings = containerInfo.HostConfig?.PortBindings?.["3000/tcp"] as Array<{ HostPort: string }> | undefined;
-    const mappedPort = hostBindings?.[0]?.HostPort;
-    const healthUrl = containerIp
-      ? `http://${containerIp}:3000/health`
-      : `http://localhost:${mappedPort ?? config.expose ?? 3000}/health`;
-
     let healthy = false;
     let delay = 200;
     const deadline = Date.now() + 30_000;
 
     while (Date.now() < deadline) {
-      try {
-        const resp = await fetch(healthUrl, { signal: AbortSignal.timeout(2000) });
-        if (resp.ok) {
-          healthy = true;
-          break;
+      const candidates = await listHostBotEndpointCandidates(config.name, { allowRemote: false });
+      for (const candidate of candidates) {
+        try {
+          const resp = await fetch(`${candidate.baseUrl}/health`, { signal: AbortSignal.timeout(2000) });
+          if (resp.ok) {
+            healthy = true;
+            break;
+          }
+        } catch (err) {
+          if (Date.now() + delay >= deadline) {
+            log.warn(`Health check failing for "${config.name}"`, {
+              via: candidate.via,
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
         }
-      } catch (err) {
-        // Log retry failures at debug level for diagnosability
-        if (Date.now() + delay >= deadline) {
-          log.warn(`Health check failing for "${config.name}"`, { error: err instanceof Error ? err.message : String(err) });
-        }
+      }
+      if (healthy) break;
+      if (candidates.length === 0 && Date.now() + delay >= deadline) {
+        log.warn(`Health check failing for "${config.name}"`, { error: "no reachable host endpoint candidates" });
       }
       await new Promise((r) => setTimeout(r, delay));
       delay = Math.min(delay * 2, 1000);
@@ -303,25 +372,28 @@ export async function spawn(config: BotConfig, botPath?: string): Promise<string
   } catch (err) {
     if (err instanceof ProcessHealthTimeoutError) throw err;
     throw new ProcessSpawnError(err instanceof Error ? err.message : String(err));
-  } finally {
-    release();
   }
 }
 
 export async function start(name: string): Promise<void> {
-  const mutex = getMutex(`bot:${name}`);
-  const release = await mutex.acquire();
-  try {
-    const container = docker.getContainer(`mecha-${name}`);
-    await container.start();
-  } catch (err) {
-    if (isDockerError(err, "No such container")) {
-      throw new BotNotRunningError(name);
+  await withBotLock(name, async () => {
+    const entry = getBot(name);
+    if (!entry?.config) {
+      throw new BotNotFoundError(name);
     }
-    throw err;
-  } finally {
-    release();
-  }
+
+    const info = await inspectContainer(name);
+    if (info) {
+      if (info.State?.Running) {
+        throw new BotAlreadyRunningError(name);
+      }
+      await docker.getContainer(`mecha-${name}`).start();
+      return;
+    }
+
+    const config = loadBotConfig(entry.config);
+    await spawnUnlocked(config, entry.path, { allowRegistryEntry: true });
+  });
 }
 
 export async function stop(name: string): Promise<void> {
@@ -364,6 +436,22 @@ export async function remove(name: string): Promise<void> {
   } finally {
     release();
   }
+}
+
+export async function restart(name: string): Promise<string> {
+  return withBotLock(name, async () => {
+    const entry = getBot(name);
+    if (!entry?.config) {
+      throw new BotNotFoundError(name);
+    }
+
+    const config = loadBotConfig(entry.config);
+    await removeContainerOnly(name);
+    return await spawnUnlocked(config, entry.path, {
+      allowRegistryEntry: true,
+      replaceExisting: true,
+    });
+  });
 }
 
 function isDockerError(err: unknown, pattern: string): boolean {
