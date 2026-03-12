@@ -19,6 +19,7 @@ export interface ContentBlock {
   text?: string;
   name?: string;
   input?: unknown;
+  id?: string;
 }
 
 export interface SdkAssistantEvent {

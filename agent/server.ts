@@ -21,6 +21,8 @@ import type { PtyManager } from "./pty-manager.js";
 import type {
   QueryResult, SdkEvent, SdkSystemEvent, SdkAssistantEvent, SdkResultEvent,
 } from "./server.types.js";
+import { officeEvents } from "./office-events.js";
+import { readCharacter, writeCharacter, validateCharacter } from "./character-config.js";
 
 const promptSchema = z.object({
   message: z.string().min(1),
@@ -154,6 +156,30 @@ async function runClaude(
           }
           if (block.type === "tool_use") {
             onEvent?.({ type: "tool_use", data: { tool: block.name, input: block.input } });
+            // Office SSE: emit tool event
+            officeEvents.emit("tool", { name: block.name, context: formatToolContext(block.name, block.input) });
+            // Office SSE: detect subagent spawn
+            if (block.name === "Agent") {
+              const agentInput = block.input as Record<string, unknown> | undefined;
+              officeEvents.emit("subagent", {
+                action: "spawn",
+                id: block.id ?? "",
+                type: String(agentInput?.subagent_type ?? "general"),
+                description: String(agentInput?.description ?? ""),
+              });
+            }
+          }
+        }
+      }
+    }
+
+    // Detect tool_result for subagent completion
+    if (event.type === "user") {
+      const userEvent = event as { type: string; message?: { content?: Array<{ type: string; tool_use_id?: string }> } };
+      if (userEvent.message?.content) {
+        for (const block of userEvent.message.content) {
+          if (block.type === "tool_result" && block.tool_use_id) {
+            officeEvents.emit("subagent", { action: "complete", id: block.tool_use_id });
           }
         }
       }
@@ -189,6 +215,18 @@ function activityStateForSource(source: TaskSource): "thinking" | "calling" | "s
   if (source === "schedule") return "scheduled";
   if (source === "webhook") return "webhook";
   return "thinking";
+}
+
+function formatToolContext(toolName: string, input: unknown): string {
+  if (!input || typeof input !== "object") return "";
+  const obj = input as Record<string, unknown>;
+  switch (toolName) {
+    case "Read": case "Edit": case "Write": return String(obj.file_path ?? "");
+    case "Bash": return String(obj.command ?? "").slice(0, 80);
+    case "Grep": case "Glob": return String(obj.pattern ?? "");
+    case "WebSearch": return String(obj.query ?? "");
+    default: return "";
+  }
 }
 
 export function createApp(config: BotConfig, startedAt: number, ptyManager?: PtyManager) {
@@ -251,9 +289,15 @@ export function createApp(config: BotConfig, startedAt: number, ptyManager?: Pty
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       sessions.markError(message);
+      activity.transition("error");
+      setTimeout(() => {
+        if (activity.getState() === "error") activity.transition("idle");
+      }, 5000);
       throw err;
     } finally {
-      activity.transition("idle");
+      if (activity.getState() !== "error") {
+        activity.transition("idle");
+      }
       release();
     }
   }
@@ -337,9 +381,15 @@ export function createApp(config: BotConfig, startedAt: number, ptyManager?: Pty
         const message = err instanceof Error ? err.message : String(err);
         log.error("Prompt stream error", { error: message });
         sessions.markError(message);
+        activity.transition("error");
+        setTimeout(() => {
+          if (activity.getState() === "error") activity.transition("idle");
+        }, 5000);
         await stream.writeSSE({ event: "error", data: JSON.stringify({ message: "Internal error processing request" }) });
       } finally {
-        activity.transition("idle");
+        if (activity.getState() !== "error") {
+          activity.transition("idle");
+        }
         release();
       }
     });
@@ -397,6 +447,7 @@ export function createApp(config: BotConfig, startedAt: number, ptyManager?: Pty
       model: config.model,
       uptime: Math.floor((Date.now() - startedAt) / 1000),
       current_task: activeTask?.id ?? null,
+      current_session_id: activeTask?.session_id ?? null,
       talking_to: activity.getTalkingTo(),
       last_active: activity.getLastActive(),
     });
@@ -404,16 +455,44 @@ export function createApp(config: BotConfig, startedAt: number, ptyManager?: Pty
 
   app.get("/api/status/stream", async (c) => {
     return streamSSE(c, async (stream) => {
-      const onChange = (data: unknown) => {
-        stream.writeSSE({ event: "state", data: JSON.stringify(data) }).catch(() => {
-          // client disconnected, will be cleaned up by abort handler
-        });
+      // Send initial snapshot on connect
+      const snapshot = {
+        activity: activity.getState(),
+        talkingTo: activity.getTalkingTo(),
+        lastActive: activity.getLastActive(),
       };
-      activity.on("change", onChange);
+      await stream.writeSSE({ event: "snapshot", data: JSON.stringify(snapshot) });
+
+      // Subscribe to state changes
+      const onStateChange = (data: unknown) => {
+        stream.writeSSE({ event: "state", data: JSON.stringify(data) }).catch(() => {});
+      };
+      activity.on("change", onStateChange);
+
+      // Subscribe to tool events
+      const onTool = (data: unknown) => {
+        stream.writeSSE({ event: "tool", data: JSON.stringify(data) }).catch(() => {});
+      };
+      officeEvents.on("tool", onTool);
+
+      // Subscribe to subagent events
+      const onSubagent = (data: unknown) => {
+        stream.writeSSE({ event: "subagent", data: JSON.stringify(data) }).catch(() => {});
+      };
+      officeEvents.on("subagent", onSubagent);
+
+      // Heartbeat every 30s
+      const heartbeat = setInterval(() => {
+        stream.writeSSE({ event: "heartbeat", data: "" }).catch(() => {});
+      }, 30_000);
+
       // Keep alive until client disconnects
       await new Promise<void>((resolve) => {
         c.req.raw.signal.addEventListener("abort", () => {
-          activity.off("change", onChange);
+          activity.off("change", onStateChange);
+          officeEvents.off("tool", onTool);
+          officeEvents.off("subagent", onSubagent);
+          clearInterval(heartbeat);
           resolve();
         });
       });
@@ -423,7 +502,12 @@ export function createApp(config: BotConfig, startedAt: number, ptyManager?: Pty
   app.get("/api/logs", (c) => {
     const rawLimit = parseInt(c.req.query("limit") ?? "100", 10);
     const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 500) : 100;
-    return c.json(readEvents(limit));
+    const source = c.req.query("source");
+    let events = readEvents(limit);
+    if (source) {
+      events = events.filter((e) => e.type === source || e.source === source);
+    }
+    return c.json(events);
   });
 
   app.get("/api/schedule", (c) => {
@@ -476,6 +560,20 @@ export function createApp(config: BotConfig, startedAt: number, ptyManager?: Pty
       log.error("Failed to get session", { error: err instanceof Error ? err.message : String(err) });
       return c.json({ error: "Failed to get session" }, 500);
     }
+  });
+
+  // Character appearance config
+  app.get("/api/config/character", (c) => {
+    return c.json(readCharacter());
+  });
+
+  app.post("/api/config/character", async (c) => {
+    const body = await c.req.json().catch(() => null);
+    if (!validateCharacter(body)) {
+      return c.json({ error: "Invalid character config. skin: 0-5, hair: 0-7, outfit: outfit1-6 or suit1-4" }, 400);
+    }
+    writeCharacter(body);
+    return c.json({ ok: true });
   });
 
   // Bot dashboard static files
