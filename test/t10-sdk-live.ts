@@ -63,6 +63,7 @@ const BASE_URL = `http://localhost:${HOST_PORT}`;
 const TMP = join(homedir(), `.mecha-t10-${randomBytes(4).toString("hex")}`);
 mkdirSync(join(TMP, "sessions"), { recursive: true });
 mkdirSync(join(TMP, "logs"), { recursive: true });
+mkdirSync(join(TMP, "workspace"), { recursive: true });
 mkdirSync(join(TMP, "claude"), { recursive: true });
 mkdirSync(join(TMP, "codex"), { recursive: true });
 
@@ -135,7 +136,19 @@ await test("T10.2 Send prompt and get response", async () => {
 
   // Read SSE events
   const text = await res.text();
+  console.log("    ... raw SSE response length:", text.length);
   const events = text.split("\n\n").filter(Boolean);
+  console.log("    ... SSE events:", events.map(e => {
+    const eventLine = e.split("\n").find(l => l.startsWith("event: "));
+    return eventLine?.replace("event: ", "") ?? "unknown";
+  }).join(", "));
+
+  // If there's an error event, log it
+  const errorEvent = events.find(e => e.includes("event: error"));
+  if (errorEvent) {
+    const dataLine = errorEvent.split("\n").find(l => l.startsWith("data: "));
+    console.log("    ... ERROR event:", dataLine?.replace("data: ", ""));
+  }
 
   // Find start event
   const startEvent = events.find(e => e.includes("event: start"));
@@ -143,7 +156,7 @@ await test("T10.2 Send prompt and get response", async () => {
 
   // Find done event
   const doneEvent = events.find(e => e.includes("event: done"));
-  assert.ok(doneEvent, "has done event");
+  assert.ok(doneEvent, `has done event (got events: ${events.length}, raw: ${text.substring(0, 500)})`);
 
   // Parse done data
   const doneDataLine = doneEvent!.split("\n").find(l => l.startsWith("data: "));
@@ -193,6 +206,21 @@ await test("T10.5 Bot idle after prompt", async () => {
   const data = await res.json() as { state: string };
   assert.equal(data.state, "idle");
 });
+
+// Capture container logs before cleanup if any tests failed
+if (container && failed > 0) {
+  try {
+    const logs = await container.logs({ stdout: true, stderr: true, tail: 80 });
+    const logText = typeof logs === "string" ? logs : logs.toString("utf-8");
+    // Strip docker stream header bytes (8-byte prefix per line)
+    const cleaned = logText.replace(/[\x00-\x08]/g, "").replace(/\r/g, "");
+    console.log("\n--- Container logs (last 80 lines) ---");
+    console.log(cleaned.slice(-4000));
+    console.log("--- End container logs ---\n");
+  } catch (e) {
+    console.log("    (could not capture container logs:", e instanceof Error ? e.message : e, ")");
+  }
+}
 
 // Cleanup
 if (container) {
