@@ -23,14 +23,9 @@ const SOCKET = process.env.DOCKER_HOST?.replace("unix://", "")
   || join(homedir(), ".colima/default/docker.sock");
 const docker = new Docker({ socketPath: SOCKET });
 
-// Load API key
-if (!process.env.ANTHROPIC_API_KEY) {
-  try {
-    const envFile = readFileSync(join(homedir(), ".mecha/.env"), "utf-8");
-    const match = envFile.match(/^ANTHROPIC_API_KEY=(.+)$/m);
-    if (match) process.env.ANTHROPIC_API_KEY = match[1].trim();
-  } catch { /* ignore */ }
-}
+// Load API key from credentials.yaml or .env
+import { loadApiKey } from "./load-api-key.js";
+loadApiKey();
 
 if (!process.env.ANTHROPIC_API_KEY) {
   console.log("SKIP: ANTHROPIC_API_KEY not available");

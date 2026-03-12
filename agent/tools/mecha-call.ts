@@ -53,7 +53,6 @@ export async function callBot(botName: string, message: string): Promise<string>
   let parseErrors = 0;
 
   // SSE parser: accumulate event blocks (event + data lines), dispatch on blank line
-  let currentEvent = "";
   let currentData: string[] = [];
 
   while (true) {
@@ -77,10 +76,7 @@ export async function callBot(botName: string, message: string): Promise<string>
             parseErrors++;
           }
         }
-        currentEvent = "";
         currentData = [];
-      } else if (line.startsWith("event: ")) {
-        currentEvent = line.slice(7);
       } else if (line.startsWith("data: ")) {
         currentData.push(line.slice(6));
       } else if (line.startsWith("data:")) {
