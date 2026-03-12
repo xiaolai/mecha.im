@@ -14,11 +14,13 @@ export default function SessionDetail({ sessionId, hasPty, className }: Props) {
   return (
     <div className={`flex flex-col ${className ?? ""}`}>
       {/* Action bar */}
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-800 bg-gray-900/60">
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-card">
         <button
           onClick={() => setShowTerminal(false)}
-          className={`px-3 py-1 rounded text-xs font-medium ${
-            !showTerminal ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white hover:bg-gray-800"
+          className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+            !showTerminal
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:text-foreground hover:bg-accent"
           }`}
         >
           Conversation
@@ -26,8 +28,10 @@ export default function SessionDetail({ sessionId, hasPty, className }: Props) {
         {hasPty && (
           <button
             onClick={() => setShowTerminal(true)}
-            className={`px-3 py-1 rounded text-xs font-medium ${
-              showTerminal ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white hover:bg-gray-800"
+            className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+              showTerminal
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent"
             }`}
           >
             Terminal
@@ -36,8 +40,10 @@ export default function SessionDetail({ sessionId, hasPty, className }: Props) {
         {!hasPty && (
           <button
             onClick={() => setShowTerminal(true)}
-            className={`px-3 py-1 rounded text-xs font-medium ${
-              showTerminal ? "bg-green-600 text-white" : "text-gray-400 hover:text-white hover:bg-gray-800"
+            className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+              showTerminal
+                ? "bg-success text-success-foreground"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent"
             }`}
           >
             Continue Session

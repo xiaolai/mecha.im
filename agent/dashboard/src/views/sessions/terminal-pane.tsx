@@ -1,15 +1,31 @@
 import { useEffect, useRef, useState, useCallback } from "react";
+import { botUrl } from "../../lib/api";
+import { parseWsMessage } from "../../lib/ws-parse";
 import "@xterm/xterm/css/xterm.css";
+
+const isMock = import.meta.env.VITE_MOCK === "true" || import.meta.env.VITE_MOCK === true;
 
 const RESIZE_DEBOUNCE_MS = 100;
 
-const DARK_THEME = {
-  background: "#111827",
-  foreground: "#e0e0e0",
-  cursor: "#e0e0e0",
-  cursorAccent: "#111827",
-  selectionBackground: "rgba(255,255,255,0.2)",
-};
+function getTerminalTheme(): Record<string, string> {
+  const isDark = document.documentElement.classList.contains("dark");
+  if (isDark) {
+    return {
+      background: "#0a0a0f",
+      foreground: "#e0e0e0",
+      cursor: "#e0e0e0",
+      cursorAccent: "#0a0a0f",
+      selectionBackground: "rgba(255,255,255,0.15)",
+    };
+  }
+  return {
+    background: "#ffffff",
+    foreground: "#1a1a2e",
+    cursor: "#1a1a2e",
+    cursorAccent: "#ffffff",
+    selectionBackground: "rgba(0,0,0,0.1)",
+  };
+}
 
 interface Props {
   sessionId?: string;
@@ -35,11 +51,30 @@ export default function TerminalPane({ sessionId, className, onSessionId }: Prop
     }
   }, []);
 
+  // Sync xterm theme with document dark/light class
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      const term = termRef.current;
+      if (term) {
+        term.options.theme = getTerminalTheme();
+      }
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
+
   useEffect(() => {
     if (!containerRef.current) return;
 
-    setStatus("connecting");
     setExitCode(null);
+
+    // In mock mode, no WebSocket server is available
+    if (isMock) {
+      setStatus("disconnected");
+      return;
+    }
+
+    setStatus("connecting");
 
     let disposed = false;
     let gotExitMessage = false;
@@ -55,7 +90,7 @@ export default function TerminalPane({ sessionId, className, onSessionId }: Prop
         const term = new XTerm({
           cursorBlink: true,
           scrollback: 10_000,
-          theme: DARK_THEME,
+          theme: getTerminalTheme(),
           fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace",
           fontSize: 14,
         });
@@ -76,9 +111,11 @@ export default function TerminalPane({ sessionId, className, onSessionId }: Prop
         params.set("cols", String(term.cols));
         params.set("rows", String(term.rows));
         const query = params.toString();
-        const wsUrl = `${proto}//${window.location.host}/ws/terminal${query ? `?${query}` : ""}`;
+        const wsPath = botUrl(`/ws/terminal${query ? `?${query}` : ""}`);
+        const wsUrl = `${proto}//${window.location.host}${wsPath}`;
 
         const ws = new WebSocket(wsUrl);
+        ws.binaryType = "arraybuffer";
         wsRef.current = ws;
 
         ws.onopen = () => {
@@ -89,31 +126,25 @@ export default function TerminalPane({ sessionId, className, onSessionId }: Prop
 
         ws.onmessage = (event: MessageEvent) => {
           if (disposed) return;
-          if (event.data instanceof ArrayBuffer) {
-            term.write(new Uint8Array(event.data));
-          } else {
-            const text = event.data as string;
-            if (text.charAt(0) === "{") {
-              try {
-                const msg = JSON.parse(text) as {
-                  __mecha?: boolean; type: string;
-                  id?: string; code?: number; message?: string;
-                };
-                if (msg.__mecha) {
-                  if (msg.type === "session" && msg.id) {
-                    onSessionId?.(msg.id);
-                  } else if (msg.type === "exit") {
-                    gotExitMessage = true;
-                    setExitCode(typeof msg.code === "number" ? msg.code : -1);
-                    setStatus("disconnected");
-                  } else if (msg.type === "error") {
-                    term.writeln(`\r\n\x1b[31mError: ${msg.message ?? "Unknown error"}\x1b[0m`);
-                  }
-                  return;
-                }
-              } catch { /* not valid JSON */ }
-            }
-            term.write(text);
+          const parsed = parseWsMessage(event.data);
+          switch (parsed.kind) {
+            case "binary":
+              term.write(parsed.data);
+              break;
+            case "text":
+              term.write(parsed.data);
+              break;
+            case "mecha-session":
+              onSessionId?.(parsed.id);
+              break;
+            case "mecha-exit":
+              gotExitMessage = true;
+              setExitCode(parsed.code);
+              setStatus("disconnected");
+              break;
+            case "mecha-error":
+              term.writeln(`\r\n\x1b[31mError: ${parsed.message}\x1b[0m`);
+              break;
           }
         };
 
@@ -160,21 +191,35 @@ export default function TerminalPane({ sessionId, className, onSessionId }: Prop
     };
   }, [sessionId, sendResize, onSessionId]);
 
+  // Mock mode: show centered placeholder instead of terminal
+  if (isMock) {
+    return (
+      <div className={`flex flex-col ${className ?? ""}`}>
+        <div className="flex-1 flex items-center justify-center bg-muted/30">
+          <div className="text-center space-y-2">
+            <div className="text-muted-foreground text-sm">Terminal not available in mock mode</div>
+            <div className="text-muted-foreground/60 text-xs">Connect to a live Mecha server to use the terminal</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`flex flex-col ${className ?? ""}`}>
       {/* Status bar */}
-      <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-900/80 border-b border-gray-800 text-xs">
+      <div className="flex items-center gap-2 px-3 py-1.5 bg-card border-b border-border text-xs">
         {status === "connecting" && (
-          <span className="text-yellow-400">Connecting...</span>
+          <span className="text-warning">Connecting...</span>
         )}
         {status === "connected" && (
-          <span className="text-green-400 flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+          <span className="text-success flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
             Terminal connected
           </span>
         )}
         {status === "disconnected" && (
-          <span className={exitCode === 0 ? "text-green-400" : "text-red-400"}>
+          <span className={exitCode === 0 ? "text-success" : "text-destructive"}>
             {exitCode !== null ? `Exited (${exitCode})` : "Disconnected"}
           </span>
         )}
@@ -183,7 +228,7 @@ export default function TerminalPane({ sessionId, className, onSessionId }: Prop
       {/* Terminal */}
       <div
         ref={containerRef}
-        className="flex-1 min-h-0 overflow-hidden"
+        className="flex-1 min-h-0 overflow-hidden bg-background"
         style={{ padding: "4px" }}
       />
     </div>

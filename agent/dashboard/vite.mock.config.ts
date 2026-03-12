@@ -6,4 +6,5 @@ export default defineConfig({
   plugins: [react(), mockApiPlugin()],
   base: "/dashboard/",
   build: { outDir: "dist" },
+  define: { "import.meta.env.VITE_MOCK": "true" },
 });

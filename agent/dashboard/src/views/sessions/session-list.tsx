@@ -39,57 +39,80 @@ interface Props {
 
 export default function SessionList({ selectedId, onSelect, onNewSession }: Props) {
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
+    let timer: ReturnType<typeof setInterval>;
+
     const load = () => {
+      if (document.hidden) return;
       botFetch("/api/sessions")
         .then((r) => r.json())
-        .then((data) => { if (active && Array.isArray(data)) setSessions(data as SessionSummary[]); })
-        .catch(() => {});
+        .then((data) => {
+          if (active && Array.isArray(data)) {
+            setSessions(data as SessionSummary[]);
+            setLoadError(null);
+          }
+        })
+        .catch((err) => {
+          if (active) setLoadError(err instanceof Error ? err.message : "Failed to load sessions");
+        });
     };
+
     load();
-    const timer = setInterval(load, 15_000);
-    return () => { active = false; clearInterval(timer); };
+    timer = setInterval(load, 15_000);
+
+    const onVisibility = () => { if (!document.hidden) load(); };
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      active = false;
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, []);
 
   return (
-    <div className="w-72 shrink-0 border-r border-gray-700 flex flex-col bg-gray-900/50 h-full overflow-hidden">
-      <div className="p-3 border-b border-gray-700">
+    <div className="w-72 shrink-0 border-r border-border flex flex-col bg-card h-full overflow-hidden">
+      <div className="p-3 border-b border-border">
         <button
           onClick={onNewSession}
-          className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded text-sm font-medium"
+          className="w-full px-3 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-md text-sm font-medium transition-colors"
         >
           + New Session
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
-        {sessions.length === 0 && (
-          <p className="text-gray-500 text-sm p-4 text-center">No sessions yet</p>
+      <div className="flex-1 overflow-y-auto scrollbar-thin">
+        {loadError && (
+          <p className="text-destructive text-sm p-4 text-center">{loadError}</p>
+        )}
+        {!loadError && sessions.length === 0 && (
+          <p className="text-muted-foreground text-sm p-4 text-center">No sessions yet</p>
         )}
         {sessions.map((s) => (
           <button
             key={s.id}
             onClick={() => onSelect(s.id, s.hasPty)}
-            className={`w-full text-left px-3 py-3 border-b border-gray-800 hover:bg-gray-800/60 transition-colors ${
-              selectedId === s.id ? "bg-blue-900/30 border-l-2 border-l-blue-500" : ""
+            className={`w-full text-left px-3 py-3 border-b border-border hover:bg-accent transition-colors ${
+              selectedId === s.id ? "bg-accent border-l-2 border-l-primary" : ""
             }`}
           >
             <div className="flex items-start gap-2">
               <span
                 className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${
-                  s.hasPty ? "bg-green-400 animate-pulse" : "bg-gray-600"
+                  s.hasPty ? "bg-success animate-pulse" : "bg-muted-foreground/30"
                 }`}
               />
               <div className="min-w-0 flex-1">
-                <p className="text-sm text-gray-200 truncate">{s.title}</p>
-                <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
+                <p className="text-sm text-foreground truncate">{s.title}</p>
+                <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
                   <span>{timeAgo(s.lastActivity)}</span>
-                  <span className="text-gray-700">·</span>
+                  <span className="opacity-30">·</span>
                   <span>{s.messageCount} msgs</span>
-                  <span className="text-gray-700">·</span>
-                  <span className="text-gray-600">{modelShort(s.model)}</span>
+                  <span className="opacity-30">·</span>
+                  <span>{modelShort(s.model)}</span>
                 </div>
               </div>
             </div>

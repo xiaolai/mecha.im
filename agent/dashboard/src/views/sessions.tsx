@@ -45,7 +45,7 @@ export default function Sessions() {
           />
         )}
         {!newSession && !selected && (
-          <div className="flex-1 flex items-center justify-center text-gray-500">
+          <div className="flex-1 flex items-center justify-center text-muted-foreground">
             Select a session or start a new one
           </div>
         )}

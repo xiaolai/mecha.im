@@ -7,6 +7,10 @@ export default defineConfig({
   build: {
     outDir: "dist",
   },
+  test: {
+    environment: "jsdom",
+    include: ["src/**/*.test.{ts,tsx}"],
+  },
   server: {
     proxy: {
       "/api": `http://localhost:${process.env.MECHA_PORT ?? "7801"}`,
