@@ -1,19 +1,16 @@
 import { useState } from "react";
-import Chat from "./views/chat";
-import Tasks from "./views/tasks";
-import TerminalView from "./views/terminal";
+import Sessions from "./views/sessions";
 import Schedule from "./views/schedule";
-import Logs from "./views/logs";
-import Config from "./views/config";
+import Settings from "./views/settings";
 
-const tabs = ["Chat", "Tasks", "Terminal", "Schedule", "Logs", "Config"] as const;
+const tabs = ["Sessions", "Schedule", "Settings"] as const;
 type Tab = (typeof tabs)[number];
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>("Chat");
+  const [tab, setTab] = useState<Tab>("Sessions");
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="h-screen flex flex-col overflow-hidden">
       <header className="bg-gray-900 border-b border-gray-800 px-6 py-3 flex items-center gap-6">
         <h1 className="text-lg font-bold text-white">Mecha Bot</h1>
         <nav className="flex gap-1">
@@ -32,13 +29,10 @@ export default function App() {
           ))}
         </nav>
       </header>
-      <main className="flex-1 p-6">
-        {tab === "Chat" && <Chat />}
-        {tab === "Tasks" && <Tasks />}
-        {tab === "Terminal" && <TerminalView />}
+      <main className="flex-1 min-h-0 overflow-hidden">
+        {tab === "Sessions" && <Sessions />}
         {tab === "Schedule" && <Schedule />}
-        {tab === "Logs" && <Logs />}
-        {tab === "Config" && <Config />}
+        {tab === "Settings" && <Settings />}
       </main>
     </div>
   );

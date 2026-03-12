@@ -95,5 +95,6 @@ RUN touch /etc/s6-overlay/s6-rc.d/user/contents.d/tailscaled \
 RUN mkdir -p /state/tailscale /var/run/tailscale \
     && chown -R appuser:appuser /state /var/run/tailscale /app
 
+ENV S6_KEEP_ENV=1
 EXPOSE 3000
 ENTRYPOINT ["/init"]
