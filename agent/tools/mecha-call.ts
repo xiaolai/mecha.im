@@ -2,8 +2,7 @@ import { logEvent } from "../event-log.js";
 import { isValidName } from "../../shared/validation.js";
 import { log } from "../../shared/logger.js";
 
-// Bot-to-bot calls use the caller's own token (recipient should accept it or use a shared fleet token)
-const BOT_TOKEN = process.env.MECHA_BOT_TOKEN;
+const FLEET_INTERNAL_SECRET = process.env.MECHA_FLEET_INTERNAL_SECRET;
 
 export async function callBot(botName: string, message: string): Promise<string> {
   if (!isValidName(botName)) {
@@ -13,7 +12,9 @@ export async function callBot(botName: string, message: string): Promise<string>
   const start = Date.now();
 
   const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (BOT_TOKEN) headers["Authorization"] = `Bearer ${BOT_TOKEN}`;
+  if (FLEET_INTERNAL_SECRET) {
+    headers["x-mecha-internal-auth"] = FLEET_INTERNAL_SECRET;
+  }
 
   let resp: Response;
   try {

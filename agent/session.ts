@@ -4,13 +4,19 @@ import { atomicWriteJson } from "../shared/atomic-write.js";
 import { log } from "../shared/logger.js";
 import { PATHS } from "./paths.js";
 
+const taskSourceSchema = z.enum(["interactive", "schedule", "webhook", "interbot"]);
+
 const taskSchema = z.object({
   id: z.string(),
   created: z.string(),
+  started_at: z.string().optional(),
+  ended_at: z.string().nullable().optional(),
+  source: taskSourceSchema.default("interactive"),
   status: z.enum(["active", "completed", "error"]),
   summary: z.string().optional(),
   session_id: z.string().optional(),
   cost_usd: z.number().default(0),
+  error: z.string().optional(),
 });
 
 const indexSchema = z.object({
@@ -20,6 +26,7 @@ const indexSchema = z.object({
 
 type Task = z.infer<typeof taskSchema>;
 type SessionIndex = z.infer<typeof indexSchema>;
+export type TaskSource = z.infer<typeof taskSourceSchema>;
 
 const INDEX_PATH = PATHS.sessionIndex;
 const MAX_TASKS = 500;
@@ -45,12 +52,16 @@ export class SessionManager {
     return this.index.tasks.find((t) => t.id === this.index.active_task_id);
   }
 
-  ensureActiveTask(): Task {
+  ensureActiveTask(source: TaskSource = "interactive"): Task {
     let task = this.getActiveTask();
     if (!task) {
+      const now = new Date().toISOString();
       task = {
         id: crypto.randomUUID(),
-        created: new Date().toISOString(),
+        created: now,
+        started_at: now,
+        ended_at: null,
+        source,
         status: "active",
         cost_usd: 0,
       };
@@ -66,6 +77,11 @@ export class SessionManager {
       this.save();
     }
     return task;
+  }
+
+  beginIsolatedTask(source: Exclude<TaskSource, "interactive">): Task {
+    this.completeTask();
+    return this.ensureActiveTask(source);
   }
 
   captureSessionId(sessionId: string): void {
@@ -90,6 +106,7 @@ export class SessionManager {
     if (task) {
       task.status = "completed";
       if (summary) task.summary = summary;
+      task.ended_at = new Date().toISOString();
       this.index.active_task_id = null;
       this.save();
     }
@@ -100,7 +117,11 @@ export class SessionManager {
     const task = this.getActiveTask();
     if (task) {
       task.status = "error";
-      if (error) task.summary = error;
+      if (error) {
+        task.summary = error;
+        task.error = error;
+      }
+      task.ended_at = new Date().toISOString();
       this.index.active_task_id = null;
       this.save();
     }
@@ -109,7 +130,7 @@ export class SessionManager {
 
   newSession(summary?: string): { newTask: Task; previousTask?: Task } {
     const previousTask = this.completeTask(summary);
-    const newTask = this.ensureActiveTask();
+    const newTask = this.ensureActiveTask("interactive");
     return { newTask, previousTask };
   }
 

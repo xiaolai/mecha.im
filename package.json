@@ -27,7 +27,9 @@
     "build:bot-dashboard": "cd agent/dashboard && npm ci && npm run build",
     "build:all": "npm run build && npm run build:dashboard && npm run build:bot-dashboard",
     "dev": "tsc -b --watch",
-    "test": "node --import tsx test/integration.test.ts",
+    "test": "node --import tsx test/run-fast.ts",
+    "test:docker": "node --import tsx test/run-docker.ts",
+    "test:live": "node --import tsx test/run-live.ts",
     "prepublishOnly": "npm run build"
   },
   "repository": {

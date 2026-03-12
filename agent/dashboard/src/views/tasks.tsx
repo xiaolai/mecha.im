@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { botFetch } from "../lib/api";
 
 interface Task {
   id: string;
@@ -13,7 +14,7 @@ export default function Tasks() {
   const [expanded, setExpanded] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/tasks")
+    botFetch("/api/tasks")
       .then((r) => r.json())
       .then(setTasks)
       .catch(() => {});
