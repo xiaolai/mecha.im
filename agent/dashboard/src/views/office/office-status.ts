@@ -61,6 +61,8 @@ export function startOfficeStatus(bridge: OfficeBridge): () => void {
               bridge.state.talkingTo = s.talkingTo;
               if (s.state === "idle") {
                 startIdleTimer();
+                bridge.state.currentTool = null;
+                bridge.state.currentToolContext = null;
               } else {
                 stopIdleTimer();
               }
