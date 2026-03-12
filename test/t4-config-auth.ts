@@ -217,6 +217,27 @@ await test("T4.15 addCredential updates existing", () => {
   assert.equal(auth.listCredentials().length, 1);
 });
 
+// T4.16 credentialTypes export is correct
+await test("T4.16 credentialTypes export", () => {
+  assert.ok(Array.isArray(auth.credentialTypes), "credentialTypes is an array");
+  assert.equal(auth.credentialTypes.length, 5);
+  assert.ok(auth.credentialTypes.includes("api_key"));
+  assert.ok(auth.credentialTypes.includes("oauth_token"));
+  assert.ok(auth.credentialTypes.includes("bot_token"));
+  assert.ok(auth.credentialTypes.includes("secret"));
+  assert.ok(auth.credentialTypes.includes("tailscale"));
+});
+
+// T4.17 addCredential rejects invalid names
+await test("T4.17 addCredential rejects invalid name", () => {
+  assert.throws(() => auth.addCredential({
+    name: "INVALID_NAME!",
+    type: "api_key",
+    env: "ANTHROPIC_API_KEY",
+    key: "sk-test",
+  }), /Invalid name/);
+});
+
 // Restore
 if (origHome) process.env.MECHA_HOME = origHome;
 else delete process.env.MECHA_HOME;

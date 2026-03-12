@@ -174,6 +174,21 @@ await test("T3.11 Activity lastActive tracking", () => {
   assert.ok(at.getLastActive());
 });
 
+// T3.12 Concurrent logEvent writes are serialized
+await test("T3.12 Concurrent logEvent writes", async () => {
+  const { logEvent, readEvents } = await import("../agent/event-log.js");
+  const count = 50;
+  // Fire 50 concurrent logEvent calls
+  for (let i = 0; i < count; i++) {
+    logEvent({ type: "concurrent-test", index: i });
+  }
+  // Wait for the promise chain to drain
+  await new Promise((r) => setTimeout(r, 500));
+  const events = readEvents(count);
+  const testEvents = events.filter((e) => e.type === "concurrent-test");
+  assert.equal(testEvents.length, count, `expected ${count} events, got ${testEvents.length}`);
+});
+
 // Cleanup
 rmSync(TMP, { recursive: true, force: true });
 
