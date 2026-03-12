@@ -159,6 +159,45 @@ await test("T2.11 safeReadJson schema mismatch", () => {
   assert.equal((result as any).reason, "schema");
 });
 
+// T2.12 Concurrent registry writes remain consistent
+await test("T2.12 Concurrent registry writes", async () => {
+  const { setBot, removeBot, getBot, ensureMechaDir } = await import("../src/store.js");
+  const origHome = process.env.MECHA_HOME;
+  const regTmp = join(tmpdir(), `mecha-t2-reg-${randomBytes(4).toString("hex")}`);
+  process.env.MECHA_HOME = regTmp;
+  ensureMechaDir();
+
+  // Launch 10 concurrent setBot calls
+  const names = Array.from({ length: 10 }, (_, i) => `bot-${i}`);
+  await Promise.all(names.map((name) =>
+    Promise.resolve().then(() => setBot(name, {
+      path: `/tmp/${name}`,
+      containerId: `cid-${name}`,
+      model: "sonnet",
+    })),
+  ));
+
+  // All 10 should be in the registry
+  for (const name of names) {
+    const entry = getBot(name);
+    assert.ok(entry, `${name} should exist in registry`);
+    assert.equal(entry!.model, "sonnet");
+  }
+
+  // Concurrent removes
+  await Promise.all(names.map((name) =>
+    Promise.resolve().then(() => removeBot(name)),
+  ));
+
+  for (const name of names) {
+    assert.equal(getBot(name), undefined, `${name} should be removed`);
+  }
+
+  if (origHome) process.env.MECHA_HOME = origHome;
+  else delete process.env.MECHA_HOME;
+  rmSync(regTmp, { recursive: true, force: true });
+});
+
 // Cleanup
 rmSync(TMP, { recursive: true, force: true });
 
