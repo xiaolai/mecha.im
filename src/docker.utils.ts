@@ -83,8 +83,8 @@ export function buildBinds(resolvedPath: string, configPath: string, config: Bot
   const binds = [
     `${realpathSync(resolvedPath)}:/state:rw`,
     `${realpathSync(configPath)}:/config/bot.yaml:ro`,
-    `${realpathSync(join(resolvedPath, "claude"))}:/home/appuser/.claude:rw`,
-    `${realpathSync(join(resolvedPath, "codex"))}:/home/appuser/.codex:rw`,
+    `${realpathSync(join(resolvedPath, "dot-claude"))}:/home/appuser/.claude:rw`,
+    `${realpathSync(join(resolvedPath, "dot-codex"))}:/home/appuser/.codex:rw`,
   ];
   if (config.workspace) {
     const wsPath = realpathSync(config.workspace);
@@ -136,7 +136,7 @@ export function buildContainerEnv(config: BotConfig, botToken: string): string[]
 /** Copy host Codex auth to bot if opted in */
 export function copyHostCodexAuth(resolvedPath: string): void {
   const hostCodexAuth = join(homedir(), ".codex", "auth.json");
-  const botCodexAuth = join(resolvedPath, "codex", "auth.json");
+  const botCodexAuth = join(resolvedPath, "dot-codex", "auth.json");
   if (process.env.MECHA_COPY_HOST_CODEX_AUTH === "1" && existsSync(hostCodexAuth) && !existsSync(botCodexAuth)) {
     writeFileSync(botCodexAuth, readFileSync(hostCodexAuth, "utf-8"), { mode: 0o600 });
   }
