@@ -12,6 +12,8 @@ const suites = [
   "t14-resolver.ts",
   "t15-interbot-auth.ts",
   "t16-container-runtime.ts",
+  "t18-mcp-proxy.ts",
+  "t19-cli-query.ts",
 ];
 
 for (const suite of suites) {
