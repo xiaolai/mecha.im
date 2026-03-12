@@ -4,11 +4,11 @@
  * `mecha doctor`        → check mecha-level health (Docker, image, settings)
  * `mecha doctor <bot>`  → check bot container health (mounts, SDK config, claude pickup, auth, runtime)
  */
-import Docker from "dockerode";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { getBot, getMechaDir } from "./store.js";
 import { IMAGE_NAME } from "./docker.constants.js";
+import { docker } from "./docker.utils.js";
 import {
   type CheckResult, report, info, warn,
   checkContainer, checkHealth, checkMounts, checkEnv, checkRuntime, checkClaudePickup,
@@ -18,8 +18,7 @@ import {
 
 async function checkDocker(): Promise<CheckResult> {
   try {
-    const d = new Docker();
-    await d.ping();
+    await docker.ping();
     return { ok: true, label: "Docker daemon reachable" };
   } catch (err) {
     return { ok: false, label: "Docker daemon reachable", detail: err instanceof Error ? err.message : String(err) };
@@ -28,8 +27,7 @@ async function checkDocker(): Promise<CheckResult> {
 
 async function checkImage(): Promise<CheckResult> {
   try {
-    const d = new Docker();
-    const img = await d.getImage(IMAGE_NAME).inspect();
+    const img = await docker.getImage(IMAGE_NAME).inspect();
     const sizeMb = Math.round((img.Size ?? 0) / 1024 / 1024);
     return { ok: true, label: `Image "${IMAGE_NAME}" exists (${sizeMb}MB)` };
   } catch {
@@ -69,23 +67,21 @@ export async function doctorBot(name: string): Promise<number> {
   }
 
   console.log("\n[Container]");
-  const { checks: containerChecks, container } = await checkContainer(name);
+  const { checks: containerChecks, container, cInfo } = await checkContainer(name);
   tally(report(containerChecks));
-  if (!container) {
+  if (!container || !cInfo) {
     console.log("\n--- Cannot continue without a running container ---");
     return 1;
   }
 
   console.log("\n[Health]");
-  tally(report(await checkHealth(name, container)));
+  tally(report(await checkHealth(cInfo)));
 
   console.log("\n[Mounts]");
-  const d = new Docker();
-  const cInfo = await d.getContainer(`mecha-${name}`).inspect();
   tally(report(checkMounts(cInfo)));
 
   console.log("\n[Environment]");
-  tally(report(await checkEnv(container)));
+  tally(report(checkEnv(cInfo)));
 
   console.log("\n[Runtime]");
   tally(report(await checkRuntime(container)));

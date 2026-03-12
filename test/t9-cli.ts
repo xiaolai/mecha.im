@@ -60,7 +60,8 @@ function mechaUnsafe(...args: string[]): { stdout: string; error?: Error } {
     }).trim();
     return { stdout };
   } catch (err) {
-    return { stdout: "", error: err instanceof Error ? err : new Error(String(err)) };
+    const e = err as Error & { stdout?: string };
+    return { stdout: e.stdout?.trim() ?? "", error: e };
   }
 }
 
@@ -141,6 +142,36 @@ await test("T9.5 Bot health via token", async () => {
   }
   // Just verify the registry entry is valid
   assert.ok(token.startsWith("mecha_"), "token format correct");
+});
+
+// T9.5b Doctor (mecha-level)
+await test("T9.5b Doctor mecha-level", () => {
+  const out = mecha("doctor");
+  assert.ok(out.includes("Mecha Doctor"), "shows Mecha Doctor header");
+  assert.ok(out.includes("PASS") && out.includes("Docker daemon reachable"), "Docker check passes");
+  assert.ok(out.includes("mecha-agent"), "image check present");
+  assert.ok(out.includes("passed"), "shows pass count");
+});
+
+// T9.5c Doctor (bot-level)
+await test("T9.5c Doctor bot-level", () => {
+  const out = mecha("doctor", BOT_NAME);
+  assert.ok(out.includes("Bot Doctor"), "shows Bot Doctor header");
+  assert.ok(out.includes("PASS") && out.includes("running"), "container running check");
+  assert.ok(out.includes("/home/appuser/.claude"), "dot-claude mount check");
+  assert.ok(out.includes("/home/appuser/.codex"), "dot-codex mount check");
+  assert.ok(out.includes("MECHA_BOT_NAME"), "env check present");
+  assert.ok(out.includes("MECHA_BOT_TOKEN set"), "token check (no leak)");
+  assert.ok(out.includes("claude:"), "runtime claude check");
+  assert.ok(out.includes("writable"), "memory writable check");
+  assert.ok(!out.includes("FAIL"), `no failures: ${out.slice(-200)}`);
+});
+
+// T9.5d Doctor nonexistent bot (exits non-zero)
+await test("T9.5d Doctor nonexistent bot", () => {
+  const { stdout, error } = mechaUnsafe("doctor", "no-such-bot-xyz");
+  assert.ok(error, "should exit non-zero");
+  assert.ok(stdout.includes("not found") || stdout.includes("Cannot continue"), "reports missing container");
 });
 
 // T9.6 CLI stop
