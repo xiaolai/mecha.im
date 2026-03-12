@@ -274,6 +274,69 @@ export function mockApiPlugin(): Plugin {
         res.end(JSON.stringify([]));
       });
 
+      // GET /api/config/character
+      server.middlewares.use("/api/config/character", (req, res) => {
+        if (req.method === "POST") {
+          let body = "";
+          req.on("data", (chunk: Buffer) => { body += chunk.toString(); });
+          req.on("end", () => {
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ ok: true }));
+          });
+          return;
+        }
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ skin: 0, hair: 0, outfit: "outfit1" }));
+      });
+
+      // GET /api/tasks
+      server.middlewares.use("/api/tasks", (_req, res) => {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify([]));
+      });
+
+      // GET /api/status/stream (SSE mock with cycling states)
+      server.middlewares.use("/api/status/stream", (req, res) => {
+        res.writeHead(200, {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          "Connection": "keep-alive",
+        });
+
+        // Initial snapshot
+        res.write(`event: snapshot\ndata: ${JSON.stringify({ activity: "idle", talkingTo: null, lastActive: new Date().toISOString() })}\n\n`);
+
+        // Cycle through states for demo
+        const states = ["idle", "thinking", "calling", "scheduled", "webhook", "error"];
+        let stateIndex = 0;
+        const interval = setInterval(() => {
+          stateIndex = (stateIndex + 1) % states.length;
+          const prev = states[(stateIndex - 1 + states.length) % states.length];
+          const state = states[stateIndex];
+          res.write(`event: state\ndata: ${JSON.stringify({ prev, state, talkingTo: state === "calling" ? "helper-bot" : null })}\n\n`);
+
+          // Emit tool events when "thinking"
+          if (state === "thinking") {
+            setTimeout(() => {
+              res.write(`event: tool\ndata: ${JSON.stringify({ name: "Read", context: "src/app.tsx" })}\n\n`);
+            }, 1000);
+            setTimeout(() => {
+              res.write(`event: tool\ndata: ${JSON.stringify({ name: "Edit", context: "src/app.tsx" })}\n\n`);
+            }, 3000);
+          }
+        }, 8000);
+
+        // Heartbeat
+        const heartbeat = setInterval(() => {
+          res.write(`event: heartbeat\ndata: \n\n`);
+        }, 30000);
+
+        req.on("close", () => {
+          clearInterval(interval);
+          clearInterval(heartbeat);
+        });
+      });
+
       // GET /health
       server.middlewares.use("/health", (_req, res) => {
         res.writeHead(200, { "Content-Type": "application/json" });
