@@ -43,15 +43,15 @@ function getWorkspaceContext(): { cwd: string; settingSources: Array<"user" | "p
     };
   }
 
-  if (existsSync("/workspace")) {
+  if (existsSync("/home/appuser/workspace")) {
     return {
-      cwd: "/workspace",
+      cwd: "/home/appuser/workspace",
       settingSources: ["user", "project"],
     };
   }
 
   return {
-    cwd: "/state/workspace",
+    cwd: "/state/home-workspace",
     settingSources: ["user"],
   };
 }

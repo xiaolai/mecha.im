@@ -58,7 +58,7 @@ const BASE_URL = `http://localhost:${HOST_PORT}`;
 const TMP = join(homedir(), `.mecha-t10-${randomBytes(4).toString("hex")}`);
 mkdirSync(join(TMP, "sessions"), { recursive: true });
 mkdirSync(join(TMP, "logs"), { recursive: true });
-mkdirSync(join(TMP, "workspace"), { recursive: true });
+mkdirSync(join(TMP, "home-workspace"), { recursive: true });
 mkdirSync(join(TMP, "dot-claude"), { recursive: true });
 mkdirSync(join(TMP, "dot-codex"), { recursive: true });
 

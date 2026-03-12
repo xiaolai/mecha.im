@@ -89,7 +89,7 @@ export function buildBinds(resolvedPath: string, configPath: string, config: Bot
   if (config.workspace) {
     const wsPath = realpathSync(config.workspace);
     const mode = config.workspace_writable ? "rw" : "ro";
-    binds.push(`${wsPath}:/workspace:${mode}`);
+    binds.push(`${wsPath}:/home/appuser/workspace:${mode}`);
   }
   return binds;
 }
@@ -103,7 +103,7 @@ export function buildContainerEnv(config: BotConfig, botToken: string): string[]
     `MECHA_BOT_NAME=${config.name}`,
     `MECHA_BOT_TOKEN=${botToken}`,
     `MECHA_FLEET_INTERNAL_SECRET=${getOrCreateFleetInternalSecret()}`,
-    `MECHA_WORKSPACE_CWD=${config.workspace ? "/workspace" : "/state/workspace"}`,
+    `MECHA_WORKSPACE_CWD=${config.workspace ? "/home/appuser/workspace" : "/state/home-workspace"}`,
     `MECHA_ENABLE_PROJECT_SETTINGS=${config.workspace ? "1" : "0"}`,
   ];
 

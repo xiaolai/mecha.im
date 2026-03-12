@@ -56,7 +56,7 @@ mkdirSync(join(TMP, "sessions"), { recursive: true });
 mkdirSync(join(TMP, "logs"), { recursive: true });
 mkdirSync(join(TMP, "dot-claude"), { recursive: true });
 mkdirSync(join(TMP, "dot-codex"), { recursive: true });
-mkdirSync(join(TMP, "workspace"), { recursive: true });
+mkdirSync(join(TMP, "home-workspace"), { recursive: true });
 
 // Two different bot tokens to distinguish auth configs
 const TOKEN_A = `mecha_${randomBytes(24).toString("hex")}`;
