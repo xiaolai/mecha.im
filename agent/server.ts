@@ -2,7 +2,6 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { streamSSE } from "hono/streaming";
 import { z } from "zod";
-import { resolve, normalize } from "node:path";
 import { existsSync } from "node:fs";
 import { randomBytes, timingSafeEqual, createHmac } from "node:crypto";
 import { query } from "@anthropic-ai/claude-agent-sdk";
@@ -16,6 +15,10 @@ import { createWebhookRoutes } from "./webhook.js";
 import { ActivityTracker } from "./activity.js";
 import { readEvents } from "./event-log.js";
 import type { Scheduler } from "./scheduler.js";
+import { createDashboardRoutes } from "./routes/dashboard.js";
+import type {
+  QueryResult, SdkEvent, SdkSystemEvent, SdkAssistantEvent, SdkResultEvent,
+} from "./server.types.js";
 
 const promptSchema = z.object({
   message: z.string().min(1),
@@ -29,44 +32,6 @@ if (!process.env.MECHA_BOT_TOKEN) {
   log.warn("MECHA_BOT_TOKEN not set — auto-generated token for this session. Set MECHA_BOT_TOKEN for stable auth.");
   log.info(`Auto-generated agent token: ${BOT_TOKEN.slice(0, 14)}...`);
 }
-
-interface QueryResult {
-  text: string;
-  costUsd: number;
-  sessionId: string;
-  durationMs: number;
-  success: boolean;
-}
-
-// Typed SDK event shapes (the SDK emits plain objects; define the shapes we consume)
-interface SdkSystemEvent {
-  type: "system";
-  subtype?: string;
-  session_id?: string;
-}
-
-interface ContentBlock {
-  type: string;
-  text?: string;
-  name?: string;
-  input?: unknown;
-}
-
-interface SdkAssistantEvent {
-  type: "assistant";
-  message?: { content?: ContentBlock[] };
-}
-
-interface SdkResultEvent {
-  type: "result";
-  subtype?: string;
-  total_cost_usd?: number;
-  session_id?: string;
-  duration_ms?: number;
-  result?: string;
-}
-
-type SdkEvent = SdkSystemEvent | SdkAssistantEvent | SdkResultEvent | { type: string };
 
 function getWorkspaceContext(): { cwd: string; settingSources: Array<"user" | "project"> | ["user"] } {
   const configuredCwd = process.env.MECHA_WORKSPACE_CWD;
@@ -443,45 +408,8 @@ export function createApp(config: BotConfig, startedAt: number) {
     return c.json({ status: "triggered" });
   });
 
-  // --- Serve bot dashboard static files ---
-  const DASHBOARD_ROOT = "/app/agent/dashboard/dist";
-
-  app.get("/dashboard/*", async (c) => {
-    const reqPath = c.req.path.replace("/dashboard", "") || "/index.html";
-    const resolved = resolve(DASHBOARD_ROOT, reqPath.replace(/^\//, ""));
-    const normalized = normalize(resolved);
-
-    // Path traversal protection (trailing separator prevents prefix bypasses like /dist-evil/)
-    if (normalized !== DASHBOARD_ROOT && !normalized.startsWith(DASHBOARD_ROOT + "/")) {
-      return c.json({ error: "Forbidden" }, 403);
-    }
-
-    try {
-      const { readFile } = await import("node:fs/promises");
-      const content = await readFile(normalized);
-      const ext = normalized.split(".").pop() ?? "";
-      const types: Record<string, string> = {
-        html: "text/html",
-        js: "application/javascript",
-        css: "text/css",
-        json: "application/json",
-        svg: "image/svg+xml",
-        png: "image/png",
-      };
-      return c.body(content, 200, {
-        "Content-Type": types[ext] ?? "application/octet-stream",
-      });
-    } catch {
-      // SPA fallback
-      try {
-        const { readFile } = await import("node:fs/promises");
-        const html = await readFile(`${DASHBOARD_ROOT}/index.html`);
-        return c.body(html, 200, { "Content-Type": "text/html" });
-      } catch {
-        return c.json({ error: "Dashboard not built" }, 404);
-      }
-    }
-  });
+  // Bot dashboard static files
+  app.route("/", createDashboardRoutes());
 
   return { app, isBusy, handlePrompt, activity, setScheduler };
 }
