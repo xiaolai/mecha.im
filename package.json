@@ -37,7 +37,15 @@
     "url": "https://github.com/xiaolai/mecha.im.v3"
   },
   "homepage": "https://mecha.im",
-  "keywords": ["claude", "agent", "bot", "docker", "ai", "automation", "mecha"],
+  "keywords": [
+    "claude",
+    "agent",
+    "bot",
+    "docker",
+    "ai",
+    "automation",
+    "mecha"
+  ],
   "license": "MIT",
   "engines": {
     "node": ">=22.0.0"
@@ -46,6 +54,7 @@
     "@anthropic-ai/claude-agent-sdk": "^0.2.0",
     "@anthropic-ai/sdk": "^0.52.0",
     "@hono/node-server": "^1.14.0",
+    "@modelcontextprotocol/sdk": "^1.27.1",
     "commander": "^14.0.0",
     "croner": "^9.0.0",
     "dockerode": "^4.0.7",

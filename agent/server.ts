@@ -22,6 +22,13 @@ import type {
 
 const promptSchema = z.object({
   message: z.string().min(1),
+  // Optional overrides — CLI `mecha query` can pass these to customize per-request
+  model: z.string().optional(),
+  system: z.string().optional(),
+  max_turns: z.number().int().min(1).max(200).optional(),
+  resume: z.string().min(1).optional(),
+  effort: z.enum(["low", "medium", "high", "max"]).optional(),
+  max_budget_usd: z.number().positive().optional(),
 });
 const INTERNAL_AUTH_HEADER = "x-mecha-internal-auth";
 
@@ -56,16 +63,19 @@ function getWorkspaceContext(): { cwd: string; settingSources: Array<"user" | "p
   };
 }
 
+export type PromptOverrides = Omit<z.infer<typeof promptSchema>, "message">;
+
 export function buildClaudeOptions(
   config: BotConfig,
   resumeSessionId?: string,
   mcpServers?: Record<string, unknown>[],
+  overrides?: PromptOverrides,
 ): Record<string, unknown> {
   const workspace = getWorkspaceContext();
   const options: Record<string, unknown> = {
-    model: config.model,
+    model: overrides?.model ?? config.model,
     cwd: workspace.cwd,
-    maxTurns: config.max_turns ?? 25,
+    maxTurns: overrides?.max_turns ?? config.max_turns ?? 25,
     env: { ...process.env },
     permissionMode: config.permission_mode,
     settingSources: [...workspace.settingSources],
@@ -75,16 +85,24 @@ export function buildClaudeOptions(
     options.allowDangerouslySkipPermissions = true;
   }
 
-  if (config.system) {
-    options.systemPrompt = config.system;
+  const systemPrompt = overrides?.system ?? config.system;
+  if (systemPrompt) {
+    options.systemPrompt = systemPrompt;
   }
 
-  if (config.max_budget_usd) {
-    options.maxBudgetUsd = config.max_budget_usd;
+  const budget = overrides?.max_budget_usd ?? config.max_budget_usd;
+  if (budget) {
+    options.maxBudgetUsd = budget;
   }
 
-  if (resumeSessionId) {
-    options.resume = resumeSessionId;
+  if (overrides?.effort) {
+    options.effort = overrides.effort;
+  }
+
+  // Resume priority: explicit override > session-based resume
+  const resumeId = overrides?.resume ?? resumeSessionId;
+  if (resumeId) {
+    options.resume = resumeId;
   }
 
   if (mcpServers?.length) {
@@ -101,8 +119,9 @@ async function runClaude(
   resumeSessionId?: string,
   onEvent?: (event: { type: string; data: unknown }) => void,
   mcpServers?: Record<string, unknown>[],
+  overrides?: PromptOverrides,
 ): Promise<QueryResult> {
-  const options = buildClaudeOptions(config, resumeSessionId, mcpServers);
+  const options = buildClaudeOptions(config, resumeSessionId, mcpServers, overrides);
   const response = query({ prompt: message, options });
 
   let resultText = "";
@@ -259,17 +278,24 @@ export function createApp(config: BotConfig, startedAt: number) {
     const isolatedTask = source !== "interactive";
     activity.transition(activityStateForSource(source));
 
+    // Extract per-request overrides from the prompt body
+    const { message, ...requestOverrides } = parsed.data;
+    const hasOverrides = Object.keys(requestOverrides).length > 0 ? requestOverrides : undefined;
+
+    // If an explicit resume session is provided, use it; otherwise use session-based resume
     const task = isolatedTask
       ? sessions.beginIsolatedTask(source)
       : sessions.ensureActiveTask("interactive");
-    const resumeSessionId = isolatedTask ? undefined : sessions.getResumeSessionId();
+    const resumeSessionId = requestOverrides.resume
+      ? undefined  // explicit resume in overrides takes priority
+      : (isolatedTask ? undefined : sessions.getResumeSessionId());
 
     return streamSSE(c, async (stream) => {
       try {
         await stream.writeSSE({ event: "start", data: JSON.stringify({ task_id: task.id }) });
 
         const result = await runClaude(
-          parsed.data.message,
+          message,
           config,
           resumeSessionId,
           async (event) => {
@@ -279,6 +305,7 @@ export function createApp(config: BotConfig, startedAt: number) {
             });
           },
           [mechaTools],
+          hasOverrides,
         );
 
         if (result.sessionId) sessions.captureSessionId(result.sessionId);
