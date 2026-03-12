@@ -5,6 +5,8 @@ import { parse as parseYaml } from "yaml";
 import { botConfigSchema } from "./types.js";
 import { createApp } from "./server.js";
 import { Scheduler } from "./scheduler.js";
+import { createPtyManager } from "./pty-manager.js";
+import { attachTerminalWs } from "./ws-terminal.js";
 import { log } from "../shared/logger.js";
 
 // Crash handlers — log before dying so we know what happened
@@ -86,12 +88,29 @@ if (config.schedule && config.schedule.length > 0) {
   scheduler.start();
 }
 
+// PTY manager for interactive terminal sessions
+let ptyManager: ReturnType<typeof createPtyManager> | undefined;
+try {
+  const { createNodePtySpawn } = await import("./node-pty-adapter.js");
+  ptyManager = createPtyManager({ spawnFn: createNodePtySpawn(), botConfig: config });
+  log.info("PTY terminal support enabled (node-pty)");
+} catch {
+  log.info("PTY terminal support disabled (node-pty not available)");
+}
+
 const server = serve({ fetch: app.fetch, port: PORT }, () => {
   log.info(`mecha-agent "${config.name}" listening on :${PORT}`);
 });
 
+// Attach WebSocket terminal server if PTY is available
+if (ptyManager) {
+  const BOT_TOKEN = process.env.MECHA_BOT_TOKEN || "";
+  attachTerminalWs(server, ptyManager, BOT_TOKEN);
+}
+
 function gracefulShutdown(signal: string) {
   log.info(`${signal} received, shutting down...`);
+  ptyManager?.shutdown();
   scheduler?.stop();
   const forceTimer = setTimeout(() => {
     log.warn("Graceful shutdown timeout, forcing exit");

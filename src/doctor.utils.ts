@@ -96,8 +96,8 @@ export function checkMounts(cInfo: Docker.ContainerInspectInfo): CheckResult[] {
   for (const e of [
     { dest: "/state", label: "State" },
     { dest: "/config/bot.yaml", label: "Config" },
-    { dest: "/home/appuser/.claude", label: "dot-claude" },
-    { dest: "/home/appuser/.codex", label: "dot-codex" },
+    { dest: "/home/appuser/.claude", label: "home-dot-claude" },
+    { dest: "/home/appuser/.codex", label: "home-dot-codex" },
   ]) {
     const found = mounts.find(m => m.dest === e.dest);
     checks.push(found
@@ -184,7 +184,7 @@ export async function checkClaudePickup(container: Docker.Container): Promise<Ch
 
   const plugins = await lsDir(container, `${base}/plugins`);
   if (plugins.length > 0) checks.push({ ok: true, label: `Plugins: ${plugins.length} entries` });
-  else info("Plugins", `none in ${base}/plugins/ (add via dot-claude/plugins/)`);
+  else info("Plugins", `none in ${base}/plugins/ (add via home-dot-claude/plugins/)`);
 
   const memOk = await dirWritable(container, base);
   checks.push({ ok: memOk, label: "~/.claude writable (auto memory)", detail: memOk ? undefined : "appuser cannot write — memory will fail" });

@@ -1,6 +1,18 @@
-#!/command/execlineb -P
-fdmove -c 2 1
-s6-setuidgid appuser
-export HOME /home/appuser
-cd /app
-node agent/entry.js
+#!/bin/bash
+exec 2>&1
+
+# Fix ownership of volume-mounted dirs (runs as root before setuidgid)
+chown -R appuser:appuser /home/appuser/.claude /home/appuser/.codex /home/appuser/workspace 2>/dev/null
+
+# Ensure .claude.json has onboarding complete
+CLAUDE_JSON="/home/appuser/.claude.json"
+if [ -f "$CLAUDE_JSON" ]; then
+  if ! grep -q '"hasCompletedOnboarding"' "$CLAUDE_JSON"; then
+    sed -i 's/^{/{\n  "hasCompletedOnboarding": true,/' "$CLAUDE_JSON"
+  fi
+else
+  echo '{"hasCompletedOnboarding": true}' > "$CLAUDE_JSON"
+  chown appuser:appuser "$CLAUDE_JSON"
+fi
+
+exec s6-setuidgid appuser env HOME=/home/appuser node /app/agent/entry.js

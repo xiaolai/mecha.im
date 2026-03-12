@@ -15,7 +15,7 @@ import { createWebhookRoutes } from "./webhook.js";
 import { ActivityTracker } from "./activity.js";
 import { readEvents } from "./event-log.js";
 import type { Scheduler } from "./scheduler.js";
-import { createDashboardRoutes } from "./routes/dashboard.js";
+import { createDashboardRoutes, verifySessionCookie } from "./routes/dashboard.js";
 import type {
   QueryResult, SdkEvent, SdkSystemEvent, SdkAssistantEvent, SdkResultEvent,
 } from "./server.types.js";
@@ -205,8 +205,11 @@ export function createApp(config: BotConfig, startedAt: number) {
     return received.length === expected.length && timingSafeEqual(received, expected);
   };
   const requireApiAuth = async (c: import("hono").Context, next: () => Promise<void>) => {
-    if (!hasBearerAuth(c.req.header("authorization"))) return c.json({ error: "Unauthorized" }, 401);
-    await next();
+    if (hasBearerAuth(c.req.header("authorization")) || verifySessionCookie(c.req.header("cookie"), BOT_TOKEN)) {
+      await next();
+      return;
+    }
+    return c.json({ error: "Unauthorized" }, 401);
   };
   const requirePromptAuth = async (c: import("hono").Context, next: () => Promise<void>) => {
     if (hasBearerAuth(c.req.header("authorization")) || hasInternalAuthHeader(c.req.header(INTERNAL_AUTH_HEADER))) {
@@ -435,8 +438,19 @@ export function createApp(config: BotConfig, startedAt: number) {
     return c.json({ status: "triggered" });
   });
 
+  // PTY sessions endpoint — list tasks with session IDs for terminal attach
+  app.get("/api/sessions", (c) => {
+    const taskList = sessions.listTasks();
+    return c.json(taskList.map((t: { id: string; session_id?: string; status: string; created: string; cost_usd: number }) => ({
+      id: t.id,
+      session_id: t.session_id,
+      status: t.status,
+      created: t.created,
+    })));
+  });
+
   // Bot dashboard static files
-  app.route("/", createDashboardRoutes());
+  app.route("/", createDashboardRoutes(BOT_TOKEN));
 
   return { app, isBusy, handlePrompt, activity, setScheduler };
 }

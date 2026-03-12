@@ -29,7 +29,7 @@ foreground {
       TS_ARGS=\"$TS_ARGS --login-server=$MECHA_TS_LOGIN_SERVER\"
     fi
 
-    tailscale up $TS_ARGS --accept-routes || {
+    /home/appuser/.local/bin/tailscale up $TS_ARGS --accept-routes || {
       echo 'WARNING: tailscale up failed, continuing in local-only mode'
       exit 0
     }
