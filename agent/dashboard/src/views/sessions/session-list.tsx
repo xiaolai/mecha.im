@@ -1,6 +1,27 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { MessageCirclePlus, Copy, Check } from "lucide-react";
 import { botFetch } from "../../lib/api";
 import { timeAgo, modelShort } from "../../lib/format";
+
+function CopyIdButton({ id }: { id: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        navigator.clipboard.writeText(id).then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
+        }).catch(() => {});
+      }}
+      className="inline-flex items-center gap-0.5 text-muted-foreground hover:text-foreground transition-colors"
+      title="Copy session ID"
+    >
+      <span>ID</span>
+      {copied ? <Check className="w-3 h-3 text-success" /> : <Copy className="w-3 h-3" />}
+    </button>
+  );
+}
 
 interface SessionSummary {
   id: string;
@@ -123,15 +144,8 @@ export default function SessionList({ selectedId, onSelect, onNewSession }: Prop
   const isSearching = query.trim().length > 0;
 
   return (
-    <div className="w-72 shrink-0 border-r border-border flex flex-col bg-card h-full overflow-hidden">
-      <div className="p-3 border-b border-border space-y-2">
-        <button
-          onClick={onNewSession}
-          className="w-full px-3 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-md text-sm font-medium transition-colors"
-        >
-          + New Session
-        </button>
-
+    <div className="w-72 shrink-0 border-r border-border flex flex-col bg-card h-full overflow-hidden relative">
+      <div className="p-3 border-b border-border">
         {/* Search input */}
         <div className="relative">
           <svg
@@ -209,7 +223,7 @@ export default function SessionList({ selectedId, onSelect, onNewSession }: Prop
               <button
                 key={s.id}
                 onClick={() => onSelect(s.id, s.hasPty)}
-                className={`w-full text-left px-3 py-3 border-b border-border hover:bg-accent transition-colors ${
+                className={`group w-full text-left px-3 py-3 border-b border-border hover:bg-accent transition-colors ${
                   selectedId === s.id ? "bg-accent border-l-2 border-l-primary" : ""
                 }`}
               >
@@ -227,6 +241,8 @@ export default function SessionList({ selectedId, onSelect, onNewSession }: Prop
                       <span>{s.messageCount} msgs</span>
                       <span className="opacity-30">·</span>
                       <span>{modelShort(s.model)}</span>
+                      <span className="opacity-30">·</span>
+                      <CopyIdButton id={s.id} />
                     </div>
                   </div>
                 </div>
@@ -235,6 +251,15 @@ export default function SessionList({ selectedId, onSelect, onNewSession }: Prop
           </>
         )}
       </div>
+
+      {/* Floating new session button */}
+      <button
+        onClick={onNewSession}
+        className="absolute bottom-4 right-4 p-2 text-muted-foreground hover:text-foreground transition-colors"
+        title="New Session"
+      >
+        <MessageCirclePlus className="w-5 h-5" />
+      </button>
     </div>
   );
 }
