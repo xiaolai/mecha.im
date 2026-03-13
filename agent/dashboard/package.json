@@ -20,7 +20,6 @@
     "dompurify": "^3.3.3",
     "lucide-react": "^0.577.0",
     "marked": "^17.0.4",
-    "phaser": "3.90.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
