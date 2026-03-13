@@ -15,4 +15,12 @@ else
   chown appuser:appuser "$CLAUDE_JSON"
 fi
 
+# Check for stop request (dashboard-initiated stop) — bring down the entire container
+if [ -f /state/stop-requested ]; then
+  rm -f /state/stop-requested
+  echo "Stop requested — shutting down container"
+  s6-svscanctl -t /run/service 2>/dev/null || kill 1
+  exit 0
+fi
+
 exec s6-setuidgid appuser env HOME=/home/appuser node /app/agent/entry.js

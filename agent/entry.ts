@@ -1,5 +1,5 @@
 import { serve } from "@hono/node-server";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { mkdirSync } from "node:fs";
 import { parse as parseYaml } from "yaml";
 import { botConfigSchema } from "./types.js";
@@ -8,6 +8,8 @@ import { Scheduler } from "./scheduler.js";
 import { createPtyManager } from "./pty-manager.js";
 import { attachTerminalWs } from "./ws-terminal.js";
 import { log } from "../shared/logger.js";
+
+const CREDENTIALS_PATH = "/state/credentials.yaml";
 
 // Crash handlers — log before dying so we know what happened
 process.on("unhandledRejection", (reason) => {
@@ -38,6 +40,38 @@ function loadConfig() {
   if (!name) {
     log.error("MECHA_BOT_NAME env var is required");
     process.exit(1);
+  }
+
+  // Re-resolve auth from credentials.yaml if available (supports runtime auth switching)
+  // Read config.auth first to determine if credentials resolution is required
+  let configAuth: string | undefined;
+  try {
+    const configRaw = readFileSync(CONFIG_PATH, "utf-8");
+    const configParsed = parseYaml(configRaw) as { auth?: string };
+    configAuth = configParsed.auth;
+  } catch { /* config will be parsed again below */ }
+
+  if (configAuth && existsSync(CREDENTIALS_PATH)) {
+    // Profile is set — clear old env vars and resolve from credentials (fail fast on any error)
+    delete process.env.ANTHROPIC_API_KEY;
+    delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
+    try {
+      const credsRaw = readFileSync(CREDENTIALS_PATH, "utf-8");
+      const credsParsed = parseYaml(credsRaw) as { credentials?: Array<{ name: string; type: string; env: string; key: string }> };
+      const cred = credsParsed.credentials?.find((c) => c.name === configAuth);
+      if (cred && (cred.type === "api_key" || cred.type === "oauth_token")) {
+        process.env[cred.env] = cred.key;
+        log.info(`Auth resolved from credentials.yaml: profile="${configAuth}" type=${cred.type}`);
+      } else {
+        log.error(`Auth profile "${configAuth}" not found or not a Claude auth credential in credentials.yaml`);
+        process.exit(1);
+      }
+    } catch (err) {
+      log.error(`Failed to resolve auth profile "${configAuth}" from credentials.yaml`, {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      process.exit(1);
+    }
   }
 
   if (!process.env.ANTHROPIC_API_KEY && !process.env.CLAUDE_CODE_OAUTH_TOKEN) {

@@ -145,7 +145,7 @@ export default function SessionList({ selectedId, onSelect, onNewSession }: Prop
 
   return (
     <div className="w-72 shrink-0 border-r border-border flex flex-col bg-card h-full overflow-hidden relative">
-      <div className="p-3 border-b border-border">
+      <div className="p-3">
         {/* Search input */}
         <div className="relative">
           <svg
@@ -188,7 +188,7 @@ export default function SessionList({ selectedId, onSelect, onNewSession }: Prop
               <button
                 key={r.id}
                 onClick={() => { onSelect(r.id, r.hasPty); clearSearch(); }}
-                className={`w-full text-left px-3 py-3 border-b border-border hover:bg-accent transition-colors ${
+                className={`w-full text-left px-3 py-3 hover:bg-accent transition-colors ${
                   selectedId === r.id ? "bg-accent border-l-2 border-l-primary" : ""
                 }`}
               >
@@ -223,7 +223,7 @@ export default function SessionList({ selectedId, onSelect, onNewSession }: Prop
               <button
                 key={s.id}
                 onClick={() => onSelect(s.id, s.hasPty)}
-                className={`group w-full text-left px-3 py-3 border-b border-border hover:bg-accent transition-colors ${
+                className={`group w-full text-left px-3 py-3 hover:bg-accent transition-colors ${
                   selectedId === s.id ? "bg-accent border-l-2 border-l-primary" : ""
                 }`}
               >

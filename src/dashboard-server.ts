@@ -10,7 +10,7 @@ import { z } from "zod";
 import * as docker from "./docker.js";
 import { listBots as listRegistered } from "./store.js";
 import { loadBotConfig, buildInlineConfig } from "./config.js";
-import { addCredential, detectCredentialType, listCredentials } from "./auth.js";
+import { addCredential, detectCredentialType, listCredentials, loadCredentials } from "./auth.js";
 import { existsSync } from "node:fs";
 import { isValidName } from "../shared/validation.js";
 import { MechaError } from "../shared/errors.js";
@@ -41,6 +41,28 @@ const authBodySchema = z.object({
   profile: z.string().min(1).max(32),
   key: z.string().min(1),
 });
+
+/** Check if a bot is currently busy by querying its /api/status endpoint.
+ *  Returns `unknown: true` if status could not be determined (bot unreachable). */
+async function checkBotBusy(name: string): Promise<{ busy: boolean; unknown?: boolean; state?: string }> {
+  try {
+    const resolved = await resolveHostBotBaseUrl(name, { allowRemote: false });
+    if (!resolved) return { busy: false, unknown: true, state: "unreachable" };
+    const botEntry = listRegistered()[name];
+    const headers: Record<string, string> = {};
+    if (botEntry?.botToken) headers["Authorization"] = `Bearer ${botEntry.botToken}`;
+    const resp = await fetch(`${resolved.baseUrl}/api/status`, {
+      headers,
+      signal: AbortSignal.timeout(3000),
+    });
+    if (!resp.ok) return { busy: false, unknown: true, state: "unreachable" };
+    const status = await resp.json() as { state?: string };
+    const busyStates = ["thinking", "calling", "scheduled", "webhook"];
+    return { busy: busyStates.includes(status.state ?? ""), state: status.state };
+  } catch {
+    return { busy: false, unknown: true, state: "unreachable" };
+  }
+}
 
 function safeError(c: Context, err: unknown) {
   log.error("Dashboard API error", { error: err instanceof Error ? err.message : String(err) });
@@ -184,6 +206,20 @@ export function startDashboardServer(port: number) {
   app.post("/api/bots/:name/stop", async (c) => {
     const name = c.req.param("name");
     if (!isValidName(name)) return c.json({ error: "Invalid bot name" }, 400);
+
+    // Check busy state unless force=true
+    const force = c.req.query("force") === "true";
+    if (!force) {
+      const { busy, unknown, state } = await checkBotBusy(name);
+      if (busy || unknown) {
+        return c.json({
+          error: unknown ? "Bot status unknown — use force=true to proceed" : "Bot is busy",
+          code: unknown ? "BOT_STATUS_UNKNOWN" : "BOT_BUSY",
+          state,
+        }, 409);
+      }
+    }
+
     try {
       await docker.stop(name);
       return c.json({ status: "stopped", name });
@@ -195,9 +231,107 @@ export function startDashboardServer(port: number) {
   app.post("/api/bots/:name/restart", async (c) => {
     const name = c.req.param("name");
     if (!isValidName(name)) return c.json({ error: "Invalid bot name" }, 400);
+
+    // Check busy state unless force=true
+    const force = c.req.query("force") === "true";
+    if (!force) {
+      const { busy, unknown, state } = await checkBotBusy(name);
+      if (busy || unknown) {
+        return c.json({
+          error: unknown ? "Bot status unknown — use force=true to proceed" : "Bot is busy",
+          code: unknown ? "BOT_STATUS_UNKNOWN" : "BOT_BUSY",
+          state,
+        }, 409);
+      }
+    }
+
     try {
       const containerId = await docker.restart(name);
       return c.json({ status: "restarted", name, containerId: containerId.slice(0, 12) });
+    } catch (err) {
+      return safeError(c, err);
+    }
+  });
+
+  // --- Per-bot auth API ---
+
+  app.get("/api/bots/:name/auth", async (c) => {
+    const name = c.req.param("name");
+    if (!isValidName(name)) return c.json({ error: "Invalid bot name" }, 400);
+
+    const entry = listRegistered()[name];
+    if (!entry?.config) return c.json({ error: "Bot not found" }, 404);
+
+    // Read the bot's config to find its auth profile
+    let botAuth: string | undefined;
+    try {
+      const config = loadBotConfig(entry.config);
+      botAuth = config.auth;
+    } catch { /* ignore parse errors */ }
+
+    // List available Claude auth profiles
+    const creds = loadCredentials();
+    const claudeProfiles = creds
+      .filter((cr) => cr.type === "api_key" || cr.type === "oauth_token")
+      .map((cr) => ({ name: cr.name, type: cr.type }));
+
+    return c.json({
+      current_profile: botAuth ?? null,
+      profiles: claudeProfiles,
+    });
+  });
+
+  app.put("/api/bots/:name/auth", async (c) => {
+    const name = c.req.param("name");
+    if (!isValidName(name)) return c.json({ error: "Invalid bot name" }, 400);
+
+    const body = await c.req.json().catch(() => null);
+    if (!body || typeof body.profile !== "string") {
+      return c.json({ error: "profile is required" }, 400);
+    }
+    const profile = body.profile as string;
+
+    // Verify the profile exists and is a Claude auth type
+    const creds = loadCredentials();
+    const cred = creds.find((cr) => cr.name === profile);
+    if (!cred) return c.json({ error: `Profile "${profile}" not found` }, 404);
+    if (cred.type !== "api_key" && cred.type !== "oauth_token") {
+      return c.json({ error: `Profile "${profile}" is not a Claude auth credential` }, 400);
+    }
+
+    const entry = listRegistered()[name];
+    if (!entry?.config) return c.json({ error: "Bot not found" }, 404);
+
+    // Check busy state BEFORE mutating config
+    const force = c.req.query("force") === "true";
+    if (!force) {
+      const { busy, unknown, state } = await checkBotBusy(name);
+      if (busy || unknown) {
+        return c.json({
+          error: unknown ? "Bot status unknown — use force=true to proceed" : "Bot is busy",
+          code: unknown ? "BOT_STATUS_UNKNOWN" : "BOT_BUSY",
+          state,
+          profile,
+        }, 409);
+      }
+    }
+
+    // Update the bot's config file
+    try {
+      const { readFileSync, writeFileSync } = await import("node:fs");
+      const { parse: parseYaml, stringify: stringifyYaml } = await import("yaml");
+      const raw = readFileSync(entry.config, "utf-8");
+      const parsed = parseYaml(raw) as Record<string, unknown>;
+      parsed.auth = profile;
+      writeFileSync(entry.config, stringifyYaml(parsed), { mode: 0o600 });
+    } catch (err) {
+      return c.json({ error: "Failed to update bot config" }, 500);
+    }
+
+    // Restart the bot to pick up new auth
+    try {
+      const containerId = await docker.restart(name);
+      return c.json({ status: "switched", profile, containerId: containerId.slice(0, 12) });
     } catch (err) {
       return safeError(c, err);
     }
