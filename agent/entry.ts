@@ -1,7 +1,7 @@
 import { serve } from "@hono/node-server";
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, writeFileSync } from "node:fs";
 import { mkdirSync } from "node:fs";
-import { parse as parseYaml } from "yaml";
+import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { botConfigSchema } from "./types.js";
 import { createApp } from "./server.js";
 import { Scheduler } from "./scheduler.js";
@@ -125,13 +125,23 @@ try {
 
 const { app, isBusy, handlePrompt, setScheduler, botToken } = createApp(config, startedAt, ptyManager);
 
-// Start scheduler if configured
-let scheduler: Scheduler | undefined;
-if (config.schedule && config.schedule.length > 0) {
-  scheduler = new Scheduler(config.schedule, handlePrompt, isBusy);
-  setScheduler(scheduler);
-  scheduler.start();
+// Persist schedule changes back to bot.yaml
+function onScheduleConfigChange(entries: Array<{ cron: string; prompt: string }>) {
+  try {
+    const raw = readFileSync(CONFIG_PATH, "utf-8");
+    const parsed = parseYaml(raw) as Record<string, unknown>;
+    parsed.schedule = entries.length > 0 ? entries : undefined;
+    writeFileSync(CONFIG_PATH, stringifyYaml(parsed));
+    log.info(`Schedule config persisted: ${entries.length} entries`);
+  } catch (err) {
+    log.error("Failed to persist schedule config", { error: err instanceof Error ? err.message : String(err) });
+  }
 }
+
+// Start scheduler (always, so CRUD works even with no initial entries)
+const scheduler = new Scheduler(config.schedule ?? [], handlePrompt, isBusy, onScheduleConfigChange);
+setScheduler(scheduler);
+scheduler.start();
 
 const server = serve({ fetch: app.fetch, port: PORT }, () => {
   log.info(`mecha-agent "${config.name}" listening on :${PORT}`);
