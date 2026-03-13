@@ -3,7 +3,8 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
-  base: "/dashboard/",
+  // Relative base so the SPA works from both / (fleet) and /dashboard/ (bot-direct)
+  base: "./",
   build: {
     outDir: "dist",
   },

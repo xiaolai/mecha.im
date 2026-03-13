@@ -11,7 +11,7 @@ import * as docker from "./docker.js";
 import { listBots as listRegistered } from "./store.js";
 import { loadBotConfig, buildInlineConfig } from "./config.js";
 import { addCredential, detectCredentialType, listCredentials, loadCredentials } from "./auth.js";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync as fsReadFileSync } from "node:fs";
 import { isValidName } from "../shared/validation.js";
 import { MechaError } from "../shared/errors.js";
 import { log } from "../shared/logger.js";
@@ -444,10 +444,23 @@ export function startDashboardServer(port: number) {
     }
   });
 
-  // --- Serve static fleet dashboard ---
-  const staticRoot = join(__dirname, "..", "dashboard", "dist");
+  // --- Serve unified dashboard (from agent/dashboard/dist) ---
+  const staticRoot = join(__dirname, "..", "agent", "dashboard", "dist");
   if (existsSync(staticRoot)) {
     app.use("/*", serveStatic({ root: staticRoot }));
+    // SPA fallback: serve index.html for non-file, non-API routes
+    const indexPath = join(staticRoot, "index.html");
+    const cachedIndexHtml = existsSync(indexPath) ? fsReadFileSync(indexPath, "utf-8") : null;
+    app.get("*", (c) => {
+      const path = c.req.path;
+      if (path.startsWith("/api/") || path.startsWith("/bot/")) {
+        return c.json({ error: "Not found" }, 404);
+      }
+      if (cachedIndexHtml) {
+        return c.html(cachedIndexHtml);
+      }
+      return c.json({ error: "Dashboard not built" }, 404);
+    });
   } else {
     app.get("/", (c) => c.json({
       message: "Mecha Fleet Dashboard API",

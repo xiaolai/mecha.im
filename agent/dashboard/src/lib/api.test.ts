@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { botUrl } from "./api";
+import { botUrl, setActiveBotName } from "./api";
 
 describe("botUrl", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    setActiveBotName(null);
   });
 
   it("returns path as-is when no /dashboard/ in pathname", () => {
@@ -24,5 +25,17 @@ describe("botUrl", () => {
   it("handles nested prefix paths", () => {
     vi.stubGlobal("window", { location: { pathname: "/a/b/dashboard/settings" } });
     expect(botUrl("/health")).toBe("/a/b/health");
+  });
+
+  it("uses /bot/:name prefix in fleet mode", () => {
+    vi.stubGlobal("window", { location: { pathname: "/" } });
+    setActiveBotName("posca");
+    expect(botUrl("/api/sessions")).toBe("/bot/posca/api/sessions");
+  });
+
+  it("fleet mode overrides URL-based detection", () => {
+    vi.stubGlobal("window", { location: { pathname: "/dashboard/" } });
+    setActiveBotName("mybot");
+    expect(botUrl("/api/config")).toBe("/bot/mybot/api/config");
   });
 });
