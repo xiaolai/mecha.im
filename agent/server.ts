@@ -21,8 +21,6 @@ import type { PtyManager } from "./pty-manager.js";
 import type {
   QueryResult, SdkEvent, SdkSystemEvent, SdkAssistantEvent, SdkResultEvent,
 } from "./server.types.js";
-import { officeEvents } from "./office-events.js";
-import { readCharacter, writeCharacter, validateCharacter } from "./character-config.js";
 
 const promptSchema = z.object({
   message: z.string().min(1),
@@ -156,30 +154,6 @@ async function runClaude(
           }
           if (block.type === "tool_use") {
             onEvent?.({ type: "tool_use", data: { tool: block.name, input: block.input } });
-            // Office SSE: emit tool event
-            officeEvents.emit("tool", { name: block.name, context: formatToolContext(block.name ?? "", block.input) });
-            // Office SSE: detect subagent spawn
-            if (block.name === "Agent") {
-              const agentInput = block.input as Record<string, unknown> | undefined;
-              officeEvents.emit("subagent", {
-                action: "spawn",
-                id: block.id ?? "",
-                type: String(agentInput?.subagent_type ?? "general"),
-                description: String(agentInput?.description ?? ""),
-              });
-            }
-          }
-        }
-      }
-    }
-
-    // Detect tool_result for subagent completion
-    if (event.type === "user") {
-      const userEvent = event as { type: string; message?: { content?: Array<{ type: string; tool_use_id?: string }> } };
-      if (userEvent.message?.content) {
-        for (const block of userEvent.message.content) {
-          if (block.type === "tool_result" && block.tool_use_id) {
-            officeEvents.emit("subagent", { action: "complete", id: block.tool_use_id });
           }
         }
       }
@@ -469,18 +443,6 @@ export function createApp(config: BotConfig, startedAt: number, ptyManager?: Pty
       };
       activity.on("change", onStateChange);
 
-      // Subscribe to tool events
-      const onTool = (data: unknown) => {
-        stream.writeSSE({ event: "tool", data: JSON.stringify(data) }).catch(() => {});
-      };
-      officeEvents.on("tool", onTool);
-
-      // Subscribe to subagent events
-      const onSubagent = (data: unknown) => {
-        stream.writeSSE({ event: "subagent", data: JSON.stringify(data) }).catch(() => {});
-      };
-      officeEvents.on("subagent", onSubagent);
-
       // Heartbeat every 30s
       const heartbeat = setInterval(() => {
         stream.writeSSE({ event: "heartbeat", data: "" }).catch(() => {});
@@ -490,8 +452,6 @@ export function createApp(config: BotConfig, startedAt: number, ptyManager?: Pty
       await new Promise<void>((resolve) => {
         c.req.raw.signal.addEventListener("abort", () => {
           activity.off("change", onStateChange);
-          officeEvents.off("tool", onTool);
-          officeEvents.off("subagent", onSubagent);
           clearInterval(heartbeat);
           resolve();
         });
@@ -560,20 +520,6 @@ export function createApp(config: BotConfig, startedAt: number, ptyManager?: Pty
       log.error("Failed to get session", { error: err instanceof Error ? err.message : String(err) });
       return c.json({ error: "Failed to get session" }, 500);
     }
-  });
-
-  // Character appearance config
-  app.get("/api/config/character", (c) => {
-    return c.json(readCharacter());
-  });
-
-  app.post("/api/config/character", async (c) => {
-    const body = await c.req.json().catch(() => null);
-    if (!validateCharacter(body)) {
-      return c.json({ error: "Invalid character config. skin: 0-5, hair: 0-7, outfit: outfit1-6 or suit1-4" }, 400);
-    }
-    writeCharacter(body);
-    return c.json({ ok: true });
   });
 
   // Bot dashboard static files

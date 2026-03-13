@@ -1,16 +1,13 @@
-import { useState, useEffect, lazy, Suspense } from "react";
+import { useState, useEffect } from "react";
 import Sessions from "./views/sessions";
 import Schedule from "./views/schedule";
 import Settings from "./views/settings";
 
-const OfficeView = lazy(() => import("./views/office/office-view"));
-
-const tabs = ["Sessions", "Office", "Schedule", "Settings"] as const;
+const tabs = ["Sessions", "Schedule", "Settings"] as const;
 type Tab = (typeof tabs)[number];
 
 const icons: Record<Tab, string> = {
   Sessions: "M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z",
-  Office: "M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21",
   Schedule: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z",
   Settings: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z",
 };
@@ -86,11 +83,6 @@ export default function App() {
       {/* Main content */}
       <main className="flex-1 min-w-0 min-h-0 overflow-hidden bg-background">
         {tab === "Sessions" && <Sessions />}
-        {tab === "Office" && (
-          <Suspense fallback={<div className="flex items-center justify-center h-full text-muted-foreground">Loading...</div>}>
-            <OfficeView />
-          </Suspense>
-        )}
         {tab === "Schedule" && <Schedule />}
         {tab === "Settings" && <Settings />}
       </main>
