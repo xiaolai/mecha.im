@@ -6,5 +6,5 @@
     "rootDir": "."
   },
   "include": ["shared/**/*.ts", "agent/**/*.ts"],
-  "exclude": ["agent/dashboard/**"]
+  "exclude": ["agent/dashboard/**", "agent/**/*.test.ts"]
 }

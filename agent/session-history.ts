@@ -59,10 +59,13 @@ interface JLine {
   type: string;
   timestamp?: string;
   sessionId?: string;
+  isMeta?: boolean;
+  uuid?: string;
+  parentUuid?: string | null;
   message?: {
     role?: string;
     model?: string;
-    content?: JContentBlock[];
+    content?: string | JContentBlock[];
     stop_reason?: string | null;
     usage?: { input_tokens?: number; output_tokens?: number };
   };
@@ -98,11 +101,38 @@ function isToolResultLine(line: JLine): boolean {
   return content.some((b) => b.type === "tool_result");
 }
 
-function isRealUserMessage(line: JLine): boolean {
+// Tags injected by the CLI that are not real user content
+const CLI_TAG_RE = /^<(?:command-name|command-message|local-command-caveat|local-command-stdout|local-command-stderr|system-reminder|task-notification)/;
+
+function collectMetaUuids(lines: JLine[]): Set<string> {
+  const ids = new Set<string>();
+  for (const line of lines) {
+    if (line.isMeta && line.uuid) ids.add(line.uuid);
+  }
+  return ids;
+}
+
+function isCliContent(content: string | JContentBlock[]): boolean {
+  if (typeof content === "string") return CLI_TAG_RE.test(content.trim());
+  if (Array.isArray(content) && content[0]?.type === "text") {
+    return CLI_TAG_RE.test((content[0].text ?? "").trim());
+  }
+  return false;
+}
+
+function isRealUserMessage(line: JLine, metaUuids?: Set<string>): boolean {
   if (line.type !== "user") return false;
+  if (line.isMeta) return false;
+  // Children of meta lines are CLI system messages (slash commands, errors)
+  if (metaUuids && line.parentUuid && metaUuids.has(line.parentUuid)) return false;
   const content = line.message?.content;
+  if (content === undefined || content === null) return false;
+  if (isCliContent(content)) return false;
+  // String content (PTY/terminal sessions)
+  if (typeof content === "string") return content.trim().length > 0;
+  // Array content (SDK sessions) — must have a text block (not just tool_result)
   if (!Array.isArray(content) || content.length === 0) return false;
-  return content[0]?.type === "text";
+  return content.some((b) => b.type === "text");
 }
 
 function extractTextFromContent(content: JContentBlock[]): string {
@@ -198,6 +228,7 @@ export class SessionHistory {
         let lastActivity = "";
         let model = "";
         let messageCount = 0;
+        const metaUuids = collectMetaUuids(lines);
 
         for (const line of lines) {
           if (SKIP_TYPES.has(line.type)) continue;
@@ -209,13 +240,14 @@ export class SessionHistory {
           }
 
           // First user message = title
-          if (!title && isRealUserMessage(line)) {
-            const text = extractTextFromContent(line.message!.content!);
+          if (!title && isRealUserMessage(line, metaUuids)) {
+            const c = line.message!.content!;
+            const text = typeof c === "string" ? c : extractTextFromContent(c as JContentBlock[]);
             title = text.slice(0, 100);
           }
 
           // Count real user messages and final assistant messages
-          if (isRealUserMessage(line)) messageCount++;
+          if (isRealUserMessage(line, metaUuids)) messageCount++;
           if (line.type === "assistant" && line.message?.stop_reason === "end_turn") {
             messageCount++;
             if (!model && line.message.model) model = line.message.model;
@@ -257,20 +289,26 @@ export class SessionHistory {
 
     const messages: ConversationMessage[] = [];
     let model = "";
+    const metaUuids = collectMetaUuids(lines);
     for (const line of lines) {
       if (SKIP_TYPES.has(line.type)) continue;
       const content = line.message?.content;
-      if (!Array.isArray(content)) continue;
+      if (content === undefined || content === null) continue;
 
-      // Real user message
-      if (isRealUserMessage(line)) {
+      // Real user message (string or array content)
+      if (isRealUserMessage(line, metaUuids)) {
+        const text = typeof content === "string"
+          ? content
+          : extractTextFromContent(content as JContentBlock[]);
         messages.push({
           role: "user",
-          content: extractTextFromContent(content),
+          content: text,
           timestamp: line.timestamp ?? "",
         });
         continue;
       }
+
+      if (!Array.isArray(content)) continue;
 
       // Tool result (type=user with tool_result content)
       if (isToolResultLine(line)) {
@@ -389,17 +427,18 @@ export class SessionHistory {
       let model = "";
       let lastActivity = "";
       const matches: SearchMatch[] = [];
+      const metaUuids = collectMetaUuids(lines);
 
       for (const line of lines) {
         if (SKIP_TYPES.has(line.type)) continue;
         const content = line.message?.content;
-        if (!Array.isArray(content)) continue;
+        if (content === undefined || content === null) continue;
 
         if (line.timestamp) lastActivity = line.timestamp;
 
         // Extract title from first user message
-        if (!title && isRealUserMessage(line)) {
-          title = extractTextFromContent(content).slice(0, 100);
+        if (!title && isRealUserMessage(line, metaUuids)) {
+          title = (typeof content === "string" ? content : extractTextFromContent(content as JContentBlock[])).slice(0, 100);
         }
 
         // Track model (consistent with list(): only from final assistant turn)
@@ -408,8 +447,8 @@ export class SessionHistory {
         }
 
         // Search in user messages
-        if (isRealUserMessage(line)) {
-          const text = extractTextFromContent(content);
+        if (isRealUserMessage(line, metaUuids)) {
+          const text = typeof content === "string" ? content : extractTextFromContent(content as JContentBlock[]);
           if (text.toLowerCase().includes(needle)) {
             matches.push({
               role: "user",
@@ -420,7 +459,7 @@ export class SessionHistory {
         }
 
         // Search in assistant messages (final turn only)
-        if (line.type === "assistant" && line.message?.stop_reason === "end_turn") {
+        if (line.type === "assistant" && line.message?.stop_reason === "end_turn" && Array.isArray(content)) {
           const text = extractTextFromContent(content);
           if (text.toLowerCase().includes(needle)) {
             matches.push({
