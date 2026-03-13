@@ -1,9 +1,18 @@
 import { Hono } from "hono";
-import { resolve, normalize } from "node:path";
+import { resolve, normalize, join } from "node:path";
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { existsSync } from "node:fs";
 
-const DASHBOARD_ROOT = "/app/agent/dashboard/dist";
+// Hot-reload path (writable bind-mount) takes priority over image-baked dist
+const HOT_DASHBOARD_ROOT = "/state/dashboard-dist";
+const DEFAULT_DASHBOARD_ROOT = "/app/agent/dashboard/dist";
 const COOKIE_NAME = "mecha_session";
+
+function getDashboardRoot(): string {
+  return existsSync(join(HOT_DASHBOARD_ROOT, "index.html"))
+    ? HOT_DASHBOARD_ROOT
+    : DEFAULT_DASHBOARD_ROOT;
+}
 
 const MIME_TYPES: Record<string, string> = {
   html: "text/html",
@@ -39,14 +48,15 @@ export function createDashboardRoutes(botToken: string): Hono {
   app.get("/dashboard", (c) => c.redirect("/dashboard/"));
 
   app.get("/dashboard/*", async (c) => {
+    const dashboardRoot = getDashboardRoot();
     const reqPath = c.req.path.replace("/dashboard", "") || "/index.html";
     // Treat bare /dashboard/ as index.html
     const filePath = reqPath === "/" ? "/index.html" : reqPath;
-    const resolved = resolve(DASHBOARD_ROOT, filePath.replace(/^\//, ""));
+    const resolved = resolve(dashboardRoot, filePath.replace(/^\//, ""));
     const normalized = normalize(resolved);
 
     // Path traversal protection
-    if (normalized !== DASHBOARD_ROOT && !normalized.startsWith(DASHBOARD_ROOT + "/")) {
+    if (normalized !== dashboardRoot && !normalized.startsWith(dashboardRoot + "/")) {
       return c.json({ error: "Forbidden" }, 403);
     }
 
@@ -63,7 +73,7 @@ export function createDashboardRoutes(botToken: string): Hono {
       // SPA fallback — serve index.html for client-side routing
       try {
         const { readFile } = await import("node:fs/promises");
-        const html = await readFile(`${DASHBOARD_ROOT}/index.html`);
+        const html = await readFile(`${dashboardRoot}/index.html`);
         setSessionCookie(c);
         return c.body(html, 200, { "Content-Type": "text/html" });
       } catch {

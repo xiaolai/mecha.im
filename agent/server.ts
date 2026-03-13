@@ -157,7 +157,7 @@ async function runClaude(
           if (block.type === "tool_use") {
             onEvent?.({ type: "tool_use", data: { tool: block.name, input: block.input } });
             // Office SSE: emit tool event
-            officeEvents.emit("tool", { name: block.name, context: formatToolContext(block.name, block.input) });
+            officeEvents.emit("tool", { name: block.name, context: formatToolContext(block.name ?? "", block.input) });
             // Office SSE: detect subagent spawn
             if (block.name === "Agent") {
               const agentInput = block.input as Record<string, unknown> | undefined;

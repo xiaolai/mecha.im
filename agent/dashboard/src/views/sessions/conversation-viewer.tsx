@@ -20,7 +20,7 @@ function CopyButton({ text }: { text: string }) {
   return (
     <button
       onClick={handleCopy}
-      className="opacity-0 group-hover:opacity-100 p-1 rounded transition-opacity text-muted-foreground hover:text-foreground hover:bg-accent"
+      className="opacity-0 group-hover:opacity-100 p-1 rounded transition-opacity text-muted-foreground hover:text-foreground"
       title="Copy to clipboard"
     >
       {copied ? (
@@ -225,15 +225,6 @@ export default function ConversationViewer({ sessionId, className }: Props) {
 
   return (
     <div className={`overflow-y-auto overflow-x-hidden scrollbar-thin ${className ?? ""}`}>
-      {/* Header */}
-      <div className="sticky top-0 bg-background/90 backdrop-blur border-b border-border px-4 py-2 flex items-center gap-3 text-xs text-muted-foreground z-10">
-        <span className="font-mono">{detail.id.slice(0, 8)}</span>
-        <span className="opacity-30">·</span>
-        <span>{detail.model}</span>
-        <span className="opacity-30">·</span>
-        <span>{detail.messages.filter((m) => m.role === "user" || m.role === "assistant").length} messages</span>
-      </div>
-
       {/* Messages */}
       <div className="p-4 space-y-3">
         {detail.messages.map((msg, i) => {
@@ -245,9 +236,9 @@ export default function ConversationViewer({ sessionId, className }: Props) {
           if (msg.role === "user") {
             return (
               <div key={key} className="mr-12">
-                <div className="group relative bg-msg-user text-msg-user-foreground rounded-lg p-3 text-sm">
+                <div className="group relative bg-msg-user text-msg-user-foreground rounded-lg px-3 py-[1.2em] text-sm">
                   <MarkdownContent text={msg.content} variant="user" />
-                  <div className="absolute top-1.5 right-1.5">
+                  <div className="absolute bottom-1.5 right-1.5">
                     <CopyButton text={msg.content} />
                   </div>
                 </div>
@@ -264,9 +255,9 @@ export default function ConversationViewer({ sessionId, className }: Props) {
             return (
               <div key={key} className="ml-12">
                 {msg.thinkingContent && <ThinkingBlock content={msg.thinkingContent} />}
-                <div className="group relative bg-msg-assistant text-msg-assistant-foreground rounded-lg p-3 text-sm">
+                <div className="group relative bg-msg-assistant text-msg-assistant-foreground rounded-lg px-3 py-[1.2em] text-sm">
                   <MarkdownContent text={msg.content} variant="assistant" />
-                  <div className="absolute top-1.5 right-1.5">
+                  <div className="absolute bottom-1.5 right-1.5">
                     <CopyButton text={msg.content} />
                   </div>
                 </div>
