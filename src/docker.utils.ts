@@ -4,8 +4,9 @@ import { resolve, join } from "node:path";
 import { homedir } from "node:os";
 import { getMutex } from "../shared/mutex.js";
 import { ProcessSpawnError } from "../shared/errors.js";
-import { resolveAuth, getCredential, getPassthroughCredentials } from "./auth.js";
+import { resolveAuth, getCredential, getPassthroughCredentials, loadCredentials } from "./auth.js";
 import { getOrCreateFleetInternalSecret, readSettings } from "./store.js";
+import { stringify as stringifyYaml } from "yaml";
 import type { BotConfig } from "./config.js";
 
 const docker = new Docker();
@@ -82,10 +83,13 @@ export function isDockerError(err: unknown, pattern: string): boolean {
 export function buildBinds(resolvedPath: string, configPath: string, config: BotConfig): string[] {
   const binds = [
     `${realpathSync(resolvedPath)}:/state:rw`,
-    `${realpathSync(configPath)}:/config/bot.yaml:ro`,
+    `${realpathSync(configPath)}:/config/bot.yaml:rw`,
     `${realpathSync(join(resolvedPath, "home-dot-claude"))}:/home/appuser/.claude:rw`,
     `${realpathSync(join(resolvedPath, "home-dot-codex"))}:/home/appuser/.codex:rw`,
   ];
+  // Write filtered credentials (Claude auth profiles only) to bot state dir
+  // This avoids mounting the full credentials store which contains unrelated secrets
+  writeBotCredentials(resolvedPath);
   if (config.workspace) {
     const wsPath = realpathSync(config.workspace);
     const mode = config.workspace_writable ? "rw" : "ro";
@@ -131,6 +135,19 @@ export function buildContainerEnv(config: BotConfig, botToken: string): string[]
   if (settings.headscale_api_key) env.push(`MECHA_HEADSCALE_API_KEY=${settings.headscale_api_key}`);
 
   return env;
+}
+
+/**
+ * Write a filtered credentials.yaml into the bot's state dir.
+ * Only includes Claude auth profiles (api_key + oauth_token) — no unrelated secrets.
+ * Lives in /state/ (rw mount) so it's always accessible and updatable.
+ */
+export function writeBotCredentials(resolvedPath: string): void {
+  const creds = loadCredentials();
+  const claudeCreds = creds.filter((c) => c.type === "api_key" || c.type === "oauth_token");
+  const outPath = join(resolvedPath, "credentials.yaml");
+  const content = stringifyYaml({ credentials: claudeCreds }, { lineWidth: 0 });
+  writeFileSync(outPath, content, { mode: 0o600 });
 }
 
 /** Copy host Codex auth to bot if opted in */
