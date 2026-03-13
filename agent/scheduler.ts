@@ -48,14 +48,17 @@ export class Scheduler {
   private handler: PromptHandler;
   private isBusy: () => boolean;
   private stateMutex = new Mutex();
+  private onConfigChange?: (entries: ScheduleEntry[]) => void;
 
   constructor(
     entries: ScheduleEntry[],
     handler: PromptHandler,
     isBusy: () => boolean,
+    onConfigChange?: (entries: ScheduleEntry[]) => void,
   ) {
     this.handler = handler;
     this.isBusy = isBusy;
+    this.onConfigChange = onConfigChange;
 
     const result = safeReadJson(STATE_PATH, "schedule state", scheduleStateSchema);
     this.state = result.ok ? result.data : { entries: [] };
@@ -229,6 +232,135 @@ export class Scheduler {
     if (!entry) return false;
     await this.fire(entryId, { skipDailyLimit: true });
     return true;
+  }
+
+  addEntry(cron: string, prompt: string): { id: string; error?: string } {
+    // Validate cron
+    try {
+      new Cron(cron);
+    } catch {
+      return { id: "", error: `Invalid cron expression: "${cron}"` };
+    }
+
+    const id = stableId(cron, prompt);
+    if (this.state.entries.find((e) => e.id === id)) {
+      return { id, error: "Duplicate schedule entry (same cron + prompt)" };
+    }
+
+    const entry = {
+      id,
+      cron,
+      prompt,
+      status: "active" as const,
+      nextRunAt: null as string | null,
+      lastRunAt: null as string | null,
+      runCount: 0,
+      runsToday: 0,
+      consecutiveErrors: 0,
+      lastResult: null as string | null,
+    };
+    this.state.entries.push(entry);
+
+    // Start cron job immediately
+    const job = new Cron(cron, async () => { await this.fire(id); });
+    this.jobs.set(id, job);
+    entry.nextRunAt = job.nextRun()?.toISOString() ?? null;
+
+    this.save();
+    this.persistConfig();
+    log.info(`Schedule entry added: "${id}" cron="${cron}"`);
+    return { id };
+  }
+
+  updateEntry(entryId: string, updates: { cron?: string; prompt?: string }): { error?: string } {
+    const entry = this.state.entries.find((e) => e.id === entryId);
+    if (!entry) return { error: "Entry not found" };
+
+    const newCron = updates.cron ?? entry.cron;
+    const newPrompt = updates.prompt ?? entry.prompt;
+
+    // Validate new cron if changed
+    if (updates.cron) {
+      try {
+        new Cron(updates.cron);
+      } catch {
+        return { error: `Invalid cron expression: "${updates.cron}"` };
+      }
+    }
+
+    // Stop old job
+    const oldJob = this.jobs.get(entryId);
+    if (oldJob) { oldJob.stop(); this.jobs.delete(entryId); }
+
+    // Update entry (keep same id slot, recalculate id)
+    const newId = stableId(newCron, newPrompt);
+    entry.id = newId;
+    entry.cron = newCron;
+    entry.prompt = newPrompt;
+
+    // Restart job if active
+    if (entry.status === "active") {
+      const job = new Cron(newCron, async () => { await this.fire(newId); });
+      this.jobs.set(newId, job);
+      entry.nextRunAt = job.nextRun()?.toISOString() ?? null;
+    }
+
+    this.save();
+    this.persistConfig();
+    log.info(`Schedule entry updated: "${entryId}" -> "${newId}"`);
+    return {};
+  }
+
+  removeEntry(entryId: string): boolean {
+    const idx = this.state.entries.findIndex((e) => e.id === entryId);
+    if (idx === -1) return false;
+
+    const job = this.jobs.get(entryId);
+    if (job) { job.stop(); this.jobs.delete(entryId); }
+
+    this.state.entries.splice(idx, 1);
+    this.save();
+    this.persistConfig();
+    log.info(`Schedule entry removed: "${entryId}"`);
+    return true;
+  }
+
+  pauseEntry(entryId: string): boolean {
+    const entry = this.state.entries.find((e) => e.id === entryId);
+    if (!entry || entry.status === "paused") return false;
+
+    const job = this.jobs.get(entryId);
+    if (job) { job.stop(); this.jobs.delete(entryId); }
+
+    entry.status = "paused";
+    entry.nextRunAt = null;
+    this.save();
+    log.info(`Schedule entry paused: "${entryId}"`);
+    return true;
+  }
+
+  resumeEntry(entryId: string): { error?: string } {
+    const entry = this.state.entries.find((e) => e.id === entryId);
+    if (!entry) return { error: "Entry not found" };
+    if (entry.status === "active") return { error: "Already active" };
+
+    try {
+      const job = new Cron(entry.cron, async () => { await this.fire(entryId); });
+      this.jobs.set(entryId, job);
+      entry.status = "active";
+      entry.consecutiveErrors = 0;
+      entry.nextRunAt = job.nextRun()?.toISOString() ?? null;
+      this.save();
+      log.info(`Schedule entry resumed: "${entryId}"`);
+      return {};
+    } catch {
+      return { error: `Invalid cron expression: "${entry.cron}"` };
+    }
+  }
+
+  private persistConfig(): void {
+    const entries = this.state.entries.map((e) => ({ cron: e.cron, prompt: e.prompt }));
+    this.onConfigChange?.(entries);
   }
 
   private save(): void {

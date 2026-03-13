@@ -577,6 +577,61 @@ export function createApp(config: BotConfig, startedAt: number, ptyManager?: Pty
     return c.json(schedulerRef.getStatus());
   });
 
+  app.post("/api/schedule", async (c) => {
+    if (!schedulerRef) return c.json({ error: "Scheduler not initialized" }, 400);
+    const body = await c.req.json().catch(() => null);
+    if (!body || typeof body.cron !== "string" || typeof body.prompt !== "string") {
+      return c.json({ error: "cron and prompt are required" }, 400);
+    }
+    const { cron, prompt } = body as { cron: string; prompt: string };
+    if (!prompt.trim()) return c.json({ error: "prompt cannot be empty" }, 400);
+    const result = schedulerRef.addEntry(cron, prompt.trim());
+    if (result.error) return c.json({ error: result.error }, 400);
+    return c.json({ id: result.id, status: "created" }, 201);
+  });
+
+  app.put("/api/schedule/:id", async (c) => {
+    if (!schedulerRef) return c.json({ error: "Scheduler not initialized" }, 400);
+    const id = c.req.param("id");
+    if (!/^[a-f0-9]{16}$/.test(id)) return c.json({ error: "Invalid schedule ID" }, 400);
+    const body = await c.req.json().catch(() => null);
+    if (!body) return c.json({ error: "Request body required" }, 400);
+    const updates: { cron?: string; prompt?: string } = {};
+    if (typeof body.cron === "string") updates.cron = body.cron;
+    if (typeof body.prompt === "string") updates.prompt = body.prompt.trim();
+    if (!updates.cron && !updates.prompt) return c.json({ error: "cron or prompt required" }, 400);
+    const result = schedulerRef.updateEntry(id, updates);
+    if (result.error) return c.json({ error: result.error }, 400);
+    return c.json({ status: "updated" });
+  });
+
+  app.delete("/api/schedule/:id", (c) => {
+    if (!schedulerRef) return c.json({ error: "Scheduler not initialized" }, 400);
+    const id = c.req.param("id");
+    if (!/^[a-f0-9]{16}$/.test(id)) return c.json({ error: "Invalid schedule ID" }, 400);
+    const ok = schedulerRef.removeEntry(id);
+    if (!ok) return c.json({ error: "Schedule not found" }, 404);
+    return c.json({ status: "deleted" });
+  });
+
+  app.post("/api/schedule/:id/pause", (c) => {
+    if (!schedulerRef) return c.json({ error: "Scheduler not initialized" }, 400);
+    const id = c.req.param("id");
+    if (!/^[a-f0-9]{16}$/.test(id)) return c.json({ error: "Invalid schedule ID" }, 400);
+    const ok = schedulerRef.pauseEntry(id);
+    if (!ok) return c.json({ error: "Entry not found or already paused" }, 400);
+    return c.json({ status: "paused" });
+  });
+
+  app.post("/api/schedule/:id/resume", (c) => {
+    if (!schedulerRef) return c.json({ error: "Scheduler not initialized" }, 400);
+    const id = c.req.param("id");
+    if (!/^[a-f0-9]{16}$/.test(id)) return c.json({ error: "Invalid schedule ID" }, 400);
+    const result = schedulerRef.resumeEntry(id);
+    if (result.error) return c.json({ error: result.error }, 400);
+    return c.json({ status: "resumed" });
+  });
+
   app.post("/api/schedule/trigger/:id", async (c) => {
     if (!schedulerRef) return c.json({ error: "No scheduler" }, 404);
     const id = c.req.param("id");
