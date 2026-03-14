@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { botFetch } from "../lib/api";
 import type { ScheduleEntry } from "./schedule-types";
 import { CRON_PRESETS, cronToHuman, timeUntil } from "./schedule-utils";
+import { Alert, Button, Card, Dialog, DialogFooter, Input, StatusBadge, Textarea } from "../components";
 
 export default function Schedule() {
   const [entries, setEntries] = useState<ScheduleEntry[]>([]);
@@ -142,25 +143,20 @@ export default function Schedule() {
     <div className="p-6 space-y-4 max-w-4xl mx-auto h-full overflow-y-auto">
       <div className="flex items-center justify-between mb-2">
         <h2 className="text-lg font-semibold text-foreground">Schedule</h2>
-        <button
-          onClick={startAdd}
-          disabled={showAdd}
-          className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors"
-        >
+        <Button onClick={startAdd} disabled={showAdd || isEditing}>
           + Add Task
-        </button>
+        </Button>
       </div>
 
       {error && (
-        <div className="text-sm px-3 py-2 rounded-md bg-destructive/10 text-destructive">
+        <Alert variant="error" onDismiss={() => setError(null)}>
           {error}
-          <button onClick={() => setError(null)} className="ml-2 underline">dismiss</button>
-        </div>
+        </Alert>
       )}
 
       {/* Add / Edit form */}
       {(showAdd || isEditing) && (
-        <div className="bg-card rounded-lg border border-border p-4 space-y-3">
+        <Card spacing={3}>
           <h3 className="text-sm font-medium text-foreground">
             {isEditing ? "Edit Schedule Entry" : "New Schedule Entry"}
           </h3>
@@ -184,11 +180,12 @@ export default function Schedule() {
 
           <div>
             <label className="text-xs text-muted-foreground block mb-1">Cron Expression (5 fields)</label>
-            <input
+            <Input
+              mono
               value={formCron}
               onChange={(e) => setFormCron(e.target.value)}
               placeholder="*/15 * * * *"
-              className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              className="w-full"
             />
             {formCron && (
               <div className="text-xs text-muted-foreground mt-1">{cronToHuman(formCron)}</div>
@@ -197,35 +194,31 @@ export default function Schedule() {
 
           <div>
             <label className="text-xs text-muted-foreground block mb-1">Prompt</label>
-            <textarea
+            <Textarea
               value={formPrompt}
               onChange={(e) => setFormPrompt(e.target.value)}
               placeholder="What should the bot do on this schedule?"
               rows={3}
-              className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-y"
+              className="w-full"
             />
           </div>
 
           {formError && (
-            <div className="text-sm px-3 py-2 rounded-md bg-destructive/10 text-destructive">{formError}</div>
+            <Alert variant="error">{formError}</Alert>
           )}
 
           <div className="flex gap-2 justify-end">
-            <button
-              onClick={resetForm}
-              className="px-3 py-1.5 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 transition-colors"
-            >
+            <Button variant="secondary" onClick={resetForm}>
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => isEditing ? handleUpdate(editingId!) : handleAdd()}
               disabled={formBusy || !formCron.trim() || !formPrompt.trim()}
-              className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors"
             >
               {formBusy ? "Saving..." : isEditing ? "Update" : "Create"}
-            </button>
+            </Button>
           </div>
-        </div>
+        </Card>
       )}
 
       {/* Entry list */}
@@ -234,58 +227,56 @@ export default function Schedule() {
       )}
 
       {entries.map((e) => (
-        <div key={e.id} className="bg-card rounded-lg border border-border p-4">
+        <Card key={e.id}>
           {/* Header row */}
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <code className="text-primary text-sm">{e.cron}</code>
               <span className="text-xs text-muted-foreground">{cronToHuman(e.cron)}</span>
-              <span
-                className={`text-xs px-2 py-0.5 rounded-md font-medium ${
-                  e.status === "active"
-                    ? "bg-green-500/10 text-green-600 dark:text-green-400"
-                    : "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400"
-                }`}
-              >
+              <StatusBadge variant={e.status === "active" ? "success" : "warning"}>
                 {e.status}
-              </span>
+              </StatusBadge>
               {e.consecutiveErrors >= 5 && (
-                <span className="text-xs px-2 py-0.5 rounded-md bg-destructive/10 text-destructive font-medium">
+                <StatusBadge variant="error">
                   auto-paused
-                </span>
+                </StatusBadge>
               )}
             </div>
 
             {/* Action buttons */}
             <div className="flex items-center gap-1.5">
-              <button
+              <Button
+                variant="ghost"
+                size="xs"
                 onClick={() => handleToggle(e)}
-                className="text-xs px-2 py-1 rounded-md border border-border text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
                 title={e.status === "active" ? "Pause" : "Resume"}
               >
                 {e.status === "active" ? "Pause" : "Resume"}
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
+                size="xs"
                 onClick={() => handleTrigger(e.id)}
-                className="text-xs px-2 py-1 rounded-md border border-border text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
                 title="Run now"
               >
                 Trigger
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
+                size="xs"
                 onClick={() => startEdit(e)}
-                className="text-xs px-2 py-1 rounded-md border border-border text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
                 title="Edit"
               >
                 Edit
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost-destructive"
+                size="xs"
                 onClick={() => setDeleteConfirm(e.id)}
-                className="text-xs px-2 py-1 rounded-md border border-destructive/30 text-destructive/70 hover:text-destructive hover:border-destructive transition-colors"
                 title="Delete"
               >
                 Delete
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -312,34 +303,24 @@ export default function Schedule() {
               <span className="text-destructive">Consecutive errors: {e.consecutiveErrors}</span>
             )}
           </div>
-        </div>
+        </Card>
       ))}
 
       {/* Delete confirmation dialog */}
-      {deleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-card border border-border rounded-lg p-6 max-w-sm mx-4 shadow-xl">
-            <h3 className="text-lg font-semibold text-foreground mb-2">Delete Schedule Entry</h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              This will permanently remove this scheduled task. Are you sure?
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setDeleteConfirm(null)}
-                className="px-4 py-2 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleDelete(deleteConfirm)}
-                className="px-4 py-2 text-sm bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 transition-colors"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <Dialog
+        open={deleteConfirm !== null}
+        title="Delete Schedule Entry"
+        description="This will permanently remove this scheduled task. Are you sure?"
+      >
+        <DialogFooter>
+          <Button variant="secondary" size="lg" onClick={() => setDeleteConfirm(null)}>
+            Cancel
+          </Button>
+          <Button variant="destructive" size="lg" onClick={() => handleDelete(deleteConfirm!)}>
+            Delete
+          </Button>
+        </DialogFooter>
+      </Dialog>
     </div>
   );
 }

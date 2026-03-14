@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { botFetch, botUrl } from "../lib/api";
+import { Card, StatusDot } from "../components";
 
 interface BotStatus {
   name: string;
@@ -12,17 +13,17 @@ interface BotStatus {
   last_active: string | null;
 }
 
-const STATE_COLORS: Record<string, string> = {
-  idle: "bg-green-500",
-  thinking: "bg-yellow-500",
-  calling: "bg-yellow-500",
-  scheduled: "bg-yellow-500",
-  webhook: "bg-yellow-500",
-  error: "bg-red-500",
+const STATE_COLORS: Record<string, "green" | "yellow" | "red" | "muted"> = {
+  idle: "green",
+  thinking: "yellow",
+  calling: "yellow",
+  scheduled: "yellow",
+  webhook: "yellow",
+  error: "red",
 };
 
-function stateColor(state: string): string {
-  return STATE_COLORS[state] ?? "bg-muted-foreground";
+function stateColor(state: string): "green" | "yellow" | "red" | "muted" {
+  return STATE_COLORS[state] ?? "muted";
 }
 
 function formatUptime(seconds: number): string {
@@ -53,7 +54,6 @@ export default function StatusCard() {
   const [error, setError] = useState<string | null>(null);
   const [, setTick] = useState(0);
   const uptimeBaseRef = useRef<{ serverUptime: number; fetchedAt: number } | null>(null);
-  const esRef = useRef<EventSource | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -86,7 +86,6 @@ export default function StatusCard() {
     fetchStatus();
 
     const es = new EventSource(botUrl("/api/status/stream"));
-    esRef.current = es;
 
     const handleSSE = (e: MessageEvent) => {
       try {
@@ -118,7 +117,6 @@ export default function StatusCard() {
 
     return () => {
       es.close();
-      esRef.current = null;
       stopPolling();
       if (tickRef.current) clearInterval(tickRef.current);
     };
@@ -126,19 +124,19 @@ export default function StatusCard() {
 
   if (error && !status) {
     return (
-      <div className="bg-card rounded-lg border border-border p-4">
+      <Card>
         <h2 className="text-lg font-semibold text-foreground mb-2">Status</h2>
         <p className="text-sm text-destructive">{error}</p>
-      </div>
+      </Card>
     );
   }
 
   if (!status) {
     return (
-      <div className="bg-card rounded-lg border border-border p-4">
+      <Card>
         <h2 className="text-lg font-semibold text-foreground mb-2">Status</h2>
         <p className="text-sm text-muted-foreground">Loading...</p>
-      </div>
+      </Card>
     );
   }
 
@@ -148,11 +146,11 @@ export default function StatusCard() {
   const displayUptime = formatUptime(liveUptime > 0 ? liveUptime : 0);
 
   return (
-    <div className="bg-card rounded-lg border border-border p-4">
+    <Card>
       <h2 className="text-lg font-semibold text-foreground mb-3">Status</h2>
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <span className={`w-2 h-2 rounded-full ${stateColor(status.state)}`} />
+          <StatusDot color={stateColor(status.state)} />
           <span className="text-sm font-medium text-foreground capitalize">{status.state}</span>
         </div>
         <span className="text-sm text-muted-foreground">
@@ -183,6 +181,6 @@ export default function StatusCard() {
           <p className="text-sm text-muted-foreground">No active task</p>
         )}
       </div>
-    </div>
+    </Card>
   );
 }

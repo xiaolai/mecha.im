@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { botFetch } from "../lib/api";
+import { Button, Card, Alert, Dialog, DialogFooter } from "../components";
 import StatusCard from "./settings-status";
 import ConfigEditor from "./settings-config";
 import EventLog from "./settings-logs";
@@ -18,6 +19,7 @@ const COST_LABELS: Record<string, string> = {
 
 export default function Settings() {
   const [costs, setCosts] = useState<CostData | null>(null);
+  const [costError, setCostError] = useState(false);
 
   const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
   const [actionPending, setActionPending] = useState(false);
@@ -35,7 +37,7 @@ export default function Settings() {
           setCosts(d as unknown as CostData);
         }
       })
-      .catch(() => setCosts(null));
+      .catch(() => setCostError(true));
   }, []);
 
   const handleBotAction = useCallback(async (action: "stop" | "restart", force = false) => {
@@ -69,14 +71,16 @@ export default function Settings() {
         {costs ? (
           <div className="grid grid-cols-3 gap-4">
             {(["task", "today", "lifetime"] as const).map((k) => (
-              <div key={k} className="bg-card rounded-lg border border-border p-4 text-center">
+              <Card key={k} className="text-center">
                 <div className="text-2xl font-bold text-foreground">${costs[k].toFixed(4)}</div>
                 <div className="text-muted-foreground text-sm mt-1">{COST_LABELS[k]}</div>
-              </div>
+              </Card>
             ))}
           </div>
+        ) : costError ? (
+          <Card className="text-sm text-destructive">Failed to load costs</Card>
         ) : (
-          <div className="bg-card rounded-lg border border-border p-4 text-sm text-muted-foreground">Loading...</div>
+          <Card className="text-sm text-muted-foreground">Loading...</Card>
         )}
       </section>
 
@@ -84,29 +88,27 @@ export default function Settings() {
       <section>
         <h2 className="text-lg font-semibold text-foreground mb-3">Controls</h2>
         <div className="flex gap-3">
-          <button
+          <Button
+            variant="secondary"
+            size="lg"
             onClick={() => handleBotAction("restart")}
             disabled={actionPending}
-            className="px-4 py-2 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 disabled:opacity-50 transition-colors"
           >
             {actionPending ? "..." : "Restart Bot"}
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="destructive-soft"
+            size="lg"
             onClick={() => handleBotAction("stop")}
             disabled={actionPending}
-            className="px-4 py-2 text-sm bg-destructive/10 text-destructive rounded-md hover:bg-destructive/20 disabled:opacity-50 transition-colors"
           >
             {actionPending ? "..." : "Stop Bot"}
-          </button>
+          </Button>
         </div>
         {message && (
-          <div className={`mt-3 text-sm px-3 py-2 rounded-md ${
-            message.type === "success"
-              ? "bg-green-500/10 text-green-600 dark:text-green-400"
-              : "bg-destructive/10 text-destructive"
-          }`}>
+          <Alert variant={message.type} className="mt-3">
             {message.text}
-          </div>
+          </Alert>
         )}
       </section>
 
@@ -115,10 +117,9 @@ export default function Settings() {
       <EventLog />
 
       {/* Busy Warning Dialog */}
-      {busyDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-card border border-border rounded-lg p-6 max-w-md mx-4 shadow-xl">
-            <h3 className="text-lg font-semibold text-foreground mb-2">Bot is Busy</h3>
+      <Dialog open={!!busyDialog} size="md" title="Bot is Busy">
+        {busyDialog && (
+          <>
             <p className="text-sm text-muted-foreground mb-1">
               The bot is currently <span className="font-mono text-foreground">{busyDialog.state}</span>.
             </p>
@@ -127,27 +128,25 @@ export default function Settings() {
                 ? "Stopping now will interrupt the current task. Are you sure?"
                 : "Restarting now will interrupt the current task. Are you sure?"}
             </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setBusyDialog(null)}
-                className="px-4 py-2 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 transition-colors"
-              >
+            <DialogFooter>
+              <Button variant="secondary" size="lg" onClick={() => setBusyDialog(null)}>
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="destructive"
+                size="lg"
                 onClick={() => {
                   const { action } = busyDialog;
                   setBusyDialog(null);
                   handleBotAction(action, true);
                 }}
-                className="px-4 py-2 text-sm bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 transition-colors"
               >
                 Force {busyDialog.action === "stop" ? "Stop" : "Restart"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+              </Button>
+            </DialogFooter>
+          </>
+        )}
+      </Dialog>
     </div>
   );
 }

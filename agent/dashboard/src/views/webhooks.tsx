@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { botFetch, botUrl } from "../lib/api";
+import { Button, Input, Select, Card, Alert, Badge, StatusDot } from "../components";
 
 const GITHUB_PRESETS = [
   { label: "Push", value: "push" },
@@ -21,10 +22,12 @@ export default function Webhooks() {
   const [showSecretForm, setShowSecretForm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
+  const flashTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const flash = useCallback((text: string, type: "success" | "error") => {
+    if (flashTimer.current) clearTimeout(flashTimer.current);
     setMessage({ text, type });
-    setTimeout(() => setMessage(null), 3000);
+    flashTimer.current = setTimeout(() => setMessage(null), 3000);
   }, []);
 
   const refresh = useCallback(() => {
@@ -107,107 +110,101 @@ export default function Webhooks() {
       <h2 className="text-lg font-semibold text-foreground mb-2">Webhooks</h2>
 
       {message && (
-        <div className={`text-sm px-3 py-2 rounded-md ${
-          message.type === "success" ? "bg-green-500/10 text-green-600 dark:text-green-400" : "bg-destructive/10 text-destructive"
-        }`}>
+        <Alert variant={message.type}>
           {message.text}
-        </div>
+        </Alert>
       )}
 
-      <div className="bg-card rounded-lg border border-border p-4 space-y-2">
+      <Card spacing={2}>
         <h3 className="text-sm font-medium text-foreground">Endpoint</h3>
         <div className="flex items-center gap-2">
           <code className="flex-1 text-sm font-mono text-primary bg-background border border-border rounded-md px-3 py-1.5">
             POST /webhook
           </code>
-          <button
-            onClick={handleCopyUrl}
-            className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors whitespace-nowrap"
-          >
+          <Button onClick={handleCopyUrl} className="whitespace-nowrap">
             Copy URL
-          </button>
+          </Button>
         </div>
-      </div>
+      </Card>
 
-      <div className="bg-card rounded-lg border border-border p-4 space-y-3">
+      <Card spacing={3}>
         <h3 className="text-sm font-medium text-foreground">Accepted Events</h3>
         {accept.length === 0 ? (
           <p className="text-sm text-muted-foreground">No events configured -- add one to start</p>
         ) : (
           <div className="flex flex-wrap gap-2">
             {accept.map((ev) => (
-              <span key={ev} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary">
+              <Badge key={ev} variant="primary" onRemove={() => handleRemoveEvent(ev)}>
                 {ev}
-                <button onClick={() => handleRemoveEvent(ev)} className="hover:text-destructive transition-colors ml-0.5">&times;</button>
-              </span>
+              </Badge>
             ))}
           </div>
         )}
 
         <div className="flex items-center gap-2">
           {availablePresets.length > 0 && (
-            <select
+            <Select
+              compact
               value=""
               onChange={(e) => { if (e.target.value) setNewEvent(e.target.value); }}
-              className="bg-background border border-border rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
             >
               <option value="">GitHub Events</option>
               {availablePresets.map((p) => (
                 <option key={p.value} value={p.value}>{p.label}</option>
               ))}
-            </select>
+            </Select>
           )}
-          <input
+          <Input
             value={newEvent}
             onChange={(e) => setNewEvent(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") handleAddEvent(); }}
             placeholder="custom.event"
-            className="flex-1 bg-background border border-border rounded-md px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            className="flex-1"
           />
-          <button
+          <Button
             onClick={handleAddEvent}
             disabled={!newEvent.trim()}
-            className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors"
           >
             + Add
-          </button>
+          </Button>
         </div>
-      </div>
+      </Card>
 
-      <div className="bg-card rounded-lg border border-border p-4 space-y-3">
+      <Card spacing={3}>
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-medium text-foreground">Secret</h3>
-          <button
+          <Button
+            variant="ghost"
+            size="xs"
             onClick={() => { setShowSecretForm(!showSecretForm); setNewSecret(""); }}
-            className="text-xs px-2 py-1 rounded-md border border-border text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
           >
             {showSecretForm ? "Cancel" : "Change"}
-          </button>
+          </Button>
         </div>
 
         <div className="flex items-center gap-2 text-sm">
-          <span className={`inline-block w-2 h-2 rounded-full ${secretSet ? "bg-green-500" : "bg-muted-foreground/40"}`} />
+          <StatusDot color={secretSet ? "green" : "muted-lighter"} />
           <span className="text-foreground">{secretSet ? "Configured" : "Not set"}</span>
         </div>
 
         {showSecretForm && (
           <div className="flex items-center gap-2">
-            <input
+            <Input
               type="password"
               value={newSecret}
               onChange={(e) => setNewSecret(e.target.value)}
               placeholder="Enter new secret"
-              className="flex-1 bg-background border border-border rounded-md px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              className="flex-1"
             />
-            <button
+            <Button
               onClick={handleSaveSecret}
               disabled={!newSecret.trim()}
-              className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors"
             >
               Save
-            </button>
+            </Button>
             {secretSet && (
-              <button
+              <Button
+                variant="ghost-destructive"
                 onClick={async () => {
                   try {
                     const resp = await botFetch("/api/webhooks", {
@@ -221,14 +218,13 @@ export default function Webhooks() {
                     flash("Secret removed", "success");
                   } catch { flash("Network error", "error"); }
                 }}
-                className="px-3 py-1.5 text-sm border border-destructive/30 text-destructive/70 rounded-md hover:text-destructive hover:border-destructive transition-colors"
               >
                 Remove
-              </button>
+              </Button>
             )}
           </div>
         )}
-      </div>
+      </Card>
     </div>
   );
 }
