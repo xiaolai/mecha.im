@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { fleetFetch } from "../lib/fleet-context";
+import { Button, Card } from "../components";
 
 interface NetworkEvent {
   type: string;
@@ -18,8 +19,9 @@ export default function Network() {
 
   const refresh = useCallback(() => {
     fleetFetch("/api/network")
-      .then((r) => r.json())
+      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then((data) => {
+        if (!Array.isArray(data)) return;
         const typed = data as NetworkEvent[];
         setEvents(typed.sort((a, b) => b.timestamp.localeCompare(a.timestamp)).slice(0, 100));
 
@@ -54,16 +56,17 @@ export default function Network() {
         ) : (
           <div className="space-y-2">
             {Array.from(connections.entries()).map(([key, val]) => (
-              <div
+              <Card
                 key={key}
-                className="bg-card rounded-lg border border-border p-3 flex items-center justify-between"
+                compact
+                className="flex items-center justify-between"
               >
                 <span className="font-mono text-sm text-primary">{key}</span>
                 <div className="flex gap-4 text-sm text-muted-foreground">
                   <span>{val.count} calls</span>
                   <span>Last: {new Date(val.lastSeen).toLocaleString()}</span>
                 </div>
-              </div>
+              </Card>
             ))}
           </div>
         )}
@@ -72,12 +75,9 @@ export default function Network() {
       <section>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-foreground">Recent Events</h2>
-          <button
-            onClick={refresh}
-            className="text-sm bg-secondary hover:bg-secondary/80 text-secondary-foreground px-3 py-1 rounded-md transition-colors"
-          >
+          <Button variant="secondary" size="xs" onClick={refresh}>
             Refresh
-          </button>
+          </Button>
         </div>
         <div className="space-y-1 font-mono text-sm">
           {events.length === 0 && <p className="text-muted-foreground">No events</p>}

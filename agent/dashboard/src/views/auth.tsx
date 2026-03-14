@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { fleetFetch } from "../lib/fleet-context";
+import { Button, Input, Card, Alert, StatusDot } from "../components";
 
 interface AuthProfile {
   name: string;
@@ -15,10 +16,10 @@ export default function Auth() {
 
   const refresh = useCallback(() => {
     fleetFetch("/api/auth")
-      .then((r) => r.json())
+      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then((data) => {
-        // API returns array of names; enrich if possible
-        if (Array.isArray(data) && (data.length === 0 || typeof data[0] === "string")) {
+        if (!Array.isArray(data)) return;
+        if (data.length === 0 || typeof data[0] === "string") {
           setProfiles(data.map((name: string) => ({ name, type: "unknown" })));
         } else {
           setProfiles(data as AuthProfile[]);
@@ -59,55 +60,47 @@ export default function Auth() {
         <div className="space-y-2">
           {profiles.length === 0 && <p className="text-muted-foreground text-sm">No profiles configured</p>}
           {profiles.map((p) => (
-            <div
-              key={p.name}
-              className="bg-card rounded-lg border border-border p-3 flex items-center gap-3"
-            >
-              <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+            <Card compact key={p.name} className="flex items-center gap-3">
+              <StatusDot color="green" />
               <span className="font-mono text-sm text-foreground">{p.name}</span>
               {p.type !== "unknown" && (
                 <span className="text-xs text-muted-foreground">({p.type})</span>
               )}
-            </div>
+            </Card>
           ))}
         </div>
       </section>
 
       <section>
         <h2 className="text-lg font-semibold text-foreground mb-4">Add Profile</h2>
-        <div className="bg-card rounded-lg border border-border p-4 space-y-3">
-          <input
+        <Card spacing={3}>
+          <Input
             value={newProfile}
             onChange={(e) => setNewProfile(e.target.value)}
             placeholder="Profile name (e.g. anthropic-main)"
-            className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full"
           />
-          <input
+          <Input
             value={newKey}
             onChange={(e) => setNewKey(e.target.value)}
             placeholder="API key or OAuth token"
             type="password"
-            className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full"
           />
 
           {message && (
-            <div className={`text-sm px-3 py-2 rounded-md ${
-              message.type === "success"
-                ? "bg-green-500/10 text-green-600 dark:text-green-400"
-                : "bg-destructive/10 text-destructive"
-            }`}>
+            <Alert variant={message.type}>
               {message.text}
-            </div>
+            </Alert>
           )}
 
-          <button
+          <Button
             onClick={addProfile}
             disabled={!newProfile || !newKey || addBusy}
-            className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors"
           >
             {addBusy ? "Adding..." : "Add Profile"}
-          </button>
-        </div>
+          </Button>
+        </Card>
       </section>
     </div>
   );

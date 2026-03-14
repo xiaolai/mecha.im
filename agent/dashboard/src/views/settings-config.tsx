@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { botFetch } from "../lib/api";
+import { Button, Input, Select, Textarea, Card, Alert } from "../components";
 
 interface Config {
   name?: string;
@@ -9,9 +10,9 @@ interface Config {
   system?: string;
   auth_type?: string;
   auth_profile?: string;
-  schedule?: unknown[];
+  schedule?: number;
   webhooks?: { accept?: string[] };
-  workspace?: string;
+  workspace?: boolean;
   workspace_writable?: boolean;
   [key: string]: unknown;
 }
@@ -25,11 +26,6 @@ interface AuthInfo {
   current_profile: string | null;
   profiles: AuthProfile[];
 }
-
-const inputClass =
-  "bg-background border border-border rounded-md px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary w-full";
-
-const labelClass = "text-sm text-muted-foreground";
 
 export default function ConfigEditor() {
   const [config, setConfig] = useState<Config | null>(null);
@@ -114,9 +110,9 @@ export default function ConfigEditor() {
     return (
       <section>
         <h2 className="text-lg font-semibold text-foreground mb-3">Configuration</h2>
-        <div className="bg-card rounded-lg border border-border p-4 text-sm text-muted-foreground">
+        <Card className="text-sm text-muted-foreground">
           Loading...
-        </div>
+        </Card>
       </section>
     );
   }
@@ -125,9 +121,9 @@ export default function ConfigEditor() {
     return (
       <section>
         <h2 className="text-lg font-semibold text-foreground mb-3">Configuration</h2>
-        <div className="bg-card rounded-lg border border-border p-4 text-sm text-destructive">
+        <Card className="text-sm text-destructive">
           {message?.text || "Failed to load configuration"}
-        </div>
+        </Card>
       </section>
     );
   }
@@ -138,61 +134,65 @@ export default function ConfigEditor() {
   return (
     <section>
       <h2 className="text-lg font-semibold text-foreground mb-3">Configuration</h2>
-      <div className="bg-card rounded-lg border border-border p-4 space-y-4">
+      <Card spacing={4}>
         {/* Name (read-only) */}
         <div className="space-y-1">
-          <label className={labelClass}>Name</label>
+          <label className="text-sm text-muted-foreground">Name</label>
           <div className="text-sm text-foreground font-mono">{config.name ?? "—"}</div>
         </div>
 
         {/* Model */}
         <div className="space-y-1">
-          <label className={labelClass}>Model</label>
-          <select
+          <label className="text-sm text-muted-foreground">Model</label>
+          <Select
             value={(currentVal("model") as string) ?? "sonnet"}
             onChange={(e) => updateDraft("model", e.target.value)}
-            className={inputClass}
+            className="w-full"
           >
             <option value="sonnet">sonnet</option>
             <option value="opus">opus</option>
             <option value="haiku">haiku</option>
-          </select>
+          </Select>
         </div>
 
         {/* Max Turns */}
         <div className="space-y-1">
-          <label className={labelClass}>Max Turns</label>
-          <input
+          <label className="text-sm text-muted-foreground">Max Turns</label>
+          <Input
             type="number"
             min={1}
             max={100}
             value={(currentVal("max_turns") as number) ?? 25}
-            onChange={(e) => updateDraft("max_turns", Math.max(1, Math.min(100, Number(e.target.value))))}
-            className={inputClass}
+            onChange={(e) => {
+              const n = Number(e.target.value);
+              if (!Number.isFinite(n)) return;
+              updateDraft("max_turns", Math.max(1, Math.min(100, n)));
+            }}
+            className="w-full"
           />
         </div>
 
         {/* Permission Mode */}
         <div className="space-y-1">
-          <label className={labelClass}>Permission Mode</label>
-          <select
+          <label className="text-sm text-muted-foreground">Permission Mode</label>
+          <Select
             value={(currentVal("permission_mode") as string) ?? "default"}
             onChange={(e) => updateDraft("permission_mode", e.target.value)}
-            className={inputClass}
+            className="w-full"
           >
             <option value="default">default</option>
             <option value="acceptEdits">acceptEdits</option>
             <option value="bypassPermissions">bypassPermissions</option>
             <option value="plan">plan</option>
             <option value="dontAsk">dontAsk</option>
-          </select>
+          </Select>
         </div>
 
         {/* Auth Profile */}
         {authProfiles.length > 0 && (
           <div className="space-y-1">
-            <label className={labelClass}>Auth Profile <span className="text-xs text-muted-foreground/60">({authTypeLabel})</span></label>
-            <select
+            <label className="text-sm text-muted-foreground">Auth Profile <span className="text-xs text-muted-foreground/60">({authTypeLabel})</span></label>
+            <Select
               value={(currentVal("auth") as string) ?? config.auth_profile ?? ""}
               onChange={(e) => {
                 const val = e.target.value;
@@ -202,7 +202,7 @@ export default function ConfigEditor() {
                   updateDraft("auth", val);
                 }
               }}
-              className={inputClass}
+              className="w-full"
             >
               {!config.auth_profile && <option value="">Select profile...</option>}
               {authProfiles.map((p) => (
@@ -210,13 +210,13 @@ export default function ConfigEditor() {
                   {p.name} ({p.type === "oauth_token" ? "OAuth" : "API Key"})
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
         )}
 
         {authProfiles.length === 0 && (
           <div className="space-y-1">
-            <label className={labelClass}>Auth Profile</label>
+            <label className="text-sm text-muted-foreground">Auth Profile</label>
             <div className="text-sm text-foreground font-mono">{config.auth_profile ?? "—"} <span className="text-muted-foreground font-sans text-xs">({authTypeLabel})</span></div>
           </div>
         )}
@@ -232,39 +232,34 @@ export default function ConfigEditor() {
             System Prompt
           </button>
           {systemExpanded && (
-            <textarea
+            <Textarea
+              mono
               rows={6}
               value={(currentVal("system") as string) ?? ""}
               onChange={(e) => updateDraft("system", e.target.value)}
-              className={`${inputClass} resize-y font-mono`}
+              className="w-full"
             />
           )}
         </div>
 
         {/* Save button */}
         <div className="pt-2 border-t border-border">
-          <button
+          <Button
+            size="lg"
             onClick={handleSave}
             disabled={!hasChanges || saving}
-            className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {saving ? "Saving..." : "Save & Restart"}
-          </button>
+          </Button>
         </div>
 
         {/* Status message */}
         {message && (
-          <div
-            className={`text-sm px-3 py-2 rounded-md ${
-              message.type === "success"
-                ? "bg-green-500/10 text-green-600 dark:text-green-400"
-                : "bg-destructive/10 text-destructive"
-            }`}
-          >
+          <Alert variant={message.type}>
             {message.text}
-          </div>
+          </Alert>
         )}
-      </div>
+      </Card>
     </section>
   );
 }
