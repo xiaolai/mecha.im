@@ -8,7 +8,7 @@ import type { BotConfig } from "./types.js";
 import { SessionManager, type TaskSource } from "./session.js";
 import { CostTracker } from "./costs.js";
 import { createMechaToolServer } from "./tools/mecha-server.js";
-import { createWebhookRoutes } from "./webhook.js";
+import { createWebhookRoutes, type WebhookState } from "./webhook.js";
 import { ActivityTracker } from "./activity.js";
 import type { Scheduler } from "./scheduler.js";
 import { createDashboardRoutes, verifySessionCookie } from "./routes/dashboard.js";
@@ -20,6 +20,7 @@ import { createScheduleRoutes } from "./routes/schedule.js";
 import { createConfigRoutes } from "./routes/config.js";
 import { createSessionRoutes } from "./routes/sessions.js";
 import { createApiRoutes } from "./routes/api.js";
+import { createWebhookConfigRoutes } from "./routes/webhooks.js";
 
 export { buildClaudeOptions } from "./server-utils.js";
 export type { PromptOverrides } from "./server-schema.js";
@@ -190,23 +191,22 @@ export function createApp(config: BotConfig, startedAt: number, ptyManager?: Pty
     });
   });
 
-  if (config.webhooks) {
-    const webhookApp = createWebhookRoutes(config, async (prompt) => {
-      try {
-        await handlePrompt(prompt, "webhook");
-        return true;
-      } catch (err) {
-        log.error("Webhook handler error", { error: err instanceof Error ? err.message : String(err) });
-        return false;
-      }
-    }, isBusy);
-    app.route("/", webhookApp);
-  }
+  const { app: webhookApp, state: webhookState } = createWebhookRoutes(config, async (prompt) => {
+    try {
+      await handlePrompt(prompt, "webhook");
+      return true;
+    } catch (err) {
+      log.error("Webhook handler error", { error: err instanceof Error ? err.message : String(err) });
+      return false;
+    }
+  }, isBusy);
+  app.route("/", webhookApp);
 
   // Mount sub-apps
   app.route("/api", createApiRoutes({ config, startedAt, sessions, costs, activity, busy }));
   app.route("/api", createConfigRoutes(config, busy, activity));
   app.route("/api/schedule", createScheduleRoutes(() => schedulerRef));
+  app.route("/api/webhooks", createWebhookConfigRoutes(config, webhookState));
 
   const workspace = getWorkspaceContext();
   const sessionHistory = new SessionHistory(workspace.cwd, ptyManager);
