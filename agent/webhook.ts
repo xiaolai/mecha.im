@@ -22,14 +22,23 @@ function safeExtractPayload(body: Record<string, unknown>): Record<string, unkno
   return safe;
 }
 
+export interface WebhookState {
+  accept: string[];
+  secret: string | undefined;
+}
+
 export function createWebhookRoutes(
   config: BotConfig,
   handler: WebhookHandler,
   isBusy: () => boolean,
-): Hono {
+): { app: Hono; state: WebhookState } {
   const app = new Hono();
-  const accept = config.webhooks?.accept ?? [];
-  const secret = config.webhooks?.secret;
+  const state: WebhookState = {
+    accept: [...(config.webhooks?.accept ?? [])],
+    secret: config.webhooks?.secret,
+  };
+  const accept = state.accept;
+  const secret = state.secret;
 
   if (!secret) {
     log.warn("Webhook secret not configured — payloads will be accepted without signature verification. Set webhooks.secret for production use.");
@@ -93,7 +102,7 @@ export function createWebhookRoutes(
     }
 
     // Check allowlist
-    if (!accept.includes(eventType)) {
+    if (!state.accept.includes(eventType)) {
       return c.body(null, 204); // silently drop
     }
 
@@ -113,5 +122,5 @@ export function createWebhookRoutes(
     return c.json({ error: "Handler rejected" }, 500);
   }
 
-  return app;
+  return { app, state };
 }
