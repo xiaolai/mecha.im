@@ -1,10 +1,19 @@
 import { Hono } from "hono";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
+import { z } from "zod";
 import { log } from "../../shared/logger.js";
 import type { BotConfig } from "../types.js";
 import type { Mutex } from "../../shared/mutex.js";
 import type { ActivityTracker } from "../activity.js";
+
+const configUpdateSchema = z.object({
+  model: z.string().min(1).optional(),
+  max_turns: z.number().int().min(1).max(100).optional(),
+  permission_mode: z.enum(["default", "acceptEdits", "bypassPermissions", "plan", "dontAsk"]).optional(),
+  system: z.string().min(1).optional(),
+  auth: z.string().min(1).optional(),
+}).refine(obj => Object.keys(obj).length > 0, { message: "No fields to update" });
 
 const CREDENTIALS_PATH = "/state/credentials.yaml";
 const CONFIG_PATH = process.env.MECHA_CONFIG_PATH ?? "/config/bot.yaml";
@@ -26,6 +35,7 @@ export function createConfigRoutes(config: BotConfig, busy: Mutex, activity: Act
       permission_mode: config.permission_mode,
       workspace: config.workspace ? true : undefined,
       workspace_writable: config.workspace_writable,
+      system: config.system,
       schedule: config.schedule?.length ?? 0,
       webhooks: config.webhooks ? { accept: config.webhooks.accept } : undefined,
     });
@@ -47,26 +57,34 @@ export function createConfigRoutes(config: BotConfig, busy: Mutex, activity: Act
     }
   });
 
-  app.post("/auth/switch", async (c) => {
+  app.put("/config", async (c) => {
     const body = await c.req.json().catch(() => null);
-    if (!body || typeof body.profile !== "string") {
-      return c.json({ error: "profile is required" }, 400);
+    if (!body) {
+      return c.json({ error: "Invalid JSON body" }, 400);
     }
-    const profile = body.profile as string;
 
-    if (!existsSync(CREDENTIALS_PATH)) {
-      return c.json({ error: "No credentials file available" }, 400);
+    const result = configUpdateSchema.safeParse(body);
+    if (!result.success) {
+      return c.json({ error: result.error.issues[0].message }, 400);
     }
-    let cred: { name: string; type: string } | undefined;
-    try {
-      const credsRaw = readFileSync(CREDENTIALS_PATH, "utf-8");
-      const credsParsed = parseYaml(credsRaw) as { credentials?: Array<{ name: string; type: string }> };
-      cred = credsParsed.credentials?.find((cr) => cr.name === profile);
-    } catch {
-      return c.json({ error: "Failed to read credentials file" }, 500);
-    }
-    if (!cred || (cred.type !== "api_key" && cred.type !== "oauth_token")) {
-      return c.json({ error: `Profile "${profile}" not found or not a Claude auth credential` }, 404);
+
+    const updates = result.data;
+
+    // Validate auth profile if being changed
+    if (updates.auth !== undefined) {
+      if (!existsSync(CREDENTIALS_PATH)) {
+        return c.json({ error: "No credentials file available" }, 400);
+      }
+      try {
+        const credsRaw = readFileSync(CREDENTIALS_PATH, "utf-8");
+        const credsParsed = parseYaml(credsRaw) as { credentials?: Array<{ name: string; type: string }> };
+        const cred = credsParsed.credentials?.find((cr) => cr.name === updates.auth);
+        if (!cred || (cred.type !== "api_key" && cred.type !== "oauth_token")) {
+          return c.json({ error: `Profile "${updates.auth}" not found or not a Claude auth credential` }, 404);
+        }
+      } catch {
+        return c.json({ error: "Failed to read credentials file" }, 500);
+      }
     }
 
     const force = c.req.query("force") === "true";
@@ -77,15 +95,22 @@ export function createConfigRoutes(config: BotConfig, busy: Mutex, activity: Act
     try {
       const configRaw = readFileSync(CONFIG_PATH, "utf-8");
       const configParsed = parseYaml(configRaw) as Record<string, unknown>;
-      configParsed.auth = profile;
+      const changes: Record<string, unknown> = {};
+
+      if (updates.model !== undefined) { configParsed.model = updates.model; changes.model = updates.model; }
+      if (updates.max_turns !== undefined) { configParsed.max_turns = updates.max_turns; changes.max_turns = updates.max_turns; }
+      if (updates.permission_mode !== undefined) { configParsed.permission_mode = updates.permission_mode; changes.permission_mode = updates.permission_mode; }
+      if (updates.system !== undefined) { configParsed.system = updates.system; changes.system = updates.system; }
+      if (updates.auth !== undefined) { configParsed.auth = updates.auth; changes.auth = updates.auth; }
+
       writeFileSync(CONFIG_PATH, stringifyYaml(configParsed));
-      log.info(`Auth profile switched to "${profile}", restarting...`);
-    } catch (err) {
+      log.info(`Config updated: [${Object.keys(changes).join(", ")}], restarting...`);
+
+      setTimeout(() => process.exit(0), 200);
+      return c.json({ status: "updating", changes, message: "Bot is restarting with updated config..." });
+    } catch {
       return c.json({ error: "Failed to update config" }, 500);
     }
-
-    setTimeout(() => process.exit(0), 200);
-    return c.json({ status: "switching", profile, message: "Bot is restarting with new auth..." });
   });
 
   return app;

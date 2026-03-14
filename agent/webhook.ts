@@ -22,16 +22,23 @@ function safeExtractPayload(body: Record<string, unknown>): Record<string, unkno
   return safe;
 }
 
+export interface WebhookState {
+  accept: string[];
+  secret: string | undefined;
+}
+
 export function createWebhookRoutes(
   config: BotConfig,
   handler: WebhookHandler,
   isBusy: () => boolean,
-): Hono {
+): { app: Hono; state: WebhookState } {
   const app = new Hono();
-  const accept = config.webhooks?.accept ?? [];
-  const secret = config.webhooks?.secret;
+  const state: WebhookState = {
+    accept: [...(config.webhooks?.accept ?? [])],
+    secret: config.webhooks?.secret,
+  };
 
-  if (!secret) {
+  if (!state.secret) {
     log.warn("Webhook secret not configured — payloads will be accepted without signature verification. Set webhooks.secret for production use.");
   }
 
@@ -42,17 +49,20 @@ export function createWebhookRoutes(
       return c.json({ error: "Payload too large" }, 413);
     }
 
+    // Read secret from state each request (supports runtime updates)
+    const currentSecret = state.secret;
+
     // Webhook signature verification (GitHub HMAC)
-    if (secret) {
+    if (currentSecret) {
       const signature = c.req.header("x-hub-signature-256");
       if (!signature) {
         return c.json({ error: "Missing signature" }, 401);
       }
       const body = await c.req.text();
-      if (body.length > MAX_PAYLOAD_BYTES) {
+      if (Buffer.byteLength(body, "utf8") > MAX_PAYLOAD_BYTES) {
         return c.json({ error: "Payload too large" }, 413);
       }
-      const expected = "sha256=" + createHmac("sha256", secret).update(body).digest("hex");
+      const expected = "sha256=" + createHmac("sha256", currentSecret).update(body).digest("hex");
       const sigBuf = Buffer.from(signature);
       const expBuf = Buffer.from(expected);
       if (sigBuf.length !== expBuf.length || !timingSafeEqual(sigBuf, expBuf)) {
@@ -69,7 +79,7 @@ export function createWebhookRoutes(
 
     // Enforce size limit even without HMAC secret
     const rawBody = await c.req.text();
-    if (rawBody.length > MAX_PAYLOAD_BYTES) {
+    if (Buffer.byteLength(rawBody, "utf8") > MAX_PAYLOAD_BYTES) {
       return c.json({ error: "Payload too large" }, 413);
     }
     let body: Record<string, unknown>;
@@ -93,7 +103,7 @@ export function createWebhookRoutes(
     }
 
     // Check allowlist
-    if (!accept.includes(eventType)) {
+    if (!state.accept.includes(eventType)) {
       return c.body(null, 204); // silently drop
     }
 
@@ -113,5 +123,5 @@ export function createWebhookRoutes(
     return c.json({ error: "Handler rejected" }, 500);
   }
 
-  return app;
+  return { app, state };
 }
