@@ -28,7 +28,7 @@ const handler = async (prompt: string) => { prompts.push(prompt); return true; }
 
 // T6.1 Valid GitHub push event accepted
 await test("T6.1 Valid push event accepted", async () => {
-  const webhookApp = createWebhookRoutes(
+  const { app: webhookApp } = createWebhookRoutes(
     { name: "test", system: "test", model: "sonnet", max_turns: 25, permission_mode: "default", workspace_writable: false, webhooks: { accept: ["push"] } },
     handler,
     () => false,
@@ -50,7 +50,7 @@ await test("T6.1 Valid push event accepted", async () => {
 
 // T6.2 Unaccepted event → 204
 await test("T6.2 Unaccepted event silently dropped", async () => {
-  const webhookApp = createWebhookRoutes(
+  const { app: webhookApp } = createWebhookRoutes(
     { name: "test", system: "test", model: "sonnet", max_turns: 25, permission_mode: "default", workspace_writable: false, webhooks: { accept: ["push"] } },
     handler,
     () => false,
@@ -71,7 +71,7 @@ await test("T6.2 Unaccepted event silently dropped", async () => {
 // T6.3 HMAC signature validation
 await test("T6.3 HMAC signature validation", async () => {
   const secret = "webhook-secret-123";
-  const webhookApp = createWebhookRoutes(
+  const { app: webhookApp } = createWebhookRoutes(
     { name: "test", system: "test", model: "sonnet", max_turns: 25, permission_mode: "default", workspace_writable: false, webhooks: { accept: ["push"], secret } },
     handler,
     () => false,
@@ -117,7 +117,7 @@ await test("T6.3 HMAC signature validation", async () => {
 
 // T6.4 Payload too large → 413
 await test("T6.4 Payload too large", async () => {
-  const webhookApp = createWebhookRoutes(
+  const { app: webhookApp } = createWebhookRoutes(
     { name: "test", system: "test", model: "sonnet", max_turns: 25, permission_mode: "default", workspace_writable: false, webhooks: { accept: ["push"] } },
     handler,
     () => false,
@@ -137,7 +137,7 @@ await test("T6.4 Payload too large", async () => {
 
 // T6.5 Bot busy → 429
 await test("T6.5 Bot busy returns 429", async () => {
-  const webhookApp = createWebhookRoutes(
+  const { app: webhookApp } = createWebhookRoutes(
     { name: "test", system: "test", model: "sonnet", max_turns: 25, permission_mode: "default", workspace_writable: false, webhooks: { accept: ["push"] } },
     handler,
     () => true, // isBusy = true
