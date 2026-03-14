@@ -12,8 +12,10 @@ import { addCredential, detectCredentialType, listCredentials, loadCredentials }
 import { existsSync, readFileSync as fsReadFileSync } from "node:fs";
 import { isValidName } from "../shared/validation.js";
 import { resolveHostBotBaseUrl } from "./resolve-endpoint.js";
-import { DASHBOARD_TOKEN, HOP_BY_HOP, spawnBodySchema, authBodySchema } from "./dashboard-server-schema.js";
+import { DASHBOARD_TOKEN, HOP_BY_HOP, spawnBodySchema, authBodySchema, totpVerifySchema } from "./dashboard-server-schema.js";
 import { safeError, dashboardSessionCookie, hasDashboardAccess, shouldBootstrapDashboardSession, guardBusy } from "./dashboard-server-utils.js";
+import { getTotpSecret, setTotpSecret, clearTotpSecret } from "./store.js";
+import { generateSecret, verifyTOTP, totpUri } from "../shared/totp.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -30,8 +32,34 @@ export function startDashboardServer(port: number) {
     }
   });
 
+  // --- TOTP (unauthenticated) ---
+  app.get("/api/totp/status", (c) => {
+    return c.json({ enabled: !!getTotpSecret() });
+  });
+
+  app.post("/api/totp/verify", async (c) => {
+    const secret = getTotpSecret();
+    if (!secret) return c.json({ error: "TOTP not enabled" }, 400);
+
+    const body = await c.req.json().catch(() => null);
+    const parsed = totpVerifySchema.safeParse(body);
+    if (!parsed.success) return c.json({ error: "Invalid code format" }, 400);
+
+    if (!verifyTOTP(secret, parsed.data.code)) {
+      return c.json({ error: "Invalid code" }, 401);
+    }
+
+    // Set session cookie on successful verification
+    c.header("Set-Cookie", dashboardSessionCookie());
+    return c.json({ authenticated: true });
+  });
+
   // Auth middleware for all API and proxy routes (token always required)
   app.use("/api/*", async (c, next) => {
+    // Allow TOTP status/verify through without auth
+    if (c.req.path === "/api/totp/status" || c.req.path === "/api/totp/verify") {
+      return next();
+    }
     if (!hasDashboardAccess(c)) {
       return c.json({ error: "Unauthorized" }, 401);
     }
@@ -224,6 +252,32 @@ export function startDashboardServer(port: number) {
     const detected = detectCredentialType(parsed.data.key);
     addCredential({ name: parsed.data.profile, ...detected, key: parsed.data.key });
     return c.json({ status: "added", profile: parsed.data.profile });
+  });
+
+  // --- TOTP management (authenticated) ---
+  app.post("/api/totp/enable", (c) => {
+    if (getTotpSecret()) return c.json({ error: "TOTP already enabled" }, 400);
+    const secret = generateSecret();
+    setTotpSecret(secret);
+    const uri = totpUri(secret, "Mecha", "dashboard");
+    return c.json({ secret, uri });
+  });
+
+  app.delete("/api/totp", async (c) => {
+    const secret = getTotpSecret();
+    if (!secret) return c.json({ error: "TOTP not enabled" }, 400);
+
+    // Require a valid code to disable
+    const body = await c.req.json().catch(() => null);
+    const parsed = totpVerifySchema.safeParse(body);
+    if (!parsed.success) return c.json({ error: "Code required to disable TOTP" }, 400);
+
+    if (!verifyTOTP(secret, parsed.data.code)) {
+      return c.json({ error: "Invalid code" }, 401);
+    }
+
+    clearTotpSecret();
+    return c.json({ disabled: true });
   });
 
   // --- Network: aggregate logs from all bots (parallel) ---

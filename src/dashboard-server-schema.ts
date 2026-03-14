@@ -21,3 +21,7 @@ export const authBodySchema = z.object({
   profile: z.string().min(1).max(32),
   key: z.string().min(1),
 });
+
+export const totpVerifySchema = z.object({
+  code: z.string().length(6).regex(/^\d{6}$/),
+});

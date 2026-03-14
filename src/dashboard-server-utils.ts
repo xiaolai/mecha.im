@@ -1,5 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
-import { listBots as listRegistered } from "./store.js";
+import { listBots as listRegistered, getTotpSecret } from "./store.js";
 import { resolveHostBotBaseUrl } from "./resolve-endpoint.js";
 import { MechaError } from "../shared/errors.js";
 import { log } from "../shared/logger.js";
@@ -69,6 +69,8 @@ export function hasDashboardAccess(c: Context): boolean {
 export function shouldBootstrapDashboardSession(c: Context): boolean {
   if (!(c.req.method === "GET" || c.req.method === "HEAD")) return false;
   if (c.req.path.startsWith("/api/")) return false;
+  // When TOTP is enabled, don't auto-set session cookies — require login
+  if (getTotpSecret()) return false;
   return readCookie(c.req.header("cookie"), DASHBOARD_COOKIE) !== DASHBOARD_TOKEN;
 }
 
