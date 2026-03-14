@@ -52,6 +52,7 @@ export default function StatusCard() {
   const [status, setStatus] = useState<BotStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [, setTick] = useState(0);
+  const uptimeBaseRef = useRef<{ serverUptime: number; fetchedAt: number } | null>(null);
   const esRef = useRef<EventSource | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -60,8 +61,9 @@ export default function StatusCard() {
     try {
       const r = await botFetch("/api/status");
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const data = await r.json();
-      setStatus(data as BotStatus);
+      const data = await r.json() as BotStatus;
+      uptimeBaseRef.current = { serverUptime: data.uptime, fetchedAt: Date.now() / 1000 };
+      setStatus(data);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Fetch failed");
@@ -86,15 +88,28 @@ export default function StatusCard() {
     const es = new EventSource(botUrl("/api/status/stream"));
     esRef.current = es;
 
-    es.addEventListener("state", (e: MessageEvent) => {
+    const handleSSE = (e: MessageEvent) => {
       try {
         const data = JSON.parse(e.data);
-        setStatus((prev) => (prev ? { ...prev, ...data } : data as BotStatus));
+        // Normalize camelCase SSE fields to snake_case BotStatus
+        const normalized: Partial<BotStatus> = {};
+        // snapshot sends "activity", state events send "state"
+        if (data.state) normalized.state = data.state;
+        else if (data.activity) normalized.state = data.activity;
+        if ("talkingTo" in data) normalized.talking_to = data.talkingTo;
+        if ("lastActive" in data) normalized.last_active = data.lastActive;
+        if ("talking_to" in data) normalized.talking_to = data.talking_to;
+        if ("last_active" in data) normalized.last_active = data.last_active;
+        setStatus((prev) => prev ? { ...prev, ...normalized } : null);
         setError(null);
         stopPolling();
       } catch {}
-    });
+    };
 
+    es.addEventListener("state", handleSSE);
+    es.addEventListener("snapshot", handleSSE);
+
+    es.onopen = () => stopPolling();
     es.onerror = () => {
       if (!pollRef.current) startPolling();
     };
@@ -127,7 +142,10 @@ export default function StatusCard() {
     );
   }
 
-  const displayUptime = formatUptime(status.uptime > 0 ? status.uptime : 0);
+  const liveUptime = uptimeBaseRef.current
+    ? uptimeBaseRef.current.serverUptime + (Date.now() / 1000 - uptimeBaseRef.current.fetchedAt)
+    : status.uptime;
+  const displayUptime = formatUptime(liveUptime > 0 ? liveUptime : 0);
 
   return (
     <div className="bg-card rounded-lg border border-border p-4">

@@ -41,17 +41,25 @@ export default function ConfigEditor() {
   const [authProfiles, setAuthProfiles] = useState<AuthProfile[]>([]);
 
   useEffect(() => {
-    Promise.all([
-      botFetch("/api/config").then((r) => r.json()),
-      botFetch("/api/auth/profiles").then((r) => r.ok ? r.json() : null),
-    ]).then(([data, auth]) => {
-      setConfig(data as Config);
-      if (auth) {
-        setAuthProfiles((auth as AuthInfo).profiles);
+    const loadConfig = async () => {
+      try {
+        const configResp = await botFetch("/api/config");
+        if (!configResp.ok) throw new Error(`HTTP ${configResp.status}`);
+        setConfig(await configResp.json() as Config);
+      } catch {
+        setMessage({ text: "Failed to load config", type: "error" });
+        setLoading(false);
+        return;
       }
-    })
-      .catch(() => setMessage({ text: "Failed to load config", type: "error" }))
-      .finally(() => setLoading(false));
+      try {
+        const authResp = await botFetch("/api/auth/profiles");
+        if (authResp.ok) {
+          setAuthProfiles((await authResp.json() as AuthInfo).profiles);
+        }
+      } catch { /* auth profiles are optional */ }
+      setLoading(false);
+    };
+    loadConfig();
   }, []);
 
   function updateDraft(key: string, value: unknown) {

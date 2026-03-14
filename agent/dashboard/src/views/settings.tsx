@@ -28,9 +28,14 @@ export default function Settings() {
 
   useEffect(() => {
     botFetch("/api/costs")
-      .then((r) => r.json())
-      .then((co) => setCosts(co as CostData))
-      .catch(() => {});
+      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then((co) => {
+        const d = co as Record<string, unknown>;
+        if (typeof d.task === "number" && typeof d.today === "number" && typeof d.lifetime === "number") {
+          setCosts(d as unknown as CostData);
+        }
+      })
+      .catch(() => setCosts(null));
   }, []);
 
   const handleBotAction = useCallback(async (action: "stop" | "restart", force = false) => {
