@@ -17,8 +17,9 @@ export default function EventLog() {
     if (showLoading) setLoading(true);
     try {
       const r = await botFetch("/api/logs?limit=100");
-      const data = (await r.json()) as LogEntry[];
-      setLogs(data.reverse());
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+      if (Array.isArray(data)) setLogs((data as LogEntry[]).reverse());
     } catch (err) {
       console.error("Log fetch error:", err);
     } finally {
