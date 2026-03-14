@@ -1,0 +1,25 @@
+/* Feature cards: icon inline with heading */
+.VPFeature article.box {
+  display: block !important;
+}
+
+.VPFeature article.box > .icon {
+  display: inline !important;
+  background: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  margin: 0 0.3em 0 0 !important;
+  width: auto !important;
+  height: auto !important;
+}
+
+.VPFeature article.box > .icon svg {
+  display: inline !important;
+  width: 0.75em !important;
+  height: 0.75em !important;
+  vertical-align: -0.15em;
+}
+
+.VPFeature article.box > h2.title {
+  display: inline !important;
+}

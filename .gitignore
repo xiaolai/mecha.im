@@ -87,6 +87,10 @@ venv/
 dist/
 build/
 
+# VitePress
+website/docs/.vitepress/dist/
+website/docs/.vitepress/cache/
+
 # Python package build
 *.egg-info/
 
