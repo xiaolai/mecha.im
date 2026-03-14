@@ -5,10 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Mecha Bot Dashboard</title>
   <script>
-    // Prevent flash of wrong theme
-    if (localStorage.getItem("theme") === "light") {
-      document.documentElement.classList.remove("dark");
-    } else {
+    // Prevent flash of wrong theme — default to light
+    if (localStorage.getItem("theme") === "dark") {
       document.documentElement.classList.add("dark");
     }
   </script>

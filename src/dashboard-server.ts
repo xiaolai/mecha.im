@@ -5,108 +5,17 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { realpathSync } from "node:fs";
-import { randomBytes, timingSafeEqual } from "node:crypto";
-import { z } from "zod";
 import * as docker from "./docker.js";
 import { listBots as listRegistered } from "./store.js";
 import { loadBotConfig, buildInlineConfig } from "./config.js";
 import { addCredential, detectCredentialType, listCredentials, loadCredentials } from "./auth.js";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync as fsReadFileSync } from "node:fs";
 import { isValidName } from "../shared/validation.js";
-import { MechaError } from "../shared/errors.js";
-import { log } from "../shared/logger.js";
-import type { Context } from "hono";
 import { resolveHostBotBaseUrl } from "./resolve-endpoint.js";
+import { DASHBOARD_TOKEN, HOP_BY_HOP, spawnBodySchema, authBodySchema } from "./dashboard-server-schema.js";
+import { safeError, dashboardSessionCookie, hasDashboardAccess, shouldBootstrapDashboardSession, guardBusy } from "./dashboard-server-utils.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-
-// Auto-generate dashboard token if not set
-const DASHBOARD_TOKEN = process.env.MECHA_DASHBOARD_TOKEN || ("mecha_dash_" + randomBytes(24).toString("hex"));
-const DASHBOARD_COOKIE = "mecha_dashboard_session";
-
-const HOP_BY_HOP = new Set([
-  "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
-  "te", "trailers", "transfer-encoding", "upgrade", "host",
-]);
-
-const spawnBodySchema = z.object({
-  config_path: z.string().optional(),
-  name: z.string().min(1).max(32).optional(),
-  system: z.string().min(1).optional(),
-  model: z.string().optional(),
-  dir: z.string().optional(),
-});
-
-const authBodySchema = z.object({
-  profile: z.string().min(1).max(32),
-  key: z.string().min(1),
-});
-
-/** Check if a bot is currently busy by querying its /api/status endpoint.
- *  Returns `unknown: true` if status could not be determined (bot unreachable). */
-async function checkBotBusy(name: string): Promise<{ busy: boolean; unknown?: boolean; state?: string }> {
-  try {
-    const resolved = await resolveHostBotBaseUrl(name, { allowRemote: false });
-    if (!resolved) return { busy: false, unknown: true, state: "unreachable" };
-    const botEntry = listRegistered()[name];
-    const headers: Record<string, string> = {};
-    if (botEntry?.botToken) headers["Authorization"] = `Bearer ${botEntry.botToken}`;
-    const resp = await fetch(`${resolved.baseUrl}/api/status`, {
-      headers,
-      signal: AbortSignal.timeout(3000),
-    });
-    if (!resp.ok) return { busy: false, unknown: true, state: "unreachable" };
-    const status = await resp.json() as { state?: string };
-    const busyStates = ["thinking", "calling", "scheduled", "webhook"];
-    return { busy: busyStates.includes(status.state ?? ""), state: status.state };
-  } catch {
-    return { busy: false, unknown: true, state: "unreachable" };
-  }
-}
-
-function safeError(c: Context, err: unknown) {
-  log.error("Dashboard API error", { error: err instanceof Error ? err.message : String(err) });
-  if (err instanceof MechaError) {
-    return c.json({ error: err.message }, err.statusCode as 400);
-  }
-  return c.json({ error: "Internal server error" }, 500);
-}
-
-function readCookie(cookieHeader: string | undefined, name: string): string | undefined {
-  if (!cookieHeader) return undefined;
-  const cookies = cookieHeader.split(";").map((part) => part.trim());
-  for (const cookie of cookies) {
-    const eq = cookie.indexOf("=");
-    if (eq === -1) continue;
-    const key = cookie.slice(0, eq).trim();
-    if (key === name) return cookie.slice(eq + 1);
-  }
-  return undefined;
-}
-
-function dashboardSessionCookie(): string {
-  return `${DASHBOARD_COOKIE}=${DASHBOARD_TOKEN}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`;
-}
-
-function constantTimeEquals(a: string, b: string): boolean {
-  const bufA = Buffer.from(a);
-  const bufB = Buffer.from(b);
-  if (bufA.length !== bufB.length) return false;
-  return timingSafeEqual(bufA, bufB);
-}
-
-function hasDashboardAccess(c: Context): boolean {
-  const auth = c.req.header("authorization");
-  if (auth && constantTimeEquals(auth, `Bearer ${DASHBOARD_TOKEN}`)) return true;
-  const cookie = readCookie(c.req.header("cookie"), DASHBOARD_COOKIE);
-  return cookie !== undefined && constantTimeEquals(cookie, DASHBOARD_TOKEN);
-}
-
-function shouldBootstrapDashboardSession(c: Context): boolean {
-  if (!(c.req.method === "GET" || c.req.method === "HEAD")) return false;
-  if (c.req.path.startsWith("/api/")) return false;
-  return readCookie(c.req.header("cookie"), DASHBOARD_COOKIE) !== DASHBOARD_TOKEN;
-}
 
 export function startDashboardServer(port: number) {
   const app = new Hono();
@@ -137,15 +46,12 @@ export function startDashboardServer(port: number) {
   });
 
   // --- Fleet API ---
-
   app.get("/api/bots", async (c) => {
     const bots = await docker.list();
     return c.json(bots);
   });
 
-  app.get("/api/session", (c) => {
-    return c.json({ authenticated: true });
-  });
+  app.get("/api/session", (c) => c.json({ authenticated: true }));
 
   app.post("/api/bots", async (c) => {
     const body = await c.req.json().catch(() => null);
@@ -207,18 +113,8 @@ export function startDashboardServer(port: number) {
     const name = c.req.param("name");
     if (!isValidName(name)) return c.json({ error: "Invalid bot name" }, 400);
 
-    // Check busy state unless force=true
-    const force = c.req.query("force") === "true";
-    if (!force) {
-      const { busy, unknown, state } = await checkBotBusy(name);
-      if (busy || unknown) {
-        return c.json({
-          error: unknown ? "Bot status unknown — use force=true to proceed" : "Bot is busy",
-          code: unknown ? "BOT_STATUS_UNKNOWN" : "BOT_BUSY",
-          state,
-        }, 409);
-      }
-    }
+    const blocked = await guardBusy(c, name);
+    if (blocked) return blocked;
 
     try {
       await docker.stop(name);
@@ -232,18 +128,8 @@ export function startDashboardServer(port: number) {
     const name = c.req.param("name");
     if (!isValidName(name)) return c.json({ error: "Invalid bot name" }, 400);
 
-    // Check busy state unless force=true
-    const force = c.req.query("force") === "true";
-    if (!force) {
-      const { busy, unknown, state } = await checkBotBusy(name);
-      if (busy || unknown) {
-        return c.json({
-          error: unknown ? "Bot status unknown — use force=true to proceed" : "Bot is busy",
-          code: unknown ? "BOT_STATUS_UNKNOWN" : "BOT_BUSY",
-          state,
-        }, 409);
-      }
-    }
+    const blocked = await guardBusy(c, name);
+    if (blocked) return blocked;
 
     try {
       const containerId = await docker.restart(name);
@@ -254,7 +140,6 @@ export function startDashboardServer(port: number) {
   });
 
   // --- Per-bot auth API ---
-
   app.get("/api/bots/:name/auth", async (c) => {
     const name = c.req.param("name");
     if (!isValidName(name)) return c.json({ error: "Invalid bot name" }, 400);
@@ -303,18 +188,8 @@ export function startDashboardServer(port: number) {
     if (!entry?.config) return c.json({ error: "Bot not found" }, 404);
 
     // Check busy state BEFORE mutating config
-    const force = c.req.query("force") === "true";
-    if (!force) {
-      const { busy, unknown, state } = await checkBotBusy(name);
-      if (busy || unknown) {
-        return c.json({
-          error: unknown ? "Bot status unknown — use force=true to proceed" : "Bot is busy",
-          code: unknown ? "BOT_STATUS_UNKNOWN" : "BOT_BUSY",
-          state,
-          profile,
-        }, 409);
-      }
-    }
+    const blocked = await guardBusy(c, name, { profile });
+    if (blocked) return blocked;
 
     // Update the bot's config file
     try {
@@ -338,10 +213,7 @@ export function startDashboardServer(port: number) {
   });
 
   // --- Auth API ---
-
-  app.get("/api/auth", (c) => {
-    return c.json(listCredentials().map((c) => c.name));
-  });
+  app.get("/api/auth", (c) => c.json(listCredentials().map((c) => c.name)));
 
   app.post("/api/auth", async (c) => {
     const body = await c.req.json().catch(() => null);
@@ -355,7 +227,6 @@ export function startDashboardServer(port: number) {
   });
 
   // --- Network: aggregate logs from all bots (parallel) ---
-
   app.get("/api/network", async (c) => {
     const bots = await docker.list();
     const runningBots = bots.filter((b) => b.status === "running");
@@ -386,7 +257,6 @@ export function startDashboardServer(port: number) {
   });
 
   // --- Proxy to individual bot dashboard ---
-
   app.all("/bot/:name/*", async (c) => {
     const name = c.req.param("name");
     if (!isValidName(name)) return c.json({ error: "Invalid bot name" }, 400);
@@ -444,10 +314,23 @@ export function startDashboardServer(port: number) {
     }
   });
 
-  // --- Serve static fleet dashboard ---
-  const staticRoot = join(__dirname, "..", "dashboard", "dist");
+  // --- Serve unified dashboard (from agent/dashboard/dist) ---
+  const staticRoot = join(__dirname, "..", "agent", "dashboard", "dist");
   if (existsSync(staticRoot)) {
     app.use("/*", serveStatic({ root: staticRoot }));
+    // SPA fallback: serve index.html for non-file, non-API routes
+    const indexPath = join(staticRoot, "index.html");
+    const cachedIndexHtml = existsSync(indexPath) ? fsReadFileSync(indexPath, "utf-8") : null;
+    app.get("*", (c) => {
+      const path = c.req.path;
+      if (path.startsWith("/api/") || path.startsWith("/bot/")) {
+        return c.json({ error: "Not found" }, 404);
+      }
+      if (cachedIndexHtml) {
+        return c.html(cachedIndexHtml);
+      }
+      return c.json({ error: "Dashboard not built" }, 404);
+    });
   } else {
     app.get("/", (c) => c.json({
       message: "Mecha Fleet Dashboard API",
