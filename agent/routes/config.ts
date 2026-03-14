@@ -104,7 +104,7 @@ export function createConfigRoutes(config: BotConfig, busy: Mutex, activity: Act
       if (updates.auth !== undefined) { configParsed.auth = updates.auth; changes.auth = updates.auth; }
 
       writeFileSync(CONFIG_PATH, stringifyYaml(configParsed));
-      log.info(`Config updated: ${JSON.stringify(changes)}, restarting...`);
+      log.info(`Config updated: [${Object.keys(changes).join(", ")}], restarting...`);
 
       setTimeout(() => process.exit(0), 200);
       return c.json({ status: "updating", changes, message: "Bot is restarting with updated config..." });

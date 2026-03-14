@@ -4,7 +4,7 @@ import { botFetch, botUrl } from "../lib/api";
 const GITHUB_PRESETS = [
   { label: "Push", value: "push" },
   { label: "Pull Request Opened", value: "pull_request.opened" },
-  { label: "Pull Request Merged", value: "pull_request.closed" },
+  { label: "Pull Request Closed", value: "pull_request.closed" },
   { label: "PR Review Requested", value: "pull_request.review_requested" },
   { label: "Issue Opened", value: "issues.opened" },
   { label: "Issue Commented", value: "issue_comment.created" },
