@@ -14,6 +14,7 @@ const suites = [
   "t16-container-runtime.ts",
   "t18-mcp-proxy.ts",
   "t19-cli-query.ts",
+  "t20-totp.ts",
 ];
 
 for (const suite of suites) {

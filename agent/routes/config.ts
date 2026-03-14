@@ -35,7 +35,6 @@ export function createConfigRoutes(config: BotConfig, busy: Mutex, activity: Act
       permission_mode: config.permission_mode,
       workspace: config.workspace ? true : undefined,
       workspace_writable: config.workspace_writable,
-      system: config.system,
       schedule: config.schedule?.length ?? 0,
       webhooks: config.webhooks ? { accept: config.webhooks.accept } : undefined,
     });

@@ -145,6 +145,7 @@ const settingsSchema = z.object({
   headscale_url: z.string().url().optional(),
   headscale_api_key: z.string().optional(),
   fleet_internal_secret: z.string().optional(),
+  totp_secret: z.string().optional(),
 });
 
 type MechaSettings = z.infer<typeof settingsSchema>;
@@ -173,4 +174,32 @@ export function getOrCreateFleetInternalSecret(): string {
   });
   try { chmodSync(settingsPath, 0o600); } catch { /* best-effort */ }
   return fleetInternalSecret;
+}
+
+// --- TOTP ---
+
+export function getTotpSecret(): string | undefined {
+  return readSettings().totp_secret;
+}
+
+export function setTotpSecret(secret: string): void {
+  const settingsPath = join(getMechaDir(), "mecha.json");
+  const settings = readSettings();
+  atomicWriteJson(settingsPath, {
+    ...settings,
+    schema_version: SETTINGS_SCHEMA_VERSION,
+    totp_secret: secret,
+  });
+  try { chmodSync(settingsPath, 0o600); } catch { /* best-effort */ }
+}
+
+export function clearTotpSecret(): void {
+  const settingsPath = join(getMechaDir(), "mecha.json");
+  const settings = readSettings();
+  const { totp_secret: _, ...rest } = settings;
+  atomicWriteJson(settingsPath, {
+    ...rest,
+    schema_version: SETTINGS_SCHEMA_VERSION,
+  });
+  try { chmodSync(settingsPath, 0o600); } catch { /* best-effort */ }
 }
