@@ -1,5 +1,23 @@
+/** Currently selected bot name for fleet-proxied requests. null = direct bot mode. */
+let _activeBotName: string | null = null;
+
+export function setActiveBotName(name: string | null) {
+  _activeBotName = name;
+}
+
+export function getActiveBotName(): string | null {
+  return _activeBotName;
+}
+
 function currentDashboardPrefix(): string {
   if (typeof window === "undefined") return "";
+
+  // Fleet mode: proxy through /bot/:name
+  if (_activeBotName) {
+    return `/bot/${_activeBotName}`;
+  }
+
+  // Bot-direct mode: detect /bot/:name/dashboard/ prefix from URL
   const marker = "/dashboard/";
   const pathname = window.location.pathname;
   const markerIndex = pathname.indexOf(marker);
