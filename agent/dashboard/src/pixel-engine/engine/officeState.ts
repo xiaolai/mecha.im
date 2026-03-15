@@ -32,6 +32,7 @@ import type {
 } from '../types.js';
 import { CharacterState, Direction, MATRIX_EFFECT_DURATION, TILE_SIZE } from '../types.js';
 import { createCharacter, updateCharacter } from './characters.js';
+import { InteractionScheduler } from './interactionScheduler.js';
 import { matrixEffectSeeds } from './matrixEffect.js';
 
 export class OfficeState {
@@ -48,6 +49,7 @@ export class OfficeState {
   cameraFollowId: number | null = null;
   hoveredAgentId: number | null = null;
   hoveredTile: { col: number; row: number } | null = null;
+  scheduler = new InteractionScheduler();
   /** Maps "parentId:toolId" → sub-agent character ID (negative) */
   subagentIdMap: Map<string, number> = new Map();
   /** Reverse lookup: sub-agent character ID → parent info */
@@ -84,6 +86,17 @@ export class OfficeState {
         ch.path = [];
         ch.moveProgress = 0;
       }
+    }
+
+    // Clear transient scheduler state on layout rebuild
+    this.scheduler.furnitureReservations.clear();
+    this.scheduler.chatPairs.clear();
+    this.scheduler.deskClaims.clear();
+    this.scheduler.pendingRealChats = [];
+    for (const ch of this.characters.values()) {
+      ch.workDeskId = null;
+      ch.chatPartner = null;
+      ch.interactTarget = null;
     }
 
     // Reassign characters to new seats, preserving existing assignments when possible
@@ -274,6 +287,8 @@ export class OfficeState {
     const ch = this.characters.get(id);
     if (!ch) return;
     if (ch.matrixEffect === 'despawn') return; // already despawning
+    // Release scheduler reservations
+    this.scheduler.releaseAll(id);
     // Free seat and clear selection immediately
     if (ch.seatId) {
       const seat = this.seats.get(ch.seatId);
@@ -645,7 +660,16 @@ export class OfficeState {
     }
   }
 
+  claimDeskForAgent(charId: number): Seat | null {
+    const char = this.characters.get(charId);
+    if (!char) return null;
+    return this.scheduler.claimDeskSeat(char, this.seats, this.tileMap, this.blockedTiles);
+  }
+
   update(dt: number): void {
+    // Process pending real chats from SSE events
+    this.scheduler.processPendingChats(this.characters, this.tileMap, this.blockedTiles);
+
     // Furniture animation cycling
     const prevFrame = Math.floor(this.furnitureAnimTimer / FURNITURE_ANIM_INTERVAL_SEC);
     this.furnitureAnimTimer += dt;
@@ -675,7 +699,7 @@ export class OfficeState {
 
       // Temporarily unblock own seat so character can pathfind to it
       this.withOwnSeatUnblocked(ch, () =>
-        updateCharacter(ch, dt, this.walkableTiles, this.seats, this.tileMap, this.blockedTiles),
+        updateCharacter(ch, dt, this.walkableTiles, this.seats, this.tileMap, this.blockedTiles, this),
       );
 
       // Tick bubble timer for waiting bubbles
@@ -705,7 +729,7 @@ export class OfficeState {
       if (ch.matrixEffect === 'despawn') continue;
       // Character sprite is 16x24, anchored bottom-center
       // Apply sitting offset to match visual position
-      const sittingOffset = ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0;
+      const sittingOffset = (ch.state === CharacterState.TYPE || ch.state === CharacterState.SIT) ? CHARACTER_SITTING_OFFSET_PX : 0;
       const anchorY = ch.y + sittingOffset;
       const left = ch.x - CHARACTER_HIT_HALF_WIDTH;
       const right = ch.x + CHARACTER_HIT_HALF_WIDTH;
