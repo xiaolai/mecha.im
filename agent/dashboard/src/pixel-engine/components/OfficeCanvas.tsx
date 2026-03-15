@@ -37,7 +37,7 @@ interface OfficeCanvasProps {
   editorTick: number;
   zoom: number;
   onZoomChange: (zoom: number) => void;
-  panRef: React.MutableRefObject<{ x: number; y: number }>;
+  panRef: React.RefObject<{ x: number; y: number }>;
   onSaveAgentSeats?: (seats: Record<number, { palette: number; seatId: string | null }>) => void;
   isActive: boolean;
 }
