@@ -1,9 +1,9 @@
 {
-  "id": "WHITEBOARD",
-  "name": "Whiteboard",
-  "category": "wall",
+  "id": "VENDER_MACHINE",
+  "name": "Vender Machine",
+  "category": "misc",
   "type": "asset",
-  "canPlaceOnWalls": true,
+  "canPlaceOnWalls": false,
   "canPlaceOnSurfaces": false,
   "backgroundTiles": 0,
   "width": 32,
@@ -11,6 +11,6 @@
   "footprintW": 2,
   "footprintH": 2,
   "interactable": true,
-  "interactAction": "study",
+  "interactAction": "drink",
   "interactSides": ["front"]
 }
