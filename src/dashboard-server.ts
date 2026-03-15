@@ -1,21 +1,23 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { streamSSE } from "hono/streaming";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { realpathSync } from "node:fs";
+import { createHash } from "node:crypto";
 import * as docker from "./docker.js";
 import { listBots as listRegistered } from "./store.js";
 import { loadBotConfig, buildInlineConfig } from "./config.js";
 import { addCredential, detectCredentialType, listCredentials, loadCredentials } from "./auth.js";
-import { existsSync, readFileSync as fsReadFileSync } from "node:fs";
+import { existsSync, readFileSync as fsReadFileSync, realpathSync } from "node:fs";
 import { isValidName } from "../shared/validation.js";
 import { resolveHostBotBaseUrl } from "./resolve-endpoint.js";
 import { DASHBOARD_TOKEN, HOP_BY_HOP, spawnBodySchema, authBodySchema, totpVerifySchema } from "./dashboard-server-schema.js";
 import { safeError, dashboardSessionCookie, hasDashboardAccess, shouldBootstrapDashboardSession, guardBusy } from "./dashboard-server-utils.js";
-import { getTotpSecret, setTotpSecret, clearTotpSecret } from "./store.js";
+import { getTotpSecret, setTotpSecret, clearTotpSecret, getMechaDir } from "./store.js";
 import { generateSecret, verifyTOTP, totpUri } from "../shared/totp.js";
+import { atomicWriteJsonAsync } from "../shared/atomic-write.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -366,6 +368,111 @@ export function startDashboardServer(port: number) {
     } catch (err) {
       return c.json({ error: "Proxy error" }, 502);
     }
+  });
+
+  // --- Office Layout API ---
+  app.get("/api/office/layout", (c) => {
+    const layoutPath = join(getMechaDir(), "office-layout.json");
+    if (!existsSync(layoutPath)) {
+      return c.json({ error: "No layout" }, 404);
+    }
+    const content = fsReadFileSync(layoutPath, "utf-8");
+    const etag = createHash("md5").update(content).digest("hex");
+    c.header("ETag", `"${etag}"`);
+    return c.json(JSON.parse(content));
+  });
+
+  app.post("/api/office/layout", async (c) => {
+    const body = await c.req.json().catch(() => null);
+    if (!body) return c.json({ error: "Invalid JSON" }, 400);
+
+    if (
+      body.version !== 1 ||
+      !Array.isArray(body.tiles) ||
+      typeof body.cols !== "number" ||
+      typeof body.rows !== "number" ||
+      body.cols <= 0 ||
+      body.rows <= 0
+    ) {
+      return c.json({ error: "Invalid layout: must have version=1, tiles array, cols>0, rows>0" }, 400);
+    }
+
+    const layoutPath = join(getMechaDir(), "office-layout.json");
+    const ifMatch = c.req.header("If-Match");
+    if (ifMatch) {
+      if (!existsSync(layoutPath)) {
+        return c.json({ error: "Conflict: layout does not exist" }, 409);
+      }
+      const current = fsReadFileSync(layoutPath, "utf-8");
+      const currentEtag = `"${createHash("md5").update(current).digest("hex")}"`;
+      if (ifMatch !== currentEtag) {
+        return c.json({ error: "Conflict: ETag mismatch" }, 409);
+      }
+    }
+
+    await atomicWriteJsonAsync(layoutPath, body);
+    const written = fsReadFileSync(layoutPath, "utf-8");
+    const newEtag = `"${createHash("md5").update(written).digest("hex")}"`;
+    c.header("ETag", newEtag);
+    return c.json({ status: "saved" });
+  });
+
+  // --- Fleet Office SSE Stream ---
+  app.get("/api/office/stream", async (c) => {
+    return streamSSE(c, async (stream) => {
+      let seq = 0;
+      const knownBots = new Map<string, string>(); // containerId → name
+      let closed = false;
+
+      async function sendSnapshot() {
+        const bots = await docker.list();
+        const running = bots.filter(b => b.status === "running");
+        const snapshot = running.map(b => ({ botId: b.containerId, name: b.name, status: "idle" }));
+        await stream.writeSSE({ event: "snapshot", data: JSON.stringify({ seq: seq++, bots: snapshot }) });
+        knownBots.clear();
+        for (const b of running) knownBots.set(b.containerId, b.name);
+      }
+
+      await sendSnapshot();
+
+      const pollInterval = setInterval(async () => {
+        if (closed) return;
+        try {
+          const bots = await docker.list();
+          const running = new Map(bots.filter(b => b.status === "running").map(b => [b.containerId, b.name] as const));
+
+          for (const [id, name] of running) {
+            if (!knownBots.has(id)) {
+              knownBots.set(id, name);
+              await stream.writeSSE({ event: "delta", data: JSON.stringify({ seq: seq++, type: "bot_join", botId: id, name }) });
+            }
+          }
+
+          for (const [id] of knownBots) {
+            if (!running.has(id)) {
+              knownBots.delete(id);
+              await stream.writeSSE({ event: "delta", data: JSON.stringify({ seq: seq++, type: "bot_leave", botId: id }) });
+            }
+          }
+        } catch { /* ignore polling errors */ }
+      }, 5000);
+
+      const heartbeatInterval = setInterval(async () => {
+        if (closed) return;
+        try {
+          await stream.writeSSE({ event: "heartbeat", data: JSON.stringify({ seq: seq++ }) });
+        } catch { /* connection closed */ }
+      }, 15000);
+
+      stream.onAbort(() => {
+        closed = true;
+        clearInterval(pollInterval);
+        clearInterval(heartbeatInterval);
+      });
+
+      // Keep stream alive
+      await new Promise(() => {});
+    });
   });
 
   // --- Serve unified dashboard (from agent/dashboard/dist) ---
