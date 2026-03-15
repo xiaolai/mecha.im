@@ -37,16 +37,15 @@ Between two rows of rooms, insert a walkable corridor:
 Row A:    WALL  WALL  door  door  WALL  WALL      ← bottom wall of top rooms (doorways)
 Row A+1:  hall  hall  hall  hall  hall  hall       ← corridor floor (open sides, floor tiles)
 Row A+2:  hall  hall  hall  hall  hall  hall       ← corridor floor
-Row A+3:  hall  hall  hall  hall  hall  hall       ← corridor floor (extends to bottom doorstep)
-Row A+4:  VOID  VOID  VOID  VOID  VOID  VOID     ← wall-mount sprite space (1 row sufficient for small items)
-Row A+5:  WALL  WALL  door  door  WALL  WALL      ← top wall of bottom rooms (matching doorways)
+Row A+3:  hall  hall  hall  hall  hall  hall       ← corridor floor (extends to bottom rooms' doorstep)
+Row A+4:  WALL  WALL  door  door  WALL  WALL      ← top wall of bottom rooms (matching doorways)
 Row A+6:  WALL  floor floor floor floor WALL      ← first floor of bottom room
 ```
-- Corridor is 3-4 tiles tall (rows A+1 through A+3 or A+4).
+- Corridor is 3-4 tiles tall, extending right up to the bottom rooms' wall (no VOID gap).
 - **Corridor sides are floor tiles** (not WALL, not VOID) — open passageway.
 - Doorways in the bottom wall of top rooms must **align with** doorways in the top wall of bottom rooms.
 - The corridor spans the full width (cols 0 through W-1), connecting all rooms.
-- Only **1 VOID row** above the bottom rooms' wall — sufficient for small wall items (BOOKSHELF 2×1, SMALL_PAINTING 1×2, HANGING_PLANT 1×2, CLOCK 1×2). No large items (DOUBLE_BOOKSHELF, WHITEBOARD, LARGE_PAINTING).
+- The last corridor row (directly above bottom rooms' wall) doubles as the wall-mount sprite space — small wall items render over the corridor floor. Only use small items: BOOKSHELF 2×1, SMALL_PAINTING 1×2, HANGING_PLANT 1×2, CLOCK 1×2. No large items (DOUBLE_BOOKSHELF, WHITEBOARD, LARGE_PAINTING).
 
 ### Room Sizing
 - Minimum interior: 6×6 tiles (1 desk setup + walking space).
