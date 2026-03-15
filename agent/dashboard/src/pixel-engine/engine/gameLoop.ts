@@ -5,16 +5,19 @@ export interface GameLoopCallbacks {
   render: (ctx: CanvasRenderingContext2D) => void;
 }
 
-export function startGameLoop(canvas: HTMLCanvasElement, callbacks: GameLoopCallbacks): () => void {
+export function startGameLoop(
+  canvas: HTMLCanvasElement,
+  callbacks: GameLoopCallbacks,
+): { stop: () => void; pause: () => void; resume: () => void } {
   const ctx = canvas.getContext('2d')!;
   ctx.imageSmoothingEnabled = false;
 
   let lastTime = 0;
   let rafId = 0;
-  let stopped = false;
+  let running = true;
 
   const frame = (time: number) => {
-    if (stopped) return;
+    if (!running) return;
     const dt = lastTime === 0 ? 0 : Math.min((time - lastTime) / 1000, MAX_DELTA_TIME_SEC);
     lastTime = time;
 
@@ -28,8 +31,20 @@ export function startGameLoop(canvas: HTMLCanvasElement, callbacks: GameLoopCall
 
   rafId = requestAnimationFrame(frame);
 
-  return () => {
-    stopped = true;
-    cancelAnimationFrame(rafId);
+  return {
+    stop() {
+      running = false;
+      cancelAnimationFrame(rafId);
+    },
+    pause() {
+      running = false;
+      cancelAnimationFrame(rafId);
+    },
+    resume() {
+      if (running) return;
+      running = true;
+      lastTime = 0;
+      rafId = requestAnimationFrame(frame);
+    },
   };
 }
