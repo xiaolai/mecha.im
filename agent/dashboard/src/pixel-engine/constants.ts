@@ -96,6 +96,22 @@ export const NOTIFICATION_NOTE_2_START_SEC = 0.1;
 export const NOTIFICATION_NOTE_DURATION_SEC = 0.18;
 export const NOTIFICATION_VOLUME = 0.14;
 
+// ── Interaction Behavior ────────────────────────────────────
+export const INTERACT_MIN_SEC = 5.0;
+export const INTERACT_MAX_SEC = 15.0;
+export const CHAT_MIN_SEC = 4.0;
+export const CHAT_MAX_SEC = 8.0;
+export const LOUNGE_SIT_MIN_SEC = 10.0;
+export const LOUNGE_SIT_MAX_SEC = 20.0;
+export const WORK_DESK_DEPART_SEC = 4.0;
+export const CHAT_RANGE_TILES = 10;
+export const IDLE_ACTIONS_BEFORE_REST_MIN = 3;
+export const IDLE_ACTIONS_BEFORE_REST_MAX = 6;
+export const IDLE_WEIGHT_WANDER = 40;
+export const IDLE_WEIGHT_INTERACT = 35;
+export const IDLE_WEIGHT_CHAT = 15;
+export const IDLE_WEIGHT_LOUNGE = 10;
+
 // ── Furniture Animation ─────────────────────────────────────
 export const FURNITURE_ANIM_INTERVAL_SEC = 0.2;
 

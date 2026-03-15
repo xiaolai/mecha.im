@@ -40,6 +40,8 @@ export const CharacterState = {
   IDLE: 'idle',
   WALK: 'walk',
   TYPE: 'type',
+  SIT: 'sit',
+  INTERACT: 'interact',
 } as const;
 export type CharacterState = (typeof CharacterState)[keyof typeof CharacterState];
 
@@ -64,6 +66,12 @@ export interface Seat {
   /** Direction character faces when sitting (toward adjacent desk) */
   facingDir: Direction;
   assigned: boolean;
+  /** 'desk' = adjacent to a desk tile, 'lounge' = everything else */
+  kind: 'desk' | 'lounge';
+  /** Whether the adjacent desk has a PC surface item */
+  hasPc: boolean;
+  /** UID of the adjacent desk furniture, or null */
+  deskUid: string | null;
 }
 
 export interface FurnitureInstance {
@@ -114,6 +122,12 @@ export interface FurnitureCatalogEntry {
   canPlaceOnWalls?: boolean;
   /** Whether this is a side-oriented asset that produces a mirrored "left" variant */
   mirrorSide?: boolean;
+  /** Whether idle bots can interact with this furniture */
+  interactable?: boolean;
+  /** Interaction type label */
+  interactAction?: string;
+  /** Valid approach sides: 'front' | 'back' | 'left' | 'right' | 'any'. Default ['front'] */
+  interactSides?: string[];
 }
 
 export interface PlacedFurniture {
@@ -170,8 +184,26 @@ export interface Character {
   wanderLimit: number;
   /** Whether the agent is actively working */
   isActive: boolean;
-  /** Assigned seat uid, or null if no seat */
+  /** Assigned seat uid, or null if no seat (legacy — use homeSeatId for new code) */
   seatId: string | null;
+  /** Permanent home seat uid (rest cycle destination) */
+  homeSeatId: string | null;
+  /** Temporarily claimed PC desk seat uid while working */
+  workDeskId: string | null;
+  /** Chat partner character ID, or null */
+  chatPartner: number | null;
+  /** Chat countdown timer */
+  chatTimer: number;
+  /** Furniture interaction countdown timer */
+  interactTimer: number;
+  /** Furniture uid being interacted with, or null */
+  interactTarget: string | null;
+  /** SIT state countdown timer */
+  sitTimer: number;
+  /** Number of idle actions completed in current cycle */
+  idleActionCount: number;
+  /** Max idle actions before returning to home seat */
+  idleActionLimit: number;
   /** Active speech bubble type, or null if none showing */
   bubbleType: 'permission' | 'waiting' | null;
   /** Countdown timer for bubble (waiting: 2→0, permission: unused) */
