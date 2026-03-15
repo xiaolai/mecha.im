@@ -11,6 +11,9 @@ import type { FloorColor, SpriteData } from './types.js';
 /** Generic colorized sprite cache: arbitrary string key → SpriteData */
 const colorizeCache = new Map<string, SpriteData>();
 
+/** Max entries before evicting oldest (first inserted) */
+const COLORIZE_CACHE_MAX = 500;
+
 /**
  * Get a color-adjusted sprite from cache, or compute and cache it.
  * Dispatches to colorize or adjust mode based on `color.colorize`.
@@ -24,11 +27,16 @@ export function getColorizedSprite(
   const cached = colorizeCache.get(cacheKey);
   if (cached) return cached;
   const result = color.colorize ? colorizeSprite(sprite, color) : adjustSprite(sprite, color);
+  // Evict oldest entry when over limit
+  if (colorizeCache.size >= COLORIZE_CACHE_MAX) {
+    const firstKey = colorizeCache.keys().next().value;
+    if (firstKey !== undefined) colorizeCache.delete(firstKey);
+  }
   colorizeCache.set(cacheKey, result);
   return result;
 }
 
-/** Clear all cached colorized sprites (e.g., on asset reload) */
+/** Clear all cached colorized sprites (e.g., on tab deactivation or asset reload) */
 export function clearColorizeCache(): void {
   colorizeCache.clear();
 }

@@ -2,6 +2,11 @@ import type { SpriteData } from '../types.js';
 
 const zoomCaches = new Map<number, WeakMap<SpriteData, HTMLCanvasElement>>();
 
+/** Clear all zoom-level sprite caches (e.g., on tab deactivation) */
+export function clearSpriteCache(): void {
+  zoomCaches.clear();
+}
+
 // ── Outline sprite generation ─────────────────────────────────
 
 const outlineCache = new WeakMap<SpriteData, SpriteData>();
