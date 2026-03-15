@@ -257,7 +257,7 @@ export class Scheduler {
       runCount: 0,
       runsToday: 0,
       consecutiveErrors: 0,
-      lastResult: null as string | null,
+      lastResult: null as "success" | "error" | "skipped" | null,
     };
     this.state.entries.push(entry);
 

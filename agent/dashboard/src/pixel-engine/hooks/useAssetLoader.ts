@@ -449,7 +449,11 @@ export function useAssetLoader(): { assetsReady: boolean } {
         await loadWalls();
         if (cancelled) return;
 
-        await loadFurniture();
+        try {
+          await loadFurniture();
+        } catch (err) {
+          console.error('[AssetLoader] Furniture loading failed (non-fatal):', err);
+        }
         if (cancelled) return;
 
         console.log('[AssetLoader] All assets loaded');

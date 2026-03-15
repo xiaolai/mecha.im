@@ -17,6 +17,12 @@ export function useEditorKeyboard(
   useEffect(() => {
     if (!isEditMode) return;
     const handler = (e: KeyboardEvent) => {
+      // Ignore keyboard shortcuts when a form control is focused
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
+        // Allow Escape to still work for closing edit mode
+        if (e.key !== 'Escape') return;
+      }
       if (e.key === 'Escape') {
         // Multi-stage Esc: deselect item → close tool → deselect placed → close editor
         if (editorState.activeTool === EditTool.FURNITURE_PICK) {
@@ -41,11 +47,14 @@ export function useEditorKeyboard(
         onEditorTick();
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
         if (editorState.selectedFurnitureUid) {
+          e.preventDefault();
           onDeleteSelected();
         }
-      } else if (e.key === 'r' || e.key === 'R') {
+      } else if ((e.key === 'r' || e.key === 'R') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
         onRotateSelected();
-      } else if (e.key === 't' || e.key === 'T') {
+      } else if ((e.key === 't' || e.key === 'T') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
         onToggleState();
       } else if (e.key === 'z' && (e.ctrlKey || e.metaKey) && !e.shiftKey) {
         e.preventDefault();

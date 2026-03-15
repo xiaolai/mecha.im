@@ -300,14 +300,14 @@ export class OfficeState {
   reassignSeat(agentId: number, seatId: string): void {
     const ch = this.characters.get(agentId);
     if (!ch) return;
-    // Unassign old seat
+    // Validate new seat BEFORE freeing old one
+    const seat = this.seats.get(seatId);
+    if (!seat || seat.assigned) return;
+    // Unassign old seat (now safe — new seat is confirmed available)
     if (ch.seatId) {
       const old = this.seats.get(ch.seatId);
       if (old) old.assigned = false;
     }
-    // Assign new seat
-    const seat = this.seats.get(seatId);
-    if (!seat || seat.assigned) return;
     seat.assigned = true;
     ch.seatId = seatId;
     // Pathfind to new seat (unblock own seat tile for this query)
@@ -320,8 +320,8 @@ export class OfficeState {
       ch.state = CharacterState.WALK;
       ch.frame = 0;
       ch.frameTimer = 0;
-    } else {
-      // Already at seat or no path — sit down
+    } else if (ch.tileCol === seat.seatCol && ch.tileRow === seat.seatRow) {
+      // Already at seat — sit down
       ch.state = CharacterState.TYPE;
       ch.dir = seat.facingDir;
       ch.frame = 0;
@@ -330,6 +330,7 @@ export class OfficeState {
         ch.seatTimer = INACTIVE_SEAT_TIMER_MIN_SEC + Math.random() * INACTIVE_SEAT_TIMER_RANGE_SEC;
       }
     }
+    // else: seat unreachable — stay idle, don't teleport
   }
 
   /** Send an agent back to their currently assigned seat */
@@ -347,7 +348,7 @@ export class OfficeState {
       ch.state = CharacterState.WALK;
       ch.frame = 0;
       ch.frameTimer = 0;
-    } else {
+    } else if (ch.tileCol === seat.seatCol && ch.tileRow === seat.seatRow) {
       // Already at seat — sit down
       ch.state = CharacterState.TYPE;
       ch.dir = seat.facingDir;
@@ -357,6 +358,7 @@ export class OfficeState {
         ch.seatTimer = INACTIVE_SEAT_TIMER_MIN_SEC + Math.random() * INACTIVE_SEAT_TIMER_RANGE_SEC;
       }
     }
+    // else: seat unreachable — stay idle
   }
 
   /** Walk an agent to an arbitrary walkable tile (right-click command) */
