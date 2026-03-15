@@ -1,0 +1,55 @@
+@font-face {
+  font-family: 'FS Pixel Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/pixel-engine/fonts/FSPixelSansUnicode-Regular.ttf') format('truetype');
+}
+
+.pixel-engine {
+  --pixel-bg: #1e1e2e;
+  --pixel-border: #4a4a6a;
+  --pixel-border-light: #6a6a8a;
+  --pixel-accent: #5a8cff;
+  --pixel-green: #5ac88c;
+  --pixel-shadow: 2px 2px 0px #0a0a14;
+
+  /* Button base */
+  --pixel-text: rgba(255, 255, 255, 0.8);
+  --pixel-text-dim: rgba(255, 255, 255, 0.7);
+  --pixel-btn-bg: rgba(255, 255, 255, 0.08);
+  --pixel-btn-hover-bg: rgba(255, 255, 255, 0.15);
+  --pixel-btn-disabled-opacity: 0.35;
+
+  /* Active/selected button state */
+  --pixel-active-bg: rgba(90, 140, 255, 0.25);
+
+  /* Agent button */
+  --pixel-agent-bg: rgba(90, 200, 140, 0.15);
+  --pixel-agent-hover-bg: rgba(90, 200, 140, 0.3);
+  --pixel-agent-border: #5ac88c;
+  --pixel-agent-text: rgba(200, 255, 220, 0.95);
+
+  /* Close button */
+  --pixel-close-text: rgba(255, 255, 255, 0.5);
+  --pixel-close-hover: #e55;
+
+  /* Hints & confirmations */
+  --pixel-hint-bg: #3278c8;
+  --pixel-reset-text: #ecc;
+  --pixel-danger-bg: #a33;
+
+  /* Vignette */
+  --pixel-vignette: radial-gradient(ellipse at center, transparent 50%, rgba(0, 0, 0, 0.6) 100%);
+
+  /* Status dot colors */
+  --pixel-status-permission: #cca700;
+  --pixel-status-active: #3794ff;
+
+  /* ToolOverlay z-index layers */
+  --pixel-overlay-z: 41;
+  --pixel-overlay-selected-z: 42;
+  --pixel-controls-z: 50;
+
+  font-family: 'FS Pixel Sans', monospace;
+}
