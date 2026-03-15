@@ -130,6 +130,9 @@ interface FurnitureManifest {
   groupType?: string;
   rotationScheme?: string;
   members?: ManifestNode[];
+  interactable?: boolean;
+  interactAction?: string;
+  interactSides?: string[];
 }
 
 interface FlatAsset {
@@ -152,6 +155,9 @@ interface FlatAsset {
   rotationScheme?: string;
   animationGroup?: string;
   frame?: number;
+  interactable?: boolean;
+  interactAction?: string;
+  interactSides?: string[];
 }
 
 interface InheritedProps {
@@ -165,6 +171,9 @@ interface InheritedProps {
   state?: string;
   rotationScheme?: string;
   animationGroup?: string;
+  interactable?: boolean;
+  interactAction?: string;
+  interactSides?: string[];
 }
 
 /** Recursively flatten a manifest node into FlatAsset[] */
@@ -194,6 +203,9 @@ function flattenManifest(node: ManifestNode, inherited: InheritedProps): FlatAss
         ...(inherited.rotationScheme ? { rotationScheme: inherited.rotationScheme } : {}),
         ...(inherited.animationGroup ? { animationGroup: inherited.animationGroup } : {}),
         ...(asset.frame !== undefined ? { frame: asset.frame } : {}),
+        ...(inherited.interactable ? { interactable: true } : {}),
+        ...(inherited.interactAction ? { interactAction: inherited.interactAction } : {}),
+        ...(inherited.interactSides ? { interactSides: inherited.interactSides } : {}),
       },
     ];
   }
@@ -367,6 +379,9 @@ async function loadFurniture(): Promise<void> {
         canPlaceOnWalls: manifest.canPlaceOnWalls,
         canPlaceOnSurfaces: manifest.canPlaceOnSurfaces,
         backgroundTiles: manifest.backgroundTiles,
+        ...(manifest.interactable ? { interactable: true } : {}),
+        ...(manifest.interactAction ? { interactAction: manifest.interactAction } : {}),
+        ...(manifest.interactSides ? { interactSides: manifest.interactSides } : {}),
       };
 
       let assets: FlatAsset[];
@@ -387,6 +402,9 @@ async function loadFurniture(): Promise<void> {
             canPlaceOnSurfaces: manifest.canPlaceOnSurfaces,
             backgroundTiles: manifest.backgroundTiles,
             groupId: manifest.id,
+            ...(manifest.interactable ? { interactable: true } : {}),
+            ...(manifest.interactAction ? { interactAction: manifest.interactAction } : {}),
+            ...(manifest.interactSides ? { interactSides: manifest.interactSides } : {}),
           },
         ];
       } else {

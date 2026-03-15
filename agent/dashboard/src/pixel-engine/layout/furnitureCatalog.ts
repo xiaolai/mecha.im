@@ -20,6 +20,9 @@ export interface LoadedAssetData {
     rotationScheme?: string;
     animationGroup?: string;
     frame?: number;
+    interactable?: boolean;
+    interactAction?: string;
+    interactSides?: string[];
   }>;
   sprites: Record<string, SpriteData>;
 }
@@ -97,6 +100,9 @@ export function buildDynamicCatalog(assets: LoadedAssetData): boolean {
         ...(asset.backgroundTiles ? { backgroundTiles: asset.backgroundTiles } : {}),
         ...(asset.canPlaceOnWalls ? { canPlaceOnWalls: true } : {}),
         ...(asset.mirrorSide ? { mirrorSide: true } : {}),
+        ...(asset.interactable ? { interactable: true } : {}),
+        ...(asset.interactAction ? { interactAction: asset.interactAction } : {}),
+        ...(asset.interactSides ? { interactSides: asset.interactSides } : {}),
       };
     })
     .filter((e): e is CatalogEntryWithCategory => e !== null);
