@@ -10,7 +10,7 @@ import * as docker from "./docker.js";
 import { listBots as listRegistered } from "./store.js";
 import { loadBotConfig, buildInlineConfig } from "./config.js";
 import { addCredential, detectCredentialType, listCredentials, loadCredentials } from "./auth.js";
-import { existsSync, readFileSync as fsReadFileSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync as fsReadFileSync, realpathSync, statSync } from "node:fs";
 import { isValidName } from "../shared/validation.js";
 import { resolveHostBotBaseUrl } from "./resolve-endpoint.js";
 import { DASHBOARD_TOKEN, HOP_BY_HOP, spawnBodySchema, authBodySchema, totpVerifySchema } from "./dashboard-server-schema.js";
@@ -376,10 +376,14 @@ export function startDashboardServer(port: number) {
     if (!existsSync(layoutPath)) {
       return c.json({ error: "No layout" }, 404);
     }
-    const content = fsReadFileSync(layoutPath, "utf-8");
-    const etag = createHash("md5").update(content).digest("hex");
-    c.header("ETag", `"${etag}"`);
-    return c.json(JSON.parse(content));
+    try {
+      const content = fsReadFileSync(layoutPath, "utf-8");
+      const etag = createHash("md5").update(content).digest("hex");
+      c.header("ETag", `"${etag}"`);
+      return c.json(JSON.parse(content));
+    } catch {
+      return c.json({ error: "Failed to read or parse layout file" }, 500);
+    }
   });
 
   app.post("/api/office/layout", async (c) => {
@@ -395,6 +399,19 @@ export function startDashboardServer(port: number) {
       body.rows <= 0
     ) {
       return c.json({ error: "Invalid layout: must have version=1, tiles array, cols>0, rows>0" }, 400);
+    }
+    // Enforce reasonable dimension limits and structural consistency
+    if (body.cols > 64 || body.rows > 64) {
+      return c.json({ error: "Layout dimensions too large (max 64x64)" }, 400);
+    }
+    if (body.tiles.length !== body.cols * body.rows) {
+      return c.json({ error: `tiles.length (${body.tiles.length}) must equal cols*rows (${body.cols * body.rows})` }, 400);
+    }
+    if (body.tileColors && Array.isArray(body.tileColors) && body.tileColors.length !== body.tiles.length) {
+      return c.json({ error: "tileColors.length must match tiles.length" }, 400);
+    }
+    if (body.furniture && !Array.isArray(body.furniture)) {
+      return c.json({ error: "furniture must be an array" }, 400);
     }
 
     const layoutPath = join(getMechaDir(), "office-layout.json");
@@ -417,20 +434,103 @@ export function startDashboardServer(port: number) {
     return c.json({ status: "saved" });
   });
 
+  // --- Office Avatars API ---
+  const avatarsFile = () => join(getMechaDir(), "office-avatars.json");
+
+  function readAvatars(): Record<string, { palette: number; hueShift: number; displayName: string }> {
+    const p = avatarsFile();
+    if (!existsSync(p)) return {};
+    try {
+      const raw = JSON.parse(fsReadFileSync(p, "utf-8")) as Record<string, unknown>;
+      const result: Record<string, { palette: number; hueShift: number; displayName: string }> = {};
+      for (const [key, val] of Object.entries(raw)) {
+        if (val && typeof val === "object") {
+          const v = val as Record<string, unknown>;
+          if (typeof v.palette === "number" && typeof v.hueShift === "number" && typeof v.displayName === "string") {
+            result[key] = { palette: v.palette, hueShift: v.hueShift, displayName: v.displayName };
+          }
+        }
+      }
+      return result;
+    } catch {
+      return {};
+    }
+  }
+
+  app.get("/api/office/avatars", (c) => {
+    return c.json(readAvatars());
+  });
+
+  app.post("/api/office/avatars", async (c) => {
+    const body = await c.req.json().catch(() => null);
+    if (!body) return c.json({ error: "Invalid JSON" }, 400);
+
+    const { name, palette, hueShift, displayName } = body as Record<string, unknown>;
+
+    // Validate name
+    if (typeof name !== "string" || !isValidName(name)) {
+      return c.json({ error: "Invalid or missing name" }, 400);
+    }
+
+    // Validate palette: integer 0-5
+    if (typeof palette !== "number" || !Number.isInteger(palette) || palette < 0 || palette > 5) {
+      return c.json({ error: "palette must be an integer 0-5" }, 400);
+    }
+
+    // Validate hueShift: integer 0-359
+    if (typeof hueShift !== "number" || !Number.isInteger(hueShift) || hueShift < 0 || hueShift > 359) {
+      return c.json({ error: "hueShift must be an integer 0-359" }, 400);
+    }
+
+    // Validate displayName: string 1-32 chars, strip control chars
+    if (typeof displayName !== "string") {
+      return c.json({ error: "displayName must be a string" }, 400);
+    }
+    // eslint-disable-next-line no-control-regex
+    const cleaned = displayName.replace(/[\x00-\x1f\x7f]/g, "").trim();
+    if (cleaned.length < 1 || cleaned.length > 32) {
+      return c.json({ error: "displayName must be 1-32 characters after stripping control chars" }, 400);
+    }
+
+    // Read-merge-write atomically
+    const avatars = readAvatars();
+    avatars[name] = { palette, hueShift, displayName: cleaned };
+    try {
+      await atomicWriteJsonAsync(avatarsFile(), avatars);
+    } catch {
+      return c.json({ error: "Failed to write avatar config" }, 500);
+    }
+
+    return c.json({ status: "saved" });
+  });
+
   // --- Fleet Office SSE Stream ---
   app.get("/api/office/stream", async (c) => {
     return streamSSE(c, async (stream) => {
       let seq = 0;
       const knownBots = new Map<string, string>(); // containerId → name
       let closed = false;
+      let lastAvatarMtime = 0; // track avatar file changes
 
       async function sendSnapshot() {
         const bots = await docker.list();
         const running = bots.filter(b => b.status === "running");
-        const snapshot = running.map(b => ({ botId: b.containerId, name: b.name, status: "idle" }));
+        const avatars = readAvatars();
+        const snapshot = running.map(b => {
+          const entry: Record<string, unknown> = { bot_id: b.containerId, name: b.name, status: "idle" as const };
+          const av = avatars[b.name];
+          if (av) {
+            entry.palette = av.palette;
+            entry.hueShift = av.hueShift;
+            entry.displayName = av.displayName;
+          }
+          return entry;
+        });
         await stream.writeSSE({ event: "snapshot", data: JSON.stringify({ seq: seq++, bots: snapshot }) });
         knownBots.clear();
         for (const b of running) knownBots.set(b.containerId, b.name);
+        // Track avatar file mtime
+        try { lastAvatarMtime = statSync(avatarsFile()).mtimeMs; } catch { lastAvatarMtime = 0; }
       }
 
       await sendSnapshot();
@@ -444,15 +544,31 @@ export function startDashboardServer(port: number) {
           for (const [id, name] of running) {
             if (!knownBots.has(id)) {
               knownBots.set(id, name);
-              await stream.writeSSE({ event: "delta", data: JSON.stringify({ seq: seq++, type: "bot_join", botId: id, name }) });
+              const avatars = readAvatars();
+              const av = avatars[name];
+              const joinData: Record<string, unknown> = { seq: seq++, type: "bot_join", bot_id: id, name };
+              if (av) {
+                joinData.palette = av.palette;
+                joinData.hueShift = av.hueShift;
+                joinData.displayName = av.displayName;
+              }
+              await stream.writeSSE({ event: "state", data: JSON.stringify(joinData) });
             }
           }
 
           for (const [id] of knownBots) {
             if (!running.has(id)) {
               knownBots.delete(id);
-              await stream.writeSSE({ event: "delta", data: JSON.stringify({ seq: seq++, type: "bot_leave", botId: id }) });
+              await stream.writeSSE({ event: "state", data: JSON.stringify({ seq: seq++, type: "bot_leave", bot_id: id }) });
             }
+          }
+
+          // Detect avatar file changes and resend snapshot
+          let currentMtime = 0;
+          try { currentMtime = statSync(avatarsFile()).mtimeMs; } catch { /* file may not exist */ }
+          if (currentMtime > 0 && currentMtime !== lastAvatarMtime) {
+            lastAvatarMtime = currentMtime;
+            await sendSnapshot();
           }
         } catch { /* ignore polling errors */ }
       }, 5000);

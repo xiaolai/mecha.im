@@ -202,6 +202,7 @@ export default function App() {
               <PixelOffice
                 isActive={tab === "Office"}
                 onSelectBot={(name) => { selectBot(name); setTab("Sessions"); }}
+                onEditAvatar={(name) => { selectBot(name); setTab("Settings"); }}
               />
             </div>
           )}

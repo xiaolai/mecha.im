@@ -18,6 +18,9 @@ interface SnapshotBot {
   name: string;
   status: 'idle' | 'active' | 'waiting' | 'permission';
   tool?: string;
+  palette?: number;
+  hueShift?: number;
+  displayName?: string;
 }
 
 interface SnapshotEvent {
@@ -31,6 +34,9 @@ interface DeltaStateEvent {
   bot_id: string;
   name?: string;
   status?: string;
+  palette?: number;
+  hueShift?: number;
+  displayName?: string;
 }
 
 interface DeltaToolEvent {
@@ -58,10 +64,11 @@ const RECONNECT_MAX_MS = 30000;
 export function useOfficeStream(
   officeState: OfficeState | null,
   assetsReady: boolean,
-): { getBotNameByNumericId: (id: number) => string | null } {
+): { getBotNameByNumericId: (id: number) => string | null; getDisplayName: (id: number) => string | null } {
   // Stable maps persisted across reconnections via refs
   const botMapRef = useRef(new Map<string, BotEntry>()); // botId → entry
   const reverseMapRef = useRef(new Map<number, string>()); // numericId → botId
+  const displayNameMapRef = useRef(new Map<number, string>()); // numericId → displayName
   const nextIdRef = useRef(1);
   const expectedSeqRef = useRef(0);
   const esRef = useRef<EventSource | null>(null);
@@ -84,6 +91,10 @@ export function useOfficeStream(
     const botId = reverseMapRef.current.get(id);
     if (!botId) return null;
     return botMapRef.current.get(botId)?.name ?? null;
+  }, []);
+
+  const getDisplayName = useCallback((id: number): string | null => {
+    return displayNameMapRef.current.get(id) ?? null;
   }, []);
 
   useEffect(() => {
@@ -116,8 +127,16 @@ export function useOfficeStream(
             const numId = getNumericId(bot.bot_id, bot.name);
 
             if (!os.characters.has(numId)) {
-              os.addAgent(numId, undefined, undefined, undefined, true);
+              os.addAgent(numId, bot.palette, bot.hueShift, undefined, true);
+            } else if (bot.palette !== undefined || bot.hueShift !== undefined) {
+              // Update existing agent's avatar if it changed (e.g., after reconnect)
+              const ch = os.characters.get(numId);
+              if (ch) {
+                if (bot.palette !== undefined && ch.palette !== bot.palette) ch.palette = bot.palette;
+                if (bot.hueShift !== undefined && ch.hueShift !== bot.hueShift) ch.hueShift = bot.hueShift;
+              }
             }
+            if (bot.displayName) displayNameMapRef.current.set(numId, bot.displayName);
 
             // Apply current status
             if (bot.status === 'active') {
@@ -140,7 +159,9 @@ export function useOfficeStream(
           // Remove characters not in snapshot
           for (const [numId, botId] of reverseMapRef.current) {
             if (!incomingIds.has(botId) && os.characters.has(numId)) {
+              os.removeAllSubagents(numId);
               os.removeAgent(numId);
+              displayNameMapRef.current.delete(numId);
             }
           }
         } catch (err) {
@@ -164,12 +185,14 @@ export function useOfficeStream(
 
           if (data.type === 'bot_join') {
             const numId = getNumericId(data.bot_id, data.name ?? data.bot_id);
-            os.addAgent(numId);
+            os.addAgent(numId, data.palette, data.hueShift);
+            if (data.displayName) displayNameMapRef.current.set(numId, data.displayName);
           } else if (data.type === 'bot_leave') {
             const entry = botMapRef.current.get(data.bot_id);
             if (entry) {
               os.removeAllSubagents(entry.numericId);
               os.removeAgent(entry.numericId);
+              displayNameMapRef.current.delete(entry.numericId);
             }
           } else if (data.type === 'status') {
             const entry = botMapRef.current.get(data.bot_id);
@@ -319,5 +342,5 @@ export function useOfficeStream(
     };
   }, [officeState, assetsReady, getNumericId]);
 
-  return { getBotNameByNumericId };
+  return { getBotNameByNumericId, getDisplayName };
 }
