@@ -36,8 +36,8 @@ export interface EditorActions {
   editorTick: number;
   isDirty: boolean;
   zoom: number;
-  panRef: React.MutableRefObject<{ x: number; y: number }>;
-  saveTimerRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>;
+  panRef: React.RefObject<{ x: number; y: number }>;
+  saveTimerRef: React.RefObject<ReturnType<typeof setTimeout> | null>;
   setLastSavedLayout: (layout: OfficeLayout) => void;
   handleToggleEditMode: () => void;
   handleToolChange: (tool: EditToolType) => void;
