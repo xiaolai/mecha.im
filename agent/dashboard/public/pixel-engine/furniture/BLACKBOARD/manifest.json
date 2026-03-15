@@ -1,7 +1,7 @@
 {
-  "id": "WHITEBOARD",
-  "name": "Whiteboard",
-  "category": "wall",
+  "id": "BLACKBOARD",
+  "name": "Blackboard",
+  "category": "misc",
   "type": "asset",
   "canPlaceOnWalls": true,
   "canPlaceOnSurfaces": false,
