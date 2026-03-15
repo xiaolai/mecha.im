@@ -10,7 +10,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { PULSE_ANIMATION_DURATION_SEC } from '../constants';
+import { PULSE_ANIMATION_DURATION_SEC, TILE_SIZE } from '../constants';
 import { clearColorizeCache } from '../colorize';
 import { BottomToolbar } from './BottomToolbar';
 import { DebugView } from './DebugView';
@@ -134,9 +134,11 @@ interface PixelOfficeProps {
   isActive: boolean;
   /** Callback when a bot character is clicked — navigates to that bot's sessions */
   onSelectBot?: (name: string) => void;
+  /** Callback when "Avatar" is clicked in the agent popover */
+  onEditAvatar?: (name: string) => void;
 }
 
-export function PixelOffice({ isActive, onSelectBot }: PixelOfficeProps) {
+export function PixelOffice({ isActive, onSelectBot, onEditAvatar }: PixelOfficeProps) {
   // Persistent refs — survive tab switches
   const officeStateRef = useRef<OfficeState | null>(null);
   const editorStateRef = useRef(new EditorState());
@@ -145,12 +147,13 @@ export function PixelOffice({ isActive, onSelectBot }: PixelOfficeProps) {
   const [officeReady, setOfficeReady] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [isDebugMode, setIsDebugMode] = useState(false);
+  const [clickedAgent, setClickedAgent] = useState<{ id: number; name: string } | null>(null);
 
   // 1. Load all assets
   const { assetsReady } = useAssetLoader();
 
   // 2. Load layout from API (or default)
-  const { layout, saveLayout } = useLayoutPersistence();
+  const { layout, saveLayout, saveLayoutImmediate } = useLayoutPersistence();
 
   // Stable getter for editor actions
   const getOfficeState = useCallback((): OfficeState => {
@@ -161,7 +164,7 @@ export function PixelOffice({ isActive, onSelectBot }: PixelOfficeProps) {
   }, []);
 
   // 3. Wire editor actions
-  const editor = useEditorActions(getOfficeState, editorStateRef.current, saveLayout);
+  const editor = useEditorActions(getOfficeState, editorStateRef.current, saveLayout, saveLayoutImmediate);
 
   // 4. Create OfficeState once both assets and layout are ready
   useEffect(() => {
@@ -176,7 +179,7 @@ export function PixelOffice({ isActive, onSelectBot }: PixelOfficeProps) {
   }, [assetsReady, layout, editor.setLastSavedLayout]);
 
   // 5. Connect to SSE stream
-  const { getBotNameByNumericId } = useOfficeStream(
+  const { getBotNameByNumericId, getDisplayName } = useOfficeStream(
     officeReady ? officeStateRef.current : null,
     assetsReady,
   );
@@ -203,7 +206,7 @@ export function PixelOffice({ isActive, onSelectBot }: PixelOfficeProps) {
     }
   }, [isActive]);
 
-  // Handle character click — map numeric ID to bot name
+  // Handle character click — show popover (or delegate sub-agent to parent)
   const handleClick = useCallback(
     (agentId: number) => {
       // Check for sub-agent — focus parent's terminal
@@ -217,12 +220,44 @@ export function PixelOffice({ isActive, onSelectBot }: PixelOfficeProps) {
         }
       }
       const name = getBotNameByNumericId(agentId);
-      if (name && onSelectBot) {
-        onSelectBot(name);
-      }
+      if (!name) return;
+      // Toggle popover on re-click
+      setClickedAgent((prev) => (prev && prev.id === agentId ? null : { id: agentId, name }));
     },
     [getBotNameByNumericId, onSelectBot],
   );
+
+  // Dismiss popover on Escape or clicking outside
+  const popoverRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!clickedAgent) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setClickedAgent(null);
+    };
+    const onMouseDown = (e: MouseEvent) => {
+      // If click is outside the popover, dismiss it
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setClickedAgent(null);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    // Delay adding mousedown to avoid dismissing from the same click that opened it
+    const timer = setTimeout(() => window.addEventListener('mousedown', onMouseDown), 0);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('mousedown', onMouseDown);
+    };
+  }, [clickedAgent]);
+
+  // Dismiss popover when zoom changes
+  const prevZoomRef = useRef(editor.zoom);
+  useEffect(() => {
+    if (prevZoomRef.current !== editor.zoom) {
+      setClickedAgent(null);
+    }
+    prevZoomRef.current = editor.zoom;
+  }, [editor.zoom]);
 
   // Settings callbacks
   const handleToggleDebugMode = useCallback(() => setIsDebugMode((prev) => !prev), []);
@@ -257,15 +292,25 @@ export function PixelOffice({ isActive, onSelectBot }: PixelOfficeProps) {
       reader.onload = () => {
         try {
           const data = JSON.parse(reader.result as string) as OfficeLayout;
-          if (data?.version === 1 && Array.isArray(data.tiles)) {
+          if (
+            data?.version === 1 &&
+            Array.isArray(data.tiles) &&
+            typeof data.cols === 'number' &&
+            typeof data.rows === 'number' &&
+            data.tiles.length === data.cols * data.rows
+          ) {
             saveLayout(data);
             // Rebuild immediately
             const os = officeStateRef.current;
             if (os) {
               os.rebuildFromLayout(data);
             }
+            // Reset editor state to match the imported layout
+            editor.setLastSavedLayout(data);
+            editorStateRef.current.reset();
+            editor.syncDirtyState();
           } else {
-            console.warn('[PixelOffice] Invalid layout file: missing version or tiles');
+            console.warn('[PixelOffice] Invalid layout file: missing or mismatched fields');
           }
         } catch (err) {
           console.warn('[PixelOffice] Failed to parse layout file:', err);
@@ -352,6 +397,97 @@ export function PixelOffice({ isActive, onSelectBot }: PixelOfficeProps) {
         panRef={editor.panRef}
         isActive={isActive}
       />
+
+      {/* Agent click popover */}
+      {clickedAgent &&
+        (() => {
+          const ch = officeState.characters.get(clickedAgent.id);
+          if (!ch) return null;
+          const canvas = containerRef.current?.querySelector('canvas');
+          if (!canvas) return null;
+          const dpr = window.devicePixelRatio || 1;
+          const canvasW = Math.round(canvas.clientWidth * dpr);
+          const canvasH = Math.round(canvas.clientHeight * dpr);
+          const currentLayout = officeState.getLayout();
+          const mapW = currentLayout.cols * TILE_SIZE * editor.zoom;
+          const mapH = currentLayout.rows * TILE_SIZE * editor.zoom;
+          const deviceOffsetX =
+            Math.floor((canvasW - mapW) / 2) + Math.round(editor.panRef.current.x);
+          const deviceOffsetY =
+            Math.floor((canvasH - mapH) / 2) + Math.round(editor.panRef.current.y);
+          const POPOVER_Y_OFFSET = -32;
+          const screenX = (deviceOffsetX + ch.x * editor.zoom) / dpr;
+          const screenY = (deviceOffsetY + (ch.y + POPOVER_Y_OFFSET) * editor.zoom) / dpr;
+          const displayName = getDisplayName(clickedAgent.id) ?? clickedAgent.name;
+          return (
+            <div
+              ref={popoverRef}
+              style={{
+                position: 'absolute',
+                left: screenX,
+                top: screenY,
+                transform: 'translate(-50%, -100%)',
+                zIndex: 'var(--pixel-overlay-selected-z)',
+                background: 'var(--pixel-bg)',
+                border: '2px solid var(--pixel-border)',
+                borderRadius: 0,
+                boxShadow: 'var(--pixel-shadow)',
+                padding: '6px 8px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 6,
+                pointerEvents: 'auto',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <span
+                style={{
+                  fontSize: '22px',
+                  color: 'var(--pixel-text-dim)',
+                }}
+              >
+                {displayName}
+              </span>
+              <div style={{ display: 'flex', gap: 4 }}>
+                <button
+                  style={{
+                    padding: '3px 8px',
+                    fontSize: '20px',
+                    background: 'var(--pixel-btn-bg)',
+                    color: 'var(--pixel-text-dim)',
+                    border: '2px solid transparent',
+                    borderRadius: 0,
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    setClickedAgent(null);
+                    onSelectBot?.(clickedAgent.name);
+                  }}
+                >
+                  Sessions
+                </button>
+                <button
+                  style={{
+                    padding: '3px 8px',
+                    fontSize: '20px',
+                    background: 'var(--pixel-btn-bg)',
+                    color: 'var(--pixel-text-dim)',
+                    border: '2px solid transparent',
+                    borderRadius: 0,
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    setClickedAgent(null);
+                    onEditAvatar?.(clickedAgent.name);
+                  }}
+                >
+                  Avatar
+                </button>
+              </div>
+            </div>
+          );
+        })()}
 
       {!isDebugMode && <ZoomControls zoom={editor.zoom} onZoomChange={editor.handleZoomChange} />}
 
