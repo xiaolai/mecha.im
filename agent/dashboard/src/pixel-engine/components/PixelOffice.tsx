@@ -136,9 +136,11 @@ interface PixelOfficeProps {
   onSelectBot?: (name: string) => void;
   /** Callback when "Avatar" is clicked in the agent popover */
   onEditAvatar?: (name: string) => void;
+  /** When true, hides all editor controls (Layout/Settings buttons, toolbar, etc.) */
+  readOnly?: boolean;
 }
 
-export function PixelOffice({ isActive, onSelectBot, onEditAvatar }: PixelOfficeProps) {
+export function PixelOffice({ isActive, onSelectBot, onEditAvatar, readOnly }: PixelOfficeProps) {
   // Persistent refs — survive tab switches
   const officeStateRef = useRef<OfficeState | null>(null);
   const editorStateRef = useRef(new EditorState());
@@ -502,15 +504,17 @@ export function PixelOffice({ isActive, onSelectBot, onEditAvatar }: PixelOffice
         }}
       />
 
-      <BottomToolbar
-        isEditMode={editor.isEditMode}
-        onToggleEditMode={editor.handleToggleEditMode}
-        isDebugMode={isDebugMode}
-        onToggleDebugMode={handleToggleDebugMode}
-        onOpenSettings={handleOpenSettings}
-      />
+      {!readOnly && (
+        <BottomToolbar
+          isEditMode={editor.isEditMode}
+          onToggleEditMode={editor.handleToggleEditMode}
+          isDebugMode={isDebugMode}
+          onToggleDebugMode={handleToggleDebugMode}
+          onOpenSettings={handleOpenSettings}
+        />
+      )}
 
-      {editor.isEditMode && editor.isDirty && (
+      {!readOnly && editor.isEditMode && editor.isDirty && (
         <EditActionBar editor={editor} editorState={editorStateRef.current} />
       )}
 
@@ -537,7 +541,7 @@ export function PixelOffice({ isActive, onSelectBot, onEditAvatar }: PixelOffice
         </div>
       )}
 
-      {editor.isEditMode &&
+      {!readOnly && editor.isEditMode &&
         (() => {
           const selUid = editorStateRef.current.selectedFurnitureUid;
           const selColor = selUid
@@ -587,14 +591,16 @@ export function PixelOffice({ isActive, onSelectBot, onEditAvatar }: PixelOffice
         />
       )}
 
-      <SettingsModal
-        isOpen={showSettings}
-        onClose={handleCloseSettings}
-        isDebugMode={isDebugMode}
-        onToggleDebugMode={handleToggleDebugMode}
-        onExportLayout={handleExportLayout}
-        onImportLayout={handleImportLayout}
-      />
+      {!readOnly && (
+        <SettingsModal
+          isOpen={showSettings}
+          onClose={handleCloseSettings}
+          isDebugMode={isDebugMode}
+          onToggleDebugMode={handleToggleDebugMode}
+          onExportLayout={handleExportLayout}
+          onImportLayout={handleImportLayout}
+        />
+      )}
     </div>
   );
 }
