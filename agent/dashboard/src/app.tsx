@@ -9,13 +9,14 @@ import Fleet from "./views/fleet";
 import Network from "./views/network";
 import Auth from "./views/auth";
 import { PixelOffice } from "./pixel-engine/components/PixelOffice";
+import { Bot } from "lucide-react";
 
 // Bot-level tabs (shown when viewing a specific bot)
 const botTabs = ["Sessions", "Schedule", "Webhooks", "Settings"] as const;
 type BotTab = (typeof botTabs)[number];
 
 // Fleet-level tabs (shown in fleet overview)
-const fleetTabs = ["Fleet", "Office", "Network", "Auth"] as const;
+const fleetTabs = ["Office", "Fleet", "Network", "Auth"] as const;
 type FleetTab = (typeof fleetTabs)[number];
 
 type Tab = BotTab | FleetTab;
@@ -75,7 +76,7 @@ export default function App() {
       if (fleetTabs.includes(tab as FleetTab)) setTab("Sessions");
     } else {
       // Back to fleet overview
-      if (botTabs.includes(tab as BotTab)) setTab("Fleet");
+      if (botTabs.includes(tab as BotTab)) setTab("Office");
     }
   }, [isFleet, selectedBot]);
 
@@ -97,7 +98,7 @@ export default function App() {
 
   function handleBackToFleet() {
     selectBot(null);
-    setTab("Fleet");
+    setTab("Office");
   }
 
   const selectedBotStatus = selectedBot ? bots.find((b) => b.name === selectedBot) : null;
@@ -118,8 +119,8 @@ export default function App() {
             </svg>
           </button>
         ) : (
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold text-sm mb-4">
-            M
+          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground mb-4">
+            <Bot className="w-4 h-4" />
           </div>
         )}
 
@@ -162,8 +163,11 @@ export default function App() {
           ))}
         </nav>
 
-        {/* Bottom: theme toggle */}
+        {/* Bottom: theme toggle + version */}
         <ThemeToggle />
+        <span className="text-[10px] text-sidebar-muted select-none" title={`Mecha v${__APP_VERSION__}`}>
+          v{__APP_VERSION__}
+        </span>
       </aside>
 
       {/* Main content */}
