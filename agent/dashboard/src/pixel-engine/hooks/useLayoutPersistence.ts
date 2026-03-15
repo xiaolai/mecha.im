@@ -19,6 +19,7 @@ const ASSET_BASE = '/pixel-engine';
 export function useLayoutPersistence(): {
   layout: OfficeLayout | null;
   saveLayout: (layout: OfficeLayout) => void;
+  saveLayoutImmediate: (layout: OfficeLayout) => Promise<boolean>;
   reloadLayout: () => void;
 } {
   const [layout, setLayout] = useState<OfficeLayout | null>(null);
@@ -26,7 +27,7 @@ export function useLayoutPersistence(): {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
 
-  /** Fetch layout from API, with fallback to default-layout.json */
+  /** Fetch layout from API, with fallback to default-layout.json only on 404 */
   const fetchLayout = useCallback(async () => {
     try {
       const resp = await fetch('/api/office/layout');
@@ -38,14 +39,20 @@ export function useLayoutPersistence(): {
           setLayout(migrateLayoutColors(data));
           return;
         }
-      }
-      // 404 or invalid — fall back to default layout
-      if (resp.status === 404 || !resp.ok) {
+        // 200 but invalid shape — fall back to default
         await loadDefaultLayout();
+        return;
+      }
+      if (resp.status === 404) {
+        // No layout saved yet — use default
+        await loadDefaultLayout();
+      } else {
+        // Server error (5xx, etc.) — don't overwrite with default, log and retry later
+        console.warn(`[LayoutPersistence] Server error ${resp.status}, not falling back to default`);
       }
     } catch {
-      // Network error — try default layout
-      await loadDefaultLayout();
+      // Network error — don't overwrite with default
+      console.warn('[LayoutPersistence] Network error loading layout');
     }
   }, []);
 
@@ -64,8 +71,8 @@ export function useLayoutPersistence(): {
     }
   }, []);
 
-  /** Save layout to the API with ETag conflict detection */
-  const doSave = useCallback(async (layoutToSave: OfficeLayout) => {
+  /** Save layout to the API with ETag conflict detection. Returns true on success. */
+  const doSave = useCallback(async (layoutToSave: OfficeLayout): Promise<boolean> => {
     try {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -83,6 +90,7 @@ export function useLayoutPersistence(): {
       if (resp.ok) {
         const etag = resp.headers.get('ETag');
         if (etag) etagRef.current = etag;
+        return true;
       } else if (resp.status === 409) {
         // Conflict — reload server version
         console.warn('[LayoutPersistence] Conflict detected, reloading server layout');
@@ -91,6 +99,7 @@ export function useLayoutPersistence(): {
     } catch {
       console.warn('[LayoutPersistence] Failed to save layout');
     }
+    return false;
   }, [fetchLayout]);
 
   /** Debounced save — waits 500ms after last call */
@@ -103,6 +112,19 @@ export function useLayoutPersistence(): {
         debounceRef.current = null;
         doSave(layoutToSave);
       }, LAYOUT_SAVE_DEBOUNCE_MS);
+    },
+    [doSave],
+  );
+
+  /** Immediate (non-debounced) save — returns true on success */
+  const saveLayoutImmediate = useCallback(
+    async (layoutToSave: OfficeLayout): Promise<boolean> => {
+      // Flush any pending debounced save
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+      }
+      return doSave(layoutToSave);
     },
     [doSave],
   );
@@ -124,5 +146,5 @@ export function useLayoutPersistence(): {
     };
   }, [fetchLayout]);
 
-  return { layout, saveLayout, reloadLayout };
+  return { layout, saveLayout, saveLayoutImmediate, reloadLayout };
 }

@@ -219,6 +219,16 @@ export function buildDynamicCatalog(assets: LoadedAssetData): boolean {
       stateGroups.set(offId, onId);
       offToOn.set(offId, onId);
       onToOff.set(onId, offId);
+      // Also register `:left` virtual variants for mirrored assets
+      const offEntry = assets.catalog.find((a) => a.id === offId);
+      if (offEntry?.mirrorSide) {
+        const leftOffId = `${offId}:left`;
+        const leftOnId = `${onId}:left`;
+        stateGroups.set(leftOnId, leftOffId);
+        stateGroups.set(leftOffId, leftOnId);
+        offToOn.set(leftOffId, leftOnId);
+        onToOff.set(leftOnId, leftOffId);
+      }
     }
   }
 

@@ -17,8 +17,9 @@ export function paintTile(
   tileType: TileTypeVal,
   color?: FloorColor,
 ): OfficeLayout {
+  // Bounds-check col and row independently to prevent row aliasing
+  if (col < 0 || col >= layout.cols || row < 0 || row >= layout.rows) return layout;
   const idx = row * layout.cols + col;
-  if (idx < 0 || idx >= layout.tiles.length) return layout;
 
   const existingColors = layout.tileColors || new Array(layout.tiles.length).fill(null);
   const newColor =
@@ -91,6 +92,8 @@ export function rotateFurniture(
   if (!item) return layout;
   const newType = getRotatedType(item.type, direction);
   if (!newType) return layout;
+  // Validate that the rotated type can be placed at the current position
+  if (!canPlaceFurniture(layout, newType, item.col, item.row, uid)) return layout;
   return {
     ...layout,
     furniture: layout.furniture.map((f) => (f.uid === uid ? { ...f, type: newType } : f)),
@@ -187,6 +190,24 @@ export function canPlaceFurniture(
     }
   }
 
+  // Build set of tiles occupied by other surface items (prevent stacking)
+  let surfaceTiles: Set<string> | null = null;
+  if (entry.canPlaceOnSurfaces) {
+    surfaceTiles = new Set<string>();
+    for (const item of layout.furniture) {
+      if (item.uid === excludeUid) continue;
+      const itemEntry = getCatalogEntry(item.type);
+      if (!itemEntry || !itemEntry.canPlaceOnSurfaces) continue;
+      const itemBg = itemEntry.backgroundTiles || 0;
+      for (let dr = 0; dr < itemEntry.footprintH; dr++) {
+        if (dr < itemBg) continue;
+        for (let dc = 0; dc < itemEntry.footprintW; dc++) {
+          surfaceTiles.add(`${item.col + dc},${item.row + dr}`);
+        }
+      }
+    }
+  }
+
   // Check overlap — also skip the NEW item's own background rows
   const newBgRows = entry.backgroundTiles || 0;
   for (let dr = 0; dr < entry.footprintH; dr++) {
@@ -195,6 +216,8 @@ export function canPlaceFurniture(
     for (let dc = 0; dc < entry.footprintW; dc++) {
       const key = `${col + dc},${row + dr}`;
       if (occupied.has(key) && !deskTiles?.has(key)) return false;
+      // Prevent stacking surface items on top of each other
+      if (surfaceTiles?.has(key)) return false;
     }
   }
 

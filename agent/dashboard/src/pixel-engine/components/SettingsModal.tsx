@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { isSoundEnabled, setSoundEnabled } from '../notificationSound.js';
 
@@ -36,6 +36,22 @@ export function SettingsModal({
 }: SettingsModalProps) {
   const [hovered, setHovered] = useState<string | null>(null);
   const [soundLocal, setSoundLocal] = useState(isSoundEnabled);
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  // Focus trap + Escape key handling
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    // Focus the dialog on open
+    dialogRef.current?.focus();
+    return () => window.removeEventListener('keydown', handler);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -56,6 +72,11 @@ export function SettingsModal({
       />
       {/* Centered modal */}
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Settings"
+        tabIndex={-1}
         style={{
           position: 'fixed',
           top: '50%',
@@ -68,6 +89,7 @@ export function SettingsModal({
           padding: '4px',
           boxShadow: 'var(--pixel-shadow)',
           minWidth: 200,
+          outline: 'none',
         }}
       >
         {/* Header with title and X button */}
