@@ -6,311 +6,285 @@ Rules for programmatically generating pixel office layouts. These apply when wri
 
 ### VOID Padding
 - Every room's top wall row needs **at least 2 VOID rows above it** for wall sprites to render (wall sprites are 32px tall on 16px tiles).
-- Wall-mounted furniture (bookshelves, paintings, whiteboards) needs **3 VOID rows above the wall** — 2 for wall sprite + 1 for the furniture sprite extending above.
-- Bottom and right edges need 1 VOID column/row for clean border.
+- Wall-mounted furniture on top rooms' walls needs **3 VOID rows above** — 2 for wall sprite + 1 for the furniture sprite extending above.
+- Bottom rooms' walls only get 1 VOID row above (the corridor occupies the rest), so only use small wall items there.
+- Right edge: 1 VOID column for clean border. Left edge: wall at col 0 (no VOID needed). Bottom edge: 1 VOID row.
 
 ### Room Anatomy (top to bottom)
 ```
-Row N-3:  VOID  VOID  VOID  VOID  VOID     ← wall-mount sprite space
-Row N-2:  VOID  VOID  VOID  VOID  VOID     ← wall sprite extension
-Row N-1:  VOID  VOID  VOID  VOID  VOID     ← wall sprite extension
-Row N:    WALL  WALL  WALL  WALL  WALL      ← top wall (bitmask auto-tiles)
-Row N+1:  WALL  floor floor floor WALL      ← first floor row
-...       WALL  floor floor floor WALL      ← interior
-Row N+H:  WALL  floor floor floor WALL      ← last floor row
-Row N+H+1: WALL  WALL  WALL  WALL  WALL    ← bottom wall (shared with room below, or terminal)
+Row N-3:  VOID  VOID  VOID  VOID  VOID  VOID     ← furniture sprite space (top rooms only)
+Row N-2:  VOID  VOID  VOID  VOID  VOID  VOID     ← wall sprite extension
+Row N-1:  VOID  VOID  VOID  VOID  VOID  VOID     ← wall sprite extension
+Row N:    WALL  WALL  WALL  WALL  WALL  WALL      ← top wall (bitmask auto-tiles)
+Row N+1:  WALL  floor floor floor floor WALL      ← first floor row
+...       WALL  floor floor floor floor WALL      ← interior (usable for furniture)
+Row N+H-1:WALL  floor floor floor floor WALL      ← buffer row (small items only)
+Row N+H:  WALL  WALL  door  door  WALL  WALL      ← bottom wall (doorway to corridor)
 ```
-
-### Vertically Stacked Rooms with Corridor
-Between two rooms stacked vertically, insert a walkable corridor so bots can traverse between all rooms. Structure:
-```
-Row A:   WALL WALL door door door WALL  ← bottom wall of top room (doorways)
-Row A+1: WALL hall hall hall hall  WALL  ← corridor floor (walkable)
-Row A+2: WALL hall hall hall hall  WALL  ← corridor floor (walkable)
-Row A+3: VOID VOID VOID VOID VOID VOID ← wall-mount sprite space
-Row A+4: VOID VOID VOID VOID VOID VOID ← wall sprite extension
-Row A+5: WALL WALL door door door WALL  ← top wall of bottom room (matching doorways)
-Row A+6: WALL floor floor floor fl WALL ← first floor of bottom room
-```
-- Corridor is 2-3 tiles tall (enough for characters to walk through)
-- Corridor sides are VOID (open edges, not walled) — only the room walls above and below enclose it
-- Use a neutral floor color for the corridor (e.g., warm gray)
-- Doorways in the bottom wall of top rooms must align with doorways in the top wall of bottom rooms
-- The corridor connects horizontally across the full width, allowing bots to walk between any two rooms
-- 2 VOID rows above the bottom room's top wall provide space for wall-mounted furniture sprites
+- Side walls (col 0 and col W) enclose the room left and right.
+- The divider wall between left/right rooms (e.g., col 10) is solid — no doorways when a corridor exists.
 
 ### Bottom Wall Buffer Zone
-Wall sprites are 32px tall and extend 1 tile upward from the wall row. This means the **last interior row** (directly above a bottom wall) is visually occluded by the wall sprite. Rules:
-- **Never place furniture in the last interior row** before a bottom wall
-- The usable floor area is `wall_row_top + 1` to `wall_row_bottom - 2`
-- Small floor items (BIN, POT) are fine in the buffer row since they're short enough
-- Characters walking through the buffer row is fine — only tall sprites get clipped
+Wall sprites are 32px tall and extend 1 tile upward. The **last interior row** before a bottom wall is partially occluded. Rules:
+- **No tall furniture** in the last row before a bottom wall.
+- Small floor items (BIN, POT) are OK — they're short enough.
+- Characters walking through the buffer row is fine.
+- Usable furniture rows: `top_wall + 1` to `bottom_wall - 2`.
 
-Example: if top wall is row 3 and bottom wall is row 13:
-- Usable furniture rows: 4 to 11
-- Row 12: buffer zone (wall sprite covers upper portion)
-- Row 13: wall
+### Vertically Stacked Rooms with Corridor
+Between two rows of rooms, insert a walkable corridor:
+```
+Row A:    WALL  WALL  door  door  WALL  WALL      ← bottom wall of top rooms (doorways)
+Row A+1:  hall  hall  hall  hall  hall  hall       ← corridor floor (open sides, floor tiles)
+Row A+2:  hall  hall  hall  hall  hall  hall       ← corridor floor
+Row A+3:  hall  hall  hall  hall  hall  hall       ← corridor floor (extends to bottom doorstep)
+Row A+4:  VOID  VOID  VOID  VOID  VOID  VOID     ← wall-mount sprite space (1 row sufficient for small items)
+Row A+5:  WALL  WALL  door  door  WALL  WALL      ← top wall of bottom rooms (matching doorways)
+Row A+6:  WALL  floor floor floor floor WALL      ← first floor of bottom room
+```
+- Corridor is 3-4 tiles tall (rows A+1 through A+3 or A+4).
+- **Corridor sides are floor tiles** (not WALL, not VOID) — open passageway.
+- Doorways in the bottom wall of top rooms must **align with** doorways in the top wall of bottom rooms.
+- The corridor spans the full width (cols 0 through W-1), connecting all rooms.
+- Only **1 VOID row** above the bottom rooms' wall — sufficient for small wall items (BOOKSHELF 2×1, SMALL_PAINTING 1×2, HANGING_PLANT 1×2, CLOCK 1×2). No large items (DOUBLE_BOOKSHELF, WHITEBOARD, LARGE_PAINTING).
 
 ### Room Sizing
-- Minimum interior: 6×6 tiles (enough for 1 desk setup + walking space)
-- Recommended interior: 9×10 tiles (fits 2-4 workstations + decoration + buffer)
-- Maximum recommended: 12×12 tiles per room (beyond this feels empty)
-- Total grid must stay within 64×64 (MAX_COLS × MAX_ROWS)
-- Account for 1-row buffer at bottom wall when planning furniture placement
+- Minimum interior: 6×6 tiles (1 desk setup + walking space).
+- Recommended interior: 9×10 tiles (2-4 workstations + decoration + buffer).
+- Maximum recommended: 12×12 tiles (beyond this feels empty).
+- Total grid must stay within 64×64 (`MAX_COLS × MAX_ROWS`).
+- Account for the 1-row buffer at the bottom wall.
 
 ## Tile Types
 
 | Value | Name | Walkable | Renders |
 |-------|------|----------|---------|
-| 0 | WALL | No | Wall sprite (bitmask) |
-| 1-9 | FLOOR_1-9 | Yes | Floor pattern + color |
+| 0 | WALL | No | Wall sprite (bitmask auto-tile) |
+| 1-9 | FLOOR_1 to FLOOR_9 | Yes | Floor pattern + color |
 | 255 | VOID | No | Nothing (transparent) |
 
-- Use different FLOOR_N values per room for visual variety
-- Each tile gets a `FloorColor { h, s, b, c }` for colorization
-- Walls get a wall color (consistent across entire layout)
-- VOID tiles get `null` color
+- Use different FLOOR_N values per room for visual variety.
+- Each tile has a `FloorColor { h, s, b, c }` for colorization. Walls use a wall color; VOID uses `null`.
+- Keep wall color consistent across the entire layout.
 
 ## Doorways
 
-- A doorway is a **floor tile replacing a wall tile** in the wall row
-- Minimum doorway width: 1 tile (characters are 1 tile wide)
-- Recommended doorway width: 2-3 tiles
-- Doorway tile should use the floor type of one of the adjacent rooms
-- Doorway color should blend with the adjacent floor color
-- **Horizontal doorways** (in left-right dividing walls): replace wall tiles in the dividing column with floor tiles for 2-4 rows
-- **Vertical doorways** (in top-bottom dividing walls): replace wall tiles in the dividing row with floor tiles for 2-3 columns
+- A doorway is a **floor tile replacing a wall tile** in the wall row.
+- Recommended width: 3 tiles.
+- Doorway tiles use the **adjacent room's floor type and color** (not corridor color).
+- Top/bottom wall doorways align vertically so the corridor connects them.
+- **No side-wall doorways** between left/right rooms when a corridor exists — all traffic goes through the corridor.
 
 ## Furniture Placement
 
-### Categories and Guidelines
+### Complete Furniture Catalog
 
 **Desks (category: desks)**
-| Type | Footprint | backgroundTiles | Notes |
-|------|-----------|-----------------|-------|
-| DESK_FRONT | 3×2 | 1 | Main workstation, pair with chair behind |
-| DESK_SIDE | 1×4 | 1 | Narrow workstation against wall |
-| TABLE_FRONT | 3×4 | 1 | Conference table, surround with chairs |
-| COFFEE_TABLE | 2×2 | 0 | Lounge centerpiece, surround with sofas |
+| Type | Footprint (W×H) | bgTiles | Notes |
+|------|-----------------|---------|-------|
+| DESK_FRONT | 3×2 | 1 | Main workstation |
+| DESK_SIDE | 1×4 | 1 | Narrow workstation, 2-way rotation with DESK_FRONT |
+| TABLE_FRONT | 3×4 | 1 | Conference table |
+| COFFEE_TABLE | 2×2 | 0 | Lounge centerpiece |
 | SMALL_TABLE_FRONT | 2×2 | 1 | Small work surface |
-| SMALL_TABLE_SIDE | 1×3 | 1 | Narrow side table |
+| SMALL_TABLE_SIDE | 1×3 | 1 | Narrow side table, 2-way rotation with SMALL_TABLE_FRONT |
 
-**Chairs (category: chairs) — generate seats for characters**
-| Type | Footprint | backgroundTiles | Facing | Notes |
-|------|-----------|-----------------|--------|-------|
+**Chairs (category: chairs) — each footprint tile generates 1 seat**
+| Type | Footprint | bgTiles | Facing | Notes |
+|------|-----------|---------|--------|-------|
 | CUSHIONED_BENCH | 1×1 | 0 | auto (desk adjacency) | Simple seat |
-| CUSHIONED_CHAIR_FRONT | 1×1 | 0 | DOWN | Armchair facing forward |
-| CUSHIONED_CHAIR_BACK | 1×1 | 0 | UP | Armchair facing away |
-| CUSHIONED_CHAIR_SIDE | 1×1 | 0 | RIGHT (mirror: LEFT) | Armchair facing side |
-| WOODEN_CHAIR_FRONT | 1×2 | 1 | DOWN | Tall chair facing forward |
-| WOODEN_CHAIR_BACK | 1×2 | 1 | UP | Tall chair facing away |
-| WOODEN_CHAIR_SIDE | 1×2 | 1 | RIGHT (mirror: LEFT) | Tall chair facing side |
+| CUSHIONED_CHAIR_FRONT | 1×1 | 0 | DOWN | Armchair |
+| CUSHIONED_CHAIR_BACK | 1×1 | 0 | UP | Armchair |
+| CUSHIONED_CHAIR_SIDE | 1×1 | 0 | RIGHT | Armchair (`:left` variant faces LEFT) |
+| WOODEN_CHAIR_FRONT | 1×2 | 1 | DOWN | Tall chair |
+| WOODEN_CHAIR_BACK | 1×2 | 1 | UP | Tall chair |
+| WOODEN_CHAIR_SIDE | 1×2 | 1 | RIGHT | Tall chair (`:left` variant faces LEFT) |
 | WOODEN_BENCH | 1×1 | 0 | auto | Simple bench |
-| SOFA_FRONT | 2×1 | 0 | DOWN | 2-seat couch facing forward |
-| SOFA_BACK | 2×1 | 0 | UP | 2-seat couch facing away |
-| SOFA_SIDE | 1×2 | 0 | RIGHT (mirror: LEFT) | 2-seat couch facing side |
+| SOFA_FRONT | 2×1 | 0 | DOWN | 2-seat couch |
+| SOFA_BACK | 2×1 | 0 | UP | 2-seat couch |
+| SOFA_SIDE | 1×2 | 0 | RIGHT | 2-seat couch (`:left` variant faces LEFT) |
 
 **Wall-mounted (canPlaceOnWalls: true)**
-| Type | Footprint | Notes |
-|------|-----------|-------|
-| BOOKSHELF | 2×1 | Bottom row must be on WALL tile |
-| DOUBLE_BOOKSHELF | 2×2 | Bottom row on WALL, extends 1 row above wall |
-| CLOCK | 1×2 | Bottom row on WALL |
-| WHITEBOARD | 2×2 | Bottom row on WALL |
-| LARGE_PAINTING | 2×2 | Bottom row on WALL |
-| SMALL_PAINTING | 1×2 | Bottom row on WALL |
-| SMALL_PAINTING_2 | 1×2 | Bottom row on WALL |
-| HANGING_PLANT | 1×2 | Bottom row on WALL (also surface-placeable) |
+| Type | Footprint | Size class | Notes |
+|------|-----------|------------|-------|
+| BOOKSHELF | 2×1 | small | Sits entirely on wall row |
+| DOUBLE_BOOKSHELF | 2×2 | **large** | Extends 1 row above wall |
+| CLOCK | 1×2 | small | Extends 1 row above wall |
+| WHITEBOARD | 2×2 | **large** | Extends 1 row above wall |
+| LARGE_PAINTING | 2×2 | **large** | Extends 1 row above wall |
+| SMALL_PAINTING | 1×2 | small | Extends 1 row above wall |
+| SMALL_PAINTING_2 | 1×2 | small | Extends 1 row above wall |
+| HANGING_PLANT | 1×2 | small | Also surface-placeable |
 
-**Surface items (canPlaceOnSurfaces: true)**
+**Surface items (canPlaceOnSurfaces: true) — placed ON desks**
 | Type | Footprint | Notes |
 |------|-----------|-------|
-| PC_FRONT_OFF | 1×2 | Place on DESK_FRONT, top row is background |
-| PC_SIDE | 1×2 | Place on DESK_SIDE or TABLE, mirror: PC_SIDE:left |
+| PC_FRONT_OFF | 1×2 | bgTiles=1. Screen faces DOWN |
+| PC_BACK | 1×2 | bgTiles=1. Screen faces UP |
+| PC_SIDE | 1×2 | bgTiles=1. Screen faces LEFT |
+| PC_SIDE:left | 1×2 | bgTiles=1. Screen faces RIGHT |
 | COFFEE | 1×1 | Place on any desk/table |
 | HANGING_PLANT | 1×2 | Can also go on walls |
 
 **Floor decorations**
-| Type | Footprint | backgroundTiles | Notes |
-|------|-----------|-----------------|-------|
+| Type | Footprint | bgTiles | Notes |
+|------|-----------|---------|-------|
 | PLANT | 1×2 | 1 | Characters walk behind top row |
 | PLANT_2 | 1×2 | 1 | Variant |
-| LARGE_PLANT | 2×3 | 0 | Large, fully blocks |
+| LARGE_PLANT | 2×3 | 0 | Large, fully blocks tiles |
 | CACTUS | 1×2 | 1 | Characters walk behind top row |
-| BIN | 1×1 | 0 | Small trash can |
-| POT | 1×1 | 0 | Small pot |
+| BIN | 1×1 | 0 | Small |
+| POT | 1×1 | 0 | Small |
 
 ### Placement Rules
 
-1. **Wall-mounted items**: bottom row of footprint must be on a WALL tile. The item extends upward into VOID space above.
-2. **Surface items**: can overlap desk tiles. Cannot stack on other surface items.
-3. **backgroundTiles**: top N rows of the footprint are walkable — characters walk behind/through.
-4. **No overlap**: non-background footprint tiles cannot overlap with other furniture (except surface-on-desk).
+1. **Wall-mounted items**: the **bottom row** of the footprint must sit on a WALL tile. The `row` property in JSON is the top-left corner, so for a 2×2 item on wall row W, set `row = W - 1`. For a 2×1 item, set `row = W` (single row, sits directly on wall).
+2. **Surface items**: placed on desk tiles. Cannot stack on other surface items.
+3. **backgroundTiles**: top N rows of the footprint are walkable (characters walk behind/through).
+4. **No overlap**: non-background footprint tiles cannot overlap other furniture (except surface-on-desk).
 5. **Floor items**: all non-background footprint tiles must be on floor tiles (not WALL or VOID).
-6. **No furniture on doorways**: wall-mounted items must not overlap doorway columns/rows in the wall. Account for multi-tile width (e.g., BOOKSHELF 2×1 at col 13 occupies cols 13-14).
-10. **Wall art size by position**: Top rooms' walls (with 2-3 VOID rows above) can use large items (WHITEBOARD, DOUBLE_BOOKSHELF, LARGE_PAINTING — 2×2). Bottom rooms' walls (with corridor above) should only use small items (BOOKSHELF 2×1, SMALL_PAINTING 1×2, SMALL_PAINTING_2 1×2, HANGING_PLANT 1×2, CLOCK 1×2) — large sprites protrude into the corridor and look wrong.
-7. **Chairs face their desk/table**: chair orientation points TOWARD the adjacent work surface.
-8. **PCs face their user**: PC screen orientation is the OPPOSITE of the chair — faces toward the seated person.
-9. **No inner doorways when corridor exists**: if rooms share a corridor, remove direct left-right doorways between adjacent rooms. All traffic goes through the corridor.
+6. **No furniture on doorways**: wall-mounted items must not overlap doorway columns. Account for multi-tile width (e.g., BOOKSHELF 2×1 at col 13 occupies cols 13-14 — if door is at cols 14-16, col 14 overlaps).
+7. **Wall art size by room position**:
+   - **Top rooms** (2-3 VOID rows above wall): any size — WHITEBOARD, DOUBLE_BOOKSHELF, LARGE_PAINTING, etc.
+   - **Bottom rooms** (1 VOID row above wall, corridor above that): **small items only** — BOOKSHELF, SMALL_PAINTING, SMALL_PAINTING_2, HANGING_PLANT, CLOCK.
+8. **Chairs face their desk/table**: chair orientation points TOWARD the adjacent work surface.
+9. **No side-wall doorways when corridor exists**: all traffic goes through the corridor.
+
+### PC Orientation
+
+This is the most error-prone rule. The PC sprite orientation determines which SIDE of the PC you see, not which direction the screen faces.
+
+| PC Type | You see | Screen faces |
+|---------|---------|-------------|
+| `PC_FRONT_OFF` / `PC_FRONT_ON_*` | the screen | DOWN |
+| `PC_BACK` | the back | UP |
+| `PC_SIDE` | the right side | **LEFT** |
+| `PC_SIDE:left` | the left side | **RIGHT** |
+
+**To point the screen at a chair, use the SAME variant name as the chair:**
+
+| Chair variant | Chair faces | PC variant to use | Screen faces |
+|---------------|-------------|-------------------|-------------|
+| `_SIDE` (or BENCH below desk) | RIGHT (or UP) | `PC_SIDE` | LEFT (toward chair) |
+| `_SIDE:left` | LEFT | `PC_SIDE:left` | RIGHT (toward chair) |
+| `_FRONT` (or BENCH below desk) | DOWN (or UP) | `PC_FRONT_OFF` | DOWN (toward chair below) |
+| `_BACK` | UP | `PC_BACK` | UP (toward chair above) |
+
+**Mnemonic:** Chair and PC share the same `_SIDE` / `_SIDE:left` / `_FRONT` / `_BACK` suffix.
 
 ### Furniture Group Templates
 
-Place furniture as pre-validated groups, not individual pieces. Each template defines relative positions from an anchor point (col C, row R). All orientations are pre-configured to be correct.
+Place furniture as pre-validated groups, not individual pieces. Each template uses an anchor point (C, R).
 
-**IMPORTANT orientation rules:**
-- **Chairs face TOWARD their desk/table** — the chair's facing direction points at the work surface
-- **"Front" = facing DOWN** in this engine. "Back" = facing UP. "Side" = facing RIGHT. ":left" = facing LEFT.
-- **PC screen direction mapping:**
-  - `PC_SIDE` = you see the RIGHT side → screen faces LEFT
-  - `PC_SIDE:left` = you see the LEFT side → screen faces RIGHT
-  - `PC_FRONT_OFF/ON` = you see the screen → screen faces DOWN
-  - `PC_BACK` = you see the back → screen faces UP
-- **PC variant matches chair variant** — to face the screen toward a chair:
-  - Chair `SIDE` (faces RIGHT) → use `PC_SIDE` (screen LEFT toward chair)
-  - Chair `SIDE:left` (faces LEFT) → use `PC_SIDE:left` (screen RIGHT toward chair)
-  - Chair faces UP (BENCH below desk) → use `PC_FRONT_OFF` (screen DOWN toward chair)
-  - Chair faces DOWN → use `PC_BACK` (screen UP toward chair)
+#### Front Workstation (1 seat)
+Desk with PC on top, chair below facing up.
+```
+DESK_FRONT(C, R)              ← 3×2, bgTiles=1 (row R is walkable)
+PC_FRONT_OFF(C+1, R)          ← on desk, screen DOWN toward chair
+CUSHIONED_BENCH(C+1, R+2)     ← auto-faces UP toward desk
+```
+Footprint: 3w × 3h. Seats: 1.
 
-#### Template: Front Workstation (2 seats)
-Anchor: desk top-left corner at (C, R)
+#### Side Desk — chair LEFT (1 seat)
 ```
-Row R:   DESK_FRONT(C, R)         ← 3×2, backgroundTiles=1
-         PC_BACK(C+1, R)          ← on desk, screen faces UP (toward person behind desk... no)
+DESK_SIDE(C, R)               ← 1×4, bgTiles=1
+PC_SIDE(C, R+1)               ← on desk, screen LEFT toward chair
+WOODEN_CHAIR_SIDE(C-1, R+1)   ← faces RIGHT toward desk
 ```
+Footprint: 2w × 4h. Seats: 1.
 
-Actually, the correct understanding:
-- PC_FRONT = you see the screen (monitor faces you/camera = faces DOWN)
-- PC_BACK = you see the back of monitor (screen faces away = faces UP)
+#### Side Desk — chair RIGHT (1 seat)
+```
+DESK_SIDE(C, R)               ← 1×4
+PC_SIDE:left(C, R+1)          ← on desk, screen RIGHT toward chair
+WOODEN_CHAIR_SIDE:left(C+1, R+1) ← faces LEFT toward desk
+```
+Footprint: 2w × 4h. Seats: 1.
 
-So for a DESK_FRONT at row R with chair BELOW at row R+2:
-- Person sits at R+2 looking UP at desk
-- PC screen should face DOWN toward person = **PC_FRONT_OFF**
+#### Meeting Table (4 seats, 4 PCs)
+TABLE_FRONT is 3×4, bgTiles=1. Chairs and PCs on both sides.
 ```
-Row R:   DESK_FRONT(C, R)         ← 3×2, backgroundTiles=1 (row R walkable)
-         PC_FRONT_OFF(C+1, R)     ← on desk, screen faces DOWN toward chair ✓
-Row R+2: CUSHIONED_BENCH(C+1, R+2) ← faces UP toward desk (auto via desk adjacency)
+TABLE_FRONT(C, R)                              ← 3×4
+Left side:
+  WOODEN_CHAIR_SIDE(C-1, R+1)                  ← faces RIGHT
+  WOODEN_CHAIR_SIDE(C-1, R+3)
+  PC_SIDE(C, R+1)                              ← screen LEFT toward chair
+  PC_SIDE(C, R+3)
+Right side:
+  WOODEN_CHAIR_SIDE:left(C+3, R+1)             ← faces LEFT
+  WOODEN_CHAIR_SIDE:left(C+3, R+3)
+  PC_SIDE:left(C+2, R+1)                       ← screen RIGHT toward chair
+  PC_SIDE:left(C+2, R+3)
 ```
-Footprint: 3 wide × 3 tall. Seats: 1.
+Footprint: 5w × 4h. Seats: 4.
 
-#### Template: Side Desk Workstation
-Anchor: desk at (C, R), chair to the LEFT
+#### Lounge (8 seats)
+COFFEE_TABLE is 2×2. Sofas surround it on all 4 sides.
 ```
-Col C:   DESK_SIDE(C, R)          ← 1×4, backgroundTiles=1
-         PC_SIDE(C, R+1)          ← on desk, screen faces RIGHT (away from wall, toward room)
-Col C-1: WOODEN_CHAIR_SIDE:left(C-1, R+1)  ← faces LEFT... NO!
+SOFA_FRONT(C, R-1)            ← faces DOWN toward table
+SOFA_SIDE(C-1, R)             ← faces RIGHT toward table
+COFFEE_TABLE(C, R)             ← 2×2
+COFFEE(C, R+1)                 ← on table
+SOFA_SIDE:left(C+2, R)        ← faces LEFT toward table
+SOFA_BACK(C, R+2)             ← faces UP toward table
 ```
+Footprint: 4w × 4h. Seats: 8.
 
-Wait — if chair is LEFT of desk, person looks RIGHT toward desk. Chair should face RIGHT:
+#### Reading Nook — top/bottom chairs (4 seats)
+SMALL_TABLE_FRONT is 2×2, bgTiles=1.
 ```
-Col C:   DESK_SIDE(C, R)          ← 1×4
-         PC_SIDE(C, R+1)          ← on desk, screen faces LEFT toward chair (SAME variant as chair)
-Col C-1: WOODEN_CHAIR_SIDE(C-1, R+1)  ← faces RIGHT toward desk ✓
+CUSHIONED_CHAIR_FRONT(C, R-1)     ← faces DOWN
+CUSHIONED_CHAIR_FRONT(C+1, R-1)   ← faces DOWN
+SMALL_TABLE_FRONT(C, R)           ← 2×2
+CUSHIONED_CHAIR_BACK(C, R+2)      ← faces UP
+CUSHIONED_CHAIR_BACK(C+1, R+2)    ← faces UP
 ```
-Footprint: 2 wide × 4 tall. Seats: 1.
+Footprint: 2w × 4h. Seats: 4.
 
-#### Template: Side Desk Workstation (chair to the RIGHT)
+#### Reading Nook — 4-side chairs (4 seats)
 ```
-Col C:   DESK_SIDE(C, R)          ← 1×4
-         PC_SIDE:left(C, R+1)     ← on desk, screen faces RIGHT toward chair (SAME variant as chair)
-Col C+1: WOODEN_CHAIR_SIDE:left(C+1, R+1) ← faces LEFT toward desk ✓
+CUSHIONED_CHAIR_FRONT(C, R-1)         ← top, faces DOWN
+CUSHIONED_CHAIR_SIDE(C-1, R)          ← left, faces RIGHT
+SMALL_TABLE_FRONT(C, R)               ← 2×2
+CUSHIONED_CHAIR_SIDE:left(C+2, R)     ← right, faces LEFT
+CUSHIONED_CHAIR_BACK(C, R+2)          ← bottom, faces UP
 ```
-
-#### Template: Meeting Table (4 seats, 4 PCs)
-Anchor: table top-left at (C, R). TABLE_FRONT is 3×4, backgroundTiles=1.
-```
-         TABLE_FRONT(C, R)                         ← 3×4, rows R-R+3
-Col C-1: WOODEN_CHAIR_SIDE(C-1, R+1)              ← faces RIGHT toward table ✓
-         WOODEN_CHAIR_SIDE(C-1, R+3)               ← faces RIGHT toward table ✓
-Col C:   PC_SIDE(C, R+1)                           ← on table, screen faces RIGHT toward chair at C-1 ✗!
-```
-
-NO — PC_SIDE faces RIGHT, toward the chair at C-1 which is LEFT. That's wrong. The PC at col C should face LEFT toward the chair at C-1:
-```
-Col C-1: WOODEN_CHAIR_SIDE(C-1, R+1)              ← faces RIGHT toward table
-         WOODEN_CHAIR_SIDE(C-1, R+3)
-Col C:   PC_SIDE(C, R+1)                           ← screen faces LEFT toward chair at C-1 ✓ (SAME variant as chair)
-         PC_SIDE(C, R+3)
-Col C+2: PC_SIDE:left(C+2, R+1)                    ← screen faces RIGHT toward chair at C+3 ✓ (SAME variant as chair)
-         PC_SIDE:left(C+2, R+3)
-Col C+3: WOODEN_CHAIR_SIDE:left(C+3, R+1)          ← faces LEFT toward table ✓
-         WOODEN_CHAIR_SIDE:left(C+3, R+3)
-```
-Footprint: 5 wide × 4 tall. Seats: 4.
-
-#### Template: Lounge (8 seats)
-Anchor: coffee table top-left at (C, R). COFFEE_TABLE is 2×2.
-```
-SOFA_FRONT(C, R-1)                ← 2×1, faces DOWN toward table ✓
-SOFA_SIDE(C-1, R)                 ← 1×2, faces RIGHT toward table ✓
-COFFEE_TABLE(C, R)                ← 2×2 centerpiece
-COFFEE(C, R+1)                    ← on table
-SOFA_SIDE:left(C+2, R)            ← 1×2, faces LEFT toward table ✓
-SOFA_BACK(C, R+2)                 ← 2×1, faces UP toward table ✓
-```
-Footprint: 4 wide × 4 tall. Seats: 8.
-
-#### Template: Reading Nook (4 seats)
-Anchor: table top-left at (C, R). SMALL_TABLE_FRONT is 2×2, backgroundTiles=1.
-```
-SMALL_TABLE_FRONT(C, R)                        ← 2×2
-CUSHIONED_CHAIR_FRONT(C, R-1)                  ← faces DOWN toward table ✓
-CUSHIONED_CHAIR_FRONT(C+1, R-1)                ← faces DOWN toward table ✓
-CUSHIONED_CHAIR_BACK(C, R+2)                   ← faces UP toward table ✓
-CUSHIONED_CHAIR_BACK(C+1, R+2)                 ← faces UP toward table ✓
-```
-Footprint: 2 wide × 4 tall. Seats: 4.
-
-Or with side chairs (1 per side):
-```
-SMALL_TABLE_FRONT(C, R)
-CUSHIONED_CHAIR_FRONT(C, R-1)                  ← top, faces DOWN ✓
-CUSHIONED_CHAIR_BACK(C, R+2)                   ← bottom, faces UP ✓
-CUSHIONED_CHAIR_SIDE(C-1, R)                   ← left of table, faces RIGHT ✓
-CUSHIONED_CHAIR_SIDE:left(C+2, R)              ← right of table, faces LEFT ✓
-```
-Footprint: 4 wide × 4 tall. Seats: 4.
+Footprint: 4w × 4h. Seats: 4.
 
 ### Room Filling Algorithm
 
-1. **Choose room type** (office, lounge, lab, library) — determines which furniture group templates to use
-2. **Place wall art first** — on the top wall row, avoiding doorway columns. Choose from: DOUBLE_BOOKSHELF, BOOKSHELF, CLOCK, WHITEBOARD, LARGE_PAINTING, SMALL_PAINTING, SMALL_PAINTING_2, HANGING_PLANT
-3. **Place primary furniture groups** — select 1-2 templates appropriate for the room type. Position them with at least 1-tile walkway between groups and from walls
-4. **Place decorations** — fill corners and empty spaces with PLANT, PLANT_2, CACTUS, LARGE_PLANT, POT, BIN. Plants with backgroundTiles go against walls; small items (POT, BIN) fill corners
-5. **Verify pathfinding** — BFS from every seat tile to every doorway. If any seat is unreachable, adjust furniture
+1. **Place wall art** — on the top wall row, avoiding doorway columns. Large items for top rooms, small items for bottom rooms.
+2. **Place primary furniture groups** — select 1-2 templates for the room type. Leave at least 1-tile walkway between groups and from side walls.
+3. **Place decorations** — fill corners/edges with plants, pots, bins. Plants with bgTiles go against walls. Small items (POT, BIN) go in corners or buffer rows.
+4. **Verify pathfinding** — BFS from every seat to every doorway. No isolated seats.
 
 ### Room Type Presets
 
-| Room Type | Primary Groups | Wall Art | Decor Style |
-|-----------|---------------|----------|-------------|
-| Office | 1-2 Front Workstations + 1 Meeting Table | Bookshelves, Clock | Bins, small plants |
-| Lounge | 1 Lounge group + side table | Paintings | Plants, coffee, pot |
+| Room Type | Primary Groups | Wall Art | Decor |
+|-----------|---------------|----------|-------|
+| Office | 1-2 Front Workstations + 1 Meeting Table | Bookshelves, Clock, Whiteboard | Bins, small plants |
+| Lounge | 1 Lounge + side reading corner | Paintings | Plants, coffee, pot |
 | Lab | 2 Front Workstations + 1 Side Desk | Whiteboard, Bookshelf | Cactus, plants |
 | Library | 1 Reading Nook | Many bookshelves | Large plant, pots |
 
 ## Pathfinding Connectivity
 
-- **Every floor tile must be reachable** from every other floor tile via 4-connected BFS (no diagonals)
-- Doorways must connect all rooms — verify no isolated rooms
-- Leave at least 1-tile-wide walkway between furniture clusters
-- Characters need to reach their seats — ensure seat tiles have walkable neighbors
-- Seat tiles (chair footprint tiles) are automatically excluded from blocked tiles
+- **Every floor tile must be reachable** from every other floor tile via 4-connected BFS (no diagonals).
+- Doorways connect rooms through the corridor — verify no isolated rooms.
+- Leave at least 1-tile-wide walkway between furniture clusters.
+- Seat tiles are automatically excluded from blocked tiles (characters can path to seats).
 
 ## Color Guidelines
 
-- Each room should have a distinct floor color for visual identity
-- Wall color should be consistent across the entire layout (dark, low saturation)
+- Each room should have a distinct floor color for visual identity.
+- Wall color: consistent across the entire layout.
 - Recommended wall color: `{h: 214, s: 30, b: -100, c: -55}`
-- Floor colors should vary by hue, keeping similar brightness/contrast:
+- Floor color presets:
   - Brown/warm: `{h: 25, s: 48, b: -43, c: -88}` (office)
   - Blue/cool: `{h: 209, s: 39, b: -25, c: -80}` (lounge)
   - Green: `{h: 140, s: 35, b: -30, c: -70}` (lab)
   - Purple: `{h: 270, s: 30, b: -20, c: -75}` (library)
-  - Warm gray: `{h: 30, s: 15, b: -10, c: -50}` (hallway)
-  - Checkerboard: `{h: 209, s: 0, b: -16, c: -8}` (utility area)
-
-## UID Convention
-
-Furniture UIDs must be unique strings. Convention: `f-{timestamp}-{random4}` for editor-created items, or `f-{room}-{type}` for generator-created items.
+  - Warm gray: `{h: 30, s: 15, b: -10, c: -50}` (corridor)
 
 ## Layout JSON Structure
 
@@ -328,7 +302,8 @@ Furniture UIDs must be unique strings. Convention: `f-{timestamp}-{random4}` for
 }
 ```
 
-- `tiles[r * cols + c]` = tile type at (col, row)
-- `tileColors[r * cols + c]` = color for that tile (null for walls/void)
-- `furniture[].col` and `.row` = top-left corner of the footprint
-- `layoutRevision: 2` marks the layout as post-migration (prevents old VOID value rewrite)
+- `tiles[r * cols + c]` = tile type at (col, row).
+- `tileColors[r * cols + c]` = FloorColor for that tile (`null` for walls/void).
+- `furniture[].col` and `.row` = **top-left corner** of the footprint.
+- `layoutRevision: 2` = post-migration layout (prevents legacy VOID rewrite).
+- UIDs: `f-{timestamp}-{random4}` (editor) or `f-{room}-{type}` (generator).
