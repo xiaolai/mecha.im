@@ -265,7 +265,7 @@ export function createDefaultLayout(): OfficeLayout {
   }
 
   // Minimal fallback with no furniture — the default-layout.json provides the real default
-  return { version: 1, cols: DEFAULT_COLS, rows: DEFAULT_ROWS, tiles, tileColors, furniture: [] };
+  return { version: 1, cols: DEFAULT_COLS, rows: DEFAULT_ROWS, tiles, tileColors, furniture: [], layoutRevision: 2 };
 }
 
 /** Serialize layout to JSON string */
@@ -333,9 +333,14 @@ function migrateLayout(layout: OfficeLayout): OfficeLayout {
   // Migrate furniture types
   layout = { ...layout, furniture: migrateFurnitureTypes(layout.furniture) };
 
-  // Migrate old VOID value (was 8, now 255) — only for legacy layouts since FLOOR_8 reuses value 8
+  // Migrate old VOID value (was 8, now 255) — only for truly legacy layouts.
+  // Legacy layouts lack layoutRevision AND have legacy furniture types or lack tileColors.
   const OLD_VOID = 8;
-  if (!layout.layoutRevision && layout.tiles.includes(OLD_VOID as TileTypeVal)) {
+  if (
+    !layout.layoutRevision &&
+    !layout.tileColors &&
+    layout.tiles.includes(OLD_VOID as TileTypeVal)
+  ) {
     layout = {
       ...layout,
       tiles: layout.tiles.map((t) => (t === OLD_VOID ? (TileType.VOID as TileTypeVal) : t)),

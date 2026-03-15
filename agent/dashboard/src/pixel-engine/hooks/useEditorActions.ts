@@ -59,12 +59,14 @@ export interface EditorActions {
   handleEditorEraseAction: (col: number, row: number) => void;
   handleEditorSelectionChange: () => void;
   handleDragMove: (uid: string, newCol: number, newRow: number) => void;
+  syncDirtyState: () => void;
 }
 
 export function useEditorActions(
   getOfficeState: () => OfficeState,
   editorState: EditorState,
   onSaveLayout: (layout: OfficeLayout) => void,
+  onSaveLayoutImmediate?: (layout: OfficeLayout) => Promise<boolean>,
 ): EditorActions {
   const [isEditMode, setIsEditMode] = useState(false);
   const [editorTick, setEditorTick] = useState(0);
@@ -91,10 +93,11 @@ export function useEditorActions(
   );
 
   // Apply a layout edit: push undo, clear redo, rebuild state, save, mark dirty
+  // Optional undoLayout allows pushing a different layout to undo (e.g., pre-expansion)
   const applyEdit = useCallback(
-    (newLayout: OfficeLayout) => {
+    (newLayout: OfficeLayout, undoLayout?: OfficeLayout) => {
       const os = getOfficeState();
-      editorState.pushUndo(os.getLayout());
+      editorState.pushUndo(undoLayout ?? os.getLayout());
       editorState.clearRedo();
       editorState.isDirty = true;
       setIsDirty(true);
@@ -343,7 +346,7 @@ export function useEditorActions(
     setIsDirty(false);
   }, [editorState, applyEdit]);
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     // Flush any pending debounced save immediately
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
@@ -351,17 +354,34 @@ export function useEditorActions(
     }
     const os = getOfficeState();
     const layout = os.getLayout();
-    lastSavedLayoutRef.current = structuredClone(layout);
-    onSaveLayout(layout);
-    editorState.isDirty = false;
-    setIsDirty(false);
-  }, [getOfficeState, editorState, onSaveLayout]);
+    // Use immediate save if available, falling back to debounced save
+    if (onSaveLayoutImmediate) {
+      const ok = await onSaveLayoutImmediate(layout);
+      if (ok) {
+        lastSavedLayoutRef.current = structuredClone(layout);
+        editorState.isDirty = false;
+        setIsDirty(false);
+      }
+    } else {
+      // Debounced save — mark clean optimistically (no async confirmation available)
+      onSaveLayout(layout);
+      lastSavedLayoutRef.current = structuredClone(layout);
+      editorState.isDirty = false;
+      setIsDirty(false);
+    }
+  }, [getOfficeState, editorState, onSaveLayout, onSaveLayoutImmediate]);
 
   // Notify React that imperative editor selection changed (e.g., from OfficeCanvas mouseUp)
   const handleEditorSelectionChange = useCallback(() => {
     colorEditUidRef.current = null;
     setEditorTick((n) => n + 1);
   }, []);
+
+  /** Sync React dirty state after imperative editorState.reset() (e.g., after import) */
+  const syncDirtyState = useCallback(() => {
+    setIsDirty(editorState.isDirty);
+    setEditorTick((n) => n + 1);
+  }, [editorState]);
 
   const handleZoomChange = useCallback((newZoom: number) => {
     setZoom(Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, newZoom)));
@@ -427,9 +447,12 @@ export function useEditorActions(
   const handleEditorTileAction = useCallback(
     (col: number, row: number) => {
       const os = getOfficeState();
-      let layout = os.getLayout();
+      // Save the original layout BEFORE any expansion for correct undo
+      const originalLayout = os.getLayout();
+      let layout = originalLayout;
       let effectiveCol = col;
       let effectiveRow = row;
+      let wasExpanded = false;
 
       // Handle ghost border expansion for floor/wall tools
       if (
@@ -441,10 +464,14 @@ export function useEditorActions(
           layout = expansion.layout;
           effectiveCol = expansion.col;
           effectiveRow = expansion.row;
+          wasExpanded = true;
           // Rebuild from expanded layout first, shifting character positions
           os.rebuildFromLayout(layout, expansion.shift);
         }
       }
+
+      // When expansion happened, undo should restore the pre-expansion layout
+      const undoRef = wasExpanded ? originalLayout : undefined;
 
       if (editorState.activeTool === EditTool.TILE_PAINT) {
         const newLayout = paintTile(
@@ -455,7 +482,7 @@ export function useEditorActions(
           editorState.floorColor,
         );
         if (newLayout !== layout) {
-          applyEdit(newLayout);
+          applyEdit(newLayout, undoRef);
         }
       } else if (editorState.activeTool === EditTool.WALL_PAINT) {
         const idx = effectiveRow * layout.cols + effectiveCol;
@@ -476,7 +503,7 @@ export function useEditorActions(
             editorState.wallColor,
           );
           if (newLayout !== layout) {
-            applyEdit(newLayout);
+            applyEdit(newLayout, undoRef);
           }
         } else {
           // Remove wall → paint floor with current floor settings
@@ -489,7 +516,7 @@ export function useEditorActions(
               editorState.floorColor,
             );
             if (newLayout !== layout) {
-              applyEdit(newLayout);
+              applyEdit(newLayout, undoRef);
             }
           }
         }
@@ -629,5 +656,6 @@ export function useEditorActions(
     handleEditorEraseAction,
     handleEditorSelectionChange,
     handleDragMove,
+    syncDirtyState,
   };
 }
