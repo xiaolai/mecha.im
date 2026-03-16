@@ -22,7 +22,7 @@ export function registerSessionsCommand(program: Command): void {
 
       // Search mode
       if (opts.search) {
-        const results = await botApiJson<SessionSummary[]>(name, `/sessions/search?q=${encodeURIComponent(opts.search)}`);
+        const results = await botApiJson<SessionSummary[]>(name, `/api/sessions/search?q=${encodeURIComponent(opts.search)}`);
         if (opts.json) {
           console.log(JSON.stringify(results, null, 2));
         } else if (results.length === 0) {
@@ -38,7 +38,7 @@ export function registerSessionsCommand(program: Command): void {
 
       // Single session detail
       if (sessionId) {
-        const session = await botApiJson<Record<string, unknown>>(name, `/sessions/${sessionId}`);
+        const session = await botApiJson<Record<string, unknown>>(name, `/api/sessions/${sessionId}`);
 
         if (opts.log && typeof session === "object" && session !== null) {
           // Full conversation log
@@ -60,7 +60,7 @@ export function registerSessionsCommand(program: Command): void {
       }
 
       // List sessions
-      const sessions = await botApiJson<SessionSummary[]>(name, "/sessions");
+      const sessions = await botApiJson<SessionSummary[]>(name, "/api/sessions");
 
       if (opts.json) {
         console.log(JSON.stringify(sessions, null, 2));

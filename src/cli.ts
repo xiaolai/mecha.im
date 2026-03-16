@@ -158,11 +158,11 @@ program
 
 // --- stop ---
 program
-  .command("stop <name>")
+  .command("stop [name]")
   .description("Stop a running bot (use --all to stop all)")
   .option("--all", "Stop all running bots")
-  .action(async (name: string, opts) => {
-    if (opts.all || name === "--all") {
+  .action(async (name: string | undefined, opts) => {
+    if (opts.all) {
       const bots = await docker.list();
       const running = bots.filter(b => b.status === "running");
       if (running.length === 0) { console.log("No running bots."); return; }
@@ -175,6 +175,7 @@ program
       if (failures > 0) process.exit(1);
       return;
     }
+    if (!name) { console.error("Usage: mecha stop <name> or mecha stop --all"); process.exit(1); }
     requireValidName(name);
     await withSpinner(`Stopping ${botName(name)}`, () => docker.stop(name));
     console.log(success(`Bot ${botName(name)} stopped`));
@@ -182,12 +183,12 @@ program
 
 // --- restart ---
 program
-  .command("restart <name>")
+  .command("restart [name]")
   .description("Restart a running bot (use --all to restart all)")
   .option("--force", "Force restart even if bot is busy")
   .option("--all", "Restart all running bots")
-  .action(async (name: string, opts) => {
-    if (opts.all || name === "--all") {
+  .action(async (name: string | undefined, opts) => {
+    if (opts.all) {
       const bots = await docker.list();
       const running = bots.filter(b => b.status === "running");
       if (running.length === 0) { console.log("No running bots."); return; }
@@ -200,6 +201,7 @@ program
       if (failures > 0) process.exit(1);
       return;
     }
+    if (!name) { console.error("Usage: mecha restart <name> or mecha restart --all"); process.exit(1); }
     requireValidName(name);
     const containerId = await withSpinner(`Restarting ${botName(name)}`, () => docker.restart(name));
     console.log(success(`Bot ${botName(name)} restarted (container: ${pc.dim(containerId.slice(0, 12))})`));

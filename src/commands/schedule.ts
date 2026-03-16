@@ -11,36 +11,31 @@ interface ScheduleEntry {
   run_count?: number;
 }
 
+let _botName = "";
+
 export function registerScheduleCommand(program: Command): void {
   const schedule = program
     .command("schedule <name>")
-    .description("Manage bot schedules");
+    .description("Manage bot schedules")
+    .hook("preAction", (thisCmd) => {
+      _botName = thisCmd.args[0];
+      requireValidName(_botName);
+    });
 
   schedule
     .command("ls")
     .description("List schedules")
     .option("--json", "Output as JSON")
-    .action(async (opts, cmd) => {
-      const name = cmd.parent.args[0];
-      requireValidName(name);
-      const schedules = await botApiJson<ScheduleEntry[]>(name, "/schedule");
-
-      if (opts.json) {
-        console.log(JSON.stringify(schedules, null, 2));
-        return;
-      }
-      if (!Array.isArray(schedules) || schedules.length === 0) {
-        console.log(`No schedules for "${name}".`);
-        return;
-      }
+    .action(async (opts) => {
+      const schedules = await botApiJson<ScheduleEntry[]>(_botName, "/api/schedule");
+      if (opts.json) { console.log(JSON.stringify(schedules, null, 2)); return; }
+      if (!Array.isArray(schedules) || schedules.length === 0) { console.log(`No schedules for "${_botName}".`); return; }
       printTable(
         ["ID", "CRON", "PROMPT", "STATUS", "RUNS"],
         schedules.map(s => [
-          s.id.slice(0, 8),
-          s.cron,
+          s.id.slice(0, 8), s.cron,
           s.prompt.length > 40 ? s.prompt.slice(0, 37) + "..." : s.prompt,
-          s.paused ? "paused" : "active",
-          String(s.run_count ?? 0),
+          s.paused ? "paused" : "active", String(s.run_count ?? 0),
         ]),
       );
     });
@@ -48,12 +43,9 @@ export function registerScheduleCommand(program: Command): void {
   schedule
     .command("add <cron> <prompt>")
     .description("Add a cron schedule")
-    .action(async (cron: string, prompt: string, _opts, cmd) => {
-      const name = cmd.parent.parent.args[0];
-      requireValidName(name);
-      const result = await botApiJson<{ id: string }>(name, "/schedule", {
-        method: "POST",
-        body: { cron, prompt },
+    .action(async (cron: string, prompt: string) => {
+      const result = await botApiJson<{ id: string }>(_botName, "/api/schedule", {
+        method: "POST", body: { cron, prompt },
       });
       console.log(`Schedule added: ${result.id}`);
     });
@@ -61,40 +53,32 @@ export function registerScheduleCommand(program: Command): void {
   schedule
     .command("rm <id>")
     .description("Remove a schedule")
-    .action(async (id: string, _opts, cmd) => {
-      const name = cmd.parent.parent.args[0];
-      requireValidName(name);
-      await botApiChecked(name, `/schedule/${id}`, { method: "DELETE" });
+    .action(async (id: string) => {
+      await botApiChecked(_botName, `/api/schedule/${id}`, { method: "DELETE" });
       console.log(`Schedule ${id} removed.`);
     });
 
   schedule
     .command("pause <id>")
     .description("Pause a schedule")
-    .action(async (id: string, _opts, cmd) => {
-      const name = cmd.parent.parent.args[0];
-      requireValidName(name);
-      await botApiChecked(name, `/schedule/${id}/pause`, { method: "POST" });
+    .action(async (id: string) => {
+      await botApiChecked(_botName, `/api/schedule/${id}/pause`, { method: "POST" });
       console.log(`Schedule ${id} paused.`);
     });
 
   schedule
     .command("resume <id>")
     .description("Resume a paused schedule")
-    .action(async (id: string, _opts, cmd) => {
-      const name = cmd.parent.parent.args[0];
-      requireValidName(name);
-      await botApiChecked(name, `/schedule/${id}/resume`, { method: "POST" });
+    .action(async (id: string) => {
+      await botApiChecked(_botName, `/api/schedule/${id}/resume`, { method: "POST" });
       console.log(`Schedule ${id} resumed.`);
     });
 
   schedule
     .command("run <id>")
     .description("Trigger a schedule immediately")
-    .action(async (id: string, _opts, cmd) => {
-      const name = cmd.parent.parent.args[0];
-      requireValidName(name);
-      await botApiChecked(name, `/schedule/trigger/${id}`, { method: "POST" });
+    .action(async (id: string) => {
+      await botApiChecked(_botName, `/api/schedule/trigger/${id}`, { method: "POST" });
       console.log(`Schedule ${id} triggered.`);
     });
 }

@@ -22,11 +22,11 @@ export function readCostsToday(botPath: string | undefined): string {
   try {
     const costsPath = join(botPath, "costs.json");
     const raw = readFileSync(costsPath, "utf-8");
-    const data = JSON.parse(raw) as Record<string, { totalCostUsd?: number }>;
-    const today = new Date().toISOString().slice(0, 10);
-    const entry = data[today];
-    if (!entry?.totalCostUsd) return "$0.00";
-    return `$${entry.totalCostUsd.toFixed(2)}`;
+    const data = JSON.parse(raw) as { today?: number; daily?: Record<string, number> };
+    // Current schema: { today, lifetime, daily: { "YYYY-MM-DD": cost } }
+    const todayCost = data.today ?? 0;
+    if (todayCost <= 0) return "$0.00";
+    return `$${todayCost.toFixed(2)}`;
   } catch {
     return "-";
   }
