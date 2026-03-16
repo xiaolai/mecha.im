@@ -1,0 +1,13 @@
+{
+  "id": "FILE_BOXES_2",
+  "name": "File Boxes 2",
+  "category": "misc",
+  "type": "asset",
+  "canPlaceOnWalls": false,
+  "canPlaceOnSurfaces": false,
+  "backgroundTiles": 0,
+  "width": 32,
+  "height": 32,
+  "footprintW": 2,
+  "footprintH": 2
+}
