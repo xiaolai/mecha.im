@@ -1,6 +1,6 @@
 {
   "name": "@mecha.im/cli",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "An army of agents — run autonomous Claude bots in Docker containers",
   "type": "module",
   "bin": {
