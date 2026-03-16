@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { log } from "../../shared/logger.js";
 import type { BotConfig } from "../types.js";
 import type { SessionManager } from "../session.js";
@@ -61,6 +62,18 @@ export function createApiRoutes(deps: ApiDeps): Hono {
     return c.json({ status: "stopping" });
   });
 
+  // Cache CLI version (resolved once on first status call)
+  let cachedCliVersion: string | null = null;
+  function getCliVersion(): string {
+    if (cachedCliVersion) return cachedCliVersion;
+    try {
+      cachedCliVersion = execFileSync("claude", ["--version"], { encoding: "utf-8", timeout: 5000 }).trim();
+    } catch {
+      cachedCliVersion = "unknown";
+    }
+    return cachedCliVersion;
+  }
+
   app.get("/status", (c) => {
     const activeTask = sessions.getActiveTask();
     return c.json({
@@ -72,6 +85,7 @@ export function createApiRoutes(deps: ApiDeps): Hono {
       current_session_id: activeTask?.session_id ?? null,
       talking_to: activity.getTalkingTo(),
       last_active: activity.getLastActive(),
+      claude_cli_version: getCliVersion(),
     });
   });
 

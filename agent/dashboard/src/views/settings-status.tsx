@@ -11,6 +11,7 @@ interface BotStatus {
   current_session_id: string | null;
   talking_to: string | null;
   last_active: string | null;
+  claude_cli_version?: string;
 }
 
 const STATE_COLORS: Record<string, "green" | "yellow" | "red" | "muted"> = {
@@ -157,7 +158,7 @@ export default function StatusCard() {
           Uptime: <span className="text-foreground font-mono">{displayUptime}</span>
         </span>
       </div>
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-1">
         <span className="text-sm text-muted-foreground">
           Model: <span className="text-foreground font-mono">{status.model || "unknown"}</span>
         </span>
@@ -165,6 +166,13 @@ export default function StatusCard() {
           Last active: <span className="text-foreground font-mono">{formatRelative(status.last_active)}</span>
         </span>
       </div>
+      {status.claude_cli_version && (
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-sm text-muted-foreground">
+            Claude CLI: <span className="text-foreground font-mono">{status.claude_cli_version}</span>
+          </span>
+        </div>
+      )}
       <div className="pt-2 border-t border-border">
         {status.current_task ? (
           <div className="flex items-center gap-2 text-sm">
