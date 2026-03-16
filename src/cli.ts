@@ -344,6 +344,7 @@ async function main() {
   } catch (err) {
     if (err instanceof MechaError) {
       console.error(`Error: ${err.message}`);
+      if (err.hint) console.error(`  Hint: ${err.hint}`);
       process.exit(err.exitCode);
     }
     throw err;
