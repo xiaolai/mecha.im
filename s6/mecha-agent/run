@@ -4,6 +4,14 @@ exec 2>&1
 # Fix ownership of volume-mounted dirs (runs as root before setuidgid)
 chown -R appuser:appuser /home/appuser/.claude /home/appuser/.codex /home/appuser/workspace 2>/dev/null
 
+# Auto-update Claude Code CLI and Codex CLI on container start
+# Runs as appuser, takes ~10-15s, ensures bots always use latest versions
+if [ "${MECHA_SKIP_UPDATE:-}" != "1" ]; then
+  echo "Checking for CLI updates..."
+  s6-setuidgid appuser env HOME=/home/appuser npm update -g @anthropic-ai/claude-code @openai/codex 2>&1 \
+    | tail -5 || echo "CLI update check failed (non-fatal, continuing with installed version)"
+fi
+
 # Ensure .claude.json has onboarding complete
 CLAUDE_JSON="/home/appuser/.claude.json"
 if [ -f "$CLAUDE_JSON" ]; then
