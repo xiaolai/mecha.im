@@ -166,7 +166,15 @@ export function readSettings(): MechaSettings {
 
 export function getOrCreateFleetInternalSecret(): string {
   const settingsPath = join(getMechaDir(), "mecha.json");
-  const release = settingsMutex.tryAcquire();
+  // Use blocking spin-acquire to prevent concurrent secret generation race
+  let release: (() => void) | null = null;
+  for (let i = 0; i < 100; i++) {
+    release = settingsMutex.tryAcquire();
+    if (release) break;
+    // Spin-wait 10ms (synchronous context, can't use await)
+    const end = Date.now() + 10;
+    while (Date.now() < end) { /* spin */ }
+  }
   try {
     const settings = readSettings();
     if (settings.fleet_internal_secret) return settings.fleet_internal_secret;
@@ -187,7 +195,13 @@ export function getOrCreateFleetInternalSecret(): string {
 /** Write settings with synchronization to prevent concurrent clobber */
 function writeSettingsSafe(updater: (settings: Record<string, unknown>) => Record<string, unknown>): void {
   const settingsPath = join(getMechaDir(), "mecha.json");
-  const release = settingsMutex.tryAcquire();
+  let release: (() => void) | null = null;
+  for (let i = 0; i < 100; i++) {
+    release = settingsMutex.tryAcquire();
+    if (release) break;
+    const end = Date.now() + 10;
+    while (Date.now() < end) { /* spin */ }
+  }
   try {
     const settings = readSettings();
     atomicWriteJson(settingsPath, {

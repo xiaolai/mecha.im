@@ -4,6 +4,7 @@ import { isValidName } from "../../shared/validation.js";
 import { atomicWriteText } from "../../shared/atomic-write.js";
 import { ensureMechaDir, getBot } from "../store.js";
 import { loadBotConfig } from "../config.js";
+import { withBotLock } from "../docker.utils.js";
 import {
   addCredential, listCredentials, getCredential, removeCredential,
   detectCredentialType, credentialTypes,
@@ -92,20 +93,17 @@ export function registerAuthCommands(program: Command): void {
 
       const config = loadBotConfig(entry.config);
       const updatedConfig = { ...config, auth: profileName };
-      atomicWriteText(entry.config, stringifyYaml(updatedConfig));
 
       console.log(`Swapping auth for "${botName}" to profile "${profileName}"...`);
-      try {
-        await docker.stop(botName);
-      } catch (err) {
-        console.warn("Stop before swap:", err instanceof Error ? err.message : err);
-      }
-      try {
-        await docker.remove(botName);
-      } catch (err) {
-        console.warn("Remove before swap:", err instanceof Error ? err.message : err);
-      }
-      const containerId = await docker.spawn(updatedConfig, entry.path);
+      // Atomic swap: hold bot lock for the entire stop+remove+spawn sequence
+      const configPath = entry.config!;
+      const botPath = entry.path;
+      const containerId = await withBotLock(botName, async () => {
+        atomicWriteText(configPath, stringifyYaml(updatedConfig));
+        try { await docker.stop(botName); } catch { /* may not be running */ }
+        try { await docker.remove(botName); } catch { /* may already be removed */ }
+        return docker.spawn(updatedConfig, botPath);
+      });
       console.log(`Bot "${botName}" restarted with new auth (container: ${containerId.slice(0, 12)})`);
     });
 }
