@@ -14,7 +14,7 @@ import { addCredential, detectCredentialType, listCredentials, loadCredentials }
 import { existsSync, readFileSync as fsReadFileSync, realpathSync, statSync } from "node:fs";
 import { isValidName } from "../shared/validation.js";
 import { resolveHostBotBaseUrl } from "./resolve-endpoint.js";
-import { DASHBOARD_TOKEN, HOP_BY_HOP, spawnBodySchema, authBodySchema, totpVerifySchema } from "./dashboard-server-schema.js";
+import { DASHBOARD_TOKEN, HOP_BY_HOP, spawnBodySchema, authBodySchema, totpVerifySchema, revokeAllSessions } from "./dashboard-server-schema.js";
 import { safeError, dashboardSessionCookie, hasDashboardAccess, shouldBootstrapDashboardSession, guardBusy } from "./dashboard-server-utils.js";
 import { getTotpSecret, setTotpSecret, clearTotpSecret, getMechaDir } from "./store.js";
 import { generateSecret, verifyTOTP, totpUri } from "../shared/totp.js";
@@ -40,9 +40,29 @@ export function startDashboardServer(port: number) {
     return c.json({ enabled: !!getTotpSecret() });
   });
 
+  // TOTP rate limiting: max 5 attempts per 60 seconds per IP
+  const totpAttempts = new Map<string, { count: number; resetAt: number }>();
+  const TOTP_MAX_ATTEMPTS = 5;
+  const TOTP_WINDOW_MS = 60_000;
+
   app.post("/api/totp/verify", async (c) => {
     const secret = getTotpSecret();
     if (!secret) return c.json({ error: "TOTP not enabled" }, 400);
+
+    // Rate limit by IP
+    const ip = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    const now = Date.now();
+    let entry = totpAttempts.get(ip);
+    if (!entry || now > entry.resetAt) {
+      entry = { count: 0, resetAt: now + TOTP_WINDOW_MS };
+      totpAttempts.set(ip, entry);
+    }
+    entry.count++;
+    if (entry.count > TOTP_MAX_ATTEMPTS) {
+      const retryAfter = Math.ceil((entry.resetAt - now) / 1000);
+      c.header("Retry-After", String(retryAfter));
+      return c.json({ error: "Too many attempts. Try again later." }, 429);
+    }
 
     const body = await c.req.json().catch(() => null);
     const parsed = totpVerifySchema.safeParse(body);
@@ -52,7 +72,8 @@ export function startDashboardServer(port: number) {
       return c.json({ error: "Invalid code" }, 401);
     }
 
-    // Set session cookie on successful verification
+    // Success — reset rate limit and set session cookie
+    totpAttempts.delete(ip);
     c.header("Set-Cookie", dashboardSessionCookie());
     return c.json({ authenticated: true });
   });
@@ -271,6 +292,7 @@ export function startDashboardServer(port: number) {
     if (getTotpSecret()) return c.json({ error: "TOTP already enabled" }, 400);
     const secret = generateSecret();
     setTotpSecret(secret);
+    revokeAllSessions(); // invalidate all existing sessions when auth settings change
     const uri = totpUri(secret, "Mecha", "dashboard");
     return c.json({ secret, uri });
   });
@@ -289,6 +311,7 @@ export function startDashboardServer(port: number) {
     }
 
     clearTotpSecret();
+    revokeAllSessions(); // invalidate all sessions when TOTP is disabled
     return c.json({ disabled: true });
   });
 
@@ -342,10 +365,11 @@ export function startDashboardServer(port: number) {
     const url = new URL(c.req.url);
     const targetUrl = `${resolved.baseUrl}${path}${url.search}`;
 
-    // Filter headers: remove hop-by-hop and sensitive headers, inject bot token
+    // Filter headers: remove hop-by-hop, auth, and cookie headers to prevent token leakage
+    const STRIP_REQUEST = new Set([...HOP_BY_HOP, "authorization", "cookie"]);
     const forwardHeaders: Record<string, string> = {};
     for (const [key, value] of c.req.raw.headers.entries()) {
-      if (!HOP_BY_HOP.has(key.toLowerCase()) && key.toLowerCase() !== "authorization") {
+      if (!STRIP_REQUEST.has(key.toLowerCase())) {
         forwardHeaders[key] = value;
       }
     }
@@ -363,10 +387,11 @@ export function startDashboardServer(port: number) {
         signal: AbortSignal.timeout(30_000),
       });
 
-      // Filter response headers
+      // Filter response headers: strip hop-by-hop and set-cookie to prevent bot planting cookies on fleet origin
+      const STRIP_RESPONSE = new Set([...HOP_BY_HOP, "set-cookie"]);
       const responseHeaders: Record<string, string> = {};
       for (const [key, value] of resp.headers.entries()) {
-        if (!HOP_BY_HOP.has(key.toLowerCase())) {
+        if (!STRIP_RESPONSE.has(key.toLowerCase())) {
           responseHeaders[key] = value;
         }
       }
@@ -529,7 +554,8 @@ export function startDashboardServer(port: number) {
         const running = bots.filter(b => b.status === "running");
         const avatars = readAvatars();
         const snapshot = running.map(b => {
-          const entry: Record<string, unknown> = { bot_id: b.containerId, name: b.name, status: "idle" as const };
+          // Use truncated container ID (first 12 chars) — avoids exposing full ID on public endpoint
+          const entry: Record<string, unknown> = { bot_id: b.containerId.slice(0, 12), name: b.name, status: "idle" as const };
           const av = avatars[b.name];
           if (av) {
             entry.palette = av.palette;
