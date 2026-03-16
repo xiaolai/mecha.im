@@ -336,6 +336,7 @@ export async function list(): Promise<BotInfo[]> {
     model: c.Labels["mecha.bot.model"] ?? "unknown",
     containerId: c.Id.slice(0, 12),
     ports: c.Ports?.map((p) => p.PublicPort ? `${p.PublicPort}→${p.PrivatePort}` : String(p.PrivatePort)).join(", ") ?? "",
+    startedAt: c.State === "running" ? new Date(c.Created * 1000).toISOString() : undefined,
   }));
 }
 
