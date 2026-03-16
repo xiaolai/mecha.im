@@ -141,9 +141,14 @@ export function buildBinds(resolvedPath: string, configPath: string, config: Bot
   }
   // Write filtered credentials (Claude auth profiles only) to bot state dir
   // This avoids mounting the full credentials store which contains unrelated secrets
-  writeBotCredentials(resolvedPath);
+  writeBotCredentials(resolvedPath, config.auth);
   if (config.workspace) {
     const wsPath = realpathSync(config.workspace);
+    // Restrict workspace mount to home directory to prevent mounting system paths
+    const home = homedir();
+    if (!wsPath.startsWith(home + "/") && wsPath !== home) {
+      throw new ProcessSpawnError(`Workspace path must be under home directory: ${wsPath}`);
+    }
     const mode = config.workspace_writable ? "rw" : "ro";
     binds.push(`${wsPath}:/home/appuser/workspace:${mode}`);
   }
@@ -198,9 +203,13 @@ export function buildContainerEnv(config: BotConfig, botToken: string): string[]
  * Only includes Claude auth profiles (api_key + oauth_token) — no unrelated secrets.
  * Lives in /state/ (rw mount) so it's always accessible and updatable.
  */
-export function writeBotCredentials(resolvedPath: string): void {
+/** Write only the bot's assigned credential (not all profiles) to its state dir */
+export function writeBotCredentials(resolvedPath: string, authProfile?: string): void {
   const creds = loadCredentials();
-  const claudeCreds = creds.filter((c) => c.type === "api_key" || c.type === "oauth_token");
+  // Only include the specific credential assigned to this bot, not all profiles
+  const claudeCreds = authProfile
+    ? creds.filter((c) => c.name === authProfile && (c.type === "api_key" || c.type === "oauth_token"))
+    : creds.filter((c) => c.type === "api_key" || c.type === "oauth_token").slice(0, 1);
   const outPath = join(resolvedPath, "credentials.yaml");
   const content = stringifyYaml({ credentials: claudeCreds }, { lineWidth: 0 });
   writeFileSync(outPath, content, { mode: 0o600 });
