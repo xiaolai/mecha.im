@@ -62,16 +62,24 @@ export function createApiRoutes(deps: ApiDeps): Hono {
     return c.json({ status: "stopping" });
   });
 
-  // Cache CLI version (resolved once on first status call)
-  let cachedCliVersion: string | null = null;
-  function getCliVersion(): string {
-    if (cachedCliVersion) return cachedCliVersion;
-    try {
-      cachedCliVersion = execFileSync("claude", ["--version"], { encoding: "utf-8", timeout: 5000 }).trim();
-    } catch {
-      cachedCliVersion = "unknown";
-    }
-    return cachedCliVersion;
+  // Cache package versions (resolved once on first status call)
+  let cachedVersions: Record<string, string> | null = null;
+  function getPackageVersions(): Record<string, string> {
+    if (cachedVersions) return cachedVersions;
+    const resolve = (pkg: string): string => {
+      try { return require(require.resolve(`${pkg}/package.json`)).version; } catch { return "not installed"; }
+    };
+    const pyVersion = (): string => {
+      try { return execFileSync("python3", ["-c", "import claude_agent_sdk;print(claude_agent_sdk.__version__)"], { encoding: "utf-8", timeout: 5000 }).trim(); } catch { return "not installed"; }
+    };
+    cachedVersions = {
+      claude_code: resolve("@anthropic-ai/claude-code"),
+      claude_agent_sdk_js: resolve("@anthropic-ai/claude-agent-sdk"),
+      claude_agent_sdk_py: pyVersion(),
+      codex: resolve("@openai/codex"),
+      gemini_cli: resolve("@google/gemini-cli"),
+    };
+    return cachedVersions;
   }
 
   app.get("/status", (c) => {
@@ -85,7 +93,7 @@ export function createApiRoutes(deps: ApiDeps): Hono {
       current_session_id: activeTask?.session_id ?? null,
       talking_to: activity.getTalkingTo(),
       last_active: activity.getLastActive(),
-      claude_cli_version: getCliVersion(),
+      versions: getPackageVersions(),
     });
   });
 
