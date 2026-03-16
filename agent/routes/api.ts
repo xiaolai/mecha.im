@@ -61,6 +61,36 @@ export function createApiRoutes(deps: ApiDeps): Hono {
     return c.json({ status: "stopping" });
   });
 
+  // Cache package versions (resolved async at startup, non-blocking)
+  let cachedVersions: Record<string, string> = {};
+  function resolveVersionAsync(): void {
+    const ver = (cmd: string, args: string[]): Promise<string> =>
+      new Promise((resolve) => {
+        import("node:child_process").then(({ execFile }) => {
+          execFile(cmd, args, { encoding: "utf-8", timeout: 5000 }, (err, stdout) => {
+            resolve(err ? "not installed" : stdout.trim());
+          });
+        });
+      });
+    Promise.all([
+      ver("claude", ["--version"]),
+      ver("node", ["-e", 'try{const p=require.resolve("@anthropic-ai/claude-agent-sdk/package.json");console.log(require(p).version)}catch{console.log("not installed")}']),
+      ver("python3", ["-c", "import claude_agent_sdk;print(claude_agent_sdk.__version__)"]),
+      ver("codex", ["--version"]),
+      ver("gemini", ["--version"]),
+    ]).then(([claude, sdkJs, sdkPy, codex, gemini]) => {
+      cachedVersions = {
+        claude_code: claude.split("\n")[0] || claude,
+        claude_agent_sdk_js: sdkJs,
+        claude_agent_sdk_py: sdkPy,
+        codex: codex.split("\n")[0] || codex,
+        gemini_cli: gemini.split("\n")[0] || gemini,
+      };
+    });
+  }
+  // Resolve versions at startup (non-blocking)
+  resolveVersionAsync();
+
   app.get("/status", (c) => {
     const activeTask = sessions.getActiveTask();
     return c.json({
@@ -72,6 +102,7 @@ export function createApiRoutes(deps: ApiDeps): Hono {
       current_session_id: activeTask?.session_id ?? null,
       talking_to: activity.getTalkingTo(),
       last_active: activity.getLastActive(),
+      versions: cachedVersions,
     });
   });
 
