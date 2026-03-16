@@ -49,11 +49,13 @@ export function findPath(
   const startKey = key(startCol, startRow);
   const endKey = key(endCol, endRow);
 
-  // End must be walkable (or be a chair tile which may be adjacent to desk)
-  // We allow the end tile even if it's not strictly walkable for chair positions
+  // End must be walkable or a temporarily unblocked seat tile
+  // Temporarily unblock the end tile so seat targets are reachable
+  const endBlocked = blockedTiles.has(endKey);
+  if (endBlocked) blockedTiles.delete(endKey);
   const endWalkable = isWalkable(endCol, endRow, tileMap, blockedTiles);
   if (!endWalkable) {
-    // If the end is a desk tile, we still can't path there
+    if (endBlocked) blockedTiles.add(endKey);
     return [];
   }
 
@@ -83,6 +85,7 @@ export function findPath(
         path.unshift({ col: c, row: r });
         k = parent.get(k)!;
       }
+      if (endBlocked) blockedTiles.add(endKey);
       return path;
     }
 
@@ -101,5 +104,6 @@ export function findPath(
   }
 
   // No path found
+  if (endBlocked) blockedTiles.add(endKey);
   return [];
 }

@@ -62,6 +62,14 @@ export function startDashboardServer(port: number) {
     if (c.req.path === "/api/totp/status" || c.req.path === "/api/totp/verify") {
       return next();
     }
+    // Allow public read-only access to office layout, stream, and avatars
+    if (
+      (c.req.path === "/api/office/layout" && c.req.method === "GET") ||
+      (c.req.path === "/api/office/stream" && c.req.method === "GET") ||
+      (c.req.path === "/api/office/avatars" && c.req.method === "GET")
+    ) {
+      return next();
+    }
     if (!hasDashboardAccess(c)) {
       return c.json({ error: "Unauthorized" }, 401);
     }

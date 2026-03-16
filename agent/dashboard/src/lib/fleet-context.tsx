@@ -44,18 +44,28 @@ export function FleetProvider({ children }: { children: ReactNode }) {
   const isFleetRef = useRef(isFleet);
   isFleetRef.current = isFleet;
 
+  const retryCountRef = useRef(0);
   const refreshBots = useCallback(() => {
     fleetFetch("/api/bots")
       .then((r) => {
-        if (!r.ok) throw new Error("not fleet");
+        if (r.status === 404) {
+          // Definitive "not fleet" — single bot mode
+          if (isFleetRef.current === null) setIsFleet(false);
+          return;
+        }
+        if (!r.ok) throw new Error("transient");
         return r.json();
       })
       .then((data) => {
+        if (!data) return;
+        retryCountRef.current = 0;
         setBots(data as FleetBot[]);
         if (isFleetRef.current === null) setIsFleet(true);
       })
       .catch(() => {
-        if (isFleetRef.current === null) setIsFleet(false);
+        // Transient error — retry up to 3 times before giving up
+        retryCountRef.current++;
+        if (isFleetRef.current === null && retryCountRef.current >= 3) setIsFleet(false);
       });
   }, []);
 

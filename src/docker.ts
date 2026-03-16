@@ -82,7 +82,7 @@ export async function buildImage(): Promise<void> {
   console.log("Building mecha-agent Docker image locally (this may take a few minutes)...");
   const stream = await docker.buildImage(
     {
-      context: process.cwd(),
+      context: join(__dirname, ".."),
       src: [
         "Dockerfile",
         "package.json",
