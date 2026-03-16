@@ -28,10 +28,12 @@ jobs:
           CLAUDE_CLI=$(npm view @anthropic-ai/claude-code version)
           CLAUDE_SDK_JS=$(npm view @anthropic-ai/claude-agent-sdk version)
           CODEX=$(npm view @openai/codex version)
+          GEMINI=$(npm view @google/gemini-cli version)
           CLAUDE_SDK_PY=$(pip index versions claude-agent-sdk 2>/dev/null | head -1 | grep -oP '\(\K[^)]+' || echo "unknown")
           echo "claude_cli=$CLAUDE_CLI" >> "$GITHUB_OUTPUT"
           echo "claude_sdk_js=$CLAUDE_SDK_JS" >> "$GITHUB_OUTPUT"
           echo "codex=$CODEX" >> "$GITHUB_OUTPUT"
+          echo "gemini=$GEMINI" >> "$GITHUB_OUTPUT"
           echo "claude_sdk_py=$CLAUDE_SDK_PY" >> "$GITHUB_OUTPUT"
 
       - name: Check versions in current image
@@ -40,16 +42,18 @@ jobs:
           IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
         run: |
           docker pull "$IMAGE" 2>/dev/null || {
-            for k in claude_cli claude_sdk_js codex claude_sdk_py; do echo "${k}_cur=none" >> "$GITHUB_OUTPUT"; done
+            for k in claude_cli claude_sdk_js codex gemini claude_sdk_py; do echo "${k}_cur=none" >> "$GITHUB_OUTPUT"; done
             exit 0
           }
           CLAUDE_CLI_CUR=$(docker run --rm --entrypoint sh "$IMAGE" -c 'node -e "try{console.log(require(require.resolve(\"@anthropic-ai/claude-code/package.json\")).version)}catch{console.log(\"unknown\")}"' 2>/dev/null || echo "unknown")
           CLAUDE_SDK_JS_CUR=$(docker run --rm --entrypoint sh "$IMAGE" -c 'node -e "try{console.log(require(require.resolve(\"@anthropic-ai/claude-agent-sdk/package.json\")).version)}catch{console.log(\"unknown\")}"' 2>/dev/null || echo "unknown")
           CODEX_CUR=$(docker run --rm --entrypoint sh "$IMAGE" -c 'node -e "try{console.log(require(require.resolve(\"@openai/codex/package.json\")).version)}catch{console.log(\"unknown\")}"' 2>/dev/null || echo "unknown")
+          GEMINI_CUR=$(docker run --rm --entrypoint sh "$IMAGE" -c 'node -e "try{console.log(require(require.resolve(\"@google/gemini-cli/package.json\")).version)}catch{console.log(\"unknown\")}"' 2>/dev/null || echo "unknown")
           CLAUDE_SDK_PY_CUR=$(docker run --rm --entrypoint sh "$IMAGE" -c 'python3 -c "import claude_agent_sdk;print(claude_agent_sdk.__version__)" 2>/dev/null || echo unknown' 2>/dev/null || echo "unknown")
           echo "claude_cli_cur=$CLAUDE_CLI_CUR" >> "$GITHUB_OUTPUT"
           echo "claude_sdk_js_cur=$CLAUDE_SDK_JS_CUR" >> "$GITHUB_OUTPUT"
           echo "codex_cur=$CODEX_CUR" >> "$GITHUB_OUTPUT"
+          echo "gemini_cur=$GEMINI_CUR" >> "$GITHUB_OUTPUT"
           echo "claude_sdk_py_cur=$CLAUDE_SDK_PY_CUR" >> "$GITHUB_OUTPUT"
 
       - name: Determine if rebuild needed
@@ -58,16 +62,19 @@ jobs:
           CLAUDE_CLI_LATEST: ${{ steps.check.outputs.claude_cli }}
           CLAUDE_SDK_JS_LATEST: ${{ steps.check.outputs.claude_sdk_js }}
           CODEX_LATEST: ${{ steps.check.outputs.codex }}
+          GEMINI_LATEST: ${{ steps.check.outputs.gemini }}
           CLAUDE_SDK_PY_LATEST: ${{ steps.check.outputs.claude_sdk_py }}
           CLAUDE_CLI_CUR: ${{ steps.current.outputs.claude_cli_cur }}
           CLAUDE_SDK_JS_CUR: ${{ steps.current.outputs.claude_sdk_js_cur }}
           CODEX_CUR: ${{ steps.current.outputs.codex_cur }}
+          GEMINI_CUR: ${{ steps.current.outputs.gemini_cur }}
           CLAUDE_SDK_PY_CUR: ${{ steps.current.outputs.claude_sdk_py_cur }}
         run: |
           REBUILD=false
           for pair in "Claude_CLI:$CLAUDE_CLI_CUR:$CLAUDE_CLI_LATEST" \
                       "Claude_SDK_JS:$CLAUDE_SDK_JS_CUR:$CLAUDE_SDK_JS_LATEST" \
                       "Codex:$CODEX_CUR:$CODEX_LATEST" \
+                      "Gemini:$GEMINI_CUR:$GEMINI_LATEST" \
                       "Claude_SDK_PY:$CLAUDE_SDK_PY_CUR:$CLAUDE_SDK_PY_LATEST"; do
             NAME="${pair%%:*}"; REST="${pair#*:}"; CUR="${REST%%:*}"; LATEST="${REST#*:}"
             if [ "$CUR" != "$LATEST" ]; then
@@ -109,7 +116,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
-            CACHEBUST_CLI=${{ steps.check.outputs.claude_cli }}-${{ steps.check.outputs.claude_sdk_js }}-${{ steps.check.outputs.codex }}-${{ steps.check.outputs.claude_sdk_py }}
+            CACHEBUST_CLI=${{ steps.check.outputs.claude_cli }}-${{ steps.check.outputs.claude_sdk_js }}-${{ steps.check.outputs.codex }}-${{ steps.check.outputs.gemini }}-${{ steps.check.outputs.claude_sdk_py }}
 
       - name: Summary
         env:
@@ -120,6 +127,8 @@ jobs:
           CLAUDE_SDK_JS_LATEST: ${{ steps.check.outputs.claude_sdk_js }}
           CODEX_CUR: ${{ steps.current.outputs.codex_cur }}
           CODEX_LATEST: ${{ steps.check.outputs.codex }}
+          GEMINI_CUR: ${{ steps.current.outputs.gemini_cur }}
+          GEMINI_LATEST: ${{ steps.check.outputs.gemini }}
           CLAUDE_SDK_PY_CUR: ${{ steps.current.outputs.claude_sdk_py_cur }}
           CLAUDE_SDK_PY_LATEST: ${{ steps.check.outputs.claude_sdk_py }}
         run: |
@@ -131,3 +140,4 @@ jobs:
           echo "| Claude Agent SDK (JS) | $CLAUDE_SDK_JS_CUR | $CLAUDE_SDK_JS_LATEST | $STATUS |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Claude Agent SDK (Python) | $CLAUDE_SDK_PY_CUR | $CLAUDE_SDK_PY_LATEST | $STATUS |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Codex CLI | $CODEX_CUR | $CODEX_LATEST | $STATUS |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Gemini CLI | $GEMINI_CUR | $GEMINI_LATEST | $STATUS |" >> "$GITHUB_STEP_SUMMARY"
