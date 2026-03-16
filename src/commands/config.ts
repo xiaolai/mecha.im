@@ -1,8 +1,8 @@
 import type { Command } from "commander";
 import { readFileSync } from "node:fs";
 import { getBot } from "../store.js";
-import { requireValidName } from "../cli-utils.js";
-import { printTable } from "../cli.utils.js";
+import { requireValidName, printTable } from "../cli-utils.js";
+import { atomicWriteText } from "../../shared/atomic-write.js";
 
 export function registerConfigCommand(program: Command): void {
   program
@@ -49,8 +49,7 @@ export function registerConfigCommand(program: Command): void {
           : value;
 
         config[key] = parsed;
-        const { writeFileSync } = await import("node:fs");
-        writeFileSync(entry.config, stringifyYaml(config), { mode: 0o600 });
+        atomicWriteText(entry.config, stringifyYaml(config));
         console.log(`Set ${key}=${JSON.stringify(parsed)} in ${entry.config}`);
         console.log(`Restart the bot for changes to take effect: mecha restart ${name}`);
         return;
