@@ -1,7 +1,6 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { writeFileSync } from "node:fs";
-import { execFileSync } from "node:child_process";
 import { log } from "../../shared/logger.js";
 import type { BotConfig } from "../types.js";
 import type { SessionManager } from "../session.js";
@@ -62,25 +61,35 @@ export function createApiRoutes(deps: ApiDeps): Hono {
     return c.json({ status: "stopping" });
   });
 
-  // Cache package versions (resolved once on first status call)
-  let cachedVersions: Record<string, string> | null = null;
-  function getPackageVersions(): Record<string, string> {
-    if (cachedVersions) return cachedVersions;
-    const resolve = (pkg: string): string => {
-      try { return require(require.resolve(`${pkg}/package.json`)).version; } catch { return "not installed"; }
-    };
-    const pyVersion = (): string => {
-      try { return execFileSync("python3", ["-c", "import claude_agent_sdk;print(claude_agent_sdk.__version__)"], { encoding: "utf-8", timeout: 5000 }).trim(); } catch { return "not installed"; }
-    };
-    cachedVersions = {
-      claude_code: resolve("@anthropic-ai/claude-code"),
-      claude_agent_sdk_js: resolve("@anthropic-ai/claude-agent-sdk"),
-      claude_agent_sdk_py: pyVersion(),
-      codex: resolve("@openai/codex"),
-      gemini_cli: resolve("@google/gemini-cli"),
-    };
-    return cachedVersions;
+  // Cache package versions (resolved async at startup, non-blocking)
+  let cachedVersions: Record<string, string> = {};
+  function resolveVersionAsync(): void {
+    const ver = (cmd: string, args: string[]): Promise<string> =>
+      new Promise((resolve) => {
+        import("node:child_process").then(({ execFile }) => {
+          execFile(cmd, args, { encoding: "utf-8", timeout: 5000 }, (err, stdout) => {
+            resolve(err ? "not installed" : stdout.trim());
+          });
+        });
+      });
+    Promise.all([
+      ver("claude", ["--version"]),
+      ver("node", ["-e", 'try{const p=require.resolve("@anthropic-ai/claude-agent-sdk/package.json");console.log(require(p).version)}catch{console.log("not installed")}']),
+      ver("python3", ["-c", "import claude_agent_sdk;print(claude_agent_sdk.__version__)"]),
+      ver("codex", ["--version"]),
+      ver("gemini", ["--version"]),
+    ]).then(([claude, sdkJs, sdkPy, codex, gemini]) => {
+      cachedVersions = {
+        claude_code: claude.split("\n")[0] || claude,
+        claude_agent_sdk_js: sdkJs,
+        claude_agent_sdk_py: sdkPy,
+        codex: codex.split("\n")[0] || codex,
+        gemini_cli: gemini.split("\n")[0] || gemini,
+      };
+    });
   }
+  // Resolve versions at startup (non-blocking)
+  resolveVersionAsync();
 
   app.get("/status", (c) => {
     const activeTask = sessions.getActiveTask();
@@ -93,7 +102,7 @@ export function createApiRoutes(deps: ApiDeps): Hono {
       current_session_id: activeTask?.session_id ?? null,
       talking_to: activity.getTalkingTo(),
       last_active: activity.getLastActive(),
-      versions: getPackageVersions(),
+      versions: cachedVersions,
     });
   });
 
