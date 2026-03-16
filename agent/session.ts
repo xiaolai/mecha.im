@@ -28,7 +28,7 @@ type Task = z.infer<typeof taskSchema>;
 type SessionIndex = z.infer<typeof indexSchema>;
 export type TaskSource = z.infer<typeof taskSourceSchema>;
 
-const INDEX_PATH = PATHS.sessionIndex;
+const INDEX_PATH = PATHS.taskIndex;
 const MAX_TASKS = 500;
 
 export class SessionManager {
