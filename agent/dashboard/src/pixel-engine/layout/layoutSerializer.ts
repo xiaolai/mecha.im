@@ -210,6 +210,38 @@ export function layoutToSeats(furniture: PlacedFurniture[]): Map<string, Seat> {
           }
         }
 
+        // Determine seat kind and PC presence
+        let kind: 'desk' | 'lounge' = 'lounge';
+        let hasPc = false;
+        let deskUid: string | null = null;
+
+        const dCol = facingDir === Direction.RIGHT ? 1 : facingDir === Direction.LEFT ? -1 : 0;
+        const dRow = facingDir === Direction.DOWN ? 1 : facingDir === Direction.UP ? -1 : 0;
+        for (let d = 1; d <= 3; d++) {
+          const checkCol = tileCol + dCol * d;
+          const checkRow = tileRow + dRow * d;
+          const deskItem = furniture.find(f => {
+            const e = getCatalogEntry(f.type);
+            if (!e?.isDesk) return false;
+            return checkCol >= f.col && checkCol < f.col + e.footprintW &&
+                   checkRow >= f.row && checkRow < f.row + e.footprintH;
+          });
+          if (deskItem) {
+            kind = 'desk';
+            deskUid = deskItem.uid;
+            const deskEntry = getCatalogEntry(deskItem.type);
+            const dfw = deskEntry?.footprintW ?? 1;
+            const dfh = deskEntry?.footprintH ?? 1;
+            hasPc = furniture.some(f =>
+              f.type.startsWith('PC_') &&
+              getCatalogEntry(f.type)?.canPlaceOnSurfaces &&
+              f.col >= deskItem.col && f.col < deskItem.col + dfw &&
+              f.row >= deskItem.row && f.row < deskItem.row + dfh
+            );
+            break;
+          }
+        }
+
         // First seat uses chair uid (backward compat), subsequent use uid:N
         const seatUid = seatCount === 0 ? item.uid : `${item.uid}:${seatCount}`;
         seats.set(seatUid, {
@@ -218,6 +250,9 @@ export function layoutToSeats(furniture: PlacedFurniture[]): Map<string, Seat> {
           seatRow: tileRow,
           facingDir,
           assigned: false,
+          kind,
+          hasPc,
+          deskUid,
         });
         seatCount++;
       }

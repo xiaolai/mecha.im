@@ -1,16 +1,16 @@
 {
-  "id": "WHITEBOARD",
-  "name": "Whiteboard",
-  "category": "wall",
+  "id": "WATER_MACHINE",
+  "name": "Water Machine",
+  "category": "misc",
   "type": "asset",
-  "canPlaceOnWalls": true,
+  "canPlaceOnWalls": false,
   "canPlaceOnSurfaces": false,
   "backgroundTiles": 0,
-  "width": 32,
+  "width": 16,
   "height": 32,
-  "footprintW": 2,
+  "footprintW": 1,
   "footprintH": 2,
   "interactable": true,
-  "interactAction": "study",
+  "interactAction": "drink",
   "interactSides": ["front"]
 }
