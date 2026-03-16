@@ -20,7 +20,7 @@ mecha auth add anthropic-main sk-ant-...
 mecha spawn --name greeter --system "You greet people warmly."
 
 # Chat with it
-mecha chat greeter "Hello!"
+mecha query greeter "Hello!"
 
 # List bots
 mecha ls
@@ -71,7 +71,9 @@ mecha spawn reviewer.yaml
 | `mecha stop <name>` | Stop a running bot |
 | `mecha rm <name>` | Remove a bot |
 | `mecha ls` | List all bots |
-| `mecha chat <name> "prompt"` | Send a prompt to a bot |
+| `mecha query <name> "prompt"` | Send a one-shot prompt to a bot |
+| `mecha restart <name>` | Restart a running bot |
+| `mecha exec <name> [cmd...]` | Run a command inside a bot's container |
 | `mecha logs <name> [-f]` | Show bot logs |
 | `mecha auth add <profile> <key>` | Add auth profile |
 | `mecha auth list` | List auth profiles |
