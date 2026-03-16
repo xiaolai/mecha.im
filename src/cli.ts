@@ -286,6 +286,19 @@ program
     if (!ok) process.exit(1);
   });
 
+// --- exec ---
+program
+  .command("exec <name> [command...]")
+  .description("Run a command inside a bot's container")
+  .option("-it, --interactive", "Attach interactive terminal")
+  .action(async (name: string, command: string[], opts) => {
+    requireValidName(name);
+    const cmd = command.length > 0 ? command : ["bash"];
+    const interactive = opts.interactive ?? command.length === 0;
+    const exitCode = await docker.runInContainer(name, cmd, interactive);
+    process.exit(exitCode);
+  });
+
 // --- mcp (MCP stdio server -- proxy to all bots) ---
 program
   .command("mcp")
