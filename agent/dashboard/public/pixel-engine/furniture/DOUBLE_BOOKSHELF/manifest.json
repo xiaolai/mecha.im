@@ -9,5 +9,8 @@
   "width": 32,
   "height": 32,
   "footprintW": 2,
-  "footprintH": 2
+  "footprintH": 2,
+  "interactable": true,
+  "interactAction": "browse",
+  "interactSides": ["front"]
 }

@@ -244,7 +244,13 @@ export function useOfficeStream(
 
             // Handle subtask spawning
             if (data.tool?.startsWith('Subtask:') && data.tool_id) {
-              os.addSubagent(numId, data.tool_id);
+              const subAgentId = os.addSubagent(numId, data.tool_id);
+              // Request face-to-face chat if both parent and child are idle
+              const parentCh = os.characters.get(numId);
+              const childCh = os.characters.get(subAgentId);
+              if (parentCh && childCh && !parentCh.isActive && !childCh.isActive) {
+                os.scheduler.requestRealChat(numId, subAgentId);
+              }
             }
           } else if (data.type === 'tool_done') {
             // Tool completed — don't clear agent tool immediately
