@@ -310,6 +310,27 @@ program
 // --- push-dashboard ---
 registerPushDashboardCommand(program);
 
+// --- ssh-key ---
+program
+  .command("ssh-key <name>")
+  .description("Show the SSH public key for a bot (auto-generates if missing)")
+  .action(async (name) => {
+    const { getBot } = await import("./store.js");
+    const { ensureBotSshKey } = await import("./docker.utils.js");
+    const { readFileSync } = await import("node:fs");
+    const entry = getBot(name);
+    if (!entry?.path) {
+      console.error(`Bot "${name}" not found. Run "mecha ls" to see available bots.`);
+      process.exit(1);
+    }
+    const sshDir = ensureBotSshKey(entry.path, name);
+    const pubKey = readFileSync(`${sshDir}/id_ed25519.pub`, "utf-8").trim();
+    console.log(`\nSSH public key for "${name}":\n`);
+    console.log(pubKey);
+    console.log(`\nAdd this key to GitHub: Settings → SSH and GPG keys → New SSH key`);
+    console.log(`Key file: ${sshDir}/id_ed25519\n`);
+  });
+
 // --- Error handling ---
 async function main() {
   try {

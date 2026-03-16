@@ -1,7 +1,8 @@
 import Docker from "dockerode";
-import { realpathSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { realpathSync, existsSync, readFileSync, writeFileSync, mkdirSync, chmodSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { homedir } from "node:os";
+import { execFileSync } from "node:child_process";
 import { getMutex } from "../shared/mutex.js";
 import { ProcessSpawnError } from "../shared/errors.js";
 import { resolveAuth, getCredential, getPassthroughCredentials, loadCredentials } from "./auth.js";
@@ -80,6 +81,23 @@ export function isDockerError(err: unknown, pattern: string): boolean {
 }
 
 /** Build container binds list from config and bot path */
+/** Ensure a per-bot SSH key pair exists. Creates ed25519 key if missing. Returns the ssh dir path. */
+export function ensureBotSshKey(resolvedPath: string, botName: string): string {
+  const sshDir = join(resolvedPath, "ssh");
+  const keyPath = join(sshDir, "id_ed25519");
+  if (!existsSync(keyPath)) {
+    mkdirSync(sshDir, { recursive: true });
+    execFileSync("ssh-keygen", ["-t", "ed25519", "-f", keyPath, "-N", "", "-C", `${botName}@mecha`], { stdio: "pipe" });
+    chmodSync(sshDir, 0o700);
+    chmodSync(keyPath, 0o600);
+    chmodSync(`${keyPath}.pub`, 0o644);
+    // Create ssh config that skips host key verification for github.com
+    const sshConfig = `Host github.com\n  StrictHostKeyChecking no\n  UserKnownHostsFile /dev/null\n  IdentityFile ~/.ssh/id_ed25519\n`;
+    writeFileSync(join(sshDir, "config"), sshConfig, { mode: 0o600 });
+  }
+  return sshDir;
+}
+
 export function buildBinds(resolvedPath: string, configPath: string, config: BotConfig): string[] {
   const binds = [
     `${realpathSync(resolvedPath)}:/state:rw`,
@@ -87,6 +105,9 @@ export function buildBinds(resolvedPath: string, configPath: string, config: Bot
     `${realpathSync(join(resolvedPath, "home-dot-claude"))}:/home/appuser/.claude:rw`,
     `${realpathSync(join(resolvedPath, "home-dot-codex"))}:/home/appuser/.codex:rw`,
   ];
+  // Mount per-bot SSH keys (auto-generated if missing)
+  const sshDir = ensureBotSshKey(resolvedPath, config.name);
+  binds.push(`${realpathSync(sshDir)}:/home/appuser/.ssh:ro`);
   // Write filtered credentials (Claude auth profiles only) to bot state dir
   // This avoids mounting the full credentials store which contains unrelated secrets
   writeBotCredentials(resolvedPath);
