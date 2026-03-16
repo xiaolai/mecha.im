@@ -1,27 +1,21 @@
 #!/bin/bash
 exec 2>&1
 
-# Fix ownership of volume-mounted dirs (runs as root before setuidgid)
-chown -R appuser:appuser /home/appuser/.claude /home/appuser/.codex /home/appuser/workspace 2>/dev/null
+# Fix ownership of volume-mounted config dirs only (not workspace — too slow for large repos)
+chown appuser:appuser /home/appuser/.claude /home/appuser/.codex 2>/dev/null
+# Workspace ownership: only fix top-level dir, not recursive
+chown appuser:appuser /home/appuser/workspace 2>/dev/null
 
-# Auto-update Claude Code CLI and Codex CLI on container start
-# Runs as appuser, takes ~10-15s, ensures bots always use latest versions
-if [ "${MECHA_SKIP_UPDATE:-}" != "1" ]; then
-  echo "Checking for CLI updates..."
-  s6-setuidgid appuser env HOME=/home/appuser npm update -g @anthropic-ai/claude-code @openai/codex 2>&1 \
-    | tail -5 || echo "CLI update check failed (non-fatal, continuing with installed version)"
-fi
-
-# Ensure .claude.json has onboarding complete
+# Ensure .claude.json has onboarding complete (use node for safe JSON handling)
 CLAUDE_JSON="/home/appuser/.claude.json"
-if [ -f "$CLAUDE_JSON" ]; then
-  if ! grep -q '"hasCompletedOnboarding"' "$CLAUDE_JSON"; then
-    sed -i 's/^{/{\n  "hasCompletedOnboarding": true,/' "$CLAUDE_JSON"
-  fi
-else
-  echo '{"hasCompletedOnboarding": true}' > "$CLAUDE_JSON"
-  chown appuser:appuser "$CLAUDE_JSON"
-fi
+s6-setuidgid appuser env HOME=/home/appuser node -e '
+  const fs = require("fs");
+  const p = process.argv[1];
+  let data = {};
+  try { data = JSON.parse(fs.readFileSync(p, "utf-8")); } catch {}
+  data.hasCompletedOnboarding = true;
+  fs.writeFileSync(p, JSON.stringify(data, null, 2) + "\n");
+' "$CLAUDE_JSON"
 
 # Check for stop request (dashboard-initiated stop) — bring down the entire container
 if [ -f /state/stop-requested ]; then
