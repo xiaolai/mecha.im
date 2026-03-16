@@ -21,43 +21,60 @@ jobs:
       packages: write
 
     steps:
-      - name: Check latest CLI versions
+      - name: Check latest package versions
         id: check
         run: |
           set -e
-          CLAUDE_LATEST=$(npm view @anthropic-ai/claude-code version)
-          CODEX_LATEST=$(npm view @openai/codex version)
-          echo "claude_version=$CLAUDE_LATEST" >> "$GITHUB_OUTPUT"
-          echo "codex_version=$CODEX_LATEST" >> "$GITHUB_OUTPUT"
+          CLAUDE_CLI=$(npm view @anthropic-ai/claude-code version)
+          CLAUDE_SDK_JS=$(npm view @anthropic-ai/claude-agent-sdk version)
+          CODEX=$(npm view @openai/codex version)
+          CLAUDE_SDK_PY=$(pip index versions claude-agent-sdk 2>/dev/null | head -1 | grep -oP '\(\K[^)]+' || echo "unknown")
+          echo "claude_cli=$CLAUDE_CLI" >> "$GITHUB_OUTPUT"
+          echo "claude_sdk_js=$CLAUDE_SDK_JS" >> "$GITHUB_OUTPUT"
+          echo "codex=$CODEX" >> "$GITHUB_OUTPUT"
+          echo "claude_sdk_py=$CLAUDE_SDK_PY" >> "$GITHUB_OUTPUT"
 
       - name: Check versions in current image
         id: current
         env:
           IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
         run: |
-          docker pull "$IMAGE" 2>/dev/null || { echo "claude_current=none" >> "$GITHUB_OUTPUT"; echo "codex_current=none" >> "$GITHUB_OUTPUT"; exit 0; }
-          CLAUDE_CURRENT=$(docker run --rm --entrypoint sh -e MECHA_SKIP_UPDATE=1 "$IMAGE" -c 'node -e "try{console.log(require(require.resolve(\"@anthropic-ai/claude-code/package.json\")).version)}catch{console.log(\"unknown\")}"' 2>/dev/null || echo "unknown")
-          CODEX_CURRENT=$(docker run --rm --entrypoint sh -e MECHA_SKIP_UPDATE=1 "$IMAGE" -c 'node -e "try{console.log(require(require.resolve(\"@openai/codex/package.json\")).version)}catch{console.log(\"unknown\")}"' 2>/dev/null || echo "unknown")
-          echo "claude_current=$CLAUDE_CURRENT" >> "$GITHUB_OUTPUT"
-          echo "codex_current=$CODEX_CURRENT" >> "$GITHUB_OUTPUT"
+          docker pull "$IMAGE" 2>/dev/null || {
+            for k in claude_cli claude_sdk_js codex claude_sdk_py; do echo "${k}_cur=none" >> "$GITHUB_OUTPUT"; done
+            exit 0
+          }
+          CLAUDE_CLI_CUR=$(docker run --rm --entrypoint sh "$IMAGE" -c 'node -e "try{console.log(require(require.resolve(\"@anthropic-ai/claude-code/package.json\")).version)}catch{console.log(\"unknown\")}"' 2>/dev/null || echo "unknown")
+          CLAUDE_SDK_JS_CUR=$(docker run --rm --entrypoint sh "$IMAGE" -c 'node -e "try{console.log(require(require.resolve(\"@anthropic-ai/claude-agent-sdk/package.json\")).version)}catch{console.log(\"unknown\")}"' 2>/dev/null || echo "unknown")
+          CODEX_CUR=$(docker run --rm --entrypoint sh "$IMAGE" -c 'node -e "try{console.log(require(require.resolve(\"@openai/codex/package.json\")).version)}catch{console.log(\"unknown\")}"' 2>/dev/null || echo "unknown")
+          CLAUDE_SDK_PY_CUR=$(docker run --rm --entrypoint sh "$IMAGE" -c 'python3 -c "import claude_agent_sdk;print(claude_agent_sdk.__version__)" 2>/dev/null || echo unknown' 2>/dev/null || echo "unknown")
+          echo "claude_cli_cur=$CLAUDE_CLI_CUR" >> "$GITHUB_OUTPUT"
+          echo "claude_sdk_js_cur=$CLAUDE_SDK_JS_CUR" >> "$GITHUB_OUTPUT"
+          echo "codex_cur=$CODEX_CUR" >> "$GITHUB_OUTPUT"
+          echo "claude_sdk_py_cur=$CLAUDE_SDK_PY_CUR" >> "$GITHUB_OUTPUT"
 
       - name: Determine if rebuild needed
         id: decide
         env:
-          CLAUDE_LATEST: ${{ steps.check.outputs.claude_version }}
-          CODEX_LATEST: ${{ steps.check.outputs.codex_version }}
-          CLAUDE_CURRENT: ${{ steps.current.outputs.claude_current }}
-          CODEX_CURRENT: ${{ steps.current.outputs.codex_current }}
+          CLAUDE_CLI_LATEST: ${{ steps.check.outputs.claude_cli }}
+          CLAUDE_SDK_JS_LATEST: ${{ steps.check.outputs.claude_sdk_js }}
+          CODEX_LATEST: ${{ steps.check.outputs.codex }}
+          CLAUDE_SDK_PY_LATEST: ${{ steps.check.outputs.claude_sdk_py }}
+          CLAUDE_CLI_CUR: ${{ steps.current.outputs.claude_cli_cur }}
+          CLAUDE_SDK_JS_CUR: ${{ steps.current.outputs.claude_sdk_js_cur }}
+          CODEX_CUR: ${{ steps.current.outputs.codex_cur }}
+          CLAUDE_SDK_PY_CUR: ${{ steps.current.outputs.claude_sdk_py_cur }}
         run: |
           REBUILD=false
-          if [ "$CLAUDE_CURRENT" != "$CLAUDE_LATEST" ]; then
-            echo "Claude Code update: $CLAUDE_CURRENT → $CLAUDE_LATEST"
-            REBUILD=true
-          fi
-          if [ "$CODEX_CURRENT" != "$CODEX_LATEST" ]; then
-            echo "Codex update: $CODEX_CURRENT → $CODEX_LATEST"
-            REBUILD=true
-          fi
+          for pair in "Claude_CLI:$CLAUDE_CLI_CUR:$CLAUDE_CLI_LATEST" \
+                      "Claude_SDK_JS:$CLAUDE_SDK_JS_CUR:$CLAUDE_SDK_JS_LATEST" \
+                      "Codex:$CODEX_CUR:$CODEX_LATEST" \
+                      "Claude_SDK_PY:$CLAUDE_SDK_PY_CUR:$CLAUDE_SDK_PY_LATEST"; do
+            NAME="${pair%%:*}"; REST="${pair#*:}"; CUR="${REST%%:*}"; LATEST="${REST#*:}"
+            if [ "$CUR" != "$LATEST" ]; then
+              echo "$NAME update: $CUR → $LATEST"
+              REBUILD=true
+            fi
+          done
           echo "rebuild=$REBUILD" >> "$GITHUB_OUTPUT"
 
       - name: Checkout
@@ -92,23 +109,25 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
-            CACHEBUST_CLI=${{ steps.check.outputs.claude_version }}-${{ steps.check.outputs.codex_version }}
+            CACHEBUST_CLI=${{ steps.check.outputs.claude_cli }}-${{ steps.check.outputs.claude_sdk_js }}-${{ steps.check.outputs.codex }}-${{ steps.check.outputs.claude_sdk_py }}
 
       - name: Summary
         env:
           REBUILD: ${{ steps.decide.outputs.rebuild }}
-          CLAUDE_CURRENT: ${{ steps.current.outputs.claude_current }}
-          CLAUDE_LATEST: ${{ steps.check.outputs.claude_version }}
-          CODEX_CURRENT: ${{ steps.current.outputs.codex_current }}
-          CODEX_LATEST: ${{ steps.check.outputs.codex_version }}
+          CLAUDE_CLI_CUR: ${{ steps.current.outputs.claude_cli_cur }}
+          CLAUDE_CLI_LATEST: ${{ steps.check.outputs.claude_cli }}
+          CLAUDE_SDK_JS_CUR: ${{ steps.current.outputs.claude_sdk_js_cur }}
+          CLAUDE_SDK_JS_LATEST: ${{ steps.check.outputs.claude_sdk_js }}
+          CODEX_CUR: ${{ steps.current.outputs.codex_cur }}
+          CODEX_LATEST: ${{ steps.check.outputs.codex }}
+          CLAUDE_SDK_PY_CUR: ${{ steps.current.outputs.claude_sdk_py_cur }}
+          CLAUDE_SDK_PY_LATEST: ${{ steps.check.outputs.claude_sdk_py }}
         run: |
-          echo "### CLI Update Check" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$REBUILD" = "true" ]; then STATUS="Rebuilt"; else STATUS="Up to date"; fi
+          echo "### CLI & SDK Update Check" >> "$GITHUB_STEP_SUMMARY"
           echo "| Package | Current | Latest | Status |" >> "$GITHUB_STEP_SUMMARY"
           echo "|---------|---------|--------|--------|" >> "$GITHUB_STEP_SUMMARY"
-          if [ "$REBUILD" = "true" ]; then
-            STATUS="Rebuilt"
-          else
-            STATUS="Up to date"
-          fi
-          echo "| Claude Code | $CLAUDE_CURRENT | $CLAUDE_LATEST | $STATUS |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Codex | $CODEX_CURRENT | $CODEX_LATEST | $STATUS |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Claude Code CLI | $CLAUDE_CLI_CUR | $CLAUDE_CLI_LATEST | $STATUS |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Claude Agent SDK (JS) | $CLAUDE_SDK_JS_CUR | $CLAUDE_SDK_JS_LATEST | $STATUS |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Claude Agent SDK (Python) | $CLAUDE_SDK_PY_CUR | $CLAUDE_SDK_PY_LATEST | $STATUS |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Codex CLI | $CODEX_CUR | $CODEX_LATEST | $STATUS |" >> "$GITHUB_STEP_SUMMARY"

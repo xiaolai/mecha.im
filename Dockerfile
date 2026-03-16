@@ -32,7 +32,7 @@ RUN apk add --no-cache xz \
     && rm /tmp/s6-overlay-*.tar.xz
 
 # Minimal system deps (root) — only what requires root privileges
-RUN apk add --no-cache git bash curl libstdc++
+RUN apk add --no-cache git bash curl libstdc++ python3 py3-pip
 
 # Create non-root user
 RUN adduser -D -u 10001 appuser
@@ -64,11 +64,12 @@ RUN HS_ARCH=$(case "${TARGETARCH}" in arm64) echo "arm64";; arm) echo "armv7";; 
        -o /home/appuser/.local/bin/headscale \
     && chmod +x /home/appuser/.local/bin/headscale
 
-# Claude Code CLI + Codex CLI — npm globals go to ~/.local via prefix
+# Claude Code CLI + Codex CLI + Agent SDKs
 # CACHEBUST_CLI is set by CI when new versions are available to invalidate this layer
 ARG CACHEBUST_CLI=default
 ENV NPM_CONFIG_PREFIX=/home/appuser/.local
-RUN npm install -g @anthropic-ai/claude-code @openai/codex
+RUN npm install -g @anthropic-ai/claude-code @anthropic-ai/claude-agent-sdk @openai/codex
+RUN pip install --user --break-system-packages claude-agent-sdk
 
 # ── Application (still appuser-owned) ──
 WORKDIR /app
