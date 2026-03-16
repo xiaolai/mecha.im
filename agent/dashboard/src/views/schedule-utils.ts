@@ -34,7 +34,9 @@ export function cronToHuman(cron: string): string {
 }
 
 export function timeUntil(isoDate: string): string {
-  const diff = new Date(isoDate).getTime() - Date.now();
+  const ts = new Date(isoDate).getTime();
+  if (Number.isNaN(ts)) return "unknown";
+  const diff = ts - Date.now();
   if (diff < 0) return "now";
   if (diff < 60_000) return `${Math.floor(diff / 1000)}s`;
   if (diff < 3600_000) return `${Math.floor(diff / 60_000)}m`;

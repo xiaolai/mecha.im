@@ -7,7 +7,15 @@ import { isValidName } from "../shared/validation.js";
 export type { BotConfig };
 
 export function loadBotConfig(filePath: string): BotConfig {
-  const raw = readFileSync(filePath, "utf-8");
+  let raw: string;
+  try {
+    raw = readFileSync(filePath, "utf-8");
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === "ENOENT") throw new ConfigValidationError(`Config file not found: ${filePath}`);
+    if (code === "EACCES") throw new ConfigValidationError(`Permission denied reading: ${filePath}`);
+    throw new ConfigValidationError(`Failed to read config: ${err instanceof Error ? err.message : String(err)}`);
+  }
   let parsed: unknown;
   try {
     parsed = parseYaml(raw);

@@ -4,7 +4,7 @@
  */
 export function extractSnippet(text: string, needle: string, contextChars = 80): string {
   const lower = text.toLowerCase();
-  const idx = lower.indexOf(needle);
+  const idx = lower.indexOf(needle.toLowerCase());
   if (idx === -1) return text.slice(0, contextChars * 2);
   const start = Math.max(0, idx - contextChars);
   const end = Math.min(text.length, idx + needle.length + contextChars);

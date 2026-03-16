@@ -287,12 +287,10 @@ async function loadCharacters(): Promise<void> {
 async function loadFloors(): Promise<void> {
   const sprites: SpriteData[] = [];
 
-  // Try loading floor_N.png files starting from 0
+  // Try loading floor_N.png files starting from 0 (direct GET, no HEAD probe)
   for (let i = 0; ; i++) {
     const url = `${ASSET_BASE}/floors/floor_${i}.png`;
     try {
-      const resp = await fetch(url, { method: 'HEAD' });
-      if (!resp.ok) break;
       const { imageData } = await loadImageData(url);
       sprites.push(
         regionToSprite(imageData.data, imageData.width, 0, 0, FLOOR_TILE_SIZE, FLOOR_TILE_SIZE),
@@ -309,12 +307,10 @@ async function loadFloors(): Promise<void> {
 async function loadWalls(): Promise<void> {
   const sets: SpriteData[][] = [];
 
-  // Try loading wall_N.png files starting from 0
+  // Try loading wall_N.png files starting from 0 (direct GET, no HEAD probe)
   for (let i = 0; ; i++) {
     const url = `${ASSET_BASE}/walls/wall_${i}.png`;
     try {
-      const resp = await fetch(url, { method: 'HEAD' });
-      if (!resp.ok) break;
       const { imageData } = await loadImageData(url);
 
       const wallSprites: SpriteData[] = [];

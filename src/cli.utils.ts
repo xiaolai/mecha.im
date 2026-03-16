@@ -42,7 +42,8 @@ export async function setupHeadscale(settings: Record<string, unknown>): Promise
   await new Promise<void>((r) => stream.on("end", r));
   apiKey = apiKey.trim();
 
-  const settingsPath = resolve(process.env.HOME ?? "~", ".mecha", "mecha.json");
+  const { getMechaDir } = await import("./store.js");
+  const settingsPath = resolve(getMechaDir(), "mecha.json");
   const { atomicWriteJson } = await import("../shared/atomic-write.js");
   atomicWriteJson(settingsPath, {
     ...settings,

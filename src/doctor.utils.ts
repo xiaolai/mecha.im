@@ -48,7 +48,7 @@ export async function fileExists(container: Docker.Container, path: string): Pro
 
 export async function dirWritable(container: Docker.Container, dirPath: string): Promise<boolean> {
   const testFile = `${dirPath}/.doctor-test`;
-  const { exitCode } = await dockerRun(container, ["sh", "-c", "touch '$1' && rm '$1'", "sh", testFile]);
+  const { exitCode } = await dockerRun(container, ["sh", "-c", 'touch "$1" && rm "$1"', "sh", testFile]);
   return exitCode === 0;
 }
 

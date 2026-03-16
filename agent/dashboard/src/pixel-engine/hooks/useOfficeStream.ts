@@ -207,6 +207,7 @@ export function useOfficeStream(
                 os.setAgentActive(numId, false);
                 os.showWaitingBubble(numId);
               } else if (status === 'permission') {
+                os.setAgentActive(numId, true);
                 os.showPermissionBubble(numId);
               } else {
                 // idle
