@@ -65,6 +65,8 @@ RUN HS_ARCH=$(case "${TARGETARCH}" in arm64) echo "arm64";; arm) echo "armv7";; 
     && chmod +x /home/appuser/.local/bin/headscale
 
 # Claude Code CLI + Codex CLI — npm globals go to ~/.local via prefix
+# CACHEBUST_CLI is set by CI when new versions are available to invalidate this layer
+ARG CACHEBUST_CLI=default
 ENV NPM_CONFIG_PREFIX=/home/appuser/.local
 RUN npm install -g @anthropic-ai/claude-code @openai/codex
 
