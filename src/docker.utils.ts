@@ -111,11 +111,15 @@ export function buildContainerEnv(config: BotConfig, botToken: string): string[]
     `MECHA_ENABLE_PROJECT_SETTINGS=${config.workspace ? "1" : "0"}`,
   ];
 
-  const passthrough = getPassthroughCredentials(["OPENAI_API_KEY", "GEMINI_API_KEY", "XAI_API_KEY"]);
+  const passthroughKeys = ["OPENAI_API_KEY", "GEMINI_API_KEY", "XAI_API_KEY"];
+  const passthrough = getPassthroughCredentials(passthroughKeys);
   for (const pt of passthrough) env.push(`${pt.env}=${pt.key}`);
-  if (!passthrough.some((p) => p.env === "OPENAI_API_KEY")) {
-    const openaiKey = process.env.OPENAI_API_KEY;
-    if (openaiKey) env.push(`OPENAI_API_KEY=${openaiKey}`);
+  // Fallback: propagate host env vars for any key not found in stored credentials
+  for (const envKey of passthroughKeys) {
+    if (!passthrough.some((p) => p.env === envKey)) {
+      const val = process.env[envKey];
+      if (val) env.push(`${envKey}=${val}`);
+    }
   }
 
   if (config.tailscale) {

@@ -7,6 +7,7 @@ import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import * as docker from "./docker.js";
+import { withBotLock } from "./docker.utils.js";
 import { listBots as listRegistered } from "./store.js";
 import { loadBotConfig, buildInlineConfig } from "./config.js";
 import { addCredential, detectCredentialType, listCredentials, loadCredentials } from "./auth.js";
@@ -229,22 +230,20 @@ export function startDashboardServer(port: number) {
     const blocked = await guardBusy(c, name, { profile });
     if (blocked) return blocked;
 
-    // Update the bot's config file
+    // Update config and restart under bot lock to prevent concurrent mutations
     try {
-      const { readFileSync, writeFileSync } = await import("node:fs");
-      const { parse: parseYaml, stringify: stringifyYaml } = await import("yaml");
-      const raw = readFileSync(entry.config, "utf-8");
-      const parsed = parseYaml(raw) as Record<string, unknown>;
-      parsed.auth = profile;
-      writeFileSync(entry.config, stringifyYaml(parsed), { mode: 0o600 });
-    } catch (err) {
-      return c.json({ error: "Failed to update bot config" }, 500);
-    }
-
-    // Restart the bot to pick up new auth
-    try {
-      const containerId = await docker.restart(name);
-      return c.json({ status: "switched", profile, containerId: containerId.slice(0, 12) });
+      const result = await withBotLock(name, async () => {
+        const { readFileSync } = await import("node:fs");
+        const { parse: parseYaml, stringify: stringifyYaml } = await import("yaml");
+        const configPath = entry.config!;
+        const raw = readFileSync(configPath, "utf-8");
+        const parsed = parseYaml(raw) as Record<string, unknown>;
+        parsed.auth = profile;
+        await atomicWriteJsonAsync(configPath, stringifyYaml(parsed));
+        const containerId = await docker.restart(name);
+        return { status: "switched" as const, profile, containerId: containerId.slice(0, 12) };
+      });
+      return c.json(result);
     } catch (err) {
       return safeError(c, err);
     }
@@ -258,6 +257,9 @@ export function startDashboardServer(port: number) {
     const parsed = authBodySchema.safeParse(body);
     if (!parsed.success) {
       return c.json({ error: "profile and key required" }, 400);
+    }
+    if (!isValidName(parsed.data.profile)) {
+      return c.json({ error: "Invalid profile name" }, 400);
     }
     const detected = detectCredentialType(parsed.data.key);
     addCredential({ name: parsed.data.profile, ...detected, key: parsed.data.key });
@@ -404,7 +406,9 @@ export function startDashboardServer(port: number) {
       typeof body.cols !== "number" ||
       typeof body.rows !== "number" ||
       body.cols <= 0 ||
-      body.rows <= 0
+      body.rows <= 0 ||
+      !Number.isInteger(body.cols) ||
+      !Number.isInteger(body.rows)
     ) {
       return c.json({ error: "Invalid layout: must have version=1, tiles array, cols>0, rows>0" }, 400);
     }
@@ -588,14 +592,15 @@ export function startDashboardServer(port: number) {
         } catch { /* connection closed */ }
       }, 15000);
 
-      stream.onAbort(() => {
-        closed = true;
-        clearInterval(pollInterval);
-        clearInterval(heartbeatInterval);
+      // Keep stream alive until client disconnects
+      await new Promise<void>((resolve) => {
+        stream.onAbort(() => {
+          closed = true;
+          clearInterval(pollInterval);
+          clearInterval(heartbeatInterval);
+          resolve();
+        });
       });
-
-      // Keep stream alive
-      await new Promise(() => {});
     });
   });
 
