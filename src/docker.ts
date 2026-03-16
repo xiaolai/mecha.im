@@ -364,6 +364,48 @@ export async function logs(name: string, follow: boolean): Promise<void> {
   }
 }
 
+/** Run a command inside a bot's container using dockerode container.exec API (no shell). */
+export async function runInContainer(
+  name: string,
+  command: string[],
+  interactive: boolean,
+): Promise<number> {
+  const container = docker.getContainer(`mecha-${name}`);
+
+  const e = await container.exec({
+    Cmd: command,
+    AttachStdout: true,
+    AttachStderr: true,
+    AttachStdin: interactive,
+    Tty: interactive,
+    User: "appuser",
+  });
+
+  const stream = await e.start({
+    hijack: interactive,
+    stdin: interactive,
+  });
+
+  if (interactive) {
+    process.stdin.setRawMode?.(true);
+    process.stdin.pipe(stream);
+    stream.pipe(process.stdout);
+    await new Promise<void>((resolve) => {
+      stream.on("end", () => {
+        process.stdin.setRawMode?.(false);
+        process.stdin.unpipe(stream);
+        resolve();
+      });
+    });
+  } else {
+    container.modem.demuxStream(stream, process.stdout, process.stderr);
+    await new Promise<void>((resolve) => stream.on("end", resolve));
+  }
+
+  const inspectResult = await e.inspect();
+  return inspectResult.ExitCode ?? 0;
+}
+
 export async function getContainerIp(name: string): Promise<string | undefined> {
   try {
     const container = docker.getContainer(`mecha-${name}`);
