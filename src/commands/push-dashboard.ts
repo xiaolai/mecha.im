@@ -1,5 +1,6 @@
 import type { Command } from "commander";
 import { resolve, dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { getBot } from "../store.js";
@@ -16,7 +17,7 @@ export function registerPushDashboardCommand(program: Command): void {
         process.exit(1);
       }
 
-      const dashboardSrc = resolve(dirname(new URL(import.meta.url).pathname), "..", "..", "..", "agent", "dashboard");
+      const dashboardSrc = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "agent", "dashboard");
       const distPath = join(dashboardSrc, "dist");
 
       if (!opts.skipBuild) {

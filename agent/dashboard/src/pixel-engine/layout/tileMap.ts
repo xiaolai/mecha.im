@@ -49,8 +49,8 @@ export function findPath(
   const startKey = key(startCol, startRow);
   const endKey = key(endCol, endRow);
 
-  // End must be walkable or a temporarily unblocked seat tile
-  // Temporarily unblock the end tile so seat targets are reachable
+  // End must be walkable. Seat tiles may be in blockedTiles so we
+  // temporarily unblock the end tile to allow pathing to seats.
   const endBlocked = blockedTiles.has(endKey);
   if (endBlocked) blockedTiles.delete(endKey);
   const endWalkable = isWalkable(endCol, endRow, tileMap, blockedTiles);

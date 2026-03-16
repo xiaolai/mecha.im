@@ -26,11 +26,12 @@ export default function SessionDetail({ sessionId, hasPty, className }: Props) {
           <FileType className="w-4 h-4" />
         </button>
         <button
-          onClick={() => setShowTerminal(true)}
+          onClick={() => hasPty && setShowTerminal(true)}
           className={`p-1.5 transition-colors ${
-            showTerminal ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+            showTerminal ? "text-foreground" : hasPty ? "text-muted-foreground hover:text-foreground" : "text-muted-foreground/40 cursor-not-allowed"
           }`}
-          title="Terminal"
+          title={hasPty ? "Terminal" : "No terminal for this session"}
+          disabled={!hasPty}
         >
           <FileTerminal className="w-4 h-4" />
         </button>

@@ -214,18 +214,26 @@ async function spawnUnlocked(config: BotConfig, botPath?: string, opts?: SpawnOp
       throw new ProcessHealthTimeoutError(config.name);
     }
 
-    setBot(config.name, {
-      path: resolvedPath,
-      config: configPath,
-      containerId: container.id,
-      model: config.model,
-      botToken,
-      createdAt: new Date().toISOString(),
-    });
+    try {
+      setBot(config.name, {
+        path: resolvedPath,
+        config: configPath,
+        containerId: container.id,
+        model: config.model,
+        botToken,
+        createdAt: new Date().toISOString(),
+      });
+    } catch (regErr) {
+      // Registry write failed — tear down the orphaned container
+      try { await container.stop({ t: 5 }); await container.remove(); } catch { /* best-effort */ }
+      throw regErr;
+    }
 
     return container.id;
   } catch (err) {
     if (err instanceof ProcessHealthTimeoutError) throw err;
+    // Re-throw structured errors (config, auth, etc.) without wrapping
+    if (err instanceof Error && err.constructor !== Error) throw err;
     throw new ProcessSpawnError(err instanceof Error ? err.message : String(err));
   }
 }
