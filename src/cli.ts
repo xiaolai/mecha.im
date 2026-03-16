@@ -19,7 +19,7 @@ import * as docker from "./docker.js";
 import { resolveHostBotBaseUrl } from "./resolve-endpoint.js";
 import { printTable, setupHeadscale, fetchRemoteBots, readPromptSSE } from "./cli.utils.js";
 import { doctorMecha, doctorBot } from "./doctor.js";
-import { requireValidName, collectAttachments } from "./cli-utils.js";
+import { requireValidName, collectAttachments, formatUptime, readCostsToday } from "./cli-utils.js";
 import { registerAuthCommands } from "./commands/auth.js";
 import { registerPushDashboardCommand } from "./commands/push-dashboard.js";
 
@@ -172,33 +172,54 @@ program
 program
   .command("ls")
   .description("List bots")
-  .action(async () => {
+  .option("--json", "Output as JSON")
+  .option("-q, --quiet", "Output only bot names")
+  .option("--status <status>", "Filter by status (running, exited)")
+  .action(async (opts) => {
     const bots = await docker.list();
     const settings = readSettings();
     const remoteBots = (settings.headscale_url && settings.headscale_api_key)
       ? await fetchRemoteBots(bots, settings.headscale_url, settings.headscale_api_key)
       : [];
-    const allBots = [...bots, ...remoteBots];
+    let allBots = [...bots, ...remoteBots];
+
+    if (opts.status) {
+      allBots = allBots.filter(b => b.status === opts.status);
+    }
 
     if (allBots.length === 0) {
-      console.log('No bots running. Use "mecha spawn" to create one.');
+      if (!opts.json && !opts.quiet) console.log('No bots found. Use "mecha spawn" to create one.');
+      if (opts.json) console.log("[]");
       return;
     }
 
-    const hasRemote = remoteBots.length > 0;
-    const header = hasRemote
-      ? ["NAME", "STATUS", "MODEL", "CONTAINER", "NODE", "IP", "PORTS", "PATH"]
-      : ["NAME", "STATUS", "MODEL", "CONTAINER", "PORTS", "PATH"];
+    if (opts.quiet) {
+      for (const b of allBots) console.log(b.name);
+      return;
+    }
 
+    if (opts.json) {
+      const data = allBots.map(b => {
+        const entry = getBot(b.name);
+        return {
+          name: b.name,
+          status: b.status,
+          model: b.model,
+          containerId: b.containerId,
+          ports: b.ports || undefined,
+          uptime: formatUptime(b.startedAt),
+          cost: readCostsToday(entry?.path),
+        };
+      });
+      console.log(JSON.stringify(data, null, 2));
+      return;
+    }
+
+    const header = ["NAME", "STATUS", "MODEL", "UPTIME", "COST", "PORTS"];
     const rows = allBots.map((b) => {
       const entry = getBot(b.name);
-      const path = entry?.path ?? "";
-      const ext = b as BotInfo & { node?: string; ip?: string };
-      return hasRemote
-        ? [b.name, b.status, b.model, b.containerId, ext.node ?? (b.containerId === "remote" ? "remote" : "local"), ext.ip ?? "", b.ports, path]
-        : [b.name, b.status, b.model, b.containerId, b.ports, path];
+      return [b.name, b.status, b.model, formatUptime(b.startedAt), readCostsToday(entry?.path), b.ports || "-"];
     });
-
     printTable(header, rows);
   });
 

@@ -9,4 +9,5 @@ export interface BotInfo {
   model: string;
   containerId: string;
   ports: string;
+  startedAt?: string;
 }

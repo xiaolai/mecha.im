@@ -1,5 +1,34 @@
 import { resolve, join, basename } from "node:path";
 import { existsSync, statSync, readFileSync, readdirSync } from "node:fs";
+
+export function formatUptime(startedAtIso: string | undefined): string {
+  if (!startedAtIso) return "-";
+  const ms = Date.now() - new Date(startedAtIso).getTime();
+  if (ms < 0 || isNaN(ms)) return "-";
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ${m % 60}m`;
+  const d = Math.floor(h / 24);
+  return `${d}d ${h % 24}h`;
+}
+
+export function readCostsToday(botPath: string | undefined): string {
+  if (!botPath) return "-";
+  try {
+    const costsPath = join(botPath, "costs.json");
+    const raw = readFileSync(costsPath, "utf-8");
+    const data = JSON.parse(raw) as Record<string, { totalCostUsd?: number }>;
+    const today = new Date().toISOString().slice(0, 10);
+    const entry = data[today];
+    if (!entry?.totalCostUsd) return "$0.00";
+    return `$${entry.totalCostUsd.toFixed(2)}`;
+  } catch {
+    return "-";
+  }
+}
 import { isValidName } from "../shared/validation.js";
 
 export function requireValidName(name: string): asserts name is string {
