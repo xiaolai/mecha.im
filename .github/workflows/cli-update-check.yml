@@ -5,6 +5,10 @@ on:
     - cron: "0 8 * * *" # daily at 8am UTC
   workflow_dispatch:
 
+concurrency:
+  group: cli-update-check
+  cancel-in-progress: true
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository_owner }}/mecha.im
@@ -20,8 +24,9 @@ jobs:
       - name: Check latest CLI versions
         id: check
         run: |
-          CLAUDE_LATEST=$(npm view @anthropic-ai/claude-code version 2>/dev/null || echo "unknown")
-          CODEX_LATEST=$(npm view @openai/codex version 2>/dev/null || echo "unknown")
+          set -e
+          CLAUDE_LATEST=$(npm view @anthropic-ai/claude-code version)
+          CODEX_LATEST=$(npm view @openai/codex version)
           echo "claude_version=$CLAUDE_LATEST" >> "$GITHUB_OUTPUT"
           echo "codex_version=$CODEX_LATEST" >> "$GITHUB_OUTPUT"
 
@@ -30,9 +35,9 @@ jobs:
         env:
           IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
         run: |
-          docker pull "$IMAGE" 2>/dev/null || true
-          CLAUDE_CURRENT=$(docker run --rm "$IMAGE" sh -c 'claude --version 2>/dev/null || echo unknown' 2>/dev/null || echo "unknown")
-          CODEX_CURRENT=$(docker run --rm "$IMAGE" sh -c 'codex --version 2>/dev/null || echo unknown' 2>/dev/null || echo "unknown")
+          docker pull "$IMAGE" 2>/dev/null || { echo "claude_current=none" >> "$GITHUB_OUTPUT"; echo "codex_current=none" >> "$GITHUB_OUTPUT"; exit 0; }
+          CLAUDE_CURRENT=$(docker run --rm --entrypoint sh -e MECHA_SKIP_UPDATE=1 "$IMAGE" -c 'node -e "try{console.log(require(require.resolve(\"@anthropic-ai/claude-code/package.json\")).version)}catch{console.log(\"unknown\")}"' 2>/dev/null || echo "unknown")
+          CODEX_CURRENT=$(docker run --rm --entrypoint sh -e MECHA_SKIP_UPDATE=1 "$IMAGE" -c 'node -e "try{console.log(require(require.resolve(\"@openai/codex/package.json\")).version)}catch{console.log(\"unknown\")}"' 2>/dev/null || echo "unknown")
           echo "claude_current=$CLAUDE_CURRENT" >> "$GITHUB_OUTPUT"
           echo "codex_current=$CODEX_CURRENT" >> "$GITHUB_OUTPUT"
 
@@ -45,11 +50,11 @@ jobs:
           CODEX_CURRENT: ${{ steps.current.outputs.codex_current }}
         run: |
           REBUILD=false
-          if [ "$CLAUDE_LATEST" != "unknown" ] && echo "$CLAUDE_CURRENT" | grep -qv "$CLAUDE_LATEST"; then
+          if [ "$CLAUDE_CURRENT" != "$CLAUDE_LATEST" ]; then
             echo "Claude Code update: $CLAUDE_CURRENT → $CLAUDE_LATEST"
             REBUILD=true
           fi
-          if [ "$CODEX_LATEST" != "unknown" ] && echo "$CODEX_CURRENT" | grep -qv "$CODEX_LATEST"; then
+          if [ "$CODEX_CURRENT" != "$CODEX_LATEST" ]; then
             echo "Codex update: $CODEX_CURRENT → $CODEX_LATEST"
             REBUILD=true
           fi
@@ -57,19 +62,19 @@ jobs:
 
       - name: Checkout
         if: steps.decide.outputs.rebuild == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Set up QEMU (multi-arch)
         if: steps.decide.outputs.rebuild == 'true'
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
 
       - name: Set up Docker Buildx
         if: steps.decide.outputs.rebuild == 'true'
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
 
       - name: Log in to GitHub Container Registry
         if: steps.decide.outputs.rebuild == 'true'
-        uses: docker/login-action@v3
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -77,16 +82,17 @@ jobs:
 
       - name: Rebuild and push with latest CLIs
         if: steps.decide.outputs.rebuild == 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6.16.0
         with:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          no-cache: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          build-args: |
+            CACHEBUST_CLI=${{ steps.check.outputs.claude_version }}-${{ steps.check.outputs.codex_version }}
 
       - name: Summary
         env:
