@@ -6,6 +6,9 @@ import { z } from "zod";
 import { safeReadJson } from "../shared/safe-read.js";
 import { atomicWriteJson } from "../shared/atomic-write.js";
 import { log } from "../shared/logger.js";
+import { getMutex } from "../shared/mutex.js";
+
+const settingsMutex = getMutex("mecha-settings");
 
 const DEFAULT_MECHA_DIR = join(homedir(), ".mecha");
 const REGISTRY_SCHEMA_VERSION = 1;
@@ -163,17 +166,38 @@ export function readSettings(): MechaSettings {
 
 export function getOrCreateFleetInternalSecret(): string {
   const settingsPath = join(getMechaDir(), "mecha.json");
-  const settings = readSettings();
-  if (settings.fleet_internal_secret) return settings.fleet_internal_secret;
+  const release = settingsMutex.tryAcquire();
+  try {
+    const settings = readSettings();
+    if (settings.fleet_internal_secret) return settings.fleet_internal_secret;
 
-  const fleetInternalSecret = randomBytes(24).toString("hex");
-  atomicWriteJson(settingsPath, {
-    ...settings,
-    schema_version: SETTINGS_SCHEMA_VERSION,
-    fleet_internal_secret: fleetInternalSecret,
-  });
-  try { chmodSync(settingsPath, 0o600); } catch { /* best-effort */ }
-  return fleetInternalSecret;
+    const fleetInternalSecret = randomBytes(24).toString("hex");
+    atomicWriteJson(settingsPath, {
+      ...settings,
+      schema_version: SETTINGS_SCHEMA_VERSION,
+      fleet_internal_secret: fleetInternalSecret,
+    });
+    try { chmodSync(settingsPath, 0o600); } catch { /* best-effort */ }
+    return fleetInternalSecret;
+  } finally {
+    release?.();
+  }
+}
+
+/** Write settings with synchronization to prevent concurrent clobber */
+function writeSettingsSafe(updater: (settings: Record<string, unknown>) => Record<string, unknown>): void {
+  const settingsPath = join(getMechaDir(), "mecha.json");
+  const release = settingsMutex.tryAcquire();
+  try {
+    const settings = readSettings();
+    atomicWriteJson(settingsPath, {
+      ...updater(settings),
+      schema_version: SETTINGS_SCHEMA_VERSION,
+    });
+    try { chmodSync(settingsPath, 0o600); } catch { /* best-effort */ }
+  } finally {
+    release?.();
+  }
 }
 
 // --- TOTP ---
@@ -183,23 +207,12 @@ export function getTotpSecret(): string | undefined {
 }
 
 export function setTotpSecret(secret: string): void {
-  const settingsPath = join(getMechaDir(), "mecha.json");
-  const settings = readSettings();
-  atomicWriteJson(settingsPath, {
-    ...settings,
-    schema_version: SETTINGS_SCHEMA_VERSION,
-    totp_secret: secret,
-  });
-  try { chmodSync(settingsPath, 0o600); } catch { /* best-effort */ }
+  writeSettingsSafe((settings) => ({ ...settings, totp_secret: secret }));
 }
 
 export function clearTotpSecret(): void {
-  const settingsPath = join(getMechaDir(), "mecha.json");
-  const settings = readSettings();
-  const { totp_secret: _, ...rest } = settings;
-  atomicWriteJson(settingsPath, {
-    ...rest,
-    schema_version: SETTINGS_SCHEMA_VERSION,
+  writeSettingsSafe((settings) => {
+    const { totp_secret: _, ...rest } = settings;
+    return rest;
   });
-  try { chmodSync(settingsPath, 0o600); } catch { /* best-effort */ }
 }
