@@ -14,7 +14,7 @@ function currentDashboardPrefix(): string {
 
   // Fleet mode: proxy through /bot/:name
   if (_activeBotName) {
-    return `/bot/${_activeBotName}`;
+    return `/bot/${encodeURIComponent(_activeBotName)}`;
   }
 
   // Bot-direct mode: detect /bot/:name/dashboard/ prefix from URL

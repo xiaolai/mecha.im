@@ -14,8 +14,12 @@ export default function LoginGate({ children }: LoginGateProps) {
 
   const checkStatus = useCallback(() => {
     fetch("/api/totp/status", { credentials: "same-origin" })
-      .then((r) => r.json())
-      .then((data: { enabled?: boolean }) => {
+      .then((r) => {
+        if (!r.ok) { setStatus("locked"); return; }
+        return r.json();
+      })
+      .then((data: { enabled?: boolean } | undefined) => {
+        if (!data) return;
         if (!data.enabled) {
           setStatus("open");
           return;
@@ -25,7 +29,7 @@ export default function LoginGate({ children }: LoginGateProps) {
           setStatus(r.ok ? "authenticated" : "locked");
         });
       })
-      .catch(() => setStatus("open"));
+      .catch(() => setStatus("locked"));
   }, []);
 
   useEffect(() => { checkStatus(); }, [checkStatus]);
