@@ -36,20 +36,31 @@ jobs:
           echo "gemini=$GEMINI" >> "$GITHUB_OUTPUT"
           echo "claude_sdk_py=$CLAUDE_SDK_PY" >> "$GITHUB_OUTPUT"
 
+      - name: Log in to GHCR (for image pull)
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Check versions in current image
         id: current
         env:
           IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
         run: |
-          docker pull "$IMAGE" 2>/dev/null || {
+          if ! docker pull "$IMAGE"; then
+            echo "Image not found — first build"
             for k in claude_cli claude_sdk_js codex gemini claude_sdk_py; do echo "${k}_cur=none" >> "$GITHUB_OUTPUT"; done
             exit 0
-          }
-          CLAUDE_CLI_CUR=$(docker run --rm --entrypoint sh "$IMAGE" -c 'node -e "try{console.log(require(require.resolve(\"@anthropic-ai/claude-code/package.json\")).version)}catch{console.log(\"unknown\")}"' 2>/dev/null || echo "unknown")
-          CLAUDE_SDK_JS_CUR=$(docker run --rm --entrypoint sh "$IMAGE" -c 'node -e "try{console.log(require(require.resolve(\"@anthropic-ai/claude-agent-sdk/package.json\")).version)}catch{console.log(\"unknown\")}"' 2>/dev/null || echo "unknown")
-          CODEX_CUR=$(docker run --rm --entrypoint sh "$IMAGE" -c 'node -e "try{console.log(require(require.resolve(\"@openai/codex/package.json\")).version)}catch{console.log(\"unknown\")}"' 2>/dev/null || echo "unknown")
-          GEMINI_CUR=$(docker run --rm --entrypoint sh "$IMAGE" -c 'node -e "try{console.log(require(require.resolve(\"@google/gemini-cli/package.json\")).version)}catch{console.log(\"unknown\")}"' 2>/dev/null || echo "unknown")
-          CLAUDE_SDK_PY_CUR=$(docker run --rm --entrypoint sh "$IMAGE" -c 'python3 -c "import claude_agent_sdk;print(claude_agent_sdk.__version__)" 2>/dev/null || echo unknown' 2>/dev/null || echo "unknown")
+          fi
+          # Probe as appuser from the correct global prefix paths
+          NPM_PREFIX="/home/appuser/.local/lib/node_modules"
+          NODE_VER='const fs=require("fs");try{const p=JSON.parse(fs.readFileSync(process.argv[1]+"/package.json","utf-8"));console.log(p.version)}catch{console.log("unknown")}'
+          CLAUDE_CLI_CUR=$(docker run --rm --entrypoint sh --user appuser "$IMAGE" -c "node -e '$NODE_VER' $NPM_PREFIX/@anthropic-ai/claude-code" 2>/dev/null || echo "unknown")
+          CLAUDE_SDK_JS_CUR=$(docker run --rm --entrypoint sh --user appuser "$IMAGE" -c "node -e '$NODE_VER' $NPM_PREFIX/@anthropic-ai/claude-agent-sdk" 2>/dev/null || echo "unknown")
+          CODEX_CUR=$(docker run --rm --entrypoint sh --user appuser "$IMAGE" -c "node -e '$NODE_VER' $NPM_PREFIX/@openai/codex" 2>/dev/null || echo "unknown")
+          GEMINI_CUR=$(docker run --rm --entrypoint sh --user appuser "$IMAGE" -c "node -e '$NODE_VER' $NPM_PREFIX/@google/gemini-cli" 2>/dev/null || echo "unknown")
+          CLAUDE_SDK_PY_CUR=$(docker run --rm --entrypoint sh --user appuser "$IMAGE" -c 'python3 -c "import claude_agent_sdk;print(claude_agent_sdk.__version__)" 2>/dev/null || echo unknown' 2>/dev/null || echo "unknown")
           echo "claude_cli_cur=$CLAUDE_CLI_CUR" >> "$GITHUB_OUTPUT"
           echo "claude_sdk_js_cur=$CLAUDE_SDK_JS_CUR" >> "$GITHUB_OUTPUT"
           echo "codex_cur=$CODEX_CUR" >> "$GITHUB_OUTPUT"
