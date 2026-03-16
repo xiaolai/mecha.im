@@ -390,20 +390,37 @@ export async function runInContainer(
     process.stdin.setRawMode?.(true);
     process.stdin.pipe(stream);
     stream.pipe(process.stdout);
-    await new Promise<void>((resolve) => {
-      stream.on("end", () => {
-        process.stdin.setRawMode?.(false);
-        process.stdin.unpipe(stream);
-        resolve();
+
+    const cleanup = () => {
+      process.stdin.setRawMode?.(false);
+      process.stdin.unpipe(stream);
+    };
+    // Ensure terminal is restored on any exit path
+    const sigHandler = () => { cleanup(); process.exit(130); };
+    process.on("SIGINT", sigHandler);
+    process.on("SIGTERM", sigHandler);
+
+    try {
+      await new Promise<void>((resolve) => {
+        stream.on("end", resolve);
+        stream.on("error", resolve);
       });
-    });
+    } finally {
+      cleanup();
+      process.removeListener("SIGINT", sigHandler);
+      process.removeListener("SIGTERM", sigHandler);
+    }
   } else {
     container.modem.demuxStream(stream, process.stdout, process.stderr);
-    await new Promise<void>((resolve) => stream.on("end", resolve));
+    await new Promise<void>((resolve) => {
+      stream.on("end", resolve);
+      stream.on("error", resolve);
+    });
   }
 
-  const inspectResult = await e.inspect();
-  return inspectResult.ExitCode ?? 0;
+  let exitCode = 0;
+  try { exitCode = (await e.inspect()).ExitCode ?? 0; } catch { /* container may be gone */ }
+  return exitCode;
 }
 
 export async function getContainerIp(name: string): Promise<string | undefined> {
