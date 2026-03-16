@@ -80,21 +80,50 @@ export function isDockerError(err: unknown, pattern: string): boolean {
   return String(err).includes(pattern);
 }
 
-/** Build container binds list from config and bot path */
-/** Ensure a per-bot SSH key pair exists. Creates ed25519 key if missing. Returns the ssh dir path. */
+// GitHub's SSH host keys (from https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints)
+const GITHUB_KNOWN_HOSTS = [
+  "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl",
+  "github.com ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBEmKSENjQEezOmxkZMy7opKgwFB9nkt5YRrYMjNuG5N87uRgg6CLrbo5wAdT/y6v0mKV0U2w0WZ2YB/++Tpockg=",
+  "github.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCj7ndNxQowgcQnjshcLrqPEiiphnt+VTTvDP6mHBL9j1aNUkY4Ue1gvwnGLVlOhGeYrnZaMgRK6+PKCUXaDbC7qtbW8gIkhL7aGCsOr/C56SJMy/BCZfxd1nWzAOxSDPgVsmerOBYfNqltV9/hWCqBywINIR+5dIg6JTJ72pcEpEjcYgXkE2YEFXV1JHnsKgbLWNlhScqb2UmyRkQyytRLtL+38TGxkxCflmO+5Z8CSSNY7GidjMIZ7Q4zMjA2n1nGrlTDkzwDCsw+wqFPGQA179cnfGWOWRVruj16z6XyvxvjJwbz0wQZ75XK5tKSb7FNyeIEs4TT4jk+S4dhPeAUC5y+bDYirYgM4GC7uEnztnZyaVWQ7B381AK4Qdrwt51ZqExKbQpTUNn+EjqoTwvqNj4kqx5QUCI0ThS/YkOxJCXmPUWZbhjpCg56i+2aB6CmK2JGhn57K5mj0MNdBXA4/WnwH6XoPWJzK5Nyu2zB3nAZp+S5hpQs+p1vN1/wsjk=",
+].join("\n") + "\n";
+
+/** Ensure a per-bot SSH key pair exists and is healthy. Returns the ssh dir path. */
 export function ensureBotSshKey(resolvedPath: string, botName: string): string {
   const sshDir = join(resolvedPath, "ssh");
   const keyPath = join(sshDir, "id_ed25519");
+  const pubPath = `${keyPath}.pub`;
+  const configPath = join(sshDir, "config");
+  const knownHostsPath = join(sshDir, "known_hosts");
+
+  mkdirSync(sshDir, { recursive: true });
+
+  // Generate key pair if private key is missing
   if (!existsSync(keyPath)) {
-    mkdirSync(sshDir, { recursive: true });
     execFileSync("ssh-keygen", ["-t", "ed25519", "-f", keyPath, "-N", "", "-C", `${botName}@mecha`], { stdio: "pipe" });
-    chmodSync(sshDir, 0o700);
-    chmodSync(keyPath, 0o600);
-    chmodSync(`${keyPath}.pub`, 0o644);
-    // Create ssh config that skips host key verification for github.com
-    const sshConfig = `Host github.com\n  StrictHostKeyChecking no\n  UserKnownHostsFile /dev/null\n  IdentityFile ~/.ssh/id_ed25519\n`;
-    writeFileSync(join(sshDir, "config"), sshConfig, { mode: 0o600 });
   }
+
+  // Regenerate public key if missing
+  if (!existsSync(pubPath)) {
+    execFileSync("ssh-keygen", ["-y", "-f", keyPath], { stdio: ["pipe", "pipe", "pipe"] });
+    const pub = execFileSync("ssh-keygen", ["-y", "-f", keyPath]).toString().trim();
+    writeFileSync(pubPath, `${pub} ${botName}@mecha\n`, { mode: 0o644 });
+  }
+
+  // Ensure SSH config exists
+  if (!existsSync(configPath)) {
+    const sshConfig = `Host github.com\n  StrictHostKeyChecking accept-new\n  UserKnownHostsFile ~/.ssh/known_hosts\n  IdentityFile ~/.ssh/id_ed25519\n`;
+    writeFileSync(configPath, sshConfig, { mode: 0o600 });
+  }
+
+  // Ensure known_hosts with GitHub's public keys
+  if (!existsSync(knownHostsPath)) {
+    writeFileSync(knownHostsPath, GITHUB_KNOWN_HOSTS, { mode: 0o644 });
+  }
+
+  // Normalize permissions every time
+  chmodSync(sshDir, 0o700);
+  chmodSync(keyPath, 0o600);
+
   return sshDir;
 }
 
@@ -105,9 +134,11 @@ export function buildBinds(resolvedPath: string, configPath: string, config: Bot
     `${realpathSync(join(resolvedPath, "home-dot-claude"))}:/home/appuser/.claude:rw`,
     `${realpathSync(join(resolvedPath, "home-dot-codex"))}:/home/appuser/.codex:rw`,
   ];
-  // Mount per-bot SSH keys (auto-generated if missing)
-  const sshDir = ensureBotSshKey(resolvedPath, config.name);
-  binds.push(`${realpathSync(sshDir)}:/home/appuser/.ssh:ro`);
+  // Mount per-bot SSH keys if they exist (created by `mecha ssh-key <name>`)
+  const sshDir = join(resolvedPath, "ssh");
+  if (existsSync(join(sshDir, "id_ed25519"))) {
+    binds.push(`${realpathSync(sshDir)}:/home/appuser/.ssh:ro`);
+  }
   // Write filtered credentials (Claude auth profiles only) to bot state dir
   // This avoids mounting the full credentials store which contains unrelated secrets
   writeBotCredentials(resolvedPath);
