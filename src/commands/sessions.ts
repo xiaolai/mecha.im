@@ -1,6 +1,5 @@
 import type { Command } from "commander";
-import { requireValidName } from "../cli-utils.js";
-import { printTable } from "../cli.utils.js";
+import { requireValidName, printTable } from "../cli-utils.js";
 import { botApiJson } from "./bot-api.js";
 
 interface SessionSummary {

@@ -11,7 +11,7 @@ import {
   type Credential,
 } from "../auth.js";
 import * as docker from "../docker.js";
-import { printTable } from "../cli.utils.js";
+import { printTable } from "../cli-utils.js";
 
 export function registerAuthCommands(program: Command): void {
   const authCmd = program

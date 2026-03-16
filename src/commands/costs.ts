@@ -2,7 +2,7 @@ import type { Command } from "commander";
 import { join } from "node:path";
 import { readFileSync } from "node:fs";
 import { listBots } from "../store.js";
-import { printTable } from "../cli.utils.js";
+import { printTable } from "../cli-utils.js";
 
 interface DayCost {
   totalCostUsd?: number;

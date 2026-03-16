@@ -8,7 +8,7 @@ const BASH_COMPLETION = `_mecha_completions() {
   commands="init spawn start stop restart rm ls query exec logs config sessions costs schedule webhooks auth token doctor dashboard mcp ssh-key version completion push-dashboard"
 
   case "\${prev}" in
-    start|stop|restart|rm|logs|config|sessions|exec|ssh-key|query)
+    start|stop|restart|rm|logs|config|sessions|costs|schedule|webhooks|exec|ssh-key|query)
       # Complete with bot names
       local bots
       bots=$(mecha ls -q 2>/dev/null)
@@ -52,6 +52,8 @@ _mecha() {
     'ssh-key:Show SSH public key'
     'version:Show version info'
     'completion:Generate shell completions'
+    'mcp:Start MCP stdio server'
+    'push-dashboard:Build and push dashboard to a bot'
   )
 
   _arguments -C \\
@@ -64,7 +66,7 @@ _mecha() {
       ;;
     args)
       case $words[1] in
-        start|stop|restart|rm|logs|config|sessions|exec|ssh-key|query)
+        start|stop|restart|rm|logs|config|sessions|costs|schedule|webhooks|exec|ssh-key|query)
           bots=(\${(f)"$(mecha ls -q 2>/dev/null)"})
           _describe 'bot' bots
           ;;

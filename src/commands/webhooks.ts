@@ -1,6 +1,5 @@
 import type { Command } from "commander";
-import { requireValidName } from "../cli-utils.js";
-import { printTable } from "../cli.utils.js";
+import { requireValidName, printTable } from "../cli-utils.js";
 import { botApiJson, botApiChecked } from "./bot-api.js";
 
 interface WebhookConfig {

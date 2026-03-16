@@ -41,7 +41,7 @@ export function createDashboardRoutes(botToken: string): Hono {
   const sessionToken = makeSessionToken(botToken);
 
   function setSessionCookie(c: import("hono").Context): void {
-    c.header("Set-Cookie", `${COOKIE_NAME}=${sessionToken}; Path=/; HttpOnly; SameSite=Strict`);
+    c.header("Set-Cookie", `${COOKIE_NAME}=${sessionToken}; Path=/; HttpOnly; SameSite=Strict; Secure`);
   }
 
   // Redirect /dashboard to /dashboard/ for consistent relative paths
