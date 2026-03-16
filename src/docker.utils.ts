@@ -131,8 +131,8 @@ export function buildBinds(resolvedPath: string, configPath: string, config: Bot
   const binds = [
     `${realpathSync(resolvedPath)}:/state:rw`,
     `${realpathSync(configPath)}:/config/bot.yaml:rw`,
-    `${realpathSync(join(resolvedPath, "home-dot-claude"))}:/home/appuser/.claude:rw`,
-    `${realpathSync(join(resolvedPath, "home-dot-codex"))}:/home/appuser/.codex:rw`,
+    `${realpathSync(join(resolvedPath, ".claude"))}:/home/appuser/.claude:rw`,
+    `${realpathSync(join(resolvedPath, ".codex"))}:/home/appuser/.codex:rw`,
   ];
   // Mount per-bot SSH keys if they exist (created by `mecha ssh-key <name>`)
   const sshDir = join(resolvedPath, "ssh");
@@ -164,7 +164,7 @@ export function buildContainerEnv(config: BotConfig, botToken: string): string[]
     `MECHA_BOT_NAME=${config.name}`,
     `MECHA_BOT_TOKEN=${botToken}`,
     `MECHA_FLEET_INTERNAL_SECRET=${getOrCreateFleetInternalSecret()}`,
-    `MECHA_WORKSPACE_CWD=${config.workspace ? "/home/appuser/workspace" : "/state/home-workspace"}`,
+    `MECHA_WORKSPACE_CWD=${config.workspace ? "/home/appuser/workspace" : "/state/workspace"}`,
     `MECHA_ENABLE_PROJECT_SETTINGS=${config.workspace ? "1" : "0"}`,
   ];
 
@@ -218,7 +218,7 @@ export function writeBotCredentials(resolvedPath: string, authProfile?: string):
 /** Copy host Codex auth to bot if opted in */
 export function copyHostCodexAuth(resolvedPath: string): void {
   const hostCodexAuth = join(homedir(), ".codex", "auth.json");
-  const botCodexAuth = join(resolvedPath, "home-dot-codex", "auth.json");
+  const botCodexAuth = join(resolvedPath, ".codex", "auth.json");
   if (process.env.MECHA_COPY_HOST_CODEX_AUTH === "1" && existsSync(hostCodexAuth) && !existsSync(botCodexAuth)) {
     writeFileSync(botCodexAuth, readFileSync(hostCodexAuth, "utf-8"), { mode: 0o600 });
   }
