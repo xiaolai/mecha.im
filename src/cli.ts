@@ -290,7 +290,7 @@ program
 program
   .command("exec <name> [command...]")
   .description("Run a command inside a bot's container")
-  .option("-it, --interactive", "Attach interactive terminal")
+  .option("-i, --interactive", "Attach interactive terminal")
   .action(async (name: string, command: string[], opts) => {
     requireValidName(name);
     const cmd = command.length > 0 ? command : ["bash"];
