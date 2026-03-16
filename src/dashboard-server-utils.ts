@@ -3,7 +3,7 @@ import { listBots as listRegistered, getTotpSecret } from "./store.js";
 import { resolveHostBotBaseUrl } from "./resolve-endpoint.js";
 import { MechaError } from "../shared/errors.js";
 import { log } from "../shared/logger.js";
-import { DASHBOARD_TOKEN, DASHBOARD_COOKIE } from "./dashboard-server-schema.js";
+import { DASHBOARD_TOKEN, DASHBOARD_COOKIE, isValidSession, createSession } from "./dashboard-server-schema.js";
 import type { Context } from "hono";
 
 /** Check if a bot is currently busy by querying its /api/status endpoint.
@@ -48,8 +48,9 @@ function readCookie(cookieHeader: string | undefined, name: string): string | un
   return undefined;
 }
 
-export function dashboardSessionCookie(): string {
-  return `${DASHBOARD_COOKIE}=${DASHBOARD_TOKEN}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`;
+export function dashboardSessionCookie(sessionToken?: string): string {
+  const token = sessionToken ?? createSession();
+  return `${DASHBOARD_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=86400`;
 }
 
 function constantTimeEquals(a: string, b: string): boolean {
@@ -60,17 +61,25 @@ function constantTimeEquals(a: string, b: string): boolean {
 }
 
 export function hasDashboardAccess(c: Context): boolean {
+  // Bearer token (programmatic access) — check legacy single token
   const auth = c.req.header("authorization");
   if (auth && constantTimeEquals(auth, `Bearer ${DASHBOARD_TOKEN}`)) return true;
+  // Session cookie — check per-session store first, then legacy token
   const cookie = readCookie(c.req.header("cookie"), DASHBOARD_COOKIE);
-  return cookie !== undefined && constantTimeEquals(cookie, DASHBOARD_TOKEN);
+  if (!cookie) return false;
+  if (isValidSession(cookie)) return true;
+  return constantTimeEquals(cookie, DASHBOARD_TOKEN);
 }
 
 export function shouldBootstrapDashboardSession(c: Context): boolean {
   if (!(c.req.method === "GET" || c.req.method === "HEAD")) return false;
   if (c.req.path.startsWith("/api/")) return false;
-  // When TOTP is enabled, don't auto-set session cookies — require login
+  // When TOTP is enabled, always require login
   if (getTotpSecret()) return false;
+  // When TOTP is disabled, only auto-bootstrap for loopback clients
+  const remoteAddr = c.req.header("x-forwarded-for") ?? c.req.header("remote-addr") ?? "";
+  const isLoopback = !remoteAddr || remoteAddr === "127.0.0.1" || remoteAddr === "::1" || remoteAddr === "localhost";
+  if (!isLoopback) return false;
   return readCookie(c.req.header("cookie"), DASHBOARD_COOKIE) !== DASHBOARD_TOKEN;
 }
 
