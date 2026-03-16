@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import { requireValidName } from "../cli-utils.js";
 import { printTable } from "../cli.utils.js";
-import { botApiJson, botApi } from "./bot-api.js";
+import { botApiJson, botApiChecked } from "./bot-api.js";
 
 interface WebhookConfig {
   accept?: string[];
@@ -41,7 +41,7 @@ export function registerWebhooksCommand(program: Command): void {
     .action(async (event: string, _opts, cmd) => {
       const name = cmd.parent.parent.args[0];
       requireValidName(name);
-      await botApi(name, "/webhooks/accept", {
+      await botApiChecked(name, "/webhooks/accept", {
         method: "POST",
         body: { event },
       });
@@ -54,7 +54,7 @@ export function registerWebhooksCommand(program: Command): void {
     .action(async (event: string, _opts, cmd) => {
       const name = cmd.parent.parent.args[0];
       requireValidName(name);
-      await botApi(name, `/webhooks/accept/${encodeURIComponent(event)}`, { method: "DELETE" });
+      await botApiChecked(name, `/webhooks/accept/${encodeURIComponent(event)}`, { method: "DELETE" });
       console.log(`Webhook event "${event}" removed.`);
     });
 }

@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import { requireValidName } from "../cli-utils.js";
 import { printTable } from "../cli.utils.js";
-import { botApiJson, botApi } from "./bot-api.js";
+import { botApiJson, botApiChecked } from "./bot-api.js";
 
 interface ScheduleEntry {
   id: string;
@@ -65,7 +65,7 @@ export function registerScheduleCommand(program: Command): void {
     .action(async (id: string, _opts, cmd) => {
       const name = cmd.parent.parent.args[0];
       requireValidName(name);
-      await botApi(name, `/schedule/${id}`, { method: "DELETE" });
+      await botApiChecked(name, `/schedule/${id}`, { method: "DELETE" });
       console.log(`Schedule ${id} removed.`);
     });
 
@@ -75,7 +75,7 @@ export function registerScheduleCommand(program: Command): void {
     .action(async (id: string, _opts, cmd) => {
       const name = cmd.parent.parent.args[0];
       requireValidName(name);
-      await botApi(name, `/schedule/${id}/pause`, { method: "POST" });
+      await botApiChecked(name, `/schedule/${id}/pause`, { method: "POST" });
       console.log(`Schedule ${id} paused.`);
     });
 
@@ -85,7 +85,7 @@ export function registerScheduleCommand(program: Command): void {
     .action(async (id: string, _opts, cmd) => {
       const name = cmd.parent.parent.args[0];
       requireValidName(name);
-      await botApi(name, `/schedule/${id}/resume`, { method: "POST" });
+      await botApiChecked(name, `/schedule/${id}/resume`, { method: "POST" });
       console.log(`Schedule ${id} resumed.`);
     });
 
@@ -95,7 +95,7 @@ export function registerScheduleCommand(program: Command): void {
     .action(async (id: string, _opts, cmd) => {
       const name = cmd.parent.parent.args[0];
       requireValidName(name);
-      await botApi(name, `/schedule/trigger/${id}`, { method: "POST" });
+      await botApiChecked(name, `/schedule/trigger/${id}`, { method: "POST" });
       console.log(`Schedule ${id} triggered.`);
     });
 }

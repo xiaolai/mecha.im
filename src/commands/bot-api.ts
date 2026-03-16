@@ -33,11 +33,18 @@ export async function botApi(name: string, path: string, opts: BotApiOpts = {}):
   return resp;
 }
 
-export async function botApiJson<T = unknown>(name: string, path: string, opts: BotApiOpts = {}): Promise<T> {
+/** Make API call and throw on non-OK response (no body parsing) */
+export async function botApiChecked(name: string, path: string, opts: BotApiOpts = {}): Promise<Response> {
   const resp = await botApi(name, path, opts);
   if (!resp.ok) {
     const text = await resp.text().catch(() => "");
     throw new Error(`Bot API error: ${resp.status} ${resp.statusText}${text ? ` — ${text}` : ""}`);
   }
+  return resp;
+}
+
+/** Make API call, check response, parse JSON */
+export async function botApiJson<T = unknown>(name: string, path: string, opts: BotApiOpts = {}): Promise<T> {
+  const resp = await botApiChecked(name, path, opts);
   return resp.json() as Promise<T>;
 }

@@ -35,7 +35,7 @@ const program = new Command();
 program
   .name("mecha")
   .description("An army of agents")
-  .version("0.1.0");
+  .version("0.3.3");
 
 // --- init ---
 program
@@ -168,10 +168,12 @@ program
       const running = bots.filter(b => b.status === "running");
       if (running.length === 0) { console.log("No running bots."); return; }
       console.log(`Stopping ${running.length} bot(s)...`);
+      let failures = 0;
       for (const b of running) {
         try { await docker.stop(b.name); console.log(`  Stopped ${b.name}`); }
-        catch (e) { console.error(`  Failed to stop ${b.name}: ${e instanceof Error ? e.message : e}`); }
+        catch (e) { failures++; console.error(`  Failed to stop ${b.name}: ${e instanceof Error ? e.message : e}`); }
       }
+      if (failures > 0) process.exit(1);
       return;
     }
     requireValidName(name);
@@ -191,10 +193,12 @@ program
       const running = bots.filter(b => b.status === "running");
       if (running.length === 0) { console.log("No running bots."); return; }
       console.log(`Restarting ${running.length} bot(s)...`);
+      let failures = 0;
       for (const b of running) {
         try { const cid = await docker.restart(b.name); console.log(`  Restarted ${b.name} (${cid.slice(0, 12)})`); }
-        catch (e) { console.error(`  Failed to restart ${b.name}: ${e instanceof Error ? e.message : e}`); }
+        catch (e) { failures++; console.error(`  Failed to restart ${b.name}: ${e instanceof Error ? e.message : e}`); }
       }
+      if (failures > 0) process.exit(1);
       return;
     }
     requireValidName(name);
