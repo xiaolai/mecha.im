@@ -134,12 +134,35 @@ program
     console.log(`Bot "${name}" stopped`);
   });
 
+// --- restart ---
+program
+  .command("restart <name>")
+  .description("Restart a running bot")
+  .option("--force", "Force restart even if bot is busy")
+  .action(async (name: string) => {
+    requireValidName(name);
+    console.log(`Restarting bot "${name}"...`);
+    const containerId = await docker.restart(name);
+    console.log(`Bot "${name}" restarted (container: ${containerId.slice(0, 12)})`);
+  });
+
 // --- rm ---
 program
   .command("rm <name>")
   .description("Remove a bot (stop + delete container)")
-  .action(async (name: string) => {
+  .option("-f, --force", "Force remove even if running")
+  .action(async (name: string, opts) => {
     requireValidName(name);
+    if (!opts.force) {
+      try {
+        const bots = await docker.list();
+        const bot = bots.find(b => b.name === name);
+        if (bot && bot.status === "running") {
+          console.error(`Bot "${name}" is running. Use -f/--force to stop and remove.`);
+          process.exit(1);
+        }
+      } catch { /* proceed with remove attempt */ }
+    }
     console.log(`Removing bot "${name}"...`);
     await docker.remove(name);
     console.log(`Bot "${name}" removed`);
