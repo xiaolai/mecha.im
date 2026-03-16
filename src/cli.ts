@@ -22,6 +22,11 @@ import { doctorMecha, doctorBot } from "./doctor.js";
 import { requireValidName, collectAttachments, formatUptime, readCostsToday } from "./cli-utils.js";
 import { registerAuthCommands } from "./commands/auth.js";
 import { registerPushDashboardCommand } from "./commands/push-dashboard.js";
+import { registerConfigCommand } from "./commands/config.js";
+import { registerSessionsCommand } from "./commands/sessions.js";
+import { registerCostsCommand } from "./commands/costs.js";
+import { registerScheduleCommand } from "./commands/schedule.js";
+import { registerWebhooksCommand } from "./commands/webhooks.js";
 
 const program = new Command();
 
@@ -126,8 +131,20 @@ program
 // --- stop ---
 program
   .command("stop <name>")
-  .description("Stop a running bot")
-  .action(async (name: string) => {
+  .description("Stop a running bot (use --all to stop all)")
+  .option("--all", "Stop all running bots")
+  .action(async (name: string, opts) => {
+    if (opts.all || name === "--all") {
+      const bots = await docker.list();
+      const running = bots.filter(b => b.status === "running");
+      if (running.length === 0) { console.log("No running bots."); return; }
+      console.log(`Stopping ${running.length} bot(s)...`);
+      for (const b of running) {
+        try { await docker.stop(b.name); console.log(`  Stopped ${b.name}`); }
+        catch (e) { console.error(`  Failed to stop ${b.name}: ${e instanceof Error ? e.message : e}`); }
+      }
+      return;
+    }
     requireValidName(name);
     console.log(`Stopping bot "${name}"...`);
     await docker.stop(name);
@@ -137,9 +154,21 @@ program
 // --- restart ---
 program
   .command("restart <name>")
-  .description("Restart a running bot")
+  .description("Restart a running bot (use --all to restart all)")
   .option("--force", "Force restart even if bot is busy")
-  .action(async (name: string) => {
+  .option("--all", "Restart all running bots")
+  .action(async (name: string, opts) => {
+    if (opts.all || name === "--all") {
+      const bots = await docker.list();
+      const running = bots.filter(b => b.status === "running");
+      if (running.length === 0) { console.log("No running bots."); return; }
+      console.log(`Restarting ${running.length} bot(s)...`);
+      for (const b of running) {
+        try { const cid = await docker.restart(b.name); console.log(`  Restarted ${b.name} (${cid.slice(0, 12)})`); }
+        catch (e) { console.error(`  Failed to restart ${b.name}: ${e instanceof Error ? e.message : e}`); }
+      }
+      return;
+    }
     requireValidName(name);
     console.log(`Restarting bot "${name}"...`);
     const containerId = await docker.restart(name);
@@ -320,6 +349,21 @@ program
 
 // --- auth ---
 registerAuthCommands(program);
+
+// --- config ---
+registerConfigCommand(program);
+
+// --- sessions ---
+registerSessionsCommand(program);
+
+// --- costs ---
+registerCostsCommand(program);
+
+// --- schedule ---
+registerScheduleCommand(program);
+
+// --- webhooks ---
+registerWebhooksCommand(program);
 
 // --- token ---
 program
