@@ -1,4 +1,4 @@
-import { mkdirSync, existsSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdirSync, existsSync, writeFileSync, readFileSync, renameSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
@@ -127,7 +127,15 @@ async function spawnUnlocked(config: BotConfig, botPath?: string, opts?: SpawnOp
     }
 
     const resolvedPath = validateBotPath(botPath ?? join(BOTS_BASE, config.name));
-    for (const sub of ["sessions", "data", "logs", "home-dot-claude", "home-dot-codex", "tailscale", "home-workspace"]) {
+    // Migrate legacy directory names (v0.3.2 and earlier)
+    for (const [oldName, newName] of [["home-dot-claude", ".claude"], ["home-dot-codex", ".codex"], ["home-workspace", "workspace"]] as const) {
+      const oldPath = join(resolvedPath, oldName);
+      const newPath = join(resolvedPath, newName);
+      if (existsSync(oldPath) && !existsSync(newPath)) {
+        renameSync(oldPath, newPath);
+      }
+    }
+    for (const sub of ["sessions", "data", "logs", ".claude", ".codex", "tailscale", "workspace"]) {
       mkdirSync(join(resolvedPath, sub), { recursive: true });
     }
 
