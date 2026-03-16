@@ -33,29 +33,49 @@ mecha spawn --name greeter --system "You greet people." [--model sonnet] [--auth
 | `--dir` | Working directory |
 | `--expose` | Expose container port to host |
 
-## `mecha chat`
+## `mecha query`
 
-Send a prompt to a running bot.
+Send a one-shot prompt to a running bot.
 
 ```bash
-mecha chat <name> "prompt"
+mecha query <name> "prompt"
 ```
+
+| Flag | Description |
+|------|-------------|
+| `--model <model>` | Override model (e.g. sonnet, opus, haiku) |
+| `--system <prompt>` | Override system prompt |
+| `--max-turns <n>` | Override max turns |
+| `--resume <session>` | Resume a specific session ID |
+| `--effort <level>` | Thinking effort: low, medium, high, max |
+| `--budget <usd>` | Max budget in USD |
+| `--attach <paths...>` | Attach file/folder contents to the prompt |
 
 ## `mecha ls`
 
-List all bots with status, schedule info, and costs.
+List all bots with status, uptime, and costs.
 
 ```bash
 mecha ls
+mecha ls --json              # JSON output for scripting
+mecha ls -q                  # Names only (for piping)
+mecha ls --status running    # Filter by status
 ```
 
-## `mecha start` / `mecha stop`
+| Flag | Description |
+|------|-------------|
+| `--json` | Output as JSON array |
+| `-q, --quiet` | Output only bot names |
+| `--status <status>` | Filter by status (running, exited) |
 
-Start or stop a bot container.
+## `mecha start` / `mecha stop` / `mecha restart`
+
+Start, stop, or restart a bot container.
 
 ```bash
 mecha start <name>
 mecha stop <name>
+mecha restart <name> [--force]
 ```
 
 ## `mecha rm`
@@ -64,7 +84,26 @@ Remove a bot and its container.
 
 ```bash
 mecha rm <name>
+mecha rm <name> --force      # Stop and remove even if running
 ```
+
+| Flag | Description |
+|------|-------------|
+| `-f, --force` | Force remove even if bot is running |
+
+## `mecha exec`
+
+Run a command inside a bot's container.
+
+```bash
+mecha exec <name> ls /state          # Run a command
+mecha exec <name> -- claude --version  # Check Claude CLI version
+mecha exec <name> -it                  # Interactive shell (bash)
+```
+
+| Flag | Description |
+|------|-------------|
+| `-it, --interactive` | Attach interactive terminal (TTY + stdin) |
 
 ## `mecha logs`
 
@@ -77,6 +116,16 @@ mecha logs <name> [-f]
 | Flag | Description |
 |------|-------------|
 | `-f` | Follow mode (stream new logs) |
+
+## `mecha ssh-key`
+
+Show or generate the SSH public key for a bot.
+
+```bash
+mecha ssh-key <name>
+```
+
+Keys are auto-generated on first use. Add the output to GitHub Settings → SSH Keys to enable git operations from the bot.
 
 ## `mecha dashboard`
 
@@ -108,8 +157,9 @@ mecha token
 
 ## `mecha doctor`
 
-Check that all prerequisites are met.
+Diagnose mecha installation or a specific bot.
 
 ```bash
-mecha doctor
+mecha doctor          # Check prerequisites
+mecha doctor <name>   # Diagnose a specific bot
 ```
