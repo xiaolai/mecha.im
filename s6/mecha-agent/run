@@ -1,19 +1,32 @@
 #!/bin/bash
 exec 2>&1
 
-# Fix ownership of volume-mounted dirs (runs as root before setuidgid)
-chown -R appuser:appuser /home/appuser/.claude /home/appuser/.codex /home/appuser/workspace 2>/dev/null
+# Fix ownership of volume-mounted config dirs (recursive — these are small)
+chown -R appuser:appuser /home/appuser/.claude /home/appuser/.codex 2>/dev/null
+# Workspace ownership: only fix top-level dir, not recursive (can be large)
+chown appuser:appuser /home/appuser/workspace 2>/dev/null
 
-# Ensure .claude.json has onboarding complete
+# Ensure .claude.json has onboarding complete (use node for safe JSON handling)
 CLAUDE_JSON="/home/appuser/.claude.json"
-if [ -f "$CLAUDE_JSON" ]; then
-  if ! grep -q '"hasCompletedOnboarding"' "$CLAUDE_JSON"; then
-    sed -i 's/^{/{\n  "hasCompletedOnboarding": true,/' "$CLAUDE_JSON"
-  fi
-else
-  echo '{"hasCompletedOnboarding": true}' > "$CLAUDE_JSON"
-  chown appuser:appuser "$CLAUDE_JSON"
-fi
+s6-setuidgid appuser env HOME=/home/appuser node -e '
+  const fs = require("fs");
+  const p = process.argv[1];
+  let data = {};
+  try {
+    const raw = fs.readFileSync(p, "utf-8");
+    data = JSON.parse(raw);
+  } catch (e) {
+    if (e.code === "ENOENT") {
+      // File missing — will create fresh
+    } else {
+      // Malformed — back up before overwriting
+      try { fs.copyFileSync(p, p + ".bak"); } catch {}
+      console.error("Warning: .claude.json was malformed, backed up to .claude.json.bak");
+    }
+  }
+  data.hasCompletedOnboarding = true;
+  fs.writeFileSync(p, JSON.stringify(data, null, 2) + "\n");
+' "$CLAUDE_JSON"
 
 # Check for stop request (dashboard-initiated stop) — bring down the entire container
 if [ -f /state/stop-requested ]; then
