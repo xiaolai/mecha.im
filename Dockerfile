@@ -68,7 +68,7 @@ RUN HS_ARCH=$(case "${TARGETARCH}" in arm64) echo "arm64";; arm) echo "armv7";; 
 # CACHEBUST_CLI is set by CI when new versions are available to invalidate this layer
 ARG CACHEBUST_CLI=default
 ENV NPM_CONFIG_PREFIX=/home/appuser/.local
-RUN npm install -g @anthropic-ai/claude-code @anthropic-ai/claude-agent-sdk @openai/codex
+RUN npm install -g @anthropic-ai/claude-code @anthropic-ai/claude-agent-sdk @openai/codex @google/gemini-cli
 RUN pip install --user --break-system-packages claude-agent-sdk
 
 # ── Application (still appuser-owned) ──

@@ -11,8 +11,16 @@ interface BotStatus {
   current_session_id: string | null;
   talking_to: string | null;
   last_active: string | null;
-  claude_cli_version?: string;
+  versions?: Record<string, string>;
 }
+
+const VERSION_LABELS = [
+  { key: "claude_code", label: "Claude Code CLI" },
+  { key: "claude_agent_sdk_js", label: "Agent SDK (JS)" },
+  { key: "claude_agent_sdk_py", label: "Agent SDK (Python)" },
+  { key: "codex", label: "Codex CLI" },
+  { key: "gemini_cli", label: "Gemini CLI" },
+];
 
 const STATE_COLORS: Record<string, "green" | "yellow" | "red" | "muted"> = {
   idle: "green",
@@ -158,7 +166,7 @@ export default function StatusCard() {
           Uptime: <span className="text-foreground font-mono">{displayUptime}</span>
         </span>
       </div>
-      <div className="flex items-center justify-between mb-1">
+      <div className="flex items-center justify-between mb-3">
         <span className="text-sm text-muted-foreground">
           Model: <span className="text-foreground font-mono">{status.model || "unknown"}</span>
         </span>
@@ -166,11 +174,24 @@ export default function StatusCard() {
           Last active: <span className="text-foreground font-mono">{formatRelative(status.last_active)}</span>
         </span>
       </div>
-      {status.claude_cli_version && (
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-sm text-muted-foreground">
-            Claude CLI: <span className="text-foreground font-mono">{status.claude_cli_version}</span>
-          </span>
+      {status.versions && (
+        <div className="pt-2 border-t border-border mb-3">
+          <h3 className="text-sm font-medium text-foreground mb-2">Installed Packages</h3>
+          <div className="space-y-1">
+            {VERSION_LABELS.map(({ key, label }) => {
+              const ver = status.versions?.[key];
+              if (!ver) return null;
+              const installed = ver !== "not installed";
+              return (
+                <div key={key} className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">{label}</span>
+                  <span className={`text-xs font-mono ${installed ? "text-foreground" : "text-muted-foreground"}`}>
+                    {ver}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
       <div className="pt-2 border-t border-border">
