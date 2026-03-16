@@ -294,27 +294,40 @@ export function PixelOffice({ isActive, onSelectBot, onEditAvatar, readOnly }: P
       reader.onload = () => {
         try {
           const data = JSON.parse(reader.result as string) as OfficeLayout;
+          // Validate required fields and types
           if (
-            data?.version === 1 &&
-            Array.isArray(data.tiles) &&
-            typeof data.cols === 'number' &&
-            typeof data.rows === 'number' &&
-            data.tiles.length === data.cols * data.rows
+            !data || data.version !== 1 ||
+            !Number.isInteger(data.cols) || !Number.isInteger(data.rows) ||
+            data.cols < 1 || data.rows < 1 || data.cols > 64 || data.rows > 64 ||
+            !Array.isArray(data.tiles) || data.tiles.length !== data.cols * data.rows ||
+            !Array.isArray(data.furniture)
           ) {
-            saveLayout(data);
-            // Rebuild immediately
-            const os = officeStateRef.current;
-            if (os) {
-              os.rebuildFromLayout(data);
-            }
-            // Reset editor state to match the imported layout
-            editor.setLastSavedLayout(data);
-            editorStateRef.current.reset();
-            editor.syncDirtyState();
-          } else {
-            console.warn('[PixelOffice] Invalid layout file: missing or mismatched fields');
+            alert('Invalid layout file: missing or mismatched fields.');
+            return;
           }
+          // Validate tile values
+          const validTiles = data.tiles.every((t: number) =>
+            Number.isInteger(t) && ((t >= 0 && t <= 9) || t === 255)
+          );
+          if (!validTiles) {
+            alert('Invalid layout file: invalid tile values.');
+            return;
+          }
+          // Validate tileColors length if present
+          if (data.tileColors && (!Array.isArray(data.tileColors) || data.tileColors.length !== data.tiles.length)) {
+            alert('Invalid layout file: tileColors length mismatch.');
+            return;
+          }
+          saveLayout(data);
+          const os = officeStateRef.current;
+          if (os) {
+            os.rebuildFromLayout(data);
+          }
+          editor.setLastSavedLayout(data);
+          editorStateRef.current.reset();
+          editor.syncDirtyState();
         } catch (err) {
+          alert('Failed to parse layout file.');
           console.warn('[PixelOffice] Failed to parse layout file:', err);
         }
       };
@@ -568,28 +581,55 @@ export function PixelOffice({ isActive, onSelectBot, onEditAvatar, readOnly }: P
           );
         })()}
 
-      {!isDebugMode && (
-        <ToolOverlay
-          officeState={officeState}
-          agents={[...officeState.characters.keys()].filter((id) => id > 0)}
-          agentTools={{}}
-          subagentCharacters={[]}
-          containerRef={containerRef}
-          zoom={editor.zoom}
-          panRef={editor.panRef}
-        />
-      )}
+      {!isDebugMode && (() => {
+        // Build agentTools from character currentTool state
+        const tools: Record<number, Array<{ toolId: string; status: string; done: boolean }>> = {};
+        for (const ch of officeState.characters.values()) {
+          if (ch.currentTool && ch.id > 0) {
+            tools[ch.id] = [{ toolId: ch.currentTool, status: ch.currentTool, done: false }];
+          }
+        }
+        const subChars = [...officeState.subagentMeta.entries()]
+          .filter(([id]) => officeState.characters.has(id))
+          .map(([id, meta]) => ({
+            id,
+            parentAgentId: meta.parentAgentId,
+            parentToolId: meta.parentToolId,
+            label: meta.parentToolId,
+          }));
+        return (
+          <ToolOverlay
+            officeState={officeState}
+            agents={[...officeState.characters.keys()].filter((id) => id > 0)}
+            agentTools={tools}
+            subagentCharacters={subChars}
+            containerRef={containerRef}
+            zoom={editor.zoom}
+            panRef={editor.panRef}
+          />
+        );
+      })()}
 
-      {isDebugMode && (
-        <DebugView
-          agents={[...officeState.characters.keys()].filter((id) => id > 0)}
-          selectedAgent={officeState.selectedAgentId}
-          agentTools={{}}
-          agentStatuses={{}}
-          subagentTools={{}}
-          onSelectAgent={handleClick}
-        />
-      )}
+      {isDebugMode && (() => {
+        const tools: Record<number, Array<{ toolId: string; status: string; done: boolean }>> = {};
+        const statuses: Record<number, string> = {};
+        for (const ch of officeState.characters.values()) {
+          if (ch.id > 0) {
+            if (ch.currentTool) tools[ch.id] = [{ toolId: ch.currentTool, status: ch.currentTool, done: false }];
+            statuses[ch.id] = ch.isActive ? 'active' : 'idle';
+          }
+        }
+        return (
+          <DebugView
+            agents={[...officeState.characters.keys()].filter((id) => id > 0)}
+            selectedAgent={officeState.selectedAgentId}
+            agentTools={tools}
+            agentStatuses={statuses}
+            subagentTools={{}}
+            onSelectAgent={handleClick}
+          />
+        );
+      })()}
 
       {!readOnly && (
         <SettingsModal

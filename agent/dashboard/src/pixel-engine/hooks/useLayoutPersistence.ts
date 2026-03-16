@@ -3,6 +3,7 @@
  *
  * On mount: GET /api/office/layout (stores ETag for conflict detection).
  * If 404: falls back to the bundled default-layout.json from assets.
+ * On 5xx/network error: retries 3 times with backoff, then falls back to default.
  *
  * saveLayout: debounced 500ms POST with If-Match ETag.
  * On 409 conflict: reloads server version.
@@ -15,6 +16,8 @@ import { migrateLayoutColors } from '../layout/layoutSerializer';
 import type { OfficeLayout } from '../types';
 
 const ASSET_BASE = '/pixel-engine';
+const MAX_RETRIES = 3;
+const RETRY_DELAYS = [2000, 5000, 10000];
 
 export function useLayoutPersistence(): {
   layout: OfficeLayout | null;
@@ -26,35 +29,6 @@ export function useLayoutPersistence(): {
   const etagRef = useRef<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
-
-  /** Fetch layout from API, with fallback to default-layout.json only on 404 */
-  const fetchLayout = useCallback(async () => {
-    try {
-      const resp = await fetch('/api/office/layout');
-      if (resp.ok) {
-        const etag = resp.headers.get('ETag');
-        if (etag) etagRef.current = etag;
-        const data = (await resp.json()) as OfficeLayout;
-        if (data?.version === 1 && mountedRef.current) {
-          setLayout(migrateLayoutColors(data));
-          return;
-        }
-        // 200 but invalid shape — fall back to default
-        await loadDefaultLayout();
-        return;
-      }
-      if (resp.status === 404) {
-        // No layout saved yet — use default
-        await loadDefaultLayout();
-      } else {
-        // Server error (5xx, etc.) — don't overwrite with default, log and retry later
-        console.warn(`[LayoutPersistence] Server error ${resp.status}, not falling back to default`);
-      }
-    } catch {
-      // Network error — don't overwrite with default
-      console.warn('[LayoutPersistence] Network error loading layout');
-    }
-  }, []);
 
   /** Load bundled default-layout.json from public assets */
   const loadDefaultLayout = useCallback(async () => {
@@ -70,6 +44,44 @@ export function useLayoutPersistence(): {
       console.warn('[LayoutPersistence] Failed to load default layout');
     }
   }, []);
+
+  /** Fetch layout from API with retry on transient errors */
+  const fetchLayout = useCallback(async () => {
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      if (!mountedRef.current) return;
+      try {
+        const resp = await fetch('/api/office/layout');
+        if (resp.ok) {
+          const etag = resp.headers.get('ETag');
+          if (etag) etagRef.current = etag;
+          const data = (await resp.json()) as OfficeLayout;
+          if (data?.version === 1 && mountedRef.current) {
+            setLayout(migrateLayoutColors(data));
+            return;
+          }
+          // 200 but invalid shape — fall back to default
+          await loadDefaultLayout();
+          return;
+        }
+        if (resp.status === 404) {
+          // No layout saved yet — use default
+          await loadDefaultLayout();
+          return;
+        }
+        // Server error — retry
+        console.warn(`[LayoutPersistence] Server error ${resp.status} (attempt ${attempt + 1}/${MAX_RETRIES + 1})`);
+      } catch {
+        console.warn(`[LayoutPersistence] Network error (attempt ${attempt + 1}/${MAX_RETRIES + 1})`);
+      }
+      // Wait before retry (skip wait on last attempt)
+      if (attempt < MAX_RETRIES) {
+        await new Promise(r => setTimeout(r, RETRY_DELAYS[attempt] ?? 10000));
+      }
+    }
+    // All retries exhausted — fall back to default
+    console.warn('[LayoutPersistence] Retries exhausted, using default layout');
+    await loadDefaultLayout();
+  }, [loadDefaultLayout]);
 
   /** Save layout to the API with ETag conflict detection. Returns true on success. */
   const doSave = useCallback(async (layoutToSave: OfficeLayout): Promise<boolean> => {
