@@ -49,14 +49,28 @@ export class InteractionScheduler {
   pendingRealChats: Array<{ parentId: number; childId: number }> = [];
 
   /** Release all reservations for a character (on preemption, despawn, etc.) */
-  releaseAll(charId: number): void {
+  releaseAll(charId: number, characters?: Map<number, Character>): void {
     for (const [uid, id] of this.furnitureReservations) {
       if (id === charId) this.furnitureReservations.delete(uid);
     }
-    const partner = this.chatPairs.get(charId);
-    if (partner !== undefined) {
+    const partnerId = this.chatPairs.get(charId);
+    if (partnerId !== undefined) {
       this.chatPairs.delete(charId);
-      this.chatPairs.delete(partner);
+      this.chatPairs.delete(partnerId);
+      // Cancel partner's chat state so they don't keep walking/interacting with nobody
+      if (characters) {
+        const partner = characters.get(partnerId);
+        if (partner && partner.chatPartner === charId) {
+          partner.chatPartner = null;
+          partner.chatTimer = 0;
+          partner.interactTimer = 0;
+          if (partner.state === CharacterState.INTERACT || partner.state === CharacterState.WALK) {
+            partner.state = CharacterState.IDLE;
+            partner.path = [];
+            partner.moveProgress = 0;
+          }
+        }
+      }
     }
     for (const [uid, id] of this.deskClaims) {
       if (id === charId) this.deskClaims.delete(uid);
@@ -219,6 +233,7 @@ export class InteractionScheduler {
     for (const other of characters.values()) {
       if (other.id === char.id) continue;
       if (other.state !== CharacterState.IDLE) continue;
+      if (other.isActive) continue;
       if (this.chatPairs.has(other.id)) continue;
       if (other.isSubagent) continue;
       const dist =
@@ -241,6 +256,13 @@ export class InteractionScheduler {
     const meetTiles = this.findChatMeetingTiles(midCol, midRow, tileMap, blockedTiles);
     if (!meetTiles) return null;
 
+    // Verify both can reach meeting tiles before reserving
+    const pathA = findPath(char.tileCol, char.tileRow, meetTiles.a.col, meetTiles.a.row, tileMap, blockedTiles);
+    const pathB = findPath(partner.tileCol, partner.tileRow, meetTiles.b.col, meetTiles.b.row, tileMap, blockedTiles);
+    const charAtTarget = char.tileCol === meetTiles.a.col && char.tileRow === meetTiles.a.row;
+    const partnerAtTarget = partner.tileCol === meetTiles.b.col && partner.tileRow === meetTiles.b.row;
+    if ((pathA.length === 0 && !charAtTarget) || (pathB.length === 0 && !partnerAtTarget)) return null;
+
     // Reserve both
     const duration = CHAT_MIN_SEC + Math.random() * (CHAT_MAX_SEC - CHAT_MIN_SEC);
     this.chatPairs.set(char.id, partner.id);
@@ -248,15 +270,7 @@ export class InteractionScheduler {
 
     // Assign partner's action directly
     partner.chatPartner = char.id;
-    partner.path =
-      findPath(
-        partner.tileCol,
-        partner.tileRow,
-        meetTiles.b.col,
-        meetTiles.b.row,
-        tileMap,
-        blockedTiles,
-      ) ?? [];
+    partner.path = pathB;
     partner.state = CharacterState.WALK;
     partner.chatTimer = duration;
 
@@ -401,21 +415,28 @@ export class InteractionScheduler {
       const meetTiles = this.findChatMeetingTiles(midCol, midRow, tileMap, blockedTiles);
       if (!meetTiles) continue;
 
+      // Verify both can reach meeting tiles
+      const pathP = findPath(parent.tileCol, parent.tileRow, meetTiles.a.col, meetTiles.a.row, tileMap, blockedTiles);
+      const pathC = findPath(child.tileCol, child.tileRow, meetTiles.b.col, meetTiles.b.row, tileMap, blockedTiles);
+      const parentAtTarget = parent.tileCol === meetTiles.a.col && parent.tileRow === meetTiles.a.row;
+      const childAtTarget = child.tileCol === meetTiles.b.col && child.tileRow === meetTiles.b.row;
+      if ((pathP.length === 0 && !parentAtTarget) || (pathC.length === 0 && !childAtTarget)) continue;
+
       const duration = CHAT_MIN_SEC + Math.random() * (CHAT_MAX_SEC - CHAT_MIN_SEC);
       this.chatPairs.set(parentId, childId);
       this.chatPairs.set(childId, parentId);
 
-      // Assign both characters
-      for (const [char, tile] of [
-        [parent, meetTiles.a],
-        [child, meetTiles.b],
-      ] as const) {
-        char.chatPartner = char === parent ? childId : parentId;
-        char.chatTimer = duration;
-        char.path =
-          findPath(char.tileCol, char.tileRow, tile.col, tile.row, tileMap, blockedTiles) ?? [];
-        char.state = CharacterState.WALK;
-      }
+      parent.chatPartner = childId;
+      parent.chatTimer = duration;
+      parent.path = pathP;
+      parent.state = parentAtTarget ? CharacterState.INTERACT : CharacterState.WALK;
+      if (parentAtTarget) parent.interactTimer = duration;
+
+      child.chatPartner = parentId;
+      child.chatTimer = duration;
+      child.path = pathC;
+      child.state = childAtTarget ? CharacterState.INTERACT : CharacterState.WALK;
+      if (childAtTarget) child.interactTimer = duration;
     }
   }
 }

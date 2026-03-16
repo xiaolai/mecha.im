@@ -75,17 +75,17 @@ export class OfficeState {
     this.rebuildFurnitureInstances();
     this.walkableTiles = getWalkableTiles(this.tileMap, this.blockedTiles);
 
-    // Shift character positions when grid expands left/up
-    if (shift && (shift.col !== 0 || shift.row !== 0)) {
-      for (const ch of this.characters.values()) {
+    // Shift character positions when grid expands left/up, and invalidate all paths
+    for (const ch of this.characters.values()) {
+      if (shift && (shift.col !== 0 || shift.row !== 0)) {
         ch.tileCol += shift.col;
         ch.tileRow += shift.row;
         ch.x += shift.col * TILE_SIZE;
         ch.y += shift.row * TILE_SIZE;
-        // Clear path since tile coords changed
-        ch.path = [];
-        ch.moveProgress = 0;
       }
+      // Always clear paths on layout rebuild — old paths may cross new walls/furniture
+      ch.path = [];
+      ch.moveProgress = 0;
     }
 
     // Clear transient scheduler state on layout rebuild
@@ -140,14 +140,16 @@ export class OfficeState {
       }
     }
 
-    // Relocate any characters that ended up outside bounds or on non-walkable tiles
+    // Relocate any characters that ended up outside bounds or on blocked/non-walkable tiles
     for (const ch of this.characters.values()) {
       if (ch.seatId) continue; // seated characters are fine
       if (
         ch.tileCol < 0 ||
         ch.tileCol >= layout.cols ||
         ch.tileRow < 0 ||
-        ch.tileRow >= layout.rows
+        ch.tileRow >= layout.rows ||
+        this.blockedTiles.has(`${ch.tileCol},${ch.tileRow}`) ||
+        !isWalkable(ch.tileCol, ch.tileRow, this.tileMap, this.blockedTiles)
       ) {
         this.relocateCharacterToWalkable(ch);
       }
@@ -288,7 +290,7 @@ export class OfficeState {
     if (!ch) return;
     if (ch.matrixEffect === 'despawn') return; // already despawning
     // Release scheduler reservations
-    this.scheduler.releaseAll(id);
+    this.scheduler.releaseAll(id, this.characters);
     // Free seat and clear selection immediately
     if (ch.seatId) {
       const seat = this.seats.get(ch.seatId);
@@ -325,6 +327,7 @@ export class OfficeState {
     }
     seat.assigned = true;
     ch.seatId = seatId;
+    ch.homeSeatId = seatId;
     // Pathfind to new seat (unblock own seat tile for this query)
     const path = this.withOwnSeatUnblocked(ch, () =>
       findPath(ch.tileCol, ch.tileRow, seat.seatCol, seat.seatRow, this.tileMap, this.blockedTiles),
@@ -553,8 +556,10 @@ export class OfficeState {
     // Collect tiles where active agents face desks
     const autoOnTiles = new Set<string>();
     for (const ch of this.characters.values()) {
-      if (!ch.isActive || !ch.seatId) continue;
-      const seat = this.seats.get(ch.seatId);
+      if (!ch.isActive) continue;
+      const activeSeatId = ch.workDeskId ?? ch.seatId;
+      if (!activeSeatId) continue;
+      const seat = this.seats.get(activeSeatId);
       if (!seat) continue;
       // Find the desk tile(s) the agent faces from their seat
       const dCol =
@@ -721,14 +726,13 @@ export class OfficeState {
     return Array.from(this.characters.values());
   }
 
-  /** Get character at pixel position (for hit testing). Returns id or null. */
+  /** Get character at pixel position (for hit testing). Returns id or null.
+   *  Single-pass scan: picks the frontmost (highest y) match without sorting. */
   getCharacterAt(worldX: number, worldY: number): number | null {
-    const chars = this.getCharacters().sort((a, b) => b.y - a.y);
-    for (const ch of chars) {
-      // Skip characters that are despawning
+    let bestId: number | null = null;
+    let bestY = -Infinity;
+    for (const ch of this.characters.values()) {
       if (ch.matrixEffect === 'despawn') continue;
-      // Character sprite is 16x24, anchored bottom-center
-      // Apply sitting offset to match visual position
       const sittingOffset = (ch.state === CharacterState.TYPE || ch.state === CharacterState.SIT) ? CHARACTER_SITTING_OFFSET_PX : 0;
       const anchorY = ch.y + sittingOffset;
       const left = ch.x - CHARACTER_HIT_HALF_WIDTH;
@@ -736,9 +740,9 @@ export class OfficeState {
       const top = anchorY - CHARACTER_HIT_HEIGHT;
       const bottom = anchorY;
       if (worldX >= left && worldX <= right && worldY >= top && worldY <= bottom) {
-        return ch.id;
+        if (ch.y > bestY) { bestId = ch.id; bestY = ch.y; }
       }
     }
-    return null;
+    return bestId;
   }
 }
