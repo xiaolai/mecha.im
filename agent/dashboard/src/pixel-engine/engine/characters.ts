@@ -235,42 +235,57 @@ export function updateCharacter(
             case 'wander':
               doWander(ch, walkableTiles, tileMap, blockedTiles);
               break;
-            case 'interact':
+            case 'interact': {
               ch.interactTarget = action.furnitureUid;
               ch.interactTimer = action.duration;
               ch.dir = action.facingDir as Direction;
-              ch.path = findPath(ch.tileCol, ch.tileRow, action.tileCol, action.tileRow, tileMap, blockedTiles);
-              if (ch.path.length > 0) {
-                ch.moveProgress = 0;
-                ch.state = CharacterState.WALK;
+              const atInteractTarget = ch.tileCol === action.tileCol && ch.tileRow === action.tileRow;
+              if (atInteractTarget) {
+                ch.state = CharacterState.INTERACT;
                 ch.frame = 0;
                 ch.frameTimer = 0;
               } else {
-                // Can't reach — release and wander instead
-                officeState.scheduler.releaseFurniture(action.furnitureUid);
-                ch.interactTarget = null;
-                doWander(ch, walkableTiles, tileMap, blockedTiles);
+                ch.path = findPath(ch.tileCol, ch.tileRow, action.tileCol, action.tileRow, tileMap, blockedTiles);
+                if (ch.path.length > 0) {
+                  ch.moveProgress = 0;
+                  ch.state = CharacterState.WALK;
+                  ch.frame = 0;
+                  ch.frameTimer = 0;
+                } else {
+                  officeState.scheduler.releaseFurniture(action.furnitureUid);
+                  ch.interactTarget = null;
+                  doWander(ch, walkableTiles, tileMap, blockedTiles);
+                }
               }
               break;
-            case 'chat':
+            }
+            case 'chat': {
               ch.chatPartner = action.partnerId;
               ch.chatTimer = action.duration;
               ch.dir = action.facingDir as Direction;
-              ch.path = findPath(ch.tileCol, ch.tileRow, action.tileCol, action.tileRow, tileMap, blockedTiles);
-              if (ch.path.length > 0) {
-                ch.moveProgress = 0;
-                ch.state = CharacterState.WALK;
+              const atChatTarget = ch.tileCol === action.tileCol && ch.tileRow === action.tileRow;
+              if (atChatTarget) {
+                ch.interactTimer = action.duration;
+                ch.state = CharacterState.INTERACT;
                 ch.frame = 0;
                 ch.frameTimer = 0;
               } else {
-                // Can't reach — release chat
-                officeState.scheduler.chatPairs.delete(ch.id);
-                if (ch.chatPartner !== null) officeState.scheduler.chatPairs.delete(ch.chatPartner);
-                ch.chatPartner = null;
-                ch.chatTimer = 0;
-                doWander(ch, walkableTiles, tileMap, blockedTiles);
+                ch.path = findPath(ch.tileCol, ch.tileRow, action.tileCol, action.tileRow, tileMap, blockedTiles);
+                if (ch.path.length > 0) {
+                  ch.moveProgress = 0;
+                  ch.state = CharacterState.WALK;
+                  ch.frame = 0;
+                  ch.frameTimer = 0;
+                } else {
+                  officeState.scheduler.chatPairs.delete(ch.id);
+                  if (ch.chatPartner !== null) officeState.scheduler.chatPairs.delete(ch.chatPartner);
+                  ch.chatPartner = null;
+                  ch.chatTimer = 0;
+                  doWander(ch, walkableTiles, tileMap, blockedTiles);
+                }
               }
               break;
+            }
             case 'lounge': {
               const seat = officeState.seats.get(action.seatUid);
               if (seat) {
@@ -471,7 +486,7 @@ function preemptForWork(
   seats: Map<string, Seat>,
 ): void {
   // Release any transient reservations
-  officeState.scheduler.releaseAll(ch.id);
+  officeState.scheduler.releaseAll(ch.id, officeState.characters);
   ch.interactTarget = null;
   ch.chatPartner = null;
   ch.interactTimer = 0;
@@ -482,7 +497,6 @@ function preemptForWork(
   const desk = officeState.claimDeskForAgent(ch.id);
   if (desk) {
     ch.workDeskId = desk.uid;
-    ch.seatId = desk.uid; // for legacy auto-on detection
     const path = findPath(ch.tileCol, ch.tileRow, desk.seatCol, desk.seatRow, tileMap, blockedTiles);
     if (path.length > 0) {
       ch.path = path;
