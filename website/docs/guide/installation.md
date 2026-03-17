@@ -7,10 +7,28 @@
 - **Claude Code** — installed and authenticated (`npm install -g @anthropic-ai/claude-code`)
 - **Tailscale** (optional) — for multi-machine bot-to-bot mesh
 
-## Install via npm
+## Install
+
+### Global install (recommended)
 
 ```bash
-npm install -g mecha
+npm install -g @mecha.im/cli
+```
+
+This adds the `mecha` command to your PATH.
+
+### Run with npx (no install)
+
+```bash
+npx @mecha.im/cli --version
+npx @mecha.im/cli ls
+npx @mecha.im/cli spawn --name greeter --system "Hello"
+```
+
+For convenience, add an alias to your shell profile (`~/.bashrc`, `~/.zshrc`):
+
+```bash
+alias mecha="npx @mecha.im/cli"
 ```
 
 ## Initialize
