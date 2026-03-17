@@ -9,7 +9,7 @@ import { log } from "../shared/logger.js";
 // Settings use directory-based cross-process lock (withSettingsLock)
 
 const DEFAULT_MECHA_DIR = join(homedir(), ".mecha");
-const REGISTRY_SCHEMA_VERSION = 1;
+const REGISTRY_SCHEMA_VERSION = 2;
 const SETTINGS_SCHEMA_VERSION = 1;
 
 export function getMechaDir(): string {
@@ -43,6 +43,7 @@ const registrySchema = z.object({
     model: z.string().optional(),
     botToken: z.string().optional(),
     createdAt: z.string().optional(),
+    desired_state: z.enum(["running", "stopped", "removed"]).optional(),
   })),
 });
 
@@ -122,6 +123,16 @@ export function setBot(name: string, entry: Registry["bots"][string]): void {
     reg.bots[name] = entry;
     atomicWriteJson(registryPath(), reg);
     try { chmodSync(registryPath(), 0o600); } catch { /* best-effort */ }
+  });
+}
+
+export function setBotDesiredState(name: string, state: "running" | "stopped" | "removed"): void {
+  withRegistryLock(() => {
+    const reg = readRegistry();
+    if (!reg.bots[name]) return;
+    reg.bots[name].desired_state = state;
+    reg.schema_version = REGISTRY_SCHEMA_VERSION;
+    atomicWriteJson(registryPath(), reg);
   });
 }
 
