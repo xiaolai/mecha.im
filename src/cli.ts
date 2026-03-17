@@ -6,7 +6,8 @@ process.on("unhandledRejection", (reason) => {
 });
 
 import { Command } from "commander";
-import { resolve, dirname } from "node:path";
+import { resolve, dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { BotInfo } from "./docker.types.js";
 import { existsSync, statSync } from "node:fs";
 import { randomBytes } from "node:crypto";
@@ -65,6 +66,18 @@ program
     }
 
     ensureMechaDir();
+
+    // Copy default office layout if missing
+    const mechaDir = (await import("./store.js")).getMechaDir();
+    const layoutDest = join(mechaDir, "office-layout.json");
+    if (!existsSync(layoutDest)) {
+      const defaultLayout = join(dirname(fileURLToPath(import.meta.url)), "..", "agent", "dashboard", "dist", "pixel-engine", "default-layout.json");
+      if (existsSync(defaultLayout)) {
+        const { copyFileSync } = await import("node:fs");
+        copyFileSync(defaultLayout, layoutDest);
+      }
+    }
+
     console.log(success("Created ~/.mecha/"));
 
     if (opts.headscale) {
