@@ -152,8 +152,9 @@ async function spawnUnlocked(config: BotConfig, botPath?: string, opts?: SpawnOp
         renameSync(oldPath, newPath);
       }
     }
-    for (const sub of ["tasks", "data", "logs", ".claude", ".codex", "tailscale", "workspace"]) {
-      mkdirSync(join(resolvedPath, sub), { recursive: true });
+    for (const sub of ["tasks", "sessions", "data", "logs", ".claude", ".codex", "tailscale", "workspace"]) {
+      mkdirSync(join(resolvedPath, sub), { recursive: true, mode: 0o777 });
+      chmodSync(join(resolvedPath, sub), 0o777);
     }
 
     const costsPath = join(resolvedPath, "costs.json");
