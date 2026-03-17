@@ -41,7 +41,23 @@ export function createDashboardRoutes(botToken: string): Hono {
   const sessionToken = makeSessionToken(botToken);
 
   function setSessionCookie(c: import("hono").Context): void {
-    c.header("Set-Cookie", `${COOKIE_NAME}=${sessionToken}; Path=/; HttpOnly; SameSite=Strict`);
+    c.header("Set-Cookie", `${COOKIE_NAME}=${sessionToken}; Path=/; HttpOnly; SameSite=Strict; Secure`);
+  }
+
+  /** Only grant session cookie if: (a) loopback client, (b) valid ?token= param, or (c) proxied via fleet dashboard */
+  function shouldGrantSession(c: import("hono").Context): boolean {
+    // Already has valid cookie — keep it
+    if (verifySessionCookie(c.req.header("cookie"), botToken)) return true;
+    // Token provided as query param (one-time auth)
+    const qToken = new URL(c.req.url).searchParams.get("token");
+    if (qToken && timingSafeEqual(Buffer.from(qToken), Buffer.from(botToken))) return true;
+    // Proxied from fleet dashboard (has Authorization header with bot token)
+    const auth = c.req.header("authorization");
+    if (auth === `Bearer ${botToken}`) return true;
+    // Loopback client — auto-grant (same as fleet dashboard pattern)
+    const remoteAddr = c.req.header("x-forwarded-for") ?? "";
+    const isLoopback = !remoteAddr || remoteAddr === "127.0.0.1" || remoteAddr === "::1";
+    return isLoopback;
   }
 
   // Redirect /dashboard to /dashboard/ for consistent relative paths
@@ -50,31 +66,30 @@ export function createDashboardRoutes(botToken: string): Hono {
   app.get("/dashboard/*", async (c) => {
     const dashboardRoot = getDashboardRoot();
     const reqPath = c.req.path.replace("/dashboard", "") || "/index.html";
-    // Treat bare /dashboard/ as index.html
     const filePath = reqPath === "/" ? "/index.html" : reqPath;
     const resolved = resolve(dashboardRoot, filePath.replace(/^\//, ""));
     const normalized = normalize(resolved);
 
-    // Path traversal protection
     if (normalized !== dashboardRoot && !normalized.startsWith(dashboardRoot + "/")) {
       return c.json({ error: "Forbidden" }, 403);
     }
+
+    const grantCookie = shouldGrantSession(c);
 
     try {
       const { readFile } = await import("node:fs/promises");
       const content = await readFile(normalized);
       const ext = normalized.split(".").pop() ?? "";
       const isHtml = ext === "html";
-      if (isHtml) setSessionCookie(c);
+      if (isHtml && grantCookie) setSessionCookie(c);
       return c.body(content, 200, {
         "Content-Type": MIME_TYPES[ext] ?? "application/octet-stream",
       });
     } catch {
-      // SPA fallback — serve index.html for client-side routing
       try {
         const { readFile } = await import("node:fs/promises");
         const html = await readFile(`${dashboardRoot}/index.html`);
-        setSessionCookie(c);
+        if (grantCookie) setSessionCookie(c);
         return c.body(html, 200, { "Content-Type": "text/html" });
       } catch {
         return c.json({ error: "Dashboard not built" }, 404);

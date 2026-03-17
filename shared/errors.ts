@@ -2,20 +2,22 @@ export class MechaError extends Error {
   readonly code: string;
   readonly statusCode: number;
   readonly exitCode: number;
+  readonly hint?: string;
 
   constructor(
     message: string,
-    opts: { code: string; statusCode: number; exitCode: number; cause?: unknown },
+    opts: { code: string; statusCode: number; exitCode: number; cause?: unknown; hint?: string },
   ) {
     super(message, opts.cause !== undefined ? { cause: opts.cause } : undefined);
     this.name = this.constructor.name;
     this.code = opts.code;
     this.statusCode = opts.statusCode;
     this.exitCode = opts.exitCode;
+    this.hint = opts.hint;
   }
 }
 
-type ErrorOpts = { code: string; statusCode: number; exitCode: number };
+type ErrorOpts = { code: string; statusCode: number; exitCode: number; hint?: string };
 
 export function defError<A extends unknown[]>(
   name: string,
@@ -53,7 +55,7 @@ export const ConfigValidationError = defError<[string]>(
 // --- Bot lifecycle errors ---
 export const BotNotFoundError = defError<[string]>(
   "BotNotFoundError",
-  { code: "BOT_NOT_FOUND", statusCode: 404, exitCode: 1 },
+  { code: "BOT_NOT_FOUND", statusCode: 404, exitCode: 1, hint: 'Run "mecha ls" to see available bots.' },
   (name) => `bot "${name}" not found`,
 );
 
@@ -65,7 +67,7 @@ export const BotAlreadyExistsError = defError<[string]>(
 
 export const BotNotRunningError = defError<[string]>(
   "BotNotRunningError",
-  { code: "BOT_NOT_RUNNING", statusCode: 409, exitCode: 1 },
+  { code: "BOT_NOT_RUNNING", statusCode: 409, exitCode: 1, hint: "Start it with: mecha start <name>" },
   (name) => `bot "${name}" is not running`,
 );
 
@@ -77,7 +79,7 @@ export const BotAlreadyRunningError = defError<[string]>(
 
 export const BotBusyError = defError<[string]>(
   "BotBusyError",
-  { code: "BOT_BUSY", statusCode: 409, exitCode: 1 },
+  { code: "BOT_BUSY", statusCode: 409, exitCode: 1, hint: "Use --force to override, or wait for the current operation to finish." },
   (name) => `bot "${name}" is busy processing a request`,
 );
 
