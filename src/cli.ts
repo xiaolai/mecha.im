@@ -29,13 +29,14 @@ import { registerScheduleCommand } from "./commands/schedule.js";
 import { registerWebhooksCommand } from "./commands/webhooks.js";
 import { registerCompletionCommand } from "./commands/completion.js";
 import { registerDaemonCommand } from "./commands/daemon.js";
+import { registerAdapterCommand } from "./commands/adapter.js";
 
 const program = new Command();
 
 program
   .name("mecha")
   .description("An army of agents")
-  .version("0.3.4");
+  .version("0.3.5");
 
 // --- init ---
 program
@@ -473,6 +474,9 @@ registerCompletionCommand(program);
 
 // --- daemon ---
 registerDaemonCommand(program);
+
+// --- adapter ---
+registerAdapterCommand(program);
 
 // --- version (enhanced) ---
 program
