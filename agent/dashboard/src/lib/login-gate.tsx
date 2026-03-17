@@ -180,9 +180,7 @@ export default function LoginGate({ children }: LoginGateProps) {
       <div className="absolute inset-0 flex items-center justify-center">
         <div className="w-full max-w-sm px-4">
           <Card spacing={4} className="text-center bg-card/90 backdrop-blur-md shadow-2xl">
-            <div className="w-14 h-14 rounded-xl bg-primary flex items-center justify-center text-primary-foreground font-bold text-2xl mx-auto">
-              M
-            </div>
+            <img src="./logo.png" alt="Mecha" className="w-16 h-16 mx-auto rounded-xl" />
 
             {totpEnabled ? (
               <TotpInput onComplete={handleVerify} error={error} busy={busy} />
