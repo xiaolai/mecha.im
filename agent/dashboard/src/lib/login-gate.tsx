@@ -5,10 +5,9 @@ import { PixelOffice } from "../pixel-engine/components/PixelOffice";
 
 interface LoginGateProps {
   children: ReactNode;
-  redirectTo?: string;
 }
 
-function TotpInput({ onComplete, error, busy }: { onComplete: (code: string) => void; error: string | null; busy: boolean }) {
+export function TotpInput({ onComplete, error, busy }: { onComplete: (code: string) => void; error: string | null; busy: boolean }) {
   const [digits, setDigits] = useState<string[]>(["", "", "", "", "", ""]);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
@@ -103,11 +102,39 @@ function TotpInput({ onComplete, error, busy }: { onComplete: (code: string) => 
   );
 }
 
-export default function LoginGate({ children, redirectTo }: LoginGateProps) {
-  const [status, setStatus] = useState<"checking" | "open" | "locked" | "authenticated">("checking");
-  const [totpEnabled, setTotpEnabled] = useState(false);
+export function useTotpVerify() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  async function verify(code: string): Promise<boolean> {
+    setBusy(true);
+    setError(null);
+    try {
+      const resp = await fetch("/api/totp/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ code }),
+      });
+      if (resp.ok) return true;
+      const data = await resp.json() as { error?: string };
+      setError(data.error ?? "Invalid code");
+      return false;
+    } catch {
+      setError("Network error");
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return { verify, error, busy };
+}
+
+export default function LoginGate({ children }: LoginGateProps) {
+  const [status, setStatus] = useState<"checking" | "open" | "locked" | "authenticated">("checking");
+  const [totpEnabled, setTotpEnabled] = useState(false);
+  const { verify, error, busy } = useTotpVerify();
 
   const checkStatus = useCallback(() => {
     fetch("/api/totp/status", { credentials: "same-origin" })
@@ -119,11 +146,7 @@ export default function LoginGate({ children, redirectTo }: LoginGateProps) {
         if (!data) return;
         setTotpEnabled(!!data.enabled);
         return fetch("/api/session", { credentials: "same-origin" }).then((r) => {
-          if (r.ok) {
-            setStatus("authenticated");
-          } else {
-            setStatus("locked");
-          }
+          setStatus(r.ok ? "authenticated" : "locked");
         });
       })
       .catch(() => setStatus("locked"));
@@ -132,26 +155,7 @@ export default function LoginGate({ children, redirectTo }: LoginGateProps) {
   useEffect(() => { checkStatus(); }, [checkStatus]);
 
   async function handleVerify(code: string) {
-    setBusy(true);
-    setError(null);
-    try {
-      const resp = await fetch("/api/totp/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({ code }),
-      });
-      if (resp.ok) {
-        setStatus("authenticated");
-      } else {
-        const data = await resp.json() as { error?: string };
-        setError(data.error ?? "Invalid code");
-      }
-    } catch {
-      setError("Network error");
-    } finally {
-      setBusy(false);
-    }
+    if (await verify(code)) setStatus("authenticated");
   }
 
   if (status === "checking") {
@@ -163,36 +167,24 @@ export default function LoginGate({ children, redirectTo }: LoginGateProps) {
   }
 
   if (status === "open" || status === "authenticated") {
-    if (redirectTo) {
-      window.location.href = redirectTo;
-      return null;
-    }
     return <>{children}</>;
   }
 
-  // Locked — show pixel office as background with login overlay
+  // Locked — show pixel office background with login overlay
   return (
     <div className="h-screen w-screen overflow-hidden relative">
-      {/* Pixel office background (read-only, no controls) */}
       <div className="absolute inset-0">
         <PixelOffice isActive readOnly />
       </div>
-
-      {/* Dark overlay */}
       <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" />
-
-      {/* Login card */}
       <div className="absolute inset-0 flex items-center justify-center">
         <div className="w-full max-w-sm px-4">
           <Card spacing={4} className="text-center bg-card/90 backdrop-blur-md shadow-2xl">
             <img src="./logo.png" alt="Mecha" className="w-16 h-16 mx-auto rounded-xl" />
-
             {totpEnabled ? (
               <TotpInput onComplete={handleVerify} error={error} busy={busy} />
             ) : (
-              <p className="text-sm text-muted-foreground">
-                Access denied.
-              </p>
+              <p className="text-sm text-muted-foreground">Access denied.</p>
             )}
           </Card>
         </div>
