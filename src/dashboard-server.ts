@@ -39,6 +39,12 @@ export function startDashboardServer(port: number, host?: string) {
   // --- TOTP (unauthenticated) ---
   // Health endpoint (unauthenticated)
   const daemonStartedAt = Date.now();
+  // Read version once at startup from package.json
+  let _version = "unknown";
+  try {
+    _version = JSON.parse(fsReadFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "..", "package.json"), "utf-8")).version ?? "unknown";
+  } catch { /* best-effort */ }
+
   app.get("/api/health", async (c) => {
     let running = 0, stopped = 0;
     try {
@@ -48,7 +54,7 @@ export function startDashboardServer(port: number, host?: string) {
     } catch { /* Docker may be unavailable */ }
     return c.json({
       status: "ok",
-      version: process.env.npm_package_version ?? "unknown",
+      version: _version,
       uptime: Math.floor((Date.now() - daemonStartedAt) / 1000),
       bots: { running, stopped },
       pid: process.pid,
@@ -222,10 +228,15 @@ export function startDashboardServer(port: number, host?: string) {
   });
 
   app.get("/api/fleet/health", async (c) => {
-    // Proxy to /api/health
     const bots = await docker.list();
     const running = bots.filter(b => b.status === "running").length;
-    return c.json({ status: "ok", bots: { running, stopped: bots.length - running }, pid: process.pid });
+    return c.json({
+      status: "ok",
+      version: _version,
+      uptime: Math.floor((Date.now() - daemonStartedAt) / 1000),
+      bots: { running, stopped: bots.length - running },
+      pid: process.pid,
+    });
   });
 
   // --- Dashboard Fleet API (dashboard auth) ---

@@ -156,9 +156,9 @@ export async function startDaemon(port: number, host: string, foreground: boolea
     status: "starting",
   });
 
-  // Start HTTP server
+  // Start HTTP server (retain handle for graceful shutdown)
   const { startDashboardServer } = await import("./dashboard-server.js");
-  startDashboardServer(port, host);
+  const serverHandle = startDashboardServer(port, host);
 
   // Update state to ready
   writeState({
@@ -201,7 +201,8 @@ export async function startDaemon(port: number, host: string, foreground: boolea
     if (reconcileTimer) { clearInterval(reconcileTimer); reconcileTimer = null; }
     clearInterval(lockRefreshTimer);
 
-    // Give SSE connections time to close
+    // Stop accepting new connections and drain existing ones
+    try { serverHandle.close(); } catch { /* may already be closed */ }
     await new Promise(r => setTimeout(r, SHUTDOWN_DRAIN_MS));
 
     auditLog({ actor: "daemon:lifecycle", action: "stopped", result: "success" });
@@ -277,9 +278,14 @@ export async function stopDaemon(): Promise<boolean> {
 export function getDaemonStatus(): { running: boolean; state: DaemonState | null } {
   const state = readState();
   if (!state) return { running: false, state: null };
-  // Verify process is alive
+  // Verify process is alive AND matches our recorded start time (prevents PID reuse)
   try {
     process.kill(state.pid, 0);
+    // Cross-check: re-read state to confirm it hasn't been replaced
+    const freshState = readState();
+    if (!freshState || freshState.startedAt !== state.startedAt || freshState.pid !== state.pid) {
+      return { running: false, state };
+    }
     return { running: true, state };
   } catch {
     return { running: false, state };
@@ -322,7 +328,8 @@ export async function ensureDaemon(): Promise<string> {
     await new Promise(r => setTimeout(r, 500));
     const state = readState();
     if (state?.status === "ready") {
-      return `http://localhost:${state.port}`;
+      const h = (state.host === "0.0.0.0") ? "localhost" : (state.host || "localhost");
+      return `http://${h}:${state.port}`;
     }
   }
 
