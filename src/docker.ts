@@ -1,4 +1,4 @@
-import { mkdirSync, existsSync, writeFileSync, readFileSync, renameSync } from "node:fs";
+import { mkdirSync, existsSync, writeFileSync, readFileSync, renameSync, chmodSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
@@ -163,6 +163,7 @@ async function spawnUnlocked(config: BotConfig, botPath?: string, opts?: SpawnOp
 
     const configPath = join(resolvedPath, "bot.yaml");
     writeFileSync(configPath, stringifyYaml(config), { mode: 0o644 });
+    chmodSync(configPath, 0o644);
 
     const botToken = "mecha_" + randomBytes(24).toString("hex");
     const binds = buildBinds(resolvedPath, configPath, config);
