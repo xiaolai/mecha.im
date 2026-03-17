@@ -14,10 +14,11 @@ import { addCredential, detectCredentialType, listCredentials, loadCredentials }
 import { existsSync, readFileSync as fsReadFileSync, realpathSync, statSync } from "node:fs";
 import { isValidName } from "../shared/validation.js";
 import { resolveHostBotBaseUrl } from "./resolve-endpoint.js";
-import { DASHBOARD_TOKEN, HOP_BY_HOP, spawnBodySchema, authBodySchema, totpVerifySchema, revokeAllSessions } from "./dashboard-server-schema.js";
+import { DASHBOARD_TOKEN, HOP_BY_HOP, spawnBodySchema, authBodySchema, totpVerifySchema, revokeAllSessions, isValidSession } from "./dashboard-server-schema.js";
 import { safeError, dashboardSessionCookie, hasDashboardAccess, shouldBootstrapDashboardSession, guardBusy } from "./dashboard-server-utils.js";
 import { getTotpSecret, setTotpSecret, clearTotpSecret, getMechaDir, getOrCreateFleetInternalSecret } from "./store.js";
-import { timingSafeEqual } from "node:crypto";
+import { timingSafeEqual, createHmac as cryptoHmac } from "node:crypto";
+import { WebSocket as WsClient, WebSocketServer } from "ws";
 import { generateSecret, verifyTOTP, totpUri } from "../shared/totp.js";
 import { atomicWriteJsonAsync } from "../shared/atomic-write.js";
 
@@ -799,6 +800,87 @@ export function startDashboardServer(port: number, host?: string) {
       console.log(`Dashboard token (auto-generated): ${DASHBOARD_TOKEN.slice(0, 16)}...`);
     }
   });
+
+  // --- WebSocket proxy for PTY terminal ---
+  // Proxies /bot/:name/ws/terminal → container's /ws/terminal
+  {
+    const proxyWss = new WebSocketServer({ noServer: true });
+
+    server.on("upgrade", async (req: import("node:http").IncomingMessage, socket: import("node:stream").Duplex, head: Buffer) => {
+      const url = new URL(req.url ?? "/", `http://localhost:${port}`);
+      const match = url.pathname.match(/^\/bot\/([a-z0-9][a-z0-9-]*)\/ws\/(.+)$/);
+      if (!match) {
+        socket.destroy();
+        return;
+      }
+
+      const botName = match[1];
+      const wsPath = `/ws/${match[2]}`;
+
+      // Auth: check fleet dashboard session cookie
+      const cookieHeader = req.headers.cookie ?? "";
+      const sessionMatch = cookieHeader.match(/mecha_dashboard_session=([^;]+)/);
+      const sessionToken = sessionMatch?.[1];
+      if (!sessionToken || (!isValidSession(sessionToken!) && sessionToken !== DASHBOARD_TOKEN)) {
+        socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+        socket.destroy();
+        return;
+      }
+
+      // Resolve bot endpoint
+      const resolved = await resolveHostBotBaseUrl(botName, { allowRemote: false });
+      if (!resolved) {
+        socket.write("HTTP/1.1 502 Bad Gateway\r\n\r\n");
+        socket.destroy();
+        return;
+      }
+
+      // Build bot auth cookie (HMAC of bot token)
+      const botEntry = listRegistered()[botName];
+      if (!botEntry?.botToken) {
+        socket.write("HTTP/1.1 502 Bad Gateway\r\n\r\n");
+        socket.destroy();
+        return;
+      }
+      const botAuthToken = cryptoHmac("sha256", botEntry.botToken).update("mecha-dashboard-session").digest("hex");
+
+      // Connect upstream WebSocket to bot container
+      const targetUrl = resolved.baseUrl.replace(/^http/, "ws") + `${wsPath}${url.search}`;
+      const upstream = new WsClient(targetUrl, {
+        headers: { cookie: `mecha_session=${botAuthToken}` },
+      });
+
+      upstream.on("unexpected-response", (_req, res) => {
+        socket.write(`HTTP/1.1 ${res.statusCode} ${res.statusMessage}\r\n\r\n`);
+        socket.destroy();
+      });
+
+      upstream.on("error", () => { socket.destroy(); });
+
+      upstream.on("open", () => {
+        proxyWss.handleUpgrade(req, socket, head, (clientWs) => {
+          // Pipe frames bidirectionally
+          clientWs.on("message", (data, isBinary) => {
+            if (upstream.readyState === WsClient.OPEN) upstream.send(data, { binary: isBinary });
+          });
+          upstream.on("message", (data, isBinary) => {
+            if (clientWs.readyState === WsClient.OPEN) clientWs.send(data, { binary: isBinary as boolean });
+          });
+
+          clientWs.on("close", () => upstream.close());
+          upstream.on("close", () => clientWs.close());
+          clientWs.on("error", () => upstream.close());
+          upstream.on("error", () => clientWs.close());
+
+          // Proxy ping/pong
+          upstream.on("ping", (data) => clientWs.ping(data));
+          upstream.on("pong", (data) => clientWs.pong(data));
+          clientWs.on("ping", (data) => upstream.ping(data));
+          clientWs.on("pong", (data) => upstream.pong(data));
+        });
+      });
+    });
+  }
 
   return server;
 }
