@@ -22,7 +22,7 @@ import { atomicWriteJsonAsync } from "../shared/atomic-write.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-export function startDashboardServer(port: number) {
+export function startDashboardServer(port: number, host?: string) {
   const app = new Hono();
 
   // CORS — only allow same-origin
@@ -36,6 +36,24 @@ export function startDashboardServer(port: number) {
   });
 
   // --- TOTP (unauthenticated) ---
+  // Health endpoint (unauthenticated)
+  const daemonStartedAt = Date.now();
+  app.get("/api/health", async (c) => {
+    let running = 0, stopped = 0;
+    try {
+      const bots = await docker.list();
+      running = bots.filter(b => b.status === "running").length;
+      stopped = bots.length - running;
+    } catch { /* Docker may be unavailable */ }
+    return c.json({
+      status: "ok",
+      version: process.env.npm_package_version ?? "unknown",
+      uptime: Math.floor((Date.now() - daemonStartedAt) / 1000),
+      bots: { running, stopped },
+      pid: process.pid,
+    });
+  });
+
   app.get("/api/totp/status", (c) => {
     return c.json({ enabled: !!getTotpSecret() });
   });
@@ -81,7 +99,7 @@ export function startDashboardServer(port: number) {
   // Auth middleware for all API and proxy routes (token always required)
   app.use("/api/*", async (c, next) => {
     // Allow TOTP status/verify through without auth
-    if (c.req.path === "/api/totp/status" || c.req.path === "/api/totp/verify") {
+    if (c.req.path === "/api/health" || c.req.path === "/api/totp/status" || c.req.path === "/api/totp/verify") {
       return next();
     }
     // Allow public read-only access to office layout, stream, and avatars
@@ -654,7 +672,7 @@ export function startDashboardServer(port: number) {
     }));
   }
 
-  const hostname = process.env.MECHA_DASHBOARD_HOST ?? "127.0.0.1";
+  const hostname = host ?? process.env.MECHA_DASHBOARD_HOST ?? "127.0.0.1";
   const server = serve({ fetch: app.fetch, port, hostname }, () => {
     console.log(`Mecha dashboard running at http://${hostname}:${port}`);
     if (!process.env.MECHA_DASHBOARD_TOKEN) {
