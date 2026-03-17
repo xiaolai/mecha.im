@@ -16,13 +16,14 @@ import { isValidName } from "../shared/validation.js";
 import { resolveHostBotBaseUrl } from "./resolve-endpoint.js";
 import { DASHBOARD_TOKEN, HOP_BY_HOP, spawnBodySchema, authBodySchema, totpVerifySchema, revokeAllSessions } from "./dashboard-server-schema.js";
 import { safeError, dashboardSessionCookie, hasDashboardAccess, shouldBootstrapDashboardSession, guardBusy } from "./dashboard-server-utils.js";
-import { getTotpSecret, setTotpSecret, clearTotpSecret, getMechaDir } from "./store.js";
+import { getTotpSecret, setTotpSecret, clearTotpSecret, getMechaDir, getOrCreateFleetInternalSecret } from "./store.js";
+import { timingSafeEqual } from "node:crypto";
 import { generateSecret, verifyTOTP, totpUri } from "../shared/totp.js";
 import { atomicWriteJsonAsync } from "../shared/atomic-write.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-export function startDashboardServer(port: number) {
+export function startDashboardServer(port: number, host?: string) {
   const app = new Hono();
 
   // CORS — only allow same-origin
@@ -36,6 +37,30 @@ export function startDashboardServer(port: number) {
   });
 
   // --- TOTP (unauthenticated) ---
+  // Health endpoint (unauthenticated)
+  const daemonStartedAt = Date.now();
+  // Read version once at startup from package.json
+  let _version = "unknown";
+  try {
+    _version = JSON.parse(fsReadFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "..", "package.json"), "utf-8")).version ?? "unknown";
+  } catch { /* best-effort */ }
+
+  app.get("/api/health", async (c) => {
+    let running = 0, stopped = 0;
+    try {
+      const bots = await docker.list();
+      running = bots.filter(b => b.status === "running").length;
+      stopped = bots.length - running;
+    } catch { /* Docker may be unavailable */ }
+    return c.json({
+      status: "ok",
+      version: _version,
+      uptime: Math.floor((Date.now() - daemonStartedAt) / 1000),
+      bots: { running, stopped },
+      pid: process.pid,
+    });
+  });
+
   app.get("/api/totp/status", (c) => {
     return c.json({ enabled: !!getTotpSecret() });
   });
@@ -81,7 +106,7 @@ export function startDashboardServer(port: number) {
   // Auth middleware for all API and proxy routes (token always required)
   app.use("/api/*", async (c, next) => {
     // Allow TOTP status/verify through without auth
-    if (c.req.path === "/api/totp/status" || c.req.path === "/api/totp/verify") {
+    if (c.req.path === "/api/health" || c.req.path === "/api/totp/status" || c.req.path === "/api/totp/verify" || c.req.path.startsWith("/api/fleet/")) {
       return next();
     }
     // Allow public read-only access to office layout, stream, and avatars
@@ -105,7 +130,116 @@ export function startDashboardServer(port: number) {
     await next();
   });
 
-  // --- Fleet API ---
+  // --- Fleet Internal API (authenticated with MECHA_FLEET_INTERNAL_SECRET) ---
+  app.use("/api/fleet/*", async (c, next) => {
+    const auth = c.req.header("authorization");
+    if (!auth?.startsWith("Bearer ")) return c.json({ error: "Unauthorized" }, 401);
+    const token = auth.slice(7);
+    const secret = getOrCreateFleetInternalSecret();
+    const bufA = Buffer.from(token);
+    const bufB = Buffer.from(secret);
+    if (bufA.length !== bufB.length || !timingSafeEqual(bufA, bufB)) {
+      return c.json({ error: "Unauthorized" }, 401);
+    }
+    await next();
+  });
+
+  app.get("/api/fleet/bots", async (c) => {
+    const bots = await docker.list();
+    return c.json(bots);
+  });
+
+  app.post("/api/fleet/bots", async (c) => {
+    const body = await c.req.json().catch(() => null);
+    if (!body?.name || !body?.system) return c.json({ error: "name and system required" }, 400);
+    const config = buildInlineConfig({ name: body.name, system: body.system, model: body.model });
+    if (body.auth) config.auth = body.auth;
+    const containerId = await docker.spawn(config);
+    return c.json({ status: "spawned", name: config.name, containerId: containerId.slice(0, 12) });
+  });
+
+  app.post("/api/fleet/bots/:name/start", async (c) => {
+    const name = c.req.param("name");
+    if (!isValidName(name)) return c.json({ error: "Invalid bot name" }, 400);
+    await docker.start(name);
+    return c.json({ status: "started", name });
+  });
+
+  app.post("/api/fleet/bots/:name/stop", async (c) => {
+    const name = c.req.param("name");
+    if (!isValidName(name)) return c.json({ error: "Invalid bot name" }, 400);
+    await docker.stop(name);
+    return c.json({ status: "stopped", name });
+  });
+
+  app.post("/api/fleet/bots/:name/restart", async (c) => {
+    const name = c.req.param("name");
+    if (!isValidName(name)) return c.json({ error: "Invalid bot name" }, 400);
+    const containerId = await docker.restart(name);
+    return c.json({ status: "restarted", name, containerId: containerId.slice(0, 12) });
+  });
+
+  app.delete("/api/fleet/bots/:name", async (c) => {
+    const name = c.req.param("name");
+    if (!isValidName(name)) return c.json({ error: "Invalid bot name" }, 400);
+    await docker.remove(name);
+    return c.json({ status: "removed", name });
+  });
+
+  app.get("/api/fleet/bots/:name/config", async (c) => {
+    const name = c.req.param("name");
+    if (!isValidName(name)) return c.json({ error: "Invalid bot name" }, 400);
+    const entry = listRegistered()[name];
+    if (!entry?.config) return c.json({ error: "Bot not found" }, 404);
+    try {
+      const { readFileSync } = await import("node:fs");
+      const { parse: parseYaml } = await import("yaml");
+      const raw = readFileSync(entry.config, "utf-8");
+      const config = parseYaml(raw);
+      const field = new URL(c.req.url).searchParams.get("field");
+      if (field) return c.json({ [field]: config[field] });
+      return c.json(config);
+    } catch { return c.json({ error: "Failed to read config" }, 500); }
+  });
+
+  app.get("/api/fleet/costs", async (c) => {
+    const bots = listRegistered();
+    const result: Record<string, unknown> = {};
+    for (const [name, entry] of Object.entries(bots)) {
+      if (!entry.path) continue;
+      try {
+        const { readFileSync } = await import("node:fs");
+        const { join } = await import("node:path");
+        result[name] = JSON.parse(readFileSync(join(entry.path, "costs.json"), "utf-8"));
+      } catch { result[name] = {}; }
+    }
+    return c.json(result);
+  });
+
+  app.get("/api/fleet/costs/:name", async (c) => {
+    const name = c.req.param("name");
+    const entry = listRegistered()[name];
+    if (!entry?.path) return c.json({ error: "Bot not found" }, 404);
+    try {
+      const { readFileSync } = await import("node:fs");
+      const { join } = await import("node:path");
+      return c.json(JSON.parse(readFileSync(join(entry.path, "costs.json"), "utf-8")));
+    } catch { return c.json({}); }
+  });
+
+  app.get("/api/fleet/health", async (c) => {
+    const bots = await docker.list();
+    const running = bots.filter(b => b.status === "running").length;
+    return c.json({
+      status: "ok",
+      version: _version,
+      uptime: Math.floor((Date.now() - daemonStartedAt) / 1000),
+      bots: { running, stopped: bots.length - running },
+      pid: process.pid,
+    });
+  });
+
+  // --- Dashboard Fleet API (dashboard auth) ---
   app.get("/api/bots", async (c) => {
     const bots = await docker.list();
     return c.json(bots);
@@ -654,7 +788,7 @@ export function startDashboardServer(port: number) {
     }));
   }
 
-  const hostname = process.env.MECHA_DASHBOARD_HOST ?? "127.0.0.1";
+  const hostname = host ?? process.env.MECHA_DASHBOARD_HOST ?? "127.0.0.1";
   const server = serve({ fetch: app.fetch, port, hostname }, () => {
     console.log(`Mecha dashboard running at http://${hostname}:${port}`);
     if (!process.env.MECHA_DASHBOARD_TOKEN) {

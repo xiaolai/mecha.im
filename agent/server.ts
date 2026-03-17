@@ -64,7 +64,7 @@ export function createApp(config: BotConfig, startedAt: number, ptyManager?: Pty
   const busy = new Mutex();
   const sessions = new SessionManager();
   const costs = new CostTracker();
-  const mechaTools = createMechaToolServer(sessions);
+  const mechaTools = createMechaToolServer(sessions, config);
   const activity = new ActivityTracker();
   let schedulerRef: Scheduler | undefined;
 

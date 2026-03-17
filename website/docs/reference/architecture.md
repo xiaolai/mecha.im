@@ -3,38 +3,69 @@
 ## Overview
 
 ```
-Host (CLI)                    Container (Agent)
+Host (Daemon)                 Container (Agent)
 ─────────────────────────     ──────────────────────────
-src/cli.ts                    agent/entry.ts
-src/docker.ts (dockerode)     agent/server.ts (Hono)
-src/store.ts (~/.mecha/)      agent/session.ts
-src/config.ts                 agent/scheduler.ts (croner)
-src/auth.ts                   agent/webhook.ts
-src/dashboard-server.ts       agent/costs.ts
-                              agent/activity.ts
+src/daemon.ts (singleton)     agent/entry.ts
+src/dashboard-server.ts       agent/server.ts (Hono)
+src/docker.ts (dockerode)     agent/session.ts
+src/store.ts (~/.mecha/)      agent/scheduler.ts (croner)
+src/config.ts                 agent/webhook.ts
+src/auth.ts                   agent/costs.ts
+src/daemon-audit.ts           agent/activity.ts
                               agent/tools/mecha-server.ts
                               agent/tools/mecha-call.ts
                               agent/tools/mecha-list.ts
+                              agent/tools/mecha-fleet.ts
 ```
+
+## Daemon
+
+The mecha **daemon** (`src/daemon.ts`) is a singleton process that runs the fleet control plane:
+
+- **HTTP API**: Fleet dashboard + fleet management API (Hono)
+- **Reconciler**: 30-second loop comparing desired state to actual Docker state, auto-restarting crashed bots
+- **Audit log**: Structured JSONL logging of all fleet operations
+- **Singleton lock**: Directory-based lock at `~/.mecha/.daemon.lock` with mtime refresh
+
+The daemon auto-starts when you run any fleet command (`spawn`, `ls`, `stop`, etc.). You can also start it explicitly:
+
+```bash
+mecha daemon start --background
+```
+
+### Fleet API
+
+Two API namespaces:
+
+| Path | Auth | Purpose |
+|------|------|---------|
+| `/api/*` | Dashboard session/token | Human users via browser/CLI |
+| `/api/fleet/*` | `MECHA_FLEET_INTERNAL_SECRET` | Orchestrator bots (machine-to-machine) |
+
+### Reconciliation
+
+The daemon maintains `desired_state` for each bot in the registry:
+
+| desired_state | Behavior |
+|---------------|----------|
+| `running` | Auto-restart if container exits |
+| `stopped` | Auto-stop if container drifts to running |
+| `removed` | Entry deleted from registry |
 
 ## Host Side
 
-The **CLI** (`src/cli.ts`) uses Commander to provide all `mecha` commands. It talks to Docker via **dockerode** (`src/docker.ts`) to manage container lifecycle.
+The **CLI** (`src/cli.ts`) uses Commander to provide all `mecha` commands. It auto-starts the daemon when needed.
 
-**Store** (`src/store.ts`) manages persistent state in `~/.mecha/` — bot metadata, auth profiles, and image build artifacts.
+**Store** (`src/store.ts`) manages persistent state in `~/.mecha/` — bot metadata, auth profiles, and fleet secrets.
 
 **Config** (`src/config.ts`) loads and validates YAML bot config files using Zod schemas.
-
-**Dashboard Server** (`src/dashboard-server.ts`) serves the fleet dashboard SPA and proxies requests to individual bot containers.
 
 ## Container Side
 
 Each container runs an **agent** process managed by s6-overlay.
 
-**Entry** (`agent/entry.ts`) bootstraps the agent, reads config from environment, and starts the HTTP server.
-
 **Server** (`agent/server.ts`) is a Hono HTTP server exposing routes for:
-- `/api/chat` — SDK-based chat
+- `/prompt` — SDK-based chat
 - `/api/config` — bot configuration
 - `/api/schedule` — cron management
 - `/api/webhooks` — webhook processing
@@ -47,9 +78,9 @@ Each container runs an **agent** process managed by s6-overlay.
 
 ## Communication
 
-### CLI → Container
+### CLI → Daemon → Container
 
-The host CLI communicates with bot containers via HTTP. Each container exposes an internal API server. The fleet dashboard proxies requests to the correct container.
+The CLI talks to the daemon, which proxies requests to bot containers. Some commands (`query`, `exec`, `logs`) talk directly to Docker or bot containers.
 
 ### Bot → Bot
 
@@ -58,10 +89,18 @@ Bots communicate over Tailscale using MCP tools:
 - `mecha_list` — discover available bots
 - `mecha_new_session` — start fresh conversation
 
+### Orchestrator → Daemon
+
+Bots with `fleet_control: true` get fleet MCP tools that call the daemon's `/api/fleet/*` endpoints:
+- `mecha_fleet_ls`, `mecha_fleet_spawn`, `mecha_fleet_stop`, etc.
+- Authenticated with `MECHA_FLEET_INTERNAL_SECRET`
+- Regular bots do NOT have access to these tools or the fleet API
+
 ### Docker
 
 The container image is Alpine-based with:
 - Node.js 22 (installed as appuser)
-- Claude Code CLI
+- Claude Code CLI + Agent SDK (JS + Python)
+- Codex CLI + Gemini CLI
 - s6-overlay for process supervision
 - Optional Tailscale daemon
