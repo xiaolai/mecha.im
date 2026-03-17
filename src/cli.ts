@@ -28,6 +28,7 @@ import { registerCostsCommand } from "./commands/costs.js";
 import { registerScheduleCommand } from "./commands/schedule.js";
 import { registerWebhooksCommand } from "./commands/webhooks.js";
 import { registerCompletionCommand } from "./commands/completion.js";
+import { registerDaemonCommand } from "./commands/daemon.js";
 
 const program = new Command();
 
@@ -414,29 +415,27 @@ program
     if (exitCode > 0) process.exit(exitCode);
   });
 
-// --- dashboard ---
+// --- dashboard (alias for daemon start --foreground) ---
 program
   .command("dashboard")
-  .description("Start the fleet dashboard")
+  .description("Start the fleet dashboard (alias for: mecha daemon start)")
   .option("--port <port>", "Dashboard port", "7700")
+  .option("--host <host>", "Bind address", "127.0.0.1")
   .action(async (opts) => {
     const port = parsePort(opts.port);
     if (port === undefined) {
       console.error(`Invalid dashboard port: "${opts.port}" (must be 1-65535)`);
       process.exit(1);
     }
-    const { startDashboardServer } = await import("./dashboard-server.js");
-    startDashboardServer(port);
-
     // Open browser
-    const url = `http://localhost:${port}`;
+    const url = `http://${opts.host === "0.0.0.0" ? "localhost" : opts.host}:${port}`;
     if (process.platform === "darwin") {
       execFile("open", [url], () => {});
     } else if (process.platform === "linux") {
       execFile("xdg-open", [url], () => {});
     }
-    console.log(`Dashboard: ${url}`);
-    console.log("Press Ctrl+C to stop");
+    const { startDaemon } = await import("./daemon.js");
+    await startDaemon(port, opts.host, true);
   });
 
 // --- push-dashboard ---
@@ -471,6 +470,9 @@ program
 
 // --- completion ---
 registerCompletionCommand(program);
+
+// --- daemon ---
+registerDaemonCommand(program);
 
 // --- version (enhanced) ---
 program
