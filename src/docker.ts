@@ -41,13 +41,20 @@ function getVersion(): string {
 export async function ensureImage(): Promise<void> {
   const version = getVersion();
   const remoteTag = `${REGISTRY_IMAGE}:${version}`;
+  const versionedImage = `${IMAGE_NAME}:${version}`;
 
   try {
-    await docker.getImage(IMAGE_NAME).inspect();
-    log.info(`Image "${IMAGE_NAME}" already exists locally`);
+    await docker.getImage(versionedImage).inspect();
+    log.info(`Image "${versionedImage}" already exists locally`);
     return;
   } catch {
-    // Not found locally, proceed to pull or build
+    // Version-tagged image not found — check for any mecha-agent image and warn
+    try {
+      await docker.getImage(IMAGE_NAME).inspect();
+      log.info(`Existing "${IMAGE_NAME}" found but not version ${version} — upgrading`);
+    } catch {
+      // No existing image at all
+    }
   }
 
   try {
@@ -67,7 +74,8 @@ export async function ensureImage(): Promise<void> {
     console.log();
     const pulled = docker.getImage(remoteTag);
     await pulled.tag({ repo: IMAGE_NAME, tag: "latest" });
-    log.info(`Pulled and tagged ${remoteTag} as ${IMAGE_NAME}`);
+    await pulled.tag({ repo: IMAGE_NAME, tag: version });
+    log.info(`Pulled and tagged ${remoteTag} as ${IMAGE_NAME}:${version}`);
     return;
   } catch (err) {
     log.warn("Could not pull pre-built image, building locally...", {
@@ -104,6 +112,15 @@ export async function buildImage(): Promise<void> {
       if (event.stream) process.stdout.write(event.stream);
     });
   });
+
+  // Tag with version for upgrade detection
+  const version = getVersion();
+  if (version !== "latest") {
+    try {
+      const built = docker.getImage(IMAGE_NAME);
+      await built.tag({ repo: IMAGE_NAME, tag: version });
+    } catch { /* best-effort */ }
+  }
 }
 
 export async function spawn(config: BotConfig, botPath?: string): Promise<string> {
