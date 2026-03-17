@@ -45,11 +45,12 @@ mecha logs greeter -f   # follow mode
 ## Open the Dashboard
 
 ```bash
-mecha dashboard
-# Opens http://localhost:7700
+mecha dashboard              # starts daemon + opens browser
+# Or run the daemon in the background:
+mecha daemon start --background
 ```
 
-Click on a bot to see its individual dashboard with chat, schedule, logs, and config views.
+The daemon auto-starts when you run fleet commands — you rarely need to start it manually. Click on a bot to see its individual dashboard with chat, schedule, logs, and config views.
 
 ## Manage Bots
 
