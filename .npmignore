@@ -20,3 +20,7 @@ dashboard/src/
 dashboard/node_modules/
 agent/dashboard/src/
 agent/dashboard/node_modules/
+
+# Adapter build artifacts (users run npm install themselves)
+adapters/*/node_modules/
+adapters/*/package-lock.json
