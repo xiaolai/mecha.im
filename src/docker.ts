@@ -178,9 +178,14 @@ async function spawnUnlocked(config: BotConfig, botPath?: string, opts?: SpawnOp
       portBindings["3000/tcp"] = [{ HostIp: "127.0.0.1", HostPort: "" }];
     }
 
+    // Run container as host user's UID:GID so bind-mounted files are accessible
+    const hostUid = process.getuid?.() ?? 1000;
+    const hostGid = process.getgid?.() ?? 1000;
+
     const container = await docker.createContainer({
       Image: IMAGE_NAME,
       name: `mecha-${config.name}`,
+      User: `${hostUid}:${hostGid}`,
       Env: env,
       ExposedPorts: exposedPorts,
       Labels: {
