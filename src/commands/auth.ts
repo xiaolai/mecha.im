@@ -19,13 +19,21 @@ export function registerAuthCommands(program: Command): void {
     .description("Manage credentials (credentials.yaml)");
 
   authCmd
-    .command("add <name> <key>")
-    .description("Add a credential (auto-detects type from key prefix)")
+    .command("add <name> [key]")
+    .description("Add a credential (auto-detects type from key prefix). Use --stdin to read key from stdin.")
     .option("--type <type>", "Override type: api_key, oauth_token, bot_token, secret, tailscale")
     .option("--env <env>", "Override env var name")
     .option("--account <account>", "Account label (e.g. email)")
     .option("--created-at <date>", "Creation date (YYYY-MM-DD), defaults to today")
-    .action((name: string, key: string, opts: { type?: string; env?: string; account?: string; createdAt?: string }) => {
+    .option("--stdin", "Read key from stdin (avoids shell history exposure)")
+    .action(async (name: string, key: string | undefined, opts: { type?: string; env?: string; account?: string; createdAt?: string; stdin?: boolean }) => {
+      // Read key from stdin if --stdin or no key argument
+      if (opts.stdin || !key) {
+        const chunks: Buffer[] = [];
+        for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
+        key = Buffer.concat(chunks).toString("utf-8").trim();
+        if (!key) { console.error("No key provided. Pass as argument or pipe via stdin."); process.exit(1); }
+      }
       ensureMechaDir();
       const detected = detectCredentialType(key);
       if (opts.type && !(credentialTypes as readonly string[]).includes(opts.type)) {
