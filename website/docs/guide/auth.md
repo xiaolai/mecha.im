@@ -45,9 +45,16 @@ mecha auth add anthropic-secondary sk-ant-...
 # Add a Tailscale key
 mecha auth add ts-main tskey-auth-...
 
+# Read key from stdin (avoids shell history exposure)
+echo "sk-ant-..." | mecha auth add my-key --stdin
+
 # List profiles
 mecha auth list
 ```
+
+::: tip Security
+Use `--stdin` to avoid exposing API keys in shell history and process listings. You can also pipe from a file: `cat key.txt | mecha auth add my-key --stdin`
+:::
 
 Profiles are stored at `~/.mecha/auth/<name>.json`.
 
