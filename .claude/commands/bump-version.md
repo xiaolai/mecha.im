@@ -1,4 +1,4 @@
-Bump the version number across all package.json files, commit, and tag.
+Bump the version number across all package.json files, commit, tag, push, and publish to npmjs.
 
 ## Arguments
 
@@ -25,4 +25,10 @@ Bump the version number across all package.json files, commit, and tag.
 
 7. Tag: `git tag vA.B.C`
 
-8. Remind the user: "Push with `git push && git push --tags` to trigger the release pipeline."
+8. Push: `git push && git push --tags`
+
+9. Build: `npm run build`
+
+10. Publish: `npm publish --access public`
+
+11. Confirm: "Published `@mecha.im/cli@A.B.C` to npmjs."
