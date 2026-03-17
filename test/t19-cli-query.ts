@@ -213,7 +213,7 @@ await test("T19.12 collectAttachments nested directories", () => {
 
 // --- readPromptSSE ---
 
-const { readPromptSSE } = await import("../src/cli.utils.js");
+const { readPromptSSE } = await import("../src/cli-utils.js");
 
 function createSSEReader(lines: string[]): ReadableStreamDefaultReader<Uint8Array> {
   const encoder = new TextEncoder();
