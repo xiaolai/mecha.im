@@ -106,11 +106,27 @@ export function registerAuthCommands(program: Command): void {
       // Atomic swap: hold bot lock for the entire stop+remove+spawn sequence
       const configPath = entry.config!;
       const botPath = entry.path;
+      // Save old config for rollback
+      const { readFileSync } = await import("node:fs");
+      const oldConfigContent = readFileSync(configPath, "utf-8");
+
       const containerId = await withBotLock(botName, async () => {
         atomicWriteText(configPath, stringifyYaml(updatedConfig));
         try { await docker.stop(botName); } catch { /* may not be running */ }
         try { await docker.remove(botName); } catch { /* may already be removed */ }
-        return docker.spawn(updatedConfig, botPath);
+        try {
+          return await docker.spawn(updatedConfig, botPath);
+        } catch (spawnErr) {
+          // Rollback: restore old config and try to re-spawn with original auth
+          console.error(`Spawn failed with new auth — rolling back to "${config.auth ?? "default"}"...`);
+          atomicWriteText(configPath, oldConfigContent);
+          try {
+            return await docker.spawn(config, botPath);
+          } catch {
+            console.error("Rollback spawn also failed. Bot is down. Restore config manually and run: mecha start " + botName);
+            throw spawnErr;
+          }
+        }
       });
       console.log(`Bot "${botName}" restarted with new auth (container: ${containerId.slice(0, 12)})`);
     });
