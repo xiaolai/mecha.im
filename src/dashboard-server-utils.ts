@@ -76,14 +76,14 @@ export function shouldBootstrapDashboardSession(c: Context): boolean {
   if (!(c.req.method === "GET" || c.req.method === "HEAD")) return false;
   if (c.req.path.startsWith("/api/")) return false;
 
+  // When TOTP is enabled, only TOTP verify can create sessions
+  if (getTotpSecret()) return false;
+
   // ?token= param: set session cookie when valid token is provided (works from any IP)
   const tokenParam = new URL(c.req.url).searchParams.get("token");
   if (tokenParam && constantTimeEquals(tokenParam, DASHBOARD_TOKEN)) {
     return true;
   }
-
-  // When TOTP is enabled, always require login
-  if (getTotpSecret()) return false;
   // When TOTP is disabled, only auto-bootstrap for loopback clients
   const remoteAddr = c.req.header("x-forwarded-for") ?? c.req.header("remote-addr") ?? "";
   const isLoopback = !remoteAddr || remoteAddr === "127.0.0.1" || remoteAddr === "::1" || remoteAddr === "localhost";
