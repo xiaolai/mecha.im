@@ -32,7 +32,7 @@ RUN apk add --no-cache xz \
     && rm /tmp/s6-overlay-*.tar.xz
 
 # Minimal system deps (root) — only what requires root privileges
-RUN apk add --no-cache git bash curl libstdc++ python3 py3-pip
+RUN apk add --no-cache git bash curl libstdc++ python3 py3-pip make g++
 
 # Create non-root user
 RUN adduser -D -u 10001 appuser
