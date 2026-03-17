@@ -67,6 +67,13 @@ function ThemeToggle() {
 export default function App() {
   const { isFleet, selectedBot, selectBot, bots } = useFleet();
   const [tab, setTab] = useState<Tab>("Sessions");
+  const [runtimeVersion, setRuntimeVersion] = useState<string>(__APP_VERSION__);
+
+  useEffect(() => {
+    fetch("/api/health").then(r => r.ok ? r.json() : null)
+      .then((d: { version?: string } | null) => { if (d?.version) setRuntimeVersion(d.version); })
+      .catch(() => {});
+  }, []);
 
   // In fleet mode, switch tabs based on bot selection
   useEffect(() => {
@@ -165,8 +172,8 @@ export default function App() {
 
         {/* Bottom: theme toggle + version */}
         <ThemeToggle />
-        <span className="text-[10px] text-sidebar-muted select-none" title={`Mecha v${__APP_VERSION__}`}>
-          v{__APP_VERSION__}
+        <span className="text-[10px] text-sidebar-muted select-none" title={`Mecha v${runtimeVersion}`}>
+          v{runtimeVersion}
         </span>
       </aside>
 
