@@ -74,6 +74,13 @@ export function hasDashboardAccess(c: Context): boolean {
 export function shouldBootstrapDashboardSession(c: Context): boolean {
   if (!(c.req.method === "GET" || c.req.method === "HEAD")) return false;
   if (c.req.path.startsWith("/api/")) return false;
+
+  // ?token= param: set session cookie when valid token is provided (works from any IP)
+  const tokenParam = new URL(c.req.url).searchParams.get("token");
+  if (tokenParam && constantTimeEquals(tokenParam, DASHBOARD_TOKEN)) {
+    return true;
+  }
+
   // When TOTP is enabled, always require login
   if (getTotpSecret()) return false;
   // When TOTP is disabled, only auto-bootstrap for loopback clients
