@@ -18,6 +18,9 @@ export const botConfigSchema = z.object({
     accept: z.array(z.string()),
     secret: z.string().optional(),
   }).optional(),
+  permissions: z.object({
+    fleet_control: z.boolean().default(false),
+  }).optional(),
   workspace: z.string().optional(),
   workspace_writable: z.boolean().default(false),
   expose: z.number().int().min(1).max(65535).optional(),
