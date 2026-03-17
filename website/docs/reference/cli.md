@@ -29,7 +29,6 @@ mecha spawn --name greeter --system "You greet people." [--model sonnet] [--auth
 | `--name` | Bot name (inline mode) |
 | `--system` | System prompt (inline mode) |
 | `--model` | Claude model (default: `sonnet`) |
-| `--auth` | Auth profile name |
 | `--dir` | Working directory |
 | `--expose` | Expose container port to host |
 
@@ -176,6 +175,41 @@ Generate a bearer token for bot API access.
 ```bash
 mecha token
 ```
+
+## `mecha adapter`
+
+Manage and run protocol adapters (Telegram, Slack, etc.).
+
+```bash
+mecha adapter list                         # List available adapters
+mecha adapter start telegram               # Start an adapter
+mecha adapter start telegram --bot posca   # Route to a specific bot
+mecha adapter start telegram --background  # Run in background
+```
+
+| Flag | Description |
+|------|-------------|
+| `--bot <name>` | Default bot to route messages to |
+| `--env <KEY=VALUE...>` | Extra environment variables |
+| `--background` | Run in background (detached) |
+
+Built-in adapters ship with the npm package. User adapters go in `~/.mecha/adapters/<name>/` with a `package.json` that has a `start` script.
+
+### Telegram adapter
+
+The built-in Telegram adapter bridges messages to mecha bots with real-time status updates, `@bot` mentions, and markdown rendering.
+
+```bash
+export TELEGRAM_BOT_TOKEN=<your-botfather-token>
+export TELEGRAM_ALLOWED_USERS=<your-user-id>
+mecha adapter start telegram --bot antony
+```
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `TELEGRAM_BOT_TOKEN` | Yes | From @BotFather |
+| `TELEGRAM_ALLOWED_USERS` | No | Comma-separated user IDs (empty = allow all) |
+| `MECHA_DASHBOARD_TOKEN` | No | Dashboard token for authenticated daemon access |
 
 ## `mecha doctor`
 
