@@ -36,7 +36,7 @@ const program = new Command();
 program
   .name("mecha")
   .description("An army of agents")
-  .version("0.3.9");
+  .version("0.3.10");
 
 // --- init ---
 program
