@@ -29,7 +29,13 @@ export function registerConfigCommand(program: Command): void {
       }
 
       const { parse: parseYaml, stringify: stringifyYaml } = await import("yaml");
-      const config = parseYaml(raw) as Record<string, unknown>;
+      let config: Record<string, unknown>;
+      try {
+        config = parseYaml(raw) as Record<string, unknown>;
+      } catch (e) {
+        console.error(`Failed to parse config: ${e instanceof Error ? e.message : e}`);
+        process.exit(1);
+      }
 
       // --set: edit mode
       if (opts.set) {
@@ -49,7 +55,29 @@ export function registerConfigCommand(program: Command): void {
           : value;
 
         config[key] = parsed;
-        atomicWriteText(entry.config, stringifyYaml(config));
+
+        // Validate merged config against schema before writing
+        try {
+          const { loadBotConfig } = await import("../config.js");
+          // Write to temp, validate, then commit
+          const merged = stringifyYaml(config);
+          const { writeFileSync, unlinkSync } = await import("node:fs");
+          const tmpPath = entry.config + ".tmp";
+          writeFileSync(tmpPath, merged, { mode: 0o600 });
+          try {
+            loadBotConfig(tmpPath);
+          } catch (validationErr) {
+            unlinkSync(tmpPath);
+            console.error(`Invalid config after setting ${key}: ${validationErr instanceof Error ? validationErr.message : validationErr}`);
+            process.exit(1);
+          }
+          unlinkSync(tmpPath);
+          atomicWriteText(entry.config, merged);
+        } catch (writeErr) {
+          if ((writeErr as { code?: string }).code === "PROCESS_EXIT") throw writeErr;
+          console.error(`Failed to write config: ${writeErr instanceof Error ? writeErr.message : writeErr}`);
+          process.exit(1);
+        }
         console.log(`Set ${key}=${JSON.stringify(parsed)} in ${entry.config}`);
         console.log(`Restart the bot for changes to take effect: mecha restart ${name}`);
         return;
