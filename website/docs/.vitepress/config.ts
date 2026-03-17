@@ -55,6 +55,7 @@ export default withMermaid(
               { text: "Workspace Mounting", link: "/features/workspaces" },
               { text: "Tailscale Mesh", link: "/features/tailscale" },
               { text: "Dashboard", link: "/features/dashboard" },
+              { text: "Orchestrator Bot", link: "/features/orchestrator" },
             ],
           },
         ],

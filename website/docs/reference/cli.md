@@ -127,12 +127,34 @@ mecha ssh-key <name>
 
 Keys are auto-generated on first use. Add the output to GitHub Settings → SSH Keys to enable git operations from the bot.
 
-## `mecha dashboard`
+## `mecha daemon`
 
-Start the fleet dashboard.
+Manage the singleton fleet daemon. The daemon runs the fleet API, dashboard UI, and a reconciliation loop that auto-restarts crashed bots.
 
 ```bash
-mecha dashboard [--port N]
+mecha daemon start                    # foreground
+mecha daemon start --background       # detached
+mecha daemon start --host 0.0.0.0     # bind to all interfaces
+mecha daemon stop                     # graceful shutdown
+mecha daemon status                   # show running state
+mecha daemon status --json            # JSON output
+```
+
+| Flag | Description |
+|------|-------------|
+| `--port <port>` | Listen port (default: `7700`) |
+| `--host <host>` | Bind address (default: `127.0.0.1`) |
+| `--background` | Detach from terminal |
+| `--json` | JSON output (status only) |
+
+The daemon auto-starts when you run fleet commands like `spawn`, `ls`, `stop`, etc. You rarely need to start it manually.
+
+## `mecha dashboard`
+
+Alias for `mecha daemon start` (foreground mode). Opens the browser automatically.
+
+```bash
+mecha dashboard [--port N] [--host H]
 ```
 
 Default port: `7700`.
