@@ -6,7 +6,8 @@ An army of agents. Run autonomous Claude bots in Docker containers with scheduli
 
 ```bash
 # Install
-npm install -g mecha
+npm install -g @mecha.im/cli
+# Or run without installing: npx @mecha.im/cli
 
 # Initialize (builds Docker image)
 mecha init
