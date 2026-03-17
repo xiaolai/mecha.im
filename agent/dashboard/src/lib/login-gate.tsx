@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { ReactNode, KeyboardEvent } from "react";
 import { Alert, Card } from "../components";
+import { PixelOffice } from "../pixel-engine/components/PixelOffice";
 
 interface LoginGateProps {
   children: ReactNode;
@@ -10,7 +11,6 @@ function TotpInput({ onComplete, error, busy }: { onComplete: (code: string) => 
   const [digits, setDigits] = useState<string[]>(["", "", "", "", "", ""]);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  // Reset digits when error changes (wrong code)
   useEffect(() => {
     if (error) {
       setDigits(["", "", "", "", "", ""]);
@@ -18,11 +18,9 @@ function TotpInput({ onComplete, error, busy }: { onComplete: (code: string) => 
     }
   }, [error]);
 
-  // Auto-focus first input on mount
   useEffect(() => { inputRefs.current[0]?.focus(); }, []);
 
   function handleChange(index: number, value: string) {
-    // Handle paste of full code
     if (value.length > 1) {
       const pasted = value.replace(/\D/g, "").slice(0, 6);
       if (pasted.length === 6) {
@@ -43,7 +41,6 @@ function TotpInput({ onComplete, error, busy }: { onComplete: (code: string) => 
       inputRefs.current[index + 1]?.focus();
     }
 
-    // Auto-submit when all 6 digits filled
     const code = newDigits.join("");
     if (code.length === 6 && newDigits.every(d => d !== "")) {
       onComplete(code);
@@ -87,7 +84,7 @@ function TotpInput({ onComplete, error, busy }: { onComplete: (code: string) => 
             disabled={busy}
             className={[
               "w-11 h-14 text-center text-2xl font-mono rounded-lg border transition-colors",
-              "bg-card text-foreground outline-none",
+              "bg-card/80 backdrop-blur-sm text-foreground outline-none",
               "focus:border-primary focus:ring-1 focus:ring-primary",
               error ? "border-destructive" : "border-border",
               busy ? "opacity-50" : "",
@@ -168,28 +165,40 @@ export default function LoginGate({ children }: LoginGateProps) {
     return <>{children}</>;
   }
 
+  // Locked — show pixel office as background with login overlay
   return (
-    <div className="h-screen flex items-center justify-center bg-background">
-      <div className="w-full max-w-sm px-4">
-        <Card spacing={4} className="text-center">
-          <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center text-primary-foreground font-bold text-xl mx-auto">
-            M
-          </div>
-          <h1 className="text-lg font-semibold text-foreground">Mecha Dashboard</h1>
+    <div className="h-screen w-screen overflow-hidden relative">
+      {/* Pixel office background (read-only, no controls) */}
+      <div className="absolute inset-0">
+        <PixelOffice isActive readOnly />
+      </div>
 
-          {totpEnabled ? (
-            <>
+      {/* Dark overlay */}
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" />
+
+      {/* Login card */}
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="w-full max-w-sm px-4">
+          <Card spacing={4} className="text-center bg-card/90 backdrop-blur-md shadow-2xl">
+            <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center text-primary-foreground font-bold text-xl mx-auto">
+              M
+            </div>
+            <h1 className="text-lg font-semibold text-foreground">Mecha Dashboard</h1>
+
+            {totpEnabled ? (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  Enter the 6-digit code from your authenticator app.
+                </p>
+                <TotpInput onComplete={handleVerify} error={error} busy={busy} />
+              </>
+            ) : (
               <p className="text-sm text-muted-foreground">
-                Enter the 6-digit code from your authenticator app.
+                Access denied. Use <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">?token=</code> to authenticate.
               </p>
-              <TotpInput onComplete={handleVerify} error={error} busy={busy} />
-            </>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Access denied. Use <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">?token=</code> to authenticate.
-            </p>
-          )}
-        </Card>
+            )}
+          </Card>
+        </div>
       </div>
     </div>
   );
