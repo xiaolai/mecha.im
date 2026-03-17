@@ -5,6 +5,7 @@ import { PixelOffice } from "../pixel-engine/components/PixelOffice";
 
 interface LoginGateProps {
   children: ReactNode;
+  redirectTo?: string;
 }
 
 function TotpInput({ onComplete, error, busy }: { onComplete: (code: string) => void; error: string | null; busy: boolean }) {
@@ -102,7 +103,7 @@ function TotpInput({ onComplete, error, busy }: { onComplete: (code: string) => 
   );
 }
 
-export default function LoginGate({ children }: LoginGateProps) {
+export default function LoginGate({ children, redirectTo }: LoginGateProps) {
   const [status, setStatus] = useState<"checking" | "open" | "locked" | "authenticated">("checking");
   const [totpEnabled, setTotpEnabled] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -162,6 +163,10 @@ export default function LoginGate({ children }: LoginGateProps) {
   }
 
   if (status === "open" || status === "authenticated") {
+    if (redirectTo) {
+      window.location.href = redirectTo;
+      return null;
+    }
     return <>{children}</>;
   }
 
