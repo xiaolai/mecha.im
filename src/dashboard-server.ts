@@ -513,13 +513,16 @@ export function startDashboardServer(port: number, host?: string) {
     }
 
     try {
-      const resp = await fetch(targetUrl, {
+      const hasBody = c.req.method !== "GET" && c.req.method !== "HEAD";
+      const fetchOpts: RequestInit & { duplex?: string } = {
         method: c.req.method,
         headers: forwardHeaders,
-        body: c.req.method !== "GET" && c.req.method !== "HEAD" ? c.req.raw.body : undefined,
+        body: hasBody ? c.req.raw.body : undefined,
         redirect: "manual",
-        signal: AbortSignal.timeout(30_000),
-      });
+        signal: AbortSignal.timeout(5 * 60 * 1000), // 5min for SSE streams
+      };
+      if (hasBody) fetchOpts.duplex = "half";
+      const resp = await fetch(targetUrl, fetchOpts);
 
       // Filter response headers: strip hop-by-hop and set-cookie to prevent bot planting cookies on fleet origin
       const STRIP_RESPONSE = new Set([...HOP_BY_HOP, "set-cookie"]);
@@ -535,6 +538,7 @@ export function startDashboardServer(port: number, host?: string) {
         headers: responseHeaders,
       });
     } catch (err) {
+      console.error("Proxy error:", targetUrl, err instanceof Error ? err.message : String(err));
       return c.json({ error: "Proxy error" }, 502);
     }
   });
