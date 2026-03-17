@@ -178,14 +178,14 @@ async function spawnUnlocked(config: BotConfig, botPath?: string, opts?: SpawnOp
       portBindings["3000/tcp"] = [{ HostIp: "127.0.0.1", HostPort: "" }];
     }
 
-    // Run container as host user's UID:GID so bind-mounted files are accessible
+    // Pass host UID/GID so the s6 fix-attrs script can chown state dirs
     const hostUid = process.getuid?.() ?? 1000;
     const hostGid = process.getgid?.() ?? 1000;
+    env.push(`MECHA_HOST_UID=${hostUid}`, `MECHA_HOST_GID=${hostGid}`);
 
     const container = await docker.createContainer({
       Image: IMAGE_NAME,
       name: `mecha-${config.name}`,
-      User: `${hostUid}:${hostGid}`,
       Env: env,
       ExposedPorts: exposedPorts,
       Labels: {
