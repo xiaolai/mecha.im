@@ -180,21 +180,15 @@ export default function LoginGate({ children }: LoginGateProps) {
       <div className="absolute inset-0 flex items-center justify-center">
         <div className="w-full max-w-sm px-4">
           <Card spacing={4} className="text-center bg-card/90 backdrop-blur-md shadow-2xl">
-            <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center text-primary-foreground font-bold text-xl mx-auto">
+            <div className="w-14 h-14 rounded-xl bg-primary flex items-center justify-center text-primary-foreground font-bold text-2xl mx-auto">
               M
             </div>
-            <h1 className="text-lg font-semibold text-foreground">Mecha Dashboard</h1>
 
             {totpEnabled ? (
-              <>
-                <p className="text-sm text-muted-foreground">
-                  Enter the 6-digit code from your authenticator app.
-                </p>
-                <TotpInput onComplete={handleVerify} error={error} busy={busy} />
-              </>
+              <TotpInput onComplete={handleVerify} error={error} busy={busy} />
             ) : (
               <p className="text-sm text-muted-foreground">
-                Access denied. Use <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">?token=</code> to authenticate.
+                Access denied.
               </p>
             )}
           </Card>
