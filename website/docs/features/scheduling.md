@@ -31,15 +31,29 @@ Each entry requires:
 
 These limits prevent runaway costs and infinite loops.
 
-## Managing Schedules
+## Managing Schedules from CLI
 
-View schedules from the CLI:
+Manage schedules directly from the command line:
 
 ```bash
-mecha ls   # shows schedule status per bot
+# List all schedules for a bot
+mecha schedule monitor ls
+
+# Add a new schedule
+mecha schedule monitor add "*/15 * * * *" "Check for new tickets"
+
+# Pause / resume / trigger a schedule
+mecha schedule monitor pause <schedule-id>
+mecha schedule monitor resume <schedule-id>
+mecha schedule monitor run <schedule-id>    # trigger immediately
+
+# Remove a schedule
+mecha schedule monitor rm <schedule-id>
 ```
 
-Or from the bot dashboard's **Schedule** tab, where you can add, edit, and delete cron entries.
+Use `--json` on `ls` for machine-readable output.
+
+You can also manage schedules from the bot dashboard's **Schedule** tab.
 
 ## Examples
 

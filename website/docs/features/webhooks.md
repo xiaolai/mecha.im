@@ -50,6 +50,25 @@ The `accept` array supports dotted event types. Common examples:
 | `issues.opened` | New issue created |
 | `issue_comment.created` | New comment on an issue |
 
+## Managing Webhooks from CLI
+
+Manage webhook event filters from the command line:
+
+```bash
+# List configured webhook events
+mecha webhooks pr-reviewer ls
+
+# Add an event filter
+mecha webhooks pr-reviewer add "issues.opened"
+
+# Remove an event filter
+mecha webhooks pr-reviewer rm "issues.opened"
+```
+
+Use `--json` on `ls` for machine-readable output.
+
+You can also manage webhooks from the bot dashboard's **Webhooks** tab.
+
 ## Signature Verification
 
 When `secret` is set, the bot verifies the `X-Hub-Signature-256` header on incoming requests. Requests with invalid or missing signatures are rejected with `401`.
