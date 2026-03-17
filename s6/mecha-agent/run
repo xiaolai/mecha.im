@@ -1,14 +1,27 @@
 #!/bin/bash
 exec 2>&1
 
-# Fix ownership of volume-mounted config dirs (recursive — these are small)
-chown -R appuser:appuser /home/appuser/.claude /home/appuser/.codex 2>/dev/null
-# Workspace ownership: only fix top-level dir, not recursive (can be large)
-chown appuser:appuser /home/appuser/workspace 2>/dev/null
+# Determine run user: use host UID if provided, otherwise appuser (10001)
+RUN_UID="${MECHA_HOST_UID:-10001}"
+RUN_GID="${MECHA_HOST_GID:-10001}"
+RUN_USER="appuser"
+
+# If host UID differs from appuser, create/update a matching user
+if [ "$RUN_UID" != "10001" ]; then
+  RUN_USER="mechahost"
+  if ! id "$RUN_USER" >/dev/null 2>&1; then
+    adduser -D -u "$RUN_UID" -h /home/appuser "$RUN_USER" 2>/dev/null || true
+  fi
+fi
+
+# Fix ownership of volume-mounted config dirs
+chown -R "$RUN_UID:$RUN_GID" /home/appuser/.claude /home/appuser/.codex 2>/dev/null
+chown "$RUN_UID:$RUN_GID" /home/appuser/workspace /state /config 2>/dev/null
+chown "$RUN_UID:$RUN_GID" /config/bot.yaml /state/credentials.yaml 2>/dev/null
 
 # Ensure .claude.json has onboarding complete (use node for safe JSON handling)
 CLAUDE_JSON="/home/appuser/.claude.json"
-s6-setuidgid appuser env HOME=/home/appuser node -e '
+s6-setuidgid "$RUN_USER" env HOME=/home/appuser node -e '
   const fs = require("fs");
   const p = process.argv[1];
   let data = {};
@@ -36,4 +49,4 @@ if [ -f /state/stop-requested ]; then
   exit 0
 fi
 
-exec s6-setuidgid appuser env HOME=/home/appuser node /app/agent/entry.js
+exec s6-setuidgid "$RUN_USER" env HOME=/home/appuser node /app/agent/entry.js
