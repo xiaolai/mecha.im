@@ -166,7 +166,7 @@ async function spawnUnlocked(config: BotConfig, botPath?: string, opts?: SpawnOp
 
     const botToken = "mecha_" + randomBytes(24).toString("hex");
     const binds = buildBinds(resolvedPath, configPath, config);
-    const env = buildContainerEnv(config, botToken);
+    const env = await buildContainerEnv(config, botToken);
     copyHostCodexAuth(resolvedPath);
 
     const exposedPorts: Record<string, object> = { "3000/tcp": {} };
