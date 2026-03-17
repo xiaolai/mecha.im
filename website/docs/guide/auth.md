@@ -68,10 +68,17 @@ system: "You review code."
 auth: anthropic-main
 ```
 
-Or when spawning inline:
+For inline spawns, set the auth profile in a config file:
+
+```yaml
+# reviewer.yaml
+name: reviewer
+system: "You review code."
+auth: anthropic-main
+```
 
 ```bash
-mecha spawn --name reviewer --system "You review code." --auth anthropic-main
+mecha spawn reviewer.yaml
 ```
 
 ## Swapping Auth at Runtime
