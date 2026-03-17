@@ -22,6 +22,9 @@ webhooks:
   accept: string[]    # Event types to process
   secret: string      # HMAC-SHA256 verification secret
 
+permissions:
+  fleet_control: boolean  # Default: false — enables fleet MCP tools (orchestrator)
+
 workspace: string     # Host path to mount
 workspace_writable: boolean  # Default: false
 
