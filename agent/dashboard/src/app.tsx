@@ -170,7 +170,16 @@ export default function App() {
           ))}
         </nav>
 
-        {/* Bottom: theme toggle + version */}
+        {/* Bottom: logout + theme toggle + version */}
+        <button
+          onClick={() => { window.location.href = "/"; }}
+          className="p-2 rounded-md text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
+          title="Logout"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+          </svg>
+        </button>
         <ThemeToggle />
         <span className="text-[10px] text-sidebar-muted select-none" title={`Mecha v${runtimeVersion}`}>
           v{runtimeVersion}
