@@ -290,9 +290,9 @@ export async function stop(name: string): Promise<void> {
   const mutex = getMutex(`bot:${name}`);
   const release = await mutex.acquire();
   try {
+    setBotDesiredState(name, "stopped"); // Set desired state BEFORE stopping
     const container = docker.getContainer(`mecha-${name}`);
     await container.stop({ t: 10 });
-    setBotDesiredState(name, "stopped");
   } catch (err) {
     if (isDockerError(err, "No such container") || isDockerError(err, "is not running")) {
       throw new BotNotRunningError(name);

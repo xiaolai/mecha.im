@@ -6,7 +6,7 @@
  * Logs: $MECHA_DIR/logs/daemon.log
  */
 
-import { mkdirSync, rmdirSync, readFileSync, writeFileSync, statSync, unlinkSync } from "node:fs";
+import { mkdirSync, rmdirSync, readFileSync, writeFileSync, statSync, unlinkSync, utimesSync } from "node:fs";
 import { join } from "node:path";
 import { spawn as spawnChild } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -22,6 +22,7 @@ const SHUTDOWN_DRAIN_MS = 5_000;
 interface DaemonState {
   pid: number;
   port: number;
+  host: string;
   startedAt: string;
   version: string;
   status: "starting" | "ready" | "stopping";
@@ -102,9 +103,15 @@ async function reconcile(): Promise<void> {
         }
       } else if (desired === "stopped") {
         if (container && container.status === "running") {
-          // Drift: running but should be stopped — log only, don't act
-          auditLog({ actor: "daemon:reconciler", action: "drift-detected", target: name,
-            detail: { desired: "stopped", actual: "running" }, result: "skipped" });
+          // Drift: running but should be stopped — stop it
+          try {
+            await docker.stop(name);
+            auditLog({ actor: "daemon:reconciler", action: "auto-stop", target: name,
+              detail: { reason: "desired_state=stopped but container running" }, result: "success" });
+          } catch (err) {
+            auditLog({ actor: "daemon:reconciler", action: "auto-stop", target: name,
+              detail: { error: err instanceof Error ? err.message : String(err) }, result: "failure" });
+          }
         }
       }
     }
@@ -143,6 +150,7 @@ export async function startDaemon(port: number, host: string, foreground: boolea
   writeState({
     pid: process.pid,
     port,
+    host,
     startedAt: new Date().toISOString(),
     version: readVersion(),
     status: "starting",
@@ -156,6 +164,7 @@ export async function startDaemon(port: number, host: string, foreground: boolea
   writeState({
     pid: process.pid,
     port,
+    host,
     startedAt: new Date().toISOString(),
     version: readVersion(),
     status: "ready",
@@ -163,6 +172,14 @@ export async function startDaemon(port: number, host: string, foreground: boolea
 
   // Start reconciler
   reconcileTimer = setInterval(reconcile, RECONCILE_INTERVAL_MS);
+
+  // Refresh lock mtime to prevent stale detection by other processes
+  const lockRefreshTimer = setInterval(() => {
+    try {
+      const now = new Date();
+      utimesSync(lockDir(), now, now);
+    } catch { /* lock dir may be gone during shutdown */ }
+  }, LOCK_STALE_MS / 3); // refresh at 1/3 of stale threshold
 
   auditLog({ actor: "daemon:lifecycle", action: "started", detail: { port, host, pid: process.pid }, result: "success" });
   console.log(`Daemon running on http://${host === "0.0.0.0" ? "localhost" : host}:${port} (PID ${process.pid})`);
@@ -182,6 +199,7 @@ export async function startDaemon(port: number, host: string, foreground: boolea
     writeState({ ...readState()!, status: "stopping" });
 
     if (reconcileTimer) { clearInterval(reconcileTimer); reconcileTimer = null; }
+    clearInterval(lockRefreshTimer);
 
     // Give SSE connections time to close
     await new Promise(r => setTimeout(r, SHUTDOWN_DRAIN_MS));
@@ -208,12 +226,29 @@ export async function stopDaemon(): Promise<boolean> {
     return false;
   }
 
+  // Verify the process is alive AND matches our start time (prevents PID reuse)
+  try {
+    process.kill(state.pid, 0);
+    // Extra check: verify the daemon.json still has matching startedAt
+    const freshState = readState();
+    if (!freshState || freshState.startedAt !== state.startedAt) {
+      console.log("Daemon state is stale — cleaning up.");
+      removeState();
+      releaseLock();
+      return true;
+    }
+  } catch {
+    console.log("Daemon process not found — cleaning up stale state.");
+    removeState();
+    releaseLock();
+    return true;
+  }
+
   // Send SIGTERM
   try {
     process.kill(state.pid, "SIGTERM");
     console.log(`Sent SIGTERM to daemon (PID ${state.pid})`);
   } catch {
-    console.log("Daemon process not found — cleaning up stale state.");
     removeState();
     releaseLock();
     return true;
@@ -257,7 +292,8 @@ export function getDaemonUrl(): string | null {
   // 2. Read state file
   const state = readState();
   if (state && state.status === "ready") {
-    try { process.kill(state.pid, 0); return `http://localhost:${state.port}`; } catch { /* stale */ }
+    const h = (state.host === "0.0.0.0") ? "localhost" : state.host;
+    try { process.kill(state.pid, 0); return `http://${h}:${state.port}`; } catch { /* stale */ }
   }
   return null;
 }
