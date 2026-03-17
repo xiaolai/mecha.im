@@ -4,13 +4,14 @@ import { isValidName } from "../../shared/validation.js";
 import { atomicWriteText } from "../../shared/atomic-write.js";
 import { ensureMechaDir, getBot } from "../store.js";
 import { loadBotConfig } from "../config.js";
+import { withBotLock } from "../docker.utils.js";
 import {
   addCredential, listCredentials, getCredential, removeCredential,
   detectCredentialType, credentialTypes,
   type Credential,
 } from "../auth.js";
 import * as docker from "../docker.js";
-import { printTable } from "../cli.utils.js";
+import { printTable } from "../cli-utils.js";
 
 export function registerAuthCommands(program: Command): void {
   const authCmd = program
@@ -18,13 +19,21 @@ export function registerAuthCommands(program: Command): void {
     .description("Manage credentials (credentials.yaml)");
 
   authCmd
-    .command("add <name> <key>")
-    .description("Add a credential (auto-detects type from key prefix)")
+    .command("add <name> [key]")
+    .description("Add a credential (auto-detects type from key prefix). Use --stdin to read key from stdin.")
     .option("--type <type>", "Override type: api_key, oauth_token, bot_token, secret, tailscale")
     .option("--env <env>", "Override env var name")
     .option("--account <account>", "Account label (e.g. email)")
     .option("--created-at <date>", "Creation date (YYYY-MM-DD), defaults to today")
-    .action((name: string, key: string, opts: { type?: string; env?: string; account?: string; createdAt?: string }) => {
+    .option("--stdin", "Read key from stdin (avoids shell history exposure)")
+    .action(async (name: string, key: string | undefined, opts: { type?: string; env?: string; account?: string; createdAt?: string; stdin?: boolean }) => {
+      // Read key from stdin if --stdin or no key argument
+      if (opts.stdin || !key) {
+        const chunks: Buffer[] = [];
+        for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
+        key = Buffer.concat(chunks).toString("utf-8").trim();
+        if (!key) { console.error("No key provided. Pass as argument or pipe via stdin."); process.exit(1); }
+      }
       ensureMechaDir();
       const detected = detectCredentialType(key);
       if (opts.type && !(credentialTypes as readonly string[]).includes(opts.type)) {
@@ -92,20 +101,33 @@ export function registerAuthCommands(program: Command): void {
 
       const config = loadBotConfig(entry.config);
       const updatedConfig = { ...config, auth: profileName };
-      atomicWriteText(entry.config, stringifyYaml(updatedConfig));
 
       console.log(`Swapping auth for "${botName}" to profile "${profileName}"...`);
-      try {
-        await docker.stop(botName);
-      } catch (err) {
-        console.warn("Stop before swap:", err instanceof Error ? err.message : err);
-      }
-      try {
-        await docker.remove(botName);
-      } catch (err) {
-        console.warn("Remove before swap:", err instanceof Error ? err.message : err);
-      }
-      const containerId = await docker.spawn(updatedConfig, entry.path);
+      // Atomic swap: hold bot lock for the entire stop+remove+spawn sequence
+      const configPath = entry.config!;
+      const botPath = entry.path;
+      // Save old config for rollback
+      const { readFileSync } = await import("node:fs");
+      const oldConfigContent = readFileSync(configPath, "utf-8");
+
+      const containerId = await withBotLock(botName, async () => {
+        atomicWriteText(configPath, stringifyYaml(updatedConfig));
+        try { await docker.stop(botName); } catch { /* may not be running */ }
+        try { await docker.remove(botName); } catch { /* may already be removed */ }
+        try {
+          return await docker.spawn(updatedConfig, botPath);
+        } catch (spawnErr) {
+          // Rollback: restore old config and try to re-spawn with original auth
+          console.error(`Spawn failed with new auth — rolling back to "${config.auth ?? "default"}"...`);
+          atomicWriteText(configPath, oldConfigContent);
+          try {
+            return await docker.spawn(config, botPath);
+          } catch {
+            console.error("Rollback spawn also failed. Bot is down. Restore config manually and run: mecha start " + botName);
+            throw spawnErr;
+          }
+        }
+      });
       console.log(`Bot "${botName}" restarted with new auth (container: ${containerId.slice(0, 12)})`);
     });
 }
