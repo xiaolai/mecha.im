@@ -23,10 +23,10 @@ max_turns: 25
 mecha spawn greeter.yaml
 ```
 
-## Chat
+## Query
 
 ```bash
-mecha chat greeter "Hello, I'm Alice!"
+mecha query greeter "Hello, I'm Alice!"
 ```
 
 ## Check Status

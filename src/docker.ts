@@ -41,13 +41,20 @@ function getVersion(): string {
 export async function ensureImage(): Promise<void> {
   const version = getVersion();
   const remoteTag = `${REGISTRY_IMAGE}:${version}`;
+  const versionedImage = `${IMAGE_NAME}:${version}`;
 
   try {
-    await docker.getImage(IMAGE_NAME).inspect();
-    log.info(`Image "${IMAGE_NAME}" already exists locally`);
+    await docker.getImage(versionedImage).inspect();
+    log.info(`Image "${versionedImage}" already exists locally`);
     return;
   } catch {
-    // Not found locally, proceed to pull or build
+    // Version-tagged image not found — check for any mecha-agent image and warn
+    try {
+      await docker.getImage(IMAGE_NAME).inspect();
+      log.info(`Existing "${IMAGE_NAME}" found but not version ${version} — upgrading`);
+    } catch {
+      // No existing image at all
+    }
   }
 
   try {
@@ -67,7 +74,8 @@ export async function ensureImage(): Promise<void> {
     console.log();
     const pulled = docker.getImage(remoteTag);
     await pulled.tag({ repo: IMAGE_NAME, tag: "latest" });
-    log.info(`Pulled and tagged ${remoteTag} as ${IMAGE_NAME}`);
+    await pulled.tag({ repo: IMAGE_NAME, tag: version });
+    log.info(`Pulled and tagged ${remoteTag} as ${IMAGE_NAME}:${version}`);
     return;
   } catch (err) {
     log.warn("Could not pull pre-built image, building locally...", {
@@ -104,6 +112,15 @@ export async function buildImage(): Promise<void> {
       if (event.stream) process.stdout.write(event.stream);
     });
   });
+
+  // Tag with version for upgrade detection
+  const version = getVersion();
+  if (version !== "latest") {
+    try {
+      const built = docker.getImage(IMAGE_NAME);
+      await built.tag({ repo: IMAGE_NAME, tag: version });
+    } catch { /* best-effort */ }
+  }
 }
 
 export async function spawn(config: BotConfig, botPath?: string): Promise<string> {
@@ -336,6 +353,8 @@ export async function list(): Promise<BotInfo[]> {
     model: c.Labels["mecha.bot.model"] ?? "unknown",
     containerId: c.Id.slice(0, 12),
     ports: c.Ports?.map((p) => p.PublicPort ? `${p.PublicPort}→${p.PrivatePort}` : String(p.PrivatePort)).join(", ") ?? "",
+    // Note: Uses container Created timestamp (not State.StartedAt which requires per-container inspect)
+    startedAt: c.State === "running" ? new Date(c.Created * 1000).toISOString() : undefined,
   }));
 }
 
@@ -351,7 +370,8 @@ export async function logs(name: string, follow: boolean): Promise<void> {
     stream.on("error", (err: Error) => {
       log.warn("Log stream error", { error: err.message });
     });
-    stream.pipe(process.stdout);
+    // Demux Docker multiplexed log stream to separate stdout/stderr
+    container.modem.demuxStream(stream, process.stdout, process.stderr);
     await new Promise(() => {}); // hang until ctrl-c
   } else {
     const buf = await container.logs({
@@ -359,8 +379,73 @@ export async function logs(name: string, follow: boolean): Promise<void> {
       stderr: true,
       tail: 200,
     });
-    process.stdout.write(buf);
+    // Demux the buffer — Docker multiplexes stdout/stderr with 8-byte frame headers
+    const { PassThrough } = await import("node:stream");
+    const stdout = new PassThrough();
+    const stderr = new PassThrough();
+    stdout.pipe(process.stdout);
+    stderr.pipe(process.stderr);
+    container.modem.demuxStream(buf as unknown as NodeJS.ReadableStream, stdout, stderr);
   }
+}
+
+/** Run a command inside a bot's container using dockerode container.exec API (no shell). */
+export async function runInContainer(
+  name: string,
+  command: string[],
+  interactive: boolean,
+): Promise<number> {
+  const container = docker.getContainer(`mecha-${name}`);
+
+  const e = await container.exec({
+    Cmd: command,
+    AttachStdout: true,
+    AttachStderr: true,
+    AttachStdin: interactive,
+    Tty: interactive,
+    User: "appuser",
+  });
+
+  const stream = await e.start({
+    hijack: interactive,
+    stdin: interactive,
+  });
+
+  if (interactive) {
+    process.stdin.setRawMode?.(true);
+    process.stdin.pipe(stream);
+    stream.pipe(process.stdout);
+
+    const cleanup = () => {
+      process.stdin.setRawMode?.(false);
+      process.stdin.unpipe(stream);
+    };
+    // Ensure terminal is restored on any exit path
+    const sigHandler = () => { cleanup(); process.exit(130); };
+    process.on("SIGINT", sigHandler);
+    process.on("SIGTERM", sigHandler);
+
+    try {
+      await new Promise<void>((resolve) => {
+        stream.on("end", resolve);
+        stream.on("error", resolve);
+      });
+    } finally {
+      cleanup();
+      process.removeListener("SIGINT", sigHandler);
+      process.removeListener("SIGTERM", sigHandler);
+    }
+  } else {
+    container.modem.demuxStream(stream, process.stdout, process.stderr);
+    await new Promise<void>((resolve) => {
+      stream.on("end", resolve);
+      stream.on("error", resolve);
+    });
+  }
+
+  let exitCode = 0;
+  try { exitCode = (await e.inspect()).ExitCode ?? 0; } catch { /* container may be gone */ }
+  return exitCode;
 }
 
 export async function getContainerIp(name: string): Promise<string | undefined> {

@@ -19,7 +19,7 @@ Mecha makes all of this work from a single CLI.
 Host (CLI)                    Container (Agent)
 ─────────────────────────     ──────────────────────────
 mecha spawn reviewer.yaml     → Docker container starts
-mecha chat reviewer "..."     → Claude Code SDK session
+mecha query reviewer "..."    → Claude Code SDK session
 mecha logs reviewer           → Container stdout/stderr
 mecha stop reviewer           → Graceful container stop
 ```
