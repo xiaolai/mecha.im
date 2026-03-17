@@ -1,14 +1,19 @@
 {
   "name": "@mecha.im/telegram-adapter",
   "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
   "description": "Telegram bot adapter for mecha — forward messages to bots, stream responses",
   "type": "module",
-  "main": "index.ts",
   "scripts": {
-    "start": "npx tsx index.ts",
-    "dev": "npx tsx watch index.ts"
+    "start": "tsx index.ts",
+    "dev": "tsx watch index.ts"
+  },
+  "engines": {
+    "node": ">=22.0.0"
   },
   "dependencies": {
-    "grammy": "^1.35.0"
+    "grammy": "^1.35.0",
+    "tsx": "^4.19.0"
   }
 }
