@@ -107,7 +107,7 @@ export function startDashboardServer(port: number, host?: string) {
   // Auth middleware for all API and proxy routes (token always required)
   app.use("/api/*", async (c, next) => {
     // Allow TOTP status/verify through without auth
-    if (c.req.path === "/api/health" || c.req.path === "/api/totp/status" || c.req.path === "/api/totp/verify" || c.req.path.startsWith("/api/fleet/")) {
+    if (c.req.path === "/api/health" || c.req.path === "/api/session" || c.req.path === "/api/totp/status" || c.req.path === "/api/totp/verify" || c.req.path.startsWith("/api/fleet/")) {
       return next();
     }
     // Allow public read-only access to office layout, stream, and avatars
@@ -246,7 +246,10 @@ export function startDashboardServer(port: number, host?: string) {
     return c.json(bots);
   });
 
-  app.get("/api/session", (c) => c.json({ authenticated: true }));
+  app.get("/api/session", (c) => {
+    if (hasDashboardAccess(c)) return c.json({ authenticated: true });
+    return c.json({ authenticated: false }, 401);
+  });
 
   app.post("/api/bots", async (c) => {
     const body = await c.req.json().catch(() => null);
