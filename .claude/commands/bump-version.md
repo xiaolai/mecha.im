@@ -29,6 +29,10 @@ Bump the version number across all package.json files, commit, tag, push, and pu
 
 9. Build: `npm run build`
 
-10. Publish: `npm publish --access public`
+10. Also update the hardcoded version in `src/cli.ts` (`.version("X.Y.Z")` line) to match.
 
-11. Confirm: "Published `@mecha.im/cli@A.B.C` to npmjs."
+11. Publish using the env var token (never pass tokens inline): `npm publish --access public --//registry.npmjs.org/:_authToken=$NPMJS_PUBLISH_TOKEN`
+    - The token is in `~/.zshrc` as `NPMJS_PUBLISH_TOKEN`. Source it if not in env.
+    - NEVER hardcode or echo the token value. Always reference via `$NPMJS_PUBLISH_TOKEN`.
+
+12. Confirm: "Published `@mecha.im/cli@A.B.C` to npmjs."
