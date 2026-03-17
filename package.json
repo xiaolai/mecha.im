@@ -21,6 +21,7 @@
     "agent/dashboard/src/",
     "agent/dashboard/tsconfig.json",
     "agent/dashboard/index.html",
+    "adapters/",
     "s6/",
     "Dockerfile",
     "tsconfig.json",
