@@ -152,6 +152,9 @@ async function spawnUnlocked(config: BotConfig, botPath?: string, opts?: SpawnOp
         renameSync(oldPath, newPath);
       }
     }
+    // Ensure state dir and all subdirs are world-writable for container access
+    // (container runs as appuser UID 10001, host creates as current user)
+    chmodSync(resolvedPath, 0o777);
     for (const sub of ["tasks", "sessions", "data", "logs", ".claude", ".codex", "tailscale", "workspace"]) {
       mkdirSync(join(resolvedPath, sub), { recursive: true, mode: 0o777 });
       chmodSync(join(resolvedPath, sub), 0o777);
