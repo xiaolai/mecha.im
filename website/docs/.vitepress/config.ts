@@ -1,5 +1,11 @@
 import { defineConfig } from "vitepress";
 import { withMermaid } from "vitepress-plugin-mermaid";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const pkg = JSON.parse(readFileSync(join(__dirname, "..", "..", "..", "package.json"), "utf-8"));
 
 export default withMermaid(
   defineConfig({
@@ -7,6 +13,12 @@ export default withMermaid(
     description: "Run autonomous Claude bots in Docker containers",
     cleanUrls: true,
     base: "/",
+
+    vite: {
+      define: {
+        __MECHA_VERSION__: JSON.stringify(pkg.version),
+      },
+    },
 
     head: [
       ["link", { rel: "icon", type: "image/png", sizes: "32x32", href: "/favicon-32x32.png" }],
