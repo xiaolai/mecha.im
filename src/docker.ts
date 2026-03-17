@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
 import { log } from "../shared/logger.js";
 import { stringify as stringifyYaml } from "yaml";
-import { getBot, setBot, removeBot } from "./store.js";
+import { getBot, setBot, removeBot, setBotDesiredState } from "./store.js";
 import {
   BotAlreadyExistsError,
   BotAlreadyRunningError,
@@ -247,6 +247,7 @@ async function spawnUnlocked(config: BotConfig, botPath?: string, opts?: SpawnOp
         model: config.model,
         botToken,
         createdAt: new Date().toISOString(),
+        desired_state: "running",
       });
     } catch (regErr) {
       // Registry write failed — tear down the orphaned container
@@ -276,6 +277,7 @@ export async function start(name: string): Promise<void> {
         throw new BotAlreadyRunningError(name);
       }
       await docker.getContainer(`mecha-${name}`).start();
+      setBotDesiredState(name, "running");
       return;
     }
 
@@ -290,6 +292,7 @@ export async function stop(name: string): Promise<void> {
   try {
     const container = docker.getContainer(`mecha-${name}`);
     await container.stop({ t: 10 });
+    setBotDesiredState(name, "stopped");
   } catch (err) {
     if (isDockerError(err, "No such container") || isDockerError(err, "is not running")) {
       throw new BotNotRunningError(name);
