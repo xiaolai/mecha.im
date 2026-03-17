@@ -1,0 +1,14 @@
+{
+  "name": "@mecha.im/telegram-adapter",
+  "version": "0.1.0",
+  "description": "Telegram bot adapter for mecha — forward messages to bots, stream responses",
+  "type": "module",
+  "main": "index.ts",
+  "scripts": {
+    "start": "npx tsx index.ts",
+    "dev": "npx tsx watch index.ts"
+  },
+  "dependencies": {
+    "grammy": "^1.35.0"
+  }
+}
