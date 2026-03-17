@@ -156,7 +156,7 @@ export function buildBinds(resolvedPath: string, configPath: string, config: Bot
 }
 
 /** Build container environment variables from config and auth */
-export function buildContainerEnv(config: BotConfig, botToken: string): string[] {
+export async function buildContainerEnv(config: BotConfig, botToken: string): Promise<string[]> {
   const auth = resolveAuth(config.auth);
   const env = [
     `S6_KEEP_ENV=1`,
@@ -195,7 +195,30 @@ export function buildContainerEnv(config: BotConfig, botToken: string): string[]
   if (settings.headscale_url) env.push(`MECHA_HEADSCALE_URL=${settings.headscale_url}`);
   if (settings.headscale_api_key) env.push(`MECHA_HEADSCALE_API_KEY=${settings.headscale_api_key}`);
 
+  // Inject fleet URL only for fleet_control bots (orchestrator pattern)
+  if ((config as Record<string, unknown>).permissions && ((config as Record<string, unknown>).permissions as Record<string, unknown>)?.fleet_control) {
+    const { getDaemonUrl } = await import("./daemon.js");
+    const daemonUrl = getDaemonUrl();
+    if (daemonUrl) {
+      // Replace localhost with gateway IP for container reachability
+      const gatewayIp = await getDockerGatewayIp();
+      const containerUrl = daemonUrl.replace("localhost", gatewayIp).replace("127.0.0.1", gatewayIp);
+      env.push(`MECHA_FLEET_URL=${containerUrl}`);
+    }
+  }
+
   return env;
+}
+
+/** Detect Docker bridge gateway IP for container-to-host communication */
+async function getDockerGatewayIp(): Promise<string> {
+  try {
+    const network = await docker.getNetwork("bridge").inspect();
+    const gateway = network?.IPAM?.Config?.[0]?.Gateway;
+    if (gateway) return gateway;
+  } catch { /* fallback */ }
+  // macOS/Docker Desktop: host.docker.internal resolves to host
+  return "host.docker.internal";
 }
 
 /**
