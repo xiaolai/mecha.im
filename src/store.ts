@@ -6,9 +6,7 @@ import { z } from "zod";
 import { safeReadJson } from "../shared/safe-read.js";
 import { atomicWriteJson } from "../shared/atomic-write.js";
 import { log } from "../shared/logger.js";
-import { getMutex } from "../shared/mutex.js";
-
-const settingsMutex = getMutex("mecha-settings");
+// Settings use directory-based cross-process lock (withSettingsLock)
 
 const DEFAULT_MECHA_DIR = join(homedir(), ".mecha");
 const REGISTRY_SCHEMA_VERSION = 1;
@@ -164,18 +162,37 @@ export function readSettings(): MechaSettings {
   return { ...result.data, schema_version: result.data.schema_version ?? SETTINGS_SCHEMA_VERSION };
 }
 
-export function getOrCreateFleetInternalSecret(): string {
-  const settingsPath = join(getMechaDir(), "mecha.json");
-  // Use blocking spin-acquire to prevent concurrent secret generation race
-  let release: (() => void) | null = null;
-  for (let i = 0; i < 100; i++) {
-    release = settingsMutex.tryAcquire();
-    if (release) break;
-    // Spin-wait 10ms (synchronous context, can't use await)
-    const end = Date.now() + 10;
-    while (Date.now() < end) { /* spin */ }
+/** Cross-process settings lock using directory-based mutex (same pattern as registry lock) */
+function withSettingsLock<T>(fn: () => T): T {
+  const lockDir = join(getMechaDir(), ".settings.lock");
+  const maxWait = 5000;
+  const start = Date.now();
+  while (true) {
+    try {
+      mkdirSync(lockDir);
+      break; // acquired
+    } catch {
+      if (Date.now() - start > maxWait) {
+        // Stale lock — force remove and retry once
+        try { rmdirSync(lockDir); } catch { /* ignore */ }
+        try { mkdirSync(lockDir); break; } catch { /* fall through */ }
+        throw new Error("Timed out acquiring settings lock");
+      }
+      // Spin-wait 10ms
+      const end = Date.now() + 10;
+      while (Date.now() < end) { /* spin */ }
+    }
   }
   try {
+    return fn();
+  } finally {
+    try { rmdirSync(lockDir); } catch { /* ignore */ }
+  }
+}
+
+export function getOrCreateFleetInternalSecret(): string {
+  return withSettingsLock(() => {
+    const settingsPath = join(getMechaDir(), "mecha.json");
     const settings = readSettings();
     if (settings.fleet_internal_secret) return settings.fleet_internal_secret;
 
@@ -187,31 +204,20 @@ export function getOrCreateFleetInternalSecret(): string {
     });
     try { chmodSync(settingsPath, 0o600); } catch { /* best-effort */ }
     return fleetInternalSecret;
-  } finally {
-    release?.();
-  }
+  });
 }
 
-/** Write settings with synchronization to prevent concurrent clobber */
+/** Write settings with cross-process synchronization */
 function writeSettingsSafe(updater: (settings: Record<string, unknown>) => Record<string, unknown>): void {
-  const settingsPath = join(getMechaDir(), "mecha.json");
-  let release: (() => void) | null = null;
-  for (let i = 0; i < 100; i++) {
-    release = settingsMutex.tryAcquire();
-    if (release) break;
-    const end = Date.now() + 10;
-    while (Date.now() < end) { /* spin */ }
-  }
-  try {
+  withSettingsLock(() => {
+    const settingsPath = join(getMechaDir(), "mecha.json");
     const settings = readSettings();
     atomicWriteJson(settingsPath, {
       ...updater(settings),
       schema_version: SETTINGS_SCHEMA_VERSION,
     });
     try { chmodSync(settingsPath, 0o600); } catch { /* best-effort */ }
-  } finally {
-    release?.();
-  }
+  });
 }
 
 // --- TOTP ---

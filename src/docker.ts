@@ -353,7 +353,8 @@ export async function logs(name: string, follow: boolean): Promise<void> {
     stream.on("error", (err: Error) => {
       log.warn("Log stream error", { error: err.message });
     });
-    stream.pipe(process.stdout);
+    // Demux Docker multiplexed log stream to separate stdout/stderr
+    container.modem.demuxStream(stream, process.stdout, process.stderr);
     await new Promise(() => {}); // hang until ctrl-c
   } else {
     const buf = await container.logs({
@@ -361,7 +362,13 @@ export async function logs(name: string, follow: boolean): Promise<void> {
       stderr: true,
       tail: 200,
     });
-    process.stdout.write(buf);
+    // Demux the buffer — Docker multiplexes stdout/stderr with 8-byte frame headers
+    const { PassThrough } = await import("node:stream");
+    const stdout = new PassThrough();
+    const stderr = new PassThrough();
+    stdout.pipe(process.stdout);
+    stderr.pipe(process.stderr);
+    container.modem.demuxStream(buf as unknown as NodeJS.ReadableStream, stdout, stderr);
   }
 }
 
