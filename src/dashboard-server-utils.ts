@@ -50,7 +50,8 @@ function readCookie(cookieHeader: string | undefined, name: string): string | un
 
 export function dashboardSessionCookie(sessionToken?: string): string {
   const token = sessionToken ?? createSession();
-  return `${DASHBOARD_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=86400`;
+  // Omit Secure flag so cookie works over plain HTTP (remote dashboard access)
+  return `${DASHBOARD_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`;
 }
 
 function constantTimeEquals(a: string, b: string): boolean {
