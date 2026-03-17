@@ -8,6 +8,7 @@ interface LoginGateProps {
 
 export default function LoginGate({ children }: LoginGateProps) {
   const [status, setStatus] = useState<"checking" | "open" | "locked" | "authenticated">("checking");
+  const [totpEnabled, setTotpEnabled] = useState(false);
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -20,13 +21,14 @@ export default function LoginGate({ children }: LoginGateProps) {
       })
       .then((data: { enabled?: boolean } | undefined) => {
         if (!data) return;
-        if (!data.enabled) {
-          setStatus("open");
-          return;
-        }
-        // TOTP enabled — check if we already have a valid session
+        setTotpEnabled(!!data.enabled);
+        // Always verify we have actual API access (covers remote access without session)
         return fetch("/api/session", { credentials: "same-origin" }).then((r) => {
-          setStatus(r.ok ? "authenticated" : "locked");
+          if (r.ok) {
+            setStatus("authenticated");
+          } else {
+            setStatus("locked");
+          }
         });
       })
       .catch(() => setStatus("locked"));
@@ -71,7 +73,7 @@ export default function LoginGate({ children }: LoginGateProps) {
     return <>{children}</>;
   }
 
-  // Locked — show login
+  // Locked — show login (TOTP) or access denied (no session, no TOTP)
   return (
     <div className="h-screen flex items-center justify-center bg-background">
       <div className="w-full max-w-sm px-4">
@@ -80,36 +82,45 @@ export default function LoginGate({ children }: LoginGateProps) {
             M
           </div>
           <h1 className="text-lg font-semibold text-foreground">Mecha Dashboard</h1>
-          <p className="text-sm text-muted-foreground">
-            Enter the 6-digit code from your authenticator app.
-          </p>
 
-          <Input
-            mono
-            value={code}
-            onChange={(e: ChangeEvent<HTMLInputElement>) => {
-              const v = e.target.value.replace(/\D/g, "").slice(0, 6);
-              setCode(v);
-            }}
-            onKeyDown={(e: KeyboardEvent) => { if (e.key === "Enter") handleVerify(); }}
-            placeholder="000000"
-            className="w-full text-center text-2xl tracking-[0.5em]"
-            autoComplete="one-time-code"
-            inputMode="numeric"
-            autoFocus
-          />
+          {totpEnabled ? (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Enter the 6-digit code from your authenticator app.
+              </p>
 
-          {error && <Alert variant="error">{error}</Alert>}
+              <Input
+                mono
+                value={code}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                  const v = e.target.value.replace(/\D/g, "").slice(0, 6);
+                  setCode(v);
+                }}
+                onKeyDown={(e: KeyboardEvent) => { if (e.key === "Enter") handleVerify(); }}
+                placeholder="000000"
+                className="w-full text-center text-2xl tracking-[0.5em]"
+                autoComplete="one-time-code"
+                inputMode="numeric"
+                autoFocus
+              />
 
-          <Button
-            variant="primary"
-            size="lg"
-            onClick={handleVerify}
-            disabled={code.length !== 6 || busy}
-            className="w-full"
-          >
-            {busy ? "Verifying..." : "Verify"}
-          </Button>
+              {error && <Alert variant="error">{error}</Alert>}
+
+              <Button
+                variant="primary"
+                size="lg"
+                onClick={handleVerify}
+                disabled={code.length !== 6 || busy}
+                className="w-full"
+              >
+                {busy ? "Verifying..." : "Verify"}
+              </Button>
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Access denied. Use <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">?token=</code> to authenticate.
+            </p>
+          )}
         </Card>
       </div>
     </div>
