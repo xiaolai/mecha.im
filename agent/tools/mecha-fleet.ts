@@ -183,17 +183,40 @@ export function createFleetTools() {
           signal: AbortSignal.timeout(5 * 60 * 1000),
         });
         if (!resp.ok) {
-          const text = await resp.text().catch(() => "");
-          throw new Error(`Bot "${args.name}" error ${resp.status}: ${text}`);
+          const errText = await resp.text().catch(() => "");
+          throw new Error(`Bot "${args.name}" error ${resp.status}: ${errText}`);
         }
-        // Parse SSE stream to extract content
-        const text = await resp.text();
+        // Parse SSE stream incrementally
+        const reader = resp.body?.getReader();
+        if (!reader) return textResult("(no response body)");
+        const decoder = new TextDecoder();
+        let buffer = "";
         let content = "";
-        for (const line of text.split("\n")) {
-          if (!line.startsWith("data: ")) continue;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.content) content += data.content;
+              if (data.cost_usd !== undefined) {
+                // Done event — stop reading
+                reader.cancel();
+                return textResult(content || "(no response)");
+              }
+            } catch { /* skip */ }
+          }
+        }
+        if (buffer) {
           try {
-            const data = JSON.parse(line.slice(6));
-            if (data.content) content += data.content;
+            if (buffer.startsWith("data: ")) {
+              const data = JSON.parse(buffer.slice(6));
+              if (data.content) content += data.content;
+            }
           } catch { /* skip */ }
         }
         return textResult(content || "(no response)");
