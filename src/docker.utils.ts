@@ -235,7 +235,8 @@ export function writeBotCredentials(resolvedPath: string, authProfile?: string):
     : creds.filter((c) => c.type === "api_key" || c.type === "oauth_token").slice(0, 1);
   const outPath = join(resolvedPath, "credentials.yaml");
   const content = stringifyYaml({ credentials: claudeCreds }, { lineWidth: 0 });
-  writeFileSync(outPath, content, { mode: 0o600 });
+  writeFileSync(outPath, content, { mode: 0o644 });
+  chmodSync(outPath, 0o644);
 }
 
 /** Copy host Codex auth to bot if opted in */
