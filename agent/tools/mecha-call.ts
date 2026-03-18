@@ -8,12 +8,17 @@ export async function callBot(botName: string, message: string): Promise<string>
   if (!isValidName(botName)) {
     return `Error: invalid bot name "${botName}" (must be lowercase alphanumeric + hyphens, 1-32 chars)`;
   }
-  const url = `http://mecha-${botName}:3000/prompt`;
+  // Use fleet API proxy if available (works across Docker networks), else direct DNS
+  const fleetUrl = process.env.MECHA_FLEET_URL;
+  const url = fleetUrl
+    ? `${fleetUrl}/bot/${encodeURIComponent(botName)}/prompt`
+    : `http://mecha-${botName}:3000/prompt`;
   const start = Date.now();
 
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (FLEET_INTERNAL_SECRET) {
     headers["x-mecha-internal-auth"] = FLEET_INTERNAL_SECRET;
+    if (fleetUrl) headers["Authorization"] = `Bearer ${FLEET_INTERNAL_SECRET}`;
   }
 
   let resp: Response;
