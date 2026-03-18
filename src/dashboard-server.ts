@@ -125,10 +125,17 @@ export function startDashboardServer(port: number, host?: string) {
   });
 
   app.use("/bot/*", async (c, next) => {
-    if (!hasDashboardAccess(c)) {
-      return c.json({ error: "Unauthorized" }, 401);
+    // Accept dashboard session/token OR fleet internal secret
+    if (hasDashboardAccess(c)) return next();
+    const auth = c.req.header("authorization");
+    if (auth?.startsWith("Bearer ")) {
+      const token = auth.slice(7);
+      const secret = getOrCreateFleetInternalSecret();
+      const bufA = Buffer.from(token);
+      const bufB = Buffer.from(secret);
+      if (bufA.length === bufB.length && timingSafeEqual(bufA, bufB)) return next();
     }
-    await next();
+    return c.json({ error: "Unauthorized" }, 401);
   });
 
   // --- Fleet Internal API (authenticated with MECHA_FLEET_INTERNAL_SECRET) ---
