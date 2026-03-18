@@ -162,6 +162,45 @@ export function createFleetTools() {
     ),
 
     tool(
+      "mecha_fleet_query",
+      "Send a message to another bot and get a response. Use this to delegate tasks or ask other bots questions.",
+      {
+        name: z.string().min(1).max(32).describe("Target bot name"),
+        message: z.string().min(1).describe("Message to send to the bot"),
+      },
+      async (args) => {
+        if (args.name === BOT_NAME) return textResult({ error: "Cannot query self" });
+        const limit = checkRateLimit(false);
+        if (limit) return textResult({ error: limit });
+        if (!FLEET_URL || !FLEET_SECRET) throw new Error("Fleet API not configured");
+        const resp = await fetch(`${FLEET_URL}/bot/${encodeURIComponent(args.name)}/prompt`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${FLEET_SECRET}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ message: args.message }),
+          signal: AbortSignal.timeout(5 * 60 * 1000),
+        });
+        if (!resp.ok) {
+          const text = await resp.text().catch(() => "");
+          throw new Error(`Bot "${args.name}" error ${resp.status}: ${text}`);
+        }
+        // Parse SSE stream to extract content
+        const text = await resp.text();
+        let content = "";
+        for (const line of text.split("\n")) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.content) content += data.content;
+          } catch { /* skip */ }
+        }
+        return textResult(content || "(no response)");
+      },
+    ),
+
+    tool(
       "mecha_fleet_status",
       "Get fleet health summary (running bots, costs, version).",
       {},
