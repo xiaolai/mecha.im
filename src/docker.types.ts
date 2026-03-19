@@ -10,4 +10,5 @@ export interface BotInfo {
   containerId: string;
   ports: string;
   startedAt?: string;
+  runtime?: "docker" | "native";
 }
