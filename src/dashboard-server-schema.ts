@@ -5,11 +5,26 @@ import { z } from "zod";
 export const DASHBOARD_TOKEN = process.env.MECHA_DASHBOARD_TOKEN || ("mecha_dash_" + randomBytes(24).toString("hex"));
 export const DASHBOARD_COOKIE = "mecha_dashboard_session";
 
-/** Per-session token store with TTL */
+/** Per-session token store with TTL and size cap */
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const MAX_SESSIONS = 1000;
 const activeSessions = new Map<string, { createdAt: number }>();
 
+function evictExpiredSessions(): void {
+  const now = Date.now();
+  for (const [token, session] of activeSessions) {
+    if (now - session.createdAt > SESSION_TTL_MS) activeSessions.delete(token);
+  }
+}
+
 export function createSession(): string {
+  // Evict expired sessions periodically and enforce size cap
+  if (activeSessions.size >= MAX_SESSIONS) evictExpiredSessions();
+  if (activeSessions.size >= MAX_SESSIONS) {
+    // Still over cap — evict oldest
+    const oldest = activeSessions.keys().next().value;
+    if (oldest) activeSessions.delete(oldest);
+  }
   const token = "sess_" + randomBytes(32).toString("hex");
   activeSessions.set(token, { createdAt: Date.now() });
   return token;
