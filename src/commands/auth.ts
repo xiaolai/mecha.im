@@ -103,9 +103,8 @@ export function registerAuthCommands(program: Command): void {
       const updatedConfig = { ...config, auth: profileName };
 
       console.log(`Swapping auth for "${botName}" to profile "${profileName}"...`);
-      // Atomic swap: hold bot lock for the entire stop+remove+spawn sequence
+      // Atomic swap: hold bot lock for the entire restart sequence
       const configPath = entry.config!;
-      const botPath = entry.path;
       // Save old config for rollback
       const { readFileSync } = await import("node:fs");
       const oldConfigContent = readFileSync(configPath, "utf-8");
