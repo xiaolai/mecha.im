@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import type { WriteStream } from "node:fs";
 import { resolveAuth, getPassthroughCredentials, getCredential } from "./auth.js";
 import { getOrCreateFleetInternalSecret, readSettings } from "./store.js";
-import { writeBotCredentials } from "./docker.utils.js";
+import { writeBotCredentials } from "./bot-utils.js";
 import { ProcessSpawnError } from "../shared/errors.js";
 import type { BotConfig } from "./config.js";
 
