@@ -3,6 +3,7 @@ import type { BotInfo } from "./docker.types.js";
 import * as docker from "./docker.js";
 import { NativeProcessManager } from "./native.js";
 import { getBot } from "./store.js";
+import { log } from "../shared/logger.js";
 
 export type { BotInfo };
 export type Runtime = "docker" | "native";
@@ -47,8 +48,8 @@ export function getManagerForBot(name: string): ProcessManager {
 /** List all bots across both runtimes */
 export async function listAllBots(): Promise<BotInfo[]> {
   const [dockerBots, nativeBots] = await Promise.all([
-    dockerAdapter.list().catch(() => [] as BotInfo[]),
-    getNativeManager().list().catch(() => [] as BotInfo[]),
+    dockerAdapter.list().catch((err) => { log.warn("Docker list failed", { error: err instanceof Error ? err.message : String(err) }); return [] as BotInfo[]; }),
+    getNativeManager().list().catch((err) => { log.warn("Native list failed", { error: err instanceof Error ? err.message : String(err) }); return [] as BotInfo[]; }),
   ]);
   return [...dockerBots, ...nativeBots];
 }

@@ -13,14 +13,26 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // ── PID file helpers ────────────────────────────────────────
 
 export function writePidFile(botPath: string, pid: number): void {
-  writeFileSync(join(botPath, "agent.pid"), String(pid));
+  writeFileSync(join(botPath, "agent.pid"), `${pid}:${Date.now()}`);
 }
 
 export function readPidFile(botPath: string): number | null {
   try {
     const raw = readFileSync(join(botPath, "agent.pid"), "utf-8").trim();
-    const pid = parseInt(raw, 10);
+    const pid = parseInt(raw.split(":")[0]!, 10);
     return Number.isFinite(pid) ? pid : null;
+  } catch {
+    return null;
+  }
+}
+
+export function readPidFileWithTime(botPath: string): { pid: number; startTime: number } | null {
+  try {
+    const raw = readFileSync(join(botPath, "agent.pid"), "utf-8").trim();
+    const parts = raw.split(":");
+    const pid = parseInt(parts[0]!, 10);
+    const startTime = parseInt(parts[1] ?? "0", 10);
+    return Number.isFinite(pid) ? { pid, startTime } : null;
   } catch {
     return null;
   }
