@@ -54,7 +54,9 @@ export function createDashboardRoutes(botToken: string): Hono {
     // Proxied from fleet dashboard (has Authorization header with bot token)
     const auth = c.req.header("authorization");
     if (auth === `Bearer ${botToken}`) return true;
-    // Loopback client — auto-grant (same as fleet dashboard pattern)
+    // Loopback client — auto-grant only in Docker (container-isolated loopback).
+    // In native mode all bots share the host loopback, so require explicit auth.
+    if (process.env.MECHA_DASHBOARD_ROOT) return false; // native mode — no loopback auto-grant
     const remoteAddr = c.req.header("x-forwarded-for") ?? "";
     const isLoopback = !remoteAddr || remoteAddr === "127.0.0.1" || remoteAddr === "::1";
     return isLoopback;

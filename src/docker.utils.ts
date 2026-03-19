@@ -42,7 +42,7 @@ export function validateBotPath(botPath: string): string {
   if (real !== home && !real.startsWith(home + "/")) {
     throw new ProcessSpawnError(`Bot path "${real}" must be under your home directory`);
   }
-  return resolved;
+  return real;
 }
 
 export async function inspectContainer(name: string): Promise<Docker.ContainerInspectInfo | null> {
