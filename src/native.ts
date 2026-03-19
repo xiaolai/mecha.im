@@ -5,7 +5,6 @@ import { fileURLToPath } from "node:url";
 import { createServer } from "node:net";
 import { randomBytes } from "node:crypto";
 import { stringify as stringifyYaml } from "yaml";
-import { log } from "../shared/logger.js";
 import { getBot, setBot, removeBot, setBotDesiredState, listBots } from "./store.js";
 import {
   BotAlreadyExistsError,
