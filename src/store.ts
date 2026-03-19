@@ -40,6 +40,9 @@ const registrySchema = z.object({
     path: z.string(),
     config: z.string().optional(),
     containerId: z.string().optional(),
+    pid: z.number().optional(),
+    runtime: z.enum(["docker", "native"]).optional(),
+    port: z.number().optional(),
     model: z.string().optional(),
     botToken: z.string().optional(),
     createdAt: z.string().optional(),
@@ -183,8 +186,16 @@ function withSettingsLock<T>(fn: () => T): T {
       mkdirSync(lockDir);
       break; // acquired
     } catch {
+      // Check for stale lock (same pattern as registry lock)
+      try {
+        const stat = statSync(lockDir);
+        if (Date.now() - stat.mtimeMs > 30_000) {
+          try { rmdirSync(lockDir); } catch { /* race */ }
+          continue;
+        }
+      } catch { /* lock dir gone, retry */ continue; }
       if (Date.now() - start > maxWait) {
-        // Stale lock — force remove and retry once
+        // Force remove after timeout
         try { rmdirSync(lockDir); } catch { /* ignore */ }
         try { mkdirSync(lockDir); break; } catch { /* fall through */ }
         throw new Error("Timed out acquiring settings lock");

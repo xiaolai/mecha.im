@@ -5,10 +5,12 @@
  * No Docker required — unit tests for CLI helper functions.
  */
 import assert from "node:assert/strict";
-import { mkdirSync, writeFileSync, rmSync, statSync, readFileSync, readdirSync, existsSync } from "node:fs";
-import { join, resolve, basename } from "node:path";
+import { mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomBytes } from "node:crypto";
+
+const { escapeAttr, collectAttachments } = await import("../src/cli-utils.js");
 
 let passed = 0;
 let failed = 0;
@@ -26,17 +28,7 @@ async function test(name: string, fn: () => void | Promise<void>) {
 
 console.log("--- T19: CLI Query Helpers ---\n");
 
-// Since escapeAttr and collectAttachments are not exported, we test them
-// by importing the CLI module or by replicating the logic.
-// For proper testing, let's extract and test the functions directly.
-// Since they're inline in cli.ts, we'll test via the CLI binary for integration,
-// and replicate the logic for unit tests.
-
-// --- escapeAttr ---
-
-function escapeAttr(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
+// --- escapeAttr (imported from ../src/cli-utils.js) ---
 
 // T19.1 escapeAttr: basic strings pass through
 await test("T19.1 escapeAttr basic strings", () => {
@@ -65,57 +57,16 @@ await test("T19.4 escapeAttr all specials", () => {
   assert.equal(escapeAttr(input), expected);
 });
 
-// --- collectAttachments (replicated logic for unit testing) ---
+// --- collectAttachments (imported from ../src/cli-utils.js) ---
 
 const TMP = join(tmpdir(), `mecha-t19-${randomBytes(4).toString("hex")}`);
 mkdirSync(TMP, { recursive: true });
-
-// Inline the same collectAttachments logic from cli.ts for unit testing
-function collectAttachmentsLocal(paths: string[]): string {
-  const MAX_BYTES = 512 * 1024;
-  let totalBytes = 0;
-  const parts: string[] = [];
-
-  function addFile(filePath: string, label: string) {
-    if (totalBytes >= MAX_BYTES) return;
-    const stat = statSync(filePath);
-    if (!stat.isFile()) return;
-    const raw = readFileSync(filePath);
-    const remaining = MAX_BYTES - totalBytes;
-    const trimmedBuf = raw.length > remaining ? raw.subarray(0, remaining) : raw;
-    const trimmed = trimmedBuf.toString("utf-8");
-    totalBytes += trimmedBuf.length;
-    parts.push(`<file path="${escapeAttr(label)}">\n${trimmed}\n</file>`);
-  }
-
-  function walkDir(dirPath: string, base: string) {
-    if (totalBytes >= MAX_BYTES) return;
-    for (const entry of readdirSync(dirPath, { withFileTypes: true })) {
-      if (totalBytes >= MAX_BYTES) return;
-      if (entry.name.startsWith(".")) continue;
-      const full = join(dirPath, entry.name);
-      const label = join(base, entry.name);
-      if (entry.isDirectory()) walkDir(full, label);
-      else addFile(full, label);
-    }
-  }
-
-  for (const p of paths) {
-    if (totalBytes >= MAX_BYTES) break;
-    const abs = resolve(p);
-    if (!existsSync(abs)) continue;
-    if (statSync(abs).isDirectory()) walkDir(abs, basename(abs));
-    else addFile(abs, basename(abs));
-  }
-
-  return parts.join("\n\n");
-}
 
 // T19.5 collectAttachments: single file
 await test("T19.5 collectAttachments single file", () => {
   const filePath = join(TMP, "test.txt");
   writeFileSync(filePath, "Hello, world!");
-  const result = collectAttachmentsLocal([filePath]);
+  const result = collectAttachments([filePath]);
   assert.ok(result.includes('<file path="test.txt">'), `should have file tag: ${result.slice(0, 100)}`);
   assert.ok(result.includes("Hello, world!"), "should include content");
   assert.ok(result.includes("</file>"), "should close tag");
@@ -127,7 +78,7 @@ await test("T19.6 collectAttachments directory", () => {
   mkdirSync(dirPath, { recursive: true });
   writeFileSync(join(dirPath, "a.txt"), "file-a");
   writeFileSync(join(dirPath, "b.txt"), "file-b");
-  const result = collectAttachmentsLocal([dirPath]);
+  const result = collectAttachments([dirPath]);
   assert.ok(result.includes("file-a"), "should include file-a content");
   assert.ok(result.includes("file-b"), "should include file-b content");
   assert.ok(result.includes("mydir/a.txt") || result.includes("mydir\\a.txt"), "should use relative paths");
@@ -139,7 +90,7 @@ await test("T19.7 collectAttachments skips dotfiles", () => {
   mkdirSync(dirPath, { recursive: true });
   writeFileSync(join(dirPath, "visible.txt"), "visible");
   writeFileSync(join(dirPath, ".hidden"), "hidden");
-  const result = collectAttachmentsLocal([dirPath]);
+  const result = collectAttachments([dirPath]);
   assert.ok(result.includes("visible"), "should include visible file");
   assert.ok(!result.includes("hidden"), "should skip dotfile");
 });
@@ -149,7 +100,7 @@ await test("T19.8 collectAttachments XML escaping", () => {
   const filePath = join(TMP, 'file"with<special>&chars.txt');
   try {
     writeFileSync(filePath, "content");
-    const result = collectAttachmentsLocal([filePath]);
+    const result = collectAttachments([filePath]);
     assert.ok(!result.includes('path="file"with'), "should escape quotes");
     assert.ok(result.includes("&quot;") || result.includes("&amp;") || result.includes("&lt;"),
       "should have escaped entities");
@@ -168,7 +119,7 @@ await test("T19.9 collectAttachments 512KB cap", () => {
   for (let i = 0; i < 7; i++) {
     writeFileSync(join(bigDir, `big-${i}.txt`), chunk);
   }
-  const result = collectAttachmentsLocal([bigDir]);
+  const result = collectAttachments([bigDir]);
   // The raw content bytes in the result should be <= 512KB
   // (plus XML tags, but the content itself is capped)
   const contentBytes = Buffer.byteLength(result, "utf-8");
@@ -181,7 +132,7 @@ await test("T19.9 collectAttachments 512KB cap", () => {
 await test("T19.10 collectAttachments empty directory", () => {
   const emptyDir = join(TMP, "emptydir");
   mkdirSync(emptyDir, { recursive: true });
-  const result = collectAttachmentsLocal([emptyDir]);
+  const result = collectAttachments([emptyDir]);
   assert.equal(result, "", "empty dir produces empty result");
 });
 
@@ -191,7 +142,7 @@ await test("T19.11 collectAttachments multiple paths", () => {
   const f2 = join(TMP, "multi2.txt");
   writeFileSync(f1, "content1");
   writeFileSync(f2, "content2");
-  const result = collectAttachmentsLocal([f1, f2]);
+  const result = collectAttachments([f1, f2]);
   assert.ok(result.includes("content1"), "includes first file");
   assert.ok(result.includes("content2"), "includes second file");
   // Two file blocks separated by double newline
@@ -205,7 +156,7 @@ await test("T19.12 collectAttachments nested directories", () => {
   writeFileSync(join(nested, "root.txt"), "root");
   writeFileSync(join(nested, "sub1", "mid.txt"), "mid");
   writeFileSync(join(nested, "sub1", "sub2", "deep.txt"), "deep");
-  const result = collectAttachmentsLocal([nested]);
+  const result = collectAttachments([nested]);
   assert.ok(result.includes("root"), "includes root file");
   assert.ok(result.includes("mid"), "includes mid file");
   assert.ok(result.includes("deep"), "includes deep file");

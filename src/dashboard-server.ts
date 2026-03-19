@@ -6,7 +6,8 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
-import * as docker from "./docker.js";
+import { getManager, getManagerForBot, listAllBots } from "./process-manager.js";
+import type { Runtime } from "./process-manager.js";
 import { withBotLock } from "./docker.utils.js";
 import { listBots as listRegistered } from "./store.js";
 import { loadBotConfig, buildInlineConfig } from "./config.js";
@@ -15,12 +16,13 @@ import { existsSync, readFileSync as fsReadFileSync, realpathSync, statSync } fr
 import { isValidName } from "../shared/validation.js";
 import { resolveHostBotBaseUrl } from "./resolve-endpoint.js";
 import { DASHBOARD_TOKEN, HOP_BY_HOP, spawnBodySchema, authBodySchema, totpVerifySchema, revokeAllSessions, isValidSession } from "./dashboard-server-schema.js";
-import { safeError, dashboardSessionCookie, hasDashboardAccess, shouldBootstrapDashboardSession, guardBusy } from "./dashboard-server-utils.js";
+import { safeError, dashboardSessionCookie, hasDashboardAccess, shouldBootstrapDashboardSession, guardBusy, getClientIp } from "./dashboard-server-utils.js";
 import { getTotpSecret, setTotpSecret, clearTotpSecret, getMechaDir, getOrCreateFleetInternalSecret } from "./store.js";
 import { timingSafeEqual, createHmac as cryptoHmac } from "node:crypto";
 import { WebSocket as WsClient, WebSocketServer } from "ws";
 import { generateSecret, verifyTOTP, totpUri } from "../shared/totp.js";
-import { atomicWriteJsonAsync } from "../shared/atomic-write.js";
+import { atomicWriteJsonAsync, atomicWriteTextAsync } from "../shared/atomic-write.js";
+import { log } from "../shared/logger.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -28,7 +30,13 @@ export function startDashboardServer(port: number, host?: string) {
   const app = new Hono();
 
   // CORS — only allow same-origin
-  app.use("/*", cors({ origin: `http://localhost:${port}` }));
+  app.use("/*", cors({ origin: (origin) => origin ?? `http://localhost:${port}` }));
+
+  // Global error handler — prevents stack trace leakage
+  app.onError((err, c) => {
+    log.error("Unhandled route error", { error: err.message, path: c.req.path });
+    return c.json({ error: "Internal server error" }, 500);
+  });
 
   app.use("/*", async (c, next) => {
     await next();
@@ -49,7 +57,7 @@ export function startDashboardServer(port: number, host?: string) {
   app.get("/api/health", async (c) => {
     let running = 0, stopped = 0;
     try {
-      const bots = await docker.list();
+      const bots = await listAllBots();
       running = bots.filter(b => b.status === "running").length;
       stopped = bots.length - running;
     } catch { /* Docker may be unavailable */ }
@@ -66,18 +74,22 @@ export function startDashboardServer(port: number, host?: string) {
     return c.json({ enabled: !!getTotpSecret() });
   });
 
-  // TOTP rate limiting: max 5 attempts per 60 seconds per IP
+  // TOTP rate limiting: max 5 attempts per 60 seconds per IP (bounded map)
   const totpAttempts = new Map<string, { count: number; resetAt: number }>();
   const TOTP_MAX_ATTEMPTS = 5;
+  const TOTP_MAX_IPS = 1000;
   const TOTP_WINDOW_MS = 60_000;
 
   app.post("/api/totp/verify", async (c) => {
     const secret = getTotpSecret();
     if (!secret) return c.json({ error: "TOTP not enabled" }, 400);
 
-    // Rate limit by IP
-    const ip = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    // Rate limit by IP (evict expired entries if map is full)
+    const ip = getClientIp(c);
     const now = Date.now();
+    if (totpAttempts.size >= TOTP_MAX_IPS) {
+      for (const [k, v] of totpAttempts) { if (now > v.resetAt) totpAttempts.delete(k); }
+    }
     let entry = totpAttempts.get(ip);
     if (!entry || now > entry.resetAt) {
       entry = { count: 0, resetAt: now + TOTP_WINDOW_MS };
@@ -153,45 +165,56 @@ export function startDashboardServer(port: number, host?: string) {
   });
 
   app.get("/api/fleet/bots", async (c) => {
-    const bots = await docker.list();
+    const bots = await listAllBots();
     return c.json(bots);
   });
 
   app.post("/api/fleet/bots", async (c) => {
-    const body = await c.req.json().catch(() => null);
-    if (!body?.name || !body?.system) return c.json({ error: "name and system required" }, 400);
-    const config = buildInlineConfig({ name: body.name, system: body.system, model: body.model });
-    if (body.auth) config.auth = body.auth;
-    const containerId = await docker.spawn(config);
-    return c.json({ status: "spawned", name: config.name, containerId: containerId.slice(0, 12) });
+    try {
+      const body = await c.req.json().catch(() => null);
+      if (!body?.name || !body?.system) return c.json({ error: "name and system required" }, 400);
+      const config = buildInlineConfig({ name: body.name, system: body.system, model: body.model });
+      if (body.auth) config.auth = body.auth;
+      const runtime = (body.runtime ?? "docker") as Runtime;
+      const id = await getManager(runtime).spawn(config);
+      return c.json({ status: "spawned", name: config.name, containerId: id.slice(0, 12) });
+    } catch (err) { return safeError(c, err); }
   });
 
   app.post("/api/fleet/bots/:name/start", async (c) => {
-    const name = c.req.param("name");
-    if (!isValidName(name)) return c.json({ error: "Invalid bot name" }, 400);
-    await docker.start(name);
-    return c.json({ status: "started", name });
+    try {
+      const name = c.req.param("name");
+      if (!isValidName(name)) return c.json({ error: "Invalid bot name" }, 400);
+      await getManagerForBot(name).start(name);
+      return c.json({ status: "started", name });
+    } catch (err) { return safeError(c, err); }
   });
 
   app.post("/api/fleet/bots/:name/stop", async (c) => {
-    const name = c.req.param("name");
-    if (!isValidName(name)) return c.json({ error: "Invalid bot name" }, 400);
-    await docker.stop(name);
-    return c.json({ status: "stopped", name });
+    try {
+      const name = c.req.param("name");
+      if (!isValidName(name)) return c.json({ error: "Invalid bot name" }, 400);
+      await getManagerForBot(name).stop(name);
+      return c.json({ status: "stopped", name });
+    } catch (err) { return safeError(c, err); }
   });
 
   app.post("/api/fleet/bots/:name/restart", async (c) => {
-    const name = c.req.param("name");
-    if (!isValidName(name)) return c.json({ error: "Invalid bot name" }, 400);
-    const containerId = await docker.restart(name);
-    return c.json({ status: "restarted", name, containerId: containerId.slice(0, 12) });
+    try {
+      const name = c.req.param("name");
+      if (!isValidName(name)) return c.json({ error: "Invalid bot name" }, 400);
+      const containerId = await getManagerForBot(name).restart(name);
+      return c.json({ status: "restarted", name, containerId: containerId.slice(0, 12) });
+    } catch (err) { return safeError(c, err); }
   });
 
   app.delete("/api/fleet/bots/:name", async (c) => {
-    const name = c.req.param("name");
-    if (!isValidName(name)) return c.json({ error: "Invalid bot name" }, 400);
-    await docker.remove(name);
-    return c.json({ status: "removed", name });
+    try {
+      const name = c.req.param("name");
+      if (!isValidName(name)) return c.json({ error: "Invalid bot name" }, 400);
+      await getManagerForBot(name).remove(name);
+      return c.json({ status: "removed", name });
+    } catch (err) { return safeError(c, err); }
   });
 
   app.get("/api/fleet/bots/:name/config", async (c) => {
@@ -236,7 +259,7 @@ export function startDashboardServer(port: number, host?: string) {
   });
 
   app.get("/api/fleet/health", async (c) => {
-    const bots = await docker.list();
+    const bots = await listAllBots();
     const running = bots.filter(b => b.status === "running").length;
     return c.json({
       status: "ok",
@@ -249,7 +272,7 @@ export function startDashboardServer(port: number, host?: string) {
 
   // --- Dashboard Fleet API (dashboard auth) ---
   app.get("/api/bots", async (c) => {
-    const bots = await docker.list();
+    const bots = await listAllBots();
     return c.json(bots);
   });
 
@@ -296,8 +319,9 @@ export function startDashboardServer(port: number, host?: string) {
       }
 
       const dir = parsed.data.dir ? resolve(parsed.data.dir) : undefined;
-      const containerId = await docker.spawn(config, dir);
-      return c.json({ status: "spawned", name: config.name, containerId: containerId.slice(0, 12) });
+      const runtime: Runtime = parsed.data.runtime ?? "docker";
+      const id = await getManager(runtime).spawn(config, dir);
+      return c.json({ status: "spawned", name: config.name, containerId: id.slice(0, 12) });
     } catch (err) {
       return safeError(c, err);
     }
@@ -307,7 +331,7 @@ export function startDashboardServer(port: number, host?: string) {
     const name = c.req.param("name");
     if (!isValidName(name)) return c.json({ error: "Invalid bot name" }, 400);
     try {
-      await docker.remove(name);
+      await getManagerForBot(name).remove(name);
       return c.json({ status: "removed", name });
     } catch (err) {
       return safeError(c, err);
@@ -322,7 +346,7 @@ export function startDashboardServer(port: number, host?: string) {
     if (blocked) return blocked;
 
     try {
-      await docker.stop(name);
+      await getManagerForBot(name).stop(name);
       return c.json({ status: "stopped", name });
     } catch (err) {
       return safeError(c, err);
@@ -337,7 +361,7 @@ export function startDashboardServer(port: number, host?: string) {
     if (blocked) return blocked;
 
     try {
-      const containerId = await docker.restart(name);
+      const containerId = await getManagerForBot(name).restart(name);
       return c.json({ status: "restarted", name, containerId: containerId.slice(0, 12) });
     } catch (err) {
       return safeError(c, err);
@@ -405,8 +429,8 @@ export function startDashboardServer(port: number, host?: string) {
         const raw = readFileSync(configPath, "utf-8");
         const parsed = parseYaml(raw) as Record<string, unknown>;
         parsed.auth = profile;
-        await atomicWriteJsonAsync(configPath, stringifyYaml(parsed));
-        const containerId = await docker.restart(name);
+        await atomicWriteTextAsync(configPath, stringifyYaml(parsed));
+        const containerId = await getManagerForBot(name).restart(name);
         return { status: "switched" as const, profile, containerId: containerId.slice(0, 12) };
       });
       return c.json(result);
@@ -462,7 +486,7 @@ export function startDashboardServer(port: number, host?: string) {
 
   // --- Network: aggregate logs from all bots (parallel) ---
   app.get("/api/network", async (c) => {
-    const bots = await docker.list();
+    const bots = await listAllBots();
     const runningBots = bots.filter((b) => b.status === "running");
 
     const results = await Promise.allSettled(
@@ -690,89 +714,113 @@ export function startDashboardServer(port: number, host?: string) {
     return c.json({ status: "saved" });
   });
 
-  // --- Fleet Office SSE Stream ---
-  app.get("/api/office/stream", async (c) => {
-    return streamSSE(c, async (stream) => {
-      let seq = 0;
-      const knownBots = new Map<string, string>(); // containerId → name
-      let closed = false;
-      let lastAvatarMtime = 0; // track avatar file changes
+  // --- Fleet Office SSE Stream (shared poll + fan-out) ---
 
-      async function sendSnapshot() {
-        const bots = await docker.list();
-        const running = bots.filter(b => b.status === "running");
-        const avatars = readAvatars();
-        const snapshot = running.map(b => {
-          // Use truncated container ID (first 12 chars) — avoids exposing full ID on public endpoint
-          const entry: Record<string, unknown> = { bot_id: b.containerId.slice(0, 12), name: b.name, status: "idle" as const };
-          const av = avatars[b.name];
-          if (av) {
-            entry.palette = av.palette;
-            entry.hueShift = av.hueShift;
-            entry.displayName = av.displayName;
-          }
-          return entry;
-        });
-        await stream.writeSSE({ event: "snapshot", data: JSON.stringify({ seq: seq++, bots: snapshot }) });
-        knownBots.clear();
-        for (const b of running) knownBots.set(b.containerId, b.name);
-        // Track avatar file mtime
-        try { lastAvatarMtime = statSync(avatarsFile()).mtimeMs; } catch { lastAvatarMtime = 0; }
+  // Single shared poll — all SSE clients get the same data
+  type SSEListener = (event: string, data: string) => void;
+  const sseListeners = new Set<SSEListener>();
+  let sseSeq = 0;
+  const sseKnownBots = new Map<string, string>();
+  let sseLastAvatarMtime = 0;
+  let ssePollTimer: ReturnType<typeof setInterval> | null = null;
+
+  function broadcast(event: string, data: string) {
+    for (const listener of sseListeners) {
+      try { listener(event, data); } catch { /* client gone */ }
+    }
+  }
+
+  async function ssePoll() {
+    try {
+      const bots = await listAllBots();
+      const running = new Map(bots.filter(b => b.status === "running").map(b => [b.containerId, b.name] as const));
+      const avatars = readAvatars();
+
+      for (const [id, name] of running) {
+        if (!sseKnownBots.has(id)) {
+          sseKnownBots.set(id, name);
+          const av = avatars[name];
+          const joinData: Record<string, unknown> = { seq: sseSeq++, type: "bot_join", bot_id: id, name };
+          if (av) { joinData.palette = av.palette; joinData.hueShift = av.hueShift; joinData.displayName = av.displayName; }
+          broadcast("state", JSON.stringify(joinData));
+        }
       }
 
-      await sendSnapshot();
+      for (const [id] of sseKnownBots) {
+        if (!running.has(id)) {
+          sseKnownBots.delete(id);
+          broadcast("state", JSON.stringify({ seq: sseSeq++, type: "bot_leave", bot_id: id }));
+        }
+      }
 
-      const pollInterval = setInterval(async () => {
+      // Detect avatar file changes and resend full snapshot
+      let currentMtime = 0;
+      try { currentMtime = statSync(avatarsFile()).mtimeMs; } catch { /* file may not exist */ }
+      if (currentMtime > 0 && currentMtime !== sseLastAvatarMtime) {
+        sseLastAvatarMtime = currentMtime;
+        await sseSendSnapshot();
+      }
+    } catch (err) {
+      log.warn("SSE poll error", { error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
+  async function sseSendSnapshot() {
+    const bots = await listAllBots();
+    const running = bots.filter(b => b.status === "running");
+    const avatars = readAvatars();
+    const snapshot = running.map(b => {
+      const entry: Record<string, unknown> = { bot_id: b.containerId.slice(0, 12), name: b.name, status: "idle" as const };
+      const av = avatars[b.name];
+      if (av) { entry.palette = av.palette; entry.hueShift = av.hueShift; entry.displayName = av.displayName; }
+      return entry;
+    });
+    broadcast("snapshot", JSON.stringify({ seq: sseSeq++, bots: snapshot }));
+    sseKnownBots.clear();
+    for (const b of running) sseKnownBots.set(b.containerId, b.name);
+    try { sseLastAvatarMtime = statSync(avatarsFile()).mtimeMs; } catch { sseLastAvatarMtime = 0; }
+  }
+
+  // Start shared poll when first client connects, stop when last disconnects
+  function startSsePollIfNeeded() {
+    if (!ssePollTimer && sseListeners.size > 0) {
+      ssePollTimer = setInterval(ssePoll, 5000);
+    }
+  }
+  function stopSsePollIfEmpty() {
+    if (ssePollTimer && sseListeners.size === 0) {
+      clearInterval(ssePollTimer);
+      ssePollTimer = null;
+    }
+  }
+
+  app.get("/api/office/stream", async (c) => {
+    return streamSSE(c, async (stream) => {
+      let closed = false;
+
+      const listener: SSEListener = (event, data) => {
         if (closed) return;
-        try {
-          const bots = await docker.list();
-          const running = new Map(bots.filter(b => b.status === "running").map(b => [b.containerId, b.name] as const));
+        stream.writeSSE({ event, data }).catch(() => { /* client gone */ });
+      };
 
-          for (const [id, name] of running) {
-            if (!knownBots.has(id)) {
-              knownBots.set(id, name);
-              const avatars = readAvatars();
-              const av = avatars[name];
-              const joinData: Record<string, unknown> = { seq: seq++, type: "bot_join", bot_id: id, name };
-              if (av) {
-                joinData.palette = av.palette;
-                joinData.hueShift = av.hueShift;
-                joinData.displayName = av.displayName;
-              }
-              await stream.writeSSE({ event: "state", data: JSON.stringify(joinData) });
-            }
-          }
+      sseListeners.add(listener);
+      startSsePollIfNeeded();
 
-          for (const [id] of knownBots) {
-            if (!running.has(id)) {
-              knownBots.delete(id);
-              await stream.writeSSE({ event: "state", data: JSON.stringify({ seq: seq++, type: "bot_leave", bot_id: id }) });
-            }
-          }
+      // Send initial snapshot to this client
+      await sseSendSnapshot();
 
-          // Detect avatar file changes and resend snapshot
-          let currentMtime = 0;
-          try { currentMtime = statSync(avatarsFile()).mtimeMs; } catch { /* file may not exist */ }
-          if (currentMtime > 0 && currentMtime !== lastAvatarMtime) {
-            lastAvatarMtime = currentMtime;
-            await sendSnapshot();
-          }
-        } catch { /* ignore polling errors */ }
-      }, 5000);
-
-      const heartbeatInterval = setInterval(async () => {
+      // Heartbeat per client
+      const heartbeat = setInterval(() => {
         if (closed) return;
-        try {
-          await stream.writeSSE({ event: "heartbeat", data: JSON.stringify({ seq: seq++ }) });
-        } catch { /* connection closed */ }
+        stream.writeSSE({ event: "heartbeat", data: JSON.stringify({ seq: sseSeq++ }) }).catch(() => { /* closed */ });
       }, 15000);
 
-      // Keep stream alive until client disconnects
       await new Promise<void>((resolve) => {
         stream.onAbort(() => {
           closed = true;
-          clearInterval(pollInterval);
-          clearInterval(heartbeatInterval);
+          clearInterval(heartbeat);
+          sseListeners.delete(listener);
+          stopSsePollIfEmpty();
           resolve();
         });
       });
@@ -815,6 +863,7 @@ export function startDashboardServer(port: number, host?: string) {
   // Proxies /bot/:name/ws/terminal → container's /ws/terminal
   {
     const proxyWss = new WebSocketServer({ noServer: true });
+    proxyWss.on("error", (err) => { log.warn("WebSocket proxy server error", { error: err.message }); });
 
     server.on("upgrade", async (req: import("node:http").IncomingMessage, socket: import("node:stream").Duplex, head: Buffer) => {
       const url = new URL(req.url ?? "/", `http://localhost:${port}`);
@@ -831,7 +880,10 @@ export function startDashboardServer(port: number, host?: string) {
       const cookieHeader = req.headers.cookie ?? "";
       const sessionMatch = cookieHeader.match(/mecha_dashboard_session=([^;]+)/);
       const sessionToken = sessionMatch?.[1];
-      if (!sessionToken || (!isValidSession(sessionToken!) && sessionToken !== DASHBOARD_TOKEN)) {
+      const tokenValid = sessionToken && (isValidSession(sessionToken) ||
+        (Buffer.from(sessionToken).length === Buffer.from(DASHBOARD_TOKEN).length &&
+         timingSafeEqual(Buffer.from(sessionToken), Buffer.from(DASHBOARD_TOKEN))));
+      if (!tokenValid) {
         socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
         socket.destroy();
         return;
