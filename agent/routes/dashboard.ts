@@ -5,7 +5,7 @@ import { existsSync } from "node:fs";
 
 // Hot-reload path (writable bind-mount) takes priority over image-baked dist
 const HOT_DASHBOARD_ROOT = "/state/dashboard-dist";
-const DEFAULT_DASHBOARD_ROOT = "/app/agent/dashboard/dist";
+const DEFAULT_DASHBOARD_ROOT = process.env.MECHA_DASHBOARD_ROOT ?? "/app/agent/dashboard/dist";
 const COOKIE_NAME = "mecha_session";
 
 function getDashboardRoot(): string {
