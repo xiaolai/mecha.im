@@ -74,18 +74,22 @@ export function startDashboardServer(port: number, host?: string) {
     return c.json({ enabled: !!getTotpSecret() });
   });
 
-  // TOTP rate limiting: max 5 attempts per 60 seconds per IP
+  // TOTP rate limiting: max 5 attempts per 60 seconds per IP (bounded map)
   const totpAttempts = new Map<string, { count: number; resetAt: number }>();
   const TOTP_MAX_ATTEMPTS = 5;
+  const TOTP_MAX_IPS = 1000;
   const TOTP_WINDOW_MS = 60_000;
 
   app.post("/api/totp/verify", async (c) => {
     const secret = getTotpSecret();
     if (!secret) return c.json({ error: "TOTP not enabled" }, 400);
 
-    // Rate limit by IP
+    // Rate limit by IP (evict expired entries if map is full)
     const ip = getClientIp(c);
     const now = Date.now();
+    if (totpAttempts.size >= TOTP_MAX_IPS) {
+      for (const [k, v] of totpAttempts) { if (now > v.resetAt) totpAttempts.delete(k); }
+    }
     let entry = totpAttempts.get(ip);
     if (!entry || now > entry.resetAt) {
       entry = { count: 0, resetAt: now + TOTP_WINDOW_MS };
@@ -710,89 +714,113 @@ export function startDashboardServer(port: number, host?: string) {
     return c.json({ status: "saved" });
   });
 
-  // --- Fleet Office SSE Stream ---
-  app.get("/api/office/stream", async (c) => {
-    return streamSSE(c, async (stream) => {
-      let seq = 0;
-      const knownBots = new Map<string, string>(); // containerId → name
-      let closed = false;
-      let lastAvatarMtime = 0; // track avatar file changes
+  // --- Fleet Office SSE Stream (shared poll + fan-out) ---
 
-      async function sendSnapshot() {
-        const bots = await listAllBots();
-        const running = bots.filter(b => b.status === "running");
-        const avatars = readAvatars();
-        const snapshot = running.map(b => {
-          // Use truncated container ID (first 12 chars) — avoids exposing full ID on public endpoint
-          const entry: Record<string, unknown> = { bot_id: b.containerId.slice(0, 12), name: b.name, status: "idle" as const };
-          const av = avatars[b.name];
-          if (av) {
-            entry.palette = av.palette;
-            entry.hueShift = av.hueShift;
-            entry.displayName = av.displayName;
-          }
-          return entry;
-        });
-        await stream.writeSSE({ event: "snapshot", data: JSON.stringify({ seq: seq++, bots: snapshot }) });
-        knownBots.clear();
-        for (const b of running) knownBots.set(b.containerId, b.name);
-        // Track avatar file mtime
-        try { lastAvatarMtime = statSync(avatarsFile()).mtimeMs; } catch { lastAvatarMtime = 0; }
+  // Single shared poll — all SSE clients get the same data
+  type SSEListener = (event: string, data: string) => void;
+  const sseListeners = new Set<SSEListener>();
+  let sseSeq = 0;
+  const sseKnownBots = new Map<string, string>();
+  let sseLastAvatarMtime = 0;
+  let ssePollTimer: ReturnType<typeof setInterval> | null = null;
+
+  function broadcast(event: string, data: string) {
+    for (const listener of sseListeners) {
+      try { listener(event, data); } catch { /* client gone */ }
+    }
+  }
+
+  async function ssePoll() {
+    try {
+      const bots = await listAllBots();
+      const running = new Map(bots.filter(b => b.status === "running").map(b => [b.containerId, b.name] as const));
+      const avatars = readAvatars();
+
+      for (const [id, name] of running) {
+        if (!sseKnownBots.has(id)) {
+          sseKnownBots.set(id, name);
+          const av = avatars[name];
+          const joinData: Record<string, unknown> = { seq: sseSeq++, type: "bot_join", bot_id: id, name };
+          if (av) { joinData.palette = av.palette; joinData.hueShift = av.hueShift; joinData.displayName = av.displayName; }
+          broadcast("state", JSON.stringify(joinData));
+        }
       }
 
-      await sendSnapshot();
+      for (const [id] of sseKnownBots) {
+        if (!running.has(id)) {
+          sseKnownBots.delete(id);
+          broadcast("state", JSON.stringify({ seq: sseSeq++, type: "bot_leave", bot_id: id }));
+        }
+      }
 
-      const pollInterval = setInterval(async () => {
+      // Detect avatar file changes and resend full snapshot
+      let currentMtime = 0;
+      try { currentMtime = statSync(avatarsFile()).mtimeMs; } catch { /* file may not exist */ }
+      if (currentMtime > 0 && currentMtime !== sseLastAvatarMtime) {
+        sseLastAvatarMtime = currentMtime;
+        await sseSendSnapshot();
+      }
+    } catch (err) {
+      log.warn("SSE poll error", { error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
+  async function sseSendSnapshot() {
+    const bots = await listAllBots();
+    const running = bots.filter(b => b.status === "running");
+    const avatars = readAvatars();
+    const snapshot = running.map(b => {
+      const entry: Record<string, unknown> = { bot_id: b.containerId.slice(0, 12), name: b.name, status: "idle" as const };
+      const av = avatars[b.name];
+      if (av) { entry.palette = av.palette; entry.hueShift = av.hueShift; entry.displayName = av.displayName; }
+      return entry;
+    });
+    broadcast("snapshot", JSON.stringify({ seq: sseSeq++, bots: snapshot }));
+    sseKnownBots.clear();
+    for (const b of running) sseKnownBots.set(b.containerId, b.name);
+    try { sseLastAvatarMtime = statSync(avatarsFile()).mtimeMs; } catch { sseLastAvatarMtime = 0; }
+  }
+
+  // Start shared poll when first client connects, stop when last disconnects
+  function startSsePollIfNeeded() {
+    if (!ssePollTimer && sseListeners.size > 0) {
+      ssePollTimer = setInterval(ssePoll, 5000);
+    }
+  }
+  function stopSsePollIfEmpty() {
+    if (ssePollTimer && sseListeners.size === 0) {
+      clearInterval(ssePollTimer);
+      ssePollTimer = null;
+    }
+  }
+
+  app.get("/api/office/stream", async (c) => {
+    return streamSSE(c, async (stream) => {
+      let closed = false;
+
+      const listener: SSEListener = (event, data) => {
         if (closed) return;
-        try {
-          const bots = await listAllBots();
-          const running = new Map(bots.filter(b => b.status === "running").map(b => [b.containerId, b.name] as const));
+        stream.writeSSE({ event, data }).catch(() => { /* client gone */ });
+      };
 
-          for (const [id, name] of running) {
-            if (!knownBots.has(id)) {
-              knownBots.set(id, name);
-              const avatars = readAvatars();
-              const av = avatars[name];
-              const joinData: Record<string, unknown> = { seq: seq++, type: "bot_join", bot_id: id, name };
-              if (av) {
-                joinData.palette = av.palette;
-                joinData.hueShift = av.hueShift;
-                joinData.displayName = av.displayName;
-              }
-              await stream.writeSSE({ event: "state", data: JSON.stringify(joinData) });
-            }
-          }
+      sseListeners.add(listener);
+      startSsePollIfNeeded();
 
-          for (const [id] of knownBots) {
-            if (!running.has(id)) {
-              knownBots.delete(id);
-              await stream.writeSSE({ event: "state", data: JSON.stringify({ seq: seq++, type: "bot_leave", bot_id: id }) });
-            }
-          }
+      // Send initial snapshot to this client
+      await sseSendSnapshot();
 
-          // Detect avatar file changes and resend snapshot
-          let currentMtime = 0;
-          try { currentMtime = statSync(avatarsFile()).mtimeMs; } catch { /* file may not exist */ }
-          if (currentMtime > 0 && currentMtime !== lastAvatarMtime) {
-            lastAvatarMtime = currentMtime;
-            await sendSnapshot();
-          }
-        } catch { /* ignore polling errors */ }
-      }, 5000);
-
-      const heartbeatInterval = setInterval(async () => {
+      // Heartbeat per client
+      const heartbeat = setInterval(() => {
         if (closed) return;
-        try {
-          await stream.writeSSE({ event: "heartbeat", data: JSON.stringify({ seq: seq++ }) });
-        } catch { /* connection closed */ }
+        stream.writeSSE({ event: "heartbeat", data: JSON.stringify({ seq: sseSeq++ }) }).catch(() => { /* closed */ });
       }, 15000);
 
-      // Keep stream alive until client disconnects
       await new Promise<void>((resolve) => {
         stream.onAbort(() => {
           closed = true;
-          clearInterval(pollInterval);
-          clearInterval(heartbeatInterval);
+          clearInterval(heartbeat);
+          sseListeners.delete(listener);
+          stopSsePollIfEmpty();
           resolve();
         });
       });

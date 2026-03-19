@@ -7,7 +7,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { getBot, getMechaDir } from "./store.js";
-import { IMAGE_NAME } from "./docker.constants.js";
+import { IMAGE_NAME } from "./constants.js";
 import { docker } from "./docker.utils.js";
 import { isProcessAlive, readPidFile } from "./native.utils.js";
 import {
