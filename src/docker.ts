@@ -16,7 +16,7 @@ import {
 import type { BotConfig } from "./config.js";
 import { loadBotConfig } from "./config.js";
 import { listHostBotEndpointCandidates } from "./resolve-endpoint.js";
-import { IMAGE_NAME, REGISTRY_IMAGE, BOTS_BASE, HEALTH_CHECK_TIMEOUT_MS } from "./docker.constants.js";
+import { IMAGE_NAME, REGISTRY_IMAGE, BOTS_BASE, HEALTH_CHECK_TIMEOUT_MS } from "./constants.js";
 import {
   docker, withBotLock, validateBotPath, inspectContainer, removeContainerOnly,
   isDockerError, buildBinds, buildContainerEnv, copyHostCodexAuth,

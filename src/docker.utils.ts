@@ -1,49 +1,18 @@
 import Docker from "dockerode";
-import { realpathSync, existsSync, readFileSync, writeFileSync, mkdirSync, chmodSync } from "node:fs";
-import { resolve, join } from "node:path";
+import { realpathSync, existsSync } from "node:fs";
+import { join } from "node:path";
 import { homedir } from "node:os";
-import { execFileSync } from "node:child_process";
-import { getMutex } from "../shared/mutex.js";
 import { ProcessSpawnError } from "../shared/errors.js";
-import { resolveAuth, getCredential, getPassthroughCredentials, loadCredentials } from "./auth.js";
+import { resolveAuth, getCredential, getPassthroughCredentials } from "./auth.js";
 import { getOrCreateFleetInternalSecret, readSettings } from "./store.js";
-import { stringify as stringifyYaml } from "yaml";
 import type { BotConfig } from "./config.js";
+
+// Re-export runtime-agnostic utilities for backward compatibility
+export { withBotLock, validateBotPath, ensureBotSshKey, writeBotCredentials, copyHostCodexAuth } from "./bot-utils.js";
 
 const docker = new Docker();
 
 export { docker };
-
-export async function withBotLock<T>(name: string, fn: () => Promise<T>): Promise<T> {
-  const mutex = getMutex(`bot:${name}`);
-  const release = await mutex.acquire();
-  try {
-    return await fn();
-  } finally {
-    release();
-  }
-}
-
-export function validateBotPath(botPath: string): string {
-  const resolved = resolve(botPath);
-  let real: string;
-  try {
-    real = realpathSync(resolved);
-  } catch {
-    const parent = join(resolved, "..");
-    try {
-      const realParent = realpathSync(parent);
-      real = join(realParent, resolved.slice(parent.length));
-    } catch {
-      real = resolved;
-    }
-  }
-  const home = homedir();
-  if (real !== home && !real.startsWith(home + "/")) {
-    throw new ProcessSpawnError(`Bot path "${real}" must be under your home directory`);
-  }
-  return resolved;
-}
 
 export async function inspectContainer(name: string): Promise<Docker.ContainerInspectInfo | null> {
   try {
@@ -80,71 +49,21 @@ export function isDockerError(err: unknown, pattern: string): boolean {
   return String(err).includes(pattern);
 }
 
-// GitHub's SSH host keys (from https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints)
-const GITHUB_KNOWN_HOSTS = [
-  "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl",
-  "github.com ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBEmKSENjQEezOmxkZMy7opKgwFB9nkt5YRrYMjNuG5N87uRgg6CLrbo5wAdT/y6v0mKV0U2w0WZ2YB/++Tpockg=",
-  "github.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCj7ndNxQowgcQnjshcLrqPEiiphnt+VTTvDP6mHBL9j1aNUkY4Ue1gvwnGLVlOhGeYrnZaMgRK6+PKCUXaDbC7qtbW8gIkhL7aGCsOr/C56SJMy/BCZfxd1nWzAOxSDPgVsmerOBYfNqltV9/hWCqBywINIR+5dIg6JTJ72pcEpEjcYgXkE2YEFXV1JHnsKgbLWNlhScqb2UmyRkQyytRLtL+38TGxkxCflmO+5Z8CSSNY7GidjMIZ7Q4zMjA2n1nGrlTDkzwDCsw+wqFPGQA179cnfGWOWRVruj16z6XyvxvjJwbz0wQZ75XK5tKSb7FNyeIEs4TT4jk+S4dhPeAUC5y+bDYirYgM4GC7uEnztnZyaVWQ7B381AK4Qdrwt51ZqExKbQpTUNn+EjqoTwvqNj4kqx5QUCI0ThS/YkOxJCXmPUWZbhjpCg56i+2aB6CmK2JGhn57K5mj0MNdBXA4/WnwH6XoPWJzK5Nyu2zB3nAZp+S5hpQs+p1vN1/wsjk=",
-].join("\n") + "\n";
-
-/** Ensure a per-bot SSH key pair exists and is healthy. Returns the ssh dir path. */
-export function ensureBotSshKey(resolvedPath: string, botName: string): string {
-  const sshDir = join(resolvedPath, "ssh");
-  const keyPath = join(sshDir, "id_ed25519");
-  const pubPath = `${keyPath}.pub`;
-  const configPath = join(sshDir, "config");
-  const knownHostsPath = join(sshDir, "known_hosts");
-
-  mkdirSync(sshDir, { recursive: true });
-
-  // Generate key pair if private key is missing
-  if (!existsSync(keyPath)) {
-    execFileSync("ssh-keygen", ["-t", "ed25519", "-f", keyPath, "-N", "", "-C", `${botName}@mecha`], { stdio: "pipe" });
-  }
-
-  // Regenerate public key if missing
-  if (!existsSync(pubPath)) {
-    execFileSync("ssh-keygen", ["-y", "-f", keyPath], { stdio: ["pipe", "pipe", "pipe"] });
-    const pub = execFileSync("ssh-keygen", ["-y", "-f", keyPath]).toString().trim();
-    writeFileSync(pubPath, `${pub} ${botName}@mecha\n`, { mode: 0o644 });
-  }
-
-  // Ensure SSH config exists
-  if (!existsSync(configPath)) {
-    const sshConfig = `Host github.com\n  StrictHostKeyChecking accept-new\n  UserKnownHostsFile ~/.ssh/known_hosts\n  IdentityFile ~/.ssh/id_ed25519\n`;
-    writeFileSync(configPath, sshConfig, { mode: 0o600 });
-  }
-
-  // Ensure known_hosts with GitHub's public keys
-  if (!existsSync(knownHostsPath)) {
-    writeFileSync(knownHostsPath, GITHUB_KNOWN_HOSTS, { mode: 0o644 });
-  }
-
-  // Normalize permissions every time
-  chmodSync(sshDir, 0o700);
-  chmodSync(keyPath, 0o600);
-
-  return sshDir;
-}
-
 export function buildBinds(resolvedPath: string, configPath: string, config: BotConfig): string[] {
+  const { writeBotCredentials } = require("./bot-utils.js") as typeof import("./bot-utils.js");
   const binds = [
     `${realpathSync(resolvedPath)}:/state:rw`,
     `${realpathSync(configPath)}:/config/bot.yaml:rw`,
     `${realpathSync(join(resolvedPath, ".claude"))}:/home/appuser/.claude:rw`,
     `${realpathSync(join(resolvedPath, ".codex"))}:/home/appuser/.codex:rw`,
   ];
-  // Mount per-bot SSH keys if they exist (created by `mecha ssh-key <name>`)
   const sshDir = join(resolvedPath, "ssh");
   if (existsSync(join(sshDir, "id_ed25519"))) {
     binds.push(`${realpathSync(sshDir)}:/home/appuser/.ssh:ro`);
   }
-  // Write filtered credentials (Claude auth profiles only) to bot state dir
-  // This avoids mounting the full credentials store which contains unrelated secrets
   writeBotCredentials(resolvedPath, config.auth);
   if (config.workspace) {
     const wsPath = realpathSync(config.workspace);
-    // Restrict workspace mount to home directory to prevent mounting system paths
     const home = homedir();
     if (!wsPath.startsWith(home + "/") && wsPath !== home) {
       throw new ProcessSpawnError(`Workspace path must be under home directory: ${wsPath}`);
@@ -171,7 +90,6 @@ export async function buildContainerEnv(config: BotConfig, botToken: string): Pr
   const passthroughKeys = ["OPENAI_API_KEY", "GEMINI_API_KEY", "XAI_API_KEY"];
   const passthrough = getPassthroughCredentials(passthroughKeys);
   for (const pt of passthrough) env.push(`${pt.env}=${pt.key}`);
-  // Fallback: propagate host env vars for any key not found in stored credentials
   for (const envKey of passthroughKeys) {
     if (!passthrough.some((p) => p.env === envKey)) {
       const val = process.env[envKey];
@@ -195,12 +113,10 @@ export async function buildContainerEnv(config: BotConfig, botToken: string): Pr
   if (settings.headscale_url) env.push(`MECHA_HEADSCALE_URL=${settings.headscale_url}`);
   if (settings.headscale_api_key) env.push(`MECHA_HEADSCALE_API_KEY=${settings.headscale_api_key}`);
 
-  // Inject fleet URL only for fleet_control bots (orchestrator pattern)
   if ((config as Record<string, unknown>).permissions && ((config as Record<string, unknown>).permissions as Record<string, unknown>)?.fleet_control) {
     const { getDaemonUrl } = await import("./daemon.js");
     const daemonUrl = getDaemonUrl();
     if (daemonUrl) {
-      // Replace localhost with gateway IP for container reachability
       const gatewayIp = await getDockerGatewayIp();
       const containerUrl = daemonUrl.replace("localhost", gatewayIp).replace("127.0.0.1", gatewayIp);
       env.push(`MECHA_FLEET_URL=${containerUrl}`);
@@ -210,40 +126,11 @@ export async function buildContainerEnv(config: BotConfig, botToken: string): Pr
   return env;
 }
 
-/** Detect Docker bridge gateway IP for container-to-host communication */
 async function getDockerGatewayIp(): Promise<string> {
   try {
     const network = await docker.getNetwork("bridge").inspect();
     const gateway = network?.IPAM?.Config?.[0]?.Gateway;
     if (gateway) return gateway;
   } catch { /* fallback */ }
-  // macOS/Docker Desktop: host.docker.internal resolves to host
   return "host.docker.internal";
-}
-
-/**
- * Write a filtered credentials.yaml into the bot's state dir.
- * Only includes Claude auth profiles (api_key + oauth_token) — no unrelated secrets.
- * Lives in /state/ (rw mount) so it's always accessible and updatable.
- */
-/** Write only the bot's assigned credential (not all profiles) to its state dir */
-export function writeBotCredentials(resolvedPath: string, authProfile?: string): void {
-  const creds = loadCredentials();
-  // Only include the specific credential assigned to this bot, not all profiles
-  const claudeCreds = authProfile
-    ? creds.filter((c) => c.name === authProfile && (c.type === "api_key" || c.type === "oauth_token"))
-    : creds.filter((c) => c.type === "api_key" || c.type === "oauth_token").slice(0, 1);
-  const outPath = join(resolvedPath, "credentials.yaml");
-  const content = stringifyYaml({ credentials: claudeCreds }, { lineWidth: 0 });
-  writeFileSync(outPath, content, { mode: 0o644 });
-  chmodSync(outPath, 0o644);
-}
-
-/** Copy host Codex auth to bot if opted in */
-export function copyHostCodexAuth(resolvedPath: string): void {
-  const hostCodexAuth = join(homedir(), ".codex", "auth.json");
-  const botCodexAuth = join(resolvedPath, ".codex", "auth.json");
-  if (process.env.MECHA_COPY_HOST_CODEX_AUTH === "1" && existsSync(hostCodexAuth) && !existsSync(botCodexAuth)) {
-    writeFileSync(botCodexAuth, readFileSync(hostCodexAuth, "utf-8"), { mode: 0o600 });
-  }
 }

@@ -1,4 +1,4 @@
-import { createHmac, randomBytes } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
 // RFC 6238 TOTP — HMAC-SHA1, 6 digits, 30-second step
 
@@ -73,7 +73,8 @@ export function verifyTOTP(secretBase32: string, code: string, time?: number): b
   const now = time ?? Date.now() / 1000;
   const counter = Math.floor(now / STEP);
   for (let i = -WINDOW; i <= WINDOW; i++) {
-    if (hotp(secret, BigInt(counter + i)) === code) return true;
+    const candidate = hotp(secret, BigInt(counter + i));
+    if (candidate.length === code.length && timingSafeEqual(Buffer.from(candidate), Buffer.from(code))) return true;
   }
   return false;
 }
