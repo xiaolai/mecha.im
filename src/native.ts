@@ -16,8 +16,8 @@ import {
 } from "../shared/errors.js";
 import type { BotConfig } from "./config.js";
 import { loadBotConfig } from "./config.js";
-import { BOTS_BASE, HEALTH_CHECK_TIMEOUT_MS } from "./docker.constants.js";
-import { validateBotPath, copyHostCodexAuth } from "./docker.utils.js";
+import { BOTS_BASE, HEALTH_CHECK_TIMEOUT_MS } from "./constants.js";
+import { validateBotPath, copyHostCodexAuth } from "./bot-utils.js";
 import { getMutex } from "../shared/mutex.js";
 import type { ProcessManager, BotInfo } from "./process-manager.js";
 import {
