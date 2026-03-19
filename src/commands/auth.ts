@@ -10,7 +10,7 @@ import {
   detectCredentialType, credentialTypes,
   type Credential,
 } from "../auth.js";
-import * as docker from "../docker.js";
+import { getManagerForBot } from "../process-manager.js";
 import { printTable } from "../cli-utils.js";
 
 export function registerAuthCommands(program: Command): void {
@@ -103,31 +103,29 @@ export function registerAuthCommands(program: Command): void {
       const updatedConfig = { ...config, auth: profileName };
 
       console.log(`Swapping auth for "${botName}" to profile "${profileName}"...`);
-      // Atomic swap: hold bot lock for the entire stop+remove+spawn sequence
+      // Atomic swap: hold bot lock for the entire restart sequence
       const configPath = entry.config!;
-      const botPath = entry.path;
       // Save old config for rollback
       const { readFileSync } = await import("node:fs");
       const oldConfigContent = readFileSync(configPath, "utf-8");
 
-      const containerId = await withBotLock(botName, async () => {
+      const manager = getManagerForBot(botName);
+      const id = await withBotLock(botName, async () => {
         atomicWriteText(configPath, stringifyYaml(updatedConfig));
-        try { await docker.stop(botName); } catch { /* may not be running */ }
-        try { await docker.remove(botName); } catch { /* may already be removed */ }
         try {
-          return await docker.spawn(updatedConfig, botPath);
-        } catch (spawnErr) {
-          // Rollback: restore old config and try to re-spawn with original auth
-          console.error(`Spawn failed with new auth — rolling back to "${config.auth ?? "default"}"...`);
+          return await manager.restart(botName);
+        } catch (restartErr) {
+          // Rollback: restore old config and try to restart with original auth
+          console.error(`Restart failed with new auth — rolling back to "${config.auth ?? "default"}"...`);
           atomicWriteText(configPath, oldConfigContent);
           try {
-            return await docker.spawn(config, botPath);
+            return await manager.restart(botName);
           } catch {
-            console.error("Rollback spawn also failed. Bot is down. Restore config manually and run: mecha start " + botName);
-            throw spawnErr;
+            console.error("Rollback restart also failed. Bot is down. Restore config manually and run: mecha start " + botName);
+            throw restartErr;
           }
         }
       });
-      console.log(`Bot "${botName}" restarted with new auth (container: ${containerId.slice(0, 12)})`);
+      console.log(`Bot "${botName}" restarted with new auth (${id.slice(0, 12)})`);
     });
 }

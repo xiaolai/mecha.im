@@ -6,18 +6,21 @@
  * Logs: $MECHA_DIR/logs/daemon.log
  */
 
-import { mkdirSync, rmdirSync, readFileSync, writeFileSync, statSync, unlinkSync, utimesSync } from "node:fs";
+import { mkdirSync, rmdirSync, readFileSync, statSync, unlinkSync, utimesSync } from "node:fs";
 import { join } from "node:path";
 import { spawn as spawnChild } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { getMechaDir, listBots } from "./store.js";
 import { auditLog } from "./daemon-audit.js";
-import * as docker from "./docker.js";
+import { getManagerForBot, listAllBots } from "./process-manager.js";
 import { log } from "../shared/logger.js";
+import { atomicWriteJson } from "../shared/atomic-write.js";
 
 const LOCK_STALE_MS = 30_000;
 const RECONCILE_INTERVAL_MS = 30_000;
 const SHUTDOWN_DRAIN_MS = 5_000;
+const MAX_BACKOFF_MS = 5 * 60_000; // 5 minutes
+const restartBackoff = new Map<string, { failures: number; nextAttemptAfter: number }>();
 
 interface DaemonState {
   pid: number;
@@ -64,7 +67,7 @@ function releaseLock(): void {
 // ── State file ──────────────────────────────────────────────
 
 function writeState(state: DaemonState): void {
-  writeFileSync(stateFile(), JSON.stringify(state, null, 2));
+  atomicWriteJson(stateFile(), state);
 }
 
 function readState(): DaemonState | null {
@@ -82,45 +85,45 @@ function removeState(): void {
 async function reconcile(): Promise<void> {
   try {
     const bots = listBots();
-    const containers = await docker.list();
-    const containerMap = new Map(containers.map(c => [c.name, c]));
+    const running = await listAllBots();
+    const runningMap = new Map(running.map(b => [b.name, b]));
 
     for (const [name, entry] of Object.entries(bots)) {
-      const desired = entry.desired_state ?? "running"; // default: running for backward compat
-      const container = containerMap.get(name);
+      const desired = entry.desired_state ?? "running";
+      if (desired === "removed") continue;
+      const current = runningMap.get(name);
+      const manager = getManagerForBot(name);
 
       if (desired === "running") {
-        if (!container || container.status === "exited") {
-          // Bot should be running but isn't — auto-restart
+        if (!current || current.status === "exited") {
+          // Check backoff for crash-looping bots
+          const backoff = restartBackoff.get(name);
+          if (backoff && Date.now() < backoff.nextAttemptAfter) continue;
+
           try {
-            await docker.start(name);
+            await manager.start(name);
+            restartBackoff.delete(name); // success — reset backoff
             auditLog({ actor: "daemon:reconciler", action: "auto-restart", target: name,
-              detail: { reason: container ? "container exited" : "container missing" }, result: "success" });
+              detail: { reason: current ? "process exited" : "process missing", runtime: entry.runtime ?? "docker" }, result: "success" });
           } catch (err) {
+            const failures = (backoff?.failures ?? 0) + 1;
+            const delay = Math.min(RECONCILE_INTERVAL_MS * Math.pow(2, failures - 1), MAX_BACKOFF_MS);
+            restartBackoff.set(name, { failures, nextAttemptAfter: Date.now() + delay });
             auditLog({ actor: "daemon:reconciler", action: "auto-restart", target: name,
-              detail: { error: err instanceof Error ? err.message : String(err) }, result: "failure" });
+              detail: { error: err instanceof Error ? err.message : String(err), backoff_failures: failures, next_retry_ms: delay }, result: "failure" });
           }
         }
       } else if (desired === "stopped") {
-        if (container && container.status === "running") {
-          // Drift: running but should be stopped — stop it
+        if (current && current.status === "running") {
           try {
-            await docker.stop(name);
+            await manager.stop(name);
             auditLog({ actor: "daemon:reconciler", action: "auto-stop", target: name,
-              detail: { reason: "desired_state=stopped but container running" }, result: "success" });
+              detail: { reason: "desired_state=stopped but still running" }, result: "success" });
           } catch (err) {
             auditLog({ actor: "daemon:reconciler", action: "auto-stop", target: name,
               detail: { error: err instanceof Error ? err.message : String(err) }, result: "failure" });
           }
         }
-      }
-    }
-
-    // Check for orphan containers
-    for (const container of containers) {
-      if (!bots[container.name]) {
-        auditLog({ actor: "daemon:reconciler", action: "orphan-detected", target: container.name,
-          detail: { containerId: container.containerId }, result: "skipped" });
       }
     }
   } catch (err) {
@@ -139,7 +142,8 @@ export async function startDaemon(port: number, host: string, foreground: boolea
   if (!acquireLock()) {
     const state = readState();
     if (state) {
-      console.log(`Daemon already running on http://${host === "0.0.0.0" ? "localhost" : host}:${state.port} (PID ${state.pid})`);
+      const h = state.host === "0.0.0.0" ? "localhost" : state.host;
+      console.log(`Daemon already running on http://${h}:${state.port} (PID ${state.pid})`);
     } else {
       console.error("Another daemon instance is running (lock held). Use 'mecha daemon stop' first.");
     }
@@ -154,6 +158,18 @@ export async function startDaemon(port: number, host: string, foreground: boolea
     startedAt: new Date().toISOString(),
     version: readVersion(),
     status: "starting",
+  });
+
+  // Crash handlers — clean up lock and state on unexpected termination
+  process.on("uncaughtException", (err) => {
+    log.error("Daemon uncaught exception", { error: err.message, stack: err.stack });
+    auditLog({ actor: "daemon:lifecycle", action: "crashed", detail: { error: err.message }, result: "failure" });
+    removeState();
+    releaseLock();
+    process.exit(1);
+  });
+  process.on("unhandledRejection", (reason) => {
+    log.error("Daemon unhandled rejection", { error: reason instanceof Error ? reason.message : String(reason) });
   });
 
   // Start HTTP server (retain handle for graceful shutdown)
@@ -196,7 +212,8 @@ export async function startDaemon(port: number, host: string, foreground: boolea
     shuttingDown = true;
 
     console.log("Shutting down daemon...");
-    writeState({ ...readState()!, status: "stopping" });
+    const currentState = readState();
+    if (currentState) writeState({ ...currentState, status: "stopping" });
 
     if (reconcileTimer) { clearInterval(reconcileTimer); reconcileTimer = null; }
     clearInterval(lockRefreshTimer);
