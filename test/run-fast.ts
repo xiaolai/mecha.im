@@ -15,6 +15,10 @@ const suites = [
   "t18-mcp-proxy.ts",
   "t19-cli-query.ts",
   "t20-totp.ts",
+  "t21-native-utils.ts",
+  "t22-process-manager.ts",
+  "t23-reconciler.ts",
+  "t24-bot-lifecycle-lock.ts",
 ];
 
 for (const suite of suites) {

@@ -1,6 +1,6 @@
 import { resolve, join, basename } from "node:path";
 import { existsSync, statSync, readFileSync, readdirSync } from "node:fs";
-import type { BotInfo } from "./docker.types.js";
+import type { BotInfo } from "./process-manager.js";
 import { isValidName } from "../shared/validation.js";
 
 export function formatUptime(startedAtIso: string | undefined): string {

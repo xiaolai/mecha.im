@@ -1,4 +1,4 @@
-import { readFileSync, existsSync, chmodSync } from "node:fs";
+import { readFileSync, existsSync, chmodSync, mkdirSync, rmdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
@@ -55,6 +55,29 @@ export function loadCredentials(): Credential[] {
   }
 }
 
+function withCredentialsLock<T>(fn: () => T): T {
+  const lockPath = join(getMechaDir(), ".credentials.lock");
+  const deadline = Date.now() + 5000;
+  while (true) {
+    try {
+      mkdirSync(lockPath);
+      break;
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
+      try {
+        if (Date.now() - statSync(lockPath).mtimeMs > 30_000) {
+          try { rmdirSync(lockPath); } catch { /* race */ }
+          continue;
+        }
+      } catch { continue; }
+      if (Date.now() >= deadline) throw new Error("Credentials lock timeout");
+      const end = Date.now() + 10;
+      while (Date.now() < end) { /* spin */ }
+    }
+  }
+  try { return fn(); } finally { try { rmdirSync(lockPath); } catch { /* ok */ } }
+}
+
 function saveCredentials(credentials: Credential[]): void {
   const path = credentialsPath();
   const content = stringifyYaml({ credentials }, { lineWidth: 0 });
@@ -77,23 +100,27 @@ export function listCredentials(): Credential[] {
 
 export function addCredential(cred: Credential): void {
   if (!isValidName(cred.name)) throw new InvalidNameError(cred.name);
-  const creds = loadCredentials();
-  const idx = creds.findIndex((c) => c.name === cred.name);
-  if (idx >= 0) {
-    creds[idx] = cred;
-  } else {
-    creds.push(cred);
-  }
-  saveCredentials(creds);
+  withCredentialsLock(() => {
+    const creds = loadCredentials();
+    const idx = creds.findIndex((c) => c.name === cred.name);
+    if (idx >= 0) {
+      creds[idx] = cred;
+    } else {
+      creds.push(cred);
+    }
+    saveCredentials(creds);
+  });
 }
 
 export function removeCredential(name: string): boolean {
-  const creds = loadCredentials();
-  const idx = creds.findIndex((c) => c.name === name);
-  if (idx < 0) return false;
-  creds.splice(idx, 1);
-  saveCredentials(creds);
-  return true;
+  return withCredentialsLock(() => {
+    const creds = loadCredentials();
+    const idx = creds.findIndex((c) => c.name === name);
+    if (idx < 0) return false;
+    creds.splice(idx, 1);
+    saveCredentials(creds);
+    return true;
+  });
 }
 
 // --- Type detection from key prefix ---
