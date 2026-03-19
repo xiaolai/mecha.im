@@ -6,7 +6,8 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
-import * as docker from "./docker.js";
+import { getManager, getManagerForBot, listAllBots } from "./process-manager.js";
+import type { Runtime } from "./process-manager.js";
 import { withBotLock } from "./docker.utils.js";
 import { listBots as listRegistered } from "./store.js";
 import { loadBotConfig, buildInlineConfig } from "./config.js";
@@ -49,7 +50,7 @@ export function startDashboardServer(port: number, host?: string) {
   app.get("/api/health", async (c) => {
     let running = 0, stopped = 0;
     try {
-      const bots = await docker.list();
+      const bots = await listAllBots();
       running = bots.filter(b => b.status === "running").length;
       stopped = bots.length - running;
     } catch { /* Docker may be unavailable */ }
@@ -153,7 +154,7 @@ export function startDashboardServer(port: number, host?: string) {
   });
 
   app.get("/api/fleet/bots", async (c) => {
-    const bots = await docker.list();
+    const bots = await listAllBots();
     return c.json(bots);
   });
 
@@ -162,35 +163,36 @@ export function startDashboardServer(port: number, host?: string) {
     if (!body?.name || !body?.system) return c.json({ error: "name and system required" }, 400);
     const config = buildInlineConfig({ name: body.name, system: body.system, model: body.model });
     if (body.auth) config.auth = body.auth;
-    const containerId = await docker.spawn(config);
-    return c.json({ status: "spawned", name: config.name, containerId: containerId.slice(0, 12) });
+    const runtime = (body.runtime ?? "docker") as Runtime;
+    const id = await getManager(runtime).spawn(config);
+    return c.json({ status: "spawned", name: config.name, containerId: id.slice(0, 12) });
   });
 
   app.post("/api/fleet/bots/:name/start", async (c) => {
     const name = c.req.param("name");
     if (!isValidName(name)) return c.json({ error: "Invalid bot name" }, 400);
-    await docker.start(name);
+    await getManagerForBot(name).start(name);
     return c.json({ status: "started", name });
   });
 
   app.post("/api/fleet/bots/:name/stop", async (c) => {
     const name = c.req.param("name");
     if (!isValidName(name)) return c.json({ error: "Invalid bot name" }, 400);
-    await docker.stop(name);
+    await getManagerForBot(name).stop(name);
     return c.json({ status: "stopped", name });
   });
 
   app.post("/api/fleet/bots/:name/restart", async (c) => {
     const name = c.req.param("name");
     if (!isValidName(name)) return c.json({ error: "Invalid bot name" }, 400);
-    const containerId = await docker.restart(name);
+    const containerId = await getManagerForBot(name).restart(name);
     return c.json({ status: "restarted", name, containerId: containerId.slice(0, 12) });
   });
 
   app.delete("/api/fleet/bots/:name", async (c) => {
     const name = c.req.param("name");
     if (!isValidName(name)) return c.json({ error: "Invalid bot name" }, 400);
-    await docker.remove(name);
+    await getManagerForBot(name).remove(name);
     return c.json({ status: "removed", name });
   });
 
@@ -236,7 +238,7 @@ export function startDashboardServer(port: number, host?: string) {
   });
 
   app.get("/api/fleet/health", async (c) => {
-    const bots = await docker.list();
+    const bots = await listAllBots();
     const running = bots.filter(b => b.status === "running").length;
     return c.json({
       status: "ok",
@@ -249,7 +251,7 @@ export function startDashboardServer(port: number, host?: string) {
 
   // --- Dashboard Fleet API (dashboard auth) ---
   app.get("/api/bots", async (c) => {
-    const bots = await docker.list();
+    const bots = await listAllBots();
     return c.json(bots);
   });
 
@@ -296,8 +298,9 @@ export function startDashboardServer(port: number, host?: string) {
       }
 
       const dir = parsed.data.dir ? resolve(parsed.data.dir) : undefined;
-      const containerId = await docker.spawn(config, dir);
-      return c.json({ status: "spawned", name: config.name, containerId: containerId.slice(0, 12) });
+      const runtime = (parsed.data as Record<string, unknown>).runtime as Runtime | undefined ?? "docker";
+      const id = await getManager(runtime).spawn(config, dir);
+      return c.json({ status: "spawned", name: config.name, containerId: id.slice(0, 12) });
     } catch (err) {
       return safeError(c, err);
     }
@@ -307,7 +310,7 @@ export function startDashboardServer(port: number, host?: string) {
     const name = c.req.param("name");
     if (!isValidName(name)) return c.json({ error: "Invalid bot name" }, 400);
     try {
-      await docker.remove(name);
+      await getManagerForBot(name).remove(name);
       return c.json({ status: "removed", name });
     } catch (err) {
       return safeError(c, err);
@@ -322,7 +325,7 @@ export function startDashboardServer(port: number, host?: string) {
     if (blocked) return blocked;
 
     try {
-      await docker.stop(name);
+      await getManagerForBot(name).stop(name);
       return c.json({ status: "stopped", name });
     } catch (err) {
       return safeError(c, err);
@@ -337,7 +340,7 @@ export function startDashboardServer(port: number, host?: string) {
     if (blocked) return blocked;
 
     try {
-      const containerId = await docker.restart(name);
+      const containerId = await getManagerForBot(name).restart(name);
       return c.json({ status: "restarted", name, containerId: containerId.slice(0, 12) });
     } catch (err) {
       return safeError(c, err);
@@ -406,7 +409,7 @@ export function startDashboardServer(port: number, host?: string) {
         const parsed = parseYaml(raw) as Record<string, unknown>;
         parsed.auth = profile;
         await atomicWriteJsonAsync(configPath, stringifyYaml(parsed));
-        const containerId = await docker.restart(name);
+        const containerId = await getManagerForBot(name).restart(name);
         return { status: "switched" as const, profile, containerId: containerId.slice(0, 12) };
       });
       return c.json(result);
@@ -462,7 +465,7 @@ export function startDashboardServer(port: number, host?: string) {
 
   // --- Network: aggregate logs from all bots (parallel) ---
   app.get("/api/network", async (c) => {
-    const bots = await docker.list();
+    const bots = await listAllBots();
     const runningBots = bots.filter((b) => b.status === "running");
 
     const results = await Promise.allSettled(
@@ -699,7 +702,7 @@ export function startDashboardServer(port: number, host?: string) {
       let lastAvatarMtime = 0; // track avatar file changes
 
       async function sendSnapshot() {
-        const bots = await docker.list();
+        const bots = await listAllBots();
         const running = bots.filter(b => b.status === "running");
         const avatars = readAvatars();
         const snapshot = running.map(b => {
@@ -725,7 +728,7 @@ export function startDashboardServer(port: number, host?: string) {
       const pollInterval = setInterval(async () => {
         if (closed) return;
         try {
-          const bots = await docker.list();
+          const bots = await listAllBots();
           const running = new Map(bots.filter(b => b.status === "running").map(b => [b.containerId, b.name] as const));
 
           for (const [id, name] of running) {
