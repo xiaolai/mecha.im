@@ -40,6 +40,7 @@ export const spawnBodySchema = z.object({
   system: z.string().min(1).optional(),
   model: z.string().optional(),
   dir: z.string().optional(),
+  runtime: z.enum(["docker", "native"]).optional(),
 });
 
 export const authBodySchema = z.object({
