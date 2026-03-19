@@ -24,6 +24,7 @@ import {
   writePidFile, readPidFile, removePidFile, isProcessAlive,
   buildNativeEnv, openLogStream,
 } from "./native.utils.js";
+import { withBotLifecycleLock } from "./bot-lifecycle-lock.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -99,78 +100,80 @@ export class NativeProcessManager implements ProcessManager {
 
     const resolvedPath = validateBotPath(botPath ?? join(BOTS_BASE, config.name));
 
-    // Create state directories (no need for 0o777 — same user)
-    for (const sub of ["tasks", "sessions", "data", "logs", ".claude", ".codex", "workspace"]) {
-      mkdirSync(join(resolvedPath, sub), { recursive: true });
-    }
+    // Cross-process lifecycle lock prevents CLI + daemon racing on same bot
+    return withBotLifecycleLock(resolvedPath, async () => {
+      // Create state directories (no need for 0o777 — same user)
+      for (const sub of ["tasks", "sessions", "data", "logs", ".claude", ".codex", "workspace"]) {
+        mkdirSync(join(resolvedPath, sub), { recursive: true });
+      }
 
-    const costsPath = join(resolvedPath, "costs.json");
-    if (!existsSync(costsPath)) writeFileSync(costsPath, "{}\n");
+      const costsPath = join(resolvedPath, "costs.json");
+      if (!existsSync(costsPath)) writeFileSync(costsPath, "{}\n");
 
-    const configPath = join(resolvedPath, "bot.yaml");
-    writeFileSync(configPath, stringifyYaml(config), { mode: 0o644 });
+      const configPath = join(resolvedPath, "bot.yaml");
+      writeFileSync(configPath, stringifyYaml(config), { mode: 0o644 });
 
-    const botToken = "mecha_" + randomBytes(24).toString("hex");
-    const port = await pickPort();
-    copyHostCodexAuth(resolvedPath);
+      const botToken = "mecha_" + randomBytes(24).toString("hex");
+      const port = await pickPort();
+      copyHostCodexAuth(resolvedPath);
 
-    // Build env and spawn
-    const env = await buildNativeEnv(config, resolvedPath, botToken, port);
-    const entryScript = join(__dirname, "..", "agent", "entry.js");
-    const logStream = openLogStream(resolvedPath);
+      // Build env and spawn
+      const env = await buildNativeEnv(config, resolvedPath, botToken, port);
+      const entryScript = join(__dirname, "..", "agent", "entry.js");
+      const logStream = openLogStream(resolvedPath);
 
-    const child = spawnChild(process.execPath, [entryScript], {
-      cwd: resolvedPath,
-      env,
-      stdio: ["ignore", logStream, logStream],
-      detached: true,
+      const child = spawnChild(process.execPath, [entryScript], {
+        cwd: resolvedPath,
+        env,
+        stdio: ["ignore", logStream, logStream],
+        detached: true,
+      });
+      child.unref();
+
+      const pid = child.pid;
+      if (!pid) {
+        logStream.end();
+        throw new ProcessSpawnError("Failed to spawn agent process");
+      }
+      writePidFile(resolvedPath, pid);
+
+      // Write provisional registry entry so the reconciler knows about this bot
+      setBot(config.name, {
+        path: resolvedPath,
+        config: configPath,
+        containerId: String(pid),
+        pid,
+        port,
+        runtime: "native",
+        model: config.model,
+        botToken,
+        createdAt: new Date().toISOString(),
+        desired_state: "running",
+      });
+
+      // Health check
+      let healthy = false;
+      let delay = 200;
+      const deadline = Date.now() + HEALTH_CHECK_TIMEOUT_MS;
+      while (Date.now() < deadline) {
+        try {
+          const resp = await fetch(`http://127.0.0.1:${port}/health`, { signal: AbortSignal.timeout(2000) });
+          if (resp.ok) { healthy = true; break; }
+        } catch { /* not ready yet */ }
+        await new Promise(r => setTimeout(r, delay));
+        delay = Math.min(delay * 2, 1000);
+      }
+
+      if (!healthy) {
+        logStream.end();
+        try { process.kill(pid, "SIGTERM"); } catch { /* may already be dead */ }
+        removePidFile(resolvedPath);
+        removeBot(config.name);
+        throw new ProcessHealthTimeoutError(config.name);
+      }
+
+      return String(pid);
     });
-    child.unref();
-
-    const pid = child.pid;
-    if (!pid) {
-      logStream.end(); // H-1: close fd on failure
-      throw new ProcessSpawnError("Failed to spawn agent process");
-    }
-    writePidFile(resolvedPath, pid);
-
-    // Write provisional registry entry so the reconciler knows about this bot
-    // even if the process crashes before health check completes
-    setBot(config.name, {
-      path: resolvedPath,
-      config: configPath,
-      containerId: String(pid),
-      pid,
-      port,
-      runtime: "native",
-      model: config.model,
-      botToken,
-      createdAt: new Date().toISOString(),
-      desired_state: "running",
-    });
-
-    // Health check
-    let healthy = false;
-    let delay = 200;
-    const deadline = Date.now() + HEALTH_CHECK_TIMEOUT_MS;
-    while (Date.now() < deadline) {
-      try {
-        const resp = await fetch(`http://127.0.0.1:${port}/health`, { signal: AbortSignal.timeout(2000) });
-        if (resp.ok) { healthy = true; break; }
-      } catch { /* not ready yet */ }
-      await new Promise(r => setTimeout(r, delay));
-      delay = Math.min(delay * 2, 1000);
-    }
-
-    if (!healthy) {
-      logStream.end();
-      try { process.kill(pid, "SIGTERM"); } catch { /* may already be dead */ }
-      removePidFile(resolvedPath);
-      removeBot(config.name);
-      throw new ProcessHealthTimeoutError(config.name);
-    }
-
-    return String(pid);
   }
 
   async start(name: string): Promise<void> {

@@ -16,12 +16,13 @@ import { existsSync, readFileSync as fsReadFileSync, realpathSync, statSync } fr
 import { isValidName } from "../shared/validation.js";
 import { resolveHostBotBaseUrl } from "./resolve-endpoint.js";
 import { DASHBOARD_TOKEN, HOP_BY_HOP, spawnBodySchema, authBodySchema, totpVerifySchema, revokeAllSessions, isValidSession } from "./dashboard-server-schema.js";
-import { safeError, dashboardSessionCookie, hasDashboardAccess, shouldBootstrapDashboardSession, guardBusy } from "./dashboard-server-utils.js";
+import { safeError, dashboardSessionCookie, hasDashboardAccess, shouldBootstrapDashboardSession, guardBusy, getClientIp } from "./dashboard-server-utils.js";
 import { getTotpSecret, setTotpSecret, clearTotpSecret, getMechaDir, getOrCreateFleetInternalSecret } from "./store.js";
 import { timingSafeEqual, createHmac as cryptoHmac } from "node:crypto";
 import { WebSocket as WsClient, WebSocketServer } from "ws";
 import { generateSecret, verifyTOTP, totpUri } from "../shared/totp.js";
 import { atomicWriteJsonAsync, atomicWriteTextAsync } from "../shared/atomic-write.js";
+import { log } from "../shared/logger.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -29,7 +30,13 @@ export function startDashboardServer(port: number, host?: string) {
   const app = new Hono();
 
   // CORS — only allow same-origin
-  app.use("/*", cors({ origin: `http://localhost:${port}` }));
+  app.use("/*", cors({ origin: (origin) => origin ?? `http://localhost:${port}` }));
+
+  // Global error handler — prevents stack trace leakage
+  app.onError((err, c) => {
+    log.error("Unhandled route error", { error: err.message, path: c.req.path });
+    return c.json({ error: "Internal server error" }, 500);
+  });
 
   app.use("/*", async (c, next) => {
     await next();
@@ -77,7 +84,7 @@ export function startDashboardServer(port: number, host?: string) {
     if (!secret) return c.json({ error: "TOTP not enabled" }, 400);
 
     // Rate limit by IP
-    const ip = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    const ip = getClientIp(c);
     const now = Date.now();
     let entry = totpAttempts.get(ip);
     if (!entry || now > entry.resetAt) {
@@ -159,41 +166,51 @@ export function startDashboardServer(port: number, host?: string) {
   });
 
   app.post("/api/fleet/bots", async (c) => {
-    const body = await c.req.json().catch(() => null);
-    if (!body?.name || !body?.system) return c.json({ error: "name and system required" }, 400);
-    const config = buildInlineConfig({ name: body.name, system: body.system, model: body.model });
-    if (body.auth) config.auth = body.auth;
-    const runtime = (body.runtime ?? "docker") as Runtime;
-    const id = await getManager(runtime).spawn(config);
-    return c.json({ status: "spawned", name: config.name, containerId: id.slice(0, 12) });
+    try {
+      const body = await c.req.json().catch(() => null);
+      if (!body?.name || !body?.system) return c.json({ error: "name and system required" }, 400);
+      const config = buildInlineConfig({ name: body.name, system: body.system, model: body.model });
+      if (body.auth) config.auth = body.auth;
+      const runtime = (body.runtime ?? "docker") as Runtime;
+      const id = await getManager(runtime).spawn(config);
+      return c.json({ status: "spawned", name: config.name, containerId: id.slice(0, 12) });
+    } catch (err) { return safeError(c, err); }
   });
 
   app.post("/api/fleet/bots/:name/start", async (c) => {
-    const name = c.req.param("name");
-    if (!isValidName(name)) return c.json({ error: "Invalid bot name" }, 400);
-    await getManagerForBot(name).start(name);
-    return c.json({ status: "started", name });
+    try {
+      const name = c.req.param("name");
+      if (!isValidName(name)) return c.json({ error: "Invalid bot name" }, 400);
+      await getManagerForBot(name).start(name);
+      return c.json({ status: "started", name });
+    } catch (err) { return safeError(c, err); }
   });
 
   app.post("/api/fleet/bots/:name/stop", async (c) => {
-    const name = c.req.param("name");
-    if (!isValidName(name)) return c.json({ error: "Invalid bot name" }, 400);
-    await getManagerForBot(name).stop(name);
-    return c.json({ status: "stopped", name });
+    try {
+      const name = c.req.param("name");
+      if (!isValidName(name)) return c.json({ error: "Invalid bot name" }, 400);
+      await getManagerForBot(name).stop(name);
+      return c.json({ status: "stopped", name });
+    } catch (err) { return safeError(c, err); }
   });
 
   app.post("/api/fleet/bots/:name/restart", async (c) => {
-    const name = c.req.param("name");
-    if (!isValidName(name)) return c.json({ error: "Invalid bot name" }, 400);
-    const containerId = await getManagerForBot(name).restart(name);
-    return c.json({ status: "restarted", name, containerId: containerId.slice(0, 12) });
+    try {
+      const name = c.req.param("name");
+      if (!isValidName(name)) return c.json({ error: "Invalid bot name" }, 400);
+      const containerId = await getManagerForBot(name).restart(name);
+      return c.json({ status: "restarted", name, containerId: containerId.slice(0, 12) });
+    } catch (err) { return safeError(c, err); }
   });
 
   app.delete("/api/fleet/bots/:name", async (c) => {
-    const name = c.req.param("name");
-    if (!isValidName(name)) return c.json({ error: "Invalid bot name" }, 400);
-    await getManagerForBot(name).remove(name);
-    return c.json({ status: "removed", name });
+    try {
+      const name = c.req.param("name");
+      if (!isValidName(name)) return c.json({ error: "Invalid bot name" }, 400);
+      await getManagerForBot(name).remove(name);
+      return c.json({ status: "removed", name });
+    } catch (err) { return safeError(c, err); }
   });
 
   app.get("/api/fleet/bots/:name/config", async (c) => {
@@ -818,6 +835,7 @@ export function startDashboardServer(port: number, host?: string) {
   // Proxies /bot/:name/ws/terminal → container's /ws/terminal
   {
     const proxyWss = new WebSocketServer({ noServer: true });
+    proxyWss.on("error", (err) => { log.warn("WebSocket proxy server error", { error: err.message }); });
 
     server.on("upgrade", async (req: import("node:http").IncomingMessage, socket: import("node:stream").Duplex, head: Buffer) => {
       const url = new URL(req.url ?? "/", `http://localhost:${port}`);
@@ -834,7 +852,10 @@ export function startDashboardServer(port: number, host?: string) {
       const cookieHeader = req.headers.cookie ?? "";
       const sessionMatch = cookieHeader.match(/mecha_dashboard_session=([^;]+)/);
       const sessionToken = sessionMatch?.[1];
-      if (!sessionToken || (!isValidSession(sessionToken!) && sessionToken !== DASHBOARD_TOKEN)) {
+      const tokenValid = sessionToken && (isValidSession(sessionToken) ||
+        (Buffer.from(sessionToken).length === Buffer.from(DASHBOARD_TOKEN).length &&
+         timingSafeEqual(Buffer.from(sessionToken), Buffer.from(DASHBOARD_TOKEN))));
+      if (!tokenValid) {
         socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
         socket.destroy();
         return;

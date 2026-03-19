@@ -6,7 +6,7 @@
  * Logs: $MECHA_DIR/logs/daemon.log
  */
 
-import { mkdirSync, rmdirSync, readFileSync, writeFileSync, statSync, unlinkSync, utimesSync } from "node:fs";
+import { mkdirSync, rmdirSync, readFileSync, statSync, unlinkSync, utimesSync } from "node:fs";
 import { join } from "node:path";
 import { spawn as spawnChild } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -14,10 +14,13 @@ import { getMechaDir, listBots } from "./store.js";
 import { auditLog } from "./daemon-audit.js";
 import { getManagerForBot, listAllBots } from "./process-manager.js";
 import { log } from "../shared/logger.js";
+import { atomicWriteJson } from "../shared/atomic-write.js";
 
 const LOCK_STALE_MS = 30_000;
 const RECONCILE_INTERVAL_MS = 30_000;
 const SHUTDOWN_DRAIN_MS = 5_000;
+const MAX_BACKOFF_MS = 5 * 60_000; // 5 minutes
+const restartBackoff = new Map<string, { failures: number; nextAttemptAfter: number }>();
 
 interface DaemonState {
   pid: number;
@@ -64,7 +67,7 @@ function releaseLock(): void {
 // ── State file ──────────────────────────────────────────────
 
 function writeState(state: DaemonState): void {
-  writeFileSync(stateFile(), JSON.stringify(state, null, 2));
+  atomicWriteJson(stateFile(), state);
 }
 
 function readState(): DaemonState | null {
@@ -93,13 +96,21 @@ async function reconcile(): Promise<void> {
 
       if (desired === "running") {
         if (!current || current.status === "exited") {
+          // Check backoff for crash-looping bots
+          const backoff = restartBackoff.get(name);
+          if (backoff && Date.now() < backoff.nextAttemptAfter) continue;
+
           try {
             await manager.start(name);
+            restartBackoff.delete(name); // success — reset backoff
             auditLog({ actor: "daemon:reconciler", action: "auto-restart", target: name,
               detail: { reason: current ? "process exited" : "process missing", runtime: entry.runtime ?? "docker" }, result: "success" });
           } catch (err) {
+            const failures = (backoff?.failures ?? 0) + 1;
+            const delay = Math.min(RECONCILE_INTERVAL_MS * Math.pow(2, failures - 1), MAX_BACKOFF_MS);
+            restartBackoff.set(name, { failures, nextAttemptAfter: Date.now() + delay });
             auditLog({ actor: "daemon:reconciler", action: "auto-restart", target: name,
-              detail: { error: err instanceof Error ? err.message : String(err) }, result: "failure" });
+              detail: { error: err instanceof Error ? err.message : String(err), backoff_failures: failures, next_retry_ms: delay }, result: "failure" });
           }
         }
       } else if (desired === "stopped") {
@@ -149,6 +160,18 @@ export async function startDaemon(port: number, host: string, foreground: boolea
     status: "starting",
   });
 
+  // Crash handlers — clean up lock and state on unexpected termination
+  process.on("uncaughtException", (err) => {
+    log.error("Daemon uncaught exception", { error: err.message, stack: err.stack });
+    auditLog({ actor: "daemon:lifecycle", action: "crashed", detail: { error: err.message }, result: "failure" });
+    removeState();
+    releaseLock();
+    process.exit(1);
+  });
+  process.on("unhandledRejection", (reason) => {
+    log.error("Daemon unhandled rejection", { error: reason instanceof Error ? reason.message : String(reason) });
+  });
+
   // Start HTTP server (retain handle for graceful shutdown)
   const { startDashboardServer } = await import("./dashboard-server.js");
   const serverHandle = startDashboardServer(port, host);
@@ -189,7 +212,8 @@ export async function startDaemon(port: number, host: string, foreground: boolea
     shuttingDown = true;
 
     console.log("Shutting down daemon...");
-    writeState({ ...readState()!, status: "stopping" });
+    const currentState = readState();
+    if (currentState) writeState({ ...currentState, status: "stopping" });
 
     if (reconcileTimer) { clearInterval(reconcileTimer); reconcileTimer = null; }
     clearInterval(lockRefreshTimer);
