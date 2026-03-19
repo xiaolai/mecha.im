@@ -6,6 +6,17 @@ import { log } from "../shared/logger.js";
 import { DASHBOARD_TOKEN, DASHBOARD_COOKIE, isValidSession, createSession } from "./dashboard-server-schema.js";
 import type { Context } from "hono";
 
+/** Resolve real client IP from Hono context. Only trusts XFF when MECHA_TRUSTED_PROXY is set. */
+export function getClientIp(c: Context): string {
+  if (process.env.MECHA_TRUSTED_PROXY) {
+    const xff = c.req.header("x-forwarded-for");
+    if (xff) return xff.split(",")[0]!.trim();
+  }
+  // Hono on @hono/node-server exposes the raw Node request via c.env.incoming
+  const nodeReq = (c.env as Record<string, unknown>)?.incoming as { socket?: { remoteAddress?: string } } | undefined;
+  return nodeReq?.socket?.remoteAddress ?? "unknown";
+}
+
 /** Check if a bot is currently busy by querying its /api/status endpoint.
  *  Returns `unknown: true` if status could not be determined (bot unreachable). */
 export async function checkBotBusy(name: string): Promise<{ busy: boolean; unknown?: boolean; state?: string }> {
@@ -48,10 +59,10 @@ function readCookie(cookieHeader: string | undefined, name: string): string | un
   return undefined;
 }
 
-export function dashboardSessionCookie(sessionToken?: string): string {
+export function dashboardSessionCookie(sessionToken?: string, secure?: boolean): string {
   const token = sessionToken ?? createSession();
-  // Omit Secure flag so cookie works over plain HTTP (remote dashboard access)
-  return `${DASHBOARD_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`;
+  const securePart = secure ? "; Secure" : "";
+  return `${DASHBOARD_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400${securePart}`;
 }
 
 function constantTimeEquals(a: string, b: string): boolean {
@@ -85,8 +96,8 @@ export function shouldBootstrapDashboardSession(c: Context): boolean {
     return true;
   }
   // When TOTP is disabled, only auto-bootstrap for loopback clients
-  const remoteAddr = c.req.header("x-forwarded-for") ?? c.req.header("remote-addr") ?? "";
-  const isLoopback = !remoteAddr || remoteAddr === "127.0.0.1" || remoteAddr === "::1" || remoteAddr === "localhost";
+  const remoteAddr = getClientIp(c);
+  const isLoopback = remoteAddr === "127.0.0.1" || remoteAddr === "::1" || remoteAddr === "::ffff:127.0.0.1";
   if (!isLoopback) return false;
   return readCookie(c.req.header("cookie"), DASHBOARD_COOKIE) !== DASHBOARD_TOKEN;
 }
