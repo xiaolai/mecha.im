@@ -1,7 +1,7 @@
 import Docker from "dockerode";
 import { isValidUrl } from "../shared/validation.js";
 import { log } from "../shared/logger.js";
-import { readSettings } from "./store.js";
+import { readSettings, getBot } from "./store.js";
 
 const docker = new Docker();
 const BOT_PORT = "3000/tcp";
@@ -89,11 +89,24 @@ async function lookupHeadscaleCandidate(name: string): Promise<EndpointCandidate
   }
 }
 
+async function listNativeCandidates(name: string): Promise<EndpointCandidate[]> {
+  const entry = getBot(name);
+  if (!entry || entry.runtime !== "native" || !entry.port) return [];
+  return [{
+    baseUrl: `http://127.0.0.1:${entry.port}`,
+    via: "native-port",
+  }];
+}
+
 export async function listHostBotEndpointCandidates(
   name: string,
   opts?: { allowRemote?: boolean },
 ): Promise<EndpointCandidate[]> {
-  const candidates = await listLocalCandidates(name);
+  // Native candidates first (no Docker API call needed)
+  const candidates = await listNativeCandidates(name);
+
+  // Docker candidates
+  candidates.push(...await listLocalCandidates(name));
 
   if (opts?.allowRemote !== false) {
     candidates.push({
