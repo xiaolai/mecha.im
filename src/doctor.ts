@@ -84,7 +84,7 @@ export async function doctorBot(name: string): Promise<number> {
 
     console.log("\n[Health]");
     const port = entry.port;
-    if (port) {
+    if (port && port >= 1 && port <= 65535) {
       try {
         const resp = await fetch(`http://127.0.0.1:${port}/health`, { signal: AbortSignal.timeout(3000) });
         tally(report([resp.ok

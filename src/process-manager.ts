@@ -18,7 +18,10 @@ export interface ProcessManager {
   readonly runtime: Runtime;
 }
 
-const nativeManager = new NativeProcessManager();
+let _nativeManager: NativeProcessManager | null = null;
+function getNativeManager(): NativeProcessManager {
+  return _nativeManager ??= new NativeProcessManager();
+}
 
 const dockerAdapter: ProcessManager = {
   runtime: "docker",
@@ -32,7 +35,7 @@ const dockerAdapter: ProcessManager = {
 };
 
 export function getManager(runtime: Runtime): ProcessManager {
-  return runtime === "native" ? nativeManager : dockerAdapter;
+  return runtime === "native" ? getNativeManager() : dockerAdapter;
 }
 
 /** Get the correct manager for an existing bot by reading its registry entry */
@@ -45,7 +48,7 @@ export function getManagerForBot(name: string): ProcessManager {
 export async function listAllBots(): Promise<BotInfo[]> {
   const [dockerBots, nativeBots] = await Promise.all([
     dockerAdapter.list().catch(() => [] as BotInfo[]),
-    nativeManager.list().catch(() => [] as BotInfo[]),
+    getNativeManager().list().catch(() => [] as BotInfo[]),
   ]);
   return [...dockerBots, ...nativeBots];
 }

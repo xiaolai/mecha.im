@@ -5,6 +5,7 @@ import type { WriteStream } from "node:fs";
 import { resolveAuth, getPassthroughCredentials, getCredential } from "./auth.js";
 import { getOrCreateFleetInternalSecret, readSettings } from "./store.js";
 import { writeBotCredentials } from "./docker.utils.js";
+import { ProcessSpawnError } from "../shared/errors.js";
 import type { BotConfig } from "./config.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -33,7 +34,9 @@ export function isProcessAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);
     return true;
-  } catch {
+  } catch (err) {
+    // EPERM means the process exists but we lack permission to signal it
+    if ((err as NodeJS.ErrnoException).code === "EPERM") return true;
     return false;
   }
 }
@@ -44,10 +47,18 @@ export async function buildNativeEnv(config: BotConfig, botPath: string, botToke
   const auth = resolveAuth(config.auth);
   writeBotCredentials(botPath, config.auth);
 
-  // Start from host env (native mode inherits host env — this covers
-  // passthrough key fallback that buildContainerEnv does explicitly)
+  // Filter host env: strip mecha-internal secrets and undefined values
+  const STRIP_FROM_CHILD = new Set([
+    "MECHA_DASHBOARD_TOKEN", "MECHA_BOT_TOKEN", "MECHA_BOT_NAME",
+    "MECHA_FLEET_INTERNAL_SECRET", "MECHA_PORT", "MECHA_STATE_DIR",
+    "MECHA_CONFIG_PATH", "MECHA_URL",
+  ]);
+  const parentEnv = Object.fromEntries(
+    Object.entries(process.env).filter(([k, v]) => v !== undefined && !STRIP_FROM_CHILD.has(k)),
+  ) as Record<string, string>;
+
   const env: Record<string, string> = {
-    ...process.env as Record<string, string>,
+    ...parentEnv,
     [auth.env]: auth.key,
     MECHA_BOT_NAME: config.name,
     MECHA_BOT_TOKEN: botToken,
@@ -98,5 +109,9 @@ export async function buildNativeEnv(config: BotConfig, botPath: string, botToke
 export function openLogStream(botPath: string): WriteStream {
   const logDir = join(botPath, "logs");
   mkdirSync(logDir, { recursive: true });
-  return createWriteStream(join(logDir, "agent.log"), { flags: "a" });
+  try {
+    return createWriteStream(join(logDir, "agent.log"), { flags: "a" });
+  } catch (err) {
+    throw new ProcessSpawnError(`Cannot open log file in ${logDir}: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
