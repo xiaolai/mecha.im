@@ -12,7 +12,7 @@ import { spawn as spawnChild } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { getMechaDir, listBots } from "./store.js";
 import { auditLog } from "./daemon-audit.js";
-import * as docker from "./docker.js";
+import { getManagerForBot, listAllBots } from "./process-manager.js";
 import { log } from "../shared/logger.js";
 
 const LOCK_STALE_MS = 30_000;
@@ -82,45 +82,36 @@ function removeState(): void {
 async function reconcile(): Promise<void> {
   try {
     const bots = listBots();
-    const containers = await docker.list();
-    const containerMap = new Map(containers.map(c => [c.name, c]));
+    const running = await listAllBots();
+    const runningMap = new Map(running.map(b => [b.name, b]));
 
     for (const [name, entry] of Object.entries(bots)) {
-      const desired = entry.desired_state ?? "running"; // default: running for backward compat
-      const container = containerMap.get(name);
+      const desired = entry.desired_state ?? "running";
+      const current = runningMap.get(name);
+      const manager = getManagerForBot(name);
 
       if (desired === "running") {
-        if (!container || container.status === "exited") {
-          // Bot should be running but isn't — auto-restart
+        if (!current || current.status === "exited") {
           try {
-            await docker.start(name);
+            await manager.start(name);
             auditLog({ actor: "daemon:reconciler", action: "auto-restart", target: name,
-              detail: { reason: container ? "container exited" : "container missing" }, result: "success" });
+              detail: { reason: current ? "process exited" : "process missing", runtime: entry.runtime ?? "docker" }, result: "success" });
           } catch (err) {
             auditLog({ actor: "daemon:reconciler", action: "auto-restart", target: name,
               detail: { error: err instanceof Error ? err.message : String(err) }, result: "failure" });
           }
         }
       } else if (desired === "stopped") {
-        if (container && container.status === "running") {
-          // Drift: running but should be stopped — stop it
+        if (current && current.status === "running") {
           try {
-            await docker.stop(name);
+            await manager.stop(name);
             auditLog({ actor: "daemon:reconciler", action: "auto-stop", target: name,
-              detail: { reason: "desired_state=stopped but container running" }, result: "success" });
+              detail: { reason: "desired_state=stopped but still running" }, result: "success" });
           } catch (err) {
             auditLog({ actor: "daemon:reconciler", action: "auto-stop", target: name,
               detail: { error: err instanceof Error ? err.message : String(err) }, result: "failure" });
           }
         }
-      }
-    }
-
-    // Check for orphan containers
-    for (const container of containers) {
-      if (!bots[container.name]) {
-        auditLog({ actor: "daemon:reconciler", action: "orphan-detected", target: container.name,
-          detail: { containerId: container.containerId }, result: "skipped" });
       }
     }
   } catch (err) {
