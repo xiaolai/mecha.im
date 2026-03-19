@@ -1,5 +1,5 @@
-import { spawn as spawnChild } from "node:child_process";
-import { mkdirSync, existsSync, writeFileSync, readFileSync } from "node:fs";
+import { spawn as spawnChild, execFileSync } from "node:child_process";
+import { mkdirSync, existsSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createServer } from "node:net";
@@ -27,7 +27,11 @@ import {
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-/** Find a free port by attempting to bind. Avoids TOCTOU race conditions. */
+/**
+ * Find a free port by attempting to bind.
+ * Note: inherent TOCTOU window between srv.close() and child's listen() —
+ * the health check will catch port conflicts as a startup failure.
+ */
 async function pickPort(startPort = 3100): Promise<number> {
   // Scan registry to skip known ports (fast path)
   const bots = listBots();
@@ -125,6 +129,7 @@ export class NativeProcessManager implements ProcessManager {
 
     const pid = child.pid;
     if (!pid) {
+      logStream.end(); // H-1: close fd on failure
       throw new ProcessSpawnError("Failed to spawn agent process");
     }
     writePidFile(resolvedPath, pid);
@@ -143,6 +148,7 @@ export class NativeProcessManager implements ProcessManager {
     }
 
     if (!healthy) {
+      logStream.end(); // H-1: close fd on failure
       try { process.kill(pid, "SIGTERM"); } catch { /* may already be dead */ }
       removePidFile(resolvedPath);
       throw new ProcessHealthTimeoutError(config.name);
@@ -179,43 +185,64 @@ export class NativeProcessManager implements ProcessManager {
     }
   }
 
+  // H-2: acquire mutex in stop() and restart()
   async stop(name: string): Promise<void> {
-    const entry = getBot(name);
-    if (!entry) throw new BotNotFoundError(name);
+    const mutex = getMutex(`bot:${name}`);
+    const release = await mutex.acquire();
+    try {
+      const entry = getBot(name);
+      if (!entry) throw new BotNotFoundError(name);
 
-    const pid = entry.pid ?? readPidFile(entry.path);
-    if (!pid || !isProcessAlive(pid)) throw new BotNotRunningError(name);
+      const pid = entry.pid ?? readPidFile(entry.path);
+      if (!pid || !isProcessAlive(pid)) throw new BotNotRunningError(name);
 
-    setBotDesiredState(name, "stopped");
-    await killGracefully(pid);
-    removePidFile(entry.path);
+      setBotDesiredState(name, "stopped");
+      await killGracefully(pid);
+      removePidFile(entry.path);
+    } finally {
+      release();
+    }
   }
 
   async restart(name: string): Promise<string> {
-    const entry = getBot(name);
-    if (!entry?.config) throw new BotNotFoundError(name);
+    const mutex = getMutex(`bot:${name}`);
+    const release = await mutex.acquire();
+    try {
+      const entry = getBot(name);
+      if (!entry?.config) throw new BotNotFoundError(name);
 
-    const pid = entry.pid ?? readPidFile(entry.path);
-    if (pid && isProcessAlive(pid)) {
-      await killGracefully(pid);
-      removePidFile(entry.path);
+      const pid = entry.pid ?? readPidFile(entry.path);
+      if (pid && isProcessAlive(pid)) {
+        await killGracefully(pid);
+        removePidFile(entry.path);
+      }
+
+      const config = loadBotConfig(entry.config);
+      return await this._spawn(config, entry.path, { allowRegistryEntry: true });
+    } finally {
+      release();
     }
-
-    const config = loadBotConfig(entry.config);
-    return this._spawn(config, entry.path, { allowRegistryEntry: true });
   }
 
+  // H-7: set desired_state before killing
   async remove(name: string): Promise<void> {
-    const entry = getBot(name);
-    if (!entry) {
-      removeBot(name);
-      return;
-    }
+    const mutex = getMutex(`bot:${name}`);
+    const release = await mutex.acquire();
+    try {
+      const entry = getBot(name);
+      if (!entry) {
+        removeBot(name);
+        return;
+      }
 
-    const pid = entry.pid ?? readPidFile(entry.path);
-    if (pid) await killGracefully(pid);
-    if (entry.path) removePidFile(entry.path);
-    removeBot(name);
+      setBotDesiredState(name, "removed");
+      const pid = entry.pid ?? readPidFile(entry.path);
+      if (pid) await killGracefully(pid);
+      if (entry.path) removePidFile(entry.path);
+      removeBot(name);
+    } finally {
+      release();
+    }
   }
 
   async list(): Promise<BotInfo[]> {
@@ -240,6 +267,7 @@ export class NativeProcessManager implements ProcessManager {
     return result;
   }
 
+  // H-5: clean up signal listeners; M-6: use tail command instead of readFileSync
   async logs(name: string, follow: boolean): Promise<void> {
     const entry = getBot(name);
     if (!entry?.path) throw new BotNotFoundError(name);
@@ -248,16 +276,19 @@ export class NativeProcessManager implements ProcessManager {
     if (follow) {
       const tail = spawnChild("tail", ["-f", logPath], { stdio: "inherit" });
       const cleanup = () => { tail.kill(); };
-      process.on("SIGINT", cleanup);
-      process.on("SIGTERM", cleanup);
+      process.once("SIGINT", cleanup);
+      process.once("SIGTERM", cleanup);
       await new Promise<void>((resolve) => {
-        tail.on("exit", resolve);
+        tail.on("exit", () => {
+          process.removeListener("SIGINT", cleanup);
+          process.removeListener("SIGTERM", cleanup);
+          resolve();
+        });
       });
     } else {
       try {
-        const content = readFileSync(logPath, "utf-8");
-        const lines = content.split("\n");
-        console.log(lines.slice(-200).join("\n"));
+        const output = execFileSync("tail", ["-200", logPath], { encoding: "utf-8", timeout: 5000 });
+        process.stdout.write(output);
       } catch {
         console.log("No logs available");
       }

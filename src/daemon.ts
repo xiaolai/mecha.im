@@ -87,6 +87,7 @@ async function reconcile(): Promise<void> {
 
     for (const [name, entry] of Object.entries(bots)) {
       const desired = entry.desired_state ?? "running";
+      if (desired === "removed") continue;
       const current = runningMap.get(name);
       const manager = getManagerForBot(name);
 
@@ -130,7 +131,8 @@ export async function startDaemon(port: number, host: string, foreground: boolea
   if (!acquireLock()) {
     const state = readState();
     if (state) {
-      console.log(`Daemon already running on http://${host === "0.0.0.0" ? "localhost" : host}:${state.port} (PID ${state.pid})`);
+      const h = state.host === "0.0.0.0" ? "localhost" : state.host;
+      console.log(`Daemon already running on http://${h}:${state.port} (PID ${state.pid})`);
     } else {
       console.error("Another daemon instance is running (lock held). Use 'mecha daemon stop' first.");
     }
