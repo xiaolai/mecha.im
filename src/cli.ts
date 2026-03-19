@@ -8,15 +8,15 @@ process.on("unhandledRejection", (reason) => {
 import { Command } from "commander";
 import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { BotInfo } from "./docker.types.js";
 import { existsSync, statSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { execFile } from "node:child_process";
 import { MechaError } from "../shared/errors.js";
-import { parsePort, isValidName } from "../shared/validation.js";
+import { parsePort } from "../shared/validation.js";
 import { ensureMechaDir, getBot, readSettings } from "./store.js";
 import { loadBotConfig, buildInlineConfig } from "./config.js";
 import * as docker from "./docker.js";
+import { getManager, getManagerForBot, listAllBots } from "./process-manager.js";
 import { resolveHostBotBaseUrl } from "./resolve-endpoint.js";
 import { doctorMecha, doctorBot } from "./doctor.js";
 import { requireValidName, collectAttachments, formatUptime, readCostsToday, printTable, setupHeadscale, fetchRemoteBots, readPromptSSE } from "./cli-utils.js";
@@ -42,7 +42,7 @@ program
 // --- init ---
 program
   .command("init")
-  .description("Initialize mecha and build the Docker image")
+  .description("Initialize mecha (Docker optional with --native)")
   .option("--headscale", "Start a Headscale container for mesh networking")
   .action(async (opts) => {
     console.log(pc.bold("\nWelcome to Mecha\n"));
@@ -61,8 +61,7 @@ program
     else console.log(pc.yellow("!") + " No API key set " + pc.dim("(set ANTHROPIC_API_KEY or run: mecha auth add <name> <key>)"));
 
     if (!hasDocker) {
-      console.error(pc.red("\nDocker is required. Install it and try again."));
-      process.exit(1);
+      console.log(pc.yellow("!") + " Docker not found " + pc.dim("(required for Docker runtime, not needed for --native)"));
     }
 
     ensureMechaDir();
@@ -84,7 +83,9 @@ program
       await setupHeadscale(readSettings());
     }
 
-    await withSpinner("Building Docker image", () => docker.ensureImage());
+    if (hasDocker) {
+      await withSpinner("Building Docker image", () => docker.ensureImage());
+    }
     console.log(success("mecha initialized"));
 
     console.log(pc.dim("\nNext steps:"));
@@ -102,6 +103,7 @@ program
   .option("--model <model>", "Model to use", "sonnet")
   .option("--dir <path>", "Bot state directory")
   .option("--expose <port>", "Expose on host port")
+  .option("--native", "Run bot as native process (no Docker)")
   .action(async (configPath: string | undefined, opts) => {
     ensureMechaDir();
 
@@ -147,10 +149,13 @@ program
       config = { ...config, workspace: wsPath };
     }
 
-    const containerId = await withSpinner(`Spawning ${botName(config.name)} (${pc.dim(config.model)})`, () =>
-      docker.spawn(config, botPath),
+    const runtime = opts.native ? "native" : "docker";
+    const manager = getManager(runtime as "docker" | "native");
+    const id = await withSpinner(`Spawning ${botName(config.name)} (${pc.dim(config.model)})`, () =>
+      manager.spawn(config, botPath),
     );
-    console.log(success(`Bot ${botName(config.name)} is running (container: ${pc.dim(containerId.slice(0, 12))})`));
+    const label = opts.native ? `PID ${id}` : `container: ${pc.dim(id.slice(0, 12))}`;
+    console.log(success(`Bot ${botName(config.name)} is running (${label})`));
     console.log(pc.dim(`  Next: mecha query ${config.name} "hello"`));
     console.log(pc.dim(`        mecha logs ${config.name} -f`));
   });
@@ -166,9 +171,11 @@ program
       console.error(`Bot "${name}" not found in registry. Use "mecha spawn" first.`);
       process.exit(1);
     }
-    await withSpinner(`Starting ${botName(name)}`, () => docker.start(name));
+    const manager = getManagerForBot(name);
+    await withSpinner(`Starting ${botName(name)}`, () => manager.start(name));
     entry = getBot(name) ?? entry;
-    console.log(success(`Bot ${botName(name)} is running (container: ${pc.dim(entry.containerId?.slice(0, 12) ?? "unknown")})`));
+    const idLabel = entry.runtime === "native" ? `PID ${entry.pid ?? "unknown"}` : `container: ${pc.dim(entry.containerId?.slice(0, 12) ?? "unknown")}`;
+    console.log(success(`Bot ${botName(name)} is running (${idLabel})`));
   });
 
 // --- stop ---
@@ -178,13 +185,13 @@ program
   .option("--all", "Stop all running bots")
   .action(async (name: string | undefined, opts) => {
     if (opts.all) {
-      const bots = await docker.list();
+      const bots = await listAllBots();
       const running = bots.filter(b => b.status === "running");
       if (running.length === 0) { console.log("No running bots."); return; }
       console.log(`Stopping ${running.length} bot(s)...`);
       let failures = 0;
       for (const b of running) {
-        try { await docker.stop(b.name); console.log(`  Stopped ${b.name}`); }
+        try { await getManagerForBot(b.name).stop(b.name); console.log(`  Stopped ${b.name}`); }
         catch (e) { failures++; console.error(`  Failed to stop ${b.name}: ${e instanceof Error ? e.message : e}`); }
       }
       if (failures > 0) process.exit(1);
@@ -192,7 +199,7 @@ program
     }
     if (!name) { console.error("Usage: mecha stop <name> or mecha stop --all"); process.exit(1); }
     requireValidName(name);
-    await withSpinner(`Stopping ${botName(name)}`, () => docker.stop(name));
+    await withSpinner(`Stopping ${botName(name)}`, () => getManagerForBot(name).stop(name));
     console.log(success(`Bot ${botName(name)} stopped`));
   });
 
@@ -204,13 +211,13 @@ program
   .option("--all", "Restart all running bots")
   .action(async (name: string | undefined, opts) => {
     if (opts.all) {
-      const bots = await docker.list();
+      const bots = await listAllBots();
       const running = bots.filter(b => b.status === "running");
       if (running.length === 0) { console.log("No running bots."); return; }
       console.log(`Restarting ${running.length} bot(s)...`);
       let failures = 0;
       for (const b of running) {
-        try { const cid = await docker.restart(b.name); console.log(`  Restarted ${b.name} (${cid.slice(0, 12)})`); }
+        try { const id = await getManagerForBot(b.name).restart(b.name); console.log(`  Restarted ${b.name} (${id.slice(0, 12)})`); }
         catch (e) { failures++; console.error(`  Failed to restart ${b.name}: ${e instanceof Error ? e.message : e}`); }
       }
       if (failures > 0) process.exit(1);
@@ -218,8 +225,8 @@ program
     }
     if (!name) { console.error("Usage: mecha restart <name> or mecha restart --all"); process.exit(1); }
     requireValidName(name);
-    const containerId = await withSpinner(`Restarting ${botName(name)}`, () => docker.restart(name));
-    console.log(success(`Bot ${botName(name)} restarted (container: ${pc.dim(containerId.slice(0, 12))})`));
+    const id = await withSpinner(`Restarting ${botName(name)}`, () => getManagerForBot(name).restart(name));
+    console.log(success(`Bot ${botName(name)} restarted (${pc.dim(id.slice(0, 12))})`));
   });
 
 // --- rm ---
@@ -231,7 +238,7 @@ program
     requireValidName(name);
     if (!opts.force) {
       try {
-        const bots = await docker.list();
+        const bots = await listAllBots();
         const bot = bots.find(b => b.name === name);
         if (bot && bot.status === "running") {
           console.error(`Bot "${name}" is running. Use -f/--force to stop and remove.`);
@@ -239,7 +246,7 @@ program
         }
       } catch { /* proceed with remove attempt */ }
     }
-    await withSpinner(`Removing ${botName(name)}`, () => docker.remove(name));
+    await withSpinner(`Removing ${botName(name)}`, () => getManagerForBot(name).remove(name));
     console.log(success(`Bot ${botName(name)} removed`));
   });
 
@@ -251,7 +258,7 @@ program
   .option("-q, --quiet", "Output only bot names")
   .option("--status <status>", "Filter by status (running, exited)")
   .action(async (opts) => {
-    const bots = await docker.list();
+    const bots = await listAllBots();
     const settings = readSettings();
     const remoteBots = (settings.headscale_url && settings.headscale_api_key)
       ? await fetchRemoteBots(bots, settings.headscale_url, settings.headscale_api_key)
@@ -368,6 +375,11 @@ program
   .option("-i, --interactive", "Attach interactive terminal")
   .action(async (name: string, command: string[], opts) => {
     requireValidName(name);
+    const entry = getBot(name);
+    if (entry?.runtime === "native") {
+      console.error(`"mecha exec" is not supported for native bots. Run commands directly on the host.`);
+      process.exit(1);
+    }
     const cmd = command.length > 0 ? command : ["bash"];
     const interactive = opts.interactive ?? command.length === 0;
     const exitCode = await docker.runInContainer(name, cmd, interactive);
@@ -390,7 +402,7 @@ program
   .option("-f, --follow", "Follow log output")
   .action(async (name: string, opts) => {
     requireValidName(name);
-    await docker.logs(name, opts.follow ?? false);
+    await getManagerForBot(name).logs(name, opts.follow ?? false);
   });
 
 // --- auth ---
