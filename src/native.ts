@@ -134,6 +134,21 @@ export class NativeProcessManager implements ProcessManager {
     }
     writePidFile(resolvedPath, pid);
 
+    // Write provisional registry entry so the reconciler knows about this bot
+    // even if the process crashes before health check completes
+    setBot(config.name, {
+      path: resolvedPath,
+      config: configPath,
+      containerId: String(pid),
+      pid,
+      port,
+      runtime: "native",
+      model: config.model,
+      botToken,
+      createdAt: new Date().toISOString(),
+      desired_state: "running",
+    });
+
     // Health check
     let healthy = false;
     let delay = 200;
@@ -148,24 +163,12 @@ export class NativeProcessManager implements ProcessManager {
     }
 
     if (!healthy) {
-      logStream.end(); // H-1: close fd on failure
+      logStream.end();
       try { process.kill(pid, "SIGTERM"); } catch { /* may already be dead */ }
       removePidFile(resolvedPath);
+      removeBot(config.name);
       throw new ProcessHealthTimeoutError(config.name);
     }
-
-    setBot(config.name, {
-      path: resolvedPath,
-      config: configPath,
-      containerId: String(pid),
-      pid,
-      port,
-      runtime: "native",
-      model: config.model,
-      botToken,
-      createdAt: new Date().toISOString(),
-      desired_state: "running",
-    });
 
     return String(pid);
   }
