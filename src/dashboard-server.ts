@@ -21,7 +21,7 @@ import { getTotpSecret, setTotpSecret, clearTotpSecret, getMechaDir, getOrCreate
 import { timingSafeEqual, createHmac as cryptoHmac } from "node:crypto";
 import { WebSocket as WsClient, WebSocketServer } from "ws";
 import { generateSecret, verifyTOTP, totpUri } from "../shared/totp.js";
-import { atomicWriteJsonAsync } from "../shared/atomic-write.js";
+import { atomicWriteJsonAsync, atomicWriteTextAsync } from "../shared/atomic-write.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -298,7 +298,7 @@ export function startDashboardServer(port: number, host?: string) {
       }
 
       const dir = parsed.data.dir ? resolve(parsed.data.dir) : undefined;
-      const runtime = (parsed.data as Record<string, unknown>).runtime as Runtime | undefined ?? "docker";
+      const runtime: Runtime = parsed.data.runtime ?? "docker";
       const id = await getManager(runtime).spawn(config, dir);
       return c.json({ status: "spawned", name: config.name, containerId: id.slice(0, 12) });
     } catch (err) {
@@ -408,7 +408,7 @@ export function startDashboardServer(port: number, host?: string) {
         const raw = readFileSync(configPath, "utf-8");
         const parsed = parseYaml(raw) as Record<string, unknown>;
         parsed.auth = profile;
-        await atomicWriteJsonAsync(configPath, stringifyYaml(parsed));
+        await atomicWriteTextAsync(configPath, stringifyYaml(parsed));
         const containerId = await getManagerForBot(name).restart(name);
         return { status: "switched" as const, profile, containerId: containerId.slice(0, 12) };
       });
