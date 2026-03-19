@@ -15,7 +15,7 @@ import { z } from "zod";
 import { getBot } from "./store.js";
 import { resolveHostBotBaseUrl } from "./resolve-endpoint.js";
 import { isValidName } from "../shared/validation.js";
-import * as docker from "./docker.js";
+import { listAllBots } from "./process-manager.js";
 
 // Bot name schema — reuses the same validation as CLI
 const botNameSchema = z.string().min(1).max(32)
@@ -185,7 +185,7 @@ export async function startMcpServer(): Promise<void> {
     {},
     async () => {
       try {
-        const bots = await docker.list();
+        const bots = await listAllBots();
         if (bots.length === 0) {
           return { content: [{ type: "text" as const, text: "No bots running. Use `mecha spawn` to create one." }] };
         }
