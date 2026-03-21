@@ -340,7 +340,7 @@ Returns `true` if the process exited, `false` on timeout.
 
 ## `waitForPortFree(port, timeoutMs)`
 
-Poll a TCP port until it becomes free (connection refused). Polls every 200ms.
+Poll a TCP port until it becomes free (connection refused). Makes an immediate first probe, then retries every 200 ms until the port is free or the timeout elapses.
 
 ```ts
 import { waitForPortFree } from "@mecha/process";

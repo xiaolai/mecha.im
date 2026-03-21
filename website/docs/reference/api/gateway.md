@@ -232,7 +232,7 @@ type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
 
 ### `GatewayDeniedError`
 
-Extends `Error`. Thrown when a request URL hostname does not match any pattern in `allowedHosts`. Also thrown when the URL cannot be parsed. The `name` property is `"GatewayDeniedError"`. The message includes the denied host.
+Extends `Error`. Thrown when a request URL hostname does not match any pattern in `allowedHosts`. Also thrown when the URL cannot be parsed. The `name` property is `"GatewayDeniedError"`. For invalid URLs, the message includes the full URL string rather than a hostname.
 
 ## Adapters
 
