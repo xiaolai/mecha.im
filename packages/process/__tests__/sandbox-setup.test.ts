@@ -372,23 +372,30 @@ describe("sandbox-setup", () => {
   });
 
   describe("shared HOME (--home)", () => {
-    it("skips settings.json and credentials if shared HOME already has them", () => {
+    it("skips settings.json if shared HOME lock exists, but always overwrites credentials", () => {
       const sharedHome = mkdtempSync(join(tmpdir(), "mecha-shared-home-"));
       const claudeDir = join(sharedHome, ".claude");
       const hooksDir = join(claudeDir, "hooks");
       mkdirSync(hooksDir, { recursive: true });
 
-      // Pre-populate settings.json and .credentials.json in shared HOME
+      // Set up auth so seedClaudeCredentials actually writes
+      setupAuthProfiles({ default_profile: { type: "oauth", token: "tok-new" } });
+
+      // Pre-populate settings.json, its lock file, and .credentials.json
       const existingSettings = '{"hooks":{"existing":true}}';
       writeFileSync(join(claudeDir, "settings.json"), existingSettings);
+      writeFileSync(join(claudeDir, "settings.json.lock"), "1234", { flag: "wx" });
       const existingCreds = '{"existing":"creds"}';
       writeFileSync(join(claudeDir, ".credentials.json"), existingCreds);
 
-      prepareBotFilesystem(makeOpts({ home: sharedHome }));
+      prepareBotFilesystem(makeOpts({ home: sharedHome, auth: "default_profile" }));
 
-      // Should NOT have been overwritten
+      // settings.json should NOT have been overwritten (lock file prevents it)
       expect(readFileSync(join(claudeDir, "settings.json"), "utf-8")).toBe(existingSettings);
-      expect(readFileSync(join(claudeDir, ".credentials.json"), "utf-8")).toBe(existingCreds);
+      // credentials SHOULD be overwritten — always use current bot's auth profile
+      const newCreds = readFileSync(join(claudeDir, ".credentials.json"), "utf-8");
+      expect(newCreds).not.toBe(existingCreds);
+      expect(JSON.parse(newCreds).claudeAiOauth.accessToken).toBe("tok-new");
 
       rmSync(sharedHome, { recursive: true, force: true });
     });
