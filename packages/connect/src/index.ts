@@ -51,5 +51,6 @@ export type {
   ConnectOpts,
   ConnectManager,
   ConnectManagerEvents,
+  PendingAnswer,
   RendezvousClient,
 } from "./types.js";

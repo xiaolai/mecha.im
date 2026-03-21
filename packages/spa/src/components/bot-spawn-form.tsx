@@ -21,17 +21,8 @@ import { useAuth } from "@/auth-context";
 import { useFetch } from "@/lib/use-fetch";
 import { Loader2Icon } from "lucide-react";
 import type { AuthProfile } from "@/components/auth-switcher-panels";
-
-interface ModelOption {
-  id: string;
-  label: string;
-}
-
-interface Props {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onCreated: () => void;
-}
+import { SpawnFormPrompts } from "@/components/spawn-form-prompts";
+import type { ModelOption, Props } from "@/components/bot-spawn-form.types";
 
 /** Sheet form for spawning a new bot with name, workspace, and spawn settings. */
 export function BotSpawnForm({ open, onOpenChange, onCreated }: Props) {
@@ -277,37 +268,12 @@ export function BotSpawnForm({ open, onOpenChange, onCreated }: Props) {
             </Select>
           </div>
 
-          {/* System Prompt */}
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="spawn-system-prompt">System Prompt</Label>
-            <textarea
-              id="spawn-system-prompt"
-              value={systemPrompt}
-              onChange={(e) => setSystemPrompt(e.target.value)}
-              placeholder="You are a helpful coding assistant..."
-              rows={3}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-y"
-            />
-            <p className="text-xs text-muted-foreground">
-              Overrides the default system prompt. Leave empty for default.
-            </p>
-          </div>
-
-          {/* Append System Prompt */}
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="spawn-append-prompt">Append to System Prompt</Label>
-            <textarea
-              id="spawn-append-prompt"
-              value={appendSystemPrompt}
-              onChange={(e) => setAppendSystemPrompt(e.target.value)}
-              placeholder="Additional instructions appended to the default prompt..."
-              rows={2}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-y"
-            />
-            <p className="text-xs text-muted-foreground">
-              Appends to default prompt instead of replacing it. Cannot be used with System Prompt.
-            </p>
-          </div>
+          <SpawnFormPrompts
+            systemPrompt={systemPrompt}
+            onSystemPromptChange={setSystemPrompt}
+            appendSystemPrompt={appendSystemPrompt}
+            onAppendSystemPromptChange={setAppendSystemPrompt}
+          />
 
           {/* Effort + Max Budget row */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

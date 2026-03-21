@@ -1,6 +1,6 @@
 import type { NodeName } from "@mecha/core";
 import { ConnectError, getNode, createLogger } from "@mecha/core";
-import type { SecureChannel, RendezvousClient, Candidate, NoiseKeyPair } from "./types.js";
+import type { SecureChannel, RendezvousClient, Candidate, NoiseKeyPair, PendingAnswer } from "./types.js";
 import type { WebSocketLike } from "./relay.js";
 import { noiseInitiate, noiseRespond } from "./noise.js";
 import { relayConnect } from "./relay.js";
@@ -16,11 +16,7 @@ export interface ConnectState {
   rendezvous: RendezvousClient;
   channels: Map<string, SecureChannel>;
   pendingConnects: Map<string, Promise<SecureChannel>>;
-  pendingAnswers: Map<string, {
-    resolve: (candidates: Candidate[]) => void;
-    reject: (err: Error) => void;
-    timer: ReturnType<typeof setTimeout>;
-  }>;
+  pendingAnswers: Map<string, PendingAnswer>;
   connectionHandlers: Array<(channel: SecureChannel) => void>;
   noiseKeyPair: NoiseKeyPair;
   mechaDir: string;

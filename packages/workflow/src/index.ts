@@ -1,5 +1,4 @@
 export { createEngine } from "./engine.js";
-export type { WorkflowEngine, CreateEngineOpts } from "./engine.js";
 export { renderTemplate, evaluateCondition } from "./template.js";
 export { acquireLock, releaseLock, isLocked } from "./lock.js";
 export type { LockHandle, LockInfo } from "./lock.js";
@@ -14,4 +13,6 @@ export type {
   StepStatus,
   RunStatus,
   StepExecutor,
+  WorkflowEngine,
+  CreateEngineOpts,
 } from "./types.js";
