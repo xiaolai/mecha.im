@@ -24,7 +24,14 @@ export interface ScoreStore {
   /** Get average score for a bot. Returns undefined if no scores. */
   avgForBot(bot: string): number | undefined;
 
-  /** Get average score for a workflow. Returns undefined if no scores. */
+  /**
+   * Get average score for a workflow. Returns undefined if no scores.
+   *
+   * **Limitation:** Returns the average of all run-level scores regardless of
+   * workflow. QualityScore references `runId`, not workflow name, and the score
+   * store has no run-to-workflow mapping. Callers needing accurate per-workflow
+   * averages should use `forRun()` with known run IDs instead.
+   */
   avgForWorkflow(workflow: string): number | undefined;
 
   /** Get all scores. */
