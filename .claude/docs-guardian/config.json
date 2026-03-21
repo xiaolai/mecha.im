@@ -16,12 +16,12 @@
   "mappings": [
     { "source": "packages/core/src/**", "docs": ["reference/api/core.md"] },
     { "source": "packages/service/src/**", "docs": ["reference/api/service.md"] },
-    { "source": "packages/agent/src/**", "docs": ["reference/api/server.md", "reference/api/runtime.md"] },
+    { "source": "packages/agent/src/**", "docs": ["reference/api/agent.md", "reference/api/server.md"] },
     { "source": "packages/process/src/**", "docs": ["reference/api/process.md"] },
     { "source": "packages/connect/src/**", "docs": ["reference/api/connect.md", "features/mesh-networking.md"] },
     { "source": "packages/meter/src/**", "docs": ["reference/api/meter.md", "features/metering.md"] },
     { "source": "packages/mcp-server/src/**", "docs": ["reference/api/mcp-server.md", "features/mcp-server.md"] },
-    { "source": "packages/cli/src/**", "docs": ["reference/cli/index.md", "reference/cli/bot.md", "reference/cli/system.md", "reference/cli/node.md", "reference/cli/meter.md", "reference/cli/schedule.md"] },
+    { "source": "packages/cli/src/**", "docs": ["reference/cli/index.md", "reference/cli/bot.md", "reference/cli/system.md", "reference/cli/node.md", "reference/cli/meter.md", "reference/cli/schedule.md", "reference/cli/orchestration.md"] },
     { "source": "packages/spa/src/**", "docs": ["features/dashboard.md", "guide/dashboard.md"] },
     { "source": "packages/sandbox/src/**", "docs": ["features/sandbox.md"] },
     { "source": "packages/server/src/**", "docs": ["reference/api/server.md"] },
@@ -29,6 +29,7 @@
     { "source": "packages/bus/src/**", "docs": ["features/bus.md"] },
     { "source": "packages/workflow/src/**", "docs": ["features/workflow.md"] },
     { "source": "packages/observe/src/**", "docs": ["features/observability.md"] },
-    { "source": "packages/teams/src/**", "docs": ["features/teams.md"] }
+    { "source": "packages/teams/src/**", "docs": ["features/teams.md"] },
+    { "source": "packages/gateway/src/**", "docs": ["features/gateway.md", "reference/api/gateway.md"] }
   ]
 }

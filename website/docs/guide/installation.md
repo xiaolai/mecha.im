@@ -5,6 +5,8 @@ description: Install Mecha and set up your environment.
 
 # Installation
 
+Install the Mecha CLI and set up your local runtime. Choose from npm, Homebrew, or build from source.
+
 [[toc]]
 
 ## npm
