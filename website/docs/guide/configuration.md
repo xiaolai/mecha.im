@@ -5,6 +5,8 @@ description: Configure auth profiles, bot settings, sandbox modes, and runtime o
 
 # Configuration
 
+Configure authentication profiles, bot spawn settings, port assignments, sandbox isolation modes, and other runtime options for your Mecha fleet.
+
 [[toc]]
 
 ## Auth Profiles

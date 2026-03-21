@@ -67,7 +67,7 @@ steps:
 └── runs/
     └── content-pipeline/
         ├── run-2026-03-21-abc.json    # run state (step statuses + outputs)
-        └── run-2026-03-21-abc.yaml    # snapshotted definition (immutable)
+        └── run-2026-03-21-abc.yaml    # snapshotted definition (JSON content, .yaml extension)
 ```
 
 ## CLI Usage

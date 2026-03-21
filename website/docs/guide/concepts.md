@@ -5,6 +5,8 @@ description: Key concepts in the Mecha multi-agent runtime — bots, workspaces,
 
 # Core Concepts
 
+Learn the fundamental concepts that make up a Mecha runtime: bots, workspaces, sessions, names, addresses, and the lifecycle states that govern bot execution.
+
 [[toc]]
 
 ## bot
