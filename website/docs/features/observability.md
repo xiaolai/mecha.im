@@ -1,3 +1,8 @@
+---
+title: Observability
+description: Structured traces, metrics, quality scoring, and alerts for workflow runs and bot performance
+---
+
 # Observability
 
 The observability package provides structured traces, metrics aggregation, quality scoring, and threshold-based alerts for workflow runs and bot performance.
@@ -117,4 +122,7 @@ mecha meta report --days 7
 | `computeMetrics(traces, opts)` | Aggregate metrics by bot or workflow |
 | `createAlertEngine(dir)` | Rule-based alert evaluation with history |
 | `analyzeBotPerformance(store, bot)` | Trend detection for prompt tuning |
+| `suggestPromptChange(analysis)` | Generate prompt improvement suggestions from analysis |
+| `createExperiment(opts)` | Define A/B test experiments |
+| `runExperiment(experiment, executor)` | Execute experiment variants |
 | `compareResults(...)` | A/B test comparison |

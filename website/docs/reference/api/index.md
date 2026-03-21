@@ -19,6 +19,7 @@ Complete API reference for all Mecha packages.
 | `@mecha/runtime` | Fastify server per bot: sessions, chat SSE, MCP tools, scheduler | [runtime](./runtime) |
 | `@mecha/meter` | Metering proxy: cost tracking, budgets, rollups, events | [meter](./meter) |
 | `@mecha/connect` | P2P connectivity: Noise IK handshake, SecureChannel, invite codes | [connect](./connect) |
+| `@mecha/agent` | Agent HTTP server: bot queries, session auth, request signatures, meter daemon | [agent](./agent) |
 | `@mecha/server` | Rendezvous + relay server + gossip protocol for P2P peer discovery | [server](./server) |
 
 ## Agent Server API

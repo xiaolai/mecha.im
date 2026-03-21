@@ -1,3 +1,8 @@
+---
+title: Workflow Engine
+description: Multi-step DAG execution with gates, compensation, dry-run, and cost tracking
+---
+
 # Workflow Engine
 
 The workflow engine executes multi-step DAGs (directed acyclic graphs) where the output of one bot feeds into the next. Steps can run in parallel, branch conditionally, pause for human approval, and roll back on failure.
@@ -132,3 +137,6 @@ Bots can manage workflows via MCP: `workflow_list`, `workflow_run`, `workflow_st
 | `evaluateCondition(condition, context)` | Evaluate step conditions |
 | `createDryRunExecutor(responses?)` | Mock executor for testing |
 | `acquireLock(lockDir, resource)` | Workspace file lock |
+| `releaseLock(handle)` | Release a held lock |
+| `isLocked(lockDir, resource)` | Check if a resource is locked |
+| `createRemoteExecutor(opts)` | Executor that routes steps to remote nodes via mesh |
