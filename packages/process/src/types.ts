@@ -3,6 +3,7 @@ import type { Readable } from "node:stream";
 import type { BotName, SandboxMode } from "@mecha/core";
 import type { Sandbox } from "@mecha/sandbox";
 import type { ProcessEvent } from "./events.js";
+import type { ProcessEventEmitter } from "./events.js";
 
 /** Options for spawning a new bot process. */
 export interface SpawnOpts {
@@ -100,4 +101,18 @@ export interface CreateProcessManagerOpts {
   runtimeArgs?: string[];
   /** Sandbox instance for kernel-level isolation (Phase 5) */
   sandbox?: Sandbox;
+}
+
+/** Shared context passed through the spawn pipeline. */
+export interface SpawnContext {
+  opts: CreateProcessManagerOpts;
+  mechaDir: string;
+  healthTimeoutMs: number;
+  sandbox?: Sandbox;
+  spawnFn: typeof import("node:child_process").spawn;
+  emitter: ProcessEventEmitter;
+  live: Map<string, LiveProcess>;
+  botDir: (name: string) => string;
+  /** Called after state changes that affect the discovery index. */
+  onStateChange?: () => void;
 }

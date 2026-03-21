@@ -10,6 +10,7 @@ import type {
   RendezvousClient,
   SignalData,
   Candidate,
+  PendingAnswer,
 } from "./types.js";
 import { createRendezvousClient } from "./rendezvous.js";
 import { createMultiRendezvousClient } from "./multi-rendezvous.js";
@@ -47,21 +48,11 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
 
   const channels = new Map<string, SecureChannel>();
   const pendingConnects = new Map<string, Promise<SecureChannel>>();
-  const pendingAnswers = new Map<string, {
-    resolve: (candidates: Candidate[]) => void;
-    reject: (err: Error) => void;
-    timer: ReturnType<typeof setTimeout>;
-  }>();
+  const pendingAnswers = new Map<string, PendingAnswer>();
   const connectionHandlers: Array<(channel: SecureChannel) => void> = [];
   let rendezvous: RendezvousClient | undefined;
   let started = false;
   let startPromise: Promise<void> | undefined;
-
-  /* v8 ignore start -- signFn is passed to rendezvous client, invoked by server protocol */
-  const signFn = (data: Uint8Array): string => {
-    return signMessage(privateKey, data);
-  };
-  /* v8 ignore stop */
 
   /** Build ConnectState from current closure for I/O helpers. */
   function state(): ConnectState {
@@ -157,14 +148,14 @@ export function createConnectManager(opts: ConnectOpts): ConnectManager {
     if (rvUrls && rvUrls.length > 1) {
       rendezvous = createMultiRendezvousClient({
         urls: rvUrls,
-        signFn,
+        signFn: (data: Uint8Array): string => signMessage(privateKey, data),
         createWebSocket: opts._createRendezvousWebSocket,
       });
     /* v8 ignore stop */
     } else {
       rendezvous = createRendezvousClient({
         url: rvUrls?.[0] ?? rendezvousUrl,
-        signFn,
+        signFn: (data: Uint8Array): string => signMessage(privateKey, data),
         createWebSocket: opts._createRendezvousWebSocket,
       });
     }

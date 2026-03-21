@@ -7,35 +7,18 @@ import {
   BotAlreadyExistsError,
   DEFAULTS,
   ProcessSpawnError,
-  readBotConfig,
 } from "@mecha/core";
-import type { Sandbox } from "@mecha/sandbox";
-import { writeFileSync } from "node:fs";
-import { profileFromConfig } from "@mecha/sandbox";
-import type { PersistedSandboxProfile, SandboxPlatform } from "@mecha/sandbox";
 import { allocatePort } from "./port.js";
 import { waitForHealthy } from "./health.js";
 import { readState, writeState } from "./state-store.js";
 import type { BotState } from "./state-store.js";
-import type { ProcessEventEmitter } from "./events.js";
 import { isPidAlive, waitForPidExit } from "./process-lifecycle.js";
 import { checkPort } from "./port.js";
 import { prepareBotFilesystem } from "./sandbox-setup.js";
-import type { SpawnOpts, ProcessInfo, LiveProcess, CreateProcessManagerOpts } from "./types.js";
+import type { SpawnOpts, ProcessInfo, LiveProcess, SpawnContext } from "./types.js";
+import { applySandboxWrapping } from "./sandbox-wrapping.js";
 
-/** Shared context passed through the spawn pipeline. */
-export interface SpawnContext {
-  opts: CreateProcessManagerOpts;
-  mechaDir: string;
-  healthTimeoutMs: number;
-  sandbox?: Sandbox;
-  spawnFn: typeof import("node:child_process").spawn;
-  emitter: ProcessEventEmitter;
-  live: Map<string, LiveProcess>;
-  botDir: (name: string) => string;
-  /** Called after state changes that affect the discovery index. */
-  onStateChange?: () => void;
-}
+export type { SpawnContext } from "./types.js";
 
 /** Spawn a bot child process: allocate port, prepare filesystem, launch, and wait for healthy. */
 export async function spawnBot(ctx: SpawnContext, spawnOpts: SpawnOpts): Promise<ProcessInfo> {
@@ -338,47 +321,3 @@ async function _spawnBotInner(
   return { name, state: "running", pid: child.pid, port, workspacePath, token, startedAt };
 }
 
-/** Apply sandbox wrapping to spawn binary/args if sandbox is available and enabled. */
-/* v8 ignore start -- sandbox integration tested via CLI E2E */
-async function applySandboxWrapping(opts: {
-  ctx: SpawnContext; sandboxMode: string; botDir: string; mechaDir: string;
-  name: BotName; spawnBin: string; spawnArgs: string[]; emitter: ProcessEventEmitter;
-}): Promise<{ bin: string; args: string[]; platform: SandboxPlatform | undefined }> {
-  const { ctx, sandboxMode, botDir, mechaDir, name, emitter } = opts;
-  let bin = opts.spawnBin;
-  let args = opts.spawnArgs;
-  let platform: SandboxPlatform | undefined;
-
-  if (sandboxMode !== "off" && ctx.sandbox) {
-    const available = ctx.sandbox.isAvailable();
-    if (sandboxMode === "require" && !available) {
-      throw new ProcessSpawnError(`Sandbox required but ${ctx.sandbox.describe()}`);
-    }
-    if (available) {
-      const config = readBotConfig(botDir);
-      if (!config && sandboxMode === "require") {
-        throw new ProcessSpawnError("Sandbox required but config.json could not be read for profile generation");
-      }
-      if (config) {
-        const profile = profileFromConfig({
-          config, botDir, mechaDir, runtimeEntrypoint: ctx.opts.runtimeEntrypoint,
-        });
-        const wrapped = await ctx.sandbox.wrap(profile, bin, args, botDir);
-        bin = wrapped.bin;
-        args = wrapped.args;
-        platform = ctx.sandbox.platform;
-        const persisted: PersistedSandboxProfile = {
-          platform: ctx.sandbox.platform, profile, createdAt: new Date().toISOString(),
-        };
-        const sandboxProfilePath = join(botDir, "sandbox-profile.json");
-        writeFileSync(sandboxProfilePath, JSON.stringify(persisted, null, 2) + "\n", { mode: 0o600 });
-        chmodSync(sandboxProfilePath, 0o600);
-      }
-    } else if (sandboxMode === "auto") {
-      emitter.emit({ type: "warning", name, message: "Kernel sandbox not available, running without sandbox" });
-    }
-  }
-
-  return { bin, args, platform };
-}
-/* v8 ignore stop */
