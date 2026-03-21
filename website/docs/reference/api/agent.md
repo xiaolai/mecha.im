@@ -48,7 +48,7 @@ await app.listen({ port: 7660, host: "127.0.0.1" });
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `port` | `number` | Yes | Port the server will bind to (default: `7660`) |
+| `port` | `number` | Yes | Port the server will bind to (conventionally `7660`; use `0` for a random available port) |
 | `auth` | `AuthConfig` | Yes | Authentication configuration (TOTP secret and/or API key) |
 | `processManager` | `ProcessManager` | Yes | Process manager instance from `@mecha/process` |
 | `acl` | `AclEngine` | Yes | Access control engine from `@mecha/core` |
@@ -65,6 +65,8 @@ await app.listen({ port: 7660, host: "127.0.0.1" });
 |--------|------|------|-------------|
 | `GET` | `/healthz` | None | Liveness check. Returns `{ status: "ok" }` |
 | `POST` | `/bots/:botName/query` | Required | Forward a query to a local bot process |
+
+> **Note:** `mecha node health` also fetches `GET /bots` to obtain a bot count. This route is provided by the SPA static handler when `spaDir` is set, or returns 404 otherwise. The health check treats failures gracefully.
 
 ### `POST /bots/:botName/query`
 
@@ -269,14 +271,15 @@ if (error) {
 
 **Returns:** `string | null` -- `null` if valid or no signature headers present; an error message string if verification fails.
 
-**Required headers** (all three, or none):
+**Signature headers** (all three required, or none — partial sets are rejected):
 
 | Header | Description |
 |--------|-------------|
 | `X-Mecha-Timestamp` | Unix timestamp in milliseconds. Must be within 5 minutes of server time |
 | `X-Mecha-Nonce` | Unique request nonce. Rejected if already seen (bounded set of 10,000) |
 | `X-Mecha-Signature` | Base64-encoded Ed25519 signature over the canonical envelope |
-| `X-Mecha-Source` | Sender identity in `bot@node` format (e.g., `"coder@alice"`) |
+
+`X-Mecha-Source` is read independently (defaults to `"admin"` when absent). It identifies the sender in `bot@node` format (e.g., `"coder@alice"`) and is used for ACL checks and as part of the signed envelope.
 
 **Canonical envelope format:**
 
