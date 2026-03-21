@@ -147,6 +147,6 @@ describe("checkBotBusy", () => {
       onEvent: vi.fn().mockReturnValue(() => {}),
     } as ProcessManager;
     const result = await checkBotBusy(badPm, BOT);
-    expect(result).toEqual({ busy: false, activeSessions: 0 });
+    expect(result).toEqual({ busy: false, activeSessions: 0, uncertain: true });
   });
 });

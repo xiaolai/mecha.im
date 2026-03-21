@@ -22,6 +22,7 @@ function makeChannel(): SecureChannel & {
       if (idx >= 0) ch._messageHandlers.splice(idx, 1);
     },
     onClose: vi.fn(),
+    offClose: vi.fn(),
     onError(h: (err: Error) => void) { ch._errorHandlers.push(h); },
     offError(h: (err: Error) => void) {
       const idx = ch._errorHandlers.indexOf(h);

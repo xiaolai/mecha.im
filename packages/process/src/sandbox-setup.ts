@@ -265,21 +265,29 @@ export function prepareBotFilesystem(opts: BotFilesystemOpts): BotFilesystemResu
   /* v8 ignore stop */
 
   // Write sandbox hooks (settings.json + guard scripts).
-  // When using a shared HOME (--home), skip if settings.json already exists
-  // to prevent last-writer-wins race between bots sharing the same HOME.
+  // When using a shared HOME (--home), use atomic exclusive create (wx flag)
+  // via a lock file to prevent last-writer-wins race between concurrent spawns.
   const isSharedHome = opts.home != null && resolve(opts.home) !== resolve(botDir);
   const settingsPath = join(claudeDir, "settings.json");
-  if (!isSharedHome || !existsSync(settingsPath)) {
+  if (!isSharedHome) {
     writeHookScripts(claudeDir, hooksDir);
+  } else {
+    const lockPath = settingsPath + ".lock";
+    try {
+      // Atomic exclusive create — fails with EEXIST if another bot already wrote
+      writeFileSync(lockPath, String(process.pid), { flag: "wx", mode: 0o600 });
+      writeHookScripts(claudeDir, hooksDir);
+    } catch (err: unknown) {
+      /* v8 ignore start -- race: another bot already seeded hooks */
+      if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
+      /* v8 ignore stop */
+    }
   }
 
   // Seed Claude Code credentials so the CLI picks up auth without browser login.
-  // When using a shared HOME, skip if credentials already exist to avoid overwrites.
-  // Always overwrites on auth change for non-shared HOME; removes stale OAuth creds.
-  const dotCredPath = join(claudeDir, ".credentials.json");
-  if (!isSharedHome || !existsSync(dotCredPath)) {
-    seedClaudeCredentials(homeDir, claudeDir, opts.mechaDir, auth);
-  }
+  // Always overwrite — ensures the current bot's auth profile is used, even in
+  // shared-home mode. seedClaudeCredentials writes with mode 0o600 for security.
+  seedClaudeCredentials(homeDir, claudeDir, opts.mechaDir, auth);
 
   // Build environment using shared function
   const childEnv = buildBotEnv({
