@@ -47,7 +47,7 @@ steps:
 
 - **Definition snapshot**: Workflow definition is frozen at run start — in-progress runs aren't affected by definition changes.
 - **Step idempotency**: Each step has a unique `stepRunId`. Re-execution is skipped if a result already exists (safe daemon restart).
-- **Template rendering**: Prompts use `{{step.output.field}}` syntax with dot notation and array indexing.
+- **Template rendering**: Prompts use <code v-pre>{{step.output.field}}</code> syntax with dot notation and array indexing.
 - **Conditional steps**: Steps can be skipped based on previous outputs (`condition: "!review.approved"`).
 - **Parallel execution**: Steps with the same dependencies run concurrently (fan-out/fan-in).
 - **Compensation (saga rollback)**: Steps declare optional `compensate` prompts. On failure, completed steps are rolled back in reverse order.
