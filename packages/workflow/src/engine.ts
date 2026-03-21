@@ -2,10 +2,10 @@ import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import type {
-  WorkflowDef,
   RunState,
   StepState,
-  StepExecutor,
+  WorkflowEngine,
+  CreateEngineOpts,
 } from "./types.js";
 import { renderTemplate, evaluateCondition } from "./template.js";
 
@@ -36,38 +36,6 @@ function assertNoCycles(steps: Record<string, { depends?: string[] }>): void {
   }
 
   for (const name of Object.keys(steps)) visit(name);
-}
-
-/** Workflow DAG execution engine with gates, compensation, and state persistence. */
-export interface WorkflowEngine {
-  /** Start a new run. Returns run ID. */
-  startRun(inputs?: Record<string, unknown>): string;
-
-  /** Execute the next ready steps. Returns list of step names executed. */
-  executeReady(executor: StepExecutor): Promise<string[]>;
-
-  /** Approve a human gate, allowing the gated step to proceed. */
-  approveGate(stepName: string): boolean;
-
-  /** Cancel a run. */
-  cancel(): void;
-
-  /** Get current run state. */
-  state(): RunState;
-
-  /** Check if run is terminal (done/failed/cancelled/compensated). */
-  isTerminal(): boolean;
-
-  /** Run compensation for failed run (saga rollback). */
-  compensate(executor: StepExecutor): Promise<string[]>;
-}
-
-/** Options for creating a workflow engine instance. */
-export interface CreateEngineOpts {
-  workflowsDir: string;
-  definition: WorkflowDef;
-  /** Existing run ID to resume. If not provided, must call startRun(). */
-  runId?: string;
 }
 
 /**
