@@ -1,3 +1,8 @@
+---
+title: Team Templates
+description: One-command deployment of coordinated multi-bot teams with shared config and ACL
+---
+
 # Team Templates
 
 Team templates enable one-command deployment of multiple coordinated bots with shared configuration, ACL rules, and workspace scaffolding.
@@ -112,4 +117,4 @@ mecha team teardown dev-team --force
 | `listTeams(mechaDir)` | List deployed teams |
 | `unregisterTeam(mechaDir, name)` | Remove a team from the registry |
 
-The teams package is implemented and tested (100% coverage). CLI commands (`mecha team deploy/list/teardown`) are planned for a future phase.
+The teams package is implemented and tested (100% coverage). See [CLI reference](/reference/cli/orchestration) for `mecha team` commands.

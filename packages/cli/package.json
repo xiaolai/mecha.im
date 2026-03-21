@@ -22,6 +22,7 @@
     "@modelcontextprotocol/sdk": "^1.12.0",
     "commander": "^14.0.0",
     "fastify": "^5.8.1",
+    "js-yaml": "^4.1.1",
     "node-pty": "^1.1.0",
     "otpauth": "^9.5.0",
     "qrcode": "^1.5.4",
@@ -35,8 +36,8 @@
     "@mecha/agent": "workspace:*",
     "@mecha/bus": "workspace:*",
     "@mecha/connect": "workspace:*",
-    "@mecha/gateway": "workspace:*",
     "@mecha/core": "workspace:*",
+    "@mecha/gateway": "workspace:*",
     "@mecha/mcp-server": "workspace:*",
     "@mecha/meter": "workspace:*",
     "@mecha/observe": "workspace:*",
@@ -47,6 +48,7 @@
     "@mecha/service": "workspace:*",
     "@mecha/teams": "workspace:*",
     "@mecha/workflow": "workspace:*",
+    "@types/js-yaml": "^4.0.9",
     "@types/qrcode": "^1.5.6"
   }
 }

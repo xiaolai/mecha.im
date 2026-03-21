@@ -2,6 +2,7 @@ import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import YAML from "js-yaml";
 import { withErrorHandler } from "../error-handler.js";
 import { createEngine, createDryRunExecutor } from "@mecha/workflow";
 import type { WorkflowDef, StepExecutor } from "@mecha/workflow";
@@ -43,7 +44,7 @@ export function registerWorkflowRunCommand(parent: Command, deps: CommandDeps): 
         }
 
         const raw = readFileSync(filePath, "utf-8");
-        const definition = JSON.parse(raw) as WorkflowDef;
+        const definition = YAML.load(raw) as WorkflowDef;
         const workflowsDir = join(deps.mechaDir, "workflows");
         const inputs = parseInputs(opts.input);
 
