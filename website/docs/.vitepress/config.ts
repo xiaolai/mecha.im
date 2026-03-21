@@ -1,24 +1,12 @@
 import { defineConfig } from "vitepress";
 import { withMermaid } from "vitepress-plugin-mermaid";
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const pkg = JSON.parse(readFileSync(join(__dirname, "..", "..", "..", "package.json"), "utf-8"));
 
 export default withMermaid(
   defineConfig({
     title: "Mecha",
-    description: "Run autonomous Claude bots in Docker containers",
+    description: "Local-first multi-agent runtime",
     cleanUrls: true,
     base: "/",
-
-    vite: {
-      define: {
-        __MECHA_VERSION__: JSON.stringify(pkg.version),
-      },
-    },
 
     head: [
       ["link", { rel: "icon", type: "image/png", sizes: "32x32", href: "/favicon-32x32.png" }],
@@ -30,8 +18,8 @@ export default withMermaid(
       logo: "/logo.png",
       nav: [
         { text: "Guide", link: "/guide/" },
-        { text: "Features", link: "/features/scheduling" },
-        { text: "Reference", link: "/reference/cli" },
+        { text: "Features", link: "/features/multi-agent" },
+        { text: "Reference", link: "/reference/cli/" },
         {
           text: "GitHub",
           link: "https://github.com/xiaolai/mecha.im",
@@ -51,9 +39,16 @@ export default withMermaid(
           {
             text: "Essentials",
             items: [
-              { text: "Bot Configuration", link: "/guide/configuration" },
-              { text: "Authentication", link: "/guide/auth" },
+              { text: "Core Concepts", link: "/guide/concepts" },
+              { text: "Configuration", link: "/guide/configuration" },
               { text: "Dashboard", link: "/guide/dashboard" },
+            ],
+          },
+          {
+            text: "Operations",
+            items: [
+              { text: "Multi-Machine Setup", link: "/guide/multi-machine" },
+              { text: "Troubleshooting", link: "/guide/troubleshooting" },
             ],
           },
         ],
@@ -61,24 +56,51 @@ export default withMermaid(
           {
             text: "Features",
             items: [
+              { text: "Multi-Agent", link: "/features/multi-agent" },
+              { text: "Permissions (ACL)", link: "/features/permissions" },
+              { text: "Mesh Networking", link: "/features/mesh-networking" },
+              { text: "Sandbox", link: "/features/sandbox" },
+              { text: "Metering & Budgets", link: "/features/metering" },
               { text: "Scheduling", link: "/features/scheduling" },
-              { text: "Webhooks", link: "/features/webhooks" },
-              { text: "Bot-to-Bot Communication", link: "/features/bot-communication" },
-              { text: "Workspace Mounting", link: "/features/workspaces" },
-              { text: "Tailscale Mesh", link: "/features/tailscale" },
+              { text: "Sessions", link: "/features/sessions" },
+              { text: "MCP Server", link: "/features/mcp-server" },
               { text: "Dashboard", link: "/features/dashboard" },
-              { text: "Orchestrator Bot", link: "/features/orchestrator" },
             ],
           },
         ],
         "/reference/": [
           {
-            text: "Reference",
+            text: "CLI Reference",
             items: [
-              { text: "CLI Commands", link: "/reference/cli" },
-              { text: "Bot Config Schema", link: "/reference/config" },
+              { text: "Overview", link: "/reference/cli/" },
+              { text: "Bot Commands", link: "/reference/cli/bot" },
+              { text: "Schedule Commands", link: "/reference/cli/schedule" },
+              { text: "Node Commands", link: "/reference/cli/node" },
+              { text: "Meter & Budget", link: "/reference/cli/meter" },
+              { text: "Plugin Commands", link: "/reference/cli/plugin" },
+              { text: "System Commands", link: "/reference/cli/system" },
+            ],
+          },
+          {
+            text: "API Reference",
+            items: [
+              { text: "Routes & Server", link: "/reference/api/" },
+              { text: "@mecha/core", link: "/reference/api/core" },
+              { text: "@mecha/process", link: "/reference/api/process" },
+              { text: "@mecha/service", link: "/reference/api/service" },
+              { text: "@mecha/meter", link: "/reference/api/meter" },
+              { text: "@mecha/connect", link: "/reference/api/connect" },
+              { text: "@mecha/runtime", link: "/reference/api/runtime" },
+              { text: "@mecha/server", link: "/reference/api/server" },
+              { text: "@mecha/mcp-server", link: "/reference/api/mcp-server" },
+            ],
+          },
+          {
+            text: "Other",
+            items: [
+              { text: "Dashboard Components", link: "/reference/components" },
               { text: "Environment Variables", link: "/reference/environment" },
-              { text: "Architecture", link: "/reference/architecture" },
+              { text: "Error Reference", link: "/reference/errors" },
             ],
           },
         ],
@@ -92,8 +114,8 @@ export default withMermaid(
       ],
 
       footer: {
-        message: "Released under the MIT License.",
-        copyright: "Copyright &copy; 2026-present",
+        message: "Released under the <a href=\"/license\">ISC License</a>.",
+        copyright: "Copyright © 2026-present",
       },
     },
   }),

@@ -1,114 +1,148 @@
-# Bot Configuration
+---
+title: Configuration
+description: Configure auth profiles, bot settings, sandbox modes, and runtime options.
+---
 
-Bots are defined in YAML config files. Here's a full example:
+# Configuration
 
-```yaml
-name: reviewer
-system: |
-  You are a code reviewer. You review PRs for bugs,
-  security issues, and style violations.
-model: sonnet
-auth: anthropic-main
-max_turns: 25
-max_budget_usd: 1.00
-permission_mode: default
+[[toc]]
 
-schedule:
-  - cron: "*/30 * * * *"
-    prompt: "Check for new unreviewed PRs."
+## Auth Profiles
 
-webhooks:
-  accept:
-    - "pull_request.opened"
-    - "pull_request.synchronize"
-  secret: whsec_...
+Mecha supports multiple authentication profiles for different API credentials.
 
-workspace: ./myproject
-workspace_writable: false
-expose: 8080
+### Adding Profiles
 
-tailscale:
-  auth_key_profile: ts-main
-  tags:
-    - "tag:mecha-bot"
+```bash
+# Add an API key profile
+mecha auth add mykey --api-key --token sk-ant-api03-...
+
+# Add an OAuth token profile (preferred — longer lifespan)
+mecha auth add mytoken --oauth --token sk-ant-oat01-...
+
+# Tag a profile for organization
+mecha auth tag <profile-name> work
 ```
 
-## Fields
+### Managing Profiles
 
-### Required
+```bash
+# List all profiles
+mecha auth ls
+
+# Set default profile
+mecha auth default <profile-name>
+
+# Switch active profile
+mecha auth switch <profile-name>
+
+# Test connectivity
+mecha auth test <profile-name>
+
+# Renew an OAuth token
+mecha auth renew <profile-name> <new-token>
+
+# Remove a profile
+mecha auth rm <profile-name>
+```
+
+### Resolution Priority
+
+When spawning a bot, credentials are resolved in this order:
+
+1. CLI flag (`--auth <profile>`)
+2. Environment variables (`ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`)
+3. Default auth profile (`mecha auth default`)
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `ANTHROPIC_API_KEY` | Anthropic API key for agent inference |
+| `CLAUDE_CODE_OAUTH_TOKEN` | OAuth token (preferred over API key) |
+| `MECHA_DIR` | Override default `~/.mecha/` directory |
+
+## bot Configuration
+
+Each bot has a `config.json`:
+
+```json
+{
+  "configVersion": 1,
+  "port": 7700,
+  "token": "random-bearer-token",
+  "workspace": "/Users/you/my-project",
+  "home": "/opt/bots/researcher",
+  "model": "claude-sonnet-4-20250514",
+  "permissionMode": "default",
+  "auth": "mykey",
+  "tags": ["dev", "backend"],
+  "expose": ["query"],
+  "sandboxMode": "auto",
+  "allowNetwork": false,
+  "fallbackModel": "claude-haiku-4-5-20251001"
+}
+```
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `name` | string | Bot name (lowercase alphanumeric + hyphens, 1-32 chars) |
-| `system` | string | System prompt — the bot's identity and instructions |
+| `configVersion` | number | Schema version (currently `1`) |
+| `port` | number | HTTP port for the runtime API |
+| `token` | string | Random Bearer token for API auth |
+| `workspace` | string | Absolute path to the workspace directory (CWD) |
+| `home` | string? | Custom HOME directory. Defaults to `~/.mecha/<name>/` |
+| `model` | string? | Model override for this bot |
+| `permissionMode` | string? | `default`, `plan`, `bypassPermissions`, `acceptEdits`, `dontAsk`, or `auto` (see below) |
+| `auth` | string? | Auth profile name |
+| `tags` | string[]? | Tags for organization and discovery |
+| `expose` | string[]? | Capabilities exposed to the mesh |
+| `sandboxMode` | string? | `auto`, `off`, or `require` |
+| `dangerouslySkipPermissions` | boolean? | Skip all permission checks (requires `sandboxMode: "require"`) |
+| `allowDangerouslySkipPermissions` | boolean? | Allow dangerous skip without defaulting to it |
+| `fallbackModel` | string? | Fallback model when primary is overloaded |
+| `allowNetwork` | boolean? | Allow outbound network access (reserved) |
 
-### Optional
+### Permission Modes
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `model` | string | `"sonnet"` | Claude model to use |
-| `auth` | string | — | Auth profile name (from `mecha auth add`) |
-| `max_turns` | number | `25` | Max turns per conversation (1-100) |
-| `max_budget_usd` | number | — | Spending cap in USD |
-| `permission_mode` | string | `"default"` | One of: `default`, `acceptEdits`, `bypassPermissions`, `plan`, `dontAsk` |
+| Mode | Behavior |
+|------|----------|
+| `default` | Agent asks for approval before executing tools (safest) |
+| `plan` | Agent can read files and search, but asks approval for writes and commands |
+| `bypassPermissions` | Agent executes all tools without asking (requires `sandboxMode: require`) |
+| `acceptEdits` | Auto-accept file edits, prompt for other tools |
+| `dontAsk` | Skip tools that require permission instead of prompting |
+| `auto` | Automatically determine permission handling |
 
-### Schedule
-
-```yaml
-schedule:
-  - cron: "*/30 * * * *"
-    prompt: "Check for new unreviewed PRs."
-  - cron: "0 9 * * 1"
-    prompt: "Generate weekly summary report."
-```
-
-Each entry needs a 5-field cron expression and a prompt. See [Scheduling](/features/scheduling) for safety rails.
-
-### Webhooks
-
-```yaml
-webhooks:
-  accept:
-    - "pull_request.opened"
-    - "push"
-  secret: whsec_...
-```
-
-The `accept` array filters which GitHub event types the bot processes. The optional `secret` enables webhook signature verification. See [Webhooks](/features/webhooks).
-
-### Workspace
-
-```yaml
-workspace: ./myproject
-workspace_writable: false
-```
-
-Mounts a host directory into the container. Read-only by default. See [Workspaces](/features/workspaces).
-
-### Tailscale
-
-```yaml
-tailscale:
-  auth_key_profile: ts-main
-  tags:
-    - "tag:mecha-bot"
-  login_server: https://headscale.example.com
-```
-
-Connects the container to a Tailscale/Headscale network for bot-to-bot communication. See [Tailscale Mesh](/features/tailscale).
-
-### Expose
-
-```yaml
-expose: 8080
-```
-
-Maps the bot's internal HTTP port to the host. Useful for webhook receivers.
-
-## Inline Spawning
-
-For quick bots, skip the config file:
+Update configuration with:
 
 ```bash
-mecha spawn --name greeter --system "You greet people warmly." --model sonnet
+mecha bot configure researcher --tags research,ml
 ```
+
+## Port Assignment
+
+Mecha auto-assigns ports from the 7700-7799 range. To use a specific port:
+
+```bash
+mecha bot spawn researcher ~/papers --port 7710
+```
+
+## Sandbox Modes
+
+Control the OS sandbox level per bot:
+
+| Mode | Behavior |
+|------|----------|
+| `require` | Full sandbox enforcement — fails if sandbox unavailable |
+| `auto` | Uses sandbox when available, warns if unavailable (default) |
+| `off` | No OS sandbox (not recommended) |
+
+Check sandbox status:
+
+```bash
+mecha sandbox show researcher
+```
+
+## API Reference
+
+See [@mecha/core API Reference](/reference/api/core#configuration) for the settings and auth config types.

@@ -24,17 +24,16 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: pnpm
 
-      - name: Install website dependencies
-        working-directory: website
-        run: npm install
+      - run: pnpm install --frozen-lockfile
 
-      - name: Build
-        working-directory: website
-        run: npm run build
+      - run: pnpm --filter @mecha/website build
 
       - uses: actions/configure-pages@v5
 

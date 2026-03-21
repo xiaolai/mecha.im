@@ -1,0 +1,81 @@
+import type { Command } from "commander";
+import type { CommandDeps } from "../types.js";
+import { botName, readBotConfig, BotNotFoundError, BotAlreadyRunningError, PortConflictError } from "@mecha/core";
+import { checkPort } from "@mecha/process";
+import { join } from "node:path";
+import { withErrorHandler } from "../error-handler.js";
+
+/** Wait until a port is free. Throws if still occupied after timeout. */
+/* v8 ignore start -- port polling requires real port lifecycle */
+async function waitForPortFree(port: number, timeoutMs = 5000): Promise<void> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (await checkPort(port)) return;
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  throw new PortConflictError(port);
+}
+/* v8 ignore stop */
+
+/** Register the 'bot start' subcommand. */
+export function registerBotStartCommand(parent: Command, deps: CommandDeps): void {
+  parent
+    .command("start")
+    .description("Start a stopped bot from its persisted config")
+    .argument("<name>", "bot name")
+    .action(async (name: string) => withErrorHandler(deps, async () => {
+      const validated = botName(name);
+      const botDir = join(deps.mechaDir, validated);
+      const config = readBotConfig(botDir);
+      if (!config) {
+        throw new BotNotFoundError(validated);
+      }
+
+      // Check bot is not already running
+      const existing = deps.processManager.get(validated);
+      if (existing?.state === "running") {
+        throw new BotAlreadyRunningError(validated);
+      }
+
+      // Wait for port to be released before re-spawning
+      if (config.port) {
+        await waitForPortFree(config.port);
+      }
+
+      /* v8 ignore start -- optional field spread; each undefined check is a branch */
+      const info = await deps.processManager.spawn({
+        name: validated,
+        workspacePath: config.workspace,
+        home: config.home,
+        port: config.port,
+        auth: config.auth ?? undefined,
+        tags: config.tags,
+        expose: config.expose,
+        sandboxMode: config.sandboxMode,
+        model: config.model,
+        permissionMode: config.permissionMode,
+        systemPrompt: config.systemPrompt,
+        appendSystemPrompt: config.appendSystemPrompt,
+        effort: config.effort,
+        maxBudgetUsd: config.maxBudgetUsd,
+        allowedTools: config.allowedTools,
+        disallowedTools: config.disallowedTools,
+        tools: config.tools,
+        agent: config.agent,
+        agents: config.agents,
+        sessionPersistence: config.sessionPersistence,
+        budgetLimit: config.budgetLimit,
+        mcpServers: config.mcpServers,
+        mcpConfigFiles: config.mcpConfigFiles,
+        strictMcpConfig: config.strictMcpConfig,
+        disableSlashCommands: config.disableSlashCommands,
+        addDirs: config.addDirs,
+        env: config.env,
+        fallbackModel: config.fallbackModel,
+        dangerouslySkipPermissions: config.dangerouslySkipPermissions,
+        allowDangerouslySkipPermissions: config.allowDangerouslySkipPermissions,
+      });
+      /* v8 ignore stop */
+      deps.formatter.success(`Started ${info.name} on port ${info.port}`);
+    }));
+}

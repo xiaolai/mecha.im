@@ -1,0 +1,370 @@
+import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
+import { join } from "node:path";
+import { randomUUID } from "node:crypto";
+import type {
+  WorkflowDef,
+  RunState,
+  StepState,
+  StepExecutor,
+} from "./types.js";
+import { renderTemplate, evaluateCondition } from "./template.js";
+
+/** Validate a name used as a filesystem path segment. Rejects traversal attempts. */
+function assertSafeName(name: string, label: string): void {
+  if (!name || /[/\\]|^\.\.?$/.test(name) || name.includes("..")) {
+    throw new Error(`Invalid ${label} name: "${name}"`);
+  }
+}
+
+/** Detect cycles in the step dependency graph. Throws if a cycle is found. */
+function assertNoCycles(steps: Record<string, { depends?: string[] }>): void {
+  const visited = new Set<string>();
+  const visiting = new Set<string>();
+
+  function visit(name: string): void {
+    if (visited.has(name)) return;
+    if (visiting.has(name)) throw new Error(`Cycle detected in workflow dependencies involving "${name}"`);
+    visiting.add(name);
+    const deps = steps[name]?.depends ?? [];
+    for (const dep of deps) {
+      const depName = dep.endsWith("?") ? dep.slice(0, -1) : dep;
+      if (!steps[depName]) throw new Error(`Step "${name}" depends on unknown step "${depName}"`);
+      visit(depName);
+    }
+    visiting.delete(name);
+    visited.add(name);
+  }
+
+  for (const name of Object.keys(steps)) visit(name);
+}
+
+/** Workflow DAG execution engine with gates, compensation, and state persistence. */
+export interface WorkflowEngine {
+  /** Start a new run. Returns run ID. */
+  startRun(inputs?: Record<string, unknown>): string;
+
+  /** Execute the next ready steps. Returns list of step names executed. */
+  executeReady(executor: StepExecutor): Promise<string[]>;
+
+  /** Approve a human gate, allowing the gated step to proceed. */
+  approveGate(stepName: string): boolean;
+
+  /** Cancel a run. */
+  cancel(): void;
+
+  /** Get current run state. */
+  state(): RunState;
+
+  /** Check if run is terminal (done/failed/cancelled/compensated). */
+  isTerminal(): boolean;
+
+  /** Run compensation for failed run (saga rollback). */
+  compensate(executor: StepExecutor): Promise<string[]>;
+}
+
+/** Options for creating a workflow engine instance. */
+export interface CreateEngineOpts {
+  workflowsDir: string;
+  definition: WorkflowDef;
+  /** Existing run ID to resume. If not provided, must call startRun(). */
+  runId?: string;
+}
+
+/**
+ * Create a workflow engine for a specific workflow definition.
+ * State is persisted to JSON files in the runs directory.
+ */
+export function createEngine(opts: CreateEngineOpts): WorkflowEngine {
+  const { workflowsDir, definition } = opts;
+  assertSafeName(definition.name, "workflow");
+  if (opts.runId) assertSafeName(opts.runId, "runId");
+  assertNoCycles(definition.steps);
+  const runsDir = join(workflowsDir, "runs", definition.name);
+  mkdirSync(runsDir, { recursive: true });
+
+  let runState: RunState | null = null;
+
+  if (opts.runId) {
+    const statePath = join(runsDir, `${opts.runId}.json`);
+    if (existsSync(statePath)) {
+      runState = JSON.parse(readFileSync(statePath, "utf-8")) as RunState;
+    }
+  }
+
+  function saveState(): void {
+    /* v8 ignore start -- defensive: saveState only called after startRun */
+    if (!runState) return;
+    /* v8 ignore stop */
+    const statePath = join(runsDir, `${runState.runId}.json`);
+    writeFileSync(statePath, JSON.stringify(runState, null, 2) + "\n");
+  }
+
+  /** Build template context from completed step outputs + inputs. */
+  function buildContext(): Record<string, unknown> {
+    /* v8 ignore start -- defensive: buildContext only called during execution */
+    if (!runState) return {};
+    /* v8 ignore stop */
+    const ctx: Record<string, unknown> = { ...runState.inputs };
+    for (const [name, step] of Object.entries(runState.steps)) {
+      if (step.status === "completed" && step.output !== undefined) {
+        const outputKey = definition.steps[name]?.output ?? name;
+        ctx[name] = { [outputKey]: step.output };
+      }
+    }
+    return ctx;
+  }
+
+  /** Check if all dependencies of a step are satisfied. */
+  function depsReady(stepName: string): boolean {
+    /* v8 ignore start -- defensive: depsReady only called during execution */
+    if (!runState) return false;
+    /* v8 ignore stop */
+    const stepDef = definition.steps[stepName];
+    if (!stepDef?.depends) return true;
+
+    for (const dep of stepDef.depends) {
+      // Optional deps end with "?"
+      const isOptional = dep.endsWith("?");
+      const depName = isOptional ? dep.slice(0, -1) : dep;
+      const depState = runState.steps[depName];
+      /* v8 ignore start -- defensive: assertNoCycles validates all deps exist */
+      if (!depState) return false;
+      /* v8 ignore stop */
+      if (depState.status === "completed") continue;
+      if (depState.status === "skipped" && isOptional) continue;
+      return false;
+    }
+    return true;
+  }
+
+  /** Get step names that are ready to execute. */
+  function readySteps(): string[] {
+    /* v8 ignore start -- defensive: readySteps only called during execution */
+    if (!runState) return [];
+    /* v8 ignore stop */
+    const ready: string[] = [];
+    for (const [name, step] of Object.entries(runState.steps)) {
+      if (step.status !== "pending") continue;
+      if (!depsReady(name)) continue;
+
+      // Check condition
+      const stepDef = definition.steps[name]!;
+      if (stepDef.condition) {
+        const ctx = buildContext();
+        if (!evaluateCondition(stepDef.condition, ctx)) {
+          step.status = "skipped";
+          saveState();
+          continue;
+        }
+      }
+
+      // Check gate (skip if already approved)
+      if (stepDef.gate === "human" && !step.gateApproved) {
+        step.status = "waiting";
+        saveState();
+        continue;
+      }
+
+      ready.push(name);
+    }
+    return ready;
+  }
+
+  /** Update overall run status based on step states. */
+  function updateRunStatus(): void {
+    /* v8 ignore start -- defensive: updateRunStatus only called after startRun */
+    if (!runState) return;
+    /* v8 ignore stop */
+    const steps = Object.values(runState.steps);
+    const hasFailed = steps.some((s) => s.status === "failed");
+    const hasWaiting = steps.some((s) => s.status === "waiting");
+    const allDone = steps.every((s) => s.status === "completed" || s.status === "skipped");
+    if (hasFailed) {
+      runState.status = "failed";
+    } else if (hasWaiting) {
+      runState.status = "waiting";
+    } else if (allDone) {
+      runState.status = "done";
+      runState.completedAt = new Date().toISOString();
+    }
+    saveState();
+  }
+
+  const engine: WorkflowEngine = {
+    startRun(inputs = {}) {
+      const runId = opts.runId ?? `run-${new Date().toISOString().slice(0, 10)}-${randomUUID().slice(0, 8)}`;
+
+      // Merge defaults from workflow inputs
+      const mergedInputs: Record<string, unknown> = {};
+      if (definition.inputs) {
+        for (const [key, def] of Object.entries(definition.inputs)) {
+          mergedInputs[key] = inputs[key] ?? def.default;
+        }
+      }
+      Object.assign(mergedInputs, inputs);
+
+      // Initialize step states
+      const steps: Record<string, StepState> = {};
+      for (const name of Object.keys(definition.steps)) {
+        steps[name] = {
+          status: "pending",
+          stepRunId: `${runId}:${name}:${randomUUID().slice(0, 8)}`,
+          attempts: 0,
+        };
+      }
+
+      runState = {
+        runId,
+        workflow: definition.name,
+        status: "pending",
+        inputs: mergedInputs,
+        steps,
+        startedAt: new Date().toISOString(),
+        totalCostUsd: 0,
+      };
+
+      // Snapshot definition
+      const snapshotPath = join(runsDir, `${runId}.yaml`);
+      const defJson = JSON.stringify(definition, null, 2);
+      writeFileSync(snapshotPath, defJson + "\n");
+
+      saveState();
+      return runId;
+    },
+
+    async executeReady(executor) {
+      if (!runState) throw new Error("No active run. Call startRun() first.");
+      if (engine.isTerminal()) return [];
+
+      runState.status = "running";
+      saveState();
+
+      const ready = readySteps();
+      const executed: string[] = [];
+
+      // Execute ready steps (could parallelize, but sequential for determinism in v1)
+      for (const stepName of ready) {
+        const stepDef = definition.steps[stepName]!;
+        const step = runState.steps[stepName]!;
+
+        // Idempotency: skip if already has a result
+        if (step.output !== undefined) {
+          step.status = "completed";
+          saveState();
+          executed.push(stepName);
+          continue;
+        }
+
+        step.status = "running";
+        step.startedAt = new Date().toISOString();
+        step.attempts++;
+        saveState();
+
+        try {
+          const ctx = buildContext();
+          const renderedPrompt = renderTemplate(stepDef.prompt, ctx);
+          const result = await executor({
+            bot: stepDef.bot,
+            prompt: renderedPrompt,
+            stepRunId: step.stepRunId,
+            timeout: stepDef.timeout,
+            budgetUsd: stepDef.budgetUsd,
+          });
+
+          step.output = result.output;
+          step.costUsd = result.costUsd ?? 0;
+          step.status = "completed";
+          step.completedAt = new Date().toISOString();
+          runState.totalCostUsd += step.costUsd;
+        } catch (err) {
+          step.status = "failed";
+          /* v8 ignore start -- non-Error throw fallback */
+          step.error = err instanceof Error ? err.message : String(err);
+          /* v8 ignore stop */
+          step.completedAt = new Date().toISOString();
+        }
+
+        saveState();
+        executed.push(stepName);
+      }
+
+      updateRunStatus();
+      return executed;
+    },
+
+    approveGate(stepName) {
+      if (!runState) return false;
+      const step = runState.steps[stepName];
+      if (!step || step.status !== "waiting") return false;
+      step.status = "pending"; // back to pending so executeReady picks it up
+      step.gateApproved = true;
+      runState.status = "running";
+      saveState();
+      return true;
+    },
+
+    cancel() {
+      if (!runState || engine.isTerminal()) return;
+      runState.status = "cancelled";
+      runState.completedAt = new Date().toISOString();
+      saveState();
+    },
+
+    state() {
+      if (!runState) throw new Error("No active run");
+      return { ...runState };
+    },
+
+    isTerminal() {
+      if (!runState) return false;
+      return ["done", "failed", "cancelled", "compensated"].includes(runState.status);
+    },
+
+    async compensate(executor) {
+      if (!runState) throw new Error("No active run");
+      if (runState.status !== "failed") return [];
+
+      runState.status = "compensating";
+      saveState();
+
+      // Walk completed steps in reverse order
+      const stepNames = Object.keys(definition.steps);
+      const completedInOrder = stepNames.filter(
+        (name) => runState!.steps[name]?.status === "completed",
+      );
+      completedInOrder.reverse();
+
+      const compensated: string[] = [];
+      let compensationFailed = false;
+      for (const name of completedInOrder) {
+        const stepDef = definition.steps[name]!;
+        if (!stepDef.compensate) continue;
+
+        const step = runState.steps[name]!;
+        step.status = "compensating";
+        saveState();
+
+        try {
+          await executor({
+            bot: stepDef.bot,
+            prompt: stepDef.compensate,
+            stepRunId: `${step.stepRunId}:compensate`,
+          });
+          step.status = "compensated";
+        } catch {
+          step.status = "failed"; // compensation itself failed
+          compensationFailed = true;
+        }
+        saveState();
+        compensated.push(name);
+      }
+
+      runState.status = compensationFailed ? "failed" : "compensated";
+      runState.completedAt = new Date().toISOString();
+      saveState();
+      return compensated;
+    },
+  };
+
+  return engine;
+}

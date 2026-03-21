@@ -1,87 +1,50 @@
 {
-  "name": "@mecha.im/cli",
-  "version": "0.3.10",
-  "description": "An army of agents — run autonomous Claude bots in Docker containers",
-  "type": "module",
-  "bin": {
-    "mecha": "./dist/src/cli.js"
-  },
-  "files": [
-    "dist/src/",
-    "dist/shared/",
-    "dist/agent/",
-    "shared/",
-    "agent/*.ts",
-    "agent/types.ts",
-    "agent/tools/",
-    "agent/routes/",
-    "agent/dashboard/dist/",
-    "agent/dashboard/public/",
-    "agent/dashboard/package.json",
-    "agent/dashboard/src/",
-    "agent/dashboard/tsconfig.json",
-    "agent/dashboard/index.html",
-    "adapters/*/index.ts",
-    "adapters/*/package.json",
-    "adapters/*/README.md",
-    "s6/",
-    "Dockerfile",
-    "tsconfig.json",
-    "tsconfig.agent.json",
-    "README.md"
-  ],
+  "name": "@mecha/workspace",
+  "version": "4.0.0",
+  "private": true,
+  "description": "Local-first multi-agent runtime",
   "scripts": {
-    "build": "tsc -b",
-    "build:agent": "tsc -p tsconfig.agent.json",
-    "build:cli": "tsc -p tsconfig.cli.json",
-    "build:dashboard": "cd dashboard && npm ci && npm run build",
-    "build:bot-dashboard": "cd agent/dashboard && npm ci && npm run build",
-    "build:all": "npm run build && npm run build:dashboard && npm run build:bot-dashboard",
-    "dev": "tsc -b --watch",
-    "test": "node --import tsx test/run-fast.ts",
-    "test:docker": "node --import tsx test/run-docker.ts",
-    "test:live": "node --import tsx test/run-live.ts",
-    "prepublishOnly": "npm run build"
+    "build": "pnpm -r --filter '!@mecha/spa' --filter '!@mecha/integration' --filter '!@mecha/website' build",
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "test:pkg": "vitest run --project",
+    "test:integration": "vitest run --config vitest.integration.ts",
+    "test:coverage": "vitest run --coverage --config vitest.config.ts",
+    "typecheck": "tsc -b",
+    "build:publish": "bash scripts/build-publish.sh",
+    "clean": "rm -rf packages/*/dist packages/*/tsconfig.tsbuildinfo",
+    "lint": "eslint packages/*/src/",
+    "docs:dev": "pnpm --filter @mecha/website dev",
+    "docs:build": "pnpm --filter @mecha/website build"
   },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/xiaolai/mecha.im.v3"
-  },
-  "homepage": "https://mecha.im",
   "keywords": [
-    "claude",
-    "agent",
-    "bot",
-    "docker",
     "ai",
-    "automation",
-    "mecha"
+    "agent",
+    "claude",
+    "multi-agent",
+    "runtime",
+    "local-first"
   ],
-  "license": "MIT",
-  "engines": {
-    "node": ">=22.0.0"
-  },
-  "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.2.0",
-    "@anthropic-ai/sdk": "^0.52.0",
-    "@hono/node-server": "^1.14.0",
-    "@modelcontextprotocol/sdk": "^1.27.1",
-    "commander": "^14.0.0",
-    "croner": "^9.0.0",
-    "dockerode": "^4.0.7",
-    "hono": "^4.7.0",
-    "node-pty": "^1.1.0",
-    "ora": "^8.2.0",
-    "picocolors": "^1.1.1",
-    "ws": "^8.19.0",
-    "yaml": "^2.7.0",
-    "zod": "^4.0.0"
-  },
+  "author": "xiaolai",
+  "license": "ISC",
+  "packageManager": "pnpm@10.26.1",
   "devDependencies": {
-    "@types/dockerode": "^3.3.35",
-    "@types/node": "^22.0.0",
-    "@types/ws": "^8.18.1",
-    "tsx": "^4.0.0",
-    "typescript": "^5.8.0"
+    "@types/node": "^25.3.0",
+    "@typescript-eslint/eslint-plugin": "^8.56.1",
+    "@typescript-eslint/parser": "^8.56.1",
+    "@vitest/coverage-v8": "^4.0.18",
+    "eslint": "^10.0.2",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["node-pty"],
+    "overrides": {
+      "express-rate-limit": ">=8.2.2",
+      "minimatch": ">=10.2.3",
+      "hono": ">=4.12.4",
+      "@hono/node-server": ">=1.19.10"
+    }
   }
 }
