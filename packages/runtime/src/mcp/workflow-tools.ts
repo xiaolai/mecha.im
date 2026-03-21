@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { createEngine, type RunState } from "@mecha/workflow";
+import YAML from "js-yaml";
+import { createEngine, type RunState, type WorkflowDef } from "@mecha/workflow";
 
 interface McpToolDef {
   name: string;
@@ -53,6 +54,11 @@ interface WorkflowResult {
   isError?: boolean;
 }
 
+/** Returns true if a name contains path traversal sequences. */
+function hasPathTraversal(name: string): boolean {
+  return name.includes("/") || name.includes("\\") || name.includes("..");
+}
+
 /** Find the run state file by run ID across all workflow run dirs. */
 function findRunFile(workflowsDir: string, workflow: string, runId: string): string | undefined {
   const candidate = join(workflowsDir, "runs", workflow, `${runId}.json`);
@@ -86,13 +92,16 @@ export async function handleWorkflowTool(
       if (typeof wfName !== "string" || !wfName) {
         return { content: [{ type: "text", text: "Missing required: name (string)" }], isError: true };
       }
+      if (hasPathTraversal(wfName)) {
+        return { content: [{ type: "text", text: "Invalid workflow name" }], isError: true };
+      }
       const defPath = join(workflowsDir, `${wfName}.yaml`);
       if (!existsSync(defPath)) {
         return { content: [{ type: "text", text: `Workflow "${wfName}" not found` }], isError: true };
       }
-      let definition;
+      let definition: WorkflowDef;
       try {
-        definition = JSON.parse(readFileSync(defPath, "utf-8"));
+        definition = YAML.load(readFileSync(defPath, "utf-8")) as WorkflowDef;
       /* v8 ignore start -- corrupt workflow file fallback */
       } catch {
         return { content: [{ type: "text", text: `Failed to parse workflow "${wfName}"` }], isError: true };
@@ -112,6 +121,9 @@ export async function handleWorkflowTool(
       }
       if (typeof runId !== "string" || !runId) {
         return { content: [{ type: "text", text: "Missing required: runId (string)" }], isError: true };
+      }
+      if (hasPathTraversal(workflow) || hasPathTraversal(runId)) {
+        return { content: [{ type: "text", text: "Invalid workflow or run ID" }], isError: true };
       }
       const filePath = findRunFile(workflowsDir, workflow, runId);
       if (!filePath) {

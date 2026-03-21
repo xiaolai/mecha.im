@@ -2,6 +2,7 @@ import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import YAML from "js-yaml";
 import { withErrorHandler } from "../error-handler.js";
 import type { WorkflowDef } from "@mecha/workflow";
 
@@ -21,7 +22,7 @@ export function registerWorkflowShowCommand(parent: Command, deps: CommandDeps):
         }
 
         const raw = readFileSync(filePath, "utf-8");
-        const def = JSON.parse(raw) as WorkflowDef;
+        const def = YAML.load(raw) as WorkflowDef;
 
         if (deps.formatter.isJson) {
           deps.formatter.json(def);

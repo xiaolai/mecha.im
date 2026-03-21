@@ -12,6 +12,24 @@ export function errorResult(message: string): CallToolResult {
   return { content: [{ type: "text", text: message }], isError: true };
 }
 
+/** Max length for user message content stored in audit logs. */
+const AUDIT_MESSAGE_MAX_LEN = 100;
+
+/**
+ * Redact sensitive fields from tool arguments before storing in audit logs.
+ * Truncates `message` fields to prevent raw user content from being persisted.
+ */
+function redactAuditParams(args: Record<string, unknown>): Record<string, unknown> {
+  if (typeof args.message !== "string") return args;
+  return {
+    ...args,
+    message:
+      args.message.length > AUDIT_MESSAGE_MAX_LEN
+        ? args.message.slice(0, AUDIT_MESSAGE_MAX_LEN) + "...[truncated]"
+        : args.message,
+  };
+}
+
 /** Wrap a tool handler with rate limiting and audit logging. */
 export function withAuditAndRateLimit(
   ctx: MeshMcpContext,
@@ -30,7 +48,7 @@ export function withAuditAndRateLimit(
         ts: new Date().toISOString(),
         client,
         tool: toolName,
-        params: args as Record<string, unknown>,
+        params: redactAuditParams(args),
         result: "rate-limited",
         durationMs: Date.now() - start,
       });
@@ -43,7 +61,7 @@ export function withAuditAndRateLimit(
         ts: new Date().toISOString(),
         client,
         tool: toolName,
-        params: args as Record<string, unknown>,
+        params: redactAuditParams(args),
         result: result.isError ? "error" : "ok",
         error: result.isError ? extractText(result) : undefined,
         durationMs: Date.now() - start,
@@ -57,7 +75,7 @@ export function withAuditAndRateLimit(
         ts: new Date().toISOString(),
         client,
         tool: toolName,
-        params: args as Record<string, unknown>,
+        params: redactAuditParams(args),
         result: "error",
         error: message,
         durationMs: Date.now() - start,

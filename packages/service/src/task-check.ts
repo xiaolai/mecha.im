@@ -9,6 +9,8 @@ export interface TaskCheckResult {
   busy: boolean;
   activeSessions: number;
   lastActivity?: string;
+  /** True when the check failed (e.g. unreachable runtime) and the result is uncertain. */
+  uncertain?: boolean;
 }
 
 /**
@@ -63,7 +65,7 @@ export async function checkBotBusy(
   } catch (err) {
     /* v8 ignore start -- fail open: unreachable runtime should not block lifecycle ops */
     log.debug("Busy check failed, treating as idle", { bot: name, error: err instanceof Error ? err.message : String(err) });
-    return { busy: false, activeSessions: 0 };
+    return { busy: false, activeSessions: 0, uncertain: true };
     /* v8 ignore stop */
   }
 }
