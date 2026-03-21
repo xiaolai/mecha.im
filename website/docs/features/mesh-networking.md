@@ -137,7 +137,7 @@ This outputs an invite code like `mecha://invite/eyJ...`. Share it with your pee
 
 | Option | Description |
 |--------|-------------|
-| `--expires <duration>` | Invite expiry (default: `24h`). Accepts: `1h`, `6h`, `24h`, `7d` |
+| `--expires <duration>` | Invite expiry (default: `24h`). Accepts any `Ns`, `Nm`, `Nh`, `Nd` format (e.g., `30m`, `6h`, `7d`) |
 | `--server <url>` | Rendezvous server URL |
 
 ### 3. Accept the Invite

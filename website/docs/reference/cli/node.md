@@ -156,7 +156,7 @@ mecha node invite [options]
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--expires <duration>` | Invite expiry. Accepts: `1h`, `6h`, `24h`, `7d` | `24h` |
+| `--expires <duration>` | Invite expiry. Accepts any `Ns`, `Nm`, `Nh`, `Nd` format (e.g., `30m`, `6h`, `7d`) | `24h` |
 | `--server <url>` | Rendezvous server URL (overrides default) | |
 
 The invite code is registered on the rendezvous server (best-effort -- works offline too). Share the code with your peer.

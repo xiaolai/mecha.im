@@ -52,7 +52,7 @@ mecha bot spawn <name> [path] [options]
 | `--fallback-model <model>` | Fallback model when primary is overloaded | |
 | `--budget-limit <dollars>` | Mecha-level aggregate budget cap | |
 
-When `[path]` is omitted, CWD defaults to `--home` (or `~/.mecha/<name>/` if `--home` is also omitted). A warning is emitted if CWD is not under HOME.
+When `[path]` is omitted, CWD defaults to `--home` (or `~/.mecha/<name>/` if `--home` is also omitted).
 
 ```bash
 mecha bot spawn researcher ~/papers --tags research,ml
