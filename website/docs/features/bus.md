@@ -1,3 +1,8 @@
+---
+title: Message Bus
+description: Asynchronous pub/sub messaging and durable work queues for inter-bot coordination
+---
+
 # Message Bus
 
 The message bus provides asynchronous pub/sub messaging and durable work queues for inter-bot coordination. Instead of synchronous `mesh_query` (where bot A blocks waiting for bot B), bots publish events to topics and claim work from queues.
@@ -109,3 +114,4 @@ Bots can access the bus via MCP tools: `bus_publish`, `bus_queue_push`, `bus_que
 | `createBroker(busDir)` | Create a broker managing queues and topics |
 | `createQueue(opts)` | Create a durable queue with retry and dead-letter |
 | `createTopic(opts)` | Create a pub/sub topic with per-subscriber cursors |
+| `createReplicator(opts)` | Cross-node topic replicator for multi-machine setups |

@@ -31,17 +31,26 @@ These flags work with any command:
 | `mecha node` | Mesh networking and peer nodes | [Node Commands](./node) |
 | `mecha meter` | Metering proxy and budgets | [Meter Commands](./meter) |
 | `mecha start/stop/restart` | Daemon lifecycle, auth, TOTP, ACL, sandbox, audit, tools, MCP, dashboard | [System Commands](./system) |
+| `mecha workflow` | Workflow execution and run management | [Orchestration Commands](./orchestration#workflow) |
+| `mecha bus` | Pub/sub topics and durable queues | [Orchestration Commands](./orchestration#bus) |
+| `mecha team` | Team deployment and lifecycle | [Orchestration Commands](./orchestration#team) |
+| `mecha meta` | Meta-agent, tuning, reports, experiments | [Orchestration Commands](./orchestration#meta) |
+| `mecha alert` | Alert rules and fired alerts | [Orchestration Commands](./orchestration#alert) |
+| `mecha metrics` | Per-bot and per-workflow metrics | [Orchestration Commands](./orchestration#metrics) |
+| `mecha secret` | Secret storage and bot access grants | [Orchestration Commands](./orchestration#secret) |
+| `mecha company` | Company config repository and sync | [Orchestration Commands](./orchestration#company) |
+| `mecha trace` | Structured workflow run traces | [Orchestration Commands](./orchestration#trace) |
 
 ## Programmatic API
 
-The CLI is built on [Commander.js](https://github.com/tj/commander.js) with a dependency injection pattern. These internal types and factory functions are exported from `@mecha/cli` for embedding or testing the CLI programmatically.
+The CLI is built on [Commander.js](https://github.com/tj/commander.js) with a dependency injection pattern. These internal types and factory functions are exported from `mecha.im` for embedding or testing the CLI programmatically.
 
 ### `createProgram(deps)`
 
 Creates the root Commander.js program instance with all commands registered and global flags configured.
 
 ```ts
-import { createProgram } from "@mecha/cli";
+import { createProgram } from "mecha.im";
 
 const program = createProgram({
   formatter,
@@ -69,7 +78,7 @@ The program is created with `name("mecha")`, a version read from `package.json`,
 Creates a CLI output formatter that adapts output based on `--json`, `--quiet`, and `--verbose` flags.
 
 ```ts
-import { createFormatter } from "@mecha/cli";
+import { createFormatter } from "mecha.im";
 
 // Human-readable output (default)
 const fmt = createFormatter();

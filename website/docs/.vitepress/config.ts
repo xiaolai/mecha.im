@@ -67,6 +67,16 @@ export default withMermaid(
               { text: "Dashboard", link: "/features/dashboard" },
             ],
           },
+          {
+            text: "Orchestration",
+            items: [
+              { text: "Message Bus", link: "/features/bus" },
+              { text: "Workflow Engine", link: "/features/workflow" },
+              { text: "Observability", link: "/features/observability" },
+              { text: "Team Templates", link: "/features/teams" },
+              { text: "Gateway", link: "/features/gateway" },
+            ],
+          },
         ],
         "/reference/": [
           {
@@ -77,8 +87,8 @@ export default withMermaid(
               { text: "Schedule Commands", link: "/reference/cli/schedule" },
               { text: "Node Commands", link: "/reference/cli/node" },
               { text: "Meter & Budget", link: "/reference/cli/meter" },
-              { text: "Plugin Commands", link: "/reference/cli/plugin" },
               { text: "System Commands", link: "/reference/cli/system" },
+              { text: "Orchestration", link: "/reference/cli/orchestration" },
             ],
           },
           {
@@ -93,6 +103,8 @@ export default withMermaid(
               { text: "@mecha/runtime", link: "/reference/api/runtime" },
               { text: "@mecha/server", link: "/reference/api/server" },
               { text: "@mecha/mcp-server", link: "/reference/api/mcp-server" },
+              { text: "@mecha/agent", link: "/reference/api/agent" },
+              { text: "@mecha/gateway", link: "/reference/api/gateway" },
             ],
           },
           {
