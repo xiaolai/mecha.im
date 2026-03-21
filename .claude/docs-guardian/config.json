@@ -2,8 +2,8 @@
   "language": "typescript",
   "framework": "vitepress",
   "docRoot": "website/docs",
-  "strictness": "off",
-  "stalenessThresholdDays": 30,
+  "strictness": "warn",
+  "stalenessThresholdDays": 14,
   "excludePatterns": [
     "node_modules/**",
     "dist/**",
