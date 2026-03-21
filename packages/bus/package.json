@@ -1,0 +1,23 @@
+{
+  "name": "@mecha/bus",
+  "version": "4.0.0",
+  "description": "Message bus with topics and durable queues for mecha.im",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "dependencies": {
+    "@mecha/core": "workspace:*"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "license": "ISC"
+}

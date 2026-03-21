@@ -1,90 +1,168 @@
+---
+title: Quick Start
+description: Go from zero to a working bot in 5 minutes.
+---
+
 # Quick Start
 
-## Spawn a Bot
+[[toc]]
 
-The fastest way to get started — spawn a bot inline:
+Go from zero to a working bot in 5 minutes.
 
-```bash
-mecha spawn --name greeter --system "You greet people warmly."
-```
-
-Or from a YAML config file:
-
-```yaml
-# greeter.yaml
-name: greeter
-system: |
-  You greet people warmly and remember their names.
-model: sonnet
-max_turns: 25
-```
+## 1. Install
 
 ```bash
-mecha spawn greeter.yaml
+brew install xiaolai/tap/mecha
 ```
 
-## Query
+Or see [Installation](/guide/installation) for other methods.
+
+## 2. Initialize
+
+Create the `~/.mecha/` directory where all bot state lives:
 
 ```bash
-mecha query greeter "Hello, I'm Alice!"
+mecha init
 ```
 
-## Check Status
+## 3. Set Up Auth
+
+Your bots need credentials to call the Claude API. Pick one:
 
 ```bash
-mecha ls
+# Option A: API key
+export ANTHROPIC_API_KEY=sk-ant-api03-...
+
+# Option B: OAuth token (preferred)
+export CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-...
 ```
 
-## View Logs
+Or store credentials persistently with the auth command:
 
 ```bash
-mecha logs greeter
-mecha logs greeter -f   # follow mode
+mecha auth add mykey --api-key --token sk-ant-api03-...
+mecha auth test mykey
 ```
 
-## Open the Dashboard
+## 4. Start the Runtime
 
 ```bash
-mecha dashboard              # starts daemon + opens browser
-# Or run the daemon in the background:
-mecha daemon start --background
+mecha start -d
 ```
 
-The daemon auto-starts when you run fleet commands — you rarely need to start it manually. Click on a bot to see its individual dashboard with chat, schedule, logs, and config views.
+This starts three services in the background:
 
-## Manage Bots
+| Service | Port | What it does |
+|---------|------|--------------|
+| Agent server | 7660 | Manages bots, serves the dashboard |
+| Meter proxy | 7600 | Tracks API costs per bot |
+| MCP server | 7680 | Exposes bots as MCP tools |
+
+The `-d` flag runs the server as a background daemon. On first run it displays a TOTP QR code — scan it with your authenticator app. The dashboard is at `http://localhost:7660`.
+
+Check that everything is running:
 
 ```bash
-mecha stop greeter       # stop a running bot
-mecha restart greeter    # restart
-mecha start greeter      # start a stopped bot
-mecha rm greeter         # remove entirely
-mecha rm greeter -f      # force remove even if running
+mecha status
 ```
 
-## Inspect and Debug
+## 5. Spawn a Bot
 
 ```bash
-mecha config greeter             # view bot configuration
-mecha config greeter --set model=opus  # change a setting
-mecha costs                      # see spending across all bots
-mecha costs greeter --period week  # per-bot cost breakdown
-mecha sessions greeter           # browse conversation history
-mecha exec greeter bash          # shell into the container
+mecha bot spawn researcher ~/my-research
 ```
 
-## Shell Completions
+This creates a bot named `researcher` with `~/my-research` as its workspace. The bot starts immediately — you'll see it allocated a port in the 7700-7799 range.
 
-Enable tab completion for bot names and commands:
+Check it's running:
 
 ```bash
-eval "$(mecha completion bash)"   # or zsh, fish
+mecha bot ls
 ```
 
-## Next Steps
+```text
+NAME         STATE    PORT  WORKSPACE
+researcher   running  7700  ~/my-research
+```
 
-- [Bot Configuration](/guide/configuration) — full config schema with scheduling, webhooks, and workspaces
-- [Authentication](/guide/auth) — managing API keys with profiles
-- [Scheduling](/features/scheduling) — run bots on cron
-- [Webhooks](/features/webhooks) — react to GitHub events
-- [CLI Reference](/reference/cli) — all commands and flags
+## 6. Chat
+
+```bash
+mecha bot chat researcher "What files are in my workspace?"
+```
+
+The response streams to your terminal. The bot can read and write files in its workspace, run commands in its sandbox, and use any tools available to Claude Code.
+
+## 7. Spawn More Bots
+
+```bash
+mecha bot spawn coder ~/my-project
+```
+
+Now you have two bots. Each has its own workspace, sessions, and identity.
+
+## 8. Let Them Talk
+
+Grant the coder permission to query the researcher:
+
+```bash
+mecha acl grant coder query researcher
+```
+
+Now when the coder needs help, it can reach the researcher through the mesh:
+
+```bash
+mecha bot chat coder "Ask the researcher to summarize recent papers on transformers"
+```
+
+## 9. Add a Schedule
+
+Make the researcher check for new papers every morning:
+
+```bash
+mecha schedule add researcher --id daily-papers --every 24h --prompt "Check for new papers published today and summarize the top 3"
+```
+
+The bot will run this task automatically every 24 hours. No need to be at your terminal.
+
+## 10. Monitor Costs
+
+```bash
+mecha cost
+```
+
+```text
+Total (today)           $0.42  (UTC)
+───────────────────────────────────
+researcher              $0.28
+coder                   $0.14
+```
+
+Set a daily budget to prevent surprises:
+
+```bash
+mecha budget set --global --daily 10.00
+```
+
+Bots that hit the budget are paused automatically.
+
+## 11. Stop
+
+```bash
+# Stop a specific bot
+mecha bot stop researcher
+
+# Stop everything (bots + daemon)
+mecha stop
+```
+
+Bot state persists across restarts. Next time you `mecha start -d`, you can respawn bots and their conversation history is still there.
+
+## What's Next?
+
+- [Core Concepts](/guide/concepts) — bots, workspaces, sessions, naming
+- [Configuration](/guide/configuration) — customize bot behavior, models, system prompts
+- [Scheduling](/features/scheduling) — cron jobs, webhooks, event-driven bots
+- [Permissions](/features/permissions) — fine-grained access control between bots
+- [Multi-Machine](/guide/multi-machine) — deploy bots across multiple machines
+- [CLI Reference](/reference/cli/) — complete command documentation

@@ -1,0 +1,4 @@
+// Captured Anthropic Messages API streaming error response (401 Unauthorized)
+// No SSE events — just a plain JSON error body
+
+{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}
