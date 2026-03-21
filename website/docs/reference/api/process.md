@@ -16,7 +16,9 @@ The package re-exports the following public API:
 | Export | Kind | Source |
 |--------|------|--------|
 | `checkPort` | Function | `port.ts` |
+| `claimPort` | Function | `port.ts` |
 | `allocatePort` | Function | `port.ts` |
+| `PortClaim` | Interface | `port.ts` |
 | `waitForHealthy` | Function | `health.ts` |
 | `readState` | Function | `state-store.ts` |
 | `writeState` | Function | `state-store.ts` |
@@ -34,6 +36,7 @@ The package re-exports the following public API:
 | `isPidAlive` | Function | `process-lifecycle.ts` (re-export from `@mecha/core`) |
 | `waitForChildExit` | Function | `process-lifecycle.ts` |
 | `waitForPidExit` | Function | `process-lifecycle.ts` |
+| `waitForPortFree` | Function | `process-lifecycle.ts` |
 | `prepareBotFilesystem` | Function | `sandbox-setup.ts` |
 | `encodeProjectPath` | Function | `sandbox-setup.ts` |
 | `buildBotEnv` | Function | `sandbox-setup.ts` |
@@ -226,6 +229,95 @@ botDir/
   config.json             <- port, token, workspace
 ```
 
+## Port Allocation
+
+### `checkPort(port)`
+
+Check if a TCP port is available by attempting a connection to `127.0.0.1`. Returns `true` if the port is free (connection refused), `false` if in use or on timeout.
+
+```ts
+import { checkPort } from "@mecha/process";
+
+const isFree = await checkPort(7700);
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `port` | `number` | TCP port number to check |
+
+Returns `Promise<boolean>`.
+
+### `claimPort(port)`
+
+Atomically claim a port by binding a temporary TCP server on `127.0.0.1`. This eliminates the TOCTOU race inherent in `checkPort()` -- the OS guarantees that `bind()` is atomic, so concurrent processes cannot claim the same port.
+
+```ts
+import { claimPort } from "@mecha/process";
+
+const release = await claimPort(7700);
+if (release) {
+  // Port 7700 is held exclusively until release() is called
+  await release();
+}
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `port` | `number` | TCP port number to claim |
+
+Returns `Promise<(() => Promise<void>) | undefined>`. Returns a release function if the port was successfully claimed, or `undefined` if the port is already in use. The release function is idempotent.
+
+### `allocatePort(base?, max?, exclude?)`
+
+Allocate the first available port in a range using atomic bind via `claimPort()`. Scans sequentially from `base` to `max`, skipping ports in the `exclude` set.
+
+```ts
+import { allocatePort } from "@mecha/process";
+
+const claim = await allocatePort(); // default range 7700-7799
+console.log(`Allocated port: ${claim.port}`);
+// Use the port, then release it
+await claim.release();
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `base` | `number` | `7700` | Start of port range |
+| `max` | `number` | `7799` | End of port range (inclusive) |
+| `exclude` | `Set<number>` | `new Set()` | Ports to skip |
+
+Returns `Promise<PortClaim>`. Throws `PortRangeExhaustedError` if no port in the range is available.
+
+### `PortClaim`
+
+A claimed port with a release function to free it.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `port` | `number` | The claimed port number |
+| `release` | `() => Promise<void>` | Close the temporary server to free the port. Idempotent |
+
+## Health Check
+
+### `waitForHealthy(port, token, timeoutMs?, botName?)`
+
+Poll `GET /healthz` on a bot runtime until it responds with HTTP 200 or the timeout is reached. Uses exponential backoff starting at 100ms, capped at 1000ms per attempt.
+
+```ts
+import { waitForHealthy } from "@mecha/process";
+
+await waitForHealthy(7700, "bot-auth-token", 30000, "researcher");
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `port` | `number` | -- | Port the bot runtime is listening on |
+| `token` | `string` | -- | Bearer token for the `Authorization` header |
+| `timeoutMs` | `number` | `10000` | Maximum time to wait in milliseconds |
+| `botName` | `string` | `"unknown"` | Bot name (used in the error message) |
+
+Returns `Promise<void>`. Throws `ProcessHealthTimeoutError` if the timeout elapses without a successful health check.
+
 ## `waitForChildExit(child, timeoutMs)`
 
 Waits for a `ChildProcess` to emit an `exit` event within the given timeout.
@@ -245,6 +337,109 @@ function waitForPidExit(pid: number, timeoutMs: number): Promise<boolean>
 ```
 
 Returns `true` if the process exited, `false` on timeout.
+
+## `waitForPortFree(port, timeoutMs)`
+
+Poll a TCP port until it becomes free (connection refused). Polls every 200ms.
+
+```ts
+import { waitForPortFree } from "@mecha/process";
+
+const freed = await waitForPortFree(7700, 5000);
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `port` | `number` | TCP port to monitor |
+| `timeoutMs` | `number` | Maximum time to wait in milliseconds |
+
+Returns `Promise<boolean>`. Returns `true` if the port became free, `false` if the timeout elapsed.
+
+## `readLogs(botDir, name, logOpts?)`
+
+Read logs from a bot's `stdout.log` and `stderr.log` files. Supports tailing the last N lines and following for live updates.
+
+```ts
+import { readLogs } from "@mecha/process";
+
+// Read last 50 lines
+const stream = readLogs("/Users/you/.mecha/bots/researcher", "researcher", { tail: 50 });
+stream.on("data", (chunk) => process.stdout.write(chunk));
+
+// Follow mode (like tail -f)
+const follow = readLogs("/Users/you/.mecha/bots/researcher", "researcher", { follow: true });
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `botDir` | `string` | Bot root directory (e.g. `~/.mecha/bots/<name>`) |
+| `name` | `BotName` | Bot name (used for error messages) |
+| `logOpts` | `LogOpts?` | Optional `{ follow?: boolean; tail?: number }` |
+
+Returns `Readable` stream. Throws `BotNotFoundError` if no state file exists in the bot directory.
+
+In follow mode, the stream uses `watchFile` with a 500ms polling interval to detect new log data. The stream cleans up watchers when closed. Follow mode also handles file truncation/rotation by resetting the read offset.
+
+## PTY (Pseudo-Terminal)
+
+### `MechaPty`
+
+Platform-agnostic PTY handle that wraps `node-pty`.
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `onData` | `(cb: (data: string) => void) => PtyDisposable` | Subscribe to terminal output data |
+| `onExit` | `(cb: (e: { exitCode: number; signal?: number }) => void) => PtyDisposable` | Subscribe to process exit |
+| `write` | `(data: string) => void` | Write input to the terminal |
+| `resize` | `(cols: number, rows: number) => void` | Resize the terminal |
+| `kill` | `(signal?: string) => void` | Kill the process |
+
+### `PtySpawnOpts`
+
+Options passed to a PTY spawn function.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | `string` | Terminal name (e.g. `"xterm-256color"`) |
+| `cols` | `number` | Number of columns |
+| `rows` | `number` | Number of rows |
+| `cwd` | `string` | Working directory |
+| `env` | `Record<string, string>` | Environment variables |
+
+### `PtySpawnFn`
+
+```ts
+type PtySpawnFn = (file: string, args: string[], opts: PtySpawnOpts) => MechaPty;
+```
+
+Factory signature for spawning a PTY process. Takes the executable path, arguments, and spawn options.
+
+### `PtyDisposable`
+
+Disposable subscription returned by `onData` and `onExit`.
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `dispose` | `() => void` | Unsubscribe the callback |
+
+### `createNodePtySpawn()`
+
+Create a `PtySpawnFn` backed by the `node-pty` native addon. The addon is loaded lazily via `require()`.
+
+```ts
+import { createNodePtySpawn } from "@mecha/process";
+
+const spawn = createNodePtySpawn();
+const pty = spawn("claude", ["--resume", sessionId], {
+  name: "xterm-256color",
+  cols: 120,
+  rows: 40,
+  cwd: "/path/to/workspace",
+  env: process.env as Record<string, string>,
+});
+```
+
+Returns `PtySpawnFn`. Throws if `node-pty` is not installed (requires a C++ compiler for native addon build).
 
 ## Process Events
 
