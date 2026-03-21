@@ -89,6 +89,13 @@ export interface PeerInfo {
   privateCandidates?: string[];
 }
 
+/** Pending answer awaiting resolution from a signaling exchange. */
+export interface PendingAnswer {
+  resolve: (candidates: Candidate[]) => void;
+  reject: (err: Error) => void;
+  timer: ReturnType<typeof setTimeout>;
+}
+
 /** Network address candidate for hole-punching or direct connection. */
 export interface Candidate {
   ip: string;

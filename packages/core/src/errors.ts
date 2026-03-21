@@ -1,23 +1,5 @@
-/**
- * Base error class for all mecha errors.
- * Carries HTTP status code and CLI exit code for consistent error handling.
- */
-export class MechaError extends Error {
-  readonly code: string;
-  readonly statusCode: number;
-  readonly exitCode: number;
-
-  constructor(
-    message: string,
-    opts: { code: string; statusCode: number; exitCode: number; cause?: unknown },
-  ) {
-    super(message, opts.cause !== undefined ? { cause: opts.cause } : undefined);
-    this.name = this.constructor.name;
-    this.code = opts.code;
-    this.statusCode = opts.statusCode;
-    this.exitCode = opts.exitCode;
-  }
-}
+export { MechaError, defError } from "./errors-base.js";
+import { MechaError, defError } from "./errors-base.js";
 
 /** Error thrown when a bot name contains invalid characters. */
 export class InvalidNameError extends MechaError {
@@ -27,34 +9,6 @@ export class InvalidNameError extends MechaError {
       { code: "INVALID_NAME", statusCode: 400, exitCode: 1 },
     );
   }
-}
-
-// --- Domain errors (factory pattern) ---
-
-type ErrorOpts = { code: string; statusCode: number; exitCode: number };
-
-function defError<A extends unknown[]>(
-  name: string,
-  opts: ErrorOpts,
-  msg: (...args: A) => string,
-) {
-  const arity = msg.length;
-  const cls = class extends MechaError {
-    constructor(...args: [...A] | [...A, { cause?: unknown }]) {
-      // Only treat the last arg as cause-opts when there's an extra argument
-      // beyond the message function's arity AND it's a plain object with "cause".
-      // This avoids misclassifying legitimate object args (all current factories
-      // use string/number args, so any trailing object is unambiguously cause-opts).
-      const last = args.length > arity ? args[args.length - 1] : undefined;
-      const hasCauseOpt = typeof last === "object" && last !== null && "cause" in last;
-      const cause = hasCauseOpt ? (last as { cause?: unknown }).cause : undefined;
-      const msgArgs = (hasCauseOpt ? args.slice(0, -1) : args) as unknown as A;
-      super(msg(...msgArgs), { ...opts, cause });
-      this.name = name;
-    }
-  };
-  Object.defineProperty(cls, "name", { value: name });
-  return cls;
 }
 
 // --- Address errors ---
@@ -307,100 +261,26 @@ export const GroupAddressNotSupportedError = defError<[string]>(
   (input) => `Group addresses are not supported yet: "${input}"`,
 );
 
-// --- Schedule errors ---
-/** Error thrown when a schedule ID does not exist. */
-export const ScheduleNotFoundError = defError<[string]>(
-  "ScheduleNotFoundError",
-  { code: "SCHEDULE_NOT_FOUND", statusCode: 404, exitCode: 1 },
-  (id) => `Schedule "${id}" not found`,
-);
+// --- Domain error re-exports ---
+export {
+  ScheduleNotFoundError,
+  DuplicateScheduleError,
+  InvalidIntervalError,
+  ScheduleLimitError,
+  CliAlreadyRunningError,
+} from "./errors-schedule.js";
 
-/** Error thrown when a schedule with the given ID already exists. */
-export const DuplicateScheduleError = defError<[string]>(
-  "DuplicateScheduleError",
-  { code: "DUPLICATE_SCHEDULE", statusCode: 409, exitCode: 1 },
-  (id) => `Schedule "${id}" already exists`,
-);
+export {
+  ConnectError,
+  InvalidInviteError,
+  HandshakeError,
+  PeerOfflineError,
+  RendezvousError,
+} from "./errors-connect.js";
 
-/** Error thrown when a schedule interval is invalid. */
-export const InvalidIntervalError = defError<[string]>(
-  "InvalidIntervalError",
-  { code: "INVALID_INTERVAL", statusCode: 400, exitCode: 1 },
-  (interval) => `Invalid interval: "${interval}" (use format like "30s", "5m", "1h"; min 10s, max 24h)`,
-);
-
-/** Error thrown when the schedule limit is reached. */
-/* v8 ignore start -- error factory message template */
-export const ScheduleLimitError = defError<[number]>(
-  "ScheduleLimitError",
-  { code: "SCHEDULE_LIMIT", statusCode: 409, exitCode: 1 },
-  (max) => `Maximum schedules per bot (${max}) reached`,
-);
-/* v8 ignore stop */
-
-// --- CLI errors ---
-/** Error thrown when another mecha CLI instance is already running. */
-export const CliAlreadyRunningError = defError<[number]>(
-  "CliAlreadyRunningError",
-  { code: "CLI_ALREADY_RUNNING", statusCode: 409, exitCode: 1 },
-  (pid) => `Another mecha CLI is already running (pid ${pid})`,
-);
-
-// --- Connectivity errors (Phase 6) ---
-/** Error thrown when a mesh connection attempt fails. */
-export const ConnectError = defError<[string]>(
-  "ConnectError",
-  { code: "CONNECT_ERROR", statusCode: 503, exitCode: 1 },
-  (reason) => `Connection failed: ${reason}`,
-);
-
-/** Error thrown when a mesh invite code is invalid. */
-export const InvalidInviteError = defError<[string]>(
-  "InvalidInviteError",
-  { code: "INVALID_INVITE", statusCode: 400, exitCode: 1 },
-  (reason) => `Invalid invite: ${reason}`,
-);
-
-/** Error thrown when a mesh handshake fails. */
-export const HandshakeError = defError<[string]>(
-  "HandshakeError",
-  { code: "HANDSHAKE_ERROR", statusCode: 502, exitCode: 1 },
-  (reason) => `Handshake failed: ${reason}`,
-);
-
-/** Error thrown when a mesh peer is offline. */
-export const PeerOfflineError = defError<[string]>(
-  "PeerOfflineError",
-  { code: "PEER_OFFLINE", statusCode: 503, exitCode: 1 },
-  (name) => `Peer "${name}" is offline`,
-);
-
-/** Error thrown when rendezvous signaling fails. */
-export const RendezvousError = defError<[string]>(
-  "RendezvousError",
-  { code: "RENDEZVOUS_ERROR", statusCode: 502, exitCode: 1 },
-  (reason) => `Rendezvous server error: ${reason}`,
-);
-
-// --- Meter errors ---
-/** Error thrown when the meter proxy is already running. */
-export const MeterProxyAlreadyRunningError = defError<[number]>(
-  "MeterProxyAlreadyRunningError",
-  { code: "METER_PROXY_ALREADY_RUNNING", statusCode: 409, exitCode: 1 },
-  (pid) => `Metering proxy already running (pid ${pid})`,
-);
-
-/** Error thrown when the meter proxy is not running. */
-export const MeterProxyNotRunningError = defError<[]>(
-  "MeterProxyNotRunningError",
-  { code: "METER_PROXY_NOT_RUNNING", statusCode: 409, exitCode: 1 },
-  () => "Metering proxy is not running",
-);
-
-/** Error thrown when metering is required but the proxy is not configured. */
-export const MeterProxyRequiredError = defError<[]>(
-  "MeterProxyRequiredError",
-  { code: "METER_PROXY_REQUIRED", statusCode: 503, exitCode: 2 },
-  () => "Metering proxy required but not running. Start with: mecha meter start",
-);
+export {
+  MeterProxyAlreadyRunningError,
+  MeterProxyNotRunningError,
+  MeterProxyRequiredError,
+} from "./errors-meter.js";
 
