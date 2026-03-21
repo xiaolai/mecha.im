@@ -1,0 +1,52 @@
+import { z } from "zod";
+import { NAME_PATTERN, NAME_MAX_LENGTH } from "./validation.js";
+
+/** Reusable name schema matching bot/node naming rules */
+const nameSchema = z
+  .string()
+  .min(1)
+  .max(NAME_MAX_LENGTH)
+  .regex(NAME_PATTERN, "Must be lowercase alphanumeric with hyphens, no leading/trailing hyphen");
+
+/** Permission modes for bot processes (matches Claude Code CLI --permission-mode choices) */
+export const PermissionMode = z.enum(["default", "plan", "bypassPermissions", "acceptEdits", "dontAsk", "auto"]);
+/** Inferred permission mode type. */
+export type PermissionMode = z.infer<typeof PermissionMode>;
+
+/** mecha spawn NAME PATH [options] */
+export const BotSpawnInput = z.object({
+  name: nameSchema,
+  workspacePath: z.string().min(1),
+  tags: z.array(z.string()).optional(),
+  env: z.record(z.string()).optional(),
+  model: z.string().optional(),
+  permissionMode: PermissionMode.optional(),
+  port: z.number().int().min(1).max(65535).optional(),
+  auth: z.string().optional(),
+});
+/** Validated input for spawning a bot (name, workspace path, options). */
+export type BotSpawnInput = z.infer<typeof BotSpawnInput>;
+
+/** mecha kill NAME [options] */
+export const BotKillInput = z.object({
+  name: nameSchema,
+  force: z.boolean().optional(),
+});
+/** Validated input for killing a bot (name, optional force flag). */
+export type BotKillInput = z.infer<typeof BotKillInput>;
+
+/** Session creation */
+export const SessionCreateInput = z.object({
+  title: z.string().optional(),
+  model: z.string().optional(),
+});
+/** Validated input for creating a new session. */
+export type SessionCreateInput = z.infer<typeof SessionCreateInput>;
+
+/** Session message */
+export const SessionMessageInput = z.object({
+  message: z.string().min(1),
+  model: z.string().optional(),
+});
+/** Validated input for sending a message to a session. */
+export type SessionMessageInput = z.infer<typeof SessionMessageInput>;

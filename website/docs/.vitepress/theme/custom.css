@@ -1,4 +1,4 @@
-/* Feature cards: icon inline with heading */
+/* Feature cards: icon inline at the beginning of the heading */
 .VPFeature article.box {
   display: block !important;
 }

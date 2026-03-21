@@ -1,30 +1,81 @@
+---
+title: Environment Variables
+description: All environment variables recognized by the Mecha runtime.
+---
+
 # Environment Variables
 
-## Host (CLI)
+[[toc]]
+
+All environment variables recognized by Mecha.
+
+## Authentication
 
 | Variable | Description |
 |----------|-------------|
-| `ANTHROPIC_API_KEY` | Default API key for bots without an auth profile |
-| `MECHA_COPY_HOST_CODEX_AUTH` | Set to `1` to copy host Codex auth into containers |
+| `ANTHROPIC_API_KEY` | Anthropic API key for agent inference. Takes precedence over auth profiles. |
+| `CLAUDE_CODE_OAUTH_TOKEN` | OAuth token for Claude Code. Preferred over API keys (longer lifespan). |
+| `MECHA_MCP_TOKEN` | Bearer token for MCP HTTP transport authentication. |
 
-## Container (Agent)
-
-These are set automatically inside bot containers:
+## Debugging
 
 | Variable | Description |
 |----------|-------------|
-| `ANTHROPIC_API_KEY` | Injected from auth profile or host env |
-| `BOT_NAME` | The bot's name |
-| `BOT_CONFIG` | JSON-serialized bot configuration |
-| `MECHA_TOKEN` | Bearer token for API authentication |
+| `MECHA_LOG_LEVEL` | Log verbosity: `debug`, `info`, `warn`, or `error`. Defaults to `info`. |
+| `MECHA_OTP` | TOTP secret supplied via environment (alternative to file-based storage). Useful for CI, containers, and automated deployments. |
 
-## Data Directory
+## Discovery
 
-Mecha stores all state in `~/.mecha/`:
+| Variable | Description |
+|----------|-------------|
+| `MECHA_CLUSTER_KEY` | Shared secret for auto-discovery. When set, nodes on the same Tailscale network automatically find and register each other via `POST /discover/handshake`. Nodes without this key ignore discovery requests. |
 
+## Directories
+
+| Variable | Description |
+|----------|-------------|
+| `MECHA_DIR` | Override the default `~/.mecha/` directory for all state and configuration. |
+
+## Internal (Set by Runtime)
+
+These are set automatically when a bot process starts. Do not set manually.
+
+| Variable | Description |
+|----------|-------------|
+| `MECHA_BOT_NAME` | Name of the current bot |
+| `MECHA_PORT` | Port the bot runtime listens on |
+| `MECHA_WORKSPACE` | Path to the bot's workspace |
+| `MECHA_PROJECTS_DIR` | Workspace-specific projects directory inside the bot |
+| `MECHA_AUTH_TOKEN` | Bearer token for the bot API |
+| `MECHA_LOG_DIR` | Path to the bot's log directory |
+| `MECHA_SANDBOX_ROOT` | Path to the bot's root directory |
+
+## Example `.env` File
+
+```bash
+# Authentication
+ANTHROPIC_API_KEY=sk-ant-...
+CLAUDE_CODE_OAUTH_TOKEN=eyJ...
+
+# Auto-discovery (optional)
+MECHA_CLUSTER_KEY=my-shared-secret
+
+# Debugging (optional)
+MECHA_LOG_LEVEL=info
 ```
-~/.mecha/
-  auth/           # Auth profiles (*.json)
-  bots/           # Bot state and metadata
-  image/          # Docker image build context
-```
+
+## Resolution Priority
+
+When spawning a bot, credentials are resolved in this order:
+
+1. CLI flag (`--auth <profile>`)
+2. Environment variables (`ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`)
+3. Default auth profile (`mecha auth default`)
+
+## See Also
+
+- [Configuration Guide](/guide/configuration) — auth profiles and bot settings
+- [Multi-Machine Setup](/guide/multi-machine) — environment setup across nodes
+- [Metering & Budgets](/features/metering) — cost tracking configuration
+- [Mesh Networking](/features/mesh-networking) — `MECHA_CLUSTER_KEY` usage
+- [Error Reference](/reference/errors) — complete error catalog
