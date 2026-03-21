@@ -1,7 +1,7 @@
 import { readFileSync, existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { BusMessage } from "./types.js";
-import { createTopic, type Topic } from "./topic.js";
+import { createTopic } from "./topic.js";
 
 /** Options for creating a bus replicator. */
 export interface ReplicatorOpts {
@@ -57,8 +57,8 @@ export function createReplicator(
 ): Replicator {
   const { busDir, mechaDir, topicName, targetNodes } = opts;
 
-  // Lazily get or create the topic for reading messages
-  const topic: Topic = createTopic({
+  // Ensure the topic directory exists (side-effect only)
+  createTopic({
     busDir,
     config: { name: topicName, retentionDays: 7 },
   });
