@@ -49,6 +49,7 @@ export default withMermaid(
             items: [
               { text: "Multi-Machine Setup", link: "/guide/multi-machine" },
               { text: "Troubleshooting", link: "/guide/troubleshooting" },
+              { text: "Cost & Effort", link: "/guide/cost-evaluation" },
             ],
           },
         ],
