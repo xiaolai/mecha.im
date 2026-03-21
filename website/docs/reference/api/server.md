@@ -34,6 +34,10 @@ The `@mecha/server` package provides the rendezvous server for P2P peer discover
 | `isNewer` | Function | `vector-clock.ts` |
 | `diff` | Function | `vector-clock.ts` |
 | `GossipMessage` | Type | `gossip.ts` |
+| `registerSignaling` | Function | `signaling.ts` |
+| `registerInviteRoutes` | Function | `invites.ts` |
+| `registerRelay` | Function | `relay.ts` |
+| `registerGossip` | Function | `gossip.ts` |
 
 ## `createServer(overrides?)`
 

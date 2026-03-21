@@ -1,45 +1,45 @@
-# Documentation Audit Report (Post-Fix)
+# Documentation Audit Report
 
 **Project**: mecha.im
 **Date**: 2026-03-21
 **Language**: TypeScript
 **Framework**: VitePress
-**Version**: v4.0.0
+**Threshold**: 14 days
 
 ## Executive Summary
 
 | Dimension | Score | Status |
 |-----------|-------|--------|
 | Freshness | 100/100 | Pass |
-| Accuracy  | 86/100 | Good |
-| Coverage  | 99%    | Good |
-| Quality   | 98/100 | Good |
+| Accuracy  | 98/100 | Pass |
+| Coverage  | 92%    | Good |
+| Quality   | 94/100 | Pass |
 
-**Overall health**: 93/100 (up from 72)
+**Overall health**: 96/100
 
 ## Remaining Findings
 
-### [HIGH] agent.md lists X-Mecha-Source as part of "all three or none" signature headers — it's independent
+### Coverage gaps (MEDIUM)
 
-Code checks only 3 headers: timestamp, nonce, signature. Source is read separately with "admin" default.
+1. **`@mecha/core` identity module** — 18 symbols (generateKeyPair, signMessage, verifySignature, createNodeIdentity, loadNodeIdentity, noise keys, etc.) exported but not in core.md
+2. **`@mecha/core` discovered-node registry** — 7 symbols (readDiscoveredNodes, writeDiscoveredNode, etc.) not in core.md
+3. **`@mecha/core` Tailscale scanner** — 3 symbols (parseTailscaleStatus, scanTailscalePeers) not in core.md
+4. **`@mecha/service`** — `mechaAuthSwitchBot` and `mechaAuthGetDefault` have table rows but no prose sections
 
-### [MEDIUM] Workflow snapshot file has .yaml extension but contains JSON
+### Accuracy (LOW-MEDIUM)
 
-`engine.ts:227` writes JSON to a `.yaml` file. Docs say "snapshotted definition" implying YAML.
+5. **process.md** — `waitForPortFree` description says "polls every 200ms" but code does an immediate first probe
+6. **workflow.md** — `depends` type notation `string[]?` conflates TypeScript optional with engine-level optional-dep `?` suffix
+7. **gateway.md** — `GatewayDeniedError` for invalid URLs includes the full URL string, not a hostname
 
-### [MEDIUM] `GET /bots` route used by `node health` but not documented in agent.md
+### Quality (LOW)
 
-`node-health.ts:56` fetches `/bots` endpoint. Agent.md only lists `/healthz` and `/bots/:name/query`.
-
-### [LOW] agent.md says port default is 7660 but the field is required with no code-level default
-
-### [MEDIUM] @mecha/service has 55 of 70 exports with table-only docs (no prose/signatures)
-
-### [MEDIUM] Type shapes for bus, workflow, observe, teams packages lack field-level definitions
+8. No critical or high quality issues. All 44 files have proper frontmatter, headings, intro paragraphs, and no SSR-breaking syntax.
 
 ## Fixing Plan
 
-1. Fix agent.md signature headers section
-2. Fix agent.md port description
-3. Note snapshot .yaml/JSON discrepancy in workflow docs
-4. Service/bus/workflow/observe/teams detailed docs — future backfill pass
+1. Add identity/discovered-node/tailscale sections to core.md
+2. Add prose sections for mechaAuthSwitchBot, mechaAuthGetDefault in service.md
+3. Fix waitForPortFree description in process.md
+4. Clarify depends type notation in workflow.md
+5. Fix GatewayDeniedError invalid-URL description in gateway.md

@@ -154,7 +154,7 @@ Definition of a single step within a workflow. Each step targets a bot, sends a 
 |-------|------|-------------|
 | `bot` | `string` | Bot name to execute this step. Use `bot@node` for remote execution |
 | `prompt` | `string` | Prompt template sent to the bot. Supports double-brace interpolation |
-| `depends` | `string[]?` | Step names this step depends on. Append `?` for optional deps (e.g., `"review?"`) |
+| `depends` | `string[]` | Step names this step depends on. Append `?` for optional deps (e.g., `"review?"`) |
 | `condition` | `string?` | Condition expression evaluated against context. Step is skipped if falsy |
 | `compensate` | `string?` | Compensation prompt for saga rollback if a downstream step fails |
 | `output` | `string?` | Key name for this step's output in the template context (defaults to step name) |
