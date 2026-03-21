@@ -1,0 +1,31 @@
+{
+  "name": "@mecha/runtime",
+  "version": "4.0.0",
+  "description": "CASA runtime server (Fastify) for mecha.im",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./main.js": "./dist/main.js"
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.80",
+    "@mecha/bus": "workspace:*",
+    "@mecha/core": "workspace:*",
+    "@mecha/gateway": "workspace:*",
+    "@mecha/process": "workspace:*",
+    "@mecha/workflow": "workspace:*",
+    "fastify": "^5.8.1",
+    "zod": "^3.25.36"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "license": "ISC"
+}

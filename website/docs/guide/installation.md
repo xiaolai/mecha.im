@@ -1,72 +1,83 @@
+---
+title: Installation
+description: Install Mecha and set up your environment.
+---
+
 # Installation
 
-## Requirements
+[[toc]]
 
-- **Node.js 22+**
-- **Docker** — Colima, Docker Desktop, OrbStack, or any OCI runtime
-- **Claude Code** — installed and authenticated (`npm install -g @anthropic-ai/claude-code`)
-- **Tailscale** (optional) — for multi-machine bot-to-bot mesh
-
-## Install
-
-### Global install (recommended)
+## npm
 
 ```bash
-npm install -g @mecha.im/cli
+npm install -g mecha.im
 ```
 
-This adds the `mecha` command to your PATH.
-
-### Run with npx (no install)
+## Homebrew
 
 ```bash
-npx @mecha.im/cli --version
-npx @mecha.im/cli ls
-npx @mecha.im/cli spawn --name greeter --system "Hello"
+brew install xiaolai/tap/mecha
 ```
 
-For convenience, add an alias to your shell profile (`~/.bashrc`, `~/.zshrc`):
+Works on macOS (Apple Silicon and Intel) and Linux.
 
-```bash
-alias mecha="npx @mecha.im/cli"
+## Manual Download
+
+Download the single binary for your platform from the [latest release](https://github.com/xiaolai/mecha.im/releases/latest):
+
+::: code-group
+
+```bash [macOS (Apple Silicon)]
+curl -L https://github.com/xiaolai/mecha.im/releases/latest/download/mecha-darwin-arm64.tar.gz | tar xz
+sudo mv mecha /usr/local/bin/
 ```
 
-## Initialize
-
-```bash
-mecha init
+```bash [macOS (Intel)]
+curl -L https://github.com/xiaolai/mecha.im/releases/latest/download/mecha-darwin-x64.tar.gz | tar xz
+sudo mv mecha /usr/local/bin/
 ```
 
-This builds the Mecha Docker image locally. The image is based on Alpine and includes Node.js, Claude Code, and s6-overlay for process management.
+```bash [Linux (x86_64)]
+curl -L https://github.com/xiaolai/mecha.im/releases/latest/download/mecha-linux-x64.tar.gz | tar xz
+sudo mv mecha /usr/local/bin/
+```
 
-If you plan to use Tailscale for multi-machine communication:
+```bash [Linux (ARM64)]
+curl -L https://github.com/xiaolai/mecha.im/releases/latest/download/mecha-linux-arm64.tar.gz | tar xz
+sudo mv mecha /usr/local/bin/
+```
+
+:::
+
+The dashboard is embedded inside the binary — no extra files needed.
+
+## Build from Source
 
 ```bash
-mecha init --headscale
+git clone https://github.com/xiaolai/mecha.im.git
+cd mecha.im
+pnpm install
+pnpm build
+cd packages/cli && npm pack
+# Install the built package globally
+npm install -g mecha.im-*.tgz
 ```
 
 ## Verify
 
 ```bash
 mecha --version
-mecha doctor
 ```
 
-`mecha doctor` checks that Docker is running, the image is built, and Claude Code is available.
+## Prerequisites
 
-## Set Up Auth
+You need one of these to power your bots:
 
-The simplest approach — export your API key:
+- **Anthropic API key** — `ANTHROPIC_API_KEY=sk-ant-api03-...`
+- **Claude Code OAuth token** — `CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-...` (preferred, longer lifespan)
 
-```bash
-export ANTHROPIC_API_KEY=sk-ant-...
-```
+Set it as an environment variable, or use the auth command (covered in the [Quick Start](/guide/quickstart)).
 
-Or use named profiles for managing multiple keys:
+## Next Steps
 
-```bash
-mecha auth add anthropic-main sk-ant-...
-mecha auth list
-```
-
-Profiles are stored at `~/.mecha/auth/<name>.json`.
+Head to the [Quick Start](/guide/quickstart) to create your first bot.

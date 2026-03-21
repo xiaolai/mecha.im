@@ -1,72 +1,78 @@
+---
+title: Scheduling
+description: Built-in cron-like scheduler for running agent tasks on a recurring basis.
+---
+
 # Scheduling
 
-Bots can run prompts on cron schedules with built-in safety rails.
+[[toc]]
 
-## Configuration
+Mecha includes a built-in scheduler for running agent tasks on a recurring basis — cron-like automation without leaving the Mecha ecosystem.
 
-Add a `schedule` array to your bot config:
+## Adding a Schedule
 
-```yaml
-name: monitor
-system: "You monitor production systems and report anomalies."
-schedule:
-  - cron: "*/30 * * * *"
-    prompt: "Check for new alerts in the monitoring dashboard."
-  - cron: "0 9 * * 1"
-    prompt: "Generate a weekly incident summary."
+```bash
+# Run every hour
+mecha schedule add researcher --id check-papers --every 1h --prompt "Check for new papers"
+
+# Run every 30 minutes
+mecha schedule add coder --id run-tests --every 30m --prompt "Run the test suite"
 ```
 
-Each entry requires:
-- `cron` — a standard 5-field cron expression
-- `prompt` — the message sent to the bot on each trigger
+The `--every` accepts human-readable intervals (`30s`, `5m`, `1h`). The `--prompt` is sent to the agent on each run. The `--id` is a unique identifier for the schedule.
 
-## Safety Rails
-
-| Guard | Value |
-|-------|-------|
-| Max runs per day | 50 |
-| Timeout per run | 10 minutes |
-| Auto-pause after consecutive errors | 5 |
-| Skip if busy | Yes — if a previous run is still active, the new trigger is skipped |
-
-These limits prevent runaway costs and infinite loops.
-
-## Managing Schedules from CLI
-
-Manage schedules directly from the command line:
+## Managing Schedules
 
 ```bash
 # List all schedules for a bot
-mecha schedule monitor ls
+mecha schedule list <bot>
 
-# Add a new schedule
-mecha schedule monitor add "*/15 * * * *" "Check for new tickets"
+# Pause a schedule on a bot
+mecha schedule pause <bot> <schedule-id>
 
-# Pause / resume / trigger a schedule
-mecha schedule monitor pause <schedule-id>
-mecha schedule monitor resume <schedule-id>
-mecha schedule monitor run <schedule-id>    # trigger immediately
+# Pause all schedules on a bot
+mecha schedule pause <bot>
+
+# Resume a paused schedule
+mecha schedule resume <bot> <schedule-id>
+
+# Run immediately (outside schedule)
+mecha schedule run <bot> <schedule-id>
 
 # Remove a schedule
-mecha schedule monitor rm <schedule-id>
+mecha schedule remove <bot> <schedule-id>
 ```
 
-Use `--json` on `ls` for machine-readable output.
+## Run History
 
-You can also manage schedules from the bot dashboard's **Schedule** tab.
-
-## Examples
-
-```yaml
-# Every 15 minutes during business hours
-- cron: "*/15 9-17 * * 1-5"
-  prompt: "Check for new support tickets."
-
-# Daily at midnight
-- cron: "0 0 * * *"
-  prompt: "Run nightly security audit."
-
-# Every hour
-- cron: "0 * * * *"
-  prompt: "Summarize new commits since last check."
+```bash
+# View past runs
+mecha schedule history <bot> <schedule-id>
 ```
+
+Shows timestamps, outcomes (success/failure), and response summaries for each execution.
+
+## How It Works
+
+The scheduler runs inside the bot runtime. When a schedule triggers:
+
+1. The scheduler sends the configured message as a chat query
+2. The agent processes the query using its workspace and tools
+3. The result is recorded in the schedule history
+4. The next run is scheduled based on the interval
+
+Schedules persist across bot restarts -- they are stored in the bot's configuration and state files on disk.
+
+### Safety Mechanisms
+
+The scheduler includes several safeguards to prevent runaway execution:
+
+- **Daily budget** -- A configurable `maxRunsPerDay` limit (default: 50) is enforced across all schedules for the bot. Runs that exceed the budget are recorded with outcome `"skipped"`.
+- **Concurrency guard** -- Only one schedule can execute at a time per bot. If a run is attempted while another is active, it is skipped.
+- **Auto-pause on consecutive errors** -- After 5 consecutive failures, the schedule is automatically paused to prevent repeated failures.
+- **Chained setTimeout** -- The scheduler uses chained `setTimeout` calls (not `setInterval`) to prevent overlapping runs when a single execution takes longer than the interval.
+- **Today counter reset** -- The `runsToday` counter automatically resets when the date changes (compared via ISO date string).
+
+## API Reference
+
+See [@mecha/core API Reference](/reference/api/core#scheduling) for the schedule types.

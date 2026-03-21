@@ -1,0 +1,27 @@
+{
+  "name": "@mecha/process",
+  "version": "4.0.0",
+  "description": "CASA process lifecycle management for mecha.im",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "dependencies": {
+    "@mecha/core": "workspace:*",
+    "@mecha/meter": "workspace:*",
+    "@mecha/sandbox": "workspace:*",
+    "node-pty": "^1.1.0",
+    "zod": "^3.25.76"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "license": "ISC"
+}

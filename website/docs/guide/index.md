@@ -1,63 +1,85 @@
+---
+title: What is Mecha?
+description: Mecha runs an army of Claude Code bots on your machines — scheduled, sandboxed, and organized in a tree.
+---
+
 # What is Mecha?
 
-Mecha is a CLI tool that runs autonomous Claude bots inside Docker containers. Each bot is a long-lived process with its own workspace, schedule, and communication channel.
+[[toc]]
 
-## Why Mecha?
+Mecha lets you run an army of bots on your own machines. Each bot is a Claude Code process with its own workspace, identity, and schedule.
 
-Claude Code is powerful for interactive coding sessions. But what if you want bots that:
+## Why
 
-- **Run on a schedule** — review PRs every 30 minutes, check for security updates daily
-- **React to events** — process GitHub webhooks, respond to push events
-- **Talk to each other** — a reviewer bot asks a security bot to audit a dependency
-- **Stay isolated** — each bot has its own Docker container, workspace, and budget
+You need more than one AI assistant. You need a team — a coder, a reviewer, a researcher, a monitor — each focused on its own job, running on your hardware, under your control.
 
-Mecha makes all of this work from a single CLI.
+Mecha makes this possible. It wraps Claude Code (specifically) into managed processes called **bots**. You define a bot with a markdown file, spawn it, and let it work.
 
-## How It Works
+## Bots are markdown files
+
+A bot's identity lives in a markdown file. The file defines its system prompt, instructions, and constraints. Mecha reads the file, spawns a Claude Code session with those settings, and manages the process.
 
 ```
-Host (CLI)                    Container (Agent)
-─────────────────────────     ──────────────────────────
-mecha spawn reviewer.yaml     → Docker container starts
-mecha query reviewer "..."    → Claude Code SDK session
-mecha logs reviewer           → Container stdout/stderr
-mecha stop reviewer           → Graceful container stop
+bots/
+├── coder/
+│   ├── CLAUDE.md          ← the bot's identity
+│   ├── config.json        ← port, workspace, model, schedule
+│   └── home/
+│       └── .claude/
+│           └── projects/  ← conversation history (JSONL)
+├── reviewer/
+│   └── ...
+└── researcher/
+    └── ...
 ```
 
-1. You define a bot in a YAML config file (or inline with flags)
-2. `mecha spawn` builds and runs a Docker container
-3. Inside the container, an agent process manages Claude Code sessions
-4. The bot exposes an HTTP API for chat, scheduling, webhooks, and status
-5. The host CLI proxies commands to the container
+Each bot gets its own workspace directory, chat sessions, MCP tools, and API budget.
 
-## Key Concepts
+## Active, not passive
 
-### Bots are Containers
+Most AI setups wait for you to type something. Mecha bots can be active:
 
-Each bot runs in its own Docker container with:
-- A dedicated Claude Code process
-- Optional workspace mounting (read-only or writable)
-- Its own API key (via auth profiles)
-- Budget limits and turn caps
+- **Scheduled** — run tasks on a cron schedule (check logs every hour, review PRs daily)
+- **Responsive** — listen for events via webhooks or mesh queries from other bots
+- **Autonomous** — work through multi-step tasks independently within their sandbox
 
-### The Agent
+A bot sitting idle is a bot not earning its keep.
 
-Inside each container, the **agent** (`agent/entry.ts`) runs an HTTP server that:
-- Accepts chat prompts via the SDK
-- Runs cron schedules
-- Processes webhook payloads
-- Tracks costs and session history
-- Serves the bot dashboard
+## Tree structure
 
-### Auth Profiles
+Each bot is a directory with a markdown file. Organize them in a tree — group by project, team, or role. The directory structure is your org chart.
 
-API keys are managed as named profiles, not environment variables passed to containers:
-
-```bash
-mecha auth add anthropic-main sk-ant-...
-mecha spawn --name reviewer --system "..." --auth anthropic-main
+```
+bots/
+├── frontend/
+│   ├── coder/
+│   │   └── CLAUDE.md     ← "You write React components..."
+│   ├── reviewer/
+│   │   └── CLAUDE.md     ← "You review PRs for quality..."
+│   └── tester/
+│       └── CLAUDE.md     ← "You write and maintain tests..."
+├── backend/
+│   ├── api-dev/
+│   │   └── CLAUDE.md     ← "You build API endpoints..."
+│   └── db-admin/
+│       └── CLAUDE.md     ← "You manage database migrations..."
+└── ops/
+    ├── monitor/
+    │   └── CLAUDE.md     ← "You watch logs and alert on errors..."
+    └── deployer/
+        └── CLAUDE.md     ← "You run deployments on schedule..."
 ```
 
-### Fleet Dashboard
+Each markdown file defines a bot's identity, instructions, and constraints. Mecha reads the file and spawns a Claude Code process from it.
 
-A fleet-level dashboard at `localhost:7700` shows all running bots with status, costs, and navigation to individual bot dashboards.
+## Built on Claude Code
+
+Mecha is not a generic AI framework. It runs Claude Code — the same CLI tool Anthropic ships. Every bot gets the full Claude Code toolset: file editing, bash execution, web search, MCP servers.
+
+This means your bots can do real work: write code, run tests, read documentation, manage files. They operate in real workspaces on real filesystems.
+
+## What's Next?
+
+- [Install Mecha](/guide/installation) — `npm install -g mecha.im` or `brew install xiaolai/tap/mecha`
+- [Quick Start](/guide/quickstart) — zero to a working bot in 5 minutes
+- [Core Concepts](/guide/concepts) — deep dive into the architecture

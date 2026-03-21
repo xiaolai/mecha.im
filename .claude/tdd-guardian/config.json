@@ -1,0 +1,18 @@
+{
+  "enabled": true,
+  "testCommand": "pnpm test",
+  "coverageCommand": "pnpm test:coverage",
+  "coverageSummaryPath": "reports/coverage/coverage-summary.json",
+  "typecheckCommand": "pnpm typecheck",
+  "mutationCommand": null,
+  "coverageMode": "no-decrease",
+  "coverageThresholds": {
+    "lines": 92,
+    "functions": 94,
+    "branches": 88,
+    "statements": 92
+  },
+  "enforceTestFirst": true,
+  "blockOnFailingTests": true,
+  "blockOnCoverageRegression": true
+}

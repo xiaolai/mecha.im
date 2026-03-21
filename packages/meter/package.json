@@ -1,0 +1,23 @@
+{
+  "name": "@mecha/meter",
+  "version": "4.0.0",
+  "description": "Metering proxy for tracking API usage across CASAs",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "dependencies": {
+    "@mecha/core": "workspace:*"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "license": "ISC"
+}
