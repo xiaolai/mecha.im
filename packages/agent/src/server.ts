@@ -17,6 +17,7 @@ import type { AclEngine, Capability } from "@mecha/core";
 import type { ProcessManager } from "@mecha/process";
 import { createAuthHook, createAuthContext, verifyRequestSignature } from "./auth.js";
 import type { AuthConfig } from "./auth.js";
+import { registerTaskRoutes } from "./task-routes.js";
 
 export interface AgentServerOptions {
   port: number;
@@ -54,6 +55,9 @@ export function createAgentServer(opts: AgentServerOptions): FastifyInstance {
 
   // Health check
   app.get("/healthz", async () => ({ status: "ok" }));
+
+  // Task protocol routes
+  registerTaskRoutes(app, { mechaDir, acl, authCtx });
 
   // Bot query route
   app.post<{ Params: { botName: string }; Body: QueryBody }>(

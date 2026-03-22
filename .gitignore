@@ -76,6 +76,7 @@ venv/
 # Dev docs and scripts (internal only)
 dev-docs/
 dev-scripts/
+integration-tests/
 scripts/hotdeploy.sh
 infrastructure/
 
@@ -92,3 +93,4 @@ packages/spa/public/pixel-assets/
 # VitePress
 website/.vitepress/
 website/docs/.vitepress/cache/
+*.tgz

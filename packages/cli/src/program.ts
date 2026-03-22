@@ -30,6 +30,7 @@ import { registerWorkflowCommand } from "./commands/workflow.js";
 import { registerTeamCommand } from "./commands/team.js";
 import { registerTraceCommand } from "./commands/trace.js";
 import { registerMetricsCommand } from "./commands/metrics.js";
+import { registerTaskCommand } from "./commands/task.js";
 import { registerAlertCommand } from "./commands/alert.js";
 import { registerSecretCommand } from "./commands/secret.js";
 import { registerMetaCommand } from "./commands/meta.js";
@@ -50,6 +51,8 @@ export const MUTATING_COMMANDS = new Set([
   // dashboard subcommands
   "dashboard serve",
   // --- Commands NOT locked (R6-001) ---
+  // "task create"/"task cancel" are proxied to the agent server API when daemon is running.
+  // The daemon serializes task operations, so the CLI does not need cli.lock.
   // "bot spawn" is proxied to the daemon API when daemon is running.
   // The daemon's ProcessManager serializes spawns via withBotLock(), so the CLI
   // does not need cli.lock. Locking here deadlocks because the daemon holds cli.lock.
@@ -125,6 +128,9 @@ export function createProgram(deps: CommandDeps): Command {
 
   // Gateway
   registerSecretCommand(program, deps);
+
+  // Task protocol
+  registerTaskCommand(program, deps);
 
   // Observability subgroups
   registerTraceCommand(program, deps);
