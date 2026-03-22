@@ -8,6 +8,8 @@ export interface ActivityContext {
   name: string;
   queryId: string;
   sessionId?: string;
+  /** Task ID for correlation when executing as part of a task. */
+  taskId?: string;
 }
 
 /**
@@ -21,7 +23,7 @@ export function emitActivityFromEvent(
   event: Record<string, unknown>,
 ): void {
   const now = new Date().toISOString();
-  const base = { type: "activity" as const, name: ctx.name, queryId: ctx.queryId, sessionId: ctx.sessionId, timestamp: now };
+  const base = { type: "activity" as const, name: ctx.name, queryId: ctx.queryId, sessionId: ctx.sessionId, taskId: ctx.taskId, timestamp: now };
 
   switch (event.type) {
     case "system":

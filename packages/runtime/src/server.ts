@@ -11,6 +11,7 @@ import { createScheduleEngine, type ChatFn, type ScheduleEngine } from "./schedu
 import { sdkChat, createChatFn } from "./sdk-chat.js";
 import { ActivityEmitter } from "./activity.js";
 import { registerActivityEventsRoutes } from "./routes/events.js";
+import { registerTaskRoutes } from "./routes/tasks.js";
 
 /** Options for creating a bot runtime Fastify server. */
 export interface CreateServerOpts {
@@ -98,6 +99,7 @@ export function createServer(opts: CreateServerOpts): ServerResult {
   registerSessionRoutes(app, sm);
   registerChatRoutes(app, httpChatFn);
   registerActivityEventsRoutes(app, { activityEmitter, botName: opts.botName });
+  registerTaskRoutes(app, { sdkChatOpts: chatOpts, botName: opts.botName });
   registerMcpRoutes(app, {
     workspacePath: opts.workspacePath,
     mechaDir: opts.mechaDir,
