@@ -111,21 +111,22 @@ describe("task-storage", () => {
     expect(readTask(dir, "new-done")).toBeDefined(); // recent, kept
   });
 
-  it("reconciles stale working tasks on startup", () => {
+  it("reconciles stale working and pending tasks on startup", () => {
     writeTask(dir, makeTask({ id: "t1", status: "working" }));
     writeTask(dir, makeTask({ id: "t2", status: "working" }));
     writeTask(dir, makeTask({ id: "t3", status: "pending" }));
     writeTask(dir, makeTask({ id: "t4", status: "completed" }));
 
     const reconciled = reconcileStaleTasks(dir);
-    expect(reconciled).toBe(2);
+    expect(reconciled).toBe(3);
 
     const t1 = readTask(dir, "t1")!;
     expect(t1.status).toBe("failed");
     expect(t1.error).toContain("Agent restarted");
 
     const t3 = readTask(dir, "t3")!;
-    expect(t3.status).toBe("pending"); // unchanged
+    expect(t3.status).toBe("failed");
+    expect(t3.error).toContain("never dispatched");
 
     const t4 = readTask(dir, "t4")!;
     expect(t4.status).toBe("completed"); // unchanged

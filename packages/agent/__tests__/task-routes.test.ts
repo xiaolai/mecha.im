@@ -73,7 +73,7 @@ describe("agent task routes", () => {
     });
     expect(res.status).toBe(201);
     const body = await res.json() as { id: string; status: string };
-    expect(body.id).toMatch(/^task-[0-9a-f]{8}$/);
+    expect(body.id).toMatch(/^task-[0-9a-f]{16}$/);
     expect(body.status).toBe("pending");
 
     // Verify task was written to storage
@@ -182,6 +182,82 @@ describe("agent task routes", () => {
       body: "{}",
     });
     expect(res.status).toBe(409);
+  });
+
+  it("PATCH /tasks/:id updates task with result", async () => {
+    // Manually create a working task
+    const { writeTask } = await import("@mecha/core");
+    const dir = tasksDir(mechaDir);
+    const id = "task-patch-test";
+    writeTask(dir, {
+      id, source: "admin", target: "analyst", status: "working",
+      message: "Patch me", createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    const res = await fetch(`http://127.0.0.1:${port}/tasks/${id}`, {
+      method: "PATCH",
+      headers: {
+        "content-type": "application/json",
+        authorization: "Bearer test-key",
+      },
+      body: JSON.stringify({
+        status: "completed",
+        result: "All tests pass",
+        sessionId: "sess-42",
+        durationMs: 1200,
+        costUsd: 0.03,
+      }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json() as { updated: boolean };
+    expect(body.updated).toBe(true);
+
+    // Verify disk was updated
+    const task = readTask(dir, id);
+    expect(task).toBeDefined();
+    expect(task!.status).toBe("completed");
+    expect(task!.result).toBe("All tests pass");
+    expect(task!.sessionId).toBe("sess-42");
+    expect(task!.durationMs).toBe(1200);
+    expect(task!.costUsd).toBe(0.03);
+  });
+
+  it("PATCH /tasks/:id returns 404 for missing task", async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/tasks/nonexistent-patch`, {
+      method: "PATCH",
+      headers: {
+        "content-type": "application/json",
+        authorization: "Bearer test-key",
+      },
+      body: JSON.stringify({ status: "completed", result: "done" }),
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it("PATCH /tasks/:id updates error field for failed tasks", async () => {
+    const { writeTask } = await import("@mecha/core");
+    const dir = tasksDir(mechaDir);
+    const id = "task-patch-fail";
+    writeTask(dir, {
+      id, source: "admin", target: "analyst", status: "working",
+      message: "Will fail", createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    const res = await fetch(`http://127.0.0.1:${port}/tasks/${id}`, {
+      method: "PATCH",
+      headers: {
+        "content-type": "application/json",
+        authorization: "Bearer test-key",
+      },
+      body: JSON.stringify({ status: "failed", error: "SDK query failed" }),
+    });
+    expect(res.status).toBe(200);
+
+    const task = readTask(dir, id);
+    expect(task!.status).toBe("failed");
+    expect(task!.error).toBe("SDK query failed");
   });
 
   it("returns 401 without auth", async () => {

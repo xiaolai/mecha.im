@@ -113,85 +113,90 @@ export async function handleTaskTool(
     "x-mecha-source": `${opts.botName}@local`,
   };
 
-  switch (name) {
-    case "task_create": {
-      const target = args.target;
-      const message = args.message;
-      if (typeof target !== "string" || !target) {
-        return { content: [{ type: "text", text: "Missing required: target (string)" }], isError: true };
-      }
-      if (typeof message !== "string" || !message) {
-        return { content: [{ type: "text", text: "Missing required: message (string)" }], isError: true };
-      }
-      const res = await fetch(`${agent.url}/tasks`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ target, message }),
-        signal: AbortSignal.timeout(10_000),
-      });
-      const body = await res.json() as Record<string, unknown>;
-      if (!res.ok) {
-        return { content: [{ type: "text", text: `Failed: ${body.error ?? res.statusText}` }], isError: true };
-      }
-      return { content: [{ type: "text", text: `Task created: ${body.id} (status: ${body.status})` }] };
-    }
-
-    case "task_status": {
-      const taskId = args.taskId;
-      if (typeof taskId !== "string" || !taskId) {
-        return { content: [{ type: "text", text: "Missing required: taskId (string)" }], isError: true };
-      }
-      const res = await fetch(`${agent.url}/tasks/${encodeURIComponent(taskId)}`, {
-        headers,
-        signal: AbortSignal.timeout(5_000),
-      });
-      if (!res.ok) {
+  try {
+    switch (name) {
+      case "task_create": {
+        const target = args.target;
+        const message = args.message;
+        if (typeof target !== "string" || !target) {
+          return { content: [{ type: "text", text: "Missing required: target (string)" }], isError: true };
+        }
+        if (typeof message !== "string" || !message) {
+          return { content: [{ type: "text", text: "Missing required: message (string)" }], isError: true };
+        }
+        const res = await fetch(`${agent.url}/tasks`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ target, message }),
+          signal: AbortSignal.timeout(10_000),
+        });
         const body = await res.json() as Record<string, unknown>;
-        return { content: [{ type: "text", text: `Failed: ${body.error ?? res.statusText}` }], isError: true };
+        if (!res.ok) {
+          return { content: [{ type: "text", text: `Failed: ${body.error ?? res.statusText}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Task created: ${body.id} (status: ${body.status})` }] };
       }
-      const task = await res.json() as Record<string, unknown>;
-      return { content: [{ type: "text", text: JSON.stringify(task, null, 2) }] };
-    }
 
-    case "task_cancel": {
-      const taskId = args.taskId;
-      if (typeof taskId !== "string" || !taskId) {
-        return { content: [{ type: "text", text: "Missing required: taskId (string)" }], isError: true };
+      case "task_status": {
+        const taskId = args.taskId;
+        if (typeof taskId !== "string" || !taskId) {
+          return { content: [{ type: "text", text: "Missing required: taskId (string)" }], isError: true };
+        }
+        const res = await fetch(`${agent.url}/tasks/${encodeURIComponent(taskId)}`, {
+          headers,
+          signal: AbortSignal.timeout(5_000),
+        });
+        if (!res.ok) {
+          const body = await res.json() as Record<string, unknown>;
+          return { content: [{ type: "text", text: `Failed: ${body.error ?? res.statusText}` }], isError: true };
+        }
+        const task = await res.json() as Record<string, unknown>;
+        return { content: [{ type: "text", text: JSON.stringify(task, null, 2) }] };
       }
-      const res = await fetch(`${agent.url}/tasks/${encodeURIComponent(taskId)}/cancel`, {
-        method: "POST",
-        headers,
-        body: "{}",
-        signal: AbortSignal.timeout(5_000),
-      });
-      if (!res.ok) {
-        const body = await res.json() as Record<string, unknown>;
-        return { content: [{ type: "text", text: `Failed: ${body.error ?? res.statusText}` }], isError: true };
-      }
-      return { content: [{ type: "text", text: `Task ${taskId} cancelled` }] };
-    }
 
-    case "task_list": {
-      const params = new URLSearchParams();
-      if (typeof args.target === "string" && args.target) params.set("target", args.target);
-      if (typeof args.status === "string" && args.status) params.set("status", args.status);
-      const qs = params.toString();
-      const res = await fetch(`${agent.url}/tasks${qs ? `?${qs}` : ""}`, {
-        headers,
-        signal: AbortSignal.timeout(5_000),
-      });
-      if (!res.ok) {
-        const body = await res.json() as Record<string, unknown>;
-        return { content: [{ type: "text", text: `Failed: ${body.error ?? res.statusText}` }], isError: true };
+      case "task_cancel": {
+        const taskId = args.taskId;
+        if (typeof taskId !== "string" || !taskId) {
+          return { content: [{ type: "text", text: "Missing required: taskId (string)" }], isError: true };
+        }
+        const res = await fetch(`${agent.url}/tasks/${encodeURIComponent(taskId)}/cancel`, {
+          method: "POST",
+          headers,
+          body: "{}",
+          signal: AbortSignal.timeout(5_000),
+        });
+        if (!res.ok) {
+          const body = await res.json() as Record<string, unknown>;
+          return { content: [{ type: "text", text: `Failed: ${body.error ?? res.statusText}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Task ${taskId} cancelled` }] };
       }
-      const tasks = await res.json() as unknown[];
-      if (tasks.length === 0) {
-        return { content: [{ type: "text", text: "No tasks found" }] };
-      }
-      return { content: [{ type: "text", text: JSON.stringify(tasks, null, 2) }] };
-    }
 
-    default:
-      return { content: [{ type: "text", text: `Unknown task tool: ${name}` }], isError: true };
+      case "task_list": {
+        const params = new URLSearchParams();
+        if (typeof args.target === "string" && args.target) params.set("target", args.target);
+        if (typeof args.status === "string" && args.status) params.set("status", args.status);
+        const qs = params.toString();
+        const res = await fetch(`${agent.url}/tasks${qs ? `?${qs}` : ""}`, {
+          headers,
+          signal: AbortSignal.timeout(5_000),
+        });
+        if (!res.ok) {
+          const body = await res.json() as Record<string, unknown>;
+          return { content: [{ type: "text", text: `Failed: ${body.error ?? res.statusText}` }], isError: true };
+        }
+        const tasks = await res.json() as unknown[];
+        if (tasks.length === 0) {
+          return { content: [{ type: "text", text: "No tasks found" }] };
+        }
+        return { content: [{ type: "text", text: JSON.stringify(tasks, null, 2) }] };
+      }
+
+      default:
+        return { content: [{ type: "text", text: `Unknown task tool: ${name}` }], isError: true };
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { content: [{ type: "text", text: `Task tool error: ${msg}` }], isError: true };
   }
 }
