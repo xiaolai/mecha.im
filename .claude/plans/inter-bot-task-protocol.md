@@ -1,36 +1,83 @@
-# Task Protocol Implementation Plan (Revised)
+# Task Protocol Implementation Plan (v3 — Runtime-Side Execution)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add an A2A-inspired task lifecycle to mecha so bots can delegate long-running work with streaming progress, cancellation, and structured results.
+**Goal:** Add an A2A-inspired task lifecycle to mecha so bots can delegate long-running work with real cancellation, progress streaming, and result collection.
 
-**Architecture:** Tasks are JSON files at `~/.mecha/tasks/<id>.json`. Execution uses the existing `sdkChat` (which already supports `AbortSignal` + `ActivityEmitter`). Progress streams via the existing bot `/api/events` SSE endpoint — no new SSE infrastructure needed. The agent server gets `/tasks` routes. CLI-first: `mecha task` commands come before MCP tools.
+**Architecture:** Task state is JSON files on the agent server (`~/.mecha/tasks/`). Task *execution* happens in the bot's runtime process via a new `POST /api/tasks` route that calls `sdkChat` directly — giving real `AbortController` cancellation and `ActivityEmitter` progress. The agent server proxies task operations to the runtime. Progress is streamed via the existing `/api/events` SSE with a `taskId` correlation field. CLI-first.
 
 **Tech Stack:** TypeScript, Fastify, Zod, vitest
 
-**Spec:** `.claude/plans/inter-bot-communication-spec.md`
-
-**Key design decisions from review:**
-- **v1 is local-only** — no cross-node tasks, no webhooks (cut to simplify)
-- **Execution via sdkChat** — which already has AbortSignal + ActivityEmitter
-- **Progress via existing /api/events** — no file-polling SSE
-- **Cancellation via AbortController** — registered per task ID
-- **Results are text** — v1 stores response string, schema validation deferred to v2
-- **Task ownership: target-local** — task file lives on the node that runs the bot
+**Key design decisions:**
+- **v1 is local-only** — no cross-node, no webhooks
+- **Execution in runtime** — `sdkChat` with `AbortController`, not `forwardQueryToBot`
+- **Progress via existing SSE** — add `taskId` to activity events for correlation
+- **Cancellation is real** — `AbortController.abort()` kills the SDK query
+- **Results are text** — schema validation deferred to v2
+- **Task ownership: agent-local** — JSON files on the agent server
+- **ACL capability: `query`** — reuses existing capability (tasks are queries)
+- **Source for CLI: `admin`** — CLI-originated tasks use `admin` as source
+- **Artifacts: removed from v1** — `artifacts` field removed from schema
+- **No timeout on task execution** — tasks run until done (no 60s limit)
+- **Startup reconciliation** — on agent start, mark stale `working` tasks as `failed`
+- **Cleanup: opportunistic** — `cleanExpiredTasks` runs on `task list` calls
 
 ---
 
-## Contracts (canonical, all layers use these)
+## Contracts
 
-**Task field names:**
-- `target` — the bot that executes (not "bot")
-- `source` — the bot@node that created the task
-- `createdAt`, `updatedAt` — all timestamps are ISO 8601
-- Route for cancel: `POST /tasks/:id/cancel` (not DELETE)
+```typescript
+// Canonical types — all layers use these exactly
+type TaskStatus = "pending" | "working" | "completed" | "failed" | "cancelled";
+const TERMINAL_STATUSES = ["completed", "failed", "cancelled"];
 
-**TaskStatus:** `"pending" | "working" | "completed" | "failed" | "cancelled"`
+interface Task {
+  id: string;           // "task-<8-hex>"
+  source: string;       // "admin" (CLI) or "bot@node" (MCP)
+  target: string;       // bot name
+  status: TaskStatus;
+  message: string;
+  result?: string;      // text response (when completed)
+  error?: string;       // error message (when failed)
+  sessionId?: string;   // SDK session for continuations
+  durationMs?: number;  // execution time
+  costUsd?: number;     // API cost
+  createdAt: string;    // ISO 8601
+  updatedAt: string;    // ISO 8601
+}
 
-(`rejected` cut from v1 — bots accept all tasks if ACL allows)
+interface TaskCreateInput {
+  target: string;       // bot name
+  message: string;      // task instruction
+}
+```
+
+**Agent server routes:**
+- `POST /tasks` → create + start execution → `201 { id, status }`
+- `GET /tasks` → list (query: `?target=X&status=Y`) → `200 Task[]`
+- `GET /tasks/:id` → get → `200 Task` or `404`
+- `POST /tasks/:id/cancel` → cancel → `200` or `404` or `409`
+
+**Runtime routes (new, on bot process):**
+- `POST /api/tasks` → accept + execute with sdkChat → `202 { accepted: true }`
+- `POST /api/tasks/:id/cancel` → abort the running query → `200` or `404`
+- `GET /api/tasks/:id/status` → return current status → `200`
+
+**Auth:** Same as existing routes — session cookie or Bearer token. CLI uses TOTP session.
+
+---
+
+## State Transitions
+
+```
+POST /tasks             →  pending
+Agent proxies to runtime →  working (runtime accepted)
+sdkChat completes        →  completed (with result)
+sdkChat throws           →  failed (with error)
+POST /tasks/:id/cancel   →  cancelled (AbortController.abort)
+Agent restart            →  working → failed ("agent restarted")
+Bot stopped              →  pending → failed ("bot not running")
+```
 
 ---
 
@@ -42,134 +89,56 @@
 |------|---------------|
 | `packages/core/src/task-types.ts` | Task, TaskStatus types + Zod schemas |
 | `packages/core/src/task-storage.ts` | Read/write/list/clean task JSON files |
-| `packages/agent/src/task-routes.ts` | Fastify routes for /tasks |
-| `packages/agent/src/task-executor.ts` | Execute task via sdkChat with AbortController registry |
-| `packages/service/src/task-ops.ts` | Service functions for CLI/MCP |
-| `packages/runtime/src/mcp/task-tools.ts` | MCP tools: task_create, task_status, task_cancel, task_list |
-| `packages/cli/src/commands/task.ts` | Parent command registration |
+| `packages/runtime/src/routes/tasks.ts` | Runtime `POST /api/tasks`, `POST /api/tasks/:id/cancel` |
+| `packages/runtime/src/task-runner.ts` | sdkChat wrapper with AbortController registry |
+| `packages/agent/src/task-routes.ts` | Agent server /tasks routes (proxy to runtime) |
+| `packages/service/src/task-ops.ts` | HTTP helpers for agent server task API |
+| `packages/cli/src/commands/task.ts` | Parent command |
+| `packages/cli/src/commands/task-create.ts` | `mecha task create <target> <message>` |
 | `packages/cli/src/commands/task-list.ts` | `mecha task list` |
 | `packages/cli/src/commands/task-show.ts` | `mecha task show <id>` |
 | `packages/cli/src/commands/task-cancel.ts` | `mecha task cancel <id>` |
-| `packages/cli/src/commands/task-create.ts` | `mecha task create <target> <message>` |
+| `packages/runtime/src/mcp/task-tools.ts` | MCP tools for bots |
 
 ### Modified Files
 
 | File | Change |
 |------|--------|
 | `packages/core/src/index.ts` | Re-export task types + storage |
-| `packages/agent/src/server.ts` | Register task routes |
-| `packages/agent/src/index.ts` | Re-export |
+| `packages/runtime/src/server.ts` | Register `/api/tasks` routes |
+| `packages/runtime/src/sdk-chat-activity.ts` | Add optional `taskId` to activity events |
+| `packages/agent/src/server.ts` | Register agent `/tasks` routes |
 | `packages/service/src/index.ts` | Re-export task-ops |
-| `packages/runtime/src/mcp/server.ts` | Register task tools |
 | `packages/cli/src/program.ts` | Register `mecha task` group |
 
 ---
 
-## Task 1: E2E Spike — Prove the Execution Model
+## Task 1: Runtime Task Execution Spike
 
-**Goal:** Before writing any scaffolding, prove that a task can be created, executed via sdkChat, observed via activity stream, and cancelled via AbortController. This is a throwaway test.
+**Goal:** Prove that a task can be created in the runtime, executed via `sdkChat`, cancelled via `AbortController`, and have its progress correlated via `taskId` in activity events — all through real code paths, not mocks.
 
 **Files:**
-- Create: `packages/integration/__tests__/task-spike.test.ts`
+- Create: `packages/runtime/__tests__/task-runner-spike.test.ts`
 
-- [ ] **Step 1: Write the spike test**
+- [ ] **Step 1: Write spike test**
 
-```typescript
-// packages/integration/__tests__/task-spike.test.ts
-import { describe, it, expect, vi, afterAll, beforeAll } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
-import { randomUUID } from "node:crypto";
+The spike mocks `sdkChat` at the module level (not inline) to avoid spawning real Claude processes, but tests the real `AbortController` flow, the real task-runner registry, and the real state machine.
 
-/**
- * Spike test: prove the execution model works.
- * 1. sdkChat can be called with an AbortController
- * 2. The AbortController actually stops execution
- * 3. Task state transitions can be tracked in a JSON file
- *
- * This test mocks sdkChat — real SDK tests are in integration.
- */
-describe("task execution model spike", () => {
-  it("executes a task and stores result", async () => {
-    const tasksDir = mkdtempSync(join(tmpdir(), "spike-"));
-    const taskId = `task-${randomUUID().slice(0, 8)}`;
-    const taskFile = join(tasksDir, `${taskId}.json`);
+Tests:
+1. `executeTask` → calls sdkChat, returns result, task transitions pending→working→completed
+2. `cancelTask` → aborts the AbortController, sdkChat rejects, task transitions to cancelled
+3. Two concurrent tasks on same bot → both tracked independently by taskId
 
-    // Simulate: write pending task
-    const task = {
-      id: taskId, source: "coder@local", target: "analyst",
-      status: "pending", message: "Review code",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(), artifacts: [],
-    };
-    writeFileSync(taskFile, JSON.stringify(task));
-
-    // Simulate: execute with mock sdkChat
-    const ac = new AbortController();
-    const mockSdkChat = vi.fn().mockResolvedValue({
-      response: "LGTM", sessionId: "s1", durationMs: 100, costUsd: 0.01,
-    });
-
-    // Update to working
-    task.status = "working";
-    task.updatedAt = new Date().toISOString();
-    writeFileSync(taskFile, JSON.stringify(task));
-
-    // Execute
-    const result = await mockSdkChat("Review code", undefined, ac.signal);
-
-    // Update to completed
-    task.status = "completed";
-    task.updatedAt = new Date().toISOString();
-    (task as Record<string, unknown>).result = result.response;
-    writeFileSync(taskFile, JSON.stringify(task));
-
-    // Verify
-    const loaded = JSON.parse(require("fs").readFileSync(taskFile, "utf-8"));
-    expect(loaded.status).toBe("completed");
-    expect(loaded.result).toBe("LGTM");
-
-    rmSync(tasksDir, { recursive: true, force: true });
-  });
-
-  it("cancels a running task via AbortController", async () => {
-    const ac = new AbortController();
-
-    // Mock sdkChat that respects abort
-    const mockSdkChat = vi.fn().mockImplementation(
-      (_msg: string, _sid: undefined, signal: AbortSignal) =>
-        new Promise((_, reject) => {
-          signal.addEventListener("abort", () => reject(new Error("aborted")));
-        }),
-    );
-
-    // Start execution
-    const execPromise = mockSdkChat("long task", undefined, ac.signal);
-
-    // Cancel after 10ms
-    setTimeout(() => ac.abort(), 10);
-
-    await expect(execPromise).rejects.toThrow("aborted");
-  });
-});
-```
-
-- [ ] **Step 2: Run the spike**
-
-Run: `pnpm vitest run packages/integration/__tests__/task-spike.test.ts`
-Expected: PASS — proves the model works
-
-- [ ] **Step 3: Commit spike**
+- [ ] **Step 2: Run spike — verify it passes**
+- [ ] **Step 3: Commit**
 
 ```bash
-git add packages/integration/__tests__/task-spike.test.ts
-git commit -m "spike: prove task execution model (sdkChat + AbortController + JSON state)"
+git commit -m "spike: prove runtime task execution model (sdkChat + AbortController)"
 ```
 
 ---
 
-## Task 2: Core Types + Storage (CLI-first foundation)
+## Task 2: Core Types + Storage
 
 **Files:**
 - Create: `packages/core/src/task-types.ts`
@@ -178,69 +147,98 @@ git commit -m "spike: prove task execution model (sdkChat + AbortController + JS
 - Create: `packages/core/__tests__/task-storage.test.ts`
 - Modify: `packages/core/src/index.ts`
 
-- [ ] **Step 1: Write failing tests for types**
+Types from the Contracts section above. Storage: `writeTask`, `readTask`, `listTasks`, `deleteTask`, `cleanExpiredTasks`, `tasksDir`, `reconcileStaleTasks`.
 
-Test TaskStatusSchema (5 valid + 1 invalid), TaskSchema (valid task, optional fields, missing fields), TaskCreateInputSchema (valid, empty message rejected).
+`reconcileStaleTasks(tasksDir)`: on startup, find all tasks with `status: "working"`, set them to `failed` with `error: "agent restarted"`.
 
+- [ ] **Step 1: Write failing tests for types** (7 test cases)
 - [ ] **Step 2: Implement task-types.ts**
-
-```typescript
-// packages/core/src/task-types.ts
-import { z } from "zod";
-
-export const TaskStatusSchema = z.enum(["pending", "working", "completed", "failed", "cancelled"]);
-export type TaskStatus = z.infer<typeof TaskStatusSchema>;
-
-export const TaskArtifactSchema = z.object({
-  type: z.string(),
-  data: z.unknown(),
-  createdAt: z.string(),
-});
-export type TaskArtifact = z.infer<typeof TaskArtifactSchema>;
-
-export const TaskSchema = z.object({
-  id: z.string().min(1),
-  source: z.string().min(1),
-  target: z.string().min(1),
-  status: TaskStatusSchema,
-  message: z.string().min(1),
-  result: z.string().optional(),
-  error: z.string().optional(),
-  sessionId: z.string().optional(),
-  costUsd: z.number().optional(),
-  durationMs: z.number().optional(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-  artifacts: z.array(TaskArtifactSchema),
-});
-export type Task = z.infer<typeof TaskSchema>;
-
-export const TaskCreateInputSchema = z.object({
-  target: z.string().min(1),
-  message: z.string().min(1),
-});
-export type TaskCreateInput = z.infer<typeof TaskCreateInputSchema>;
-
-export const TERMINAL_STATUSES: readonly TaskStatus[] = ["completed", "failed", "cancelled"];
-```
-
-- [ ] **Step 3: Write failing tests for storage**
-
-Test writeTask/readTask round-trip, readTask returns undefined for missing, listTasks with status filter, deleteTask, cleanExpiredTasks.
-
+- [ ] **Step 3: Write failing tests for storage** (6 test cases including reconcile)
 - [ ] **Step 4: Implement task-storage.ts**
-
-Same as previous plan but with v1 types (no priority, no schemas, result is string).
-
 - [ ] **Step 5: Add re-exports, run tests, commit**
 
 ```bash
-git commit -m "feat(core): add task types and storage for task protocol v1"
+git commit -m "feat(core): add task types and storage with startup reconciliation"
 ```
 
 ---
 
-## Task 3: CLI Commands (CLI-first)
+## Task 3: Runtime Task Runner + Routes
+
+**Files:**
+- Create: `packages/runtime/src/task-runner.ts`
+- Create: `packages/runtime/src/routes/tasks.ts`
+- Create: `packages/runtime/__tests__/task-runner.test.ts`
+- Create: `packages/runtime/__tests__/routes/tasks.test.ts`
+- Modify: `packages/runtime/src/server.ts`
+- Modify: `packages/runtime/src/sdk-chat-activity.ts` (add taskId)
+
+**task-runner.ts:**
+```typescript
+// Registry: Map<taskId, AbortController>
+// startTask(taskId, sdkChatOpts, message, callback): void
+//   - Creates AbortController, registers in map
+//   - Calls sdkChat(opts, message, undefined, ac.signal)
+//   - On success: callback({ status: "completed", result, sessionId, durationMs, costUsd })
+//   - On error: callback({ status: ac.signal.aborted ? "cancelled" : "failed", error })
+//   - Finally: removes from registry
+// cancelTask(taskId): boolean — calls ac.abort(), returns true if found
+// isRunning(taskId): boolean
+```
+
+**routes/tasks.ts:**
+```
+POST /api/tasks — { taskId, message } → start execution, return 202
+POST /api/tasks/:id/cancel → abort, return 200/404
+GET /api/tasks/:id/status → return { status, result?, error? }
+```
+
+The route handler calls `taskRunner.startTask()` with a callback that writes the result back to the agent (or stores locally for now).
+
+**sdk-chat-activity.ts change:** Add optional `taskId` field to emitted activity events so consumers can filter by task.
+
+- [ ] **Step 1: Write failing tests for task-runner** (mock sdkChat)
+- [ ] **Step 2: Implement task-runner.ts**
+- [ ] **Step 3: Write failing tests for routes** (Fastify inject)
+- [ ] **Step 4: Implement routes/tasks.ts**
+- [ ] **Step 5: Add taskId to activity events**
+- [ ] **Step 6: Register routes, run tests, commit**
+
+```bash
+git commit -m "feat(runtime): add task runner with sdkChat execution and /api/tasks routes"
+```
+
+---
+
+## Task 4: Service Layer (agent HTTP helpers)
+
+**Files:**
+- Create: `packages/service/src/task-ops.ts`
+- Create: `packages/service/__tests__/task-ops.test.ts`
+- Modify: `packages/service/src/index.ts`
+
+HTTP helpers that talk to the agent server. Used by both CLI and MCP.
+
+```typescript
+// taskCreate(agentUrl: string, auth: string, input: TaskCreateInput): Promise<{ id: string }>
+// taskGet(agentUrl: string, auth: string, id: string): Promise<Task>
+// taskCancel(agentUrl: string, auth: string, id: string): Promise<void>
+// taskList(agentUrl: string, auth: string, opts?: { target?: string; status?: string }): Promise<Task[]>
+```
+
+Auth parameter is the session cookie or Bearer token string. Agent URL comes from `detectAgent(mechaDir)`.
+
+- [ ] **Step 1: Write failing tests** (mock fetch)
+- [ ] **Step 2: Implement task-ops.ts**
+- [ ] **Step 3: Add re-exports, run tests, commit**
+
+```bash
+git commit -m "feat(service): add task HTTP helpers for agent server API"
+```
+
+---
+
+## Task 5: CLI Commands (CLI-first)
 
 **Files:**
 - Create: `packages/cli/src/commands/task.ts`
@@ -251,33 +249,17 @@ git commit -m "feat(core): add task types and storage for task protocol v1"
 - Create: `packages/cli/__tests__/commands/task.test.ts`
 - Modify: `packages/cli/src/program.ts`
 
-CLI commands talk to the agent server via `AgentClient` (already exists in `packages/cli/src/client.ts`).
+CLI uses `detectAgent` + service task-ops. Auth from TOTP session.
 
-- [ ] **Step 1: Write failing tests for CLI commands**
-
-Mock the HTTP calls (agent server not running in unit tests). Test:
-- `mecha task create analyst "Review code"` → POST /tasks → shows task ID
-- `mecha task list` → GET /tasks → table output
-- `mecha task list --bot analyst --status working` → filtered
-- `mecha task show <id>` → GET /tasks/:id → detailed output
-- `mecha task cancel <id>` → POST /tasks/:id/cancel → confirmation
-
-Follow existing CLI test patterns (vi.mock agent HTTP, test formatter output).
-
-- [ ] **Step 2: Implement CLI commands**
-
-`task-create.ts`:
-```typescript
-.command("create")
-.argument("<target>", "bot name to run the task")
-.argument("<message>", "task message/instruction")
-.action(async (target, message, opts) => { ... })
+```
+mecha task create <target> <message>     → POST /tasks → "Task task-abc123 created"
+mecha task list [--target X] [--status Y] → GET /tasks → table
+mecha task show <id>                      → GET /tasks/:id → detail view
+mecha task cancel <id>                    → POST /tasks/:id/cancel → "Cancelled"
 ```
 
-Sends POST to `${agentBaseUrl}/tasks` with `{ target, message }`.
-
-`task-list.ts`, `task-show.ts`, `task-cancel.ts`: GET/POST to agent server, format output.
-
+- [ ] **Step 1: Write failing tests** (mock service layer)
+- [ ] **Step 2: Implement CLI commands**
 - [ ] **Step 3: Register in program.ts, run tests, commit**
 
 ```bash
@@ -286,172 +268,50 @@ git commit -m "feat(cli): add mecha task create/list/show/cancel commands"
 
 ---
 
-## Task 4: Agent Server Task Routes + Executor
+## Task 6: Agent Server Task Routes (proxy)
 
 **Files:**
 - Create: `packages/agent/src/task-routes.ts`
-- Create: `packages/agent/src/task-executor.ts`
 - Create: `packages/agent/__tests__/task-routes.test.ts`
 - Modify: `packages/agent/src/server.ts`
 
-This is the core — routes that accept tasks, execute them via `forwardQueryToBot`, and track state.
+The agent server's `/tasks` routes:
+1. **POST /tasks** — validate input, ACL check (`query` capability), write task as `pending`, proxy `POST /api/tasks` to bot runtime (via `forwardQueryToBot`-style fetch but to `/api/tasks` with no timeout), write `working` on 202, return task ID
+2. **GET /tasks** — read from task storage, filter by query params
+3. **GET /tasks/:id** — read single task
+4. **POST /tasks/:id/cancel** — proxy cancel to runtime, update task status
 
-- [ ] **Step 1: Write failing tests for task routes**
+The proxy to runtime uses bot's port/token from `readBotConfig`. No 60s timeout — uses a long timeout (10 min) or no timeout for task execution.
 
-Use real Fastify injection (like existing server.test.ts). Mock `forwardQueryToBot`.
-
-Tests:
-- POST /tasks → 201, returns { id, status: "pending" }
-- POST /tasks with invalid target → 400
-- POST /tasks for non-existent bot → 404
-- GET /tasks/:id → 200 with task
-- GET /tasks/:id for missing → 404
-- POST /tasks/:id/cancel on working task → 200
-- POST /tasks/:id/cancel on completed task → 409
-- GET /tasks → 200 with array
-
-- [ ] **Step 2: Implement task-executor.ts**
-
-```typescript
-// packages/agent/src/task-executor.ts
-import { writeTask, readTask, tasksDir } from "@mecha/core";
-import type { Task } from "@mecha/core";
-import { forwardQueryToBot, readBotConfig } from "@mecha/core";
-import { join } from "node:path";
-
-/** Registry of running task AbortControllers. */
-const runningTasks = new Map<string, AbortController>();
-
-/** Start executing a task asynchronously. Fire-and-forget. */
-export function executeTask(mechaDir: string, task: Task): void {
-  const ac = new AbortController();
-  runningTasks.set(task.id, ac);
-
-  // Update to working
-  task.status = "working";
-  task.updatedAt = new Date().toISOString();
-  writeTask(tasksDir(mechaDir), task);
-
-  // Execute in background
-  void (async () => {
-    try {
-      const botDir = join(mechaDir, task.target);
-      const config = readBotConfig(botDir);
-      if (!config) throw new Error(`Bot config not found: ${task.target}`);
-
-      const result = await forwardQueryToBot(
-        config.port,
-        config.token,
-        task.message,
-        undefined, // sessionId
-        undefined, // requestId
-      );
-
-      if (ac.signal.aborted) return; // cancelled while executing
-
-      task.status = "completed";
-      task.result = result.text;
-      task.sessionId = result.sessionId;
-    } catch (err) {
-      if (ac.signal.aborted) {
-        task.status = "cancelled";
-      } else {
-        task.status = "failed";
-        task.error = err instanceof Error ? err.message : String(err);
-      }
-    } finally {
-      task.updatedAt = new Date().toISOString();
-      writeTask(tasksDir(mechaDir), task);
-      runningTasks.delete(task.id);
-    }
-  })();
-}
-
-/** Cancel a running task. Returns true if cancellation was initiated. */
-export function cancelTask(taskId: string): boolean {
-  const ac = runningTasks.get(taskId);
-  if (!ac) return false;
-  ac.abort();
-  return true;
-}
-
-/** Check if a task is currently executing. */
-export function isTaskRunning(taskId: string): boolean {
-  return runningTasks.has(taskId);
-}
-```
-
-- [ ] **Step 3: Implement task-routes.ts**
-
-```typescript
-// packages/agent/src/task-routes.ts — route registration function
-// POST /tasks, GET /tasks, GET /tasks/:id, POST /tasks/:id/cancel
-```
-
-Each route:
-- Validates auth (same preHandler as existing routes)
-- ACL check on target bot
-- Reads/writes via task-storage
-- POST /tasks calls `executeTask()` and returns immediately
-
-- [ ] **Step 4: Register in server.ts**
-
-Add `registerTaskRoutes(app, { mechaDir, acl, authCtx })` call.
-
-- [ ] **Step 5: Run tests, verify no regressions, commit**
+- [ ] **Step 1: Write failing tests** (mock forwardQueryToBot or use real Fastify)
+- [ ] **Step 2: Implement task-routes.ts**
+- [ ] **Step 3: Add startup reconciliation** — call `reconcileStaleTasks` in `createAgentServer`
+- [ ] **Step 4: Register routes, run tests, commit**
 
 ```bash
-pnpm vitest run --project agent
-git commit -m "feat(agent): add /tasks routes with async execution and cancellation"
+git commit -m "feat(agent): add /tasks proxy routes with startup reconciliation"
 ```
 
 ---
 
-## Task 5: Service Layer
-
-**Files:**
-- Create: `packages/service/src/task-ops.ts`
-- Create: `packages/service/__tests__/task-ops.test.ts`
-- Modify: `packages/service/src/index.ts`
-
-Service functions use `AgentClient` pattern (HTTP to agent server). Used by CLI commands.
-
-Functions:
-- `taskCreate(agentUrl, authCookie, input)` → POST /tasks
-- `taskGet(agentUrl, authCookie, id)` → GET /tasks/:id
-- `taskCancel(agentUrl, authCookie, id)` → POST /tasks/:id/cancel
-- `taskList(agentUrl, authCookie, opts?)` → GET /tasks
-
-- [ ] **Step 1-4: TDD cycle**
-
-- [ ] **Step 5: Wire CLI commands to service layer (update task-create.ts etc.)**
-
-- [ ] **Step 6: Run full CLI tests, commit**
-
-```bash
-git commit -m "feat(service): add task operation service functions"
-```
-
----
-
-## Task 6: MCP Tools
+## Task 7: MCP Tools
 
 **Files:**
 - Create: `packages/runtime/src/mcp/task-tools.ts`
 - Create: `packages/runtime/__tests__/mcp/task-tools.test.ts`
 - Modify: `packages/runtime/src/mcp/server.ts`
 
-MCP tools for bots:
-- `task_create(target, message)` → creates task on local agent server
-- `task_status(taskId)` → reads task state
-- `task_cancel(taskId)` → cancels task
-- `task_list(target?, status?)` → lists tasks
+MCP tools for bot-to-bot task delegation:
+- `task_create(target, message)` — POST to agent server /tasks
+- `task_status(taskId)` — GET from agent server
+- `task_cancel(taskId)` — POST cancel to agent server
+- `task_list(target?, status?)` — GET list from agent server
 
-Follow `packages/runtime/src/mcp/bus-tools.ts` pattern exactly.
+The MCP tool handler needs the agent server URL. It can read `agent.json` from `mechaDir` (same as CLI).
 
-- [ ] **Step 1-4: TDD cycle**
-
-- [ ] **Step 5: Register in MCP server, commit**
+- [ ] **Step 1: Write failing tests**
+- [ ] **Step 2: Implement task-tools.ts**
+- [ ] **Step 3: Register in MCP server, run tests, commit**
 
 ```bash
 git commit -m "feat(runtime): add task MCP tools (create, status, cancel, list)"
@@ -459,55 +319,46 @@ git commit -m "feat(runtime): add task MCP tools (create, status, cancel, list)"
 
 ---
 
-## Task 7: Integration Test
+## Task 8: Integration Test
 
 **Files:**
 - Create: `packages/integration/__tests__/task-protocol.test.ts`
-- Delete: `packages/integration/__tests__/task-spike.test.ts` (spike served its purpose)
+- Delete: `packages/runtime/__tests__/task-runner-spike.test.ts`
 
-Real e2e test with actual agent server:
-1. Start agent server on random port with mock bot config
-2. POST /tasks → verify pending
-3. Wait for execution (mock forwardQueryToBot)
-4. GET /tasks/:id → verify completed with result
-5. Create another task, cancel it mid-execution
-6. Verify task list filtering
+Real e2e with agent server + bot runtime:
+1. Start agent server on random port with bot config pointing to a mock runtime
+2. Start a minimal runtime server with `/api/tasks` route (mock sdkChat)
+3. POST /tasks → verify pending → working → completed
+4. Verify task result and metadata (durationMs, sessionId)
+5. Create task, cancel mid-execution → verify cancelled
+6. List tasks with filters → verify filtering
+7. Restart agent → verify stale working tasks marked failed
 
-Follow `packages/integration/__tests__/mesh-query.test.ts` pattern.
-
-- [ ] **Step 1-4: TDD cycle**
-
-- [ ] **Step 5: Remove spike test, commit**
+- [ ] **Step 1-4: Write and run integration tests**
+- [ ] **Step 5: Remove spike, commit**
 
 ```bash
-git commit -m "test(integration): add task protocol e2e test, remove spike"
+git commit -m "test(integration): add task protocol e2e test"
 ```
 
 ---
 
-## Task 8: Documentation + Website + Final Verification
+## Task 9: Documentation + Final Verification
 
 **Files:**
 - Modify: `website/docs/reference/api/agent.md` — add /tasks routes
 - Modify: `website/docs/reference/cli/orchestration.md` — add task commands
 - Modify: `website/docs/features/multi-agent.md` — add task protocol section
 
-- [ ] **Step 1: Add task route docs to agent.md**
-- [ ] **Step 2: Add task commands to orchestration.md**
-- [ ] **Step 3: Add task protocol overview to multi-agent.md**
-- [ ] **Step 4: Verify website builds**
-
-```bash
-pnpm --filter @mecha/website build
-```
-
-- [ ] **Step 5: Full verification**
+- [ ] **Step 1: Update docs**
+- [ ] **Step 2: Verify website builds**
+- [ ] **Step 3: Full gate verification**
 
 ```bash
 pnpm build && pnpm typecheck && pnpm lint && pnpm test && pnpm test:coverage
 ```
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
 git commit -m "docs: add task protocol documentation"
@@ -517,23 +368,16 @@ git commit -m "docs: add task protocol documentation"
 
 ## Summary
 
-| Task | What | Packages | Key Risk |
-|------|------|----------|----------|
-| 1 | E2E spike | integration | Proves model before investing |
-| 2 | Core types + storage | core | Foundation — all else depends |
-| 3 | CLI commands | cli | CLI-first enforcement |
-| 4 | Agent routes + executor | agent | The hard part — async exec + cancel |
-| 5 | Service layer | service | Wires CLI to agent |
-| 6 | MCP tools | runtime | Bots can create tasks |
-| 7 | Integration test | integration | Real e2e proof |
-| 8 | Docs + verification | website | Ship it |
+| Task | What | Packages | Risk Level |
+|------|------|----------|------------|
+| 1 | Spike: prove runtime execution model | runtime | De-risks everything |
+| 2 | Core types + storage + reconciliation | core | Foundation |
+| 3 | Runtime task runner + /api/tasks routes | runtime | **The hard part** |
+| 4 | Service HTTP helpers | service | Glue layer |
+| 5 | CLI commands | cli | CLI-first |
+| 6 | Agent /tasks proxy routes | agent | Wiring |
+| 7 | MCP tools | runtime | Bot-facing API |
+| 8 | Integration test | integration | Real e2e proof |
+| 9 | Docs + verification | website | Ship it |
 
-**What's explicitly NOT in v1:**
-- Cross-node tasks (remote target@node)
-- Webhook push notifications
-- JSON Schema validation on input/output
-- Priority field
-- Task artifacts (intermediate outputs)
-- SSE streaming from agent server (progress comes from bot's /api/events)
-
-These are queued for v2 after the foundation proves out.
+**What's NOT in v1:** cross-node tasks, webhooks, JSON Schema validation, priority, artifacts, task-specific SSE endpoint.
