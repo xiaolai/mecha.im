@@ -21,8 +21,12 @@ export function resolveAgentAuth(mechaDir: string): AgentAuth {
     throw new Error("Agent server not running. Start with: mecha start");
   }
 
-  const hostPart = agent.host.includes(":") ? `[${agent.host}]` : agent.host;
-  const agentUrl = `http://${hostPart}:${agent.port}`;
+  // Normalize wildcard bind addresses to loopback for connect
+  const host = agent.host === "0.0.0.0" ? "127.0.0.1"
+    : agent.host === "::" ? "[::1]"
+    : agent.host.includes(":") ? `[${agent.host}]`
+    : agent.host;
+  const agentUrl = `http://${host}:${agent.port}`;
 
   // Derive mesh routing key from TOTP secret (same derivation as mecha start)
   const totpSecret = readTotpSecret(mechaDir);

@@ -101,21 +101,26 @@ export function registerTaskRoutes(app: FastifyInstance, opts: TaskRouteOpts): v
           body: JSON.stringify({ taskId, message }),
           signal: AbortSignal.timeout(10_000),
         });
+        // Re-read task from disk to avoid clobbering PATCH callback that may have landed first
+        const current = readTask(dir, taskId);
+        if (!current || current.status !== "pending") return; // already updated by callback
         if (res.ok) {
-          task.status = "working";
-          task.updatedAt = new Date().toISOString();
-          writeTask(dir, task);
+          current.status = "working";
+          current.updatedAt = new Date().toISOString();
+          writeTask(dir, current);
         } else {
-          task.status = "failed";
-          task.error = `Runtime rejected: HTTP ${res.status}`;
-          task.updatedAt = new Date().toISOString();
-          writeTask(dir, task);
+          current.status = "failed";
+          current.error = `Runtime rejected: HTTP ${res.status}`;
+          current.updatedAt = new Date().toISOString();
+          writeTask(dir, current);
         }
       } catch (err) {
-        task.status = "failed";
-        task.error = `Runtime unreachable: ${err instanceof Error ? err.message : String(err)}`;
-        task.updatedAt = new Date().toISOString();
-        writeTask(dir, task);
+        const current = readTask(dir, taskId);
+        if (!current || current.status !== "pending") return;
+        current.status = "failed";
+        current.error = `Runtime unreachable: ${err instanceof Error ? err.message : String(err)}`;
+        current.updatedAt = new Date().toISOString();
+        writeTask(dir, current);
       }
     })();
     /* v8 ignore stop */
@@ -156,18 +161,26 @@ export function registerTaskRoutes(app: FastifyInstance, opts: TaskRouteOpts): v
   });
 
   // PATCH /tasks/:id — update task with result (called by runtime callback)
-  app.patch<{ Params: { id: string }; Body: { status: string; result?: string; error?: string; sessionId?: string; durationMs?: number; costUsd?: number } }>("/tasks/:id", async (req, reply) => {
+  app.patch<{ Params: { id: string }; Body: Record<string, unknown> }>("/tasks/:id", async (req, reply) => {
     const task = readTask(dir, req.params.id);
     if (!task) {
       return reply.code(404).send({ error: "Task not found" });
     }
-    const body = req.body;
-    if (body.status) task.status = body.status as TaskStatus;
-    if (body.result !== undefined) task.result = body.result;
-    if (body.error !== undefined) task.error = body.error;
-    if (body.sessionId !== undefined) task.sessionId = body.sessionId;
-    if (body.durationMs !== undefined) task.durationMs = body.durationMs;
-    if (body.costUsd !== undefined) task.costUsd = body.costUsd;
+    const body = req.body ?? {};
+
+    // Validate status if provided
+    if (body.status !== undefined) {
+      const statusParsed = TaskStatusSchema.safeParse(body.status);
+      if (!statusParsed.success) {
+        return reply.code(400).send({ error: "Invalid status" });
+      }
+      task.status = statusParsed.data;
+    }
+    if (typeof body.result === "string") task.result = body.result;
+    if (typeof body.error === "string") task.error = body.error;
+    if (typeof body.sessionId === "string") task.sessionId = body.sessionId;
+    if (typeof body.durationMs === "number") task.durationMs = body.durationMs;
+    if (typeof body.costUsd === "number") task.costUsd = body.costUsd;
     task.updatedAt = new Date().toISOString();
     writeTask(dir, task);
     return reply.send({ updated: true });
