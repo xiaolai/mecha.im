@@ -2026,6 +2026,109 @@ class FileTooLargeError extends Error {
 }
 ```
 
+## Task Operations
+
+HTTP client helpers for the agent server's task API. Used by CLI commands and MCP tools.
+
+**Source:** `packages/service/src/task-ops.ts`
+
+### `taskCreate(agentUrl, auth, input)`
+
+Create a task on the agent server.
+
+```ts
+import { taskCreate } from "@mecha/service";
+
+const result = await taskCreate("http://127.0.0.1:7660", auth, {
+  target: "researcher",
+  message: "Summarize the README",
+});
+console.log(result.id);     // "task-a1b2c3d4e5f6g7h8"
+console.log(result.status); // "pending"
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `agentUrl` | `string` | Agent server base URL (e.g., `http://127.0.0.1:7660`) |
+| `auth` | `string` | Bearer token or session cookie string |
+| `input` | `TaskCreateInput` | Task creation input (`{ target, message }`) |
+
+**Returns:** `Promise<{ id: string; status: string }>`
+
+**Throws:** `Error` if the HTTP request fails or the server returns a non-OK status.
+
+### `taskGet(agentUrl, auth, id)`
+
+Get a task by ID from the agent server.
+
+```ts
+import { taskGet } from "@mecha/service";
+
+const task = await taskGet("http://127.0.0.1:7660", auth, "task-abc123");
+console.log(task.status); // "completed"
+console.log(task.result); // "Here is the summary..."
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `agentUrl` | `string` | Agent server base URL |
+| `auth` | `string` | Bearer token or session cookie string |
+| `id` | `string` | Task ID |
+
+**Returns:** `Promise<Task>`
+
+**Throws:** `Error` if the task is not found or the request fails.
+
+### `taskCancel(agentUrl, auth, id)`
+
+Cancel a task on the agent server.
+
+```ts
+import { taskCancel } from "@mecha/service";
+
+await taskCancel("http://127.0.0.1:7660", auth, "task-abc123");
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `agentUrl` | `string` | Agent server base URL |
+| `auth` | `string` | Bearer token or session cookie string |
+| `id` | `string` | Task ID |
+
+**Returns:** `Promise<void>`
+
+**Throws:** `Error` if the task is not found, already in a terminal state, or the request fails.
+
+### `taskList(agentUrl, auth, opts?)`
+
+List tasks from the agent server with optional filters.
+
+```ts
+import { taskList } from "@mecha/service";
+
+const tasks = await taskList("http://127.0.0.1:7660", auth, {
+  target: "researcher",
+  status: "completed",
+});
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `agentUrl` | `string` | Agent server base URL |
+| `auth` | `string` | Bearer token or session cookie string |
+| `opts` | `{ target?: string; status?: string }` | Optional filters |
+
+**Returns:** `Promise<Task[]>`
+
+**Throws:** `Error` if the request fails.
+
+### Authentication
+
+All task operations support two authentication modes. The `auth` parameter is inspected at runtime:
+
+- If it starts with `mecha-session=`, it is sent as a `Cookie` header
+- Otherwise, it is sent as `Authorization: Bearer <token>`
+
 ## See also
 
 - [@mecha/process](/reference/api/process) -- Process lifecycle management used by the service layer
