@@ -43,6 +43,13 @@ The `@mecha/runtime` package provides the Fastify-based HTTP server that runs in
 | `sdkChat` | Function | `sdk-chat.ts` |
 | `createChatFn` | Function | `sdk-chat.ts` |
 | `SdkChatOpts` | Type | `sdk-chat.ts` |
+| `startTask` | Function | `task-runner.ts` |
+| `cancelTask` | Function | `task-runner.ts` |
+| `isTaskRunning` | Function | `task-runner.ts` |
+| `runningTaskCount` | Function | `task-runner.ts` |
+| `TaskRunResult` | Type | `task-runner.ts` |
+| `TaskResultCallback` | Type | `task-runner.ts` |
+| `registerTaskRoutes` | Function | `routes/tasks.ts` |
 
 ## Runtime API Routes
 
@@ -65,6 +72,9 @@ Each bot exposes these HTTP endpoints (localhost only):
 | `POST` | `/api/schedules/_pause-all` | Pause all schedules |
 | `POST` | `/api/schedules/_resume-all` | Resume all schedules |
 | `GET` | `/api/schedules/:id/history` | Schedule run history (supports `?limit=N`) |
+| `POST` | `/api/tasks` | Accept and execute a task (see [Task Execution](#task-execution)) |
+| `POST` | `/api/tasks/:id/cancel` | Cancel a running task (see [Task Execution](#task-execution)) |
+| `GET` | `/api/tasks/:id/status` | Check task execution status (see [Task Execution](#task-execution)) |
 | `POST` | `/mcp` | JSON-RPC MCP endpoint |
 
 All routes except `/healthz` require `Authorization: Bearer <token>` (the token from `config.json`). Authentication uses timing-safe comparison via `safeCompare`.
@@ -281,6 +291,187 @@ const chatFn = createChatFn({ workspacePath: "/home/alice/project" });
 const result = await chatFn("Generate the daily report");
 console.log(result.durationMs); // execution time in ms
 ```
+
+## Task Execution
+
+The runtime provides in-process task execution via `sdkChat` with `AbortController`-based cancellation. Tasks are dispatched by the agent server and execute inside the bot's runtime process.
+
+**Source:** `packages/runtime/src/task-runner.ts`, `packages/runtime/src/routes/tasks.ts`
+
+### Runtime Task Routes
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `POST` | `/api/tasks` | Required | Accept and execute a task |
+| `POST` | `/api/tasks/:id/cancel` | Required | Cancel a running task |
+| `GET` | `/api/tasks/:id/status` | Required | Check task execution status |
+
+#### `POST /api/tasks`
+
+Accept a task for execution. The task runs asynchronously via `sdkChat`. On completion, the runtime calls back to the agent server's `PATCH /tasks/:id` endpoint with the result.
+
+**Request body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `taskId` | `string` | Yes | Task ID assigned by the agent server |
+| `message` | `string` | Yes | Task prompt to execute |
+
+**Success response** (`202`):
+
+```json
+{ "accepted": true, "taskId": "task-a1b2c3d4e5f6g7h8" }
+```
+
+**Error responses:**
+
+| Status | Condition |
+|--------|-----------|
+| `400` | Missing `taskId` or `message` |
+| `429` | Concurrent task limit reached (max 10) or task ID already running |
+
+#### `POST /api/tasks/:id/cancel`
+
+Cancel a running task by aborting its `AbortController`.
+
+**Success response** (`200`):
+
+```json
+{ "cancelled": true }
+```
+
+**Error responses:**
+
+| Status | Condition |
+|--------|-----------|
+| `404` | Task not found or not currently running |
+
+#### `GET /api/tasks/:id/status`
+
+Check whether a task is currently running. If completed, returns the terminal result from the ephemeral in-memory cache (up to 100 recent results).
+
+**Success response** (`200`) -- running:
+
+```json
+{ "running": true, "status": "working" }
+```
+
+**Success response** (`200`) -- completed:
+
+```json
+{ "running": false, "status": "completed", "result": "..." }
+```
+
+**Error responses:**
+
+| Status | Condition |
+|--------|-----------|
+| `404` | Task not found (not running, no cached result) |
+
+### Task Runner
+
+The task runner manages concurrent task execution with admission control.
+
+#### `startTask(taskId, sdkChatOpts, message, callback)`
+
+Start executing a task asynchronously. Returns an admission result synchronously; the callback fires exactly once when the task reaches a terminal state.
+
+```ts
+import { startTask } from "@mecha/runtime";
+
+const admission = startTask(
+  "task-abc123",
+  { workspacePath: "/home/alice/project" },
+  "Analyze the codebase",
+  (result) => {
+    console.log(result.status);  // "completed" | "failed" | "cancelled"
+    console.log(result.result);  // assistant's reply (on success)
+  },
+);
+
+if (!admission.admitted) {
+  console.error(admission.error);
+}
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `taskId` | `string` | Unique task identifier |
+| `sdkChatOpts` | `SdkChatOpts` | SDK chat configuration (workspace, env, settings) |
+| `message` | `string` | Task prompt to execute |
+| `callback` | `TaskResultCallback` | Called exactly once on completion, failure, or cancellation |
+
+**Returns:** `{ admitted: boolean; error?: string }`
+
+**Admission rejection reasons:**
+- Concurrent task limit reached (max `MAX_CONCURRENT_TASKS` = 10)
+- Task ID already running (duplicate)
+
+**Execution timeout:** Each task is automatically aborted after 10 minutes (`TASK_TIMEOUT_MS`) to prevent zombie tasks.
+
+#### `cancelTask(taskId)`
+
+Cancel a running task by aborting its `AbortController`. Returns `true` if cancellation was initiated, `false` if the task was not found.
+
+```ts
+import { cancelTask } from "@mecha/runtime";
+
+const cancelled = cancelTask("task-abc123");
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `taskId` | `string` | Task ID to cancel |
+
+**Returns:** `boolean`
+
+#### `isTaskRunning(taskId)`
+
+Check if a task is currently executing.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `taskId` | `string` | Task ID to check |
+
+**Returns:** `boolean`
+
+#### `runningTaskCount()`
+
+Get the number of currently executing tasks.
+
+**Returns:** `number`
+
+### `TaskRunResult`
+
+Result reported back to the caller when a task completes or fails.
+
+```ts
+interface TaskRunResult {
+  status: "completed" | "failed" | "cancelled";
+  result?: string;
+  sessionId?: string;
+  durationMs?: number;
+  costUsd?: number;
+  error?: string;
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `status` | `"completed" \| "failed" \| "cancelled"` | Terminal task status |
+| `result` | `string?` | Assistant's reply (on success) |
+| `sessionId` | `string?` | SDK session ID used during execution |
+| `durationMs` | `number?` | Execution duration in milliseconds |
+| `costUsd` | `number?` | Execution cost in USD |
+| `error` | `string?` | Error message (on failure) |
+
+### `TaskResultCallback`
+
+```ts
+type TaskResultCallback = (result: TaskRunResult) => void;
+```
+
+Callback invoked exactly once when a task reaches a terminal state. Used by the runtime route handler to report results back to the agent server.
 
 ## See also
 

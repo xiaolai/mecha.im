@@ -1,13 +1,97 @@
 ---
 title: Orchestration Commands
-description: CLI reference for workflow, bus, team, meta, alert, metrics, secret, company, and trace commands
+description: CLI reference for task, workflow, bus, team, meta, alert, metrics, secret, company, and trace commands
 ---
 
 # Orchestration Commands
 
 [[toc]]
 
-Commands for the v4 orchestration layer: workflow execution, message bus, team deployment, meta-agent, observability, secrets, and company configuration.
+Commands for the v4 orchestration layer: task delegation, workflow execution, message bus, team deployment, meta-agent, observability, secrets, and company configuration.
+
+## Task
+
+All task commands live under `mecha task`. Tasks are the unit of work delegation between bots — one bot (or the admin) creates a task targeting another bot, which executes it asynchronously.
+
+### `mecha task create`
+
+Create a task for a bot to execute.
+
+```bash
+mecha task create <target> <message>
+```
+
+| Argument | Description |
+|----------|-------------|
+| `<target>` | Bot name to run the task |
+| `<message>` | Task message/instruction |
+
+Creates a task on the agent server targeting the specified bot. The task is dispatched to the bot's runtime process asynchronously.
+
+```bash
+mecha task create researcher "Summarize the README in this project"
+mecha task create coder "Fix the failing test in src/utils.ts"
+```
+
+### `mecha task list`
+
+List tasks.
+
+```bash
+mecha task list [options]
+```
+
+Alias: `mecha task ls`
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--target <bot>` | Filter by target bot | |
+| `--status <status>` | Filter by status (`pending`, `working`, `completed`, `failed`, `cancelled`) | |
+
+Displays a table with task ID, target bot, status, message (truncated to 40 characters), and last updated timestamp.
+
+```bash
+mecha task list
+mecha task ls --target researcher
+mecha task list --status completed
+mecha task ls --target coder --status failed
+```
+
+### `mecha task show`
+
+Show task details.
+
+```bash
+mecha task show <id>
+```
+
+| Argument | Description |
+|----------|-------------|
+| `<id>` | Task ID |
+
+Displays all task fields: ID, target, status, message, result (if completed), error (if failed), session ID, duration, cost, and timestamps.
+
+```bash
+mecha task show task-a1b2c3d4e5f6g7h8
+```
+
+### `mecha task cancel`
+
+Cancel a running task.
+
+```bash
+mecha task cancel <id>
+```
+
+| Argument | Description |
+|----------|-------------|
+| `<id>` | Task ID |
+
+Cancels a task that is in `pending` or `working` status. Tasks in terminal states (`completed`, `failed`, `cancelled`) cannot be cancelled.
+
+```bash
+mecha task cancel task-a1b2c3d4e5f6g7h8
+```
 
 ## Workflow
 
