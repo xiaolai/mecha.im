@@ -35,6 +35,17 @@ export interface TaskRouteOpts {
 let lastCleanup = 0;
 const CLEANUP_INTERVAL_MS = 60_000;
 
+/** Check if caller is authorized for a specific task (source, target, or admin). */
+function isTaskAuthorized(source: string, task: Task): boolean {
+  if (source === "admin") return true;
+  return source === task.source || source === task.target;
+}
+
+/** Extract caller identity from request headers. */
+function getSource(req: { headers: Record<string, string | string[] | undefined> }): string {
+  return (req.headers["x-mecha-source"] as string) ?? "admin";
+}
+
 /** Register task routes on the agent server. */
 export function registerTaskRoutes(app: FastifyInstance, opts: TaskRouteOpts): void {
   const { mechaDir, acl } = opts;
@@ -128,7 +139,7 @@ export function registerTaskRoutes(app: FastifyInstance, opts: TaskRouteOpts): v
     return reply.code(201).send({ id: taskId, status: "pending" });
   });
 
-  // GET /tasks — list tasks
+  // GET /tasks — list tasks (filtered by caller ownership)
   app.get<{ Querystring: { target?: string; status?: string } }>("/tasks", async (req, reply) => {
     // Opportunistic cleanup — at most once per minute
     const now = Date.now();
@@ -147,24 +158,38 @@ export function registerTaskRoutes(app: FastifyInstance, opts: TaskRouteOpts): v
       filter.status = statusParsed.data;
     }
 
-    const tasks = listTasks(dir, filter);
+    const source = getSource(req);
+    let tasks = listTasks(dir, filter);
+    // Non-admin callers only see their own tasks (source or target)
+    if (source !== "admin") {
+      tasks = tasks.filter((t) => t.source === source || t.target === source);
+    }
     return reply.send(tasks);
   });
 
-  // GET /tasks/:id — get single task
+  // GET /tasks/:id — get single task (ownership check)
   app.get<{ Params: { id: string } }>("/tasks/:id", async (req, reply) => {
     const task = readTask(dir, req.params.id);
     if (!task) {
       return reply.code(404).send({ error: "Task not found" });
     }
+    const source = getSource(req);
+    if (!isTaskAuthorized(source, task)) {
+      return reply.code(403).send({ error: "Access denied" });
+    }
     return reply.send(task);
   });
 
-  // PATCH /tasks/:id — update task with result (called by runtime callback)
+  // PATCH /tasks/:id — update task with result (runtime callback only)
   app.patch<{ Params: { id: string }; Body: Record<string, unknown> }>("/tasks/:id", async (req, reply) => {
     const task = readTask(dir, req.params.id);
     if (!task) {
       return reply.code(404).send({ error: "Task not found" });
+    }
+    // Only the task's target bot (runtime callback) or admin can update results
+    const source = getSource(req);
+    if (source !== "admin" && !source.startsWith(`${task.target}@`)) {
+      return reply.code(403).send({ error: "Only the executing bot can update task results" });
     }
     const body = req.body ?? {};
 
@@ -186,42 +211,48 @@ export function registerTaskRoutes(app: FastifyInstance, opts: TaskRouteOpts): v
     return reply.send({ updated: true });
   });
 
-  // POST /tasks/:id/cancel — cancel a task
+  // POST /tasks/:id/cancel — cancel a task (ownership check, always proxy to runtime)
   app.post<{ Params: { id: string } }>("/tasks/:id/cancel", async (req, reply) => {
     const task = readTask(dir, req.params.id);
     if (!task) {
       return reply.code(404).send({ error: "Task not found" });
     }
 
+    // Only task source or admin can cancel
+    const source = getSource(req);
+    if (!isTaskAuthorized(source, task)) {
+      return reply.code(403).send({ error: "Access denied" });
+    }
+
     if (task.status !== "pending" && task.status !== "working") {
       return reply.code(409).send({ error: `Cannot cancel task in '${task.status}' status` });
     }
 
-    // Proxy cancel to runtime
+    // Always proxy cancel to runtime (covers both pending-dispatched and working states)
     /* v8 ignore start -- runtime proxy requires live bot process */
-    if (task.status === "working") {
-      const botConfig = readBotConfig(join(mechaDir, task.target));
-      if (botConfig) {
-        try {
-          await fetch(`http://127.0.0.1:${botConfig.port}/api/tasks/${task.id}/cancel`, {
-            method: "POST",
-            headers: {
-              "content-type": "application/json",
-              authorization: `Bearer ${botConfig.token}`,
-            },
-            body: "{}",
-            signal: AbortSignal.timeout(5_000),
-          });
-        } catch {
-          // Best effort — runtime may be gone
-        }
+    const botConfig = readBotConfig(join(mechaDir, task.target));
+    if (botConfig) {
+      try {
+        await fetch(`http://127.0.0.1:${botConfig.port}/api/tasks/${task.id}/cancel`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${botConfig.token}`,
+          },
+          body: "{}",
+          signal: AbortSignal.timeout(5_000),
+        });
+      } catch {
+        // Best effort — runtime may not know this task yet or may be gone
       }
     }
     /* v8 ignore stop */
 
-    task.status = "cancelled";
-    task.updatedAt = new Date().toISOString();
-    writeTask(dir, task);
+    // Re-read from disk in case PATCH callback landed during the proxy call
+    const current = readTask(dir, task.id) ?? task;
+    current.status = "cancelled";
+    current.updatedAt = new Date().toISOString();
+    writeTask(dir, current);
     return reply.send({ cancelled: true });
   });
 }
