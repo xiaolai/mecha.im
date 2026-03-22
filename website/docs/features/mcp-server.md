@@ -367,3 +367,9 @@ The MCP server runs as a stdio process launched by the client, or as an HTTP ser
 ## API Reference
 
 See [@mecha/mcp-server API Reference](/reference/api/mcp-server) for the complete API: `MeshMcpContext`, `createMeshMcpServer`, `createAuditLog`, `createRateLimiter`, server factory, and package exports.
+
+## See Also
+
+- [Bot Commands](/reference/cli/bot) — bot configuration
+- [Mesh Networking](/features/mesh-networking) — cross-node MCP access
+- [Configuration](/guide/configuration) — MCP server settings

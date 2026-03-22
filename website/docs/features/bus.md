@@ -319,3 +319,10 @@ Create a replicator that monitors a local topic and forwards new messages to rem
 | `createQueue(opts)` | Create a durable queue with retry and dead-letter |
 | `createTopic(opts)` | Create a pub/sub topic with per-subscriber cursors |
 | `createReplicator(opts)` | Cross-node topic replicator for multi-machine setups |
+
+## See Also
+
+- [Task Protocol](/features/task-protocol) — async task delegation alternative
+- [Workflow Engine](/features/workflow) — DAG execution using bus events
+- [Orchestration CLI](/reference/cli/orchestration#bus) — full command reference
+- [Mesh Networking](/features/mesh-networking) — synchronous query alternative

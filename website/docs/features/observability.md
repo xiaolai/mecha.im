@@ -458,3 +458,9 @@ Returns `ExperimentResult`.
 | `createExperiment(opts)` | Define A/B test experiments |
 | `runExperiment(experiment, executor)` | Execute experiment variants |
 | `compareResults(...)` | A/B test comparison |
+
+## See Also
+
+- [Workflow Engine](/features/workflow) — trace workflow execution
+- [Orchestration CLI](/reference/cli/orchestration#trace) — trace and metrics commands
+- [Task Protocol](/features/task-protocol) — task duration and cost tracking

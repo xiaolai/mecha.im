@@ -286,3 +286,9 @@ Log levels:
 | `info` | stdout | Normal operations |
 | `warn` | stdout | Degraded but recoverable |
 | `error` | stderr | Failures requiring attention |
+
+## See Also
+
+- [Architecture](/guide/architecture) — how the dashboard fits in the system
+- [System Commands](/reference/cli/system#mecha-dashboard-serve) — dashboard CLI
+- [Sessions](/features/sessions) — session management in the UI

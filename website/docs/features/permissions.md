@@ -122,3 +122,9 @@ When another agent discovers bots via the mesh, only those with matching exposed
 ## API Reference
 
 See [@mecha/core API Reference](/reference/api/core#acl) for the ACL engine types and functions.
+
+## See Also
+
+- [Task Protocol](/features/task-protocol) — ACL enforcement on task operations
+- [Sandbox](/features/sandbox) — OS-level isolation complements ACL
+- [Bot Commands](/reference/cli/bot) — `--expose` flag for capability grants
