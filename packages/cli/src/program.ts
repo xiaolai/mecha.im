@@ -30,6 +30,7 @@ import { registerWorkflowCommand } from "./commands/workflow.js";
 import { registerTeamCommand } from "./commands/team.js";
 import { registerTraceCommand } from "./commands/trace.js";
 import { registerMetricsCommand } from "./commands/metrics.js";
+import { registerTaskCommand } from "./commands/task.js";
 import { registerAlertCommand } from "./commands/alert.js";
 import { registerSecretCommand } from "./commands/secret.js";
 import { registerMetaCommand } from "./commands/meta.js";
@@ -125,6 +126,9 @@ export function createProgram(deps: CommandDeps): Command {
 
   // Gateway
   registerSecretCommand(program, deps);
+
+  // Task protocol
+  registerTaskCommand(program, deps);
 
   // Observability subgroups
   registerTraceCommand(program, deps);
