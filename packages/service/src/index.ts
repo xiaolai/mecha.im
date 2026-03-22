@@ -67,3 +67,4 @@ export { resolveBotHome, listBotDir, readBotFile, writeBotFile, FileNotFoundErro
 export type { DirEntry } from "./bot-files.js";
 export { botActivitySnapshot, botActivityStream } from "./activity.js";
 export type { ActivitySnapshot } from "./activity.js";
+export { taskCreate, taskGet, taskCancel, taskList } from "./task-ops.js";
