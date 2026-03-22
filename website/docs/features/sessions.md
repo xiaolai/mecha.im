@@ -128,3 +128,9 @@ Error messages exposed to clients are filtered through a safe-prefix allowlist t
 ## API Reference
 
 See [@mecha/runtime API Reference](/reference/api/runtime) for the SessionManager, SessionMeta, Session, and TranscriptEvent types.
+
+## See Also
+
+- [Bot Commands](/reference/cli/bot#mecha-bot-sessions-list) — session CLI commands
+- [Dashboard](/features/dashboard) — view sessions in the web UI
+- [Configuration](/guide/configuration) — session persistence settings
