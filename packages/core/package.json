@@ -1,6 +1,6 @@
 {
   "name": "@mecha/core",
-  "version": "4.0.0",
+  "version": "4.1.0-beta.1",
   "description": "Core types, schemas, and utilities for mecha.im",
   "type": "module",
   "exports": {

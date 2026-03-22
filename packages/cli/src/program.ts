@@ -50,9 +50,9 @@ export const MUTATING_COMMANDS = new Set([
   "agent start",
   // dashboard subcommands
   "dashboard serve",
-  // task subcommands
-  "task create", "task cancel",
   // --- Commands NOT locked (R6-001) ---
+  // "task create"/"task cancel" are proxied to the agent server API when daemon is running.
+  // The daemon serializes task operations, so the CLI does not need cli.lock.
   // "bot spawn" is proxied to the daemon API when daemon is running.
   // The daemon's ProcessManager serializes spawns via withBotLock(), so the CLI
   // does not need cli.lock. Locking here deadlocks because the daemon holds cli.lock.
