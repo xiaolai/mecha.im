@@ -21,13 +21,13 @@ export function registerTaskListCommand(parent: Command, deps: CommandDeps): voi
           status: opts.status,
         });
 
-        if (tasks.length === 0) {
-          deps.formatter.info("No tasks found");
+        if (deps.formatter.isJson) {
+          deps.formatter.json(tasks);
           return;
         }
 
-        if (deps.formatter.isJson) {
-          deps.formatter.json(tasks);
+        if (tasks.length === 0) {
+          deps.formatter.info("No tasks found");
           return;
         }
 

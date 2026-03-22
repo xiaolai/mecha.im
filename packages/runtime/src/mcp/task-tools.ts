@@ -81,8 +81,11 @@ function resolveAgent(mechaDir: string): { url: string; auth: string } | undefin
   try {
     const data = JSON.parse(readFileSync(agentPath, "utf-8")) as { port?: number; host?: string };
     if (typeof data.port !== "number") return undefined;
-    const host = data.host ?? "127.0.0.1";
-    const hostPart = host.includes(":") ? `[${host}]` : host;
+    const rawHost = data.host ?? "127.0.0.1";
+    const hostPart = rawHost === "0.0.0.0" ? "127.0.0.1"
+      : rawHost === "::" ? "[::1]"
+      : rawHost.includes(":") ? `[${rawHost}]`
+      : rawHost;
 
     // Derive auth from TOTP secret (same as CLI agent-auth)
     const secret = readTotpSecret(mechaDir);

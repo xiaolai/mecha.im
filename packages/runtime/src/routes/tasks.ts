@@ -47,7 +47,7 @@ export function registerTaskRoutes(app: FastifyInstance, opts: TaskRouteOpts): v
       return reply.code(400).send({ error: "Missing required: message" });
     }
 
-    startTask(taskId, opts.sdkChatOpts, message, (result) => {
+    const admission = startTask(taskId, opts.sdkChatOpts, message, (result) => {
       storeResult(taskId, result);
       // Callback to agent server to update persistent task storage
       /* v8 ignore start -- agent callback requires live agent process */
@@ -64,6 +64,10 @@ export function registerTaskRoutes(app: FastifyInstance, opts: TaskRouteOpts): v
       }
       /* v8 ignore stop */
     });
+
+    if (!admission.admitted) {
+      return reply.code(429).send({ error: admission.error ?? "Task rejected" });
+    }
 
     return reply.code(202).send({ accepted: true, taskId });
   });
