@@ -30,10 +30,16 @@ describe("withErrorHandler", () => {
     expect(process.exitCode).toBe(2);
   });
 
-  it("re-throws non-MechaError errors", async () => {
+  it("catches plain Error and sets exitCode 1", async () => {
     const err = new Error("unexpected");
+    await withErrorHandler(deps, async () => { throw err; });
+    expect(deps.formatter.error).toHaveBeenCalledWith("unexpected");
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("re-throws non-Error values", async () => {
     await expect(
-      withErrorHandler(deps, async () => { throw err; }),
-    ).rejects.toThrow("unexpected");
+      withErrorHandler(deps, async () => { throw "string-error"; }),
+    ).rejects.toBe("string-error");
   });
 });
