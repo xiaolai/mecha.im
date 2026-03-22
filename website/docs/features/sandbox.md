@@ -61,6 +61,14 @@ The OS-level sandbox provides the strongest isolation:
 
 The access control layer mediates all inter-agent communication. Even if two bots are on the same machine, they cannot interact without explicit permission grants.
 
+```mermaid
+flowchart TB
+  ACL["Layer 5: ACL<br/>per-bot capability grants"] --> OS["Layer 4: OS Sandbox<br/>bwrap (Linux) / sandbox-exec (macOS)"]
+  OS --> Process["Layer 3: Process Isolation<br/>separate PID, UID, env"]
+  Process --> Network["Layer 2: Network Restrictions<br/>loopback-only binding"]
+  Network --> FS["Layer 1: Filesystem<br/>scoped workspace + read-only paths"]
+```
+
 ## bot Home Directory Isolation
 
 Each bot gets its own isolated Claude Code home directory. The host's real `~/.claude/` is never exposed.
