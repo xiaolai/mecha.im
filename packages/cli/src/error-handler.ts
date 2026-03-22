@@ -13,6 +13,11 @@ export function withErrorHandler(deps: CommandDeps, fn: () => Promise<void>): Pr
       process.exitCode = err.exitCode;
       return;
     }
+    if (err instanceof Error) {
+      deps.formatter.error(err.message);
+      process.exitCode = 1;
+      return;
+    }
     throw err;
   });
 }

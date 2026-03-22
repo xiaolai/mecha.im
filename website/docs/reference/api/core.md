@@ -2594,6 +2594,165 @@ Operational defaults — single source of truth for all tuning knobs.
 
 See `packages/core/src/constants.ts` for the complete list including meter, relay, and reconnect tuning knobs.
 
+## Task Protocol
+
+Types, schemas, and filesystem storage for the inter-bot task protocol. Tasks are the canonical unit of work delegation between bots.
+
+**Source:** `packages/core/src/task-types.ts`, `packages/core/src/task-storage.ts`
+
+### `TaskStatus`
+
+```ts
+type TaskStatus = "pending" | "working" | "completed" | "failed" | "cancelled";
+```
+
+The five lifecycle states of a task:
+
+| Status | Description |
+|--------|-------------|
+| `pending` | Task created, not yet dispatched to runtime |
+| `working` | Runtime accepted the task and is executing |
+| `completed` | Task finished successfully |
+| `failed` | Task failed (runtime error, timeout, or agent restart) |
+| `cancelled` | Task was cancelled by the source or admin |
+
+### `TERMINAL_STATUSES`
+
+```ts
+const TERMINAL_STATUSES: readonly TaskStatus[] = ["completed", "failed", "cancelled"];
+```
+
+Statuses that represent a final state. Used by cleanup and reconciliation logic to identify tasks that are no longer active.
+
+### `Task`
+
+The full task record. Validated by `TaskSchema` (Zod).
+
+```ts
+interface Task {
+  id: string;
+  source: string;
+  target: string;
+  status: TaskStatus;
+  message: string;
+  result?: string;
+  error?: string;
+  sessionId?: string;
+  durationMs?: number;
+  costUsd?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | `string` | Yes | Unique task ID (e.g., `task-a1b2c3d4e5f6g7h8`) |
+| `source` | `string` | Yes | Identity of the requester (bot name, `bot@node`, or `"admin"`) |
+| `target` | `string` | Yes | Bot name that executes the task |
+| `status` | `TaskStatus` | Yes | Current lifecycle status |
+| `message` | `string` | Yes | Task instruction/prompt |
+| `result` | `string` | No | Execution result text (set on completion) |
+| `error` | `string` | No | Error description (set on failure) |
+| `sessionId` | `string` | No | SDK session ID used during execution |
+| `durationMs` | `number` | No | Execution duration in milliseconds |
+| `costUsd` | `number` | No | Execution cost in USD |
+| `createdAt` | `string` | Yes | ISO 8601 creation timestamp |
+| `updatedAt` | `string` | Yes | ISO 8601 last-update timestamp |
+
+### `TaskCreateInput`
+
+Input schema for creating a new task. Validated by `TaskCreateInputSchema` (Zod).
+
+```ts
+interface TaskCreateInput {
+  target: string;
+  message: string;
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `target` | `string` | Yes | Bot name to execute the task |
+| `message` | `string` | Yes | Task instruction/prompt |
+
+### Task Storage Functions
+
+Tasks are stored as individual JSON files in `~/.mecha/tasks/<id>.json` with mode `0o600`. All storage functions include path traversal protection.
+
+#### `tasksDir(mechaDir)`
+
+Get the tasks directory path.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `mechaDir` | `string` | Path to `~/.mecha` |
+
+**Returns:** `string` — resolves to `<mechaDir>/tasks`
+
+#### `writeTask(dir, task)`
+
+Write a task to disk. Creates the directory if it does not exist.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `dir` | `string` | Tasks directory path |
+| `task` | `Task` | Task object to write |
+
+#### `readTask(dir, id)`
+
+Read a task by ID. Returns `undefined` if the file does not exist or is corrupt.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `dir` | `string` | Tasks directory path |
+| `id` | `string` | Task ID |
+
+**Returns:** `Task | undefined`
+
+#### `listTasks(dir, filter?)`
+
+List tasks with optional filters. Sorted by `updatedAt` descending.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `dir` | `string` | Tasks directory path |
+| `filter` | `{ status?: TaskStatus; target?: string }` | Optional filters |
+
+**Returns:** `Task[]`
+
+#### `deleteTask(dir, id)`
+
+Delete a task file.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `dir` | `string` | Tasks directory path |
+| `id` | `string` | Task ID |
+
+**Returns:** `boolean` — `true` if deleted, `false` if not found
+
+#### `cleanExpiredTasks(dir, retentionDays)`
+
+Remove tasks in a terminal state that are older than `retentionDays`.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `dir` | `string` | Tasks directory path |
+| `retentionDays` | `number` | Number of days to retain terminal tasks |
+
+**Returns:** `number` — count of tasks cleaned
+
+#### `reconcileStaleTasks(dir)`
+
+Startup reconciliation: mark all `working` and `pending` tasks as `failed`. Called on agent server startup to handle tasks that were running when the previous process died.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `dir` | `string` | Tasks directory path |
+
+**Returns:** `number` — count of tasks reconciled
+
 ## See also
 
 - [Error Reference](/reference/errors) — Error classes and codes

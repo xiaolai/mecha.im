@@ -24,6 +24,8 @@ The `@mecha/agent` package provides the agent HTTP server that receives bot quer
 | `verifyRequestSignature` | Function | `auth.ts` |
 | `AuthConfig` | Type | `auth.ts` |
 | `AuthContext` | Type | `auth.ts` |
+| `registerTaskRoutes` | Function | `task-routes.ts` |
+| `TaskRouteOpts` | Type | `task-routes.ts` |
 
 ## `createAgentServer(opts)`
 
@@ -65,6 +67,11 @@ await app.listen({ port: 7660, host: "127.0.0.1" });
 |--------|------|------|-------------|
 | `GET` | `/healthz` | None | Liveness check. Returns `{ status: "ok" }` |
 | `POST` | `/bots/:botName/query` | Required | Forward a query to a local bot process |
+| `POST` | `/tasks` | Required | Create a task (see [Task Routes](#task-routes)) |
+| `GET` | `/tasks` | Required | List tasks (see [Task Routes](#task-routes)) |
+| `GET` | `/tasks/:id` | Required | Get a single task (see [Task Routes](#task-routes)) |
+| `PATCH` | `/tasks/:id` | Required | Update task result (see [Task Routes](#task-routes)) |
+| `POST` | `/tasks/:id/cancel` | Required | Cancel a task (see [Task Routes](#task-routes)) |
 
 > **Note:** `mecha node health` also fetches `GET /bots` to obtain a bot count. This route is provided by the SPA static handler when `spaDir` is set, or returns 404 otherwise. The health check treats failures gracefully.
 
@@ -358,6 +365,162 @@ await handle.close();
 | `startedAt` | `string` | ISO timestamp of when the daemon started |
 
 **Throws** if the meter daemon is already running or the port is busy.
+
+## Task Routes
+
+The agent server acts as the persistent task store and proxy layer for the task protocol. Tasks are stored as JSON files in `~/.mecha/tasks/` and execution is proxied to the target bot's runtime process.
+
+```mermaid
+sequenceDiagram
+  participant CLI as CLI / MCP Tool
+  participant Agent as Agent Server
+  participant Runtime as Bot Runtime
+  participant SDK as sdkChat (Claude)
+  CLI->>Agent: POST /tasks
+  Agent->>Agent: Write task JSON (pending)
+  Agent-->>CLI: 201 {id, status: pending}
+  Agent->>Runtime: POST /api/tasks (async)
+  Runtime->>Runtime: startTask (AbortController)
+  Runtime-->>Agent: 202 Accepted
+  Agent->>Agent: Update task (working)
+  Runtime->>SDK: query()
+  SDK-->>Runtime: result
+  Runtime->>Agent: PATCH /tasks/:id (completed + result)
+  Agent->>Agent: Update task JSON
+  CLI->>Agent: GET /tasks/:id
+  Agent-->>CLI: {status: completed, result: "..."}
+```
+
+**Source:** `packages/agent/src/task-routes.ts`
+
+### Task Route Summary
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `POST` | `/tasks` | Required | Create a task and proxy to bot runtime |
+| `GET` | `/tasks` | Required | List tasks (filtered by caller ownership) |
+| `GET` | `/tasks/:id` | Required | Get a single task |
+| `PATCH` | `/tasks/:id` | Required | Update task result (runtime callback) |
+| `POST` | `/tasks/:id/cancel` | Required | Cancel a task |
+
+All task routes require authentication (Bearer token or session cookie). Non-admin callers only see tasks where they are the `source` or `target`.
+
+### `POST /tasks`
+
+Create a new task and proxy it to the target bot's runtime process.
+
+**Request body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `target` | `string` | Yes | Bot name to execute the task |
+| `message` | `string` | Yes | Task instruction/prompt |
+
+**ACL enforcement:** The `X-Mecha-Source` header identifies the caller (defaults to `"admin"`). The ACL engine checks the `query` capability from source to target.
+
+**Success response** (`201`):
+
+```json
+{
+  "id": "task-a1b2c3d4e5f6g7h8",
+  "status": "pending"
+}
+```
+
+The task is created with `pending` status and written to disk. The agent then fires an async proxy request to the bot runtime's `POST /api/tasks` endpoint. If the runtime accepts, the status transitions to `working`; if the runtime rejects or is unreachable, the status transitions to `failed`.
+
+**Error responses:**
+
+| Status | Condition |
+|--------|-----------|
+| `400` | Invalid input (Zod validation) or invalid bot name |
+| `403` | ACL denied the `query` capability |
+| `404` | Target bot not found (no `config.json`) |
+
+### `GET /tasks`
+
+List tasks with optional filters. Results are sorted by `updatedAt` descending. Expired tasks (older than 7 days in a terminal state) are cleaned up opportunistically (at most once per minute).
+
+**Query parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `target` | `string?` | Filter by target bot name |
+| `status` | `string?` | Filter by status (`pending`, `working`, `completed`, `failed`, `cancelled`) |
+
+**Ownership filtering:** Non-admin callers only see tasks where `source` or `target` matches their identity.
+
+**Success response** (`200`): Array of `Task` objects.
+
+**Error responses:**
+
+| Status | Condition |
+|--------|-----------|
+| `400` | Invalid status value |
+
+### `GET /tasks/:id`
+
+Get a single task by ID.
+
+**Success response** (`200`): A `Task` object.
+
+**Error responses:**
+
+| Status | Condition |
+|--------|-----------|
+| `403` | Caller is not the task source, target, or admin |
+| `404` | Task not found |
+
+### `PATCH /tasks/:id`
+
+Update a task with execution results. This endpoint is intended for the bot runtime callback -- only the executing bot (identified by a source starting with `<target>@`) or admin can update results.
+
+**Request body** (all fields optional):
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `status` | `string` | New status (`completed`, `failed`, `cancelled`) |
+| `result` | `string` | Task result text |
+| `error` | `string` | Error message |
+| `sessionId` | `string` | SDK session ID used during execution |
+| `durationMs` | `number` | Execution duration in milliseconds |
+| `costUsd` | `number` | Execution cost in USD |
+
+**Success response** (`200`):
+
+```json
+{ "updated": true }
+```
+
+**Error responses:**
+
+| Status | Condition |
+|--------|-----------|
+| `400` | Invalid status value |
+| `403` | Caller is not the executing bot or admin |
+| `404` | Task not found |
+
+### `POST /tasks/:id/cancel`
+
+Cancel a pending or working task. The agent proxies the cancel request to the bot's runtime, then marks the task as `cancelled` in storage.
+
+**Success response** (`200`):
+
+```json
+{ "cancelled": true }
+```
+
+**Error responses:**
+
+| Status | Condition |
+|--------|-----------|
+| `403` | Caller is not the task source or admin |
+| `404` | Task not found |
+| `409` | Task is already in a terminal state (`completed`, `failed`, `cancelled`) |
+
+### Startup Reconciliation
+
+On startup, the agent server reconciles stale tasks via `reconcileStaleTasks()`. Any tasks left in `working` or `pending` status from a previous agent process are marked as `failed` with an appropriate error message.
 
 ## See also
 

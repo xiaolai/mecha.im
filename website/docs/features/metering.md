@@ -22,6 +22,24 @@ graph LR
 
 Every API call is intercepted, forwarded to Anthropic, and the response is parsed for usage data (input tokens, output tokens, cache tokens). Costs are calculated using built-in model pricing.
 
+```mermaid
+sequenceDiagram
+  participant Bot
+  participant Meter as Meter Proxy
+  participant API as Anthropic API
+  Bot->>Meter: POST /bot/{name}/v1/messages
+  Meter->>Meter: Check budget
+  alt Budget OK
+    Meter->>API: Forward request
+    API-->>Meter: Response (streaming)
+    Meter->>Meter: Parse tokens, calculate cost
+    Meter->>Meter: Append event, update counters
+    Meter-->>Bot: Forward response
+  else Budget exceeded
+    Meter-->>Bot: 429 Budget exceeded
+  end
+```
+
 ## Starting the Meter
 
 ```bash

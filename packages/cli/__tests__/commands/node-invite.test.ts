@@ -125,9 +125,10 @@ describe("node invite command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await expect(
-      program.parseAsync(["node", "mecha", "node", "invite", "--expires", "invalid"]),
-    ).rejects.toThrow("Invalid duration");
+    await program.parseAsync(["node", "mecha", "node", "invite", "--expires", "invalid"]);
+
+    expect(deps.formatter.error).toHaveBeenCalledWith(expect.stringContaining("Invalid duration"));
+    expect(process.exitCode).toBe(1);
   });
 
   it("uses --server override for rendezvous URL", async () => {
