@@ -28,3 +28,8 @@ export type { RunDeps } from "./schedule-runner.js";
 export { registerScheduleRoutes } from "./routes/schedule.js";
 export { sdkChat, createChatFn } from "./sdk-chat.js";
 export type { SdkChatOpts } from "./sdk-chat.js";
+
+export { startTask, cancelTask, isTaskRunning, runningTaskCount } from "./task-runner.js";
+export type { TaskRunResult, TaskResultCallback } from "./task-runner.js";
+export { registerTaskRoutes } from "./routes/tasks.js";
+export type { TaskRouteOpts } from "./routes/tasks.js";

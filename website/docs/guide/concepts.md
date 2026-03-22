@@ -129,9 +129,14 @@ Each bot has a lifecycle state:
 
 ```mermaid
 stateDiagram-v2
-  [*] --> running
-  running --> stopped
-  running --> error
+  [*] --> stopped: mecha bot spawn
+  stopped --> running: mecha bot start / spawn
+  running --> stopped: mecha bot stop (SIGTERM)
+  running --> stopped: mecha bot kill (SIGKILL)
+  running --> error: crash / health check fail
+  error --> running: mecha bot restart
+  stopped --> running: mecha bot restart
+  stopped --> [*]: mecha bot remove
 ```
 
 | State | Meaning |
