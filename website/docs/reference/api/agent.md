@@ -370,6 +370,27 @@ await handle.close();
 
 The agent server acts as the persistent task store and proxy layer for the task protocol. Tasks are stored as JSON files in `~/.mecha/tasks/` and execution is proxied to the target bot's runtime process.
 
+```mermaid
+sequenceDiagram
+  participant CLI as CLI / MCP Tool
+  participant Agent as Agent Server
+  participant Runtime as Bot Runtime
+  participant SDK as sdkChat (Claude)
+  CLI->>Agent: POST /tasks
+  Agent->>Agent: Write task JSON (pending)
+  Agent-->>CLI: 201 {id, status: pending}
+  Agent->>Runtime: POST /api/tasks (async)
+  Runtime->>Runtime: startTask (AbortController)
+  Runtime-->>Agent: 202 Accepted
+  Agent->>Agent: Update task (working)
+  Runtime->>SDK: query()
+  SDK-->>Runtime: result
+  Runtime->>Agent: PATCH /tasks/:id (completed + result)
+  Agent->>Agent: Update task JSON
+  CLI->>Agent: GET /tasks/:id
+  Agent-->>CLI: {status: completed, result: "..."}
+```
+
 **Source:** `packages/agent/src/task-routes.ts`
 
 ### Task Route Summary
