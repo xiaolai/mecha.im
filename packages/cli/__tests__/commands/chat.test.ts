@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { createProgram } from "../../src/program.js";
 import { makeDeps } from "../test-utils.js";
 
@@ -17,6 +17,10 @@ vi.mock("@mecha/service", async (importOriginal) => {
 });
 
 describe("chat command", () => {
+  afterEach(() => {
+    process.exitCode = undefined as unknown as number;
+  });
+
   it("prints chat response", async () => {
     const deps = makeDeps();
     const program = createProgram(deps);
@@ -57,8 +61,9 @@ describe("chat command", () => {
     const program = createProgram(deps);
     program.exitOverride();
 
-    await expect(
-      program.parseAsync(["node", "mecha", "bot", "chat", "researcher", "Hello"]),
-    ).rejects.toThrow("SDK query failed");
+    await program.parseAsync(["node", "mecha", "bot", "chat", "researcher", "Hello"]);
+
+    expect(deps.formatter.error).toHaveBeenCalledWith("SDK query failed");
+    expect(process.exitCode).toBe(1);
   });
 });

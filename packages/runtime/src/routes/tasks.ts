@@ -12,6 +12,10 @@ import type { SdkChatOpts } from "../sdk-chat.js";
 export interface TaskRouteOpts {
   sdkChatOpts: SdkChatOpts;
   botName: string;
+  /** Agent server URL for result callback (e.g. http://127.0.0.1:7660). */
+  agentUrl?: string;
+  /** Bearer token for agent server authentication. */
+  agentAuth?: string;
 }
 
 /** In-memory terminal results for recently completed tasks (ephemeral). */
@@ -45,6 +49,20 @@ export function registerTaskRoutes(app: FastifyInstance, opts: TaskRouteOpts): v
 
     startTask(taskId, opts.sdkChatOpts, message, (result) => {
       storeResult(taskId, result);
+      // Callback to agent server to update persistent task storage
+      /* v8 ignore start -- agent callback requires live agent process */
+      if (opts.agentUrl && opts.agentAuth) {
+        void fetch(`${opts.agentUrl}/tasks/${taskId}`, {
+          method: "PATCH",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${opts.agentAuth}`,
+          },
+          body: JSON.stringify(result),
+          signal: AbortSignal.timeout(5_000),
+        }).catch(() => { /* best-effort — agent may be down */ });
+      }
+      /* v8 ignore stop */
     });
 
     return reply.code(202).send({ accepted: true, taskId });

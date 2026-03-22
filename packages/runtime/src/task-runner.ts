@@ -10,6 +10,12 @@ import { createLogger } from "@mecha/core";
 
 const log = createLogger("mecha:task-runner");
 
+/** Maximum number of tasks that can execute concurrently. */
+const MAX_CONCURRENT_TASKS = 10;
+
+/** Task execution timeout — auto-abort after 10 minutes to prevent zombie tasks. */
+const TASK_TIMEOUT_MS = 10 * 60 * 1000;
+
 /** Result reported back to the caller when a task completes or fails. */
 export interface TaskRunResult {
   status: "completed" | "failed" | "cancelled";
@@ -36,6 +42,11 @@ export function startTask(
   message: string,
   callback: TaskResultCallback,
 ): void {
+  if (runningTasks.size >= MAX_CONCURRENT_TASKS) {
+    callback({ status: "failed", error: `Concurrent task limit reached (max ${MAX_CONCURRENT_TASKS})` });
+    return;
+  }
+
   if (runningTasks.has(taskId)) {
     callback({ status: "failed", error: `Task ${taskId} is already running` });
     return;
@@ -43,6 +54,8 @@ export function startTask(
 
   const ac = new AbortController();
   runningTasks.set(taskId, ac);
+  const timeoutId = setTimeout(() => ac.abort(), TASK_TIMEOUT_MS);
+  timeoutId.unref();
 
   void (async () => {
     try {
@@ -67,6 +80,7 @@ export function startTask(
         callback({ status: "failed", error: errorMsg });
       }
     } finally {
+      clearTimeout(timeoutId);
       runningTasks.delete(taskId);
     }
   })();

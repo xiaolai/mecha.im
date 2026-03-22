@@ -50,6 +50,8 @@ export const MUTATING_COMMANDS = new Set([
   "agent start",
   // dashboard subcommands
   "dashboard serve",
+  // task subcommands
+  "task create", "task cancel",
   // --- Commands NOT locked (R6-001) ---
   // "bot spawn" is proxied to the daemon API when daemon is running.
   // The daemon's ProcessManager serializes spawns via withBotLock(), so the CLI

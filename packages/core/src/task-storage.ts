@@ -3,12 +3,20 @@
  * Tasks are stored at ~/.mecha/tasks/<id>.json
  */
 import { readFileSync, writeFileSync, readdirSync, unlinkSync, mkdirSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve, sep } from "node:path";
 import { TaskSchema, TERMINAL_STATUSES } from "./task-types.js";
 import type { Task, TaskStatus } from "./task-types.js";
+import { createLogger } from "./logger.js";
+const log = createLogger("mecha:task-storage");
 
 function taskPath(dir: string, id: string): string {
-  return join(dir, `${id}.json`);
+  const p = join(dir, `${id}.json`);
+  const resolved = resolve(p);
+  const resolvedDir = resolve(dir);
+  if (!resolved.startsWith(resolvedDir + sep) && resolved !== resolvedDir) {
+    throw new Error("Invalid task ID");
+  }
+  return p;
 }
 
 /** Get the tasks directory path: ~/.mecha/tasks */
@@ -29,7 +37,8 @@ export function readTask(dir: string, id: string): Task | undefined {
   if (!existsSync(p)) return undefined;
   try {
     return TaskSchema.parse(JSON.parse(readFileSync(p, "utf-8")));
-  } catch {
+  } catch (err) {
+    log.warn("Corrupt task file", { id, error: err instanceof Error ? err.message : String(err) });
     return undefined;
   }
   /* v8 ignore stop */
@@ -89,5 +98,12 @@ export function reconcileStaleTasks(dir: string): number {
     task.updatedAt = new Date().toISOString();
     writeTask(dir, task);
   }
-  return tasks.length;
+  const pendingTasks = listTasks(dir, { status: "pending" });
+  for (const task of pendingTasks) {
+    task.status = "failed";
+    task.error = "Agent restarted — task was never dispatched";
+    task.updatedAt = new Date().toISOString();
+    writeTask(dir, task);
+  }
+  return tasks.length + pendingTasks.length;
 }
