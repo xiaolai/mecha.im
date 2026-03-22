@@ -34,6 +34,7 @@ const runningTasks = new Map<string, AbortController>();
 
 /**
  * Start executing a task asynchronously.
+ * Returns `{ admitted: true }` if the task was accepted, or `{ admitted: false, error }` if rejected.
  * The callback fires exactly once when the task completes, fails, or is cancelled.
  */
 export function startTask(
@@ -41,15 +42,17 @@ export function startTask(
   sdkChatOpts: SdkChatOpts,
   message: string,
   callback: TaskResultCallback,
-): void {
+): { admitted: boolean; error?: string } {
   if (runningTasks.size >= MAX_CONCURRENT_TASKS) {
-    callback({ status: "failed", error: `Concurrent task limit reached (max ${MAX_CONCURRENT_TASKS})` });
-    return;
+    const error = `Concurrent task limit reached (max ${MAX_CONCURRENT_TASKS})`;
+    callback({ status: "failed", error });
+    return { admitted: false, error };
   }
 
   if (runningTasks.has(taskId)) {
-    callback({ status: "failed", error: `Task ${taskId} is already running` });
-    return;
+    const error = `Task ${taskId} is already running`;
+    callback({ status: "failed", error });
+    return { admitted: false, error };
   }
 
   const ac = new AbortController();
@@ -84,6 +87,8 @@ export function startTask(
       runningTasks.delete(taskId);
     }
   })();
+
+  return { admitted: true };
 }
 
 /** Cancel a running task. Returns true if cancellation was initiated. */
