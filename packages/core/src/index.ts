@@ -182,6 +182,11 @@ export {
   ensureTotpSecret,
 } from "./totp-storage.js";
 
+// Task Protocol
+export { TaskStatusSchema, TaskSchema, TaskCreateInputSchema, TERMINAL_STATUSES } from "./task-types.js";
+export type { Task, TaskStatus, TaskCreateInput } from "./task-types.js";
+export { writeTask, readTask, listTasks, deleteTask, cleanExpiredTasks, reconcileStaleTasks, tasksDir } from "./task-storage.js";
+
 // Auth Config
 export {
   readAuthConfig,
