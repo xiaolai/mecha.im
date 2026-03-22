@@ -38,6 +38,16 @@ Sessions are stored as plain files — no database:
 └── abc123.jsonl         ← transcript
 ```
 
+```mermaid
+flowchart TB
+  SD["~/.mecha/bot-name/.claude/projects/workspace-path/"] --> META["session-id.meta.json<br/>title, starred, createdAt"]
+  SD --> JSONL["session-id.jsonl<br/>user, assistant, tool events"]
+  JSONL --> E1["Event: user prompt"]
+  JSONL --> E2["Event: assistant response"]
+  JSONL --> E3["Event: tool_use"]
+  JSONL --> E4["Event: result"]
+```
+
 ### Metadata (`*.meta.json`)
 
 ```json

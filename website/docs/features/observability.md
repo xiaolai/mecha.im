@@ -43,6 +43,17 @@ Aggregated per-bot and per-workflow metrics computed from traces:
 - Quality score trends, revision rate
 - Queue depth and wait time
 
+```mermaid
+flowchart LR
+  T[Workflow Traces] --> M[computeMetrics]
+  S[Quality Scores] --> M
+  M --> MS[MetricsSummary]
+  MS --> AE[Alert Engine]
+  AE -->|threshold crossed| A[Fired Alerts]
+  S --> PA[analyzeBotPerformance]
+  PA --> R[Recommendations]
+```
+
 ### Alerts
 
 Rule-based threshold alerts that fire when metrics cross boundaries:

@@ -74,6 +74,21 @@ flowchart TD
 
 Both sides must approve. This prevents a compromised node from unilaterally accessing agents on another node.
 
+### Cross-Node ACL Evaluation
+
+When a bot on one node queries a bot on a different node, both nodes must independently approve the request:
+
+```mermaid
+flowchart TD
+  Q[Bot A queries Bot B at Node 2] --> SRC{Source Node ACL}
+  SRC -->|allowed| NET[Network: agentFetch to Node 2]
+  SRC -->|denied| DENY1[403 Access Denied]
+  NET --> TGT{Target Node ACL}
+  TGT -->|allowed| FWD[Forward to Bot B]
+  TGT -->|denied| DENY2[403 Access Denied]
+  FWD --> RES[Response returned to Bot A]
+```
+
 ## ACL Storage
 
 Rules are stored in `~/.mecha/acl.json`:

@@ -41,6 +41,15 @@ Tags power three features:
 2. **Group addressing** — `+ml` targets all agents tagged "ml" in chat
 3. **ACL filtering** — control which bots are visible to other bots via discovery
 
+```mermaid
+flowchart LR
+  T["Tags: research, ml"] --> D[mesh_discover<br/>filter by tag]
+  T --> G["Group Address<br/>+research"]
+  T --> A["ACL<br/>grant by tag"]
+  D --> Q[mesh_query target]
+  G --> Q
+```
+
 ## Fleet Operations
 
 ### Spawning Multiple Agents

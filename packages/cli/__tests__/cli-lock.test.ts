@@ -205,6 +205,8 @@ describe("cli-lock", () => {
       ["stop", ["node", "mecha", "stop"]],
       ["restart", ["node", "mecha", "restart"]],
       ["agent status", ["node", "mecha", "agent", "status"]],
+      ["task create", ["node", "mecha", "task", "create"]],
+      ["task cancel", ["node", "mecha", "task", "cancel"]],
     ])("returns false for %s", (_label, argv) => {
       expect(needsLock(argv)).toBe(false);
     });
