@@ -57,6 +57,7 @@ export function registerTaskRoutes(app: FastifyInstance, opts: TaskRouteOpts): v
           headers: {
             "content-type": "application/json",
             authorization: `Bearer ${opts.agentAuth}`,
+            "x-mecha-source": `${opts.botName}@runtime`,
           },
           body: JSON.stringify(result),
           signal: AbortSignal.timeout(5_000),

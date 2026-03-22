@@ -76,3 +76,9 @@ The scheduler includes several safeguards to prevent runaway execution:
 ## API Reference
 
 See [@mecha/core API Reference](/reference/api/core#scheduling) for the schedule types.
+
+## See Also
+
+- [Metering](/features/metering) — track costs of scheduled runs
+- [Orchestration CLI](/reference/cli/orchestration) — schedule-related commands
+- [Bot Commands](/reference/cli/bot) — bot lifecycle management
