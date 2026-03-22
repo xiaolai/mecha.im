@@ -186,3 +186,9 @@ Send `SIGHUP` to the meter process to reload budgets, pricing, and the bot regis
 ## API Reference
 
 See [@mecha/meter API Reference](/reference/api/meter) for the complete function and type documentation.
+
+## See Also
+
+- [Scheduling](/features/scheduling) — scheduled bots use metered API calls
+- [Meter CLI](/reference/cli/meter) — full command reference
+- [Configuration](/guide/configuration) — budget configuration

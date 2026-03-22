@@ -47,6 +47,7 @@ export default withMermaid(
           {
             text: "Operations",
             items: [
+              { text: "Architecture", link: "/guide/architecture" },
               { text: "Multi-Machine Setup", link: "/guide/multi-machine" },
               { text: "Troubleshooting", link: "/guide/troubleshooting" },
               { text: "Cost & Effort", link: "/guide/cost-evaluation" },
@@ -71,6 +72,7 @@ export default withMermaid(
           {
             text: "Orchestration",
             items: [
+              { text: "Task Protocol", link: "/features/task-protocol" },
               { text: "Message Bus", link: "/features/bus" },
               { text: "Workflow Engine", link: "/features/workflow" },
               { text: "Observability", link: "/features/observability" },

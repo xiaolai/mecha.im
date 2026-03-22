@@ -359,3 +359,10 @@ When a mesh query creates a new session on the target, the response includes `_m
 ## API Reference
 
 See [@mecha/connect API Reference](/reference/api/connect) for the complete function and type documentation.
+
+## See Also
+
+- [Multi-Machine Setup](/guide/multi-machine) — step-by-step mesh setup
+- [Node Commands](/reference/cli/node) — node management CLI
+- [Task Protocol](/features/task-protocol) — async alternative to mesh_query
+- [Permissions](/features/permissions) — ACL across mesh nodes

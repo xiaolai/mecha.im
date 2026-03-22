@@ -447,3 +447,9 @@ interface ProfileFromConfigOpts {
 ## API Reference
 
 See [@mecha/core API Reference](/reference/api/core#sandbox) for the sandbox types and functions.
+
+## See Also
+
+- [Permissions](/features/permissions) — ACL complements sandbox isolation
+- [Bot Commands](/reference/cli/bot) — `--sandbox` flag configuration
+- [Configuration](/guide/configuration) — sandbox mode settings

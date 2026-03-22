@@ -268,3 +268,9 @@ Returns `TeamDef`. Throws if `raw` is not an object.
 | `unregisterTeam(mechaDir, name)` | Remove a team from the registry |
 
 The teams package is implemented and tested (100% coverage). See [CLI reference](/reference/cli/orchestration) for `mecha team` commands.
+
+## See Also
+
+- [Workflow Engine](/features/workflow) — coordinate team members via workflows
+- [Orchestration CLI](/reference/cli/orchestration#team) — team deployment commands
+- [Permissions](/features/permissions) — ACL rules in team templates
