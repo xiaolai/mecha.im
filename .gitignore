@@ -93,3 +93,4 @@ packages/spa/public/pixel-assets/
 # VitePress
 website/.vitepress/
 website/docs/.vitepress/cache/
+*.tgz
