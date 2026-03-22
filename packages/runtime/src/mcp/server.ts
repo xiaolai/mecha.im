@@ -6,6 +6,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { MESH_TOOLS, handleMeshTool, type MeshOpts, type MeshRouter } from "./mesh-tools.js";
 import { BUS_TOOLS, handleBusTool, type BusToolOpts } from "./bus-tools.js";
 import { WORKFLOW_TOOLS, handleWorkflowTool, type WorkflowToolOpts } from "./workflow-tools.js";
+import { TASK_TOOLS, handleTaskTool, type TaskToolOpts } from "./task-tools.js";
 
 const JsonRpcRequestSchema = z.object({
   jsonrpc: z.literal("2.0"),
@@ -186,6 +187,7 @@ const ToolCallParams = z.object({
 const MESH_TOOL_NAMES = new Set(MESH_TOOLS.map((t) => t.name));
 const BUS_TOOL_NAMES = new Set(BUS_TOOLS.map((t) => t.name));
 const WORKFLOW_TOOL_NAMES = new Set(WORKFLOW_TOOLS.map((t) => t.name));
+const TASK_TOOL_NAMES = new Set(TASK_TOOLS.map((t) => t.name));
 
 function isMeshTool(name: string): boolean {
   return MESH_TOOL_NAMES.has(name);
@@ -199,11 +201,16 @@ function isWorkflowTool(name: string): boolean {
   return WORKFLOW_TOOL_NAMES.has(name);
 }
 
+function isTaskTool(name: string): boolean {
+  return TASK_TOOL_NAMES.has(name);
+}
+
 /** Grouped optional tool contexts for handleRequest. */
 interface ToolContexts {
   meshOpts?: MeshOpts;
   busOpts?: BusToolOpts;
   workflowOpts?: WorkflowToolOpts;
+  taskOpts?: TaskToolOpts;
 }
 
 async function handleRequest(
@@ -217,6 +224,7 @@ async function handleRequest(
     ...(ctx.meshOpts ? MESH_TOOLS : []),
     ...(ctx.busOpts ? BUS_TOOLS : []),
     ...(ctx.workflowOpts ? WORKFLOW_TOOLS : []),
+    ...(ctx.taskOpts ? TASK_TOOLS : []),
   ];
 
   switch (req.method) {
@@ -254,6 +262,11 @@ async function handleRequest(
         // Workflow tools handled via engine
         if (isWorkflowTool(name) && ctx.workflowOpts) {
           const result = await handleWorkflowTool(ctx.workflowOpts, name, args);
+          return { jsonrpc: "2.0", id, result };
+        }
+        // Task tools handled via agent server
+        if (isTaskTool(name) && ctx.taskOpts) {
+          const result = await handleTaskTool(ctx.taskOpts, name, args);
           return { jsonrpc: "2.0", id, result };
         }
         const result = await handleToolCall(workspacePath, name, args);
@@ -313,7 +326,12 @@ export function registerMcpRoutes(app: FastifyInstance, opts: McpRouteOpts): voi
       ? { workflowsDir: join(opts.mechaDir, "workflows") }
       : undefined;
 
-  const ctx: ToolContexts = { meshOpts, busOpts, workflowOpts };
+  const taskOpts: TaskToolOpts | undefined =
+    opts.mechaDir && opts.botName
+      ? { mechaDir: opts.mechaDir, botName: opts.botName }
+      : undefined;
+
+  const ctx: ToolContexts = { meshOpts, busOpts, workflowOpts, taskOpts };
 
   app.post("/mcp", async (request: FastifyRequest, reply: FastifyReply) => {
     const parseResult = JsonRpcRequestSchema.safeParse(request.body);

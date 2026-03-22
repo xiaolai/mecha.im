@@ -2,10 +2,11 @@
  * Agent server task routes — proxy to bot runtime /api/tasks.
  *
  * Routes:
- * - POST /tasks         — create task, proxy to runtime, return task ID
- * - GET  /tasks         — list tasks from storage
- * - GET  /tasks/:id     — get single task
- * - POST /tasks/:id/cancel — proxy cancel to runtime, update storage
+ * - POST  /tasks         — create task, proxy to runtime, return task ID
+ * - GET   /tasks         — list tasks from storage
+ * - GET   /tasks/:id     — get single task
+ * - PATCH /tasks/:id     — update task with result (runtime callback)
+ * - POST  /tasks/:id/cancel — proxy cancel to runtime, update storage
  */
 import type { FastifyInstance } from "fastify";
 import { join } from "node:path";
@@ -14,6 +15,7 @@ import {
   isValidName,
   readBotConfig,
   TaskCreateInputSchema,
+  TaskStatusSchema,
   writeTask,
   readTask,
   listTasks,
@@ -29,6 +31,9 @@ export interface TaskRouteOpts {
   acl: AclEngine;
   authCtx: AuthContext;
 }
+
+let lastCleanup = 0;
+const CLEANUP_INTERVAL_MS = 60_000;
 
 /** Register task routes on the agent server. */
 export function registerTaskRoutes(app: FastifyInstance, opts: TaskRouteOpts): void {
@@ -70,7 +75,7 @@ export function registerTaskRoutes(app: FastifyInstance, opts: TaskRouteOpts): v
     }
 
     // Create task
-    const taskId = `task-${randomBytes(4).toString("hex")}`;
+    const taskId = `task-${randomBytes(8).toString("hex")}`;
     const now = new Date().toISOString();
     const task: Task = {
       id: taskId,
@@ -120,12 +125,22 @@ export function registerTaskRoutes(app: FastifyInstance, opts: TaskRouteOpts): v
 
   // GET /tasks — list tasks
   app.get<{ Querystring: { target?: string; status?: string } }>("/tasks", async (req, reply) => {
-    // Opportunistic cleanup on list calls
-    cleanExpiredTasks(dir, 7);
+    // Opportunistic cleanup — at most once per minute
+    const now = Date.now();
+    if (now - lastCleanup > CLEANUP_INTERVAL_MS) {
+      cleanExpiredTasks(dir, 7);
+      lastCleanup = now;
+    }
 
     const filter: { target?: string; status?: TaskStatus } = {};
     if (req.query.target) filter.target = req.query.target;
-    if (req.query.status) filter.status = req.query.status as TaskStatus;
+    if (req.query.status) {
+      const statusParsed = TaskStatusSchema.safeParse(req.query.status);
+      if (!statusParsed.success) {
+        return reply.code(400).send({ error: `Invalid status. Valid: pending, working, completed, failed, cancelled` });
+      }
+      filter.status = statusParsed.data;
+    }
 
     const tasks = listTasks(dir, filter);
     return reply.send(tasks);
@@ -138,6 +153,24 @@ export function registerTaskRoutes(app: FastifyInstance, opts: TaskRouteOpts): v
       return reply.code(404).send({ error: "Task not found" });
     }
     return reply.send(task);
+  });
+
+  // PATCH /tasks/:id — update task with result (called by runtime callback)
+  app.patch<{ Params: { id: string }; Body: { status: string; result?: string; error?: string; sessionId?: string; durationMs?: number; costUsd?: number } }>("/tasks/:id", async (req, reply) => {
+    const task = readTask(dir, req.params.id);
+    if (!task) {
+      return reply.code(404).send({ error: "Task not found" });
+    }
+    const body = req.body;
+    if (body.status) task.status = body.status as TaskStatus;
+    if (body.result !== undefined) task.result = body.result;
+    if (body.error !== undefined) task.error = body.error;
+    if (body.sessionId !== undefined) task.sessionId = body.sessionId;
+    if (body.durationMs !== undefined) task.durationMs = body.durationMs;
+    if (body.costUsd !== undefined) task.costUsd = body.costUsd;
+    task.updatedAt = new Date().toISOString();
+    writeTask(dir, task);
+    return reply.send({ updated: true });
   });
 
   // POST /tasks/:id/cancel — cancel a task

@@ -99,7 +99,12 @@ export function createServer(opts: CreateServerOpts): ServerResult {
   registerSessionRoutes(app, sm);
   registerChatRoutes(app, httpChatFn);
   registerActivityEventsRoutes(app, { activityEmitter, botName: opts.botName });
-  registerTaskRoutes(app, { sdkChatOpts: chatOpts, botName: opts.botName });
+  registerTaskRoutes(app, {
+    sdkChatOpts: chatOpts,
+    botName: opts.botName,
+    agentUrl: opts.agentPort ? `http://127.0.0.1:${opts.agentPort}` : undefined,
+    agentAuth: opts.agentApiKey,
+  });
   registerMcpRoutes(app, {
     workspacePath: opts.workspacePath,
     mechaDir: opts.mechaDir,
