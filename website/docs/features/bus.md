@@ -9,6 +9,26 @@ The message bus provides asynchronous pub/sub messaging and durable work queues 
 
 ## Core Concepts
 
+```mermaid
+flowchart LR
+  subgraph "Pub/Sub Topic"
+    P1[Bot A publishes] --> T((Topic))
+    T --> S1[Subscriber 1<br/>cursor: 5]
+    T --> S2[Subscriber 2<br/>cursor: 3]
+    T --> S3[Subscriber 3<br/>cursor: 5]
+  end
+```
+
+```mermaid
+flowchart LR
+  subgraph "Durable Queue"
+    P2[Bot A pushes] --> Q((Queue))
+    Q -->|claim| W1[Worker 1]
+    Q -->|claim| W2[Worker 2]
+    Q -.->|retry/dead-letter| DL[Dead Letter]
+  end
+```
+
 ### Topics (Pub/Sub)
 
 A topic is a named channel. Any bot publishes a message; all subscribers receive it independently.

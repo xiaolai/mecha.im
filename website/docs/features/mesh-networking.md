@@ -20,6 +20,21 @@ Mecha supports two types of node connections:
 
 ## Architecture
 
+The two connection modes at a glance:
+
+```mermaid
+flowchart TB
+  subgraph "Node A"
+    BA[Bot Alice] --> AA[Agent Server :7660]
+  end
+  subgraph "Node B"
+    BB[Bot Bob] --> AB[Agent Server :7660]
+  end
+  AA <-->|"HTTP direct<br/>(same network)"| AB
+  AA <-->|"P2P encrypted<br/>(Noise protocol)"| RV[Rendezvous Server]
+  AB <-->|"P2P encrypted<br/>(Noise protocol)"| RV
+```
+
 ### P2P Mode (Managed Nodes)
 
 ```mermaid

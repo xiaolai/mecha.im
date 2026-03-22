@@ -62,6 +62,15 @@ CLOSED ──────> OPEN ──────> HALF-OPEN
         success          failure → back to OPEN
 ```
 
+```mermaid
+stateDiagram-v2
+  [*] --> Closed
+  Closed --> Open: failures >= maxFailures
+  Open --> HalfOpen: resetTimeout elapsed
+  HalfOpen --> Closed: request succeeds
+  HalfOpen --> Open: request fails
+```
+
 - **Closed** -- requests pass through normally. Consecutive failures are counted. After `maxFailures` (default: 5), the circuit trips to open.
 - **Open** -- all requests are immediately rejected with `CircuitOpenError`. After `resetTimeoutMs` (default: 60,000 ms), the circuit transitions to half-open.
 - **Half-open** -- one test request is allowed. If it succeeds, the circuit resets to closed. If it fails, the circuit returns to open.

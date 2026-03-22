@@ -48,6 +48,14 @@ steps:
     gate: human
 ```
 
+The DAG for this workflow looks like:
+
+```mermaid
+flowchart LR
+  research["research<br/>bot: researcher"] --> draft["draft<br/>bot: writer"]
+  draft --> review["review<br/>bot: editor<br/>🔒 gate: human"]
+```
+
 ## Key Features
 
 - **Definition snapshot**: Workflow definition is frozen at run start — in-progress runs aren't affected by definition changes.
@@ -192,6 +200,20 @@ Status of an entire workflow run. One of the following string literals:
 | `"compensating"` | Saga rollback is in progress |
 | `"compensated"` | All compensation steps completed |
 | `"cancelled"` | Run was manually cancelled |
+
+```mermaid
+stateDiagram-v2
+  [*] --> pending
+  pending --> running: executeReady()
+  running --> done: all steps completed
+  running --> failed: step failed
+  running --> waiting: step hit human gate
+  waiting --> running: approveGate()
+  failed --> compensating: compensate()
+  compensating --> compensated: rollback complete
+  running --> cancelled: cancel()
+  pending --> cancelled: cancel()
+```
 
 ### `StepState`
 
