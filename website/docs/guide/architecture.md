@@ -79,7 +79,7 @@ Each bot is a sandboxed process with its own:
 |-----------|---------|------|------|
 | **Agent Server** | `@mecha/agent` | 7660 | Central hub: auth, task routing, bot queries, dashboard |
 | **Connect** | `@mecha/connect` | — | P2P connectivity (Noise encryption, STUN, hole-punch, relay) |
-| **Server** | `@mecha/server` | 7661 | Rendezvous + relay for mesh networking |
+| **Server** | `@mecha/server` | 7680 | Rendezvous + relay for mesh networking |
 | **MCP Server** | `@mecha/mcp-server` | — | Expose Mecha as an MCP server to external clients |
 
 ### Layer 3: Orchestration
@@ -172,23 +172,23 @@ All bots and the agent server run locally. Communication is via `127.0.0.1`. No 
 
 ### P2P Mesh
 
-Nodes discover each other via a rendezvous server and establish direct Noise-encrypted connections. NAT hole-punching with STUN/relay fallback.
+Nodes discover each other via a rendezvous server and connect through Noise-encrypted relay channels (direct UDP transport is planned but not yet default).
 
 ```bash
 # On node alpha
 mecha start --daemon
-mecha node init --rendezvous wss://rv.example.com
+mecha node init
 
-# On node beta
-mecha node join --invite <token>
+# On node beta — invite code is a positional argument
+mecha node join mecha://invite/...
 ```
 
 ### HTTP Mesh
 
-For environments where P2P is blocked, nodes connect via HTTP with Ed25519-signed requests.
+For environments where P2P is blocked, nodes connect via HTTP with Bearer token authentication.
 
 ```bash
-mecha node add beta --host 192.168.1.50 --port 7660
+mecha node add beta 192.168.1.50 --port 7660 --api-key <key>
 ```
 
 ## See Also

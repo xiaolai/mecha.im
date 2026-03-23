@@ -35,10 +35,19 @@ export interface TaskRouteOpts {
 let lastCleanup = 0;
 const CLEANUP_INTERVAL_MS = 60_000;
 
+/** Extract the bare bot name from a source identity (e.g. "bot@local" → "bot"). */
+function bareName(source: string): string {
+  const atIdx = source.indexOf("@");
+  return atIdx >= 0 ? source.slice(0, atIdx) : source;
+}
+
 /** Check if caller is authorized for a specific task (source, target, or admin). */
 function isTaskAuthorized(source: string, task: Task): boolean {
   if (source === "admin") return true;
-  return source === task.source || source === task.target;
+  // Match against stored source (exact or bare) and target (exact or bare)
+  const bare = bareName(source);
+  return source === task.source || bare === bareName(task.source)
+    || source === task.target || bare === task.target;
 }
 
 /** Extract caller identity from request headers. */
