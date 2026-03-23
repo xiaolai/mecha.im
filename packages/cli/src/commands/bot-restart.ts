@@ -68,6 +68,7 @@ export function registerBotRestartCommand(parent: Command, deps: CommandDeps): v
         sandboxMode: config.sandboxMode,
         model: config.model,
         permissionMode: config.permissionMode,
+        meterOff: config.meter === "off",
         systemPrompt: config.systemPrompt,
         appendSystemPrompt: config.appendSystemPrompt,
         effort: config.effort,
