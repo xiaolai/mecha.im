@@ -1,6 +1,6 @@
 {
   "name": "@mecha/workflow",
-  "version": "4.1.7",
+  "version": "4.1.8",
   "description": "Workflow engine with DAG execution, gates, and compensation for mecha.im",
   "type": "module",
   "exports": {
