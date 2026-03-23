@@ -52,16 +52,28 @@ export function registerTaskRoutes(app: FastifyInstance, opts: TaskRouteOpts): v
       // Callback to agent server to update persistent task storage
       /* v8 ignore start -- agent callback requires live agent process */
       if (opts.agentUrl && opts.agentAuth) {
-        void fetch(`${opts.agentUrl}/tasks/${taskId}`, {
-          method: "PATCH",
-          headers: {
-            "content-type": "application/json",
-            authorization: `Bearer ${opts.agentAuth}`,
-            "x-mecha-source": `${opts.botName}@runtime`,
-          },
-          body: JSON.stringify(result),
-          signal: AbortSignal.timeout(5_000),
-        }).catch(() => { /* best-effort — agent may be down */ });
+        const callbackUrl = `${opts.agentUrl}/tasks/${encodeURIComponent(taskId)}`;
+        const callbackHeaders: Record<string, string> = {
+          "content-type": "application/json",
+          authorization: `Bearer ${opts.agentAuth}`,
+          "x-mecha-source": `${opts.botName}@local`,
+        };
+        const callbackBody = JSON.stringify(result);
+        const doCallback = (attempt: number) => {
+          void fetch(callbackUrl, {
+            method: "PATCH",
+            headers: callbackHeaders,
+            body: callbackBody,
+            signal: AbortSignal.timeout(5_000),
+          }).then((res) => {
+            if (!res.ok && attempt < 2) {
+              setTimeout(() => doCallback(attempt + 1), 1_000);
+            }
+          }).catch(() => {
+            if (attempt < 2) setTimeout(() => doCallback(attempt + 1), 1_000);
+          });
+        };
+        doCallback(0);
       }
       /* v8 ignore stop */
     });

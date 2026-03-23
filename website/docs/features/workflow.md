@@ -457,7 +457,7 @@ Create a step executor that routes steps to local or remote bots. If the `bot` f
 
 ## See Also
 
-- [Task Protocol](/features/task-protocol) — async task delegation used by workflow steps
+- [Task Protocol](/features/task-protocol) — related async delegation model for bot-to-bot work
 - [Message Bus](/features/bus) — event-driven triggers for workflows
 - [Orchestration CLI](/reference/cli/orchestration#workflow) — full command reference
 - [Observability](/features/observability) — trace and score workflow execution

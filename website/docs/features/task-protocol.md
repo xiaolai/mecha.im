@@ -73,7 +73,7 @@ The task protocol spans three layers:
 
 ### Storage
 
-Tasks are stored as JSON files in `~/.mecha/tasks/<id>.json`. No database required — pure filesystem with atomic writes and `0o600` permissions.
+Tasks are stored as JSON files in `~/.mecha/tasks/<id>.json`. No database required — pure filesystem with `0o600` permissions.
 
 On agent restart, any tasks in `working` or `pending` state are reconciled to `failed` (the executing process is gone).
 
@@ -82,8 +82,8 @@ On agent restart, any tasks in `working` or `pending` state are reconciled to `f
 Task operations respect the ACL engine:
 
 - **Create**: requires `query` capability from source to target
-- **Read/Cancel**: only the task's source, target, or admin can access
-- **Update (PATCH)**: only the executing bot's runtime or admin can report results
+- **Read/Cancel**: only the task's source, target, or admin can access (matched by bare bot name from `x-mecha-source` header)
+- **Update (PATCH)**: only the executing bot's runtime or admin can report results (Bearer token auth, not signature-verified)
 
 ## MCP Tools
 
@@ -133,25 +133,25 @@ mecha task list
 mecha task ls --target researcher --status completed
 
 # Show task details
-mecha task show task-a1b2c3d4e5f6g7h8
+mecha task show task-a1b2c3d4e5f67890
 
 # Cancel a running task
-mecha task cancel task-a1b2c3d4e5f6g7h8
+mecha task cancel task-a1b2c3d4e5f67890
 ```
 
 See the [CLI reference](/reference/cli/orchestration#task) for full command details.
 
 ## Limits
 
-- **Concurrent tasks per bot**: 10 (configurable via `MAX_CONCURRENT_TASKS`)
+- **Concurrent tasks per bot**: 10 (hardcoded limit)
 - **Task timeout**: 10 minutes auto-abort to prevent zombie tasks
-- **Result retention**: 7 days, cleaned up automatically
+- **Result retention**: 7 days, cleaned up opportunistically during task listing
 - **In-memory result cache**: 100 most recent results (ephemeral, for quick polling)
 
 ## See Also
 
 - [Orchestration CLI Reference](/reference/cli/orchestration#task) — full command syntax
 - [Message Bus](/features/bus) — asynchronous pub/sub alternative
-- [Workflow Engine](/features/workflow) — multi-step DAG execution using tasks
+- [Workflow Engine](/features/workflow) — multi-step DAG execution with similar async patterns
 - [Mesh Networking](/features/mesh-networking) — synchronous `mesh_query` alternative
 - [Permissions](/features/permissions) — ACL capabilities for task authorization
