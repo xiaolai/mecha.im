@@ -252,6 +252,7 @@ export function prepareBotFilesystem(opts: BotFilesystemOpts): BotFilesystemResu
     ...(opts.fallbackModel != null && { fallbackModel: opts.fallbackModel }),
     ...(opts.addDirs != null && { addDirs: opts.addDirs }),
     ...(opts.userEnv != null && Object.keys(opts.userEnv).length > 0 && { env: opts.userEnv }),
+    ...(opts.meterOff && { meter: "off" as const }),
   };
   writeFileSync(join(botDir, "config.json"), JSON.stringify(config, null, 2) + "\n", { mode: 0o600 });
 

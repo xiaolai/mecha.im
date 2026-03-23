@@ -82,6 +82,10 @@ export interface BotConfig {
   /** Fallback model when primary is overloaded */
   fallbackModel?: string;
 
+  /* — Metering — */
+  /** Meter mode: "on" (default) or "off" */
+  meter?: "on" | "off";
+
   /* — Environment — */
   /** Additional directories to allow access */
   addDirs?: string[];
@@ -136,6 +140,9 @@ const BotConfigSchema: z.ZodType<BotConfig> = z.object({
 
   // Model fallback
   fallbackModel: z.string().optional(),
+
+  // Metering
+  meter: z.enum(["on", "off"]).optional(),
 
   // Environment
   addDirs: z.array(z.string()).optional(),
