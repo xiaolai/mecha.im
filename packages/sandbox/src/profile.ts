@@ -101,6 +101,11 @@ export function profileFromConfig(opts: ProfileFromConfigOpts): SandboxProfile {
   readPaths.push(resolve(botDir));
   readPaths.push(resolve(config.workspace));
 
+  // Additional directories from --add-dir (read + write access)
+  if (config.addDirs) {
+    for (const d of config.addDirs) readPaths.push(resolve(d));
+  }
+
   // Explicit sub-paths needed: bwrap uses per-path --bind mounts, not subtree grants.
   const writePaths: string[] = [
     resolve(botDir),
@@ -108,6 +113,9 @@ export function profileFromConfig(opts: ProfileFromConfigOpts): SandboxProfile {
     resolve(join(botDir, "tmp")),
     resolve(config.workspace),
   ];
+  if (config.addDirs) {
+    for (const d of config.addDirs) writePaths.push(resolve(d));
+  }
 
   const allowedProcesses: string[] = [
     resolve(process.execPath),
