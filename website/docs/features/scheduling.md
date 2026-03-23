@@ -80,5 +80,5 @@ See [@mecha/core API Reference](/reference/api/core#scheduling) for the schedule
 ## See Also
 
 - [Metering](/features/metering) — track costs of scheduled runs
-- [Orchestration CLI](/reference/cli/orchestration) — schedule-related commands
+- [Schedule CLI](/reference/cli/schedule) — schedule command reference
 - [Bot Commands](/reference/cli/bot) — bot lifecycle management

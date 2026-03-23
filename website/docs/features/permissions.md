@@ -127,4 +127,4 @@ See [@mecha/core API Reference](/reference/api/core#acl) for the ACL engine type
 
 - [Task Protocol](/features/task-protocol) — ACL enforcement on task operations
 - [Sandbox](/features/sandbox) — OS-level isolation complements ACL
-- [Bot Commands](/reference/cli/bot) — `--expose` flag for capability grants
+- [Bot Commands](/reference/cli/bot) — `--expose` flag for capability exposure

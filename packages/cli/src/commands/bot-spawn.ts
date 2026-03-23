@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, statSync } from "node:fs";
 import { resolve, join } from "node:path";
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
-import { botName, validateTags, validateCapabilities, parsePort, PathNotFoundError, PathNotDirectoryError, validateBotConfig } from "@mecha/core";
+import { botName, validateTags, validateCapabilities, parsePort, PathNotFoundError, PathNotDirectoryError, validateBotConfig, ALL_CAPABILITIES } from "@mecha/core";
 import type { SandboxMode } from "@mecha/core";
 import { withErrorHandler } from "../error-handler.js";
 
@@ -22,7 +22,7 @@ export function registerBotSpawnCommand(parent: Command, deps: CommandDeps): voi
     .option("--auth <profile>", "Auth profile to use (see: mecha auth ls)")
     .option("--no-auth", "Spawn without Claude API credentials")
     .option("--tags <tags>", "Comma-separated tags")
-    .option("--expose <caps>", "Comma-separated capabilities to expose (query, read_workspace, write_workspace, execute, read_sessions, lifecycle, bus_publish, bus_subscribe, bus_queue, workflow_run, workflow_manage, gateway_outbound, meta)")
+    .option("--expose <caps>", `Comma-separated capabilities to expose (${ALL_CAPABILITIES.join(", ")})`)
     .option("--sandbox <mode>", "Sandbox mode: auto, off, require", "auto")
     .option("--model <model>", "Model to use")
     .option("--permission-mode <mode>", "Permission mode (default, plan, bypassPermissions, acceptEdits, dontAsk, auto)")
