@@ -1,6 +1,6 @@
 {
   "name": "@mecha/agent",
-  "version": "4.1.3",
+  "version": "4.1.4",
   "description": "Agent HTTP server for bot queries, auth, and mesh routing",
   "type": "module",
   "exports": {
