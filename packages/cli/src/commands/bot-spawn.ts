@@ -145,12 +145,12 @@ export function registerBotSpawnCommand(parent: Command, deps: CommandDeps): voi
         if (!existsSync(resolvedHome)) throw new PathNotFoundError(resolvedHome);
         if (!statSync(resolvedHome).isDirectory()) throw new PathNotDirectoryError(resolvedHome);
       }
-      // Resolve workspace path — defaults to home, then botDir
+      // Resolve workspace path — defaults to home, then botDir/workspace/
       const resolvedPath = path
         ? resolve(path)
-        : resolvedHome ?? join(deps.mechaDir, validated);
-      // Create default workspace directory if using botDir fallback (no explicit path or home)
-      if (!path && !resolvedHome && !existsSync(resolvedPath)) {
+        : resolvedHome ?? join(deps.mechaDir, validated, "workspace");
+      // Create default workspace directory if no explicit path provided
+      if (!path && !existsSync(resolvedPath)) {
         mkdirSync(resolvedPath, { recursive: true });
       }
       if (!existsSync(resolvedPath)) {
