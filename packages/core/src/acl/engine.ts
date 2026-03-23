@@ -132,10 +132,13 @@ export function createAclEngine(opts: CreateAclEngineOpts): AclEngine {
         return { allowed: false, reason: "no_connect" };
       }
 
-      // Check 2: target exposes this capability
-      const exposed = getExpose(target);
-      if (!exposed.includes(cap)) {
-        return { allowed: false, reason: "not_exposed" };
+      // Check 2: target exposes this capability (skip for remote targets — the remote node enforces its own expose)
+      const isRemoteTarget = target.includes("@");
+      if (!isRemoteTarget) {
+        const exposed = getExpose(target);
+        if (!exposed.includes(cap)) {
+          return { allowed: false, reason: "not_exposed" };
+        }
       }
 
       return { allowed: true };
