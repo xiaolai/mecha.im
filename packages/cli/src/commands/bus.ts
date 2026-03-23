@@ -8,6 +8,7 @@ import { registerBusQueueCreateCommand } from "./bus-queue-create.js";
 import { registerBusQueueListCommand } from "./bus-queue-list.js";
 import { registerBusQueueInspectCommand } from "./bus-queue-inspect.js";
 import { registerBusQueueDrainCommand } from "./bus-queue-drain.js";
+import { registerBusQueuePushCommand } from "./bus-queue-push.js";
 
 /** Register the 'bus' command group with topic and queue subgroups. */
 export function registerBusCommand(program: Command, deps: CommandDeps): void {
@@ -29,6 +30,7 @@ export function registerBusCommand(program: Command, deps: CommandDeps): void {
     .description("Manage durable queues");
 
   registerBusQueueCreateCommand(queue, deps);
+  registerBusQueuePushCommand(queue, deps);
   registerBusQueueListCommand(queue, deps);
   registerBusQueueInspectCommand(queue, deps);
   registerBusQueueDrainCommand(queue, deps);
