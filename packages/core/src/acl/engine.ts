@@ -65,13 +65,22 @@ export function createAclEngine(opts: CreateAclEngineOpts): AclEngine {
    * Precedence match — used by check() to evaluate access.
    * Order: exact > wildcard-source > wildcard-target > both-wildcard (R6-002).
    */
+  /** Extract bare bot name from source identity (e.g. "bot@local" → "bot"). */
+  function bareName(s: string): string {
+    const atIdx = s.indexOf("@");
+    return atIdx >= 0 ? s.slice(0, atIdx) : s;
+  }
+
   function findRule(source: string, target: string): AclRule | undefined {
+    const bareSrc = bareName(source);
+    const bareTgt = bareName(target);
     let wildcardSrc: AclRule | undefined;
     let wildcardTgt: AclRule | undefined;
     let wildcardBoth: AclRule | undefined;
     for (const r of data.rules) {
-      const srcMatch = r.source === source;
-      const tgtMatch = r.target === target;
+      // Match exact or bare-name (e.g. rule "bob" matches request "bob@local")
+      const srcMatch = r.source === source || r.source === bareSrc || bareName(r.source) === bareSrc;
+      const tgtMatch = r.target === target || r.target === bareTgt || bareName(r.target) === bareTgt;
       const srcWild = r.source === "*";
       const tgtWild = r.target === "*";
       if (srcMatch && tgtMatch) return r; // exact — highest priority
