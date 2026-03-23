@@ -35,19 +35,17 @@ export interface TaskRouteOpts {
 let lastCleanup = 0;
 const CLEANUP_INTERVAL_MS = 60_000;
 
-/** Extract the bare bot name from a source identity (e.g. "bot@local" → "bot"). */
-function bareName(source: string): string {
-  const atIdx = source.indexOf("@");
-  return atIdx >= 0 ? source.slice(0, atIdx) : source;
+/** Normalize a local identity: strip @local suffix only (not @otherNode). */
+function normalizeLocal(s: string): string {
+  return s.endsWith("@local") ? s.slice(0, -6) : s;
 }
 
 /** Check if caller is authorized for a specific task (source, target, or admin). */
 function isTaskAuthorized(source: string, task: Task): boolean {
   if (source === "admin") return true;
-  // Match against stored source (exact or bare) and target (exact or bare)
-  const bare = bareName(source);
-  return source === task.source || bare === bareName(task.source)
-    || source === task.target || bare === task.target;
+  const norm = normalizeLocal(source);
+  return source === task.source || norm === task.source
+    || source === task.target || norm === task.target;
 }
 
 /** Extract caller identity from request headers. */
@@ -169,9 +167,9 @@ export function registerTaskRoutes(app: FastifyInstance, opts: TaskRouteOpts): v
 
     const source = getSource(req);
     let tasks = listTasks(dir, filter);
-    // Non-admin callers only see their own tasks (source or target)
+    // Non-admin callers only see their own tasks (reuse isTaskAuthorized for consistent normalization)
     if (source !== "admin") {
-      tasks = tasks.filter((t) => t.source === source || t.target === source);
+      tasks = tasks.filter((t) => isTaskAuthorized(source, t));
     }
     return reply.send(tasks);
   });

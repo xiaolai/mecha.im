@@ -355,13 +355,25 @@ describe("sandbox-setup", () => {
         expect(result.childEnv.ANTHROPIC_BASE_URL).toBeUndefined();
       });
 
-      it("cleans stale proxy.json when proxy dead (regardless of required flag)", () => {
-        writeMeterProxy({ port: 7600, pid: 999999, required: true });
+      it("cleans stale proxy.json when PID is dead", () => {
+        writeMeterProxy({ port: 7600, pid: 999999, required: false });
         const spy = vi.spyOn(console, "error").mockImplementation(() => {});
         const result = prepareBotFilesystem(makeOpts());
-        // Stale proxy → cleaned up, metering skipped (no throw)
         expect(result.childEnv.ANTHROPIC_BASE_URL).toBeUndefined();
         expect(spy).toHaveBeenCalledWith(expect.stringContaining("stale proxy.json"));
+        spy.mockRestore();
+      });
+
+      it("throws MeterProxyRequiredError when PID alive but port dead and required", () => {
+        writeMeterProxy({ port: 7600, pid: process.pid, required: true });
+        expect(() => prepareBotFilesystem(makeOpts())).toThrow("Metering proxy required but not running");
+      });
+
+      it("logs warning when PID alive but port dead and not required", () => {
+        writeMeterProxy({ port: 7600, pid: process.pid, required: false });
+        const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+        const result = prepareBotFilesystem(makeOpts());
+        expect(result.childEnv.ANTHROPIC_BASE_URL).toBeUndefined();
         spy.mockRestore();
       });
     });
