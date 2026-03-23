@@ -1,4 +1,6 @@
 import { ALL_CAPABILITIES, type Capability } from "./acl/types.js";
+import { realpathSync, statSync } from "node:fs";
+import { isAbsolute, resolve, relative } from "node:path";
 
 /** Valid name pattern: lowercase alphanumeric + hyphens, 1-32 chars, no leading/trailing hyphen */
 export const NAME_PATTERN = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
@@ -64,6 +66,54 @@ export function parsePort(raw: string): number | undefined {
   const n = Number(raw);
   if (!Number.isInteger(n) || n < 1 || n > 65535) return undefined;
   return n;
+}
+
+/** Maximum number of additional directories per bot */
+export const MAX_ADD_DIRS = 20;
+
+/** Validate directories for --add-dir. Returns deduplicated resolved paths or an error. */
+export function validateAddDirs(
+  dirs: string[],
+  mechaDir: string,
+): { ok: true; dirs: string[] } | { ok: false; error: string } {
+  let realMecha: string;
+  try { realMecha = realpathSync(resolve(mechaDir)); } catch { realMecha = resolve(mechaDir); }
+
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const dir of dirs) {
+    if (!isAbsolute(dir)) {
+      return { ok: false, error: `Path must be absolute: "${dir}"` };
+    }
+    // Resolve symlinks to check the real target
+    let real: string;
+    try {
+      const stat = statSync(dir);
+      if (!stat.isDirectory()) {
+        return { ok: false, error: `Path is not a directory: "${dir}"` };
+      }
+      real = realpathSync(dir);
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code === "ENOENT") return { ok: false, error: `Path not found: "${dir}"` };
+      if (code === "EACCES") return { ok: false, error: `Permission denied: "${dir}"` };
+      return { ok: false, error: `Cannot access path: "${dir}"` };
+    }
+    // Containment check against real path (symlink-safe)
+    const rel = relative(realMecha, real);
+    if (!rel.startsWith("..") && !isAbsolute(rel)) {
+      return { ok: false, error: `Path must not be inside mecha directory: "${dir}"` };
+    }
+    if (!seen.has(real)) {
+      seen.add(real);
+      result.push(real);
+    }
+  }
+  // Check limit after dedup
+  if (result.length > MAX_ADD_DIRS) {
+    return { ok: false, error: `Too many directories (max ${MAX_ADD_DIRS})` };
+  }
+  return { ok: true, dirs: result };
 }
 
 /** Validate a list of capability strings. Returns validated capabilities or an error message. */
