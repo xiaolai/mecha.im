@@ -229,6 +229,93 @@ botDir/
   config.json             <- port, token, workspace
 ```
 
+## `encodeProjectPath(workspacePath)`
+
+Encodes a workspace path into a directory name matching Claude Code's convention. Replaces `/`, `\`, `:`, and `.` with `-`. Used internally by `prepareBotFilesystem` to build the per-workspace session directory path under `.claude/projects/`.
+
+```ts
+import { encodeProjectPath } from "@mecha/process";
+
+encodeProjectPath("/home/user/my.project");
+// => "-home-user-my-project"
+
+encodeProjectPath("C:\\Users\\user\\project");
+// => "C-Users-user-project"
+
+encodeProjectPath("/Users/you/workspace");
+// => "-Users-you-workspace"
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `workspacePath` | `string` | Absolute path to the workspace directory |
+
+Returns `string` -- the encoded path with all `/`, `\`, `:`, and `.` characters replaced by `-`.
+
+## `buildBotEnv(opts)`
+
+Single source of truth for constructing the environment variable map passed to bot child processes and PTY sessions. Called by both `prepareBotFilesystem` (at spawn time) and the PTY manager (at terminal attach time) to ensure consistent environments.
+
+Responsibilities:
+- Constructs a minimal, safe `PATH` (Node.js binary dir + standard system paths; platform-aware for macOS and Windows)
+- Filters user-supplied env vars through a reserved-key blocklist (case-insensitive) to prevent overriding internal vars, auth keys, `PATH`, and dangerous Node.js/linker variables
+- Resolves the auth profile via `resolveAuth()` and injects the appropriate SDK credential (`ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`)
+- Falls back to inheriting host credentials when no auth profiles exist and `auth` is not explicitly set
+- Fails fast with `ProcessSpawnError` if no API credentials are available from any source (unless `auth` is explicitly `null`)
+- Resolves the `claude` CLI binary path in the parent process (cached per process) and passes it as `MECHA_CLAUDE_PATH`
+- Integrates with the meter proxy: reads `proxy.json`, verifies the proxy PID is alive and the port is reachable, then sets `ANTHROPIC_BASE_URL` to route API traffic through the metering proxy; throws `MeterProxyRequiredError` if the proxy is required but unreachable
+
+```ts
+import { buildBotEnv } from "@mecha/process";
+
+const env = buildBotEnv({
+  botDir: "/Users/you/.mecha/bots/researcher",
+  homeDir: "/Users/you/.mecha/bots/researcher",
+  tmpDir: "/Users/you/.mecha/bots/researcher/tmp",
+  logsDir: "/Users/you/.mecha/bots/researcher/logs",
+  projectsDir: "/Users/you/.mecha/bots/researcher/.claude/projects/-Users-you-workspace",
+  workspacePath: "/Users/you/workspace",
+  port: 7700,
+  token: "bot-auth-token",
+  name: "researcher",
+  mechaDir: "/Users/you/.mecha",
+  auth: "default",
+  userEnv: { CUSTOM_VAR: "value" },
+  meterOff: false,
+});
+
+// env is a Record<string, string> ready to pass to child_process.spawn or PTY
+```
+
+**`BuildBotEnvOpts`**
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `botDir` | `string` | Yes | -- | Bot root directory (used as `MECHA_SANDBOX_ROOT`) |
+| `homeDir` | `string` | Yes | -- | Effective HOME directory for the bot |
+| `tmpDir` | `string` | Yes | -- | TMPDIR for the bot |
+| `logsDir` | `string` | Yes | -- | Log directory for the bot |
+| `projectsDir` | `string` | Yes | -- | Claude projects directory for the bot |
+| `workspacePath` | `string` | Yes | -- | Absolute path to the workspace directory |
+| `port` | `number` | Yes | -- | Allocated port number |
+| `token` | `string` | Yes | -- | Auth token for the bot |
+| `name` | `string` | Yes | -- | Bot name |
+| `mechaDir` | `string` | Yes | -- | Path to `~/.mecha` data directory |
+| `auth` | `string \| null` | No | `undefined` | Auth profile name, `null` to opt out of credentials, or `undefined` for implicit resolution |
+| `userEnv` | `Record<string, string>` | No | `{}` | User-supplied environment variables (reserved keys are filtered out) |
+| `meterOff` | `boolean` | No | `false` | When `true`, skip meter proxy integration entirely |
+
+**Reserved environment variable keys** (filtered from `userEnv`):
+
+All `MECHA_*` internal keys, `HOME`, `TMPDIR`, `PATH`, `BASH_ENV`, `ENV`, `NODE_OPTIONS`, `NODE_PATH`, `NODE_DEBUG`, `NODE_EXTRA_CA_CERTS`, `NODE_REDIRECT_WARNINGS`, `NODE_V8_COVERAGE`, `NODE_PROF`, `LD_PRELOAD`, `LD_LIBRARY_PATH`, `DYLD_INSERT_LIBRARIES`, `DYLD_LIBRARY_PATH`, `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `ANTHROPIC_BASE_URL`. Bash function exports (`BASH_FUNC_*%%`) are also blocked.
+
+Returns `Record<string, string>` -- the complete environment for the child process.
+
+Throws:
+- `ProcessSpawnError` if no API credentials are available and `auth` is not explicitly `null`
+- `MeterProxyRequiredError` if the meter proxy is configured as required but its port is unreachable
+- `AuthProfileNotFoundError` (re-thrown) if an explicit `--auth <name>` profile does not exist
+
 ## Port Allocation
 
 ### `checkPort(port)`
