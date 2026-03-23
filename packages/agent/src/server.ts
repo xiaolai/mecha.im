@@ -65,7 +65,7 @@ export function createAgentServer(opts: AgentServerOptions): FastifyInstance {
     const list = opts.processManager.list();
     return list.map((b) => {
       const config = readBotConfig(join(mechaDir, b.name));
-      return { name: b.name, state: b.state, port: b.port ?? 0, tags: config?.tags ?? [] };
+      return { name: b.name, state: b.state, port: b.port ?? null, tags: config?.tags ?? [] };
     });
   });
 
