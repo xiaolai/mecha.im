@@ -192,6 +192,24 @@ type SignalData =
 
 Signaling messages exchanged between peers via the rendezvous server during connection setup.
 
+### `PendingAnswer`
+
+```ts
+interface PendingAnswer {
+  resolve: (candidates: Candidate[]) => void;
+  reject: (err: Error) => void;
+  timer: ReturnType<typeof setTimeout>;
+}
+```
+
+Internal signaling type used by the connect manager to track an outstanding answer from a peer during the WebRTC-style signaling exchange. When an offer is sent, a `PendingAnswer` is created with a timeout timer. The promise resolves with the peer's candidate list when the answer arrives, or rejects on timeout.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `resolve` | `(candidates: Candidate[]) => void` | Resolves the pending promise with the peer's answer candidates. |
+| `reject` | `(err: Error) => void` | Rejects the pending promise (e.g., on timeout or connection close). |
+| `timer` | `ReturnType<typeof setTimeout>` | Timeout handle that triggers rejection if the answer does not arrive in time. |
+
 ### `StunResult`
 
 ```ts
@@ -802,6 +820,134 @@ Parse and validate a `mecha://invite/...` code string. Verifies the Ed25519 sign
 **Source:** `packages/connect/src/invite.ts`
 
 **Throws:** `InvalidInviteError` if the code is malformed, expired, or has an invalid signature.
+
+## Git Sync
+
+Filesystem-level workspace synchronization. Bundles all files in a directory into a base64-encoded payload and transfers them to a remote node via a caller-provided fetch function.
+
+**Source:** `packages/connect/src/git-sync.ts`
+
+### `SyncBundle`
+
+```ts
+interface SyncBundle {
+  files: Record<string, string>;
+}
+```
+
+A mapping of relative file paths to their base64-encoded contents. Created by `createSyncBundle()` and consumed by `applySyncBundle()`.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `files` | `Record<string, string>` | Keys are relative paths (e.g., `"src/index.ts"`). Values are base64-encoded file contents. Binary files are handled safely via base64 encoding. |
+
+### `SyncToNodeOpts`
+
+```ts
+interface SyncToNodeOpts {
+  localDir: string;
+  remotePath: string;
+  fetchFn: (body: { remotePath: string; bundle: SyncBundle }) => Promise<{ status: number }>;
+}
+```
+
+Options for `syncToNode()`.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `localDir` | `string` | Absolute path to the local workspace directory to bundle. |
+| `remotePath` | `string` | Target path on the remote node where files will be written. |
+| `fetchFn` | `(body) => Promise<{ status: number }>` | Caller-provided function that sends the bundle to the remote node (e.g., via `channelFetch` or HTTP). |
+
+### `createSyncBundle(dir)`
+
+```ts
+function createSyncBundle(dir: string): SyncBundle
+```
+
+Recursively collect all files in `dir` and return a `SyncBundle` with each file's contents base64-encoded. Hidden directories (dot-prefixed) are skipped, except `.claude`. The `node_modules` directory is always skipped.
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `dir` | `string` | Absolute path to the workspace directory. |
+
+**Returns:** A `SyncBundle` containing all collected files.
+
+**Example:**
+
+```ts
+import { createSyncBundle } from "@mecha/connect";
+
+const bundle = createSyncBundle("/home/alice/my-project");
+console.log(Object.keys(bundle.files).length); // number of files bundled
+// bundle.files["src/index.ts"] => base64-encoded content
+```
+
+### `applySyncBundle(dir, bundle)`
+
+```ts
+function applySyncBundle(dir: string, bundle: SyncBundle): string[]
+```
+
+Write all files from a `SyncBundle` into a target directory. Creates subdirectories as needed. Rejects any relative path in the bundle that would escape the target directory (path traversal protection).
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `dir` | `string` | Absolute path to the target directory where files will be written. |
+| `bundle` | `SyncBundle` | The bundle to apply. |
+
+**Returns:** An array of relative paths that were written.
+
+**Throws:** `Error` if any path in the bundle attempts to escape the target directory (e.g., `"../../etc/passwd"`).
+
+**Example:**
+
+```ts
+import { applySyncBundle } from "@mecha/connect";
+
+const written = applySyncBundle("/home/bob/workspace", bundle);
+console.log(`Restored ${written.length} files`);
+// written => ["src/index.ts", "package.json", ...]
+```
+
+### `syncToNode(opts)`
+
+```ts
+function syncToNode(opts: SyncToNodeOpts): Promise<{ filesCount: number; status: number }>
+```
+
+Bundle all files from a local directory and send them to a remote node. This is a convenience function that calls `createSyncBundle()` internally and passes the result to the provided `fetchFn`.
+
+**Parameters:** See [`SyncToNodeOpts`](#synctonodeopts).
+
+**Returns:** An object with `filesCount` (number of files in the bundle) and `status` (HTTP status code returned by the fetch function).
+
+**Example:**
+
+```ts
+import { syncToNode, channelFetch } from "@mecha/connect";
+
+const result = await syncToNode({
+  localDir: "/home/alice/my-project",
+  remotePath: "/home/bob/workspace",
+  fetchFn: async (body) => {
+    const res = await channelFetch({
+      channel,
+      method: "POST",
+      path: "/sync/apply",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return { status: res.status };
+  },
+});
+
+console.log(`Synced ${result.filesCount} files (status: ${result.status})`);
+```
 
 ## Transport Adapters
 

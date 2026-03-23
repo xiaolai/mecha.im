@@ -310,11 +310,20 @@ mecha bot configure <name> [options]
 | `--tags <tags>` | Comma-separated tags (replaces existing) |
 | `--expose <caps>` | Comma-separated capabilities to expose |
 | `--auth <profile>` | Auth profile name to use |
+| `--add-dir <dirs>` | Comma-separated directories to add (must be absolute, must exist) |
+| `--remove-dir <dirs>` | Comma-separated directories to remove (must be absolute) |
+
+Directories added via `--add-dir` grant the bot read+write sandbox access. Paths under `~/.mecha/` are blocked to prevent cross-bot access. Changes take effect on bot restart.
+
+`--remove-dir` is idempotent — removing a directory not in the list is a no-op. When both `--add-dir` and `--remove-dir` are used in the same command, removals are applied first.
 
 ```bash
 mecha bot configure researcher --tags research,ml,papers
 mecha bot configure coder --expose query,read_workspace
 mecha bot configure worker --auth mykey
+mecha bot configure analyst --add-dir /data/shared,/data/models
+mecha bot configure analyst --remove-dir /data/models
+mecha bot configure analyst --add-dir /data/new --remove-dir /data/old
 ```
 
 ## `mecha bot find`
