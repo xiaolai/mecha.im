@@ -1,6 +1,6 @@
 {
   "name": "@mecha/observe",
-  "version": "4.1.5",
+  "version": "4.1.6",
   "description": "Observability: traces, metrics, quality scoring, and alerts for mecha.im",
   "type": "module",
   "exports": {
