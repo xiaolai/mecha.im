@@ -5,6 +5,8 @@ description: Asynchronous inter-bot task delegation with real cancellation and r
 
 # Task Protocol
 
+[[toc]]
+
 The task protocol enables asynchronous work delegation between bots. Inspired by the [A2A (Agent-to-Agent) protocol](https://google.github.io/A2A/), one bot (or admin) creates a task targeting another bot, which executes it independently and reports results back.
 
 Unlike synchronous `mesh_query` (where the caller blocks), tasks run in the background — the caller gets a task ID immediately and can poll for status, cancel, or move on to other work.

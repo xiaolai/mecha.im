@@ -66,6 +66,7 @@ await app.listen({ port: 7660, host: "127.0.0.1" });
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | `GET` | `/healthz` | None | Liveness check. Returns `{ status: "ok" }` |
+| `GET` | `/bots` | Required | List local bots with state, port, and tags (used by `bot ls --mesh`) |
 | `POST` | `/bots/:botName/query` | Required | Forward a query to a local bot process |
 | `POST` | `/tasks` | Required | Create a task (see [Task Routes](#task-routes)) |
 | `GET` | `/tasks` | Required | List tasks (see [Task Routes](#task-routes)) |
@@ -73,7 +74,7 @@ await app.listen({ port: 7660, host: "127.0.0.1" });
 | `PATCH` | `/tasks/:id` | Required | Update task result (see [Task Routes](#task-routes)) |
 | `POST` | `/tasks/:id/cancel` | Required | Cancel a task (see [Task Routes](#task-routes)) |
 
-> **Note:** `mecha node health` also fetches `GET /bots` to obtain a bot count. This route is provided by the SPA static handler when `spaDir` is set, or returns 404 otherwise. The health check treats failures gracefully.
+> `GET /bots` returns `[{ name, state, port, tags }]` for each local bot. Used by `mecha bot ls --mesh` and `mecha node health` to discover remote bots.
 
 ### `POST /bots/:botName/query`
 

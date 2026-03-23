@@ -108,6 +108,7 @@ export default withMermaid(
               { text: "@mecha/mcp-server", link: "/reference/api/mcp-server" },
               { text: "@mecha/agent", link: "/reference/api/agent" },
               { text: "@mecha/gateway", link: "/reference/api/gateway" },
+              { text: "@mecha/bus", link: "/reference/api/bus" },
             ],
           },
           {
