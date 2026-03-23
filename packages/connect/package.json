@@ -1,6 +1,6 @@
 {
   "name": "@mecha/connect",
-  "version": "4.1.6",
+  "version": "4.1.7",
   "description": "P2P connectivity library for mecha.im — rendezvous, STUN, hole-punch, relay, Noise encryption",
   "type": "module",
   "exports": {
