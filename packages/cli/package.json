@@ -1,6 +1,6 @@
 {
   "name": "mecha.im",
-  "version": "4.1.4",
+  "version": "4.1.5",
   "description": "Local-first multi-agent runtime — CLI for mecha.im",
   "type": "module",
   "bin": {
