@@ -78,9 +78,10 @@ export function createAclEngine(opts: CreateAclEngineOpts): AclEngine {
     let wildcardTgt: AclRule | undefined;
     let wildcardBoth: AclRule | undefined;
     for (const r of data.rules) {
-      // Match exact or bare-name (e.g. rule "bob" matches request "bob@local")
-      const srcMatch = r.source === source || r.source === bareSrc || bareName(r.source) === bareSrc;
-      const tgtMatch = r.target === target || r.target === bareTgt || bareName(r.target) === bareTgt;
+      // Bare stored rules match any suffix (e.g. rule "bob" matches "bob@local").
+      // Node-qualified stored rules require exact match (e.g. rule "bob@alice" only matches "bob@alice").
+      const srcMatch = r.source === source || (!r.source.includes("@") && r.source === bareSrc);
+      const tgtMatch = r.target === target || (!r.target.includes("@") && r.target === bareTgt);
       const srcWild = r.source === "*";
       const tgtWild = r.target === "*";
       if (srcMatch && tgtMatch) return r; // exact — highest priority
@@ -132,8 +133,10 @@ export function createAclEngine(opts: CreateAclEngineOpts): AclEngine {
         return { allowed: false, reason: "no_connect" };
       }
 
-      // Check 2: target exposes this capability (skip for remote targets — the remote node enforces its own expose)
-      const isRemoteTarget = target.includes("@");
+      // Check 2: target exposes this capability.
+      // Skip for remote targets (target@node where node != "local") — the remote node enforces its own expose.
+      const atIdx = target.indexOf("@");
+      const isRemoteTarget = atIdx >= 0 && target.slice(atIdx + 1) !== "local";
       if (!isRemoteTarget) {
         const exposed = getExpose(target);
         if (!exposed.includes(cap)) {
