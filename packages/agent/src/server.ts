@@ -3,6 +3,7 @@
  *
  * Routes:
  * - GET  /healthz                  — liveness check (no auth)
+ * - GET  /bots                     — list local bots (for mesh discovery)
  * - POST /bots/:botName/query      — forward a query to a local bot
  */
 import Fastify from "fastify";
@@ -58,6 +59,15 @@ export function createAgentServer(opts: AgentServerOptions): FastifyInstance {
 
   // Task protocol routes
   registerTaskRoutes(app, { mechaDir, acl, authCtx });
+
+  // Bot listing route — used by `bot ls --mesh` on remote nodes
+  app.get("/bots", async () => {
+    const list = opts.processManager.list();
+    return list.map((b) => {
+      const config = readBotConfig(join(mechaDir, b.name));
+      return { name: b.name, state: b.state, port: b.port ?? 0, tags: config?.tags ?? [] };
+    });
+  });
 
   // Bot query route
   app.post<{ Params: { botName: string }; Body: QueryBody }>(
