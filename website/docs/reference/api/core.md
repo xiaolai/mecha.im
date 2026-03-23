@@ -1307,6 +1307,41 @@ validateCapabilities(["query", "execute"]);  // { ok: true, capabilities: [...] 
 validateCapabilities(["invalid"]);           // { ok: false, error: 'Invalid capability: "invalid"' }
 ```
 
+### `validateAddDirs(dirs, mechaDir)`
+
+```ts
+function validateAddDirs(
+  dirs: string[],
+  mechaDir: string,
+): { ok: true; dirs: string[] } | { ok: false; error: string }
+```
+
+Validates directories for `--add-dir`. Returns deduplicated, realpath-resolved paths or an error.
+
+| Check | Behavior |
+|-------|----------|
+| Absolute path | Required — rejects relative paths |
+| Exists + is directory | Required — uses `statSync` with ENOENT/EACCES handling |
+| Not under mechaDir | Blocks `~/.mecha/` paths to prevent cross-bot access |
+| Symlink-safe | Resolves via `realpathSync` before containment check |
+| Deduplication | By resolved real path |
+| Max count | `MAX_ADD_DIRS` (20) checked after dedup |
+
+```ts
+import { validateAddDirs } from "@mecha/core";
+
+validateAddDirs(["/data/shared"], "/home/user/.mecha");
+// { ok: true, dirs: ["/data/shared"] }
+
+validateAddDirs(["./relative"], "/home/user/.mecha");
+// { ok: false, error: 'Path must be absolute: "./relative"' }
+
+validateAddDirs(["/home/user/.mecha/other-bot"], "/home/user/.mecha");
+// { ok: false, error: 'Path must not be inside mecha directory: ...' }
+```
+
+**Constant:** `MAX_ADD_DIRS = 20` — maximum additional directories per bot.
+
 ### `parsePort(input)`
 
 ```ts
