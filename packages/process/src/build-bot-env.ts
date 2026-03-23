@@ -1,7 +1,8 @@
-import { resolveAuth, MeterProxyRequiredError, AuthProfileNotFoundError, ProcessSpawnError, createLogger } from "@mecha/core";
+import { resolveAuth, AuthProfileNotFoundError, ProcessSpawnError, createLogger } from "@mecha/core";
 import type { ResolvedAuth } from "@mecha/core";
 import { execFileSync } from "node:child_process";
-import { accessSync, constants } from "node:fs";
+import { accessSync, constants, unlinkSync } from "node:fs";
+import { join } from "node:path";
 import { readProxyInfo, isPidAlive, meterDir } from "@mecha/meter";
 
 const log = createLogger("mecha:process");
@@ -171,10 +172,12 @@ export function buildBotEnv(opts: BuildBotEnvOpts): Record<string, string> {
         /* v8 ignore start -- meter proxy URL injection requires live proxy */
         childEnv["ANTHROPIC_BASE_URL"] = `http://127.0.0.1:${proxyInfo.port}/bot/${name}`;
         /* v8 ignore stop */
-      } else if (proxyInfo.required) {
-        throw new MeterProxyRequiredError();
       } else {
-        log.warn("Meter proxy is not running (stale proxy.json), skipping metering");
+        // Proxy PID is stale — clean up the leftover proxy.json so future spawns don't hit this
+        log.warn("Meter proxy is not running (stale proxy.json), cleaning up and skipping metering");
+        /* v8 ignore start -- stale proxy cleanup */
+        try { unlinkSync(join(md, "proxy.json")); } catch { /* already gone */ }
+        /* v8 ignore stop */
       }
     } else {
       log.warn("Meter proxy not configured — bot API usage will not be tracked. Start meter with: mecha meter start");
