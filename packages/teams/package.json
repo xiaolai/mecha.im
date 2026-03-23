@@ -1,6 +1,6 @@
 {
   "name": "@mecha/teams",
-  "version": "4.1.7",
+  "version": "4.1.8",
   "description": "Team templates for one-command company deployment in mecha.im",
   "type": "module",
   "exports": {
