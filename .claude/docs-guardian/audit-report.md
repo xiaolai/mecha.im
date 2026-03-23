@@ -1,41 +1,58 @@
 # Documentation Audit Report
 
-**Project**: mecha.im (feature/inter-bot-communication branch)
-**Date**: 2026-03-22
+**Project**: mecha.im
+**Date**: 2026-03-23
 **Language**: TypeScript
 **Framework**: VitePress
-**Focus**: Task protocol documentation
 
 ## Executive Summary
 
 | Dimension | Score | Status |
 |-----------|-------|--------|
-| Freshness | 100/100 | Pass |
-| Accuracy  | 96/100 | Pass |
-| Coverage  | 100%    | Pass |
-| Quality   | 90/100 | Pass |
+| Freshness | 100/100 | 🟢 All docs within 2 days of code |
+| Accuracy  | 88/100 | 🟡 2 mismatches found |
+| Coverage  | 97%    | 🟡 11 undocumented symbols (bus package + 2 core) |
+| Quality   | 96/100 | 🟢 Minor structural improvements |
 
-**Overall health**: 96/100
+**Overall health**: 95/100
 
-## Findings
+## Critical Findings (fix immediately)
 
-### [MEDIUM] Missing barrel exports — docs list symbols not re-exported from package index
+### 1. GET /bots route missing from agent.md route table
+- **File**: website/docs/reference/api/agent.md
+- **Code**: packages/agent/src/server.ts:64-70
+- **Issue**: Route exists and is used by `bot ls --mesh` but not in the HTTP routes documentation table
+- **Fix**: Add `GET /bots` to agent.md route table
 
-2 packages document task symbols in their barrel export table but don't actually re-export them:
+### 2. Bot spawn workspace default mismatch
+- **File**: website/docs/reference/cli/bot.md:23
+- **Code**: packages/cli/src/commands/bot-spawn.ts:148-151
+- **Issue**: Doc says `[path]` defaults to "home directory" but code defaults to `~/.mecha/<name>/workspace/`
+- **Fix**: Update description to "defaults to `~/.mecha/<name>/workspace/`"
 
-1. `packages/agent/src/index.ts` — missing `registerTaskRoutes`, `TaskRouteOpts`
-2. `packages/runtime/src/index.ts` — missing `startTask`, `cancelTask`, `isTaskRunning`, `runningTaskCount`, `TaskRunResult`, `TaskResultCallback`, `registerTaskRoutes` (from routes/tasks.ts)
+## Medium Findings (fix soon)
 
-**Fix:** Add re-exports to barrel files, or remove from doc tables (these are internal registration functions, not public API).
+### 3. @mecha/bus has no API reference page
+- **Issue**: 9 public exports (createBroker, createQueue, createTopic, createReplicator, etc.) with zero API documentation
+- **Fix**: Create website/docs/reference/api/bus.md
 
-### [LOW] Code block language tags — ~50% untagged in core.md and service.md
+### 4. validateAddDirs + MAX_ADD_DIRS not in core.md
+- **Issue**: Newly added symbols exported from @mecha/core but not documented
+- **Fix**: Add to core.md validation section
 
-Type definition blocks lack explicit language tags. Intentional pattern — executable examples are tagged, interface blocks are not.
+### 5. task-protocol.md missing [[toc]]
+- **Fix**: Add `[[toc]]` after intro paragraph
 
-### [LOW] Minor structural patterns — some H2→H3 jumps without intro prose
+## Low Findings (nice to have)
 
-Acceptable for reference docs. No impact on usability.
+- connect.md: 996 lines, could use H2 groupings for 52 H3 subsections
+- process.md: buildBotEnv description is dense, could be bullet points
+- bot.md: spawn options table could group by category
 
-## No Fixing Required
+## Fixing Plan
 
-All critical, high, and medium-accuracy issues from previous audits have been resolved. The task protocol documentation is complete and accurate.
+1. Fix bot.md workspace default description (1 line)
+2. Add GET /bots to agent.md route table (5 lines)
+3. Add [[toc]] to task-protocol.md (1 line)
+4. Add validateAddDirs + MAX_ADD_DIRS to core.md (15 lines)
+5. Create bus.md API reference (new file, ~200 lines)

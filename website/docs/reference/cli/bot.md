@@ -20,7 +20,7 @@ mecha bot spawn <name> [path] [options]
 | Argument | Description |
 |----------|-------------|
 | `<name>` | bot name (lowercase, alphanumeric, hyphens) |
-| `[path]` | Workspace directory path (defaults to home directory) |
+| `[path]` | Workspace directory path (defaults to `~/.mecha/<name>/workspace/`) |
 
 | Option | Description | Default |
 |--------|-------------|---------|
