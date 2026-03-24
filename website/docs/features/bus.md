@@ -3,6 +3,8 @@ title: Message Bus
 description: Asynchronous pub/sub messaging and durable work queues for inter-bot coordination
 ---
 
+[[toc]]
+
 # Message Bus
 
 The message bus provides asynchronous pub/sub messaging and durable work queues for inter-bot coordination. Instead of synchronous `mesh_query` (where bot A blocks waiting for bot B), bots publish events to topics and claim work from queues.
@@ -121,9 +123,12 @@ mecha bus queue inspect review-queue
 mecha bus queue drain review-queue
 ```
 
-### MCP Tools (available to bots)
+## MCP Tools (available to bots)
 
-Bots can access the bus via MCP tools: `bus_publish`, `bus_queue_push`, `bus_queue_claim`, `bus_queue_ack`.
+Bots can access the bus via MCP tools: `bus_publish`, `bus_queue_push`, `bus_queue_claim`, `bus_queue_ack`, `bus_queue_nack`, `bus_poll`.
+
+- `bus_queue_nack` -- Return a claimed queue item for retry or dead-letter
+- `bus_poll` -- Read new messages from a bus topic (requires subscription)
 
 ## Type Reference
 
@@ -137,6 +142,7 @@ The message envelope used by both queues and topics. Every message has a unique 
 | `ts` | `string` | ISO 8601 timestamp of when the message was created |
 | `sender` | `string` | Name of the bot or entity that produced the message |
 | `payload` | `unknown` | Arbitrary message payload (typically a JSON-serializable object) |
+| `notBefore` | `string?` | Earliest time this message can be claimed (set by nack with exponential backoff) |
 
 ### `QueueConfig`
 
@@ -147,6 +153,7 @@ Configuration for a durable queue, persisted in `bus.json`.
 | `name` | `string` | Queue name (used as filesystem directory name) |
 | `maxRetries` | `number` | Maximum delivery attempts before moving to dead letter (default: `3`) |
 | `retryBackoffMs` | `number` | Backoff interval in milliseconds between retries (default: `5000`) |
+| `claimTimeoutMs` | `number?` | Timeout in ms before inflight items expire and return to pending (default: 300000) |
 
 ### `ClaimedItem`
 
@@ -228,6 +235,7 @@ Pub/sub topic with per-subscriber cursor tracking. Created via `createTopic()`.
 | `poll` | `(bot: string, limit?: number) => BusMessage[]` | Read up to `limit` messages from the subscriber's cursor position (default: `10`). Advances the cursor |
 | `subscribers` | `() => Subscriber[]` | List all subscribers with their current cursor positions |
 | `messageCount` | `() => number` | Count total messages in the topic log |
+| `enforceRetention` | `() => number` | Remove messages older than `retentionDays`, adjust subscriber cursors, return count of removed messages |
 | `name` | `readonly string` | The topic name |
 
 ### `Replicator`
@@ -319,6 +327,10 @@ Create a replicator that monitors a local topic and forwards new messages to rem
 | `createQueue(opts)` | Create a durable queue with retry and dead-letter |
 | `createTopic(opts)` | Create a pub/sub topic with per-subscriber cursors |
 | `createReplicator(opts)` | Cross-node topic replicator for multi-machine setups |
+| `readJsonl(path)` | Parse a JSONL file into array of objects |
+| `writeJsonl(path, items)` | Write array as JSONL (atomic) |
+| `appendJsonl(path, item)` | Append single item to JSONL file |
+| `withFileLock(lockPath, fn, timeoutMs?)` | Execute function under advisory file lock |
 
 ## See Also
 

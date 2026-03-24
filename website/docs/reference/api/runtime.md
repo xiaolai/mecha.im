@@ -50,6 +50,10 @@ The `@mecha/runtime` package provides the Fastify-based HTTP server that runs in
 | `TaskRunResult` | Type | `task-runner.ts` |
 | `TaskResultCallback` | Type | `task-runner.ts` |
 | `registerTaskRoutes` | Function | `routes/tasks.ts` |
+| `createWorkflowScheduler` | Function | `workflow-scheduler.ts` |
+| `WorkflowScheduler` | Type | `workflow-scheduler.ts` |
+| `WorkflowSchedulerOpts` | Type | `workflow-scheduler.ts` |
+| `WorkflowScheduleInfo` | Type | `workflow-scheduler.ts` |
 
 ## Runtime API Routes
 
@@ -511,6 +515,92 @@ type TaskResultCallback = (result: TaskRunResult) => void;
 ```
 
 Callback invoked exactly once when a task reaches a terminal state. Used by the runtime route handler to report results back to the agent server.
+
+## Workflow Scheduler
+
+The workflow scheduler monitors workflow YAML files with `trigger.schedule` definitions and executes them on a timer. It persists run state across restarts and auto-pauses workflows after repeated failures.
+
+**Source:** `packages/runtime/src/workflow-scheduler.ts`
+
+### `createWorkflowScheduler(opts)`
+
+Create a timer-based scheduler that scans a directory for workflow YAML files with `trigger.schedule` and executes them on their configured interval or cron schedule.
+
+```ts
+import { createWorkflowScheduler } from "@mecha/runtime";
+
+const scheduler = createWorkflowScheduler({
+  workflowsDir: "/Users/you/.mecha/workflows",
+  stateDir: "/Users/you/.mecha/workflow-state",
+  runWorkflow: async (name) => {
+    // Execute the named workflow
+  },
+});
+
+scheduler.start();  // scan workflows and arm timers
+scheduler.list();   // inspect scheduled workflows
+scheduler.stop();   // clear all timers
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `opts` | `WorkflowSchedulerOpts` | Scheduler configuration (see below) |
+
+**Returns:** `WorkflowScheduler`
+
+### `WorkflowSchedulerOpts`
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `workflowsDir` | `string` | Yes | Directory containing workflow YAML files to scan |
+| `stateDir` | `string` | Yes | Directory for persisting scheduler state (lastRunAt, paused, error counts) |
+| `runWorkflow` | `(name: string) => Promise<void>` | Yes | Callback to execute a workflow by name |
+| `now` | `() => number` | No | Clock function for testability (defaults to `Date.now`) |
+| `log` | `WorkflowSchedulerLog` | No | Structured logger callback (defaults to no-op) |
+
+### `WorkflowScheduler`
+
+Timer-based scheduler interface returned by `createWorkflowScheduler()`.
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `start` | `() => void` | Scan workflow files, load persisted state, and arm timers for all non-paused workflows |
+| `stop` | `() => void` | Clear all timers and stop scheduling |
+| `list` | `() => WorkflowScheduleInfo[]` | List all scheduled workflows with their current state |
+| `pause` | `(name: string) => boolean` | Pause a scheduled workflow. Returns `true` if it was running and is now paused |
+| `resume` | `(name: string) => boolean` | Resume a paused workflow (resets consecutive error count). Returns `true` if it was paused and is now resumed |
+
+**Behavior notes:**
+
+- Workflows are auto-paused after 5 consecutive execution errors
+- Resuming a workflow resets the consecutive error counter to 0
+- State is persisted to `stateDir/<name>/state.json` after each execution and on pause/resume
+- Timers use chained `setTimeout` (not `setInterval`) for drift-free scheduling
+- Stale entries (workflows removed from the directory) are automatically cleaned up on `start()`
+
+### `WorkflowScheduleInfo`
+
+Information about a scheduled workflow, returned by `list()`.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | `string` | Workflow name (from the YAML `name` field) |
+| `schedule` | `string` | Schedule expression (interval like `"every 5m"` or cron like `"0 9 * * *"`) |
+| `paused` | `boolean` | Whether the workflow is currently paused |
+| `lastRunAt` | `string?` | ISO 8601 timestamp of the last execution (undefined if never run) |
+| `nextRunAt` | `string?` | ISO 8601 timestamp of the next scheduled execution (undefined if paused) |
+
+### `WorkflowSchedulerLog`
+
+```ts
+type WorkflowSchedulerLog = (
+  level: "info" | "warn" | "error",
+  msg: string,
+  data?: Record<string, unknown>,
+) => void;
+```
+
+Structured logger callback for workflow scheduler events. Events include timer arming, workflow execution, errors, and auto-pause notifications.
 
 ## See also
 
