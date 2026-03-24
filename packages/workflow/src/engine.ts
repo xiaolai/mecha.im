@@ -115,8 +115,16 @@ export function createEngine(opts: CreateEngineOpts): WorkflowEngine {
       if (step.status !== "pending") continue;
       if (!depsReady(name)) continue;
 
-      // Check condition
       const stepDef = definition.steps[name]!;
+
+      // Safety guard: prevent execution if maxRetries exhausted
+      if (stepDef.maxRetries != null && step.attempts >= stepDef.maxRetries) {
+        step.status = "failed";
+        step.error = `Max retries exceeded (${stepDef.maxRetries})`;
+        step.completedAt = new Date().toISOString();
+        saveState();
+        continue;
+      }
       if (stepDef.condition) {
         const ctx = buildContext();
         if (!evaluateCondition(stepDef.condition, ctx)) {
@@ -245,11 +253,21 @@ export function createEngine(opts: CreateEngineOpts): WorkflowEngine {
           step.completedAt = new Date().toISOString();
           runState.totalCostUsd += step.costUsd;
         } catch (err) {
-          step.status = "failed";
           /* v8 ignore start -- non-Error throw fallback */
-          step.error = err instanceof Error ? err.message : String(err);
+          const errorMsg = err instanceof Error ? err.message : String(err);
           /* v8 ignore stop */
-          step.completedAt = new Date().toISOString();
+
+          // If maxRetries is set and we haven't exhausted attempts, retry
+          if (stepDef.maxRetries != null && step.attempts < stepDef.maxRetries) {
+            step.status = "pending";  // back to pending for re-execution
+            step.error = errorMsg;    // preserve last error for debugging
+          } else {
+            step.status = "failed";
+            step.error = stepDef.maxRetries != null
+              ? `Max retries exceeded (${stepDef.maxRetries}): ${errorMsg}`
+              : errorMsg;
+            step.completedAt = new Date().toISOString();
+          }
         }
 
         saveState();

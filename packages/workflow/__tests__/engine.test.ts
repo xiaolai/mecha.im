@@ -584,4 +584,79 @@ describe("WorkflowEngine", () => {
       expect(engine.state().steps.s1!.costUsd).toBe(0);
     });
   });
+
+  describe("maxRetries", () => {
+    it("retries a failed step up to maxRetries", async () => {
+      const def: WorkflowDef = {
+        name: "retry-test",
+        steps: {
+          flaky: { bot: "bot", prompt: "go", maxRetries: 3 },
+        },
+      };
+      const engine = createEngine({ workflowsDir, definition: def });
+      engine.startRun();
+
+      let callCount = 0;
+      const failTwiceThenSucceed: StepExecutor = async () => {
+        callCount++;
+        if (callCount < 3) throw new Error("transient failure");
+        return { output: "done" };
+      };
+
+      // Attempt 1: fails, step goes back to pending (attempts=1 < maxRetries=3)
+      await engine.executeReady(failTwiceThenSucceed);
+      expect(engine.state().steps.flaky!.status).toBe("pending");
+      expect(engine.state().steps.flaky!.attempts).toBe(1);
+
+      // Attempt 2: fails again, still pending (attempts=2 < maxRetries=3)
+      await engine.executeReady(failTwiceThenSucceed);
+      expect(engine.state().steps.flaky!.status).toBe("pending");
+      expect(engine.state().steps.flaky!.attempts).toBe(2);
+
+      // Attempt 3: succeeds
+      await engine.executeReady(failTwiceThenSucceed);
+      expect(engine.state().steps.flaky!.status).toBe("completed");
+      expect(engine.state().steps.flaky!.output).toBe("done");
+      expect(callCount).toBe(3);
+    });
+
+    it("fails permanently after exhausting maxRetries", async () => {
+      const def: WorkflowDef = {
+        name: "retry-exhausted",
+        steps: {
+          flaky: { bot: "bot", prompt: "go", maxRetries: 2 },
+        },
+      };
+      const engine = createEngine({ workflowsDir, definition: def });
+      engine.startRun();
+
+      const alwaysFail: StepExecutor = async () => { throw new Error("permanent failure"); };
+
+      // Attempt 1: fails, retries (pending)
+      await engine.executeReady(alwaysFail);
+      expect(engine.state().steps.flaky!.status).toBe("pending");
+
+      // Attempt 2: fails, maxRetries exhausted -> failed permanently
+      await engine.executeReady(alwaysFail);
+      expect(engine.state().steps.flaky!.status).toBe("failed");
+      expect(engine.state().steps.flaky!.error).toContain("Max retries");
+      expect(engine.state().status).toBe("failed");
+    });
+
+    it("fails immediately without maxRetries (backwards compat)", async () => {
+      const def: WorkflowDef = {
+        name: "no-retry",
+        steps: {
+          fragile: { bot: "bot", prompt: "go" },  // no maxRetries
+        },
+      };
+      const engine = createEngine({ workflowsDir, definition: def });
+      engine.startRun();
+
+      const fail: StepExecutor = async () => { throw new Error("fail"); };
+      await engine.executeReady(fail);
+      expect(engine.state().steps.fragile!.status).toBe("failed");
+      expect(engine.state().status).toBe("failed");
+    });
+  });
 });
