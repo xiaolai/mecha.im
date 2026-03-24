@@ -1,10 +1,12 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { assertSafeName } from "@mecha/core";
+import { assertSafeName, createLogger } from "@mecha/core";
 import type { BusMessage, ClaimedItem, QueueConfig } from "./types.js";
 import { readJsonl, writeJsonl, appendJsonl } from "./jsonl.js";
 import { withFileLock } from "./file-lock.js";
+
+const log = createLogger("mecha:bus");
 
 /** Durable queue with push/claim/ack/nack and dead-letter support. */
 export interface DurableQueue {
@@ -101,6 +103,7 @@ export function createQueue(opts: CreateQueueOpts): DurableQueue {
           }
         }
         if (expired.length > 0) {
+          log.warn("Claim timeout: expired items returned", { count: expired.length });
           writeJsonl(inflightPath, remaining);
           for (const item of expired) {
             if (item.attempts >= config.maxRetries) {
@@ -131,6 +134,7 @@ export function createQueue(opts: CreateQueueOpts): DurableQueue {
         };
         attemptCounts.set(msg.id, item.attempts);
         appendJsonl(inflightPath, item);
+        log.info("Message claimed", { id: msg.id, bot, attempt: item.attempts });
 
         return item;
       });
@@ -144,6 +148,7 @@ export function createQueue(opts: CreateQueueOpts): DurableQueue {
 
         inflight.splice(idx, 1);
         writeJsonl(inflightPath, inflight);
+        log.info("Message acknowledged", { id: messageId });
         return true;
       });
     },
@@ -161,6 +166,7 @@ export function createQueue(opts: CreateQueueOpts): DurableQueue {
         if (item.attempts >= config.maxRetries) {
           // Move to dead letter
           appendJsonl(deadPath, item.message);
+          log.warn("Message nacked, moved to dead-letter", { id: messageId });
         } else {
           // Return to pending with exponential backoff
           const backoff =
@@ -170,6 +176,7 @@ export function createQueue(opts: CreateQueueOpts): DurableQueue {
             notBefore: new Date(Date.now() + backoff).toISOString(),
           };
           appendJsonl(pendingPath, retryMsg);
+          log.warn("Message nacked, returned to pending", { id: messageId });
         }
         return true;
       });

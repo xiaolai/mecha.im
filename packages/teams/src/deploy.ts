@@ -1,6 +1,8 @@
 import { mkdirSync, readFileSync, existsSync, copyFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join, dirname, resolve, basename } from "node:path";
-import { atomicWriteSync } from "@mecha/core";
+import { atomicWriteSync, createLogger } from "@mecha/core";
+
+const log = createLogger("mecha:teams");
 import type { TeamDef, DeployResult, DeployedTeam } from "./types.js";
 import { validateTeamDef } from "./definition.js";
 
@@ -100,6 +102,7 @@ export async function deployTeam(opts: DeployOpts): Promise<DeployResult> {
   }
 
   // Spawn bots with rollback on partial failure
+  log.info("Deploying team", { team: definition.name, botCount: Object.keys(definition.bots).length });
   const botNames: string[] = [];
   let aclRules = 0;
   const busTopics: string[] = [];
@@ -124,6 +127,7 @@ export async function deployTeam(opts: DeployOpts): Promise<DeployResult> {
       if (!ok) {
         throw new Error(`Failed to spawn bot "${name}"`);
       }
+      log.info("Bot spawned", { bot: name });
       botNames.push(name);
     }
 
@@ -187,6 +191,7 @@ export async function deployTeam(opts: DeployOpts): Promise<DeployResult> {
     }
   } catch (err) {
     // Rollback: stop already-spawned bots (best-effort)
+    log.warn("Deploy failed, rolling back", { team: definition.name, botCount: botNames.length });
     for (const name of botNames) {
       /* v8 ignore start -- best-effort rollback */
       try { await opts.stopBot?.(name); } catch { /* ignore rollback errors */ }
@@ -327,6 +332,13 @@ export async function teardownTeam(opts: TeardownOpts): Promise<TeardownResult> 
 
   // Unregister team
   unregisterTeam(mechaDir, team.name);
+
+  log.info("Team teardown complete", {
+    team: team.name,
+    botsStopped: result.botsStopped,
+    busTopicsRemoved: result.busTopicsRemoved,
+    busQueuesRemoved: result.busQueuesRemoved,
+  });
 
   return result;
 }
