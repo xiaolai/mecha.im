@@ -22,6 +22,103 @@ export function parseInterval(input: string): number | undefined {
   return ms;
 }
 
+// --- Cron expression parsing ---
+
+const CRON_RE = /^(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)$/;
+
+/** Parse a single cron field value. Returns matching values for the given range. */
+function parseCronField(field: string, min: number, max: number): number[] {
+  const values: number[] = [];
+  for (const part of field.split(",")) {
+    if (part === "*") {
+      for (let i = min; i <= max; i++) values.push(i);
+    } else if (part.includes("/")) {
+      const [range, stepStr] = part.split("/");
+      const step = Number(stepStr);
+      const start = range === "*" ? min : Number(range);
+      for (let i = start; i <= max; i += step) values.push(i);
+    } else {
+      values.push(Number(part));
+    }
+  }
+  return values.filter((v) => v >= min && v <= max);
+}
+
+/** Check if a cron expression matches a given date. */
+export function cronMatches(cron: string, date: Date): boolean {
+  const match = CRON_RE.exec(cron);
+  if (!match) return false;
+  const minF = match[1]!;
+  const hourF = match[2]!;
+  const domF = match[3]!;
+  const monF = match[4]!;
+  const dowF = match[5]!;
+  const minutes = parseCronField(minF, 0, 59);
+  const hours = parseCronField(hourF, 0, 23);
+  const doms = parseCronField(domF, 1, 31);
+  const months = parseCronField(monF, 1, 12);
+  const dows = parseCronField(dowF, 0, 6); // 0=Sunday
+
+  return (
+    minutes.includes(date.getMinutes()) &&
+    hours.includes(date.getHours()) &&
+    doms.includes(date.getDate()) &&
+    months.includes(date.getMonth() + 1) &&
+    dows.includes(date.getDay())
+  );
+}
+
+/** Calculate milliseconds until the next cron match from now. Scans minute-by-minute up to 48h. */
+export function nextCronMs(
+  cron: string,
+  from: Date = new Date(),
+): number | undefined {
+  const match = CRON_RE.exec(cron);
+  if (!match) return undefined;
+
+  // Start from next minute (floor to minute boundary)
+  const check = new Date(from);
+  check.setSeconds(0, 0);
+  check.setMinutes(check.getMinutes() + 1);
+
+  const maxMinutes = 48 * 60; // scan up to 48 hours
+  for (let i = 0; i < maxMinutes; i++) {
+    if (cronMatches(cron, check)) {
+      return check.getTime() - from.getTime();
+    }
+    check.setMinutes(check.getMinutes() + 1);
+  }
+  /* v8 ignore start -- only reached if no match within 48h window */
+  return undefined;
+  /* v8 ignore stop */
+}
+
+/** Check if a string is a valid cron expression. */
+export function isCronExpression(input: string): boolean {
+  return CRON_RE.test(input.trim());
+}
+
+/** Parse a schedule expression (interval or cron). Returns type and a nextMs calculator, or undefined if invalid. */
+export function parseScheduleExpression(
+  expr: string,
+):
+  | { type: "interval" | "cron"; nextMs: (from?: Date) => number | undefined }
+  | undefined {
+  // Try interval first
+  const intervalMs = parseInterval(expr);
+  if (intervalMs != null) {
+    return { type: "interval", nextMs: () => intervalMs };
+  }
+  // Try cron
+  if (isCronExpression(expr)) {
+    return {
+      type: "cron",
+      nextMs: (from?: Date) => nextCronMs(expr, from),
+    };
+  }
+  return undefined;
+}
+
 // --- Zod schemas ---
 
 const scheduleIdSchema = z
