@@ -1,5 +1,52 @@
 import { parseScheduleExpression } from "@mecha/core";
+import { z } from "zod";
 import type { TeamDef } from "./types.js";
+
+/** Zod schema for TeamBotDef */
+const TeamBotDefSchema = z.object({
+  cwd: z.string(),
+  model: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  expose: z.array(z.string()).optional(),
+  effort: z.enum(["low", "medium", "high"]).optional(),
+  maxBudgetUsd: z.number().optional(),
+  sandboxMode: z.enum(["auto", "off", "require"]).optional(),
+  systemPrompt: z.string().optional(),
+  appendSystemPrompt: z.string().optional(),
+});
+
+/** Zod schema for TeamAclDef */
+const TeamAclDefSchema = z.object({
+  source: z.string(),
+  targets: z.array(z.string()),
+  capabilities: z.array(z.string()),
+});
+
+/** Zod schema for TeamDef */
+const TeamDefSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().optional(),
+  version: z.number().optional(),
+  home: z.string().optional(),
+  workspace: z.string().optional(),
+  bots: z.record(z.string(), TeamBotDefSchema).default({}),
+  acl: z.array(TeamAclDefSchema).optional(),
+  scaffold: z.record(z.string(), z.string()).optional(),
+  bus: z.object({
+    topics: z.array(z.string()).optional(),
+    queues: z.array(z.object({
+      name: z.string(),
+      maxRetries: z.number().optional(),
+    })).optional(),
+  }).optional(),
+  workflows: z.array(z.string()).optional(),
+  schedules: z.array(z.object({
+    bot: z.string(),
+    id: z.string(),
+    every: z.string(),
+    prompt: z.string(),
+  })).optional(),
+});
 
 /** Validate a team definition. Returns list of errors (empty = valid). */
 export function validateTeamDef(def: TeamDef): string[] {
@@ -67,18 +114,10 @@ export function parseTeamDef(raw: unknown): TeamDef {
   if (!raw || typeof raw !== "object") {
     throw new Error("Team definition must be an object");
   }
-  const obj = raw as Record<string, unknown>;
-  return {
-    name: obj.name as string,
-    description: obj.description as string | undefined,
-    version: obj.version as number | undefined,
-    home: obj.home as string | undefined,
-    workspace: obj.workspace as string | undefined,
-    bots: (obj.bots ?? {}) as TeamDef["bots"],
-    acl: obj.acl as TeamDef["acl"],
-    scaffold: obj.scaffold as TeamDef["scaffold"],
-    bus: obj.bus as TeamDef["bus"],
-    workflows: obj.workflows as TeamDef["workflows"],
-    schedules: obj.schedules as TeamDef["schedules"],
-  };
+  const result = TeamDefSchema.safeParse(raw);
+  if (!result.success) {
+    const issues = result.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`);
+    throw new Error(`Invalid team definition: ${issues.join("; ")}`);
+  }
+  return result.data as TeamDef;
 }

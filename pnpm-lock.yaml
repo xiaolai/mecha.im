@@ -454,6 +454,9 @@ importers:
       '@mecha/core':
         specifier: workspace:*
         version: link:../core
+      zod:
+        specifier: ^3.25.36
+        version: 3.25.76
 
   packages/workflow:
     dependencies:

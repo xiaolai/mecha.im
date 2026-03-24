@@ -153,4 +153,19 @@ describe("parseTeamDef", () => {
     const def = parseTeamDef({ name: "no-bots" });
     expect(def.bots).toEqual({});
   });
+
+  it("rejects invalid field types via Zod schema", () => {
+    expect(() => parseTeamDef({ name: 42, bots: {} })).toThrow("Invalid team definition");
+  });
+
+  it("rejects bot with missing cwd via Zod schema", () => {
+    expect(() => parseTeamDef({ name: "bad", bots: { a: {} } })).toThrow("Invalid team definition");
+  });
+
+  it("rejects invalid effort enum value", () => {
+    expect(() => parseTeamDef({
+      name: "bad-effort",
+      bots: { a: { cwd: "/x", effort: "ultra" } },
+    })).toThrow("Invalid team definition");
+  });
 });

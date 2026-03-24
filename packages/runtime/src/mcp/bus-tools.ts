@@ -81,7 +81,15 @@ export const BUS_TOOLS: McpToolDef[] = [
   },
 ];
 
-/** Runtime context for bus tool execution. */
+/**
+ * Runtime context for bus tool execution.
+ *
+ * TODO: Add ACL engine to BusToolOpts and enforce publish/subscribe/claim
+ * permissions when the MCP handler is refactored to receive an AclEngine.
+ * Currently all bus operations are permitted for any bot that has access
+ * to the MCP tools — ACL checks are deferred until the gateway layer is
+ * available to supply the engine instance.
+ */
 export interface BusToolOpts {
   busDir: string;
   botName: string;
