@@ -378,6 +378,7 @@ describe("WorkflowEngine", () => {
       const compensated = await engine.compensate(failingExecutor(["devops"]));
       expect(compensated).toEqual(["deploy"]);
       expect(engine.state().steps.deploy!.status).toBe("failed");
+      expect(engine.state().steps.deploy!.error).toContain("Compensation failed: devops failed");
       expect(engine.state().status).toBe("failed"); // NOT "compensated"
     });
   });

@@ -436,8 +436,11 @@ export function createEngine(opts: CreateEngineOpts): WorkflowEngine {
             stepRunId: `${step.stepRunId}:compensate`,
           });
           step.status = "compensated";
-        } catch {
+        } catch (err) {
           step.status = "failed"; // compensation itself failed
+          /* v8 ignore start -- non-Error throw fallback */
+          step.error = `Compensation failed: ${err instanceof Error ? err.message : String(err)}`;
+          /* v8 ignore stop */
           compensationFailed = true;
         }
         saveState();
