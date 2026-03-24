@@ -1,6 +1,6 @@
 {
   "name": "@mecha/gateway",
-  "version": "4.1.8",
+  "version": "4.1.9",
   "description": "Credential store and gateway adapters for mecha.im",
   "type": "module",
   "exports": {
