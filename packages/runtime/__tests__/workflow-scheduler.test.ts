@@ -343,4 +343,76 @@ describe("createWorkflowScheduler", () => {
       expect(runWorkflow).not.toHaveBeenCalled();
     });
   });
+
+  describe("pause()", () => {
+    it("pauses a running workflow and prevents further execution", async () => {
+      writeFileSync(join(workflowsDir, "pausable.yaml"), makeWorkflowYaml("pausable-wf", "1h"));
+
+      const s = createScheduler();
+      s.start();
+
+      expect(s.pause("pausable-wf")).toBe(true);
+      expect(s.list()[0]!.paused).toBe(true);
+
+      // Should not fire after pausing
+      currentTime += 2 * 3_600_000;
+      await vi.advanceTimersByTimeAsync(2 * 3_600_000);
+      expect(runWorkflow).not.toHaveBeenCalled();
+    });
+
+    it("returns false for unknown or already paused workflow", () => {
+      writeFileSync(join(workflowsDir, "p.yaml"), makeWorkflowYaml("p-wf", "1h"));
+      const dir = join(stateDir, "p-wf");
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, "state.json"), JSON.stringify({ consecutiveErrors: 0, paused: true }));
+
+      const s = createScheduler();
+      s.start();
+
+      expect(s.pause("unknown")).toBe(false);
+      expect(s.pause("p-wf")).toBe(false); // already paused
+    });
+  });
+
+  describe("resume()", () => {
+    it("resumes a paused workflow and re-arms timer", async () => {
+      writeFileSync(join(workflowsDir, "resumable.yaml"), makeWorkflowYaml("resumable-wf", "1h"));
+      // Pre-pause via auto-pause (5 consecutive errors)
+      const dir = join(stateDir, "resumable-wf");
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, "state.json"), JSON.stringify({
+        consecutiveErrors: 5, paused: true,
+      }));
+
+      const s = createScheduler();
+      s.start();
+
+      // Verify it's paused
+      expect(s.list()[0]!.paused).toBe(true);
+
+      // Resume it
+      expect(s.resume("resumable-wf")).toBe(true);
+      expect(s.list()[0]!.paused).toBe(false);
+
+      // Verify consecutiveErrors was reset via persisted state
+      const state = JSON.parse(readFileSync(join(dir, "state.json"), "utf-8"));
+      expect(state.consecutiveErrors).toBe(0);
+      expect(state.paused).toBe(false);
+
+      // Timer should fire
+      currentTime += 3_600_000;
+      await vi.advanceTimersByTimeAsync(3_600_000);
+      expect(runWorkflow).toHaveBeenCalledTimes(1);
+    });
+
+    it("returns false for unknown or non-paused workflow", () => {
+      writeFileSync(join(workflowsDir, "r.yaml"), makeWorkflowYaml("r-wf", "1h"));
+
+      const s = createScheduler();
+      s.start();
+
+      expect(s.resume("unknown")).toBe(false);
+      expect(s.resume("r-wf")).toBe(false); // not paused
+    });
+  });
 });
