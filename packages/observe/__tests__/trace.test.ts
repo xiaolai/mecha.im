@@ -76,48 +76,48 @@ describe("TraceStore", () => {
   it("rejects workflow name containing '..'", () => {
     const store = createTraceStore(tracesDir);
     const trace = makeTrace("run-001", "foo..bar");
-    expect(() => store.save(trace)).toThrow('Invalid workflow: "foo..bar"');
+    expect(() => store.save(trace)).toThrow('Invalid workflow name: "foo..bar"');
   });
 
   it("rejects traceId containing '..'", () => {
     const store = createTraceStore(tracesDir);
     const trace = makeTrace("id..bad", "valid-wf");
-    expect(() => store.save(trace)).toThrow('Invalid traceId: "id..bad"');
+    expect(() => store.save(trace)).toThrow('Invalid traceId name: "id..bad"');
   });
 
   it("rejects empty workflow name", () => {
     const store = createTraceStore(tracesDir);
     const trace = makeTrace("run-001", "");
-    expect(() => store.save(trace)).toThrow('Invalid workflow: ""');
+    expect(() => store.save(trace)).toThrow('Invalid workflow name: ""');
   });
 
   it("rejects '.' as workflow name", () => {
     const store = createTraceStore(tracesDir);
     const trace = makeTrace("run-001", ".");
-    expect(() => store.save(trace)).toThrow('Invalid workflow: "."');
+    expect(() => store.save(trace)).toThrow('Invalid workflow name: "."');
   });
 
   it("rejects '..' as workflow name", () => {
     const store = createTraceStore(tracesDir);
     const trace = makeTrace("run-001", "..");
-    expect(() => store.save(trace)).toThrow('Invalid workflow: ".."');
+    expect(() => store.save(trace)).toThrow('Invalid workflow name: ".."');
   });
 
   it("rejects workflow name with forward slash", () => {
     const store = createTraceStore(tracesDir);
     const trace = makeTrace("run-001", "a/b");
-    expect(() => store.save(trace)).toThrow('Invalid workflow: "a/b"');
+    expect(() => store.save(trace)).toThrow('Invalid workflow name: "a/b"');
   });
 
   it("rejects workflow name with backslash", () => {
     const store = createTraceStore(tracesDir);
     const trace = makeTrace("run-001", "a\\b");
-    expect(() => store.save(trace)).toThrow('Invalid workflow: "a\\b"');
+    expect(() => store.save(trace)).toThrow('Invalid workflow name: "a\\b"');
   });
 
   it("rejects traceId with '..' in load", () => {
     const store = createTraceStore(tracesDir);
-    expect(() => store.load("valid-wf", "foo..bar")).toThrow('Invalid traceId: "foo..bar"');
+    expect(() => store.load("valid-wf", "foo..bar")).toThrow('Invalid traceId name: "foo..bar"');
   });
 
   it("returns empty workflows when tracesDir does not exist", () => {

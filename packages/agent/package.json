@@ -19,6 +19,14 @@
     "@mecha/process": "workspace:*",
     "fastify": "^5.8.1"
   },
+  "peerDependencies": {
+    "@fastify/static": "^8.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@fastify/static": {
+      "optional": true
+    }
+  },
   "engines": {
     "node": ">=20.0.0"
   },

@@ -11,7 +11,8 @@ export function registerWorkflowRateCommand(parent: Command, deps: CommandDeps):
     .description("Record a human quality score for a workflow run")
     .argument("<run-id>", "run ID")
     .argument("<score>", "quality score (1-5)")
-    .action((runId: string, scoreStr: string) =>
+    .option("--workflow <name>", "associate score with a workflow name")
+    .action((runId: string, scoreStr: string, opts: { workflow?: string }) =>
       withErrorHandler(deps, async () => {
         const score = parseInt(scoreStr, 10);
         if (isNaN(score) || score < 1 || score > 5) {
@@ -23,6 +24,7 @@ export function registerWorkflowRateCommand(parent: Command, deps: CommandDeps):
         const store = createScoreStore(join(deps.mechaDir, "observe", "scores"));
         store.record({
           runId,
+          workflow: opts.workflow,
           score,
           source: "human",
           scoredAt: new Date().toISOString(),

@@ -116,6 +116,13 @@ export function validateAddDirs(
   return { ok: true, dirs: result };
 }
 
+/** Validate a name used as a filesystem path segment. Rejects traversal attempts. */
+export function assertSafeName(name: string, label: string): void {
+  if (!name || /[/\\]|^\.\.?$/.test(name) || name.includes("..")) {
+    throw new Error(`Invalid ${label} name: "${name}"`);
+  }
+}
+
 /** Validate a list of capability strings. Returns validated capabilities or an error message. */
 export function validateCapabilities(caps: string[]): { ok: true; capabilities: Capability[] } | { ok: false; error: string } {
   const result: Capability[] = [];

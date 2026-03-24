@@ -10,6 +10,8 @@ export interface StepDef {
   timeout?: string;
   budgetUsd?: number;
   gate?: "human";
+  /** Maximum total execution attempts. Step runs up to maxRetries times. Must be > 0. */
+  maxRetries?: number;
 }
 
 /** Workflow definition parsed from YAML. */
@@ -73,6 +75,7 @@ export interface RunState {
   startedAt: string;
   completedAt?: string;
   totalCostUsd: number;
+  outputs?: Record<string, unknown>;
 }
 
 /** Function that executes a step (sends prompt to a bot, returns result). */

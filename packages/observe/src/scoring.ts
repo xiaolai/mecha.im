@@ -24,14 +24,7 @@ export interface ScoreStore {
   /** Get average score for a bot. Returns undefined if no scores. */
   avgForBot(bot: string): number | undefined;
 
-  /**
-   * Get average score for a workflow. Returns undefined if no scores.
-   *
-   * **Limitation:** Returns the average of all run-level scores regardless of
-   * workflow. QualityScore references `runId`, not workflow name, and the score
-   * store has no run-to-workflow mapping. Callers needing accurate per-workflow
-   * averages should use `forRun()` with known run IDs instead.
-   */
+  /** Get average score for a workflow. Returns undefined if no scores match. */
   avgForWorkflow(workflow: string): number | undefined;
 
   /** Get all scores. */
@@ -66,15 +59,12 @@ export function createScoreStore(scoresDir: string): ScoreStore {
       return scores.reduce((sum, s) => sum + s.score, 0) / scores.length;
     },
 
-    avgForWorkflow(_workflow) {
-      // Scores reference runId, not workflow name directly.
-      // Without a run→workflow mapping, this returns the global average of
-      // run-level scores. Callers should use forRun() with known run IDs
-      // for accurate per-workflow filtering.
+    avgForWorkflow(workflow) {
       const all = readJsonl<QualityScore>(scoresPath);
-      const runLevel = all.filter((s) => !s.stepId);
-      if (runLevel.length === 0) return undefined;
-      return runLevel.reduce((sum, s) => sum + s.score, 0) / runLevel.length;
+      // Filter by workflow field; scores without a workflow field are excluded
+      const matched = all.filter((s) => s.workflow === workflow && !s.stepId);
+      if (matched.length === 0) return undefined;
+      return matched.reduce((sum, s) => sum + s.score, 0) / matched.length;
     },
 
     all() {

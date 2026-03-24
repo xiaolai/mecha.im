@@ -7,10 +7,16 @@ export interface RateLimitConfig {
   windowMs: number;
 }
 
-/** Sliding-window rate limiter for MCP tool calls. */
+/**
+ * Sliding-window rate limiter for MCP tool calls.
+ *
+ * Supports optional per-client isolation via the `clientId` parameter.
+ * When `clientId` is provided, each client gets its own rate limit window;
+ * otherwise all callers share a single global window per tool.
+ */
 export interface RateLimiter {
-  check(tool: string): boolean;
-  remaining(tool: string): number;
+  check(tool: string, clientId?: string): boolean;
+  remaining(tool: string, clientId?: string): number;
 }
 
 function getDefaultConfig(tool: string): RateLimitConfig {
@@ -28,27 +34,33 @@ export function createRateLimiter(
     return limits?.[tool] ?? getDefaultConfig(tool);
   }
 
-  function prune(tool: string): number[] {
+  /** Build a composite key for per-client isolation. */
+  function windowKey(tool: string, clientId?: string): string {
+    return clientId ? `${clientId}:${tool}` : tool;
+  }
+
+  function prune(tool: string, clientId?: string): number[] {
+    const key = windowKey(tool, clientId);
     const config = getConfig(tool);
     const now = Date.now();
     const cutoff = now - config.windowMs;
-    const timestamps = windows.get(tool) ?? [];
+    const timestamps = windows.get(key) ?? [];
     const active = timestamps.filter((ts) => ts > cutoff);
-    windows.set(tool, active);
+    windows.set(key, active);
     return active;
   }
 
   return {
-    check(tool: string): boolean {
-      const active = prune(tool);
+    check(tool: string, clientId?: string): boolean {
+      const active = prune(tool, clientId);
       const config = getConfig(tool);
       if (active.length >= config.max) return false;
       active.push(Date.now());
       return true;
     },
 
-    remaining(tool: string): number {
-      const active = prune(tool);
+    remaining(tool: string, clientId?: string): number {
+      const active = prune(tool, clientId);
       const config = getConfig(tool);
       return Math.max(0, config.max - active.length);
     },

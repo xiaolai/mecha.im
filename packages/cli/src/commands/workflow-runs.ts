@@ -11,7 +11,8 @@ export function registerWorkflowRunsCommand(parent: Command, deps: CommandDeps):
     .command("runs")
     .description("List run history for a workflow")
     .argument("<name>", "workflow name")
-    .action((name: string) =>
+    .option("--last <count>", "Show only the last N runs")
+    .action((name: string, opts: { last?: string }) =>
       withErrorHandler(deps, async () => {
         const runsDir = join(deps.mechaDir, "workflows", "runs", name);
 
@@ -40,14 +41,16 @@ export function registerWorkflowRunsCommand(parent: Command, deps: CommandDeps):
         runs.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
         /* v8 ignore stop */
 
+        const displayRuns = opts.last ? runs.slice(0, parseInt(opts.last, 10)) : runs;
+
         if (deps.formatter.isJson) {
-          deps.formatter.json(runs);
+          deps.formatter.json(displayRuns);
           return;
         }
 
         deps.formatter.table(
           ["Run ID", "Status", "Started", "Cost"],
-          runs.map((r) => [
+          displayRuns.map((r) => [
             r.runId,
             r.status,
             r.startedAt,

@@ -231,3 +231,54 @@ describe("bus queue drain", () => {
     );
   });
 });
+
+describe("bus queue nack", () => {
+  it("nacks a claimed message", async () => {
+    const { deps, program } = setup();
+    await program.parseAsync(["node", "mecha", "bus", "queue", "create", "work"]);
+    const { createBroker } = await import("@mecha/bus");
+    const busDir = join(mechaDir, "bus");
+    const broker = createBroker(busDir);
+    const q = broker.queue("work");
+    const id = q.push({ sender: "cli", payload: "task" });
+    q.claim("worker");
+
+    const program2 = createProgram(deps);
+    program2.exitOverride();
+    await program2.parseAsync(["node", "mecha", "bus", "queue", "nack", "work", id]);
+    expect(deps.formatter.success).toHaveBeenCalled();
+  });
+});
+
+describe("bus queue dead-letters", () => {
+  it("lists dead-letter messages", async () => {
+    const { deps, program } = setup();
+    // Create queue with retryBackoffMs: 0 to allow immediate re-claim in test
+    const { createBroker } = await import("@mecha/bus");
+    const busDir = join(mechaDir, "bus");
+    const broker = createBroker(busDir);
+    const q = broker.queue("dlq", { maxRetries: 2, retryBackoffMs: 0 });
+    const id = q.push({ sender: "producer", payload: "work" });
+    q.claim("worker"); // attempts=1
+    q.nack(id); // 1 < 2, back to pending (no backoff)
+    q.claim("worker"); // attempts=2
+    q.nack(id); // 2 >= 2, dead letter
+
+    const program2 = createProgram(deps);
+    program2.exitOverride();
+    await program2.parseAsync(["node", "mecha", "bus", "queue", "dead-letters", "dlq"]);
+    expect(deps.formatter.table).toHaveBeenCalled();
+    const rows = (deps.formatter.table as ReturnType<typeof import("vitest").vi.fn>).mock.calls[0][1];
+    expect(rows.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("shows empty message when no dead letters", async () => {
+    const { deps, program } = setup();
+    await program.parseAsync(["node", "mecha", "bus", "queue", "create", "empty-dlq"]);
+
+    const program2 = createProgram(deps);
+    program2.exitOverride();
+    await program2.parseAsync(["node", "mecha", "bus", "queue", "dead-letters", "empty-dlq"]);
+    expect(deps.formatter.info).toHaveBeenCalled();
+  });
+});

@@ -8,34 +8,17 @@ import type {
   CreateEngineOpts,
 } from "./types.js";
 import { renderTemplate, evaluateCondition } from "./template.js";
+import { parseInterval, atomicWriteSync, assertSafeName, createLogger } from "@mecha/core";
+import { assertNoCycles } from "./dag-validation.js";
+import { validateOutput } from "./schema-validation.js";
 
-/** Validate a name used as a filesystem path segment. Rejects traversal attempts. */
-function assertSafeName(name: string, label: string): void {
-  if (!name || /[/\\]|^\.\.?$/.test(name) || name.includes("..")) {
-    throw new Error(`Invalid ${label} name: "${name}"`);
-  }
-}
+const log = createLogger("mecha:workflow");
 
-/** Detect cycles in the step dependency graph. Throws if a cycle is found. */
-function assertNoCycles(steps: Record<string, { depends?: string[] }>): void {
-  const visited = new Set<string>();
-  const visiting = new Set<string>();
+const DEFAULT_STEP_TIMEOUT_MS = 600_000; // 10 minutes
 
-  function visit(name: string): void {
-    if (visited.has(name)) return;
-    if (visiting.has(name)) throw new Error(`Cycle detected in workflow dependencies involving "${name}"`);
-    visiting.add(name);
-    const deps = steps[name]?.depends ?? [];
-    for (const dep of deps) {
-      const depName = dep.endsWith("?") ? dep.slice(0, -1) : dep;
-      if (!steps[depName]) throw new Error(`Step "${name}" depends on unknown step "${depName}"`);
-      visit(depName);
-    }
-    visiting.delete(name);
-    visited.add(name);
-  }
-
-  for (const name of Object.keys(steps)) visit(name);
+function parseTimeout(timeout?: string): number {
+  if (!timeout) return DEFAULT_STEP_TIMEOUT_MS;
+  return parseInterval(timeout) ?? DEFAULT_STEP_TIMEOUT_MS;
 }
 
 /**
@@ -55,7 +38,12 @@ export function createEngine(opts: CreateEngineOpts): WorkflowEngine {
   if (opts.runId) {
     const statePath = join(runsDir, `${opts.runId}.json`);
     if (existsSync(statePath)) {
-      runState = JSON.parse(readFileSync(statePath, "utf-8")) as RunState;
+      try {
+        runState = JSON.parse(readFileSync(statePath, "utf-8")) as RunState;
+      } catch {
+        // Corrupt state file — treat as no prior state
+        runState = null;
+      }
     }
   }
 
@@ -64,7 +52,7 @@ export function createEngine(opts: CreateEngineOpts): WorkflowEngine {
     if (!runState) return;
     /* v8 ignore stop */
     const statePath = join(runsDir, `${runState.runId}.json`);
-    writeFileSync(statePath, JSON.stringify(runState, null, 2) + "\n");
+    atomicWriteSync(statePath, JSON.stringify(runState, null, 2) + "\n");
   }
 
   /** Build template context from completed step outputs + inputs. */
@@ -74,7 +62,7 @@ export function createEngine(opts: CreateEngineOpts): WorkflowEngine {
     /* v8 ignore stop */
     const ctx: Record<string, unknown> = { ...runState.inputs };
     for (const [name, step] of Object.entries(runState.steps)) {
-      if (step.status === "completed" && step.output !== undefined) {
+      if ((step.status === "completed" || step.status === "compensating" || step.status === "compensated") && step.output !== undefined) {
         const outputKey = definition.steps[name]?.output ?? name;
         ctx[name] = { [outputKey]: step.output };
       }
@@ -115,8 +103,17 @@ export function createEngine(opts: CreateEngineOpts): WorkflowEngine {
       if (step.status !== "pending") continue;
       if (!depsReady(name)) continue;
 
-      // Check condition
       const stepDef = definition.steps[name]!;
+
+      // Safety guard: prevent execution if maxRetries exhausted
+      // maxRetries must be > 0 to take effect; 0 or negative values are ignored
+      if (stepDef.maxRetries != null && stepDef.maxRetries > 0 && step.attempts >= stepDef.maxRetries) {
+        step.status = "failed";
+        step.error = `Max retries exceeded (${stepDef.maxRetries})`;
+        step.completedAt = new Date().toISOString();
+        saveState();
+        continue;
+      }
       if (stepDef.condition) {
         const ctx = buildContext();
         if (!evaluateCondition(stepDef.condition, ctx)) {
@@ -154,6 +151,15 @@ export function createEngine(opts: CreateEngineOpts): WorkflowEngine {
     } else if (allDone) {
       runState.status = "done";
       runState.completedAt = new Date().toISOString();
+
+      // Compute workflow outputs
+      if (definition.outputs) {
+        const ctx = buildContext();
+        runState.outputs = {};
+        for (const [key, tmpl] of Object.entries(definition.outputs)) {
+          runState.outputs[key] = renderTemplate(tmpl, ctx);
+        }
+      }
     }
     saveState();
   }
@@ -210,50 +216,109 @@ export function createEngine(opts: CreateEngineOpts): WorkflowEngine {
       const ready = readySteps();
       const executed: string[] = [];
 
-      // Execute ready steps (could parallelize, but sequential for determinism in v1)
-      for (const stepName of ready) {
+      // Execute ready steps in parallel (they are independent — no mutual dependencies)
+      await Promise.all(ready.map(async (stepName) => {
         const stepDef = definition.steps[stepName]!;
-        const step = runState.steps[stepName]!;
+        const step = runState!.steps[stepName]!;
 
         // Idempotency: skip if already has a result
         if (step.output !== undefined) {
           step.status = "completed";
           saveState();
           executed.push(stepName);
-          continue;
+          return;
         }
 
         step.status = "running";
         step.startedAt = new Date().toISOString();
         step.attempts++;
+        log.info("Step started", { step: stepName, attempt: step.attempts });
         saveState();
 
         try {
           const ctx = buildContext();
           const renderedPrompt = renderTemplate(stepDef.prompt, ctx);
-          const result = await executor({
-            bot: stepDef.bot,
-            prompt: renderedPrompt,
-            stepRunId: step.stepRunId,
-            timeout: stepDef.timeout,
-            budgetUsd: stepDef.budgetUsd,
-          });
+          const timeoutMs = parseTimeout(stepDef.timeout);
+          let timer: ReturnType<typeof setTimeout>;
+
+          const result = await Promise.race([
+            executor({
+              bot: stepDef.bot,
+              prompt: renderedPrompt,
+              stepRunId: step.stepRunId,
+              timeout: stepDef.timeout,
+              budgetUsd: stepDef.budgetUsd,
+            }),
+            new Promise<never>((_, reject) => {
+              timer = setTimeout(
+                () => reject(new Error(`Step timed out after ${stepDef.timeout ?? "10m"}`)),
+                timeoutMs,
+              );
+            }),
+          ]).finally(() => clearTimeout(timer));
 
           step.output = result.output;
           step.costUsd = result.costUsd ?? 0;
+
+          // Output schema validation
+          if (stepDef.outputSchema) {
+            let parsed = step.output;
+            if (typeof parsed === "string") {
+              try { parsed = JSON.parse(parsed); } catch { /* use as-is */ }
+            }
+            const errors = validateOutput(parsed, stepDef.outputSchema);
+            if (errors.length > 0) {
+              step.status = "failed";
+              step.error = `Output schema validation failed: ${errors.join("; ")}`;
+              step.completedAt = new Date().toISOString();
+              runState!.totalCostUsd += step.costUsd;
+              saveState();
+              executed.push(stepName);
+              return;
+            }
+          }
+
           step.status = "completed";
           step.completedAt = new Date().toISOString();
-          runState.totalCostUsd += step.costUsd;
+          runState!.totalCostUsd += step.costUsd;
+          log.info("Step completed", { step: stepName });
         } catch (err) {
-          step.status = "failed";
           /* v8 ignore start -- non-Error throw fallback */
-          step.error = err instanceof Error ? err.message : String(err);
+          const errorMsg = err instanceof Error ? err.message : String(err);
           /* v8 ignore stop */
-          step.completedAt = new Date().toISOString();
+
+          // If maxRetries is set (and > 0) and we haven't exhausted attempts, retry
+          if (stepDef.maxRetries != null && stepDef.maxRetries > 0 && step.attempts < stepDef.maxRetries) {
+            step.status = "pending";  // back to pending for re-execution
+            step.error = errorMsg;    // preserve last error for debugging
+            log.warn("Step retrying", { step: stepName, attempt: step.attempts, maxRetries: stepDef.maxRetries, error: errorMsg });
+          } else {
+            step.status = "failed";
+            step.error = stepDef.maxRetries != null && stepDef.maxRetries > 0
+              ? `Max retries exceeded (${stepDef.maxRetries}): ${errorMsg}`
+              : errorMsg;
+            step.completedAt = new Date().toISOString();
+            log.warn("Step failed", { step: stepName, error: errorMsg });
+          }
         }
 
         saveState();
         executed.push(stepName);
+      }));
+
+      // Budget enforcement — checked after all parallel steps complete
+      if (definition.budgetUsd != null && runState.totalCostUsd >= definition.budgetUsd) {
+        log.info("Budget exceeded", { totalCost: runState.totalCostUsd, budget: definition.budgetUsd });
+        for (const [, sState] of Object.entries(runState.steps)) {
+          if (sState.status === "pending") {
+            sState.status = "failed";
+            sState.error = "Budget exceeded";
+            sState.completedAt = new Date().toISOString();
+          }
+        }
+        runState.status = "failed";
+        runState.completedAt = new Date().toISOString();
+        saveState();
       }
 
       updateRunStatus();
@@ -293,14 +358,18 @@ export function createEngine(opts: CreateEngineOpts): WorkflowEngine {
       if (runState.status !== "failed") return [];
 
       runState.status = "compensating";
+      log.info("Compensation started", { runId: runState.runId });
       saveState();
 
-      // Walk completed steps in reverse order
+      // Walk completed steps in reverse chronological order (most recent first)
       const stepNames = Object.keys(definition.steps);
-      const completedInOrder = stepNames.filter(
-        (name) => runState!.steps[name]?.status === "completed",
-      );
-      completedInOrder.reverse();
+      const completedInOrder = stepNames
+        .filter((name) => runState!.steps[name]?.status === "completed")
+        .sort((a, b) => {
+          const aTime = runState!.steps[a]!.completedAt ?? "";
+          const bTime = runState!.steps[b]!.completedAt ?? "";
+          return bTime.localeCompare(aTime); // reverse chronological
+        });
 
       const compensated: string[] = [];
       let compensationFailed = false;
@@ -315,12 +384,17 @@ export function createEngine(opts: CreateEngineOpts): WorkflowEngine {
         try {
           await executor({
             bot: stepDef.bot,
-            prompt: stepDef.compensate,
+            prompt: renderTemplate(stepDef.compensate, buildContext()),
             stepRunId: `${step.stepRunId}:compensate`,
           });
           step.status = "compensated";
-        } catch {
+        } catch (err) {
           step.status = "failed"; // compensation itself failed
+          /* v8 ignore start -- non-Error throw fallback */
+          const compErr = err instanceof Error ? err.message : String(err);
+          /* v8 ignore stop */
+          step.error = `Compensation failed: ${compErr}`;
+          log.warn("Compensation failed for step", { step: name, error: compErr });
           compensationFailed = true;
         }
         saveState();

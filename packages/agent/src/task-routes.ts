@@ -48,7 +48,18 @@ function isTaskAuthorized(source: string, task: Task): boolean {
     || source === task.target || norm === task.target;
 }
 
-/** Extract caller identity from request headers. */
+/**
+ * Extract caller identity from request headers.
+ *
+ * Trust boundary: x-mecha-source is accepted because the request has already
+ * been authenticated via bearer token (auth hook). The header identifies which
+ * bot within the authenticated session is making the call. This is acceptable
+ * for intra-node communication where all callers share the same auth boundary.
+ *
+ * TODO: When cross-node task delegation is implemented, replace header-based
+ * identity with signature-based callback verification to prevent spoofing
+ * across trust boundaries.
+ */
 function getSource(req: { headers: Record<string, string | string[] | undefined> }): string {
   return (req.headers["x-mecha-source"] as string) ?? "admin";
 }

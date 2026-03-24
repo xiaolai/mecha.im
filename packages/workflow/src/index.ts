@@ -1,4 +1,6 @@
 export { createEngine } from "./engine.js";
+export { assertNoCycles } from "./dag-validation.js";
+export { validateOutput } from "./schema-validation.js";
 export { renderTemplate, evaluateCondition } from "./template.js";
 export { acquireLock, releaseLock, isLocked } from "./lock.js";
 export type { LockHandle, LockInfo } from "./lock.js";

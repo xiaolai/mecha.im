@@ -1,13 +1,7 @@
-import { mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync } from "node:fs";
+import { mkdirSync, readFileSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { assertSafeName, atomicWriteSync } from "@mecha/core";
 import type { RunTrace, StepTrace } from "./types.js";
-
-/** Validate a name used as a filesystem path segment. Rejects traversal attempts. */
-function assertSafeName(name: string, label: string): void {
-  if (!name || /[/\\]|^\.\.?$/.test(name) || name.includes("..")) {
-    throw new Error(`Invalid ${label}: "${name}"`);
-  }
-}
 
 /** File-backed store for workflow run traces. */
 export interface TraceStore {
@@ -38,7 +32,7 @@ export function createTraceStore(tracesDir: string): TraceStore {
       const dir = join(tracesDir, trace.workflow);
       mkdirSync(dir, { recursive: true });
       const path = join(dir, `${trace.traceId}.trace.json`);
-      writeFileSync(path, JSON.stringify(trace, null, 2) + "\n");
+      atomicWriteSync(path, JSON.stringify(trace, null, 2) + "\n");
     },
 
     load(workflow, traceId) {

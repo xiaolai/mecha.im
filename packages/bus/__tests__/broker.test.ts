@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createBroker, type Broker } from "../src/broker.js";
@@ -95,6 +95,18 @@ describe("Broker", () => {
 
       expect(broker.queueNames().sort()).toEqual(["a", "b"]);
       expect(broker.topicNames().sort()).toEqual(["x", "y"]);
+    });
+  });
+
+  describe("corrupt data handling", () => {
+    it("handles corrupt bus.json gracefully", () => {
+      // Write corrupt config
+      writeFileSync(join(busDir, "bus.json"), "{CORRUPT DATA");
+
+      // Should not throw — treats corrupt config as empty
+      const b = createBroker(busDir);
+      expect(b.queueNames()).toEqual([]);
+      expect(b.topicNames()).toEqual([]);
     });
   });
 });

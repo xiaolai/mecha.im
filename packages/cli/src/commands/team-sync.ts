@@ -1,20 +1,24 @@
 import { existsSync } from "node:fs";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { readNodes } from "@mecha/core";
 import { listTeams } from "@mecha/teams";
-import { createSyncBundle } from "@mecha/connect";
 
 import { withErrorHandler } from "../error-handler.js";
+
+const execFileAsync = promisify(execFile);
 
 /** Register the 'team sync' subcommand. */
 export function registerTeamSyncCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("sync")
-    .description("Sync team workspace to registered nodes")
+    .description("Sync team workspace to registered nodes via rsync")
     .argument("<name>", "Team name to sync")
     .option("--node <name>", "Sync to a specific node only")
-    .action(async (name: string, opts: { node?: string }) => withErrorHandler(deps, async () => {
+    .option("--dry-run", "Preview sync without making changes", false)
+    .action(async (name: string, opts: { node?: string; dryRun: boolean }) => withErrorHandler(deps, async () => {
       const teams = listTeams(deps.mechaDir);
       const team = teams.find((t) => t.name === name);
 
@@ -53,20 +57,31 @@ export function registerTeamSyncCommand(parent: Command, deps: CommandDeps): voi
         return;
       }
 
-      const bundle = createSyncBundle(team.workspace);
-      const filesCount = Object.keys(bundle.files).length;
+      let synced = 0;
+      for (const node of nodes) {
+        const args = ["-az", "--delete"];
+        if (opts.dryRun) args.push("--dry-run");
+        args.push(`${team.workspace}/`, `${node.host}:${team.workspace}/`);
 
-      /* v8 ignore start -- empty workspace branch */
-      if (filesCount === 0) {
-        deps.formatter.info("Workspace is empty, nothing to sync");
-        return;
+        try {
+          const { stdout } = await execFileAsync("rsync", args);
+          synced++;
+          /* v8 ignore start -- dry-run output branch */
+          if (opts.dryRun && stdout.trim()) {
+            deps.formatter.info(`[dry-run] ${node.name}: ${stdout.trim()}`);
+          }
+          /* v8 ignore stop */
+          deps.formatter.info(`Synced to ${node.name} (${node.host})`);
+        /* v8 ignore start -- rsync failure in real env */
+        } catch (err) {
+          deps.formatter.error(`Failed to sync to ${node.name}: ${(err as Error).message}`);
+          process.exitCode = 1;
+        }
+        /* v8 ignore stop */
       }
-      /* v8 ignore stop */
 
-      deps.formatter.error(
-        "Server-side sync endpoint not yet implemented. Use manual sync: " +
-        `scp -r ${team.workspace} <node>:${team.workspace}`,
-      );
-      process.exitCode = 1;
+      if (synced > 0) {
+        deps.formatter.success(`Synced workspace to ${synced} node(s)`);
+      }
     }));
 }
