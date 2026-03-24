@@ -169,9 +169,16 @@ describe("createHttpGateway", () => {
 
 describe("GatewayDeniedError", () => {
   it("has correct name and message", () => {
-    const err = new GatewayDeniedError("evil.com");
+    const err = new GatewayDeniedError("Host not allowed: evil.com");
     expect(err.name).toBe("GatewayDeniedError");
     expect(err.message).toBe("Host not allowed: evil.com");
     expect(err).toBeInstanceOf(Error);
+  });
+
+  it("rejects unsupported protocols", async () => {
+    const gw = createHttpGateway({ allowedHosts: ["evil.com"] });
+    await expect(
+      gw.executeRequest("ftp://evil.com/file"),
+    ).rejects.toThrow("Unsupported protocol: ftp:");
   });
 });

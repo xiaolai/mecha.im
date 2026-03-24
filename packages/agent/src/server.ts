@@ -129,8 +129,11 @@ export function createAgentServer(opts: AgentServerOptions): FastifyInstance {
     },
   );
 
-  // Serve SPA static files if spaDir is provided
-  // @fastify/static is optional — resolved from the caller's node_modules at runtime.
+  // Serve SPA static files if spaDir is provided.
+  // @fastify/static is an optional peer dependency — resolved from the caller's
+  // node_modules at runtime via dynamic import. If not installed, SPA serving
+  // is silently skipped. The caller (e.g. @mecha/cli) must install @fastify/static
+  // to enable this feature.
   /* v8 ignore start -- SPA serving requires built SPA assets and @fastify/static from caller */
   if (opts.spaDir) {
     const spaDir = opts.spaDir;

@@ -162,6 +162,7 @@ export function createWorkflowScheduler(opts: WorkflowSchedulerOpts): WorkflowSc
     const files = readdirSync(workflowsDir).filter(
       (f) => f.endsWith(".yaml") || f.endsWith(".yml"),
     );
+    const found = new Set<string>();
     for (const file of files) {
       try {
         const content = readFileSync(join(workflowsDir, file), "utf-8");
@@ -173,6 +174,7 @@ export function createWorkflowScheduler(opts: WorkflowSchedulerOpts): WorkflowSc
           log("warn", `Invalid schedule expression in ${file}: "${schedule}"`);
           continue;
         }
+        found.add(def.name);
         const persisted = loadState(def.name);
         entries.set(def.name, {
           name: def.name,
@@ -188,6 +190,13 @@ export function createWorkflowScheduler(opts: WorkflowSchedulerOpts): WorkflowSc
         });
       }
       /* v8 ignore stop */
+    }
+    // Remove stale entries not found in current scan
+    for (const [name, entry] of entries) {
+      if (!found.has(name)) {
+        clearTimer(entry);
+        entries.delete(name);
+      }
     }
   }
 
