@@ -62,7 +62,8 @@ export function createAgentServer(opts: AgentServerOptions): FastifyInstance {
     methods: { totp: !!auth.totpSecret },
   }));
 
-  app.post<{ Body: { code: string } }>("/auth/totp/verify", async (req, reply) => {
+  // SPA calls /auth/login; CLI calls /auth/totp/verify — handle both
+  const totpHandler = async (req: import("fastify").FastifyRequest, reply: import("fastify").FastifyReply) => {
     if (!auth.totpSecret) {
       return reply.status(400).send({ error: "TOTP not configured" });
     }
@@ -87,7 +88,9 @@ export function createAgentServer(opts: AgentServerOptions): FastifyInstance {
     const token = createSessionToken(sessionKey, 0);
     reply.header("set-cookie", `mecha-session=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=86400`);
     return { ok: true };
-  });
+  };
+  app.post("/auth/totp/verify", totpHandler);
+  app.post("/auth/login", totpHandler);
 
   // Task protocol routes
   registerTaskRoutes(app, { mechaDir, acl, authCtx });
