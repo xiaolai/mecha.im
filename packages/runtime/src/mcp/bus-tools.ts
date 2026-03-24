@@ -55,6 +55,18 @@ export const BUS_TOOLS: McpToolDef[] = [
       required: ["queue", "messageId"],
     },
   },
+  {
+    name: "bus_queue_nack",
+    description: "Return a claimed queue item for retry or dead-letter",
+    inputSchema: {
+      type: "object",
+      properties: {
+        queue: { type: "string", description: "Queue name" },
+        messageId: { type: "string", description: "ID of the message to nack" },
+      },
+      required: ["queue", "messageId"],
+    },
+  },
 ];
 
 /** Runtime context for bus tool execution. */
@@ -143,6 +155,23 @@ export async function handleBusTool(
         return { content: [{ type: "text", text: `Message "${messageId}" not found in inflight` }], isError: true };
       }
       return { content: [{ type: "text", text: `Acknowledged message "${messageId}"` }] };
+    }
+
+    case "bus_queue_nack": {
+      const queueName = args.queue;
+      const messageId = args.messageId;
+      if (typeof queueName !== "string" || !queueName) {
+        return { content: [{ type: "text", text: "Missing required: queue (string)" }], isError: true };
+      }
+      if (typeof messageId !== "string" || !messageId) {
+        return { content: [{ type: "text", text: "Missing required: messageId (string)" }], isError: true };
+      }
+      const queue = broker.queue(queueName);
+      const nacked = queue.nack(messageId);
+      if (!nacked) {
+        return { content: [{ type: "text", text: `Message "${messageId}" not found in inflight` }], isError: true };
+      }
+      return { content: [{ type: "text", text: `Returned message "${messageId}" for retry` }] };
     }
 
     default:
