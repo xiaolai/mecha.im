@@ -125,8 +125,13 @@ export function createTopic(opts: CreateTopicOpts): Topic {
       const sub = subs.find((s) => s.bot === bot);
       if (!sub) return [];
 
+      // Enforce subscriber concurrency cap
+      const effectiveLimit = sub.concurrency > 0
+        ? Math.min(limit, sub.concurrency)
+        : limit;
+
       const messages = readJsonl<BusMessage>(messagesPath);
-      const batch = messages.slice(sub.cursor, sub.cursor + limit);
+      const batch = messages.slice(sub.cursor, sub.cursor + effectiveLimit);
       if (batch.length > 0) {
         sub.cursor += batch.length;
         saveSubscribers(subs);
