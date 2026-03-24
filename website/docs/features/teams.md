@@ -3,6 +3,8 @@ title: Team Templates
 description: One-command deployment of coordinated multi-bot teams with shared config and ACL
 ---
 
+[[toc]]
+
 # Team Templates
 
 Team templates enable one-command deployment of multiple coordinated bots with shared configuration, ACL rules, and workspace scaffolding.
@@ -121,6 +123,9 @@ Team template definition parsed from YAML or JSON.
 | `bots` | `Record<string, TeamBotDef>` | Yes | Bot definitions keyed by name (at least one required) |
 | `acl` | `TeamAclDef[]` | No | ACL rules between bots |
 | `scaffold` | `ScaffoldDef` | No | Files to scaffold (path to content mapping) |
+| `bus` | `{ topics?: string[]; queues?: { name: string; maxRetries?: number }[] }?` | No | Bus resources to create on deploy |
+| `workflows` | `string[]?` | No | Workflow YAML file paths (relative to team file) to copy on deploy |
+| `schedules` | `Array<{ bot: string; id: string; every: string; prompt: string }>?` | No | Schedules to register on bots during deploy |
 
 ### `TeamBotDef`
 
@@ -166,6 +171,10 @@ Result returned by `deployTeam()` after a successful deployment.
 | `bots` | `string[]` | Names of bots that were spawned |
 | `aclRules` | `number` | Number of ACL rules applied (source-target pairs, expanded from `targets` arrays) |
 | `scaffolded` | `string[]` | Absolute paths of files that were scaffolded |
+| `busTopics` | `string[]` | Names of bus topics created |
+| `busQueues` | `string[]` | Names of bus queues created |
+| `workflows` | `string[]` | Workflow files copied |
+| `schedules` | `number` | Number of schedules registered |
 
 ### `DeployedTeam`
 
@@ -178,6 +187,9 @@ Deployed team metadata persisted to `~/.mecha/teams.json`.
 | `workspace` | `string?` | Shared workspace path (if specified) |
 | `bots` | `string[]` | Names of deployed bots |
 | `deployedAt` | `string` | ISO 8601 timestamp of deployment |
+| `bus` | `TeamDef["bus"]?` | Bus config (persisted for teardown cleanup) |
+| `workflows` | `string[]?` | Workflow file names (persisted for teardown) |
+| `schedules` | `TeamDef["schedules"]?` | Schedule entries (persisted for teardown) |
 
 ### `DeployOpts`
 
@@ -189,6 +201,11 @@ Options for `deployTeam()`.
 | `mechaDir` | `string` | Yes | Path to the mecha directory (`~/.mecha`) |
 | `spawnBot` | `(name, opts) => Promise<boolean>` | Yes | Callback to spawn a bot. Receives name and config (cwd, home, model, tags, expose, effort, maxBudgetUsd, sandboxMode, systemPrompt, appendSystemPrompt). Returns `true` on success |
 | `grantAcl` | `(source, target, capabilities) => void` | Yes | Callback to grant ACL permissions between bots |
+| `stopBot` | `(name: string) => Promise<void>` | No | Optional callback to stop a bot (used for rollback) |
+| `createBusTopic` | `(name: string) => void` | No | Optional callback to create a bus topic |
+| `createBusQueue` | `(name: string, opts?: { maxRetries?: number }) => void` | No | Optional callback to create a bus queue |
+| `teamFileDir` | `string` | No | Optional directory containing the team definition file (for resolving relative workflow paths) |
+| `addSchedule` | `(bot: string, schedule: { id: string; every: string; prompt: string }) => Promise<void>` | No | Optional callback to register a schedule |
 
 ## Function Reference
 
@@ -255,6 +272,73 @@ Parse a raw JSON object into a `TeamDef`. YAML parsing is the caller's responsib
 
 Returns `TeamDef`. Throws if `raw` is not an object.
 
+## Teardown
+
+`teardownTeam()` performs the reverse of deployment: stops all bots, removes bus resources, deletes workflow files, removes schedules, and unregisters the team from `teams.json`.
+
+### `teardownTeam(opts)`
+
+Tear down a deployed team. Stops bots, removes bus topics and queues, deletes copied workflow files, removes schedules from bots, and unregisters the team from the registry.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `opts` | `TeardownOpts` | Teardown options (see `TeardownOpts` below) |
+
+Returns `Promise<TeardownResult>`.
+
+Teardown steps:
+1. Stops each bot sequentially via `stopBot` callback
+2. Removes bus topics via `removeBusTopic` callback (if the team defined topics)
+3. Removes bus queues via `removeBusQueue` callback (if the team defined queues)
+4. Deletes workflow files from `~/.mecha/workflows/` (skips files already removed)
+5. Removes schedules from bots via `removeSchedule` callback
+6. Unregisters the team from `~/.mecha/teams.json`
+
+### `TeardownOpts`
+
+Options for `teardownTeam()`.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `team` | `DeployedTeam` | Yes | The deployed team metadata from `teams.json` |
+| `mechaDir` | `string` | Yes | Path to the mecha directory (`~/.mecha`) |
+| `stopBot` | `(name: string) => Promise<void>` | Yes | Callback to stop a bot by name |
+| `removeBusTopic` | `(name: string) => void` | No | Callback to remove a bus topic by name |
+| `removeBusQueue` | `(name: string) => void` | No | Callback to remove a bus queue by name |
+| `removeSchedule` | `(bot: string, id: string) => Promise<void>` | No | Callback to remove a schedule from a bot |
+
+### `TeardownResult`
+
+Result returned by `teardownTeam()`.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `botsStopped` | `number` | Number of bots that were stopped |
+| `busTopicsRemoved` | `number` | Number of bus topics removed |
+| `busQueuesRemoved` | `number` | Number of bus queues removed |
+| `workflowsRemoved` | `number` | Number of workflow files deleted |
+| `schedulesRemoved` | `number` | Number of schedules removed from bots |
+
+```ts
+import { teardownTeam, listTeams } from "@mecha/teams";
+
+const teams = listTeams("~/.mecha");
+const team = teams.find((t) => t.name === "dev-team");
+
+const result = await teardownTeam({
+  team,
+  mechaDir: "~/.mecha",
+  stopBot: async (name) => { /* stop the bot process */ },
+  removeBusTopic: (name) => { /* remove topic from broker */ },
+  removeBusQueue: (name) => { /* remove queue from broker */ },
+  removeSchedule: async (bot, id) => { /* remove schedule from bot */ },
+});
+
+console.log(`Stopped ${result.botsStopped} bot(s)`);
+console.log(`Removed ${result.busTopicsRemoved} topic(s), ${result.busQueuesRemoved} queue(s)`);
+console.log(`Removed ${result.workflowsRemoved} workflow(s), ${result.schedulesRemoved} schedule(s)`);
+```
+
 ## Package
 
 `@mecha/teams` — `packages/teams/src/`
@@ -264,6 +348,7 @@ Returns `TeamDef`. Throws if `raw` is not an object.
 | `validateTeamDef(def)` | Validate a team definition, returns error list |
 | `parseTeamDef(raw)` | Parse raw JSON/YAML into a TeamDef |
 | `deployTeam(opts)` | Deploy a team: scaffold + spawn + ACL |
+| `teardownTeam(opts)` | Tear down a team: stop bots + remove resources |
 | `listTeams(mechaDir)` | List deployed teams |
 | `unregisterTeam(mechaDir, name)` | Remove a team from the registry |
 

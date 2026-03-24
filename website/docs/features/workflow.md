@@ -3,6 +3,8 @@ title: Workflow Engine
 description: Multi-step DAG execution with gates, compensation, dry-run, and cost tracking
 ---
 
+[[toc]]
+
 # Workflow Engine
 
 The workflow engine executes multi-step DAGs (directed acyclic graphs) where the output of one bot feeds into the next. Steps can run in parallel, branch conditionally, pause for human approval, and roll back on failure.
@@ -130,7 +132,7 @@ mecha workflow approve test-pipeline run-2026-03-21-xxx
 mecha workflow cancel test-pipeline run-2026-03-21-xxx
 ```
 
-### MCP Tools (available to bots)
+## MCP Tools (available to bots)
 
 Bots can manage workflows via MCP: `workflow_list`, `workflow_run`, `workflow_status`.
 
@@ -170,6 +172,7 @@ Definition of a single step within a workflow. Each step targets a bot, sends a 
 | `timeout` | `string?` | Timeout duration for step execution (e.g., `"30s"`, `"5m"`) |
 | `budgetUsd` | `number?` | Maximum cost in USD for this individual step |
 | `gate` | `"human"?` | If set to `"human"`, the step pauses for manual approval before executing |
+| `maxRetries` | `number?` | Maximum total execution attempts. Step runs up to maxRetries times. Must be > 0 |
 
 ### `StepStatus`
 
@@ -245,6 +248,7 @@ Persistent state for an entire workflow run. Stored as `<runId>.json` in the run
 | `startedAt` | `string` | ISO 8601 timestamp when the run started |
 | `completedAt` | `string?` | ISO 8601 timestamp when the run reached a terminal state |
 | `totalCostUsd` | `number` | Accumulated API cost across all steps |
+| `outputs` | `Record<string, unknown>?` | Computed workflow-level outputs from definition output templates |
 
 ### `StepExecutor`
 
@@ -454,6 +458,8 @@ Create a step executor that routes steps to local or remote bots. If the `bot` f
 | `releaseLock(handle)` | Release a held lock |
 | `isLocked(lockDir, resource)` | Check if a resource is locked |
 | `createRemoteExecutor(opts)` | Executor that routes steps to remote nodes via mesh |
+| `assertNoCycles(steps)` | Validate step dependency DAG for cycles; throws on circular deps |
+| `validateOutput(output, schema)` | Validate step output against a simple JSON schema descriptor |
 
 ## See Also
 

@@ -3,6 +3,8 @@ title: Observability
 description: Structured traces, metrics, quality scoring, and alerts for workflow runs and bot performance
 ---
 
+[[toc]]
+
 # Observability
 
 The observability package provides structured traces, metrics aggregation, quality scoring, and threshold-based alerts for workflow runs and bot performance.
@@ -170,6 +172,7 @@ Quality score entry recorded against a run or individual step.
 | `source` | `"human" \| "automated" \| "implicit"` | Yes | How the score was produced |
 | `comment` | `string` | No | Optional comment or rationale |
 | `scoredAt` | `string` | Yes | ISO 8601 timestamp when the score was recorded |
+| `workflow` | `string?` | No | Workflow name associated with this score (used by avgForWorkflow filtering) |
 
 ### `MetricsSummary`
 
@@ -342,7 +345,7 @@ Returns a `ScoreStore` with the following methods:
 | `forRun` | `(runId: string) => QualityScore[]` | Get all scores for a run |
 | `forBot` | `(bot: string) => QualityScore[]` | Get all scores for a bot across all runs |
 | `avgForBot` | `(bot: string) => number \| undefined` | Average score for a bot. Returns `undefined` if no scores |
-| `avgForWorkflow` | `(workflow: string) => number \| undefined` | Average of run-level scores. Returns `undefined` if none |
+| `avgForWorkflow` | `(workflow: string) => number \| undefined` | Average score for a specific workflow name, excluding step-level scores. Filters by the `workflow` field on `QualityScore`. Returns `undefined` if no matching run-level scores |
 | `all` | `() => QualityScore[]` | Get all recorded scores |
 
 ### `computeMetrics(traces, opts)`
