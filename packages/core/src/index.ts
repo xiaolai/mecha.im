@@ -209,6 +209,10 @@ export { safePath, PathTraversalError } from "./safe-path.js";
 // Schedule Engine
 export {
   parseInterval,
+  cronMatches,
+  nextCronMs,
+  isCronExpression,
+  parseScheduleExpression,
   ScheduleEntrySchema,
   ScheduleRunResultSchema,
   ScheduleConfigSchema,
