@@ -17,7 +17,8 @@
     "@mecha/core": "workspace:*",
     "@mecha/meter": "workspace:*",
     "@mecha/process": "workspace:*",
-    "fastify": "^5.8.1"
+    "fastify": "^5.8.1",
+    "otpauth": "^9.5.0"
   },
   "peerDependencies": {
     "@fastify/static": "^8.0.0"

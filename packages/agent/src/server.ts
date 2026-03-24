@@ -57,6 +57,38 @@ export function createAgentServer(opts: AgentServerOptions): FastifyInstance {
   // Health check
   app.get("/healthz", async () => ({ status: "ok" }));
 
+  // Auth routes (must be accessible without auth — skipped by auth hook via /auth/ prefix check)
+  app.get("/auth/status", async () => ({
+    methods: { totp: !!auth.totpSecret },
+  }));
+
+  app.post<{ Body: { code: string } }>("/auth/totp/verify", async (req, reply) => {
+    if (!auth.totpSecret) {
+      return reply.status(400).send({ error: "TOTP not configured" });
+    }
+    const { code } = (req.body as { code?: string }) ?? {};
+    if (!code || typeof code !== "string") {
+      return reply.status(400).send({ error: "Missing code" });
+    }
+    // Validate TOTP code using otpauth library
+    const { TOTP, Secret } = await import("otpauth");
+    const totp = new TOTP({
+      issuer: "mecha", label: "dashboard",
+      algorithm: "SHA1", digits: 6, period: 30,
+      secret: Secret.fromBase32(auth.totpSecret),
+    });
+    const valid = totp.validate({ token: code, window: 1 }) !== null;
+    if (!valid) {
+      return reply.status(401).send({ error: "Invalid code" });
+    }
+    // Issue session cookie
+    const { createSessionToken, deriveSessionKey } = await import("./session.js");
+    const sessionKey = deriveSessionKey(auth.totpSecret);
+    const token = createSessionToken(sessionKey, 0);
+    reply.header("set-cookie", `mecha-session=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=86400`);
+    return { ok: true };
+  });
+
   // Task protocol routes
   registerTaskRoutes(app, { mechaDir, acl, authCtx });
 
