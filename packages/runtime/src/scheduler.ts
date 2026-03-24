@@ -6,7 +6,7 @@ import {
   InvalidIntervalError,
   ScheduleLimitError,
   SCHEDULE_DEFAULTS,
-  parseInterval,
+  parseScheduleExpression,
 } from "@mecha/core";
 import { readRunHistory, removeScheduleData } from "@mecha/process";
 import {
@@ -90,7 +90,14 @@ export function createScheduleEngine(opts: CreateScheduleEngineOpts): ScheduleEn
     /* v8 ignore stop */
 
     const state = getState(botDir, entry.id, now);
-    const delayMs = entry.trigger.intervalMs;
+    const parsed = parseScheduleExpression(entry.trigger.every);
+    /* v8 ignore start -- guard: entry already validated at addSchedule time */
+    if (!parsed) return;
+    /* v8 ignore stop */
+    const delayMs = parsed.nextMs(new Date(now()))!;
+    /* v8 ignore start -- guard: nextMs returns undefined only for invalid cron (already validated) */
+    if (delayMs == null) return;
+    /* v8 ignore stop */
 
     let nextDelay: number;
     if (state.nextRunAt) {
@@ -176,10 +183,15 @@ export function createScheduleEngine(opts: CreateScheduleEngineOpts): ScheduleEn
         throw new ScheduleLimitError(SCHEDULE_DEFAULTS.MAX_SCHEDULES_PER_BOT);
       }
 
-      // Validate interval
-      const ms = parseInterval(entry.trigger.every);
-      if (ms === undefined || ms !== entry.trigger.intervalMs) {
+      // Validate schedule expression (interval or cron)
+      const parsed = parseScheduleExpression(entry.trigger.every);
+      if (!parsed) {
         throw new InvalidIntervalError(entry.trigger.every);
+      }
+      if (parsed.type === "interval" && entry.trigger.type === "interval" && "intervalMs" in entry.trigger) {
+        if (parsed.nextMs() !== entry.trigger.intervalMs) {
+          throw new InvalidIntervalError(entry.trigger.every);
+        }
       }
 
       config.schedules.push(entry);

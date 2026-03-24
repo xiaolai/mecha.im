@@ -2,7 +2,7 @@ import {
   type BotName,
   type ScheduleEntry,
   type ScheduleRunResult,
-  parseInterval,
+  parseScheduleExpression,
   InvalidIntervalError,
 } from "@mecha/core";
 import type { ProcessManager } from "@mecha/process";
@@ -14,9 +14,9 @@ export async function botScheduleAdd(
   name: BotName,
   opts: { id: string; every: string; prompt: string },
 ): Promise<void> {
-  // Validate interval client-side for fast feedback
-  const ms = parseInterval(opts.every);
-  if (ms === undefined) throw new InvalidIntervalError(opts.every);
+  // Validate schedule expression client-side for fast feedback
+  const parsed = parseScheduleExpression(opts.every);
+  if (!parsed) throw new InvalidIntervalError(opts.every);
 
   const result = await runtimeFetch(pm, name, "/api/schedules", {
     method: "POST",
