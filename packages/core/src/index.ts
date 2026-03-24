@@ -229,3 +229,6 @@ export type {
 
 // Template Engine (shared)
 export { renderTemplate, evaluateCondition, resolveExpression } from "./template.js";
+
+// Atomic Write
+export { atomicWriteSync } from "./atomic-write.js";

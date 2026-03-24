@@ -1,5 +1,6 @@
-import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { mkdirSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import { atomicWriteSync } from "@mecha/core";
 import type { BusConfig, QueueConfig, TopicConfig } from "./types.js";
 import { createQueue, type DurableQueue } from "./queue.js";
 import { createTopic, type Topic } from "./topic.js";
@@ -45,7 +46,7 @@ export function createBroker(busDir: string): Broker {
   }
 
   function saveConfig(config: BusConfig): void {
-    writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n");
+    atomicWriteSync(configPath, JSON.stringify(config, null, 2) + "\n");
   }
 
   const queues = new Map<string, DurableQueue>();

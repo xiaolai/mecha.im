@@ -8,7 +8,7 @@ import type {
   CreateEngineOpts,
 } from "./types.js";
 import { renderTemplate, evaluateCondition } from "./template.js";
-import { parseInterval } from "@mecha/core";
+import { parseInterval, atomicWriteSync } from "@mecha/core";
 
 const DEFAULT_STEP_TIMEOUT_MS = 600_000; // 10 minutes
 
@@ -103,7 +103,7 @@ export function createEngine(opts: CreateEngineOpts): WorkflowEngine {
     if (!runState) return;
     /* v8 ignore stop */
     const statePath = join(runsDir, `${runState.runId}.json`);
-    writeFileSync(statePath, JSON.stringify(runState, null, 2) + "\n");
+    atomicWriteSync(statePath, JSON.stringify(runState, null, 2) + "\n");
   }
 
   /** Build template context from completed step outputs + inputs. */
