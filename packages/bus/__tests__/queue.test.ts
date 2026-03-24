@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createQueue, type DurableQueue } from "../src/queue.js";
+import type { ClaimedItem } from "../src/types.js";
 
 describe("DurableQueue", () => {
   let busDir: string;
@@ -165,6 +166,60 @@ describe("DurableQueue", () => {
   describe("name", () => {
     it("exposes the queue name", () => {
       expect(queue.name).toBe("test-queue");
+    });
+  });
+
+  describe("claim timeout", () => {
+    it("auto-returns expired inflight items to pending", () => {
+      const q = createQueue({
+        busDir,
+        config: { name: "timeout-q", maxRetries: 3, retryBackoffMs: 100, claimTimeoutMs: 100 },
+      });
+      q.push({ id: "work-1", sender: "test", payload: "work" });
+      q.claim("worker");
+
+      expect(q.stats().inflight).toBe(1);
+      expect(q.stats().pending).toBe(0);
+
+      // Backdate the claimedAt to simulate timeout
+      const inflightPath = join(busDir, "queues", "timeout-q", "inflight.jsonl");
+      const items: ClaimedItem[] = readFileSync(inflightPath, "utf-8")
+        .trim()
+        .split("\n")
+        .map((l) => JSON.parse(l));
+      items[0]!.claimedAt = new Date(Date.now() - 200).toISOString(); // 200ms ago, > 100ms timeout
+      writeFileSync(inflightPath, items.map((i) => JSON.stringify(i)).join("\n") + "\n");
+
+      // Next claim should first expire the timed-out item, returning it to pending
+      const item = q.claim("worker");
+      expect(item).not.toBeNull();
+      expect(item!.message.id).toBe("work-1");
+      expect(q.stats().inflight).toBe(1); // re-claimed
+      expect(q.stats().pending).toBe(0);
+    });
+
+    it("moves expired inflight to dead letter when retries exhausted", () => {
+      const q = createQueue({
+        busDir,
+        config: { name: "timeout-dead-q", maxRetries: 1, retryBackoffMs: 0, claimTimeoutMs: 50 },
+      });
+      q.push({ id: "doomed", sender: "test", payload: "fail" });
+      q.claim("worker"); // attempt 1
+
+      // Backdate to expire
+      const inflightPath = join(busDir, "queues", "timeout-dead-q", "inflight.jsonl");
+      const items: ClaimedItem[] = readFileSync(inflightPath, "utf-8")
+        .trim()
+        .split("\n")
+        .map((l) => JSON.parse(l));
+      items[0]!.claimedAt = new Date(Date.now() - 100).toISOString();
+      writeFileSync(inflightPath, items.map((i) => JSON.stringify(i)).join("\n") + "\n");
+
+      // Next claim triggers timeout scan — attempt 1 >= maxRetries 1 → dead letter
+      const claimed = q.claim("worker");
+      expect(claimed).toBeNull(); // nothing left to claim
+      expect(q.stats().dead).toBe(1);
+      expect(q.stats().inflight).toBe(0);
     });
   });
 
