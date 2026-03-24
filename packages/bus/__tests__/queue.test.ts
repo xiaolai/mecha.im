@@ -13,7 +13,7 @@ describe("DurableQueue", () => {
     busDir = mkdtempSync(join(tmpdir(), "mecha-bus-"));
     queue = createQueue({
       busDir,
-      config: { name: "test-queue", maxRetries: 3, retryBackoffMs: 100 },
+      config: { name: "test-queue", maxRetries: 3, retryBackoffMs: 0 },
     });
   });
 
@@ -153,7 +153,7 @@ describe("DurableQueue", () => {
       // Re-create queue from same directory
       const queue2 = createQueue({
         busDir,
-        config: { name: "test-queue", maxRetries: 3, retryBackoffMs: 100 },
+        config: { name: "test-queue", maxRetries: 3, retryBackoffMs: 0 },
       });
       expect(queue2.stats().pending).toBe(1);
 
@@ -223,6 +223,97 @@ describe("DurableQueue", () => {
     });
   });
 
+  describe("retry backoff", () => {
+    it("respects backoff delay on nacked messages", () => {
+      const q = createQueue({
+        busDir,
+        config: { name: "backoff-q", maxRetries: 3, retryBackoffMs: 60_000 },
+      });
+      q.push({ id: "work-1", sender: "test", payload: "work" });
+      q.claim("worker");
+      q.nack("work-1");
+
+      // Message should be in pending but not yet claimable (notBefore is in the future)
+      expect(q.stats().pending).toBe(1);
+      const claimed = q.claim("worker");
+      expect(claimed).toBeNull(); // can't claim yet, backoff hasn't elapsed
+    });
+
+    it("allows claiming after backoff elapses", () => {
+      const q = createQueue({
+        busDir,
+        config: { name: "backoff-elapsed-q", maxRetries: 3, retryBackoffMs: 100 },
+      });
+      q.push({ id: "work-1", sender: "test", payload: "work" });
+      q.claim("worker");
+      q.nack("work-1");
+
+      // Manually backdate the notBefore in the pending file
+      const pendingPath = join(busDir, "queues", "backoff-elapsed-q", "pending.jsonl");
+      const items = readFileSync(pendingPath, "utf-8")
+        .trim()
+        .split("\n")
+        .map((l) => JSON.parse(l));
+      items[0].notBefore = new Date(Date.now() - 1000).toISOString(); // already past
+      writeFileSync(pendingPath, items.map((i: unknown) => JSON.stringify(i)).join("\n") + "\n");
+
+      const claimed = q.claim("worker");
+      expect(claimed).not.toBeNull();
+      expect(claimed!.message.id).toBe("work-1");
+      expect(claimed!.attempts).toBe(2); // second attempt
+    });
+
+    it("uses exponential backoff on repeated nacks", () => {
+      const q = createQueue({
+        busDir,
+        config: { name: "exp-backoff-q", maxRetries: 5, retryBackoffMs: 1000 },
+      });
+      q.push({ id: "work-1", sender: "test", payload: "work" });
+
+      // First claim+nack: backoff = 1000 * 2^0 = 1000ms
+      q.claim("worker");
+      q.nack("work-1");
+
+      const pendingPath = join(busDir, "queues", "exp-backoff-q", "pending.jsonl");
+      let items = readFileSync(pendingPath, "utf-8")
+        .trim()
+        .split("\n")
+        .map((l) => JSON.parse(l));
+      const notBefore1 = new Date(items[0].notBefore).getTime();
+      expect(notBefore1).toBeGreaterThan(Date.now() + 500); // at least ~1s in future
+
+      // Backdate to allow second claim
+      items[0].notBefore = new Date(Date.now() - 1).toISOString();
+      writeFileSync(pendingPath, items.map((i: unknown) => JSON.stringify(i)).join("\n") + "\n");
+
+      // Second claim+nack: backoff = 1000 * 2^1 = 2000ms
+      q.claim("worker");
+      q.nack("work-1");
+
+      items = readFileSync(pendingPath, "utf-8")
+        .trim()
+        .split("\n")
+        .map((l) => JSON.parse(l));
+      const notBefore2 = new Date(items[0].notBefore).getTime();
+      expect(notBefore2).toBeGreaterThan(Date.now() + 1500); // at least ~2s in future
+    });
+
+    it("does not set notBefore when retryBackoffMs is 0", () => {
+      const q = createQueue({
+        busDir,
+        config: { name: "no-backoff-q", maxRetries: 3, retryBackoffMs: 0 },
+      });
+      q.push({ id: "work-1", sender: "test", payload: "work" });
+      q.claim("worker");
+      q.nack("work-1");
+
+      // With 0ms backoff, message should be immediately claimable
+      const claimed = q.claim("worker");
+      expect(claimed).not.toBeNull();
+      expect(claimed!.message.id).toBe("work-1");
+    });
+  });
+
   describe("security", () => {
     it("rejects queue names with path traversal", () => {
       expect(() => createQueue({
@@ -287,7 +378,7 @@ describe("DurableQueue", () => {
       // Re-create queue — dead-letter IDs should be loaded for dedup
       const queue2 = createQueue({
         busDir,
-        config: { name: "test-queue", maxRetries: 3, retryBackoffMs: 100 },
+        config: { name: "test-queue", maxRetries: 3, retryBackoffMs: 0 },
       });
       expect(queue2.stats().dead).toBe(1);
 
@@ -305,7 +396,7 @@ describe("DurableQueue", () => {
       // Re-create queue from same directory — inflight items should be loaded
       const queue2 = createQueue({
         busDir,
-        config: { name: "test-queue", maxRetries: 3, retryBackoffMs: 100 },
+        config: { name: "test-queue", maxRetries: 3, retryBackoffMs: 0 },
       });
       expect(queue2.stats().inflight).toBe(1);
 
