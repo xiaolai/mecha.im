@@ -5,6 +5,8 @@ description: Data-driven analysis of the human effort, cost, and timeline equiva
 
 # Cost & Effort Evaluation
 
+[[toc]]
+
 A rigorous, metrics-based estimate of the human effort and cost required to build mecha.im from scratch, using actual code metrics from the repository.
 
 ## Raw Metrics

@@ -127,8 +127,8 @@ When spawning a bot via `POST /bots` or updating config via `PATCH /bots/:name/c
 | Field | Type | Description |
 |-------|------|-------------|
 | `allowedTools` | `string[]` | Allowed tools (mutually exclusive with `tools`) |
-| `disallowedTools` | `string[]` | Disallowed tools |
-| `tools` | `string[]` | Override tool set (mutually exclusive with `allowedTools`) |
+| `disallowedTools` | `string[]` | Disallowed tools (mutually exclusive with `tools`) |
+| `tools` | `string[]` | Override tool set (mutually exclusive with `allowedTools` and `disallowedTools`) |
 
 **Agent Identity & Environment**
 
@@ -142,6 +142,7 @@ When spawning a bot via `POST /bots` or updating config via `PATCH /bots/:name/c
 
 | Field | Type | Description |
 |-------|------|-------------|
+| `mcpServers` | `Record<string, unknown>` | MCP servers to connect the bot to |
 | `mcpConfigFiles` | `string[]` | MCP config file paths |
 | `strictMcpConfig` | `boolean` | Only use specified MCP servers |
 
@@ -163,6 +164,8 @@ When spawning a bot via `POST /bots` or updating config via `PATCH /bots/:name/c
 **Validation Rules:**
 - `systemPrompt` and `appendSystemPrompt` are mutually exclusive
 - `allowedTools` and `tools` are mutually exclusive
+- `disallowedTools` and `tools` are mutually exclusive
+- `permissionMode: "bypassPermissions"` requires `sandboxMode: "require"`
 - `dangerouslySkipPermissions` requires `sandboxMode: "require"`
 
 ## Runtime Helpers
