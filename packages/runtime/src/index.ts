@@ -29,6 +29,9 @@ export { registerScheduleRoutes } from "./routes/schedule.js";
 export { sdkChat, createChatFn } from "./sdk-chat.js";
 export type { SdkChatOpts } from "./sdk-chat.js";
 
+export { createWorkflowScheduler } from "./workflow-scheduler.js";
+export type { WorkflowScheduler, WorkflowSchedulerOpts, WorkflowScheduleInfo } from "./workflow-scheduler.js";
+
 export { startTask, cancelTask, isTaskRunning, runningTaskCount } from "./task-runner.js";
 export type { TaskRunResult, TaskResultCallback } from "./task-runner.js";
 export { registerTaskRoutes } from "./routes/tasks.js";
