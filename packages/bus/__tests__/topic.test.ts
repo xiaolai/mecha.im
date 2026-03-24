@@ -37,7 +37,7 @@ describe("Topic", () => {
 
   describe("subscribe + poll", () => {
     it("subscriber receives messages published after subscribing", () => {
-      topic.subscribe({ bot: "bob", concurrency: 1 });
+      topic.subscribe({ bot: "bob", concurrency: 10 });
 
       topic.publish({ id: "msg-1", sender: "alice", payload: "hello" });
       topic.publish({ id: "msg-2", sender: "alice", payload: "world" });
@@ -69,7 +69,7 @@ describe("Topic", () => {
     });
 
     it("respects limit parameter", () => {
-      topic.subscribe({ bot: "bob", concurrency: 1 });
+      topic.subscribe({ bot: "bob", concurrency: 10 });
       for (let i = 0; i < 5; i++) {
         topic.publish({ sender: "alice", payload: i });
       }
@@ -79,6 +79,17 @@ describe("Topic", () => {
 
       const rest = topic.poll("bob", 10);
       expect(rest).toHaveLength(3);
+    });
+
+    it("limits poll to subscriber concurrency", () => {
+      const t = createTopic({ busDir, config: { name: "concurrency-test", retentionDays: 7 } });
+      t.subscribe({ bot: "worker", concurrency: 2 });
+      t.publish({ sender: "a", payload: "1" });
+      t.publish({ sender: "a", payload: "2" });
+      t.publish({ sender: "a", payload: "3" });
+
+      const messages = t.poll("worker", 10); // asks for 10 but concurrency=2
+      expect(messages).toHaveLength(2);
     });
 
     it("returns empty for unsubscribed bot", () => {
