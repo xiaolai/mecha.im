@@ -159,6 +159,34 @@ describe("WorkflowEngine", () => {
   });
 
   describe("executeReady — parallel steps", () => {
+    it("executes independent steps in parallel", async () => {
+      const order: string[] = [];
+      const def: WorkflowDef = {
+        name: "parallel-exec",
+        steps: {
+          a: { bot: "bot-a", prompt: "go" },
+          b: { bot: "bot-b", prompt: "go" },
+        },
+      };
+      const engine = createEngine({ workflowsDir, definition: def });
+      engine.startRun();
+
+      const exec: StepExecutor = async ({ bot }) => {
+        order.push(`start-${bot}`);
+        await new Promise(r => setTimeout(r, 10));
+        order.push(`end-${bot}`);
+        return { output: bot };
+      };
+
+      const executed = await engine.executeReady(exec);
+      expect(executed).toHaveLength(2);
+      expect(engine.state().steps.a!.status).toBe("completed");
+      expect(engine.state().steps.b!.status).toBe("completed");
+      // With parallel execution, both should start before either ends
+      expect(order[0]).toMatch(/^start-/);
+      expect(order[1]).toMatch(/^start-/);
+    });
+
     it("executes independent steps in the same round", async () => {
       const engine = createEngine({ workflowsDir, definition: parallelDef });
       engine.startRun();
