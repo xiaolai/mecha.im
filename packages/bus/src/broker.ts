@@ -42,7 +42,12 @@ export function createBroker(busDir: string): Broker {
 
   function loadConfig(): BusConfig {
     if (!existsSync(configPath)) return { queues: {}, topics: {} };
-    return JSON.parse(readFileSync(configPath, "utf-8")) as BusConfig;
+    try {
+      return JSON.parse(readFileSync(configPath, "utf-8")) as BusConfig;
+    } catch {
+      // Corrupt config file — treat as empty
+      return { queues: {}, topics: {} };
+    }
   }
 
   function saveConfig(config: BusConfig): void {

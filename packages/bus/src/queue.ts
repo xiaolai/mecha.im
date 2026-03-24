@@ -11,12 +11,20 @@ function assertSafeName(name: string, label: string): void {
   }
 }
 
-/** Parse JSONL file into array of objects. Returns empty array if file doesn't exist. */
+/** Parse JSONL file into array of objects. Skips corrupt lines. */
 function readJsonl<T>(path: string): T[] {
   if (!existsSync(path)) return [];
   const content = readFileSync(path, "utf-8").trim();
   if (!content) return [];
-  return content.split("\n").map((line) => JSON.parse(line) as T);
+  const items: T[] = [];
+  for (const line of content.split("\n")) {
+    try {
+      items.push(JSON.parse(line) as T);
+    } catch {
+      // Skip corrupt line — partial write from crash
+    }
+  }
+  return items;
 }
 
 /** Write array of objects as JSONL file (atomic). */
