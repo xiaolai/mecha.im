@@ -55,6 +55,10 @@ export interface WorkflowScheduler {
   start(): void;
   stop(): void;
   list(): WorkflowScheduleInfo[];
+  /** Pause a scheduled workflow. Returns true if it was running and is now paused. */
+  pause(name: string): boolean;
+  /** Resume a paused workflow. Returns true if it was paused and is now resumed. */
+  resume(name: string): boolean;
 }
 
 /** Scan workflow YAML files and schedule those with trigger.schedule. */
@@ -223,6 +227,35 @@ export function createWorkflowScheduler(opts: WorkflowSchedulerOpts): WorkflowSc
         });
       }
       return result;
+    },
+
+    pause(name: string): boolean {
+      const entry = entries.get(name);
+      if (!entry || entry.paused) return false;
+      entry.paused = true;
+      clearTimer(entry);
+      saveState(entry.name, {
+        lastRunAt: entry.lastRunAt,
+        consecutiveErrors: entry.consecutiveErrors,
+        paused: true,
+      });
+      log("info", `Workflow "${name}" paused`);
+      return true;
+    },
+
+    resume(name: string): boolean {
+      const entry = entries.get(name);
+      if (!entry || !entry.paused) return false;
+      entry.paused = false;
+      entry.consecutiveErrors = 0;
+      saveState(entry.name, {
+        lastRunAt: entry.lastRunAt,
+        consecutiveErrors: 0,
+        paused: false,
+      });
+      log("info", `Workflow "${name}" resumed`);
+      if (running) armTimer(entry);
+      return true;
     },
   };
 }
