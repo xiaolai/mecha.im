@@ -330,21 +330,74 @@ describe("deployTeam", () => {
     expect(result.workflows).toEqual([]);
   });
 
-  it("scaffolds with only mechaDir as allowed root when home and workspace are absent", async () => {
+  it("rolls back already-spawned bots on partial deploy failure", async () => {
+    const homeDir = mkdtempSync(join(tmpdir(), "mecha-home-"));
+    const stoppedBots: string[] = [];
+    let spawnCount = 0;
+
+    const def: TeamDef = {
+      name: "rollback-team",
+      home: homeDir,
+      workspace: workspaceDir,
+      bots: {
+        alpha: { cwd: workspaceDir },
+        beta: { cwd: workspaceDir },
+        gamma: { cwd: workspaceDir },
+      },
+    };
+
+    await expect(deployTeam({
+      definition: def,
+      mechaDir,
+      spawnBot: async (name) => {
+        spawnCount++;
+        if (spawnCount === 2) return false; // fail on 2nd bot
+        return true;
+      },
+      stopBot: async (name) => { stoppedBots.push(name); },
+      grantAcl: makeGrantAcl(),
+    })).rejects.toThrow('Failed to spawn bot "beta"');
+
+    // Only "alpha" was spawned before failure, so only alpha should be rolled back
+    expect(stoppedBots).toEqual(["alpha"]);
+  });
+
+  it("rejects scaffold path inside mechaDir (not an allowed root)", async () => {
+    const homeDir = mkdtempSync(join(tmpdir(), "mecha-home-"));
     const scaffoldPath = join(mechaDir, "scaffold-test.md");
     const def: TeamDef = {
-      name: "no-home-workspace",
-      bots: { a: { cwd: "/x" } },
-      scaffold: { [scaffoldPath]: "scaffolded content" },
+      name: "mecha-scaffold-escape",
+      home: homeDir,
+      workspace: workspaceDir,
+      bots: { a: { cwd: workspaceDir } },
+      scaffold: { [scaffoldPath]: "should not be allowed" },
     };
-    const result = await deployTeam({
+    await expect(deployTeam({
       definition: def,
       mechaDir,
       spawnBot: makeSpawnBot(),
       grantAcl: makeGrantAcl(),
-    });
-    expect(result.scaffolded).toContain(scaffoldPath);
-    expect(readFileSync(scaffoldPath, "utf-8")).toBe("scaffolded content");
+    })).rejects.toThrow("outside allowed roots");
+  });
+
+  it("rejects workflow path that escapes team directory", async () => {
+    const teamFileDir = mkdtempSync(join(tmpdir(), "mecha-teamfile-"));
+    const homeDir = mkdtempSync(join(tmpdir(), "mecha-home-"));
+    const def: TeamDef = {
+      name: "traversal-team",
+      home: homeDir,
+      workspace: workspaceDir,
+      bots: { a: { cwd: workspaceDir } },
+      workflows: ["../../etc/passwd"],
+    };
+
+    await expect(deployTeam({
+      definition: def,
+      mechaDir,
+      spawnBot: makeSpawnBot(),
+      grantAcl: makeGrantAcl(),
+      teamFileDir,
+    })).rejects.toThrow('Workflow path "../../etc/passwd" escapes team directory');
   });
 });
 

@@ -52,6 +52,8 @@ export interface DeployOpts {
     systemPrompt?: string;
     appendSystemPrompt?: string;
   }) => Promise<boolean>;
+  /** Callback to stop a bot during rollback. */
+  stopBot?: (name: string) => Promise<void>;
   /** Callback to grant ACL. */
   grantAcl: (source: string, target: string, capabilities: string[]) => void;
   /** Callback to create a bus topic. */
@@ -80,7 +82,6 @@ export async function deployTeam(opts: DeployOpts): Promise<DeployResult> {
   const allowedRoots = [
     ...(definition.workspace ? [definition.workspace] : []),
     ...(definition.home ? [definition.home] : []),
-    mechaDir,
   ];
   const scaffolded = definition.scaffold
     ? scaffoldFiles(definition.scaffold, allowedRoots)
@@ -91,79 +92,100 @@ export async function deployTeam(opts: DeployOpts): Promise<DeployResult> {
     mkdirSync(join(definition.home, ".claude"), { recursive: true });
   }
 
-  // Spawn bots
+  // Spawn bots with rollback on partial failure
   const botNames: string[] = [];
-  for (const [name, bot] of Object.entries(definition.bots)) {
-    const ok = await opts.spawnBot(name, {
-      cwd: bot.cwd,
-      home: definition.home,
-      model: bot.model,
-      tags: bot.tags,
-      expose: bot.expose,
-      effort: bot.effort,
-      maxBudgetUsd: bot.maxBudgetUsd,
-      sandboxMode: bot.sandboxMode,
-      systemPrompt: bot.systemPrompt,
-      appendSystemPrompt: bot.appendSystemPrompt,
-    });
-    if (!ok) {
-      throw new Error(`Failed to spawn bot "${name}"`);
-    }
-    botNames.push(name);
-  }
-
-  // Configure ACL
   let aclRules = 0;
-  for (const rule of definition.acl ?? []) {
-    for (const target of rule.targets) {
-      opts.grantAcl(rule.source, target, rule.capabilities);
-      aclRules++;
-    }
-  }
-
-  // Create bus topics and queues
   const busTopics: string[] = [];
   const busQueues: string[] = [];
-  if (definition.bus?.topics && opts.createBusTopic) {
-    for (const name of definition.bus.topics) {
-      opts.createBusTopic(name);
-      busTopics.push(name);
-    }
-  }
-  if (definition.bus?.queues && opts.createBusQueue) {
-    for (const q of definition.bus.queues) {
-      opts.createBusQueue(q.name, { maxRetries: q.maxRetries });
-      busQueues.push(q.name);
-    }
-  }
-
-  // Copy workflow definitions
   const copiedWorkflows: string[] = [];
-  if (definition.workflows && opts.teamFileDir) {
-    const workflowsDir = join(mechaDir, "workflows");
-    mkdirSync(workflowsDir, { recursive: true });
-    for (const relPath of definition.workflows) {
-      const src = resolve(opts.teamFileDir, relPath);
-      if (!existsSync(src)) {
-        throw new Error(`Workflow file not found: ${relPath}`);
-      }
-      const dest = join(workflowsDir, basename(relPath));
-      copyFileSync(src, dest);
-      copiedWorkflows.push(basename(relPath));
-    }
-  }
-
-  // Register schedules on bots
   let schedulesCount = 0;
-  if (definition.schedules && opts.addSchedule) {
-    for (const sched of definition.schedules) {
-      await opts.addSchedule(sched.bot, {
-        id: sched.id,
-        every: sched.every,
-        prompt: sched.prompt,
+
+  try {
+    for (const [name, bot] of Object.entries(definition.bots)) {
+      const ok = await opts.spawnBot(name, {
+        cwd: bot.cwd,
+        home: definition.home,
+        model: bot.model,
+        tags: bot.tags,
+        expose: bot.expose,
+        effort: bot.effort,
+        maxBudgetUsd: bot.maxBudgetUsd,
+        sandboxMode: bot.sandboxMode,
+        systemPrompt: bot.systemPrompt,
+        appendSystemPrompt: bot.appendSystemPrompt,
       });
-      schedulesCount++;
+      if (!ok) {
+        throw new Error(`Failed to spawn bot "${name}"`);
+      }
+      botNames.push(name);
     }
+
+    // Configure ACL
+    for (const rule of definition.acl ?? []) {
+      for (const target of rule.targets) {
+        opts.grantAcl(rule.source, target, rule.capabilities);
+        aclRules++;
+      }
+    }
+
+    // Create bus topics and queues
+    if (definition.bus?.topics && opts.createBusTopic) {
+      for (const name of definition.bus.topics) {
+        opts.createBusTopic(name);
+        busTopics.push(name);
+      }
+    }
+    if (definition.bus?.queues && opts.createBusQueue) {
+      for (const q of definition.bus.queues) {
+        opts.createBusQueue(q.name, { maxRetries: q.maxRetries });
+        busQueues.push(q.name);
+      }
+    }
+
+    // Copy workflow definitions
+    if (definition.workflows && opts.teamFileDir) {
+      const workflowsDir = join(mechaDir, "workflows");
+      mkdirSync(workflowsDir, { recursive: true });
+      for (const relPath of definition.workflows) {
+        const src = resolve(opts.teamFileDir, relPath);
+        // Validate source path stays within teamFileDir
+        const resolvedTeamFileDir = resolve(opts.teamFileDir);
+        if (!src.startsWith(resolvedTeamFileDir + "/") && src !== resolvedTeamFileDir) {
+          throw new Error(`Workflow path "${relPath}" escapes team directory`);
+        }
+        if (!existsSync(src)) {
+          throw new Error(`Workflow file not found: ${relPath}`);
+        }
+        const dest = join(workflowsDir, basename(relPath));
+        // Validate destination stays within workflowsDir
+        const resolvedWorkflowsDir = resolve(workflowsDir);
+        if (!dest.startsWith(resolvedWorkflowsDir + "/") && dest !== resolvedWorkflowsDir) {
+          throw new Error(`Workflow destination "${basename(relPath)}" escapes workflows directory`);
+        }
+        copyFileSync(src, dest);
+        copiedWorkflows.push(basename(relPath));
+      }
+    }
+
+    // Register schedules on bots
+    if (definition.schedules && opts.addSchedule) {
+      for (const sched of definition.schedules) {
+        await opts.addSchedule(sched.bot, {
+          id: sched.id,
+          every: sched.every,
+          prompt: sched.prompt,
+        });
+        schedulesCount++;
+      }
+    }
+  } catch (err) {
+    // Rollback: stop already-spawned bots (best-effort)
+    for (const name of botNames) {
+      /* v8 ignore start -- best-effort rollback */
+      try { await opts.stopBot?.(name); } catch { /* ignore rollback errors */ }
+      /* v8 ignore stop */
+    }
+    throw err;
   }
 
   // Register deployed team
