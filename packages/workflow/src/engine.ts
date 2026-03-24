@@ -285,7 +285,7 @@ export function createEngine(opts: CreateEngineOpts): WorkflowEngine {
           // Budget enforcement
           if (definition.budgetUsd != null && runState.totalCostUsd >= definition.budgetUsd) {
             // Mark remaining pending steps as skipped
-            for (const [sName, sState] of Object.entries(runState.steps)) {
+            for (const [, sState] of Object.entries(runState.steps)) {
               if (sState.status === "pending") {
                 sState.status = "failed";
                 sState.error = "Budget exceeded";
