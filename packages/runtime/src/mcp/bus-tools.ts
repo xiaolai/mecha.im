@@ -84,15 +84,16 @@ export const BUS_TOOLS: McpToolDef[] = [
 /**
  * Runtime context for bus tool execution.
  *
- * TODO: Full ACL integration is pending MCP handler refactoring to receive
- * an AclEngine instance. Currently checkAcl is an optional callback that
- * callers can wire up to enforce bus capabilities per bot.
+ * ACL note: Bus tools run inside the bot's own runtime MCP server. The bot
+ * is both caller and operator — it invokes its own tools. Inter-bot ACL
+ * (e.g., "can bot A publish to a topic that bot B subscribes to?") is
+ * enforced at the agent query forwarding layer (packages/agent/src/server.ts),
+ * not here. Tool availability is gated by whether busOpts is provided to the
+ * MCP route registration (see packages/runtime/src/mcp/server.ts).
  */
 export interface BusToolOpts {
   busDir: string;
   botName: string;
-  /** Optional ACL check — returns true if bot has the given capability. */
-  checkAcl?: (bot: string, capability: string) => boolean;
 }
 
 interface BusResult {
@@ -100,33 +101,12 @@ interface BusResult {
   isError?: boolean;
 }
 
-/** Map tool name to the required ACL capability. */
-const TOOL_CAPABILITY: Record<string, string> = {
-  bus_publish: "bus_publish",
-  bus_poll: "bus_subscribe",
-  bus_queue_push: "bus_queue",
-  bus_queue_claim: "bus_queue",
-  bus_queue_ack: "bus_queue",
-  bus_queue_nack: "bus_queue",
-};
-
 /** Dispatch a bus tool call and return the MCP result. */
 export async function handleBusTool(
   opts: BusToolOpts,
   name: string,
   args: Record<string, unknown>,
 ): Promise<BusResult> {
-  // ACL enforcement — if checkAcl is provided, verify capability before proceeding
-  if (opts.checkAcl) {
-    const capability = TOOL_CAPABILITY[name];
-    if (capability && !opts.checkAcl(opts.botName, capability)) {
-      return {
-        isError: true,
-        content: [{ type: "text", text: `ACL denied: bot lacks ${capability} capability` }],
-      };
-    }
-  }
-
   const broker = createBroker(opts.busDir);
 
   switch (name) {
