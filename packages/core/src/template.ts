@@ -12,6 +12,9 @@ export function renderTemplate(template: string, context: Record<string, unknown
   });
 }
 
+/** Keys that must not be traversed (prototype chain protection). */
+const BLOCKED_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
 /** Resolve a dotted/bracketed expression against a context object. */
 export function resolveExpression(expr: string, context: Record<string, unknown>): unknown {
   // Split on dots and brackets: "a.b[0].c" → ["a", "b", "0", "c"]
@@ -19,6 +22,7 @@ export function resolveExpression(expr: string, context: Record<string, unknown>
   let current: unknown = context;
   for (const part of parts) {
     if (current == null || typeof current !== "object") return undefined;
+    if (BLOCKED_KEYS.has(part)) return undefined;
     current = (current as Record<string, unknown>)[part];
   }
   return current;
@@ -73,6 +77,7 @@ function compare(left: unknown, op: Comparator, right: unknown): boolean {
  */
 export function evaluateCondition(condition: string, context: Record<string, unknown>): boolean {
   const trimmed = condition.trim();
+  if (!trimmed) return false;
 
   // Negation: "!path"
   if (trimmed.startsWith("!")) {
