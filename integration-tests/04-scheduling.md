@@ -47,6 +47,12 @@ Tests for periodic schedule management and execution.
 | 4.17 | POST /api/schedules/:id/run | Direct HTTP trigger | 200 with execution result | P1 | |
 | 4.18 | GET /api/schedules/:id/history | Direct HTTP | Run history array | P1 | |
 
+### Cron Expressions (v4.1.9)
+
+| # | Test | Command | Expected | P | Result |
+|---|------|---------|----------|---|--------|
+| 4.19 | Cron expression schedule | `mecha schedule add bot --id cron-test --every "0 */6 * * *" --prompt "check"` | Schedule created with cron expression | P1 | FAIL 2026-03-24 macbook-pro — schedule add uses parseInterval (interval only), not parseScheduleExpression |
+
 ## Verification
 
 ```bash
