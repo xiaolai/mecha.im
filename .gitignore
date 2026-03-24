@@ -74,6 +74,7 @@ venv/
 .gitnexus
 
 # Dev docs and scripts (internal only)
+docs/
 dev-docs/
 dev-scripts/
 integration-tests/
