@@ -604,6 +604,31 @@ describe("WorkflowEngine", () => {
     });
   });
 
+  describe("budget enforcement", () => {
+    it("fails run when budget is exceeded", async () => {
+      const def: WorkflowDef = {
+        name: "budget-test",
+        budgetUsd: 1.0,
+        steps: {
+          a: { bot: "bot", prompt: "go" },
+          b: { bot: "bot", prompt: "go", depends: ["a"] },
+        },
+      };
+      const engine = createEngine({ workflowsDir, definition: def });
+      engine.startRun();
+
+      // Step a costs $1.50 (exceeds $1.00 budget)
+      const exec: StepExecutor = async () => ({ output: "done", costUsd: 1.5 });
+      await engine.executeReady(exec);
+
+      expect(engine.state().steps.a.status).toBe("completed");
+      expect(engine.state().steps.b.status).toBe("failed");
+      expect(engine.state().steps.b.error).toContain("Budget exceeded");
+      expect(engine.state().status).toBe("failed");
+      expect(engine.state().totalCostUsd).toBeGreaterThanOrEqual(1.0);
+    });
+  });
+
   describe("cost tracking", () => {
     it("accumulates cost across steps with no costUsd", async () => {
       const def: WorkflowDef = { name: "no-cost", steps: { s1: { bot: "b", prompt: "x" } } };
