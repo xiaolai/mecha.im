@@ -250,6 +250,31 @@ describe("workflow runs", () => {
       ]),
     );
   });
+
+  it("limits output with --last flag", async () => {
+    tempDir = mkdtempSync(join(tmpdir(), "mecha-wf-"));
+    const mechaDir = join(tempDir, ".mecha");
+    const workflowsDir = join(mechaDir, "workflows");
+
+    // Create 5 run state files with different timestamps
+    for (let i = 1; i <= 5; i++) {
+      const run = makeRunState({
+        runId: `run-2026-01-0${i}-abc`,
+        startedAt: `2026-01-0${i}T00:00:00.000Z`,
+        completedAt: `2026-01-0${i}T00:02:00.000Z`,
+      });
+      writeRunState(workflowsDir, "test-workflow", run);
+    }
+
+    const deps = makeDeps({ mechaDir });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "workflow", "runs", "test-workflow", "--last", "2"]);
+    expect(deps.formatter.table).toHaveBeenCalled();
+    const rows = (deps.formatter.table as ReturnType<typeof import("vitest").vi.fn>).mock.calls[0][1];
+    expect(rows).toHaveLength(2);
+  });
 });
 
 describe("workflow run-detail", () => {
