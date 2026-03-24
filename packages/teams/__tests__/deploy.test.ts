@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { mkdtempSync, existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { deployTeam, listTeams, unregisterTeam } from "../src/deploy.js";
+import { deployTeam, listTeams, unregisterTeam, teardownTeam } from "../src/deploy.js";
 import type { TeamDef } from "../src/types.js";
 
 describe("deployTeam", () => {
@@ -373,5 +373,105 @@ describe("unregisterTeam", () => {
   it("returns false for unknown team", () => {
     const dir = mkdtempSync(join(tmpdir(), "mecha-unreg2-"));
     expect(unregisterTeam(dir, "nope")).toBe(false);
+  });
+});
+
+describe("teardownTeam", () => {
+  it("removes bus topics, workflows, and schedules", async () => {
+    const mechaDir = mkdtempSync(join(tmpdir(), "mecha-teardown-"));
+    const homeDir = mkdtempSync(join(tmpdir(), "mecha-home-"));
+    const teamFileDir = mkdtempSync(join(tmpdir(), "mecha-teamfile-"));
+    writeFileSync(join(teamFileDir, "build.yaml"), "steps: []");
+
+    // Deploy a team with bus, workflows, and schedules
+    await deployTeam({
+      definition: {
+        name: "full-team",
+        home: homeDir,
+        bots: { alice: { cwd: "/a" }, bob: { cwd: "/b" } },
+        bus: {
+          topics: ["events"],
+          queues: [{ name: "tasks", maxRetries: 3 }],
+        },
+        workflows: ["build.yaml"],
+        schedules: [
+          { bot: "alice", id: "hourly", every: "1h", prompt: "check" },
+        ],
+      },
+      mechaDir,
+      spawnBot: async () => true,
+      grantAcl: () => {},
+      createBusTopic: () => {},
+      createBusQueue: () => {},
+      teamFileDir,
+      addSchedule: async () => {},
+    });
+
+    expect(listTeams(mechaDir)).toHaveLength(1);
+
+    // Verify workflow file was created
+    expect(existsSync(join(mechaDir, "workflows", "build.yaml"))).toBe(true);
+
+    const stoppedBots: string[] = [];
+    const removedTopics: string[] = [];
+    const removedQueues: string[] = [];
+    const removedSchedules: Array<{ bot: string; id: string }> = [];
+
+    const team = listTeams(mechaDir)[0]!;
+    const result = await teardownTeam({
+      team,
+      mechaDir,
+      stopBot: async (bot) => { stoppedBots.push(bot); },
+      removeBusTopic: (name) => { removedTopics.push(name); },
+      removeBusQueue: (name) => { removedQueues.push(name); },
+      removeSchedule: async (bot, id) => { removedSchedules.push({ bot, id }); },
+    });
+
+    expect(result.botsStopped).toBe(2);
+    expect(result.busTopicsRemoved).toBe(1);
+    expect(result.busQueuesRemoved).toBe(1);
+    expect(result.workflowsRemoved).toBe(1);
+    expect(result.schedulesRemoved).toBe(1);
+
+    expect(stoppedBots).toEqual(["alice", "bob"]);
+    expect(removedTopics).toEqual(["events"]);
+    expect(removedQueues).toEqual(["tasks"]);
+    expect(removedSchedules).toEqual([{ bot: "alice", id: "hourly" }]);
+
+    // Verify workflow file was deleted
+    expect(existsSync(join(mechaDir, "workflows", "build.yaml"))).toBe(false);
+
+    // Verify team was unregistered
+    expect(listTeams(mechaDir)).toHaveLength(0);
+  });
+
+  it("handles team with no bus, workflows, or schedules", async () => {
+    const mechaDir = mkdtempSync(join(tmpdir(), "mecha-teardown2-"));
+    const homeDir = mkdtempSync(join(tmpdir(), "mecha-home-"));
+
+    await deployTeam({
+      definition: {
+        name: "simple-team",
+        home: homeDir,
+        bots: { alice: { cwd: "/a" } },
+      },
+      mechaDir,
+      spawnBot: async () => true,
+      grantAcl: () => {},
+    });
+
+    const team = listTeams(mechaDir)[0]!;
+    const result = await teardownTeam({
+      team,
+      mechaDir,
+      stopBot: async () => {},
+    });
+
+    expect(result.botsStopped).toBe(1);
+    expect(result.busTopicsRemoved).toBe(0);
+    expect(result.busQueuesRemoved).toBe(0);
+    expect(result.workflowsRemoved).toBe(0);
+    expect(result.schedulesRemoved).toBe(0);
+    expect(listTeams(mechaDir)).toHaveLength(0);
   });
 });

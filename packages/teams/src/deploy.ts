@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync, readFileSync, existsSync, copyFileSync } from "node:fs";
+import { mkdirSync, writeFileSync, readFileSync, existsSync, copyFileSync, unlinkSync } from "node:fs";
 import { join, dirname, resolve, basename } from "node:path";
 import type { TeamDef, DeployResult, DeployedTeam } from "./types.js";
 import { validateTeamDef } from "./definition.js";
@@ -211,4 +211,93 @@ export function unregisterTeam(mechaDir: string, name: string): boolean {
   teams.splice(idx, 1);
   saveTeams(mechaDir, teams);
   return true;
+}
+
+/** Options for tearing down a team's resources. */
+export interface TeardownOpts {
+  /** The deployed team metadata from teams.json. */
+  team: DeployedTeam;
+  /** The mecha directory (~/.mecha). */
+  mechaDir: string;
+  /** Callback to stop a bot. */
+  stopBot: (name: string) => Promise<void>;
+  /** Callback to remove a bus topic. */
+  removeBusTopic?: (name: string) => void;
+  /** Callback to remove a bus queue. */
+  removeBusQueue?: (name: string) => void;
+  /** Callback to remove a schedule from a bot. */
+  removeSchedule?: (bot: string, id: string) => Promise<void>;
+}
+
+/** Result of tearing down a team. */
+export interface TeardownResult {
+  botsStopped: number;
+  busTopicsRemoved: number;
+  busQueuesRemoved: number;
+  workflowsRemoved: number;
+  schedulesRemoved: number;
+}
+
+/**
+ * Tear down a team: stop bots, remove bus resources, workflow files, and schedules.
+ * Unregisters the team from teams.json.
+ */
+export async function teardownTeam(opts: TeardownOpts): Promise<TeardownResult> {
+  const { team, mechaDir } = opts;
+  const result: TeardownResult = {
+    botsStopped: 0,
+    busTopicsRemoved: 0,
+    busQueuesRemoved: 0,
+    workflowsRemoved: 0,
+    schedulesRemoved: 0,
+  };
+
+  // Stop bots
+  for (const bot of team.bots) {
+    await opts.stopBot(bot);
+    result.botsStopped++;
+  }
+
+  // Remove bus topics
+  if (team.bus?.topics && opts.removeBusTopic) {
+    for (const name of team.bus.topics) {
+      opts.removeBusTopic(name);
+      result.busTopicsRemoved++;
+    }
+  }
+
+  // Remove bus queues
+  if (team.bus?.queues && opts.removeBusQueue) {
+    for (const q of team.bus.queues) {
+      opts.removeBusQueue(q.name);
+      result.busQueuesRemoved++;
+    }
+  }
+
+  // Remove workflow files
+  if (team.workflows) {
+    const workflowsDir = join(mechaDir, "workflows");
+    for (const name of team.workflows) {
+      const path = join(workflowsDir, name);
+      /* v8 ignore start -- file may already be gone */
+      if (existsSync(path)) {
+        unlinkSync(path);
+        result.workflowsRemoved++;
+      }
+      /* v8 ignore stop */
+    }
+  }
+
+  // Remove schedules
+  if (team.schedules && opts.removeSchedule) {
+    for (const sched of team.schedules) {
+      await opts.removeSchedule(sched.bot, sched.id);
+      result.schedulesRemoved++;
+    }
+  }
+
+  // Unregister team
+  unregisterTeam(mechaDir, team.name);
+
+  return result;
 }
