@@ -67,7 +67,13 @@ export function createReplicator(
 
   function loadState(): ReplicatorState {
     if (!existsSync(statePath)) return { cursors: {} };
-    return JSON.parse(readFileSync(statePath, "utf-8")) as ReplicatorState;
+    try {
+      return JSON.parse(readFileSync(statePath, "utf-8")) as ReplicatorState;
+    /* v8 ignore start -- corrupt state file fallback */
+    } catch {
+      return { cursors: {} };
+    }
+    /* v8 ignore stop */
   }
 
   function saveState(state: ReplicatorState): void {
@@ -80,7 +86,17 @@ export function createReplicator(
     if (!existsSync(messagesPath)) return [];
     const content = readFileSync(messagesPath, "utf-8").trim();
     if (!content) return [];
-    return content.split("\n").map((line) => JSON.parse(line) as BusMessage);
+    const messages: BusMessage[] = [];
+    for (const line of content.split("\n")) {
+      try {
+        messages.push(JSON.parse(line) as BusMessage);
+      /* v8 ignore start -- skip corrupt JSONL lines */
+      } catch {
+        // Skip corrupt lines
+      }
+      /* v8 ignore stop */
+    }
+    return messages;
   }
 
   let timer: ReturnType<typeof setInterval> | null = null;

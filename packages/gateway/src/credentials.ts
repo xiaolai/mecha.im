@@ -29,6 +29,19 @@ export function createCredentialStore(secretsDir: string): CredentialStore {
     writeFileSync(grantsPath, JSON.stringify(grants, null, 2) + "\n", { mode: 0o600 });
   }
 
+  /**
+   * SECURITY LIMITATION: Values are base64-encoded, NOT encrypted.
+   * Base64 is an encoding, not a security measure — anyone with read access
+   * to secrets.json can trivially decode the values.
+   *
+   * This is acceptable for the local-first threat model (see AGENTS.md
+   * "Security Trust Boundary"): secrets are already exposed via process
+   * environment variables readable by root.
+   *
+   * Upgrade path: When multi-user or remote access is added, replace with
+   * AES-256-GCM encryption using a key derived from the user's system keychain
+   * (e.g., macOS Keychain, Linux secret-tool, Windows DPAPI).
+   */
   function encode(value: string): string {
     return Buffer.from(value, "utf-8").toString("base64");
   }

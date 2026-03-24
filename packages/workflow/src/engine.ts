@@ -1,3 +1,5 @@
+// TODO: This file exceeds 350 lines. Planned extraction: move validateOutput(),
+// assertNoCycles(), and parseTimeout() to a separate workflow-helpers.ts module.
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -404,12 +406,15 @@ export function createEngine(opts: CreateEngineOpts): WorkflowEngine {
       runState.status = "compensating";
       saveState();
 
-      // Walk completed steps in reverse order
+      // Walk completed steps in reverse chronological order (most recent first)
       const stepNames = Object.keys(definition.steps);
-      const completedInOrder = stepNames.filter(
-        (name) => runState!.steps[name]?.status === "completed",
-      );
-      completedInOrder.reverse();
+      const completedInOrder = stepNames
+        .filter((name) => runState!.steps[name]?.status === "completed")
+        .sort((a, b) => {
+          const aTime = runState!.steps[a]!.completedAt ?? "";
+          const bTime = runState!.steps[b]!.completedAt ?? "";
+          return bTime.localeCompare(aTime); // reverse chronological
+        });
 
       const compensated: string[] = [];
       let compensationFailed = false;

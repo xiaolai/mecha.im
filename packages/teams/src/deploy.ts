@@ -1,5 +1,6 @@
-import { mkdirSync, writeFileSync, readFileSync, existsSync, copyFileSync, unlinkSync } from "node:fs";
+import { mkdirSync, readFileSync, existsSync, copyFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join, dirname, resolve, basename } from "node:path";
+import { atomicWriteSync } from "@mecha/core";
 import type { TeamDef, DeployResult, DeployedTeam } from "./types.js";
 import { validateTeamDef } from "./definition.js";
 
@@ -25,12 +26,18 @@ function scaffoldFiles(scaffold: Record<string, string>, allowedRoots: string[])
 function loadTeams(mechaDir: string): DeployedTeam[] {
   const path = join(mechaDir, "teams.json");
   if (!existsSync(path)) return [];
-  return JSON.parse(readFileSync(path, "utf-8")) as DeployedTeam[];
+  try {
+    return JSON.parse(readFileSync(path, "utf-8")) as DeployedTeam[];
+  /* v8 ignore start -- corrupt teams.json fallback */
+  } catch {
+    return [];
+  }
+  /* v8 ignore stop */
 }
 
 /** Save deployed teams registry. */
 function saveTeams(mechaDir: string, teams: DeployedTeam[]): void {
-  writeFileSync(join(mechaDir, "teams.json"), JSON.stringify(teams, null, 2) + "\n");
+  atomicWriteSync(join(mechaDir, "teams.json"), JSON.stringify(teams, null, 2) + "\n");
 }
 
 /** Options for deploying a team. */

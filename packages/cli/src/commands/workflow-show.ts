@@ -14,10 +14,13 @@ export function registerWorkflowShowCommand(parent: Command, deps: CommandDeps):
     .argument("<name>", "workflow name")
     .action((name: string) =>
       withErrorHandler(deps, async () => {
-        const filePath = join(deps.mechaDir, "workflows", `${name}.yaml`);
+        let filePath = join(deps.mechaDir, "workflows", `${name}.yaml`);
+        if (!existsSync(filePath)) {
+          filePath = join(deps.mechaDir, "workflows", `${name}.yml`);
+        }
 
         if (!existsSync(filePath)) {
-          deps.formatter.error(`Workflow "${name}" not found at ${filePath}`);
+          deps.formatter.error(`Workflow "${name}" not found (checked .yaml and .yml)`);
           return;
         }
 

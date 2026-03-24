@@ -1,10 +1,10 @@
 import { createCircuitBreaker, CircuitOpenError } from "./circuit-breaker.js";
 import type { CircuitBreaker } from "./types.js";
 
-/** Error thrown when a request URL host is not in the allowlist. */
+/** Error thrown when a request URL or host is denied by the gateway. */
 export class GatewayDeniedError extends Error {
-  constructor(host: string) {
-    super(`Host not allowed: ${host}`);
+  constructor(reason: string) {
+    super(reason);
     this.name = "GatewayDeniedError";
   }
 }
@@ -80,12 +80,17 @@ export function createHttpGateway(opts: HttpGatewayOpts): HttpGateway {
       try {
         parsed = new URL(url);
       } catch {
-        throw new GatewayDeniedError(url);
+        throw new GatewayDeniedError(`Invalid URL: ${url}`);
+      }
+
+      // Validate URL scheme — only http and https are allowed
+      if (!["http:", "https:"].includes(parsed.protocol)) {
+        throw new GatewayDeniedError(`Unsupported protocol: ${parsed.protocol}`);
       }
 
       const host = parsed.hostname;
       if (!isAllowed(host)) {
-        throw new GatewayDeniedError(host);
+        throw new GatewayDeniedError(`Host not allowed: ${host}`);
       }
 
       const method = reqOpts?.method ?? "GET";
@@ -95,6 +100,7 @@ export function createHttpGateway(opts: HttpGatewayOpts): HttpGateway {
         const fetchOpts: RequestInit = {
           method,
           headers: reqOpts?.headers,
+          signal: AbortSignal.timeout(30_000), // 30 second timeout
         };
         if (reqOpts?.body && method !== "GET") {
           fetchOpts.body = reqOpts.body;
@@ -102,6 +108,14 @@ export function createHttpGateway(opts: HttpGatewayOpts): HttpGateway {
 
         fetchOpts.redirect = "manual";
         const resp = await fetch(url, fetchOpts);
+
+        // Response size limit — reject responses larger than 10MB
+        const contentLength = resp.headers.get("content-length");
+        const MAX_RESPONSE_SIZE = 10 * 1024 * 1024; // 10MB
+        if (contentLength && parseInt(contentLength, 10) > MAX_RESPONSE_SIZE) {
+          throw new Error(`Response too large: ${contentLength} bytes (max ${MAX_RESPONSE_SIZE})`);
+        }
+
         const body = await resp.text();
 
         const headers: Record<string, string> = {};
