@@ -249,3 +249,36 @@ describe("bus queue nack", () => {
     expect(deps.formatter.success).toHaveBeenCalled();
   });
 });
+
+describe("bus queue dead-letters", () => {
+  it("lists dead-letter messages", async () => {
+    const { deps, program } = setup();
+    await program.parseAsync(["node", "mecha", "bus", "queue", "create", "dlq", "--max-retries", "2"]);
+    const { createBroker } = await import("@mecha/bus");
+    const busDir = join(mechaDir, "bus");
+    const broker = createBroker(busDir);
+    const q = broker.queue("dlq");
+    const id = q.push({ sender: "producer", payload: "work" });
+    q.claim("worker"); // attempts=1
+    q.nack(id); // 1 < 2, back to pending
+    q.claim("worker"); // attempts=2
+    q.nack(id); // 2 >= 2, dead letter
+
+    const program2 = createProgram(deps);
+    program2.exitOverride();
+    await program2.parseAsync(["node", "mecha", "bus", "queue", "dead-letters", "dlq"]);
+    expect(deps.formatter.table).toHaveBeenCalled();
+    const rows = (deps.formatter.table as ReturnType<typeof import("vitest").vi.fn>).mock.calls[0][1];
+    expect(rows.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("shows empty message when no dead letters", async () => {
+    const { deps, program } = setup();
+    await program.parseAsync(["node", "mecha", "bus", "queue", "create", "empty-dlq"]);
+
+    const program2 = createProgram(deps);
+    program2.exitOverride();
+    await program2.parseAsync(["node", "mecha", "bus", "queue", "dead-letters", "empty-dlq"]);
+    expect(deps.formatter.info).toHaveBeenCalled();
+  });
+});
