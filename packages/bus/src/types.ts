@@ -11,6 +11,7 @@ export interface QueueConfig {
   name: string;
   maxRetries: number;
   retryBackoffMs: number;
+  claimTimeoutMs?: number;
 }
 
 /** A claimed queue item with metadata. */

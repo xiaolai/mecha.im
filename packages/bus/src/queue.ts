@@ -109,6 +109,30 @@ export function createQueue(opts: CreateQueueOpts): DurableQueue {
     },
 
     claim(bot) {
+      // Expire timed-out inflight items before claiming
+      const timeoutMs = config.claimTimeoutMs ?? 300_000;
+      const inflight = readJsonl<ClaimedItem>(inflightPath);
+      const now = Date.now();
+      const expired: ClaimedItem[] = [];
+      const remaining: ClaimedItem[] = [];
+      for (const item of inflight) {
+        if (now - new Date(item.claimedAt).getTime() > timeoutMs) {
+          expired.push(item);
+        } else {
+          remaining.push(item);
+        }
+      }
+      if (expired.length > 0) {
+        writeJsonl(inflightPath, remaining);
+        for (const item of expired) {
+          if (item.attempts >= config.maxRetries) {
+            appendJsonl(deadPath, item.message);
+          } else {
+            appendJsonl(pendingPath, item.message);
+          }
+        }
+      }
+
       const pending = readJsonl<BusMessage>(pendingPath);
       if (pending.length === 0) return null;
 
