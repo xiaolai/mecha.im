@@ -1,32 +1,23 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createProgram } from "../../src/program.js";
 import { makeDeps } from "../test-utils.js";
 import type { CommandDeps } from "../../src/types.js";
 
-// Mock agentFetch and createSyncBundle for team sync
-vi.mock("@mecha/service", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@mecha/service")>();
+// Mock child_process.execFile for rsync
+vi.mock("node:child_process", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:child_process")>();
   return {
     ...actual,
-    agentFetch: vi.fn().mockResolvedValue({ status: 200 }),
-  };
-});
-
-vi.mock("@mecha/connect", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@mecha/connect")>();
-  return {
-    ...actual,
-    createSyncBundle: vi.fn().mockReturnValue({
-      files: { "main.ts": Buffer.from("code").toString("base64") },
+    execFile: vi.fn((_cmd: string, _args: string[], callback: (err: Error | null, result: { stdout: string; stderr: string }) => void) => {
+      callback(null, { stdout: "", stderr: "" });
     }),
   };
 });
 
-import { agentFetch } from "@mecha/service";
-import { createSyncBundle } from "@mecha/connect";
+import { execFile } from "node:child_process";
 
 describe("team sync command", () => {
   let mechaDir: string;
@@ -137,14 +128,53 @@ describe("team sync command", () => {
     expect(process.exitCode).toBe(1);
   });
 
-  it("shows not-implemented message for sync", async () => {
+  it("runs rsync for each node", async () => {
     writeTeam("test-team");
     writeNodes();
 
     await run(["team", "sync", "test-team"]);
 
-    expect(deps.formatter.error).toHaveBeenCalledWith(
-      expect.stringContaining("not yet implemented"),
-    );
+    expect(execFile).toHaveBeenCalledTimes(2);
+
+    // Verify first rsync call arguments
+    const firstCall = vi.mocked(execFile).mock.calls[0]!;
+    expect(firstCall[0]).toBe("rsync");
+    const args = firstCall[1] as string[];
+    expect(args).toContain("-az");
+    expect(args).toContain("--delete");
+    expect(args).toContain(`${workspaceDir}/`);
+    expect(args).toContain(`10.0.0.1:${workspaceDir}/`);
+
+    // Verify second rsync call targets second node
+    const secondCall = vi.mocked(execFile).mock.calls[1]!;
+    const args2 = secondCall[1] as string[];
+    expect(args2).toContain(`10.0.0.2:${workspaceDir}/`);
+
+    expect(deps.formatter.success).toHaveBeenCalledWith("Synced workspace to 2 node(s)");
+  });
+
+  it("passes --dry-run flag to rsync", async () => {
+    writeTeam("test-team");
+    writeNodes();
+
+    await run(["team", "sync", "test-team", "--dry-run"]);
+
+    const firstCall = vi.mocked(execFile).mock.calls[0]!;
+    const args = firstCall[1] as string[];
+    expect(args).toContain("--dry-run");
+  });
+
+  it("syncs to a specific node only when --node is provided", async () => {
+    writeTeam("test-team");
+    writeNodes();
+
+    await run(["team", "sync", "test-team", "--node", "node2"]);
+
+    expect(execFile).toHaveBeenCalledTimes(1);
+    const firstCall = vi.mocked(execFile).mock.calls[0]!;
+    const args = firstCall[1] as string[];
+    expect(args).toContain(`10.0.0.2:${workspaceDir}/`);
+
+    expect(deps.formatter.success).toHaveBeenCalledWith("Synced workspace to 1 node(s)");
   });
 });
