@@ -1,43 +1,9 @@
-import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { atomicWriteSync } from "@mecha/core";
+import { assertSafeName } from "@mecha/core";
 import type { BusMessage, ClaimedItem, QueueConfig } from "./types.js";
-
-/** Validate a name used as a filesystem path segment. Rejects traversal attempts. */
-function assertSafeName(name: string, label: string): void {
-  if (!name || /[/\\]|^\.\.?$/.test(name) || name.includes("..")) {
-    throw new Error(`Invalid ${label} name: "${name}"`);
-  }
-}
-
-/** Parse JSONL file into array of objects. Skips corrupt lines. */
-function readJsonl<T>(path: string): T[] {
-  if (!existsSync(path)) return [];
-  const content = readFileSync(path, "utf-8").trim();
-  if (!content) return [];
-  const items: T[] = [];
-  for (const line of content.split("\n")) {
-    try {
-      items.push(JSON.parse(line) as T);
-    } catch {
-      // Skip corrupt line — partial write from crash
-    }
-  }
-  return items;
-}
-
-/** Write array of objects as JSONL file (atomic). */
-function writeJsonl<T>(path: string, items: T[]): void {
-  const content = items.map((item) => JSON.stringify(item)).join("\n");
-  atomicWriteSync(path, content ? content + "\n" : "");
-}
-
-/** Append a single object to a JSONL file. */
-function appendJsonl<T>(path: string, item: T): void {
-  const line = JSON.stringify(item) + "\n";
-  writeFileSync(path, line, { flag: "a" });
-}
+import { readJsonl, writeJsonl, appendJsonl } from "./jsonl.js";
 
 /** Durable queue with push/claim/ack/nack and dead-letter support. */
 export interface DurableQueue {

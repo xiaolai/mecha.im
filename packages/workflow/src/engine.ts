@@ -8,20 +8,13 @@ import type {
   CreateEngineOpts,
 } from "./types.js";
 import { renderTemplate, evaluateCondition } from "./template.js";
-import { parseInterval, atomicWriteSync } from "@mecha/core";
+import { parseInterval, atomicWriteSync, assertSafeName } from "@mecha/core";
 
 const DEFAULT_STEP_TIMEOUT_MS = 600_000; // 10 minutes
 
 function parseTimeout(timeout?: string): number {
   if (!timeout) return DEFAULT_STEP_TIMEOUT_MS;
   return parseInterval(timeout) ?? DEFAULT_STEP_TIMEOUT_MS;
-}
-
-/** Validate a name used as a filesystem path segment. Rejects traversal attempts. */
-function assertSafeName(name: string, label: string): void {
-  if (!name || /[/\\]|^\.\.?$/.test(name) || name.includes("..")) {
-    throw new Error(`Invalid ${label} name: "${name}"`);
-  }
 }
 
 /** Detect cycles in the step dependency graph. Throws if a cycle is found. */
