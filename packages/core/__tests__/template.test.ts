@@ -90,6 +90,61 @@ describe("evaluateCondition", () => {
     expect(evaluateCondition("  flag  ", { flag: true })).toBe(true);
     expect(evaluateCondition("  ! flag  ", { flag: true })).toBe(false);
   });
+
+  // Comparator tests
+  it("evaluates == with number", () => {
+    expect(evaluateCondition("count == 5", { count: 5 })).toBe(true);
+    expect(evaluateCondition("count == 5", { count: 3 })).toBe(false);
+  });
+
+  it("evaluates == with string", () => {
+    expect(evaluateCondition("status == 'active'", { status: "active" })).toBe(true);
+    expect(evaluateCondition("status == 'active'", { status: "inactive" })).toBe(false);
+  });
+
+  it("evaluates != ", () => {
+    expect(evaluateCondition("count != 0", { count: 5 })).toBe(true);
+    expect(evaluateCondition("count != 0", { count: 0 })).toBe(false);
+  });
+
+  it("evaluates > and <", () => {
+    expect(evaluateCondition("score > 3", { score: 5 })).toBe(true);
+    expect(evaluateCondition("score > 3", { score: 2 })).toBe(false);
+    expect(evaluateCondition("score < 10", { score: 5 })).toBe(true);
+    expect(evaluateCondition("score < 10", { score: 15 })).toBe(false);
+  });
+
+  it("evaluates >= and <=", () => {
+    expect(evaluateCondition("score >= 3", { score: 3 })).toBe(true);
+    expect(evaluateCondition("score >= 3", { score: 2 })).toBe(false);
+    expect(evaluateCondition("score <= 10", { score: 10 })).toBe(true);
+    expect(evaluateCondition("score <= 10", { score: 11 })).toBe(false);
+  });
+
+  it("evaluates with dotted paths", () => {
+    expect(evaluateCondition("review.score >= 3", { review: { score: 4 } })).toBe(true);
+  });
+
+  it("evaluates with boolean literals", () => {
+    expect(evaluateCondition("flag == true", { flag: true })).toBe(true);
+    expect(evaluateCondition("flag == false", { flag: false })).toBe(true);
+  });
+
+  it("evaluates with null literal", () => {
+    expect(evaluateCondition("val == null", { val: null })).toBe(true);
+    expect(evaluateCondition("val != null", { val: "something" })).toBe(true);
+  });
+
+  it("evaluates array length", () => {
+    expect(evaluateCondition("items.length > 0", { items: { length: 3 } })).toBe(true);
+    expect(evaluateCondition("items.length == 0", { items: { length: 0 } })).toBe(true);
+  });
+
+  it("preserves backwards compat with existing truthy/negation", () => {
+    expect(evaluateCondition("flag", { flag: true })).toBe(true);
+    expect(evaluateCondition("!flag", { flag: true })).toBe(false);
+    expect(evaluateCondition("missing", {})).toBe(false);
+  });
 });
 
 describe("resolveExpression", () => {
