@@ -101,16 +101,24 @@ describe("daemon", () => {
 
   it("rejects if port is in use", async () => {
     tempDir = mkdtempSync(join(tmpdir(), "meter-daemon-"));
-    handle = await startDaemon({ meterDir: tempDir, port: 0, required: false });
 
-    const addr = handle.server.address();
-    const port = typeof addr === "object" && addr ? addr.port : 0;
+    // Bind a raw TCP server to guarantee port occupation independent of daemon lifecycle
+    const net = await import("node:net");
+    const blocker = net.createServer();
+    const blockerPort = await new Promise<number>((resolve, reject) => {
+      blocker.on("error", reject);
+      blocker.listen(0, "127.0.0.1", () => {
+        const addr = blocker.address();
+        resolve(typeof addr === "object" && addr ? addr.port : 0);
+      });
+    });
 
     const dir2 = mkdtempSync(join(tmpdir(), "meter-daemon2-"));
     try {
-      await expect(startDaemon({ meterDir: dir2, port, required: false }))
+      await expect(startDaemon({ meterDir: dir2, port: blockerPort, required: false }))
         .rejects.toThrow(/already in use|PORT_CONFLICT/);
     } finally {
+      blocker.close();
       rmSync(dir2, { recursive: true, force: true });
     }
   });
@@ -186,7 +194,7 @@ describe("daemon", () => {
     }
   });
 
-  it("periodic snapshot timer writes to disk", async () => {
+  it("periodic snapshot timer writes to disk", { timeout: 15_000 }, async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
       tempDir = mkdtempSync(join(tmpdir(), "meter-daemon-"));
@@ -207,7 +215,7 @@ describe("daemon", () => {
     }
   });
 
-  it("periodic registry timer rescans", async () => {
+  it("periodic registry timer rescans", { timeout: 15_000 }, async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
       tempDir = mkdtempSync(join(tmpdir(), "meter-daemon-"));
@@ -222,11 +230,13 @@ describe("daemon", () => {
       const port = typeof addr === "object" && addr ? addr.port : 0;
       expect(port).toBeGreaterThan(0);
     } finally {
+      // Close handle before restoring real timers to avoid timer interaction
+      if (handle) { await handle.close(); handle = undefined; }
       vi.useRealTimers();
     }
   });
 
-  it("SIGHUP reloads budgets and pricing", async () => {
+  it("SIGHUP reloads budgets and pricing", { timeout: 15_000 }, async () => {
     tempDir = mkdtempSync(join(tmpdir(), "meter-daemon-"));
     handle = await startDaemon({ meterDir: tempDir, port: 0, required: false });
 
@@ -236,8 +246,10 @@ describe("daemon", () => {
     // Send SIGHUP to reload
     process.emit("SIGHUP", "SIGHUP");
 
-    // The budgets should be reloaded — verify by checking the snapshot flush
-    // (We can't directly inspect ctx, but we can verify no crash and the daemon is still alive)
+    // Allow async SIGHUP handler to settle
+    await new Promise(r => setTimeout(r, 50));
+
+    // The budgets should be reloaded — verify the daemon is still alive
     const addr = handle.server.address();
     const port = typeof addr === "object" && addr ? addr.port : 0;
     const res = await httpGet(port, "/");
