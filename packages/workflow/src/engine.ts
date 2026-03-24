@@ -267,17 +267,17 @@ export function createEngine(opts: CreateEngineOpts): WorkflowEngine {
       const ready = readySteps();
       const executed: string[] = [];
 
-      // Execute ready steps (could parallelize, but sequential for determinism in v1)
-      for (const stepName of ready) {
+      // Execute ready steps in parallel (they are independent — no mutual dependencies)
+      await Promise.all(ready.map(async (stepName) => {
         const stepDef = definition.steps[stepName]!;
-        const step = runState.steps[stepName]!;
+        const step = runState!.steps[stepName]!;
 
         // Idempotency: skip if already has a result
         if (step.output !== undefined) {
           step.status = "completed";
           saveState();
           executed.push(stepName);
-          continue;
+          return;
         }
 
         step.status = "running";
@@ -321,31 +321,30 @@ export function createEngine(opts: CreateEngineOpts): WorkflowEngine {
               step.status = "failed";
               step.error = `Output schema validation failed: ${errors.join("; ")}`;
               step.completedAt = new Date().toISOString();
-              runState.totalCostUsd += step.costUsd;
+              runState!.totalCostUsd += step.costUsd;
               saveState();
               executed.push(stepName);
-              continue;
+              return;
             }
           }
 
           step.status = "completed";
           step.completedAt = new Date().toISOString();
-          runState.totalCostUsd += step.costUsd;
+          runState!.totalCostUsd += step.costUsd;
 
           // Budget enforcement
-          if (definition.budgetUsd != null && runState.totalCostUsd >= definition.budgetUsd) {
+          if (definition.budgetUsd != null && runState!.totalCostUsd >= definition.budgetUsd) {
             // Mark remaining pending steps as skipped
-            for (const [, sState] of Object.entries(runState.steps)) {
+            for (const [, sState] of Object.entries(runState!.steps)) {
               if (sState.status === "pending") {
                 sState.status = "failed";
                 sState.error = "Budget exceeded";
                 sState.completedAt = new Date().toISOString();
               }
             }
-            runState.status = "failed";
-            runState.completedAt = new Date().toISOString();
+            runState!.status = "failed";
+            runState!.completedAt = new Date().toISOString();
             saveState();
-            break; // stop executing more steps
           }
         } catch (err) {
           /* v8 ignore start -- non-Error throw fallback */
@@ -367,7 +366,7 @@ export function createEngine(opts: CreateEngineOpts): WorkflowEngine {
 
         saveState();
         executed.push(stepName);
-      }
+      }));
 
       updateRunStatus();
       return executed;
