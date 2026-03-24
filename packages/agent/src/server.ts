@@ -5,6 +5,22 @@
  * - GET  /healthz                  — liveness check (no auth)
  * - GET  /bots                     — list local bots (for mesh discovery)
  * - POST /bots/:botName/query      — forward a query to a local bot
+ * - GET  /acl                      — ACL rules
+ * - GET  /models                   — available Claude models
+ * - GET  /node/info                — host node information
+ * - GET  /mesh/nodes               — mesh node list
+ * - GET  /settings/totp            — TOTP auth status
+ * - GET  /settings/runtime         — runtime settings
+ * - GET  /settings/network         — network settings
+ * - GET  /settings/auth-profiles   — auth profiles
+ * - GET  /schedules                — aggregate bot schedules
+ * - GET  /budgets                  — budget configuration
+ * - GET  /meter/cost               — today's metered cost
+ * - GET  /meter/status             — meter proxy status
+ * - GET  /audit                    — audit log (placeholder)
+ * - GET  /events/log               — event log (placeholder)
+ * - GET  /tools                    — MCP tools (placeholder)
+ * - GET  /tools/runtime            — runtime tool info (placeholder)
  */
 import Fastify from "fastify";
 import type { FastifyInstance } from "fastify";
@@ -163,6 +179,127 @@ export function createAgentServer(opts: AgentServerOptions): FastifyInstance {
       /* v8 ignore stop */
     },
   );
+
+  // ── Dashboard API routes ──────────────────────────────────────────
+
+  // ACL rules
+  app.get("/acl", async () => acl.listRules());
+
+  // Available models
+  app.get("/models", async () => {
+    const { CLAUDE_MODELS } = await import("@mecha/core");
+    return CLAUDE_MODELS;
+  });
+
+  // Node information
+  app.get("/node/info", async () => {
+    const { collectNodeInfo } = await import("@mecha/core");
+    return collectNodeInfo({
+      port: opts.port,
+      startedAt: opts.startedAt ?? new Date().toISOString(),
+      botCount: opts.processManager.list().length,
+      publicIp: opts.publicIp,
+    });
+  });
+
+  // Mesh nodes
+  app.get("/mesh/nodes", async () => {
+    const { readNodes } = await import("@mecha/core");
+    return readNodes(mechaDir).map((n) => ({
+      name: n.name, host: n.host, port: n.port,
+      status: "unknown",
+    }));
+  });
+
+  // TOTP status
+  app.get("/settings/totp", async () => ({
+    enabled: !!auth.totpSecret,
+  }));
+
+  // Runtime settings
+  app.get("/settings/runtime", async () => {
+    const { readMechaSettings } = await import("@mecha/core");
+    return readMechaSettings(mechaDir) ?? {};
+  });
+
+  // Network settings
+  app.get("/settings/network", async () => {
+    const { readNodes } = await import("@mecha/core");
+    const nodes = readNodes(mechaDir);
+    return { nodes: nodes.length, tailscale: false };
+  });
+
+  // Auth profiles
+  app.get("/settings/auth-profiles", async () => {
+    try {
+      const { listAuthProfiles } = await import("@mecha/core");
+      return listAuthProfiles(mechaDir);
+    /* v8 ignore start -- auth profiles may not be configured */
+    } catch { return []; }
+    /* v8 ignore stop */
+  });
+
+  // Schedules — aggregate from all running bots
+  app.get("/schedules", async () => {
+    const bots = opts.processManager.list().filter((b) => b.state === "running");
+    const schedules: unknown[] = [];
+    for (const bot of bots) {
+      const config = readBotConfig(join(mechaDir, bot.name));
+      if (!config) continue;
+      try {
+        const res = await fetch(`http://127.0.0.1:${config.port}/api/schedules`, {
+          headers: { Authorization: `Bearer ${config.token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          schedules.push(...(data as unknown[]).map((s) => ({ ...(s as Record<string, unknown>), bot: bot.name })));
+        }
+      /* v8 ignore start -- bot may be unreachable */
+      } catch { /* bot unreachable */ }
+      /* v8 ignore stop */
+    }
+    return schedules;
+  });
+
+  // Budgets
+  app.get("/budgets", async () => {
+    try {
+      const { readBudgets, meterDir } = await import("@mecha/meter");
+      return readBudgets(meterDir(mechaDir));
+    /* v8 ignore start -- meter may not be configured */
+    } catch { return { global: {}, byBot: {}, byAuthProfile: {}, byTag: {} }; }
+    /* v8 ignore stop */
+  });
+
+  // Meter cost
+  app.get("/meter/cost", async () => {
+    try {
+      const { queryCostToday, meterDir } = await import("@mecha/meter");
+      return queryCostToday(meterDir(mechaDir));
+    /* v8 ignore start -- meter may not be running */
+    } catch { return { period: "today", total: { costUsd: 0, requests: 0 }, byBot: {} }; }
+    /* v8 ignore stop */
+  });
+
+  // Meter status
+  app.get("/meter/status", async () => {
+    try {
+      const { getMeterStatus, meterDir } = await import("@mecha/meter");
+      return getMeterStatus(meterDir(mechaDir));
+    /* v8 ignore start -- meter may not be configured */
+    } catch { return { running: false }; }
+    /* v8 ignore stop */
+  });
+
+  // Audit log (placeholder)
+  app.get("/audit", async () => []);
+
+  // Event log (placeholder)
+  app.get("/events/log", async () => []);
+
+  // Tools list (placeholder)
+  app.get("/tools", async () => []);
+  app.get("/tools/runtime", async () => ({ claudePath: null, version: null }));
 
   // Serve SPA static files if spaDir is provided.
   // @fastify/static is an optional peer dependency — resolved from the caller's
