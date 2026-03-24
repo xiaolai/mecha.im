@@ -35,6 +35,7 @@ export interface TeamDef {
     topics?: string[];
     queues?: { name: string; maxRetries?: number }[];
   };
+  workflows?: string[];  // paths relative to team definition file
 }
 
 /** Result of deploying a team. */
@@ -45,6 +46,7 @@ export interface DeployResult {
   scaffolded: string[];
   busTopics: string[];
   busQueues: string[];
+  workflows: string[];
 }
 
 /** Deployed team metadata (persisted to teams.json). */
