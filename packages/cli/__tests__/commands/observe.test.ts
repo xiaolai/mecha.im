@@ -322,6 +322,18 @@ describe("workflow rate command", () => {
     );
   });
 
+  it("records a quality score with --workflow option", async () => {
+    tempDir = mkdtempSync(join(tmpdir(), "mecha-cli-rate-"));
+    const deps = makeDeps({ mechaDir: tempDir });
+    const program = createProgram(deps);
+    program.exitOverride();
+
+    await program.parseAsync(["node", "mecha", "workflow", "rate", "run-001", "5", "--workflow", "deploy"]);
+    expect(deps.formatter.success).toHaveBeenCalledWith(
+      expect.stringContaining("Recorded score 5/5"),
+    );
+  });
+
   it("rejects invalid score", async () => {
     tempDir = mkdtempSync(join(tmpdir(), "mecha-cli-rate-"));
     const deps = makeDeps({ mechaDir: tempDir });

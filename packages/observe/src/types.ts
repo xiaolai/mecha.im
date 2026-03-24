@@ -29,6 +29,7 @@ export interface RunTrace {
 /** Quality score entry. */
 export interface QualityScore {
   runId: string;
+  workflow?: string;
   stepId?: string;
   bot?: string;
   score: number;

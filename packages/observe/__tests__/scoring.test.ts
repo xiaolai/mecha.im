@@ -60,21 +60,33 @@ describe("ScoreStore", () => {
     expect(s2.all()).toHaveLength(1);
   });
 
-  it("avgForWorkflow returns average of run-level scores", () => {
+  it("avgForWorkflow returns average of matching workflow scores", () => {
     const store = createScoreStore(scoresDir);
-    // Run-level scores (no stepId)
-    store.record({ runId: "r1", score: 4, source: "human", scoredAt: "2026-03-21T10:00:00Z" });
-    store.record({ runId: "r2", score: 6, source: "automated", scoredAt: "2026-03-21T10:01:00Z" });
+    // Run-level scores with workflow field
+    store.record({ runId: "r1", workflow: "pipeline", score: 4, source: "human", scoredAt: "2026-03-21T10:00:00Z" });
+    store.record({ runId: "r2", workflow: "pipeline", score: 6, source: "automated", scoredAt: "2026-03-21T10:01:00Z" });
+    // Different workflow — should be excluded
+    store.record({ runId: "r3", workflow: "deploy", score: 1, source: "human", scoredAt: "2026-03-21T10:02:00Z" });
     // Step-level score (has stepId) — should be excluded
-    store.record({ runId: "r3", stepId: "draft", bot: "writer", score: 1, source: "implicit", scoredAt: "2026-03-21T10:02:00Z" });
+    store.record({ runId: "r4", workflow: "pipeline", stepId: "draft", bot: "writer", score: 1, source: "implicit", scoredAt: "2026-03-21T10:03:00Z" });
 
     expect(store.avgForWorkflow("pipeline")).toBe(5);
+  });
+
+  it("avgForWorkflow excludes scores without workflow field", () => {
+    const store = createScoreStore(scoresDir);
+    // Legacy score without workflow field
+    store.record({ runId: "r1", score: 4, source: "human", scoredAt: "2026-03-21T10:00:00Z" });
+    // Score with workflow field
+    store.record({ runId: "r2", workflow: "pipeline", score: 3, source: "human", scoredAt: "2026-03-21T10:01:00Z" });
+
+    expect(store.avgForWorkflow("pipeline")).toBe(3);
   });
 
   it("avgForWorkflow returns undefined when no run-level scores exist", () => {
     const store = createScoreStore(scoresDir);
     // Only step-level scores
-    store.record({ runId: "r1", stepId: "s1", bot: "writer", score: 3, source: "human", scoredAt: "2026-03-21T10:00:00Z" });
+    store.record({ runId: "r1", workflow: "pipeline", stepId: "s1", bot: "writer", score: 3, source: "human", scoredAt: "2026-03-21T10:00:00Z" });
 
     expect(store.avgForWorkflow("pipeline")).toBeUndefined();
   });
@@ -82,6 +94,12 @@ describe("ScoreStore", () => {
   it("avgForWorkflow returns undefined on empty store", () => {
     const store = createScoreStore(scoresDir);
     expect(store.avgForWorkflow("any")).toBeUndefined();
+  });
+
+  it("avgForWorkflow returns undefined for unknown workflow", () => {
+    const store = createScoreStore(scoresDir);
+    store.record({ runId: "r1", workflow: "pipeline", score: 5, source: "human", scoredAt: "2026-03-21T10:00:00Z" });
+    expect(store.avgForWorkflow("unknown")).toBeUndefined();
   });
 
   it("returns empty when scores file exists but is empty", () => {
