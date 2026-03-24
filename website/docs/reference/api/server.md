@@ -34,12 +34,8 @@ The `@mecha/server` package provides the rendezvous server for P2P peer discover
 | `isNewer` | Function | `vector-clock.ts` |
 | `diff` | Function | `vector-clock.ts` |
 | `GossipMessage` | Type | `gossip.ts` |
-| `registerSignaling` | Function | `signaling.ts` |
-| `registerInviteRoutes` | Function | `invites.ts` |
-| `registerRelay` | Function | `relay.ts` |
-| `registerGossip` | Function | `gossip.ts` |
 
-## `createServer(overrides?)`
+## `async createServer(overrides?): Promise<FastifyInstance>`
 
 Creates a fully configured Fastify server with WebSocket support, signaling, invites, relay, and optionally gossip.
 
@@ -112,7 +108,7 @@ await app.listen({ port: 7680, host: "0.0.0.0" });
 | `ws1` | `WebSocket` | First peer socket |
 | `ws2` | `WebSocket?` | Second peer socket (set on pairing) |
 | `createdAt` | `number` | Unix timestamp |
-| `timer` | `Timeout` | Pairing timeout handle |
+| `timer` | `ReturnType<typeof setTimeout>` | Pairing timeout handle |
 
 ### `ClientMessage`
 
@@ -141,7 +137,11 @@ Messages sent from server to client:
 | `error` | `code`, `message`, `requestId?` | Error response |
 | `lookup-result` | `found`, `peer?`, `requestId?` | Peer lookup result |
 
-## `registerSignaling(app, config, gossipCache?)`
+## Internal Registration Functions
+
+These functions are used internally by `createServer` and are not re-exported from the package barrel. They are documented here for architectural reference.
+
+### `registerSignaling(app, config, gossipCache?)`
 
 Registers the WebSocket signaling endpoint at `/ws`. Handles node registration (with Ed25519 signature verification and public key pinning), peer signaling, lookup (with gossip cache fallback), relay token issuance, and keepalive pings. Includes per-IP rate limiting (60 messages/minute).
 
@@ -153,7 +153,7 @@ function registerSignaling(
 ): void
 ```
 
-## `registerInviteRoutes(app, config)`
+### `registerInviteRoutes(app, config)`
 
 Registers HTTP routes for invite-based peer onboarding.
 
@@ -169,7 +169,7 @@ function registerInviteRoutes(app: FastifyInstance, config: ServerConfig): void
 | `GET` | `/invite/:token` | Get invite metadata. Returns `410` if consumed or expired |
 | `POST` | `/invite/:token/accept` | Accept an invite. Body: `{ name, publicKey, fingerprint, noisePublicKey? }`. Notifies inviter via WebSocket if online |
 
-## `registerRelay(app, config)`
+### `registerRelay(app, config)`
 
 Registers the WebSocket relay endpoint at `/relay`. Pairs two peers by a shared HMAC token for NAT traversal. Relay is a dumb bidirectional pipe -- identity enforcement happens at the Noise protocol layer.
 
@@ -183,7 +183,7 @@ function registerRelay(app: FastifyInstance, config: ServerConfig): void
 3. Bidirectional relay established (messages forwarded between peers)
 4. Session terminates after `relayMaxSessionMs` (1 hour) or peer disconnect
 
-## `registerGossip(app, opts)`
+### `registerGossip(app, opts)`
 
 Registers the WebSocket gossip endpoint at `/gossip`. Implements a push-based gossip protocol with vector clocks for eventually-consistent peer discovery across multiple rendezvous servers.
 
@@ -209,7 +209,9 @@ function registerGossip(app: FastifyInstance, opts: GossipOpts): void
 
 ## Agent Server Internals
 
-The following symbols are exported from `@mecha/agent` (the main agent HTTP server package). They handle request authentication and meter daemon lifecycle at the agent level.
+:::info Cross-package reference
+The following symbols are from `@mecha/agent`, not `@mecha/server`. They are documented here for context since the agent server uses the signaling server internally. See also [@mecha/agent](/reference/api/agent).
+:::
 
 ### `AuthOpts`
 

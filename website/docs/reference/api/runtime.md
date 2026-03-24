@@ -72,6 +72,8 @@ Each bot exposes these HTTP endpoints (localhost only):
 | `POST` | `/api/schedules/_pause-all` | Pause all schedules |
 | `POST` | `/api/schedules/_resume-all` | Resume all schedules |
 | `GET` | `/api/schedules/:id/history` | Schedule run history (supports `?limit=N`) |
+| `GET` | `/api/events` | SSE stream of real-time bot activity events (max 6 connections) |
+| `GET` | `/api/events/snapshot` | Current activity state snapshot (JSON) |
 | `POST` | `/api/tasks` | Accept and execute a task (see [Task Execution](#task-execution)) |
 | `POST` | `/api/tasks/:id/cancel` | Cancel a running task (see [Task Execution](#task-execution)) |
 | `GET` | `/api/tasks/:id/status` | Check task execution status (see [Task Execution](#task-execution)) |
@@ -114,7 +116,12 @@ await app.listen({ port: 7700, host: "127.0.0.1" });
 | `workspacePath` | `string` | Yes | Absolute path to the bot's workspace on disk |
 | `mechaDir` | `string` | No | Path to `~/.mecha` (enables mesh tools) |
 | `botDir` | `string` | No | Path to the bot root directory (enables scheduler) |
+| `systemPrompt` | `string` | No | Full system prompt override (mutually exclusive with `appendSystemPrompt`) |
+| `appendSystemPrompt` | `string` | No | Append to default system prompt (mutually exclusive with `systemPrompt`) |
 | `scheduleChatFn` | `ChatFn` | No | Function to execute scheduled chat prompts (used by scheduler only) |
+| `mcpServers` | `Record<string, unknown>` | No | MCP servers to connect the bot's Claude Code instance to |
+| `agentPort` | `number` | No | Agent daemon port for mesh routing proxy (default: `7660`) |
+| `agentApiKey` | `string` | No | Agent daemon API key for mesh routing proxy |
 
 **`ServerResult`**
 
@@ -167,6 +174,8 @@ Each route group is registered independently, allowing selective composition:
 | `registerHealthRoutes(app, opts)` | `GET /healthz`, `GET /info` | `HealthRouteOpts` |
 | `registerSessionRoutes(app, sm)` | `GET /api/sessions`, `GET /api/sessions/:id`, `DELETE /api/sessions/:id` | `SessionManager` |
 | `registerChatRoutes(app, chatFn)` | `POST /api/chat` | `HttpChatFn` |
+| `registerActivityEventsRoutes(app, opts)` | `GET /api/events` (SSE), `GET /api/events/snapshot` | `ActivityEventsRouteOpts` |
+| `registerTaskRoutes(app, opts)` | `POST /api/tasks`, `POST /api/tasks/:id/cancel`, `GET /api/tasks/:id/status` | `TaskRouteOpts` |
 | `registerScheduleRoutes(app, engine)` | All `/api/schedules/*` routes | `ScheduleEngine` |
 | `registerMcpRoutes(app, opts)` | `POST /mcp` | `McpRouteOpts` |
 
@@ -180,6 +189,24 @@ Each route group is registered independently, allowing selective composition:
 
 The `/info` endpoint returns: `name`, `port`, `startedAt`, `uptime` (seconds), and `memoryMB` (RSS in megabytes).
 
+**`ActivityEventsRouteOpts`**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `activityEmitter` | `ActivityEmitter` | Emitter for real-time bot activity events |
+| `botName` | `string` | Bot name to filter activity events |
+
+The `GET /api/events` endpoint streams SSE events for real-time bot activity visualization (max 6 concurrent connections). `GET /api/events/snapshot` returns the current activity state as JSON.
+
+**`TaskRouteOpts`**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `sdkChatOpts` | `SdkChatOpts` | SDK chat configuration for task execution |
+| `botName` | `string` | Bot name for agent server callbacks |
+| `agentUrl` | `string?` | Agent server URL for result callbacks (e.g. `http://127.0.0.1:7660`) |
+| `agentAuth` | `string?` | Bearer token for agent server authentication |
+
 **`McpRouteOpts`**
 
 | Field | Type | Description |
@@ -188,6 +215,8 @@ The `/info` endpoint returns: `name`, `port`, `startedAt`, `uptime` (seconds), a
 | `mechaDir` | `string?` | Enables mesh tools when provided with `botName` |
 | `botName` | `string?` | bot identity for mesh operations |
 | `router` | `MeshRouter?` | Router for cross-bot mesh queries |
+| `agentPort` | `number?` | Agent daemon port for proxy routing when no direct router (default: `7660`) |
+| `agentApiKey` | `string?` | Agent daemon API key for proxy authentication |
 
 ## `MeshRouter` Interface
 
@@ -225,6 +254,11 @@ interface SdkChatOpts {
   workspacePath: string;
   settingSources?: readonly ("project" | "user" | "local")[];
   env?: Record<string, string | undefined>;
+  systemPrompt?: string;
+  appendSystemPrompt?: string;
+  activityEmitter?: ActivityEmitter;
+  botName?: string;
+  mcpServers?: Record<string, unknown>;
 }
 ```
 
@@ -233,6 +267,11 @@ interface SdkChatOpts {
 | `workspacePath` | `string` | Yes | Bot's workspace directory -- passed as `cwd` to `query()` |
 | `settingSources` | `readonly ("project" \| "user" \| "local")[]` | No | Which setting sources to load (CLAUDE.md, rules, skills, hooks). Defaults to `["project", "user"]` — bots load both project-level (`$CWD/.claude/`) and user-level (`$HOME/.claude/`) config |
 | `env` | `Record<string, string \| undefined>` | No | Environment variables for the spawned claude process |
+| `systemPrompt` | `string` | No | Full system prompt override (mutually exclusive with `appendSystemPrompt`) |
+| `appendSystemPrompt` | `string` | No | Append to default system prompt (mutually exclusive with `systemPrompt`) |
+| `activityEmitter` | `ActivityEmitter` | No | Activity emitter for real-time visualization events |
+| `botName` | `string` | No | Bot name used as the activity event source |
+| `mcpServers` | `Record<string, unknown>` | No | MCP servers to connect to |
 
 ### `sdkChat(opts, message, sessionId?, signal?)`
 

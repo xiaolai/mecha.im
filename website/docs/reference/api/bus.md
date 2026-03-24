@@ -22,6 +22,7 @@ The bus package provides a filesystem-backed message broker with durable work qu
 | `createReplicator` | Function | `replicator.ts` |
 | `Replicator` | Interface | `replicator.ts` |
 | `ReplicatorOpts` | Interface | `replicator.ts` |
+| `ReplicatorFetchFn` | Type | `replicator.ts` |
 | `ReplicationResult` | Interface | `replicator.ts` |
 | `BusMessage` | Interface | `types.ts` |
 | `QueueConfig` | Interface | `types.ts` |
@@ -117,7 +118,29 @@ Create a pub/sub topic. Messages are appended to a JSONL file. Subscribers track
 function createReplicator(opts: ReplicatorOpts): Replicator
 ```
 
-Create a cross-node replicator that forwards messages to remote bus instances.
+Create a cross-node replicator that forwards messages to remote bus instances. The full signature includes a `fetchFn` and a `readNodesFn` for dependency injection:
+
+```ts
+function createReplicator(
+  opts: ReplicatorOpts,
+  fetchFn: ReplicatorFetchFn,
+  readNodesFn: (mechaDir: string) => Array<{ name: string; host: string; port: number; apiKey: string }>,
+): Replicator
+```
+
+### `ReplicatorFetchFn`
+
+Fetch function signature used by the replicator for dependency injection (matches the agent fetch pattern).
+
+```ts
+type ReplicatorFetchFn = (opts: {
+  node: { name: string; host: string; port: number; apiKey: string };
+  path: string;
+  method: string;
+  body: unknown;
+  allowPrivateHosts?: boolean;
+}) => Promise<{ ok: boolean; status: number }>;
+```
 
 ### `Replicator` interface
 

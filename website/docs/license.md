@@ -5,6 +5,8 @@ description: Mecha is released under the ISC License.
 
 # ISC License
 
+[[toc]]
+
 Mecha is released under the **ISC License**, one of the simplest and most permissive open-source licenses.
 
 ## The License

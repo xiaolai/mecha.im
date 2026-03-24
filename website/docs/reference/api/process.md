@@ -203,6 +203,25 @@ function prepareBotFilesystem(opts: BotFilesystemOpts): BotFilesystemResult
 | `userEnv` | `Record<string, string>` | No | User environment variables (reserved keys are filtered) |
 | `meterOff` | `boolean` | No | Disable meter proxy integration |
 | `home` | `string` | No | Override HOME directory |
+| `systemPrompt` | `string` | No | Full system prompt override (mutually exclusive with `appendSystemPrompt`) |
+| `appendSystemPrompt` | `string` | No | Append to default system prompt (mutually exclusive with `systemPrompt`) |
+| `effort` | `"low" \| "medium" \| "high"` | No | LLM effort level |
+| `maxBudgetUsd` | `number` | No | Maximum budget in USD |
+| `allowedTools` | `string[]` | No | Additive tool filter (mutually exclusive with `tools`) |
+| `disallowedTools` | `string[]` | No | Subtractive tool filter (mutually exclusive with `tools`) |
+| `tools` | `string[]` | No | Full tool override (mutually exclusive with `allowedTools` and `disallowedTools`) |
+| `agent` | `string` | No | Agent identity name |
+| `agents` | `Record<string, { description, prompt }>` | No | Named agent definitions |
+| `sessionPersistence` | `boolean` | No | Enable session persistence |
+| `budgetLimit` | `number` | No | Budget limit per session |
+| `mcpServers` | `Record<string, unknown>` | No | MCP servers to connect to |
+| `mcpConfigFiles` | `string[]` | No | Paths to MCP config files |
+| `strictMcpConfig` | `boolean` | No | Strict MCP configuration mode |
+| `disableSlashCommands` | `boolean` | No | Disable slash commands |
+| `dangerouslySkipPermissions` | `boolean` | No | Skip permission prompts (requires `sandboxMode: "require"`) |
+| `allowDangerouslySkipPermissions` | `boolean` | No | Allow the dangerous skip permissions flag |
+| `fallbackModel` | `string` | No | Fallback model if primary is unavailable |
+| `addDirs` | `string[]` | No | Additional directories to mount in sandbox |
 
 **`BotFilesystemResult`**
 
