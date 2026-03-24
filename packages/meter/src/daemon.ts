@@ -86,6 +86,13 @@ export async function startDaemon(opts: DaemonOpts): Promise<DaemonHandle> {
   };
 
   const server = createServer((req: IncomingMessage, res: ServerResponse) => {
+    // Health check endpoint — no auth required so bot spawn probes succeed
+    if (req.url === "/healthz" && (!req.method || req.method === "GET")) {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ status: "ok" }));
+      return;
+    }
+
     // Auth check: if authToken is configured, verify Bearer token (timing-safe)
     if (opts.authToken) {
       const authHeader = req.headers.authorization ?? "";
