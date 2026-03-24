@@ -1,5 +1,3 @@
-// TODO: This file exceeds 350 lines. Planned extraction: move validateOutput(),
-// assertNoCycles(), and parseTimeout() to a separate workflow-helpers.ts module.
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -11,6 +9,8 @@ import type {
 } from "./types.js";
 import { renderTemplate, evaluateCondition } from "./template.js";
 import { parseInterval, atomicWriteSync, assertSafeName, createLogger } from "@mecha/core";
+import { assertNoCycles } from "./dag-validation.js";
+import { validateOutput } from "./schema-validation.js";
 
 const log = createLogger("mecha:workflow");
 
@@ -19,59 +19,6 @@ const DEFAULT_STEP_TIMEOUT_MS = 600_000; // 10 minutes
 function parseTimeout(timeout?: string): number {
   if (!timeout) return DEFAULT_STEP_TIMEOUT_MS;
   return parseInterval(timeout) ?? DEFAULT_STEP_TIMEOUT_MS;
-}
-
-/** Detect cycles in the step dependency graph. Throws if a cycle is found. */
-function assertNoCycles(steps: Record<string, { depends?: string[] }>): void {
-  const visited = new Set<string>();
-  const visiting = new Set<string>();
-
-  function visit(name: string): void {
-    if (visited.has(name)) return;
-    if (visiting.has(name)) throw new Error(`Cycle detected in workflow dependencies involving "${name}"`);
-    visiting.add(name);
-    const deps = steps[name]?.depends ?? [];
-    for (const dep of deps) {
-      const depName = dep.endsWith("?") ? dep.slice(0, -1) : dep;
-      if (!steps[depName]) throw new Error(`Step "${name}" depends on unknown step "${depName}"`);
-      visit(depName);
-    }
-    visiting.delete(name);
-    visited.add(name);
-  }
-
-  for (const name of Object.keys(steps)) visit(name);
-}
-
-/** Validate step output against a simple schema. Returns array of error strings. */
-function validateOutput(output: unknown, schema: Record<string, unknown>): string[] {
-  const errors: string[] = [];
-  const schemaType = schema.type as string | undefined;
-
-  if (schemaType === "object") {
-    if (typeof output !== "object" || output === null) {
-      errors.push(`Expected object, got ${typeof output}`);
-      return errors;
-    }
-    const obj = output as Record<string, unknown>;
-    const required = (schema.required as string[]) ?? [];
-    for (const key of required) {
-      if (!(key in obj)) {
-        errors.push(`Missing required field: ${key}`);
-      }
-    }
-    const properties = (schema.properties as Record<string, { type?: string }>) ?? {};
-    for (const [key, propSchema] of Object.entries(properties)) {
-      if (key in obj && propSchema.type) {
-        const actual = typeof obj[key];
-        if (actual !== propSchema.type) {
-          errors.push(`Field "${key}": expected ${propSchema.type}, got ${actual}`);
-        }
-      }
-    }
-  }
-
-  return errors;
 }
 
 /**
