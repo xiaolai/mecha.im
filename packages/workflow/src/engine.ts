@@ -118,7 +118,8 @@ export function createEngine(opts: CreateEngineOpts): WorkflowEngine {
       const stepDef = definition.steps[name]!;
 
       // Safety guard: prevent execution if maxRetries exhausted
-      if (stepDef.maxRetries != null && step.attempts >= stepDef.maxRetries) {
+      // maxRetries must be > 0 to take effect; 0 or negative values are ignored
+      if (stepDef.maxRetries != null && stepDef.maxRetries > 0 && step.attempts >= stepDef.maxRetries) {
         step.status = "failed";
         step.error = `Max retries exceeded (${stepDef.maxRetries})`;
         step.completedAt = new Date().toISOString();
@@ -257,13 +258,13 @@ export function createEngine(opts: CreateEngineOpts): WorkflowEngine {
           const errorMsg = err instanceof Error ? err.message : String(err);
           /* v8 ignore stop */
 
-          // If maxRetries is set and we haven't exhausted attempts, retry
-          if (stepDef.maxRetries != null && step.attempts < stepDef.maxRetries) {
+          // If maxRetries is set (and > 0) and we haven't exhausted attempts, retry
+          if (stepDef.maxRetries != null && stepDef.maxRetries > 0 && step.attempts < stepDef.maxRetries) {
             step.status = "pending";  // back to pending for re-execution
             step.error = errorMsg;    // preserve last error for debugging
           } else {
             step.status = "failed";
-            step.error = stepDef.maxRetries != null
+            step.error = stepDef.maxRetries != null && stepDef.maxRetries > 0
               ? `Max retries exceeded (${stepDef.maxRetries}): ${errorMsg}`
               : errorMsg;
             step.completedAt = new Date().toISOString();
