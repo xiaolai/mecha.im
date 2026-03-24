@@ -36,6 +36,12 @@ export interface TeamDef {
     queues?: { name: string; maxRetries?: number }[];
   };
   workflows?: string[];  // paths relative to team definition file
+  schedules?: Array<{
+    bot: string;    // must reference a bot in the team
+    id: string;
+    every: string;  // interval or cron expression
+    prompt: string;
+  }>;
 }
 
 /** Result of deploying a team. */
@@ -47,6 +53,7 @@ export interface DeployResult {
   busTopics: string[];
   busQueues: string[];
   workflows: string[];
+  schedules: number;
 }
 
 /** Deployed team metadata (persisted to teams.json). */

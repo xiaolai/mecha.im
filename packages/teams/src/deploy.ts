@@ -60,6 +60,8 @@ export interface DeployOpts {
   createBusQueue?: (name: string, opts?: { maxRetries?: number }) => void;
   /** Directory containing the team definition file (for resolving relative workflow paths). */
   teamFileDir?: string;
+  /** Callback to add a schedule to a bot. */
+  addSchedule?: (bot: string, schedule: { id: string; every: string; prompt: string }) => Promise<void>;
 }
 
 /**
@@ -151,6 +153,19 @@ export async function deployTeam(opts: DeployOpts): Promise<DeployResult> {
     }
   }
 
+  // Register schedules on bots
+  let schedulesCount = 0;
+  if (definition.schedules && opts.addSchedule) {
+    for (const sched of definition.schedules) {
+      await opts.addSchedule(sched.bot, {
+        id: sched.id,
+        every: sched.every,
+        prompt: sched.prompt,
+      });
+      schedulesCount++;
+    }
+  }
+
   // Register deployed team
   const teams = loadTeams(mechaDir);
   const existing = teams.findIndex((t) => t.name === definition.name);
@@ -162,6 +177,7 @@ export async function deployTeam(opts: DeployOpts): Promise<DeployResult> {
     deployedAt: new Date().toISOString(),
     bus: definition.bus,
     workflows: copiedWorkflows.length > 0 ? copiedWorkflows : undefined,
+    schedules: definition.schedules,
   };
   if (existing >= 0) {
     teams[existing] = entry;
@@ -178,6 +194,7 @@ export async function deployTeam(opts: DeployOpts): Promise<DeployResult> {
     busTopics,
     busQueues,
     workflows: copiedWorkflows,
+    schedules: schedulesCount,
   };
 }
 

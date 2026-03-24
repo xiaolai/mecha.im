@@ -291,6 +291,34 @@ describe("deployTeam", () => {
     })).rejects.toThrow('Workflow file not found: missing.yaml');
   });
 
+  it("registers schedules on bots during deploy", async () => {
+    const def = makeDef();
+    def.schedules = [
+      { bot: "developer", id: "hourly-check", every: "1h", prompt: "run tests" },
+      { bot: "reviewer", id: "daily-review", every: "30m", prompt: "review PRs" },
+    ];
+
+    const addedSchedules: Array<{ bot: string; schedule: { id: string; every: string; prompt: string } }> = [];
+
+    const result = await deployTeam({
+      definition: def,
+      mechaDir,
+      spawnBot: makeSpawnBot(),
+      grantAcl: makeGrantAcl(),
+      addSchedule: async (bot, schedule) => { addedSchedules.push({ bot, schedule }); },
+    });
+
+    expect(result.schedules).toBe(2);
+    expect(addedSchedules).toEqual([
+      { bot: "developer", schedule: { id: "hourly-check", every: "1h", prompt: "run tests" } },
+      { bot: "reviewer", schedule: { id: "daily-review", every: "30m", prompt: "review PRs" } },
+    ]);
+
+    // Verify schedules are persisted in teams.json
+    const teams = listTeams(mechaDir);
+    expect(teams[0]!.schedules).toEqual(def.schedules);
+  });
+
   it("returns empty workflows when no workflow definition", async () => {
     const def = makeDef();
     const result = await deployTeam({
