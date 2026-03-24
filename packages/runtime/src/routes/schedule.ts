@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import type { ScheduleEngine } from "../scheduler.js";
 import {
   ScheduleAddInput,
-  parseInterval,
+  parseScheduleExpression,
   MechaError,
   InvalidIntervalError,
 } from "@mecha/core";
@@ -36,13 +36,16 @@ export function registerScheduleRoutes(
   app.post("/api/schedules", async (request, reply) => {
     try {
       const input = ScheduleAddInput.parse(request.body);
-      const intervalMs = parseInterval(input.every);
-      if (intervalMs === undefined) {
+      const parsed = parseScheduleExpression(input.every);
+      if (!parsed) {
         throw new InvalidIntervalError(input.every);
       }
+      const trigger = parsed.type === "interval"
+        ? { type: "interval" as const, every: input.every, intervalMs: parsed.nextMs()! }
+        : { type: "cron" as const, every: input.every };
       engine.addSchedule({
         id: input.id,
-        trigger: { type: "interval", every: input.every, intervalMs },
+        trigger,
         prompt: input.prompt,
       });
       reply.code(201).send({ ok: true, id: input.id });

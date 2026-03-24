@@ -137,7 +137,15 @@ const intervalTriggerSchema = z.object({
   { message: "intervalMs must match parsed value of every" },
 );
 
-const scheduleTriggerSchema = intervalTriggerSchema;
+const cronTriggerSchema = z.object({
+  type: z.literal("cron"),
+  every: z.string().min(1),
+}).refine(
+  (t) => isCronExpression(t.every),
+  { message: "every must be a valid cron expression" },
+);
+
+const scheduleTriggerSchema = z.union([intervalTriggerSchema, cronTriggerSchema]);
 
 /** Zod schema for a single schedule entry (id, trigger, prompt). */
 export const ScheduleEntrySchema = z.object({
