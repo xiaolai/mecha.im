@@ -278,6 +278,44 @@ describe("Topic", () => {
       expect(topic.messageCount()).toBe(1);
     });
 
+    it("adjusts subscriber cursors after removing old messages", () => {
+      const topic = createTopic({
+        busDir,
+        config: { name: "retention-cursor", retentionDays: 7 },
+      });
+
+      // Publish 3 messages, backdate the first one
+      topic.publish({ id: "old-1", sender: "test", payload: "old" });
+      topic.publish({ id: "msg-2", sender: "test", payload: "mid" });
+      topic.publish({ id: "msg-3", sender: "test", payload: "new" });
+
+      // Subscribe — cursor starts at 3 (end of messages)
+      topic.subscribe({ bot: "worker", concurrency: 10 });
+
+      // Manually set cursor to 1 (simulate having read only msg-1)
+      const subsPath = join(busDir, "topics", "retention-cursor", "subscribers.json");
+      const subs = JSON.parse(readFileSync(subsPath, "utf-8"));
+      subs[0].cursor = 1;
+      writeFileSync(subsPath, JSON.stringify(subs));
+
+      // Backdate the first message to be older than retention
+      const messagesPath = join(busDir, "topics", "retention-cursor", "messages.jsonl");
+      const messages = readFileSync(messagesPath, "utf-8")
+        .trim()
+        .split("\n")
+        .map((l) => JSON.parse(l));
+      messages[0].ts = new Date(Date.now() - 100 * 86_400_000).toISOString();
+      writeFileSync(messagesPath, messages.map((m: unknown) => JSON.stringify(m)).join("\n") + "\n");
+
+      // Enforce retention — removes 1 old message
+      const removed = topic.enforceRetention();
+      expect(removed).toBe(1);
+
+      // Cursor should be adjusted from 1 to 0
+      const updatedSubs = topic.subscribers();
+      expect(updatedSubs[0]!.cursor).toBe(0);
+    });
+
     it("returns 0 when no messages need removal", () => {
       const topic = createTopic({
         busDir,
