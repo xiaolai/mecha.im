@@ -222,3 +222,6 @@ export type {
   ScheduleConfig,
   ScheduleState,
 } from "./schedule.js";
+
+// Template Engine (shared)
+export { renderTemplate, evaluateCondition, resolveExpression } from "./template.js";
