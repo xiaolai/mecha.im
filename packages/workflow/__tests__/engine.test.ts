@@ -769,4 +769,28 @@ describe("WorkflowEngine", () => {
       expect(engine.state().status).toBe("failed");
     });
   });
+
+  describe("workflow outputs", () => {
+    it("computes workflow outputs when run completes", async () => {
+      const def: WorkflowDef = {
+        name: "output-test",
+        steps: {
+          compute: { bot: "bot", prompt: "go", output: "result" },
+        },
+        outputs: {
+          summary: "Result was: {{compute.result}}",
+        },
+      };
+      const engine = createEngine({ workflowsDir, definition: def });
+      engine.startRun();
+
+      const exec: StepExecutor = async () => ({ output: "42" });
+      await engine.executeReady(exec);
+
+      const state = engine.state();
+      expect(state.status).toBe("done");
+      expect(state.outputs).toBeDefined();
+      expect(state.outputs!.summary).toBe("Result was: 42");
+    });
+  });
 });

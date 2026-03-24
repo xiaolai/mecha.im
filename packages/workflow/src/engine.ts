@@ -171,6 +171,15 @@ export function createEngine(opts: CreateEngineOpts): WorkflowEngine {
     } else if (allDone) {
       runState.status = "done";
       runState.completedAt = new Date().toISOString();
+
+      // Compute workflow outputs
+      if (definition.outputs) {
+        const ctx = buildContext();
+        runState.outputs = {};
+        for (const [key, tmpl] of Object.entries(definition.outputs)) {
+          runState.outputs[key] = renderTemplate(tmpl, ctx);
+        }
+      }
     }
     saveState();
   }
