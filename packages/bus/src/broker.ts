@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, existsSync } from "node:fs";
+import { mkdirSync, readFileSync, existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { atomicWriteSync } from "@mecha/core";
 import type { BusConfig, QueueConfig, TopicConfig } from "./types.js";
@@ -12,6 +12,12 @@ export interface Broker {
 
   /** Create or get a pub/sub topic. */
   topic(name: string, config?: Partial<Omit<TopicConfig, "name">>): Topic;
+
+  /** Remove a queue and its data from disk. Returns true if it existed. */
+  removeQueue(name: string): boolean;
+
+  /** Remove a topic and its data from disk. Returns true if it existed. */
+  removeTopic(name: string): boolean;
 
   /** List all queue names. */
   queueNames(): string[];
@@ -97,6 +103,32 @@ export function createBroker(busDir: string): Broker {
       saveConfig(c);
 
       return t;
+    },
+
+    removeQueue(name) {
+      const existed = queues.has(name);
+      queues.delete(name);
+      const c = loadConfig();
+      delete c.queues[name];
+      saveConfig(c);
+      const queueDir = join(busDir, "queues", name);
+      if (existsSync(queueDir)) {
+        rmSync(queueDir, { recursive: true, force: true });
+      }
+      return existed;
+    },
+
+    removeTopic(name) {
+      const existed = topics.has(name);
+      topics.delete(name);
+      const c = loadConfig();
+      delete c.topics[name];
+      saveConfig(c);
+      const topicDir = join(busDir, "topics", name);
+      if (existsSync(topicDir)) {
+        rmSync(topicDir, { recursive: true, force: true });
+      }
+      return existed;
     },
 
     queueNames() {

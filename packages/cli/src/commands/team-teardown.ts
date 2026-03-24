@@ -1,7 +1,9 @@
+import { join } from "node:path";
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { listTeams, teardownTeam } from "@mecha/teams";
 import { botName as toBotName } from "@mecha/core";
+import { createBroker } from "@mecha/bus";
 import { withErrorHandler } from "../error-handler.js";
 
 /** Register the 'team teardown' subcommand. */
@@ -37,9 +39,15 @@ export function registerTeamTeardownCommand(parent: Command, deps: CommandDeps):
           deps.formatter.info(`Stopped bot: ${bot}`);
         },
         removeBusTopic: (topicName) => {
+          const busDir = join(deps.mechaDir, "bus");
+          const broker = createBroker(busDir);
+          broker.removeTopic(topicName);
           deps.formatter.info(`Removed bus topic: ${topicName}`);
         },
         removeBusQueue: (queueName) => {
+          const busDir = join(deps.mechaDir, "bus");
+          const broker = createBroker(busDir);
+          broker.removeQueue(queueName);
           deps.formatter.info(`Removed bus queue: ${queueName}`);
         },
         removeSchedule: async (bot, id) => {
