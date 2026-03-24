@@ -76,8 +76,14 @@ function parseSessionCookie(cookieHeader: string | undefined): string | undefine
  */
 export function createAuthHook(authCtx: AuthContext) {
   return async (req: FastifyRequest, reply: FastifyReply): Promise<void> => {
-    // Skip auth for health check
+    // Skip auth for health check and static assets (SPA needs to load for login page)
     if (req.url === "/healthz") return;
+    if (req.url.startsWith("/api/auth/")) return; // TOTP login/verify endpoints
+    if (req.url.startsWith("/_astro/") || req.url.startsWith("/assets/")) return; // Vite build assets
+    if (req.url.endsWith(".js") || req.url.endsWith(".css") || req.url.endsWith(".svg") || req.url.endsWith(".ico") || req.url.endsWith(".png") || req.url.endsWith(".woff2") || req.url.endsWith(".html")) return;
+    // Allow SPA root page (the SPA handles auth state client-side)
+    const accept = req.headers.accept ?? "";
+    if (req.method === "GET" && !req.url.startsWith("/api/") && accept.includes("text/html")) return;
 
     const { config } = authCtx;
 
