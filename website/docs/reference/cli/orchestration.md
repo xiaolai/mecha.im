@@ -402,6 +402,26 @@ Drains all pending messages into the dead-letter store. Reports the number of me
 mecha bus queue drain tasks
 ```
 
+### `mecha bus queue push`
+
+Push a message onto a queue.
+
+```bash
+mecha bus queue push <queue> <message>
+```
+
+| Argument | Description |
+|----------|-------------|
+| `<queue>` | Queue name |
+| `<message>` | Message payload (string or JSON) |
+
+If `<message>` is valid JSON it is parsed as a structured payload; otherwise it is used as a plain string.
+
+```bash
+mecha bus queue push tasks "Analyze the codebase"
+mecha bus queue push work-items '{"type":"review","target":"main.ts"}'
+```
+
 ## Team
 
 All team commands live under `mecha team`. Teams are groups of bots deployed from a JSON definition file, with ACL rules automatically configured.
