@@ -1,5 +1,6 @@
-import { readFileSync, existsSync, writeFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import { atomicWriteSync } from "@mecha/core";
 import type { BusMessage } from "./types.js";
 import { createTopic } from "./topic.js";
 
@@ -77,7 +78,7 @@ export function createReplicator(
   }
 
   function saveState(state: ReplicatorState): void {
-    writeFileSync(statePath, JSON.stringify(state, null, 2) + "\n");
+    atomicWriteSync(statePath, JSON.stringify(state, null, 2) + "\n");
   }
 
   /** Read all messages from the topic's JSONL file directly. */

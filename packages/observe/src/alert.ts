@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import { atomicWriteSync } from "@mecha/core";
 import type { AlertRule, Alert } from "./types.js";
 
 /** Rule-based alert engine with threshold evaluation. */
@@ -35,7 +36,7 @@ export function createAlertEngine(alertsDir: string): AlertEngine {
   }
 
   function saveRules(rules: AlertRule[]): void {
-    writeFileSync(rulesPath, JSON.stringify(rules, null, 2) + "\n");
+    atomicWriteSync(rulesPath, JSON.stringify(rules, null, 2) + "\n");
   }
 
   function compare(value: number, threshold: number, comparison: AlertRule["comparison"]): boolean {

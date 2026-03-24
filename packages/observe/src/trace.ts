@@ -1,6 +1,6 @@
-import { mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync } from "node:fs";
+import { mkdirSync, readFileSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { assertSafeName } from "@mecha/core";
+import { assertSafeName, atomicWriteSync } from "@mecha/core";
 import type { RunTrace, StepTrace } from "./types.js";
 
 /** File-backed store for workflow run traces. */
@@ -32,7 +32,7 @@ export function createTraceStore(tracesDir: string): TraceStore {
       const dir = join(tracesDir, trace.workflow);
       mkdirSync(dir, { recursive: true });
       const path = join(dir, `${trace.traceId}.trace.json`);
-      writeFileSync(path, JSON.stringify(trace, null, 2) + "\n");
+      atomicWriteSync(path, JSON.stringify(trace, null, 2) + "\n");
     },
 
     load(workflow, traceId) {

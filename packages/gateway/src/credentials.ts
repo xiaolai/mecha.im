@@ -1,5 +1,6 @@
-import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { mkdirSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import { atomicWriteSync } from "@mecha/core";
 import type { StoredSecret, SecretGrant, CredentialStore } from "./types.js";
 
 /**
@@ -17,7 +18,7 @@ export function createCredentialStore(secretsDir: string): CredentialStore {
   }
 
   function saveSecrets(secrets: StoredSecret[]): void {
-    writeFileSync(secretsPath, JSON.stringify(secrets, null, 2) + "\n", { mode: 0o600 });
+    atomicWriteSync(secretsPath, JSON.stringify(secrets, null, 2) + "\n");
   }
 
   function loadGrants(): SecretGrant[] {
@@ -26,7 +27,7 @@ export function createCredentialStore(secretsDir: string): CredentialStore {
   }
 
   function saveGrants(grants: SecretGrant[]): void {
-    writeFileSync(grantsPath, JSON.stringify(grants, null, 2) + "\n", { mode: 0o600 });
+    atomicWriteSync(grantsPath, JSON.stringify(grants, null, 2) + "\n");
   }
 
   /**
