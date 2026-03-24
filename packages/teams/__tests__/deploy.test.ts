@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { mkdtempSync, existsSync, readFileSync } from "node:fs";
+import { mkdtempSync, existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { deployTeam, listTeams, unregisterTeam } from "../src/deploy.js";
@@ -249,6 +249,57 @@ describe("deployTeam", () => {
     });
     expect(result.busTopics).toEqual([]);
     expect(result.busQueues).toEqual([]);
+  });
+
+  it("copies workflow files during deploy", async () => {
+    const teamFileDir = mkdtempSync(join(tmpdir(), "mecha-teamfile-"));
+    writeFileSync(join(teamFileDir, "build.yaml"), "steps:\n  - name: build\n");
+    writeFileSync(join(teamFileDir, "deploy.yaml"), "steps:\n  - name: deploy\n");
+
+    const def = makeDef();
+    def.workflows = ["build.yaml", "deploy.yaml"];
+
+    const result = await deployTeam({
+      definition: def,
+      mechaDir,
+      spawnBot: makeSpawnBot(),
+      grantAcl: makeGrantAcl(),
+      teamFileDir,
+    });
+
+    expect(result.workflows).toEqual(["build.yaml", "deploy.yaml"]);
+    expect(existsSync(join(mechaDir, "workflows", "build.yaml"))).toBe(true);
+    expect(existsSync(join(mechaDir, "workflows", "deploy.yaml"))).toBe(true);
+    expect(readFileSync(join(mechaDir, "workflows", "build.yaml"), "utf-8")).toContain("build");
+
+    // Verify workflows are persisted in teams.json
+    const teams = listTeams(mechaDir);
+    expect(teams[0]!.workflows).toEqual(["build.yaml", "deploy.yaml"]);
+  });
+
+  it("throws when workflow file is missing", async () => {
+    const teamFileDir = mkdtempSync(join(tmpdir(), "mecha-teamfile-"));
+    const def = makeDef();
+    def.workflows = ["missing.yaml"];
+
+    await expect(deployTeam({
+      definition: def,
+      mechaDir,
+      spawnBot: makeSpawnBot(),
+      grantAcl: makeGrantAcl(),
+      teamFileDir,
+    })).rejects.toThrow('Workflow file not found: missing.yaml');
+  });
+
+  it("returns empty workflows when no workflow definition", async () => {
+    const def = makeDef();
+    const result = await deployTeam({
+      definition: def,
+      mechaDir,
+      spawnBot: makeSpawnBot(),
+      grantAcl: makeGrantAcl(),
+    });
+    expect(result.workflows).toEqual([]);
   });
 
   it("scaffolds with only mechaDir as allowed root when home and workspace are absent", async () => {

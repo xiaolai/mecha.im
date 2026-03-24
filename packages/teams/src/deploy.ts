@@ -1,5 +1,5 @@
-import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
-import { join, dirname, resolve } from "node:path";
+import { mkdirSync, writeFileSync, readFileSync, existsSync, copyFileSync } from "node:fs";
+import { join, dirname, resolve, basename } from "node:path";
 import type { TeamDef, DeployResult, DeployedTeam } from "./types.js";
 import { validateTeamDef } from "./definition.js";
 
@@ -58,6 +58,8 @@ export interface DeployOpts {
   createBusTopic?: (name: string) => void;
   /** Callback to create a bus queue. */
   createBusQueue?: (name: string, opts?: { maxRetries?: number }) => void;
+  /** Directory containing the team definition file (for resolving relative workflow paths). */
+  teamFileDir?: string;
 }
 
 /**
@@ -133,6 +135,22 @@ export async function deployTeam(opts: DeployOpts): Promise<DeployResult> {
     }
   }
 
+  // Copy workflow definitions
+  const copiedWorkflows: string[] = [];
+  if (definition.workflows && opts.teamFileDir) {
+    const workflowsDir = join(mechaDir, "workflows");
+    mkdirSync(workflowsDir, { recursive: true });
+    for (const relPath of definition.workflows) {
+      const src = resolve(opts.teamFileDir, relPath);
+      if (!existsSync(src)) {
+        throw new Error(`Workflow file not found: ${relPath}`);
+      }
+      const dest = join(workflowsDir, basename(relPath));
+      copyFileSync(src, dest);
+      copiedWorkflows.push(basename(relPath));
+    }
+  }
+
   // Register deployed team
   const teams = loadTeams(mechaDir);
   const existing = teams.findIndex((t) => t.name === definition.name);
@@ -143,6 +161,7 @@ export async function deployTeam(opts: DeployOpts): Promise<DeployResult> {
     bots: botNames,
     deployedAt: new Date().toISOString(),
     bus: definition.bus,
+    workflows: copiedWorkflows.length > 0 ? copiedWorkflows : undefined,
   };
   if (existing >= 0) {
     teams[existing] = entry;
@@ -158,6 +177,7 @@ export async function deployTeam(opts: DeployOpts): Promise<DeployResult> {
     scaffolded,
     busTopics,
     busQueues,
+    workflows: copiedWorkflows,
   };
 }
 
