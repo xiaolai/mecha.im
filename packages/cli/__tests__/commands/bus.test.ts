@@ -231,3 +231,21 @@ describe("bus queue drain", () => {
     );
   });
 });
+
+describe("bus queue nack", () => {
+  it("nacks a claimed message", async () => {
+    const { deps, program } = setup();
+    await program.parseAsync(["node", "mecha", "bus", "queue", "create", "work"]);
+    const { createBroker } = await import("@mecha/bus");
+    const busDir = join(mechaDir, "bus");
+    const broker = createBroker(busDir);
+    const q = broker.queue("work");
+    const id = q.push({ sender: "cli", payload: "task" });
+    q.claim("worker");
+
+    const program2 = createProgram(deps);
+    program2.exitOverride();
+    await program2.parseAsync(["node", "mecha", "bus", "queue", "nack", "work", id]);
+    expect(deps.formatter.success).toHaveBeenCalled();
+  });
+});
