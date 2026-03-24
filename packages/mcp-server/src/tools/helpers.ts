@@ -42,7 +42,12 @@ export function withAuditAndRateLimit(
       ? `${ctx.clientInfo.name}/${ctx.clientInfo.version}`
       : "unknown";
 
-    if (!ctx.rateLimiter.check(toolName)) {
+    // Per-client rate limiting — each MCP client gets its own window
+    const clientId = ctx.clientInfo
+      ? `${ctx.clientInfo.name}/${ctx.clientInfo.version}`
+      : undefined;
+
+    if (!ctx.rateLimiter.check(toolName, clientId)) {
       const message = `Rate limited: ${toolName} — try again shortly.`;
       ctx.audit.append({
         ts: new Date().toISOString(),

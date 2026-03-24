@@ -97,6 +97,29 @@ describe("withAuditAndRateLimit", () => {
     );
   });
 
+  it("passes clientId to rate limiter when clientInfo present", async () => {
+    const checkFn = vi.fn().mockReturnValue(true);
+    const ctx = makeCtx({
+      clientInfo: { name: "claude-desktop", version: "1.2.3" },
+      rateLimiter: { check: checkFn, remaining: vi.fn().mockReturnValue(100) },
+    });
+    const fn = vi.fn().mockResolvedValue(textResult("ok"));
+    const wrapped = withAuditAndRateLimit(ctx, "mecha_list_bots", fn);
+    await wrapped({});
+    expect(checkFn).toHaveBeenCalledWith("mecha_list_bots", "claude-desktop/1.2.3");
+  });
+
+  it("passes undefined clientId to rate limiter when no clientInfo", async () => {
+    const checkFn = vi.fn().mockReturnValue(true);
+    const ctx = makeCtx({
+      rateLimiter: { check: checkFn, remaining: vi.fn().mockReturnValue(100) },
+    });
+    const fn = vi.fn().mockResolvedValue(textResult("ok"));
+    const wrapped = withAuditAndRateLimit(ctx, "mecha_list_bots", fn);
+    await wrapped({});
+    expect(checkFn).toHaveBeenCalledWith("mecha_list_bots", undefined);
+  });
+
   it("catches thrown errors and returns error result", async () => {
     const ctx = makeCtx();
     const fn = vi.fn().mockRejectedValue(new Error("boom"));

@@ -80,4 +80,39 @@ describe("RateLimiter", () => {
     }
     expect(limiter.check("mecha_query")).toBe(false);
   });
+
+  it("isolates per-client windows with clientId", () => {
+    const limiter = createRateLimiter({
+      mecha_list_bots: { max: 2, windowMs: 60_000 },
+    });
+    // Client A uses up its quota
+    limiter.check("mecha_list_bots", "client-a");
+    limiter.check("mecha_list_bots", "client-a");
+    expect(limiter.check("mecha_list_bots", "client-a")).toBe(false);
+
+    // Client B still has its own independent quota
+    expect(limiter.check("mecha_list_bots", "client-b")).toBe(true);
+    expect(limiter.check("mecha_list_bots", "client-b")).toBe(true);
+    expect(limiter.check("mecha_list_bots", "client-b")).toBe(false);
+  });
+
+  it("reports remaining per client independently", () => {
+    const limiter = createRateLimiter({
+      mecha_list_bots: { max: 3, windowMs: 60_000 },
+    });
+    limiter.check("mecha_list_bots", "client-a");
+    expect(limiter.remaining("mecha_list_bots", "client-a")).toBe(2);
+    expect(limiter.remaining("mecha_list_bots", "client-b")).toBe(3);
+  });
+
+  it("falls back to global window when no clientId is provided", () => {
+    const limiter = createRateLimiter({
+      mecha_list_bots: { max: 1, windowMs: 60_000 },
+    });
+    // Global (no clientId) and per-client are separate windows
+    limiter.check("mecha_list_bots");
+    expect(limiter.check("mecha_list_bots")).toBe(false);
+    // Per-client window is independent
+    expect(limiter.check("mecha_list_bots", "client-a")).toBe(true);
+  });
 });
