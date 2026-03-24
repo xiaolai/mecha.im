@@ -10,6 +10,7 @@ export interface StepDef {
   timeout?: string;
   budgetUsd?: number;
   gate?: "human";
+  maxRetries?: number;
 }
 
 /** Workflow definition parsed from YAML. */
