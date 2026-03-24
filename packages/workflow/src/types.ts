@@ -10,6 +10,7 @@ export interface StepDef {
   timeout?: string;
   budgetUsd?: number;
   gate?: "human";
+  /** Maximum total execution attempts. Step runs up to maxRetries times. Must be > 0. */
   maxRetries?: number;
 }
 
