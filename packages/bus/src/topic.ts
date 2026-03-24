@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { renderTemplate, evaluateCondition } from "@mecha/core";
+import { renderTemplate, evaluateCondition, atomicWriteSync } from "@mecha/core";
 import type { BusMessage, Subscriber, TopicConfig } from "./types.js";
 
 /** Validate a name used as a filesystem path segment. Rejects traversal attempts. */
@@ -75,7 +75,7 @@ export function createTopic(opts: CreateTopicOpts): Topic {
   }
 
   function saveSubscribers(subs: Subscriber[]): void {
-    writeFileSync(subscribersPath, JSON.stringify(subs, null, 2) + "\n");
+    atomicWriteSync(subscribersPath, JSON.stringify(subs, null, 2) + "\n");
   }
 
   return {
@@ -179,7 +179,7 @@ export function createTopic(opts: CreateTopicOpts): Topic {
       const kept = messages.filter((m) => new Date(m.ts).getTime() >= cutoff);
       const removed = messages.length - kept.length;
       if (removed > 0) {
-        writeFileSync(
+        atomicWriteSync(
           messagesPath,
           kept.map((m) => JSON.stringify(m)).join("\n") +
             (kept.length ? "\n" : ""),

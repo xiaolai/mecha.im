@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
+import { atomicWriteSync } from "@mecha/core";
 import type { BusMessage, ClaimedItem, QueueConfig } from "./types.js";
 
 /** Validate a name used as a filesystem path segment. Rejects traversal attempts. */
@@ -18,10 +19,10 @@ function readJsonl<T>(path: string): T[] {
   return content.split("\n").map((line) => JSON.parse(line) as T);
 }
 
-/** Write array of objects as JSONL file. */
+/** Write array of objects as JSONL file (atomic). */
 function writeJsonl<T>(path: string, items: T[]): void {
   const content = items.map((item) => JSON.stringify(item)).join("\n");
-  writeFileSync(path, content ? content + "\n" : "", "utf-8");
+  atomicWriteSync(path, content ? content + "\n" : "");
 }
 
 /** Append a single object to a JSONL file. */
