@@ -4,6 +4,8 @@ export interface BusMessage {
   ts: string;
   sender: string;
   payload: unknown;
+  /** Earliest time this message can be claimed (set by nack with backoff). */
+  notBefore?: string;
 }
 
 /** Queue configuration. */

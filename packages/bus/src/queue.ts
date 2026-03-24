@@ -134,9 +134,14 @@ export function createQueue(opts: CreateQueueOpts): DurableQueue {
       }
 
       const pending = readJsonl<BusMessage>(pendingPath);
-      if (pending.length === 0) return null;
+      // Find the first claimable item (skip messages still in backoff)
+      const claimableIdx = pending.findIndex(
+        (m) => !m.notBefore || now >= new Date(m.notBefore).getTime(),
+      );
+      if (claimableIdx === -1) return null;
 
-      const msg = pending.shift()!;
+      const msg = pending.splice(claimableIdx, 1)[0]!;
+      delete msg.notBefore; // clear backoff marker on claim
       writeJsonl(pendingPath, pending);
 
       const prevAttempts = attemptCounts.get(msg.id) ?? 0;
@@ -175,8 +180,14 @@ export function createQueue(opts: CreateQueueOpts): DurableQueue {
         // Move to dead letter
         appendJsonl(deadPath, item.message);
       } else {
-        // Return to pending for retry
-        appendJsonl(pendingPath, item.message);
+        // Return to pending with exponential backoff
+        const backoff =
+          config.retryBackoffMs * Math.pow(2, item.attempts - 1);
+        const retryMsg: BusMessage = {
+          ...item.message,
+          notBefore: new Date(Date.now() + backoff).toISOString(),
+        };
+        appendJsonl(pendingPath, retryMsg);
       }
       return true;
     },
