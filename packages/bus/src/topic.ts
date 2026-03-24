@@ -197,6 +197,12 @@ export function createTopic(opts: CreateTopicOpts): Topic {
           kept.map((m) => JSON.stringify(m)).join("\n") +
             (kept.length ? "\n" : ""),
         );
+        // Adjust subscriber cursors so they stay aligned with the new message array
+        const subs = loadSubscribers();
+        for (const sub of subs) {
+          sub.cursor = Math.max(0, sub.cursor - removed);
+        }
+        saveSubscribers(subs);
       }
       return removed;
     },
