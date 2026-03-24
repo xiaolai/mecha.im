@@ -111,13 +111,36 @@ export function createAgentServer(opts: AgentServerOptions): FastifyInstance {
   // Task protocol routes
   registerTaskRoutes(app, { mechaDir, acl, authCtx });
 
-  // Bot listing route — used by `bot ls --mesh` on remote nodes
+  // Bot listing route — used by `bot ls --mesh` on remote nodes and dashboard
   app.get("/bots", async () => {
     const list = opts.processManager.list();
     return list.map((b) => {
       const config = readBotConfig(join(mechaDir, b.name));
       return { name: b.name, state: b.state, port: b.port ?? null, tags: config?.tags ?? [] };
     });
+  });
+
+  // Aggregated schedule overview across all bots — dashboard SPA
+  app.get("/bots/schedules/overview", async () => {
+    const bots = opts.processManager.list().filter(b => b.state === "running");
+    const overview: Array<{ bot: string; id: string; every: string; paused: boolean }> = [];
+    for (const bot of bots) {
+      const config = readBotConfig(join(mechaDir, bot.name));
+      if (!config?.port || !config?.token) continue;
+      try {
+        const res = await fetch(`http://127.0.0.1:${config.port}/api/schedules`, {
+          headers: { Authorization: `Bearer ${config.token}` },
+          signal: AbortSignal.timeout(3000),
+        });
+        if (res.ok) {
+          const data = (await res.json()) as Array<{ id: string; trigger: { every: string }; paused?: boolean }>;
+          for (const s of data) {
+            overview.push({ bot: bot.name, id: s.id, every: s.trigger?.every ?? "", paused: !!s.paused });
+          }
+        }
+      } catch { /* bot unreachable — skip */ }
+    }
+    return overview;
   });
 
   // Bot query route
@@ -181,6 +204,23 @@ export function createAgentServer(opts: AgentServerOptions): FastifyInstance {
   );
 
   // ── Dashboard API routes ──────────────────────────────────────────
+  // SPA client routes share paths with API routes (e.g. /schedules).
+  // Browser navigation sends Accept: text/html — serve SPA index.html.
+  // SPA fetch() sends Accept: */* — fall through to the JSON API route.
+  const SPA_ROUTES = new Set([
+    "/schedules", "/budgets", "/nodes", "/settings", "/audit", "/doctor",
+    "/acl", "/auth", "/sandbox", "/bot",
+  ]);
+  app.addHook("preHandler", async (req, reply) => {
+    if (req.method !== "GET" || !opts.spaDir) return;
+    const accept = req.headers.accept ?? "";
+    // Browser sends "text/html,application/xhtml+xml,..."; fetch() sends "*/*"
+    if (!accept.includes("text/html") || accept === "*/*") return;
+    const path = req.url.split("?")[0] ?? req.url;
+    if (SPA_ROUTES.has(path) || path.startsWith("/bot/")) {
+      return (reply as unknown as { sendFile(f: string, r?: string): Promise<void> }).sendFile("index.html", opts.spaDir);
+    }
+  });
 
   // ACL rules
   app.get("/acl", async () => acl.listRules());
