@@ -70,6 +70,85 @@ describe("team commands", () => {
       expect(teams[0].bots).toEqual(["alice", "bob"]);
     });
 
+    it("deploys a team from a .yaml file", async () => {
+      const yamlContent = `name: test-team
+bots:
+  worker:
+    cwd: /tmp/workspace
+`;
+      const defFile = join(mechaDir, "team.yaml");
+      writeFileSync(defFile, yamlContent);
+
+      const deps = makeDeps({
+        mechaDir,
+        pm: {
+          spawn: vi.fn().mockResolvedValue(RUNNING_INFO),
+        },
+      });
+      const program = createProgram(deps);
+      program.exitOverride();
+
+      await program.parseAsync(["node", "mecha", "team", "deploy", defFile]);
+
+      expect(deps.processManager.spawn).toHaveBeenCalledTimes(1);
+      expect(deps.formatter.success).toHaveBeenCalledWith(
+        expect.stringContaining("Deployed team"),
+      );
+
+      const teamsPath = join(mechaDir, "teams.json");
+      const teams = JSON.parse(readFileSync(teamsPath, "utf-8"));
+      expect(teams).toHaveLength(1);
+      expect(teams[0].name).toBe("test-team");
+      expect(teams[0].bots).toEqual(["worker"]);
+    });
+
+    it("deploys a team from a .yml file", async () => {
+      const yamlContent = `name: test-team
+bots:
+  worker:
+    cwd: /tmp/workspace
+`;
+      const defFile = join(mechaDir, "team.yml");
+      writeFileSync(defFile, yamlContent);
+
+      const deps = makeDeps({
+        mechaDir,
+        pm: {
+          spawn: vi.fn().mockResolvedValue(RUNNING_INFO),
+        },
+      });
+      const program = createProgram(deps);
+      program.exitOverride();
+
+      await program.parseAsync(["node", "mecha", "team", "deploy", defFile]);
+
+      expect(deps.processManager.spawn).toHaveBeenCalledTimes(1);
+      expect(deps.formatter.success).toHaveBeenCalledWith(
+        expect.stringContaining("Deployed team"),
+      );
+
+      const teamsPath = join(mechaDir, "teams.json");
+      const teams = JSON.parse(readFileSync(teamsPath, "utf-8"));
+      expect(teams).toHaveLength(1);
+      expect(teams[0].name).toBe("test-team");
+    });
+
+    it("handles invalid YAML gracefully", async () => {
+      const defFile = join(mechaDir, "bad.yaml");
+      writeFileSync(defFile, ":\n  - :\n    invalid: [unterminated");
+
+      const deps = makeDeps({ mechaDir });
+      const program = createProgram(deps);
+      program.exitOverride();
+
+      await program.parseAsync(["node", "mecha", "team", "deploy", defFile]);
+
+      expect(deps.formatter.error).toHaveBeenCalledWith(
+        expect.stringContaining("Failed to read team definition"),
+      );
+      expect(process.exitCode).toBe(1);
+    });
+
     it("errors on invalid JSON file", async () => {
       const defFile = join(mechaDir, "bad.json");
       writeFileSync(defFile, "not json at all {{{");

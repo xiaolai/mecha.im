@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { createBroker } from "@mecha/bus";
 import { handleBusTool, type BusToolOpts } from "../../src/mcp/bus-tools.js";
 
 describe("bus_publish", () => {
@@ -224,6 +225,103 @@ describe("bus_queue_ack", () => {
 
     expect(result.content[0].text).toContain("Missing required: messageId");
     expect(result.isError).toBe(true);
+  });
+});
+
+describe("bus_queue_nack", () => {
+  let busDir: string;
+
+  beforeEach(() => {
+    busDir = mkdtempSync(join(tmpdir(), "bus-tools-test-"));
+  });
+  afterEach(() => { rmSync(busDir, { recursive: true, force: true }); });
+
+  it("nacks a claimed message back to pending", async () => {
+    const opts: BusToolOpts = { busDir, botName: "worker" };
+    // Push and claim first
+    await handleBusTool(opts, "bus_queue_push", { queue: "test-q", message: "work" });
+    const claimResult = await handleBusTool(opts, "bus_queue_claim", { queue: "test-q" });
+    const { messageId } = JSON.parse(claimResult.content[0].text);
+
+    const result = await handleBusTool(opts, "bus_queue_nack", { queue: "test-q", messageId });
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toContain("Returned");
+  });
+
+  it("returns error for unknown messageId", async () => {
+    const opts: BusToolOpts = { busDir, botName: "worker" };
+    const result = await handleBusTool(opts, "bus_queue_nack", { queue: "test-q", messageId: "nonexistent" });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("not found in inflight");
+  });
+
+  it("returns error for missing queue param", async () => {
+    const opts: BusToolOpts = { busDir, botName: "worker" };
+    const result = await handleBusTool(opts, "bus_queue_nack", { queue: "", messageId: "abc" });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("Missing required: queue");
+  });
+
+  it("returns error for missing messageId param", async () => {
+    const opts: BusToolOpts = { busDir, botName: "worker" };
+    const result = await handleBusTool(opts, "bus_queue_nack", { queue: "test-q", messageId: "" });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("Missing required: messageId");
+  });
+});
+
+describe("bus_poll", () => {
+  let busDir: string;
+
+  beforeEach(() => {
+    busDir = mkdtempSync(join(tmpdir(), "bus-tools-test-"));
+  });
+  afterEach(() => { rmSync(busDir, { recursive: true, force: true }); });
+
+  it("polls messages from a topic", async () => {
+    const broker = createBroker(busDir);
+    const topic = broker.topic("events");
+    topic.subscribe({ bot: "reader", concurrency: 1 });
+    topic.publish({ sender: "writer", payload: "hello" });
+
+    const result = await handleBusTool({ busDir, botName: "reader" }, "bus_poll", { topic: "events" });
+    expect(result.isError).toBeFalsy();
+    const messages = JSON.parse(result.content[0].text);
+    expect(messages).toHaveLength(1);
+    expect(messages[0].payload).toBe("hello");
+  });
+
+  it("returns empty when no new messages", async () => {
+    const broker = createBroker(busDir);
+    broker.topic("empty");
+
+    const result = await handleBusTool({ busDir, botName: "reader" }, "bus_poll", { topic: "empty" });
+    expect(result.content[0].text).toBe("No new messages");
+  });
+
+  it("returns error when topic is missing", async () => {
+    const result = await handleBusTool({ busDir, botName: "reader" }, "bus_poll", {});
+    expect(result.content[0].text).toContain("Missing required: topic");
+    expect(result.isError).toBe(true);
+  });
+
+  it("returns error when topic is empty string", async () => {
+    const result = await handleBusTool({ busDir, botName: "reader" }, "bus_poll", { topic: "" });
+    expect(result.content[0].text).toContain("Missing required: topic");
+    expect(result.isError).toBe(true);
+  });
+
+  it("respects limit parameter", async () => {
+    const broker = createBroker(busDir);
+    const topic = broker.topic("limited");
+    topic.subscribe({ bot: "reader", concurrency: 10 });
+    topic.publish({ sender: "w", payload: "1" });
+    topic.publish({ sender: "w", payload: "2" });
+    topic.publish({ sender: "w", payload: "3" });
+
+    const result = await handleBusTool({ busDir, botName: "reader" }, "bus_poll", { topic: "limited", limit: 2 });
+    const messages = JSON.parse(result.content[0].text);
+    expect(messages).toHaveLength(2);
   });
 });
 

@@ -95,6 +95,33 @@ describe("validateTeamDef", () => {
     });
     expect(errors).toContain("ACL target must be a string");
   });
+
+  it("errors on schedule referencing unknown bot", () => {
+    const errors = validateTeamDef({
+      ...validDef,
+      schedules: [{ bot: "ghost", id: "daily", every: "1h", prompt: "check" }],
+    });
+    expect(errors).toContain('Schedule "daily" references unknown bot "ghost"');
+  });
+
+  it("errors on schedule with invalid expression", () => {
+    const errors = validateTeamDef({
+      ...validDef,
+      schedules: [{ bot: "developer", id: "bad", every: "nope", prompt: "check" }],
+    });
+    expect(errors).toContain('Schedule "bad" has invalid expression "nope"');
+  });
+
+  it("accepts valid schedules", () => {
+    const errors = validateTeamDef({
+      ...validDef,
+      schedules: [
+        { bot: "developer", id: "hourly", every: "1h", prompt: "run tests" },
+        { bot: "reviewer", id: "cron-daily", every: "0 9 * * *", prompt: "review code" },
+      ],
+    });
+    expect(errors).toEqual([]);
+  });
 });
 
 describe("parseTeamDef", () => {
@@ -125,5 +152,20 @@ describe("parseTeamDef", () => {
   it("defaults bots to empty object when missing", () => {
     const def = parseTeamDef({ name: "no-bots" });
     expect(def.bots).toEqual({});
+  });
+
+  it("rejects invalid field types via Zod schema", () => {
+    expect(() => parseTeamDef({ name: 42, bots: {} })).toThrow("Invalid team definition");
+  });
+
+  it("rejects bot with missing cwd via Zod schema", () => {
+    expect(() => parseTeamDef({ name: "bad", bots: { a: {} } })).toThrow("Invalid team definition");
+  });
+
+  it("rejects invalid effort enum value", () => {
+    expect(() => parseTeamDef({
+      name: "bad-effort",
+      bots: { a: { cwd: "/x", effort: "ultra" } },
+    })).toThrow("Invalid team definition");
   });
 });

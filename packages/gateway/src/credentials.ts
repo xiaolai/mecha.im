@@ -1,5 +1,6 @@
-import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { mkdirSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import { atomicWriteSync } from "@mecha/core";
 import type { StoredSecret, SecretGrant, CredentialStore } from "./types.js";
 
 /**
@@ -17,7 +18,7 @@ export function createCredentialStore(secretsDir: string): CredentialStore {
   }
 
   function saveSecrets(secrets: StoredSecret[]): void {
-    writeFileSync(secretsPath, JSON.stringify(secrets, null, 2) + "\n", { mode: 0o600 });
+    atomicWriteSync(secretsPath, JSON.stringify(secrets, null, 2) + "\n");
   }
 
   function loadGrants(): SecretGrant[] {
@@ -26,9 +27,22 @@ export function createCredentialStore(secretsDir: string): CredentialStore {
   }
 
   function saveGrants(grants: SecretGrant[]): void {
-    writeFileSync(grantsPath, JSON.stringify(grants, null, 2) + "\n", { mode: 0o600 });
+    atomicWriteSync(grantsPath, JSON.stringify(grants, null, 2) + "\n");
   }
 
+  /**
+   * SECURITY LIMITATION: Values are base64-encoded, NOT encrypted.
+   * Base64 is an encoding, not a security measure — anyone with read access
+   * to secrets.json can trivially decode the values.
+   *
+   * This is acceptable for the local-first threat model (see AGENTS.md
+   * "Security Trust Boundary"): secrets are already exposed via process
+   * environment variables readable by root.
+   *
+   * Upgrade path: When multi-user or remote access is added, replace with
+   * AES-256-GCM encryption using a key derived from the user's system keychain
+   * (e.g., macOS Keychain, Linux secret-tool, Windows DPAPI).
+   */
   function encode(value: string): string {
     return Buffer.from(value, "utf-8").toString("base64");
   }

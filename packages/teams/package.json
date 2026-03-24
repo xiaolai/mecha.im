@@ -14,7 +14,8 @@
     "typecheck": "tsc -b --noEmit"
   },
   "dependencies": {
-    "@mecha/core": "workspace:*"
+    "@mecha/core": "workspace:*",
+    "zod": "^3.25.36"
   },
   "engines": {
     "node": ">=20.0.0"

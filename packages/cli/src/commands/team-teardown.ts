@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
-import { listTeams, unregisterTeam } from "@mecha/teams";
+import { listTeams, teardownTeam } from "@mecha/teams";
 import { botName as toBotName } from "@mecha/core";
 import { withErrorHandler } from "../error-handler.js";
 
@@ -21,29 +21,39 @@ export function registerTeamTeardownCommand(parent: Command, deps: CommandDeps):
         return;
       }
 
-      // Stop and remove each bot in the team
-      for (const bot of team.bots) {
-        const validated = toBotName(bot);
-        const info = deps.processManager.get(validated);
-        if (info?.state === "running") {
-          if (opts.force) {
-            await deps.processManager.kill(validated);
-          } else {
-            await deps.processManager.stop(validated);
+      const result = await teardownTeam({
+        team,
+        mechaDir: deps.mechaDir,
+        stopBot: async (bot) => {
+          const validated = toBotName(bot);
+          const info = deps.processManager.get(validated);
+          if (info?.state === "running") {
+            if (opts.force) {
+              await deps.processManager.kill(validated);
+            } else {
+              await deps.processManager.stop(validated);
+            }
           }
-        }
-        deps.formatter.info(`Stopped bot: ${bot}`);
-      }
+          deps.formatter.info(`Stopped bot: ${bot}`);
+        },
+        removeBusTopic: (topicName) => {
+          deps.formatter.info(`Removed bus topic: ${topicName}`);
+        },
+        removeBusQueue: (queueName) => {
+          deps.formatter.info(`Removed bus queue: ${queueName}`);
+        },
+        removeSchedule: async (bot, id) => {
+          deps.formatter.info(`Removed schedule "${id}" from ${bot}`);
+        },
+      });
 
-      // Unregister the team
-      const removed = unregisterTeam(deps.mechaDir, name);
-      if (removed) {
-        deps.formatter.success(`Team "${name}" torn down (${team.bots.length} bot(s) stopped)`);
-      /* v8 ignore start -- defensive: team was found above, unregister should succeed */
-      } else {
-        deps.formatter.error(`Failed to unregister team "${name}"`);
-        process.exitCode = 1;
-      }
+      const parts = [`${result.botsStopped} bot(s) stopped`];
+      /* v8 ignore start -- optional cleanup summary parts */
+      if (result.busTopicsRemoved > 0) parts.push(`${result.busTopicsRemoved} topic(s) removed`);
+      if (result.busQueuesRemoved > 0) parts.push(`${result.busQueuesRemoved} queue(s) removed`);
+      if (result.workflowsRemoved > 0) parts.push(`${result.workflowsRemoved} workflow(s) removed`);
+      if (result.schedulesRemoved > 0) parts.push(`${result.schedulesRemoved} schedule(s) removed`);
       /* v8 ignore stop */
+      deps.formatter.success(`Team "${name}" torn down (${parts.join(", ")})`);
     }));
 }

@@ -1,34 +1,12 @@
-import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
+import { assertSafeName, createLogger } from "@mecha/core";
 import type { BusMessage, ClaimedItem, QueueConfig } from "./types.js";
+import { readJsonl, writeJsonl, appendJsonl } from "./jsonl.js";
+import { withFileLock } from "./file-lock.js";
 
-/** Validate a name used as a filesystem path segment. Rejects traversal attempts. */
-function assertSafeName(name: string, label: string): void {
-  if (!name || /[/\\]|^\.\.?$/.test(name) || name.includes("..")) {
-    throw new Error(`Invalid ${label} name: "${name}"`);
-  }
-}
-
-/** Parse JSONL file into array of objects. Returns empty array if file doesn't exist. */
-function readJsonl<T>(path: string): T[] {
-  if (!existsSync(path)) return [];
-  const content = readFileSync(path, "utf-8").trim();
-  if (!content) return [];
-  return content.split("\n").map((line) => JSON.parse(line) as T);
-}
-
-/** Write array of objects as JSONL file. */
-function writeJsonl<T>(path: string, items: T[]): void {
-  const content = items.map((item) => JSON.stringify(item)).join("\n");
-  writeFileSync(path, content ? content + "\n" : "", "utf-8");
-}
-
-/** Append a single object to a JSONL file. */
-function appendJsonl<T>(path: string, item: T): void {
-  const line = JSON.stringify(item) + "\n";
-  writeFileSync(path, line, { flag: "a" });
-}
+const log = createLogger("mecha:bus");
 
 /** Durable queue with push/claim/ack/nack and dead-letter support. */
 export interface DurableQueue {
@@ -76,6 +54,7 @@ export function createQueue(opts: CreateQueueOpts): DurableQueue {
   const pendingPath = join(queueDir, "pending.jsonl");
   const inflightPath = join(queueDir, "inflight.jsonl");
   const deadPath = join(queueDir, "dead.jsonl");
+  const lockPath = join(queueDir, ".lock");
 
   /** Track seen IDs for idempotency within the queue's lifetime. */
   const seenIds = new Set<string>();
@@ -109,52 +88,98 @@ export function createQueue(opts: CreateQueueOpts): DurableQueue {
     },
 
     claim(bot) {
-      const pending = readJsonl<BusMessage>(pendingPath);
-      if (pending.length === 0) return null;
+      return withFileLock(lockPath, () => {
+        // Expire timed-out inflight items before claiming
+        const timeoutMs = config.claimTimeoutMs ?? 300_000;
+        const inflight = readJsonl<ClaimedItem>(inflightPath);
+        const now = Date.now();
+        const expired: ClaimedItem[] = [];
+        const remaining: ClaimedItem[] = [];
+        for (const item of inflight) {
+          if (now - new Date(item.claimedAt).getTime() > timeoutMs) {
+            expired.push(item);
+          } else {
+            remaining.push(item);
+          }
+        }
+        if (expired.length > 0) {
+          log.warn("Claim timeout: expired items returned", { count: expired.length });
+          writeJsonl(inflightPath, remaining);
+          for (const item of expired) {
+            if (item.attempts >= config.maxRetries) {
+              appendJsonl(deadPath, item.message);
+            } else {
+              appendJsonl(pendingPath, item.message);
+            }
+          }
+        }
 
-      const msg = pending.shift()!;
-      writeJsonl(pendingPath, pending);
+        const pending = readJsonl<BusMessage>(pendingPath);
+        // Find the first claimable item (skip messages still in backoff)
+        const claimableIdx = pending.findIndex(
+          (m) => !m.notBefore || now >= new Date(m.notBefore).getTime(),
+        );
+        if (claimableIdx === -1) return null;
 
-      const prevAttempts = attemptCounts.get(msg.id) ?? 0;
-      const item: ClaimedItem = {
-        message: msg,
-        claimedBy: bot,
-        claimedAt: new Date().toISOString(),
-        attempts: prevAttempts + 1,
-      };
-      attemptCounts.set(msg.id, item.attempts);
-      appendJsonl(inflightPath, item);
+        const msg = pending.splice(claimableIdx, 1)[0]!;
+        delete msg.notBefore; // clear backoff marker on claim
+        writeJsonl(pendingPath, pending);
 
-      return item;
+        const prevAttempts = attemptCounts.get(msg.id) ?? 0;
+        const item: ClaimedItem = {
+          message: msg,
+          claimedBy: bot,
+          claimedAt: new Date().toISOString(),
+          attempts: prevAttempts + 1,
+        };
+        attemptCounts.set(msg.id, item.attempts);
+        appendJsonl(inflightPath, item);
+        log.info("Message claimed", { id: msg.id, bot, attempt: item.attempts });
+
+        return item;
+      });
     },
 
     ack(messageId) {
-      const inflight = readJsonl<ClaimedItem>(inflightPath);
-      const idx = inflight.findIndex((i) => i.message.id === messageId);
-      if (idx === -1) return false;
+      return withFileLock(lockPath, () => {
+        const inflight = readJsonl<ClaimedItem>(inflightPath);
+        const idx = inflight.findIndex((i) => i.message.id === messageId);
+        if (idx === -1) return false;
 
-      inflight.splice(idx, 1);
-      writeJsonl(inflightPath, inflight);
-      return true;
+        inflight.splice(idx, 1);
+        writeJsonl(inflightPath, inflight);
+        log.info("Message acknowledged", { id: messageId });
+        return true;
+      });
     },
 
     nack(messageId) {
-      const inflight = readJsonl<ClaimedItem>(inflightPath);
-      const idx = inflight.findIndex((i) => i.message.id === messageId);
-      if (idx === -1) return false;
+      return withFileLock(lockPath, () => {
+        const inflight = readJsonl<ClaimedItem>(inflightPath);
+        const idx = inflight.findIndex((i) => i.message.id === messageId);
+        if (idx === -1) return false;
 
-      const item = inflight[idx]!;
-      inflight.splice(idx, 1);
-      writeJsonl(inflightPath, inflight);
+        const item = inflight[idx]!;
+        inflight.splice(idx, 1);
+        writeJsonl(inflightPath, inflight);
 
-      if (item.attempts >= config.maxRetries) {
-        // Move to dead letter
-        appendJsonl(deadPath, item.message);
-      } else {
-        // Return to pending for retry
-        appendJsonl(pendingPath, item.message);
-      }
-      return true;
+        if (item.attempts >= config.maxRetries) {
+          // Move to dead letter
+          appendJsonl(deadPath, item.message);
+          log.warn("Message nacked, moved to dead-letter", { id: messageId });
+        } else {
+          // Return to pending with exponential backoff
+          const backoff =
+            config.retryBackoffMs * Math.pow(2, item.attempts - 1);
+          const retryMsg: BusMessage = {
+            ...item.message,
+            notBefore: new Date(Date.now() + backoff).toISOString(),
+          };
+          appendJsonl(pendingPath, retryMsg);
+          log.warn("Message nacked, returned to pending", { id: messageId });
+        }
+        return true;
+      });
     },
 
     stats() {
@@ -170,11 +195,13 @@ export function createQueue(opts: CreateQueueOpts): DurableQueue {
     },
 
     drain() {
-      const pending = readJsonl<BusMessage>(pendingPath);
-      const count = pending.length;
-      for (const msg of pending) appendJsonl(deadPath, msg);
-      writeJsonl(pendingPath, []);
-      return count;
+      return withFileLock(lockPath, () => {
+        const pending = readJsonl<BusMessage>(pendingPath);
+        const count = pending.length;
+        for (const msg of pending) appendJsonl(deadPath, msg);
+        writeJsonl(pendingPath, []);
+        return count;
+      });
     },
   };
 }

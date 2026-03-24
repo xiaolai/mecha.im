@@ -1,22 +1,11 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
+import { renderTemplate, evaluateCondition, atomicWriteSync, assertSafeName, createLogger } from "@mecha/core";
+
+const log = createLogger("mecha:bus");
 import type { BusMessage, Subscriber, TopicConfig } from "./types.js";
-
-/** Validate a name used as a filesystem path segment. Rejects traversal attempts. */
-function assertSafeName(name: string, label: string): void {
-  if (!name || /[/\\]|^\.\.?$/.test(name) || name.includes("..")) {
-    throw new Error(`Invalid ${label} name: "${name}"`);
-  }
-}
-
-/** Parse JSONL file into array of objects. */
-function readJsonl<T>(path: string): T[] {
-  if (!existsSync(path)) return [];
-  const content = readFileSync(path, "utf-8").trim();
-  if (!content) return [];
-  return content.split("\n").map((line) => JSON.parse(line) as T);
-}
+import { readJsonl } from "./jsonl.js";
 
 /** Pub/sub topic with per-subscriber cursors. */
 export interface Topic {
@@ -37,6 +26,9 @@ export interface Topic {
 
   /** Count total messages in the topic. */
   messageCount(): number;
+
+  /** Remove messages older than retentionDays. Returns count of removed messages. */
+  enforceRetention(): number;
 
   /** Get the topic name. */
   readonly name: string;
@@ -67,11 +59,16 @@ export function createTopic(opts: CreateTopicOpts): Topic {
 
   function loadSubscribers(): Subscriber[] {
     if (!existsSync(subscribersPath)) return [];
-    return JSON.parse(readFileSync(subscribersPath, "utf-8")) as Subscriber[];
+    try {
+      return JSON.parse(readFileSync(subscribersPath, "utf-8")) as Subscriber[];
+    } catch {
+      // Corrupt subscribers file — treat as empty
+      return [];
+    }
   }
 
   function saveSubscribers(subs: Subscriber[]): void {
-    writeFileSync(subscribersPath, JSON.stringify(subs, null, 2) + "\n");
+    atomicWriteSync(subscribersPath, JSON.stringify(subs, null, 2) + "\n");
   }
 
   return {
@@ -122,13 +119,43 @@ export function createTopic(opts: CreateTopicOpts): Topic {
       const sub = subs.find((s) => s.bot === bot);
       if (!sub) return [];
 
+      // Enforce subscriber concurrency cap
+      const effectiveLimit = sub.concurrency > 0
+        ? Math.min(limit, sub.concurrency)
+        : limit;
+
       const messages = readJsonl<BusMessage>(messagesPath);
-      const batch = messages.slice(sub.cursor, sub.cursor + limit);
+      const batch = messages.slice(sub.cursor, sub.cursor + effectiveLimit);
       if (batch.length > 0) {
+        // Cursor advances past all messages (including filtered-out ones)
         sub.cursor += batch.length;
         saveSubscribers(subs);
+        log.debug("Topic polled", { topic: config.name, bot, count: batch.length });
       }
-      return batch;
+
+      // Apply subscriber filter
+      let result = batch;
+      if (sub.filter) {
+        result = result.filter((msg) => {
+          const payload = typeof msg.payload === "object" && msg.payload !== null
+            ? (msg.payload as Record<string, unknown>)
+            : { value: msg.payload };
+          return evaluateCondition(sub.filter!, { ...payload, sender: msg.sender });
+        });
+      }
+
+      // Render promptTemplate
+      if (sub.promptTemplate) {
+        for (const msg of result) {
+          (msg as BusMessage & { renderedPrompt?: string }).renderedPrompt =
+            renderTemplate(sub.promptTemplate!, {
+              message: msg.payload as string,
+              sender: msg.sender,
+            });
+        }
+      }
+
+      return result;
     },
 
     subscribers() {
@@ -137,6 +164,29 @@ export function createTopic(opts: CreateTopicOpts): Topic {
 
     messageCount() {
       return readJsonl<BusMessage>(messagesPath).length;
+    },
+
+    enforceRetention() {
+      const cutoffMs = config.retentionDays * 86_400_000;
+      const cutoff = Date.now() - cutoffMs;
+      const messages = readJsonl<BusMessage>(messagesPath);
+      const kept = messages.filter((m) => new Date(m.ts).getTime() >= cutoff);
+      const removed = messages.length - kept.length;
+      if (removed > 0) {
+        log.info("Retention enforced", { topic: config.name, removed });
+        atomicWriteSync(
+          messagesPath,
+          kept.map((m) => JSON.stringify(m)).join("\n") +
+            (kept.length ? "\n" : ""),
+        );
+        // Adjust subscriber cursors so they stay aligned with the new message array
+        const subs = loadSubscribers();
+        for (const sub of subs) {
+          sub.cursor = Math.max(0, sub.cursor - removed);
+        }
+        saveSubscribers(subs);
+      }
+      return removed;
     },
   };
 }

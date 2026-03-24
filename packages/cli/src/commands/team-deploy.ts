@@ -1,24 +1,28 @@
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { resolve, extname } from "node:path";
 import type { Command } from "commander";
 import type { CommandDeps } from "../types.js";
 import { parseTeamDef, deployTeam } from "@mecha/teams";
 import { botName } from "@mecha/core";
 import type { Capability } from "@mecha/core";
 import { withErrorHandler } from "../error-handler.js";
+import YAML from "js-yaml";
 
 /** Register the 'team deploy' subcommand. */
 export function registerTeamDeployCommand(parent: Command, deps: CommandDeps): void {
   parent
     .command("deploy")
-    .description("Deploy a team from a JSON definition file")
-    .argument("<file>", "Path to team definition JSON file")
+    .description("Deploy a team from a definition file (JSON or YAML)")
+    .argument("<file>", "Path to team definition file (JSON or YAML)")
     .action(async (file: string) => withErrorHandler(deps, async () => {
       const filePath = resolve(file);
       let raw: unknown;
       try {
         const content = readFileSync(filePath, "utf-8");
-        raw = JSON.parse(content);
+        const ext = extname(filePath).toLowerCase();
+        raw = ext === ".yaml" || ext === ".yml"
+          ? YAML.load(content)
+          : JSON.parse(content);
       } catch (err) {
         deps.formatter.error(`Failed to read team definition: ${(err as Error).message}`);
         process.exitCode = 1;

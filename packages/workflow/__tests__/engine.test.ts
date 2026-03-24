@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { mkdtempSync, existsSync } from "node:fs";
+import { mkdtempSync, mkdirSync, existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createEngine } from "../src/engine.js";
@@ -159,6 +159,34 @@ describe("WorkflowEngine", () => {
   });
 
   describe("executeReady — parallel steps", () => {
+    it("executes independent steps in parallel", async () => {
+      const order: string[] = [];
+      const def: WorkflowDef = {
+        name: "parallel-exec",
+        steps: {
+          a: { bot: "bot-a", prompt: "go" },
+          b: { bot: "bot-b", prompt: "go" },
+        },
+      };
+      const engine = createEngine({ workflowsDir, definition: def });
+      engine.startRun();
+
+      const exec: StepExecutor = async ({ bot }) => {
+        order.push(`start-${bot}`);
+        await new Promise(r => setTimeout(r, 10));
+        order.push(`end-${bot}`);
+        return { output: bot };
+      };
+
+      const executed = await engine.executeReady(exec);
+      expect(executed).toHaveLength(2);
+      expect(engine.state().steps.a!.status).toBe("completed");
+      expect(engine.state().steps.b!.status).toBe("completed");
+      // With parallel execution, both should start before either ends
+      expect(order[0]).toMatch(/^start-/);
+      expect(order[1]).toMatch(/^start-/);
+    });
+
     it("executes independent steps in the same round", async () => {
       const engine = createEngine({ workflowsDir, definition: parallelDef });
       engine.startRun();
@@ -276,6 +304,37 @@ describe("WorkflowEngine", () => {
       expect(engine.state().status).toBe("compensated");
     });
 
+    it("renders templates in compensation prompts", async () => {
+      const def: WorkflowDef = {
+        name: "compensate-template",
+        steps: {
+          a: { bot: "bot", prompt: "do", output: "result", compensate: "undo {{a.result}}" },
+          b: { bot: "bot", prompt: "fail", depends: ["a"] },
+        },
+      };
+      const engine = createEngine({ workflowsDir, definition: def });
+      engine.startRun();
+
+      let callIdx = 0;
+      const exec: StepExecutor = async ({ prompt }) => {
+        callIdx++;
+        if (callIdx === 1) return { output: "done-value" };
+        throw new Error("fail");
+      };
+
+      await engine.executeReady(exec); // step a succeeds
+      await engine.executeReady(exec); // step b fails
+
+      let compensatePrompt = "";
+      const compensateExec: StepExecutor = async ({ prompt }) => {
+        compensatePrompt = prompt;
+        return { output: "compensated" };
+      };
+
+      await engine.compensate(compensateExec);
+      expect(compensatePrompt).toContain("done-value");
+    });
+
     it("does nothing if run is not failed", async () => {
       const engine = createEngine({ workflowsDir, definition: linearDef });
       engine.startRun();
@@ -319,6 +378,7 @@ describe("WorkflowEngine", () => {
       const compensated = await engine.compensate(failingExecutor(["devops"]));
       expect(compensated).toEqual(["deploy"]);
       expect(engine.state().steps.deploy!.status).toBe("failed");
+      expect(engine.state().steps.deploy!.error).toContain("Compensation failed: devops failed");
       expect(engine.state().status).toBe("failed"); // NOT "compensated"
     });
   });
@@ -362,6 +422,19 @@ describe("WorkflowEngine", () => {
       const engine = createEngine({ workflowsDir, definition: linearDef, runId: "nonexistent-run" });
       const runId = engine.startRun();
       expect(runId).toBe("nonexistent-run");
+      expect(engine.state().status).toBe("pending");
+    });
+
+    it("handles corrupt state file gracefully", () => {
+      // Pre-create the runs directory and write a corrupt state file
+      const runsDir = join(workflowsDir, "runs", linearDef.name);
+      mkdirSync(runsDir, { recursive: true });
+      writeFileSync(join(runsDir, "corrupt-run.json"), "{CORRUPT JSON DATA");
+
+      // Should not throw — treats corrupt state as no prior state
+      const engine = createEngine({ workflowsDir, definition: linearDef, runId: "corrupt-run" });
+      const runId = engine.startRun();
+      expect(runId).toBe("corrupt-run");
       expect(engine.state().status).toBe("pending");
     });
   });
@@ -573,6 +646,31 @@ describe("WorkflowEngine", () => {
     });
   });
 
+  describe("budget enforcement", () => {
+    it("fails run when budget is exceeded", async () => {
+      const def: WorkflowDef = {
+        name: "budget-test",
+        budgetUsd: 1.0,
+        steps: {
+          a: { bot: "bot", prompt: "go" },
+          b: { bot: "bot", prompt: "go", depends: ["a"] },
+        },
+      };
+      const engine = createEngine({ workflowsDir, definition: def });
+      engine.startRun();
+
+      // Step a costs $1.50 (exceeds $1.00 budget)
+      const exec: StepExecutor = async () => ({ output: "done", costUsd: 1.5 });
+      await engine.executeReady(exec);
+
+      expect(engine.state().steps.a.status).toBe("completed");
+      expect(engine.state().steps.b.status).toBe("failed");
+      expect(engine.state().steps.b.error).toContain("Budget exceeded");
+      expect(engine.state().status).toBe("failed");
+      expect(engine.state().totalCostUsd).toBeGreaterThanOrEqual(1.0);
+    });
+  });
+
   describe("cost tracking", () => {
     it("accumulates cost across steps with no costUsd", async () => {
       const def: WorkflowDef = { name: "no-cost", steps: { s1: { bot: "b", prompt: "x" } } };
@@ -582,6 +680,249 @@ describe("WorkflowEngine", () => {
       await engine.executeReady(exec);
       expect(engine.state().totalCostUsd).toBe(0);
       expect(engine.state().steps.s1!.costUsd).toBe(0);
+    });
+  });
+
+  describe("step timeout", () => {
+    it("fails step when executor exceeds timeout", async () => {
+      const def: WorkflowDef = {
+        name: "timeout-test",
+        steps: {
+          slow: { bot: "bot", prompt: "go", timeout: "10s" },
+        },
+      };
+      const engine = createEngine({ workflowsDir, definition: def });
+      engine.startRun();
+
+      const slowExecutor: StepExecutor = async () => {
+        await new Promise((resolve) => setTimeout(resolve, 30_000)); // 30s > 10s timeout
+        return { output: "done" };
+      };
+
+      await engine.executeReady(slowExecutor);
+      const state = engine.state();
+      expect(state.steps.slow!.status).toBe("failed");
+      expect(state.steps.slow!.error).toContain("timed out");
+    }, 15_000); // test timeout 15s > step timeout 10s
+
+    it("completes step when executor finishes before timeout", async () => {
+      const def: WorkflowDef = {
+        name: "timeout-ok",
+        steps: {
+          fast: { bot: "bot", prompt: "go", timeout: "10s" },
+        },
+      };
+      const engine = createEngine({ workflowsDir, definition: def });
+      engine.startRun();
+
+      const fastExecutor: StepExecutor = async () => ({ output: "done" });
+
+      await engine.executeReady(fastExecutor);
+      expect(engine.state().steps.fast!.status).toBe("completed");
+    });
+
+    it("uses default timeout when none specified", async () => {
+      const def: WorkflowDef = {
+        name: "timeout-default",
+        steps: {
+          normal: { bot: "bot", prompt: "go" },
+        },
+      };
+      const engine = createEngine({ workflowsDir, definition: def });
+      engine.startRun();
+
+      const executor: StepExecutor = async () => ({ output: "done" });
+      await engine.executeReady(executor);
+      expect(engine.state().steps.normal!.status).toBe("completed");
+    });
+  });
+
+  describe("maxRetries", () => {
+    it("retries a failed step up to maxRetries", async () => {
+      const def: WorkflowDef = {
+        name: "retry-test",
+        steps: {
+          flaky: { bot: "bot", prompt: "go", maxRetries: 3 },
+        },
+      };
+      const engine = createEngine({ workflowsDir, definition: def });
+      engine.startRun();
+
+      let callCount = 0;
+      const failTwiceThenSucceed: StepExecutor = async () => {
+        callCount++;
+        if (callCount < 3) throw new Error("transient failure");
+        return { output: "done" };
+      };
+
+      // Attempt 1: fails, step goes back to pending (attempts=1 < maxRetries=3)
+      await engine.executeReady(failTwiceThenSucceed);
+      expect(engine.state().steps.flaky!.status).toBe("pending");
+      expect(engine.state().steps.flaky!.attempts).toBe(1);
+
+      // Attempt 2: fails again, still pending (attempts=2 < maxRetries=3)
+      await engine.executeReady(failTwiceThenSucceed);
+      expect(engine.state().steps.flaky!.status).toBe("pending");
+      expect(engine.state().steps.flaky!.attempts).toBe(2);
+
+      // Attempt 3: succeeds
+      await engine.executeReady(failTwiceThenSucceed);
+      expect(engine.state().steps.flaky!.status).toBe("completed");
+      expect(engine.state().steps.flaky!.output).toBe("done");
+      expect(callCount).toBe(3);
+    });
+
+    it("fails permanently after exhausting maxRetries", async () => {
+      const def: WorkflowDef = {
+        name: "retry-exhausted",
+        steps: {
+          flaky: { bot: "bot", prompt: "go", maxRetries: 2 },
+        },
+      };
+      const engine = createEngine({ workflowsDir, definition: def });
+      engine.startRun();
+
+      const alwaysFail: StepExecutor = async () => { throw new Error("permanent failure"); };
+
+      // Attempt 1: fails, retries (pending)
+      await engine.executeReady(alwaysFail);
+      expect(engine.state().steps.flaky!.status).toBe("pending");
+
+      // Attempt 2: fails, maxRetries exhausted -> failed permanently
+      await engine.executeReady(alwaysFail);
+      expect(engine.state().steps.flaky!.status).toBe("failed");
+      expect(engine.state().steps.flaky!.error).toContain("Max retries");
+      expect(engine.state().status).toBe("failed");
+    });
+
+    it("fails immediately without maxRetries (backwards compat)", async () => {
+      const def: WorkflowDef = {
+        name: "no-retry",
+        steps: {
+          fragile: { bot: "bot", prompt: "go" },  // no maxRetries
+        },
+      };
+      const engine = createEngine({ workflowsDir, definition: def });
+      engine.startRun();
+
+      const fail: StepExecutor = async () => { throw new Error("fail"); };
+      await engine.executeReady(fail);
+      expect(engine.state().steps.fragile!.status).toBe("failed");
+      expect(engine.state().status).toBe("failed");
+    });
+  });
+
+  describe("output schema validation", () => {
+    it("passes when output matches schema", async () => {
+      const def: WorkflowDef = {
+        name: "schema-pass",
+        steps: {
+          s: {
+            bot: "bot", prompt: "go",
+            outputSchema: {
+              type: "object",
+              required: ["status"],
+              properties: { status: { type: "string" } },
+            },
+          },
+        },
+      };
+      const engine = createEngine({ workflowsDir, definition: def });
+      engine.startRun();
+
+      const exec: StepExecutor = async () => ({
+        output: JSON.stringify({ status: "ok" }),
+      });
+      await engine.executeReady(exec);
+      expect(engine.state().steps.s!.status).toBe("completed");
+    });
+
+    it("fails when required field is missing", async () => {
+      const def: WorkflowDef = {
+        name: "schema-fail-missing",
+        steps: {
+          s: {
+            bot: "bot", prompt: "go",
+            outputSchema: {
+              type: "object",
+              required: ["status", "score"],
+              properties: { status: { type: "string" }, score: { type: "number" } },
+            },
+          },
+        },
+      };
+      const engine = createEngine({ workflowsDir, definition: def });
+      engine.startRun();
+
+      const exec: StepExecutor = async () => ({
+        output: JSON.stringify({ status: "ok" }),
+      });
+      await engine.executeReady(exec);
+      expect(engine.state().steps.s!.status).toBe("failed");
+      expect(engine.state().steps.s!.error).toContain("Missing required field: score");
+    });
+
+    it("fails when field type is wrong", async () => {
+      const def: WorkflowDef = {
+        name: "schema-fail-type",
+        steps: {
+          s: {
+            bot: "bot", prompt: "go",
+            outputSchema: {
+              type: "object",
+              properties: { score: { type: "number" } },
+            },
+          },
+        },
+      };
+      const engine = createEngine({ workflowsDir, definition: def });
+      engine.startRun();
+
+      const exec: StepExecutor = async () => ({
+        output: JSON.stringify({ score: "not-a-number" }),
+      });
+      await engine.executeReady(exec);
+      expect(engine.state().steps.s!.status).toBe("failed");
+      expect(engine.state().steps.s!.error).toContain("expected number, got string");
+    });
+
+    it("skips validation when no outputSchema", async () => {
+      const def: WorkflowDef = {
+        name: "no-schema",
+        steps: {
+          s: { bot: "bot", prompt: "go" },
+        },
+      };
+      const engine = createEngine({ workflowsDir, definition: def });
+      engine.startRun();
+
+      const exec: StepExecutor = async () => ({ output: "anything" });
+      await engine.executeReady(exec);
+      expect(engine.state().steps.s!.status).toBe("completed");
+    });
+  });
+
+  describe("workflow outputs", () => {
+    it("computes workflow outputs when run completes", async () => {
+      const def: WorkflowDef = {
+        name: "output-test",
+        steps: {
+          compute: { bot: "bot", prompt: "go", output: "result" },
+        },
+        outputs: {
+          summary: "Result was: {{compute.result}}",
+        },
+      };
+      const engine = createEngine({ workflowsDir, definition: def });
+      engine.startRun();
+
+      const exec: StepExecutor = async () => ({ output: "42" });
+      await engine.executeReady(exec);
+
+      const state = engine.state();
+      expect(state.status).toBe("done");
+      expect(state.outputs).toBeDefined();
+      expect(state.outputs!.summary).toBe("Result was: 42");
     });
   });
 });

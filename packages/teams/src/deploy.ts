@@ -1,5 +1,8 @@
-import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
-import { join, dirname, resolve } from "node:path";
+import { mkdirSync, readFileSync, existsSync, copyFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { join, dirname, resolve, basename } from "node:path";
+import { atomicWriteSync, createLogger } from "@mecha/core";
+
+const log = createLogger("mecha:teams");
 import type { TeamDef, DeployResult, DeployedTeam } from "./types.js";
 import { validateTeamDef } from "./definition.js";
 
@@ -25,12 +28,18 @@ function scaffoldFiles(scaffold: Record<string, string>, allowedRoots: string[])
 function loadTeams(mechaDir: string): DeployedTeam[] {
   const path = join(mechaDir, "teams.json");
   if (!existsSync(path)) return [];
-  return JSON.parse(readFileSync(path, "utf-8")) as DeployedTeam[];
+  try {
+    return JSON.parse(readFileSync(path, "utf-8")) as DeployedTeam[];
+  /* v8 ignore start -- corrupt teams.json fallback */
+  } catch {
+    return [];
+  }
+  /* v8 ignore stop */
 }
 
 /** Save deployed teams registry. */
 function saveTeams(mechaDir: string, teams: DeployedTeam[]): void {
-  writeFileSync(join(mechaDir, "teams.json"), JSON.stringify(teams, null, 2) + "\n");
+  atomicWriteSync(join(mechaDir, "teams.json"), JSON.stringify(teams, null, 2) + "\n");
 }
 
 /** Options for deploying a team. */
@@ -52,8 +61,18 @@ export interface DeployOpts {
     systemPrompt?: string;
     appendSystemPrompt?: string;
   }) => Promise<boolean>;
+  /** Callback to stop a bot during rollback. */
+  stopBot?: (name: string) => Promise<void>;
   /** Callback to grant ACL. */
   grantAcl: (source: string, target: string, capabilities: string[]) => void;
+  /** Callback to create a bus topic. */
+  createBusTopic?: (name: string) => void;
+  /** Callback to create a bus queue. */
+  createBusQueue?: (name: string, opts?: { maxRetries?: number }) => void;
+  /** Directory containing the team definition file (for resolving relative workflow paths). */
+  teamFileDir?: string;
+  /** Callback to add a schedule to a bot. */
+  addSchedule?: (bot: string, schedule: { id: string; every: string; prompt: string }) => Promise<void>;
 }
 
 /**
@@ -72,7 +91,6 @@ export async function deployTeam(opts: DeployOpts): Promise<DeployResult> {
   const allowedRoots = [
     ...(definition.workspace ? [definition.workspace] : []),
     ...(definition.home ? [definition.home] : []),
-    mechaDir,
   ];
   const scaffolded = definition.scaffold
     ? scaffoldFiles(definition.scaffold, allowedRoots)
@@ -83,34 +101,103 @@ export async function deployTeam(opts: DeployOpts): Promise<DeployResult> {
     mkdirSync(join(definition.home, ".claude"), { recursive: true });
   }
 
-  // Spawn bots
+  // Spawn bots with rollback on partial failure
+  log.info("Deploying team", { team: definition.name, botCount: Object.keys(definition.bots).length });
   const botNames: string[] = [];
-  for (const [name, bot] of Object.entries(definition.bots)) {
-    const ok = await opts.spawnBot(name, {
-      cwd: bot.cwd,
-      home: definition.home,
-      model: bot.model,
-      tags: bot.tags,
-      expose: bot.expose,
-      effort: bot.effort,
-      maxBudgetUsd: bot.maxBudgetUsd,
-      sandboxMode: bot.sandboxMode,
-      systemPrompt: bot.systemPrompt,
-      appendSystemPrompt: bot.appendSystemPrompt,
-    });
-    if (!ok) {
-      throw new Error(`Failed to spawn bot "${name}"`);
-    }
-    botNames.push(name);
-  }
-
-  // Configure ACL
   let aclRules = 0;
-  for (const rule of definition.acl ?? []) {
-    for (const target of rule.targets) {
-      opts.grantAcl(rule.source, target, rule.capabilities);
-      aclRules++;
+  const busTopics: string[] = [];
+  const busQueues: string[] = [];
+  const copiedWorkflows: string[] = [];
+  let schedulesCount = 0;
+
+  try {
+    for (const [name, bot] of Object.entries(definition.bots)) {
+      const ok = await opts.spawnBot(name, {
+        cwd: bot.cwd,
+        home: definition.home,
+        model: bot.model,
+        tags: bot.tags,
+        expose: bot.expose,
+        effort: bot.effort,
+        maxBudgetUsd: bot.maxBudgetUsd,
+        sandboxMode: bot.sandboxMode,
+        systemPrompt: bot.systemPrompt,
+        appendSystemPrompt: bot.appendSystemPrompt,
+      });
+      if (!ok) {
+        throw new Error(`Failed to spawn bot "${name}"`);
+      }
+      log.info("Bot spawned", { bot: name });
+      botNames.push(name);
     }
+
+    // Configure ACL
+    for (const rule of definition.acl ?? []) {
+      for (const target of rule.targets) {
+        opts.grantAcl(rule.source, target, rule.capabilities);
+        aclRules++;
+      }
+    }
+
+    // Create bus topics and queues
+    if (definition.bus?.topics && opts.createBusTopic) {
+      for (const name of definition.bus.topics) {
+        opts.createBusTopic(name);
+        busTopics.push(name);
+      }
+    }
+    if (definition.bus?.queues && opts.createBusQueue) {
+      for (const q of definition.bus.queues) {
+        opts.createBusQueue(q.name, { maxRetries: q.maxRetries });
+        busQueues.push(q.name);
+      }
+    }
+
+    // Copy workflow definitions
+    if (definition.workflows && opts.teamFileDir) {
+      const workflowsDir = join(mechaDir, "workflows");
+      mkdirSync(workflowsDir, { recursive: true });
+      for (const relPath of definition.workflows) {
+        const src = resolve(opts.teamFileDir, relPath);
+        // Validate source path stays within teamFileDir
+        const resolvedTeamFileDir = resolve(opts.teamFileDir);
+        if (!src.startsWith(resolvedTeamFileDir + "/") && src !== resolvedTeamFileDir) {
+          throw new Error(`Workflow path "${relPath}" escapes team directory`);
+        }
+        if (!existsSync(src)) {
+          throw new Error(`Workflow file not found: ${relPath}`);
+        }
+        const dest = join(workflowsDir, basename(relPath));
+        // Validate destination stays within workflowsDir
+        const resolvedWorkflowsDir = resolve(workflowsDir);
+        if (!dest.startsWith(resolvedWorkflowsDir + "/") && dest !== resolvedWorkflowsDir) {
+          throw new Error(`Workflow destination "${basename(relPath)}" escapes workflows directory`);
+        }
+        copyFileSync(src, dest);
+        copiedWorkflows.push(basename(relPath));
+      }
+    }
+
+    // Register schedules on bots
+    if (definition.schedules && opts.addSchedule) {
+      for (const sched of definition.schedules) {
+        await opts.addSchedule(sched.bot, {
+          id: sched.id,
+          every: sched.every,
+          prompt: sched.prompt,
+        });
+        schedulesCount++;
+      }
+    }
+  } catch (err) {
+    // Rollback: stop already-spawned bots (best-effort)
+    log.warn("Deploy failed, rolling back", { team: definition.name, botCount: botNames.length });
+    for (const name of botNames) {
+      /* v8 ignore start -- best-effort rollback */
+      try { await opts.stopBot?.(name); } catch { /* ignore rollback errors */ }
+      /* v8 ignore stop */
+    }
+    throw err;
   }
 
   // Register deployed team
@@ -122,6 +209,9 @@ export async function deployTeam(opts: DeployOpts): Promise<DeployResult> {
     workspace: definition.workspace,
     bots: botNames,
     deployedAt: new Date().toISOString(),
+    bus: definition.bus,
+    workflows: copiedWorkflows.length > 0 ? copiedWorkflows : undefined,
+    schedules: definition.schedules,
   };
   if (existing >= 0) {
     teams[existing] = entry;
@@ -135,6 +225,10 @@ export async function deployTeam(opts: DeployOpts): Promise<DeployResult> {
     bots: botNames,
     aclRules,
     scaffolded,
+    busTopics,
+    busQueues,
+    workflows: copiedWorkflows,
+    schedules: schedulesCount,
   };
 }
 
@@ -151,4 +245,100 @@ export function unregisterTeam(mechaDir: string, name: string): boolean {
   teams.splice(idx, 1);
   saveTeams(mechaDir, teams);
   return true;
+}
+
+/** Options for tearing down a team's resources. */
+export interface TeardownOpts {
+  /** The deployed team metadata from teams.json. */
+  team: DeployedTeam;
+  /** The mecha directory (~/.mecha). */
+  mechaDir: string;
+  /** Callback to stop a bot. */
+  stopBot: (name: string) => Promise<void>;
+  /** Callback to remove a bus topic. */
+  removeBusTopic?: (name: string) => void;
+  /** Callback to remove a bus queue. */
+  removeBusQueue?: (name: string) => void;
+  /** Callback to remove a schedule from a bot. */
+  removeSchedule?: (bot: string, id: string) => Promise<void>;
+}
+
+/** Result of tearing down a team. */
+export interface TeardownResult {
+  botsStopped: number;
+  busTopicsRemoved: number;
+  busQueuesRemoved: number;
+  workflowsRemoved: number;
+  schedulesRemoved: number;
+}
+
+/**
+ * Tear down a team: stop bots, remove bus resources, workflow files, and schedules.
+ * Unregisters the team from teams.json.
+ */
+export async function teardownTeam(opts: TeardownOpts): Promise<TeardownResult> {
+  const { team, mechaDir } = opts;
+  const result: TeardownResult = {
+    botsStopped: 0,
+    busTopicsRemoved: 0,
+    busQueuesRemoved: 0,
+    workflowsRemoved: 0,
+    schedulesRemoved: 0,
+  };
+
+  // Stop bots
+  for (const bot of team.bots) {
+    await opts.stopBot(bot);
+    result.botsStopped++;
+  }
+
+  // Remove bus topics
+  if (team.bus?.topics && opts.removeBusTopic) {
+    for (const name of team.bus.topics) {
+      opts.removeBusTopic(name);
+      result.busTopicsRemoved++;
+    }
+  }
+
+  // Remove bus queues
+  if (team.bus?.queues && opts.removeBusQueue) {
+    for (const q of team.bus.queues) {
+      opts.removeBusQueue(q.name);
+      result.busQueuesRemoved++;
+    }
+  }
+
+  // Remove workflow files
+  if (team.workflows) {
+    const workflowsDir = join(mechaDir, "workflows");
+    for (const name of team.workflows) {
+      const path = join(workflowsDir, name);
+      /* v8 ignore start -- file may already be gone */
+      if (existsSync(path)) {
+        unlinkSync(path);
+        result.workflowsRemoved++;
+      }
+      /* v8 ignore stop */
+    }
+  }
+
+  // Remove schedules
+  if (team.schedules && opts.removeSchedule) {
+    for (const sched of team.schedules) {
+      await opts.removeSchedule(sched.bot, sched.id);
+      result.schedulesRemoved++;
+    }
+  }
+
+  // Unregister team
+  unregisterTeam(mechaDir, team.name);
+
+  log.info("Team teardown complete", {
+    team: team.name,
+    botsStopped: result.botsStopped,
+    busTopicsRemoved: result.busTopicsRemoved,
+    busQueuesRemoved: result.busQueuesRemoved,
+  });
+
+  return result;
 }

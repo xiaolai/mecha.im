@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createTopic, type Topic } from "../src/topic.js";
@@ -37,7 +37,7 @@ describe("Topic", () => {
 
   describe("subscribe + poll", () => {
     it("subscriber receives messages published after subscribing", () => {
-      topic.subscribe({ bot: "bob", concurrency: 1 });
+      topic.subscribe({ bot: "bob", concurrency: 10 });
 
       topic.publish({ id: "msg-1", sender: "alice", payload: "hello" });
       topic.publish({ id: "msg-2", sender: "alice", payload: "world" });
@@ -69,7 +69,7 @@ describe("Topic", () => {
     });
 
     it("respects limit parameter", () => {
-      topic.subscribe({ bot: "bob", concurrency: 1 });
+      topic.subscribe({ bot: "bob", concurrency: 10 });
       for (let i = 0; i < 5; i++) {
         topic.publish({ sender: "alice", payload: i });
       }
@@ -79,6 +79,51 @@ describe("Topic", () => {
 
       const rest = topic.poll("bob", 10);
       expect(rest).toHaveLength(3);
+    });
+
+    it("limits poll to subscriber concurrency", () => {
+      const t = createTopic({ busDir, config: { name: "concurrency-test", retentionDays: 7 } });
+      t.subscribe({ bot: "worker", concurrency: 2 });
+      t.publish({ sender: "a", payload: "1" });
+      t.publish({ sender: "a", payload: "2" });
+      t.publish({ sender: "a", payload: "3" });
+
+      const messages = t.poll("worker", 10); // asks for 10 but concurrency=2
+      expect(messages).toHaveLength(2);
+    });
+
+    it("renders promptTemplate with message payload", () => {
+      const t = createTopic({ busDir, config: { name: "template-test", retentionDays: 7 } });
+      t.subscribe({ bot: "worker", concurrency: 10, promptTemplate: "Process: {{message}}" });
+      t.publish({ sender: "source", payload: "data-123" });
+
+      const messages = t.poll("worker");
+      expect((messages[0] as any).renderedPrompt).toBe("Process: data-123");
+    });
+
+    it("filters messages by subscriber filter expression", () => {
+      const t = createTopic({ busDir, config: { name: "filter-test", retentionDays: 7 } });
+      t.subscribe({ bot: "worker", concurrency: 10, filter: "priority > 2" });
+      t.publish({ sender: "a", payload: { priority: 1, text: "low" } });
+      t.publish({ sender: "a", payload: { priority: 5, text: "high" } });
+
+      const messages = t.poll("worker");
+      expect(messages).toHaveLength(1);
+      expect((messages[0].payload as any).text).toBe("high");
+    });
+
+    it("advances cursor past filtered-out messages", () => {
+      const t = createTopic({ busDir, config: { name: "filter-cursor", retentionDays: 7 } });
+      t.subscribe({ bot: "worker", concurrency: 10, filter: "priority > 2" });
+      t.publish({ sender: "a", payload: { priority: 1, text: "low" } });
+      t.publish({ sender: "a", payload: { priority: 5, text: "high" } });
+
+      t.poll("worker"); // consumes both, returns 1
+
+      // Second poll should return nothing (cursor advanced past both)
+      t.publish({ sender: "a", payload: { priority: 1, text: "also-low" } });
+      const msgs = t.poll("worker");
+      expect(msgs).toHaveLength(0); // filtered out
     });
 
     it("returns empty for unsubscribed bot", () => {
@@ -205,6 +250,80 @@ describe("Topic", () => {
         busDir,
         config: { name: "foo..bar", retentionDays: 7 },
       })).toThrow("Invalid topic name");
+    });
+  });
+
+  describe("enforceRetention", () => {
+    it("removes messages older than retentionDays", () => {
+      const topic = createTopic({
+        busDir,
+        config: { name: "retention-test", retentionDays: 7 },
+      });
+
+      // Publish a message and manually backdate it
+      topic.publish({ sender: "test", payload: "old" });
+      const messagesPath = join(busDir, "topics", "retention-test", "messages.jsonl");
+      const messages = readFileSync(messagesPath, "utf-8")
+        .trim()
+        .split("\n")
+        .map((l) => JSON.parse(l));
+      messages[0].ts = new Date(Date.now() - 100 * 86_400_000).toISOString(); // 100 days ago
+      writeFileSync(messagesPath, messages.map((m: unknown) => JSON.stringify(m)).join("\n") + "\n");
+
+      // Publish a fresh message
+      topic.publish({ sender: "test", payload: "new" });
+
+      const removed = topic.enforceRetention();
+      expect(removed).toBe(1);
+      expect(topic.messageCount()).toBe(1);
+    });
+
+    it("adjusts subscriber cursors after removing old messages", () => {
+      const topic = createTopic({
+        busDir,
+        config: { name: "retention-cursor", retentionDays: 7 },
+      });
+
+      // Publish 3 messages, backdate the first one
+      topic.publish({ id: "old-1", sender: "test", payload: "old" });
+      topic.publish({ id: "msg-2", sender: "test", payload: "mid" });
+      topic.publish({ id: "msg-3", sender: "test", payload: "new" });
+
+      // Subscribe — cursor starts at 3 (end of messages)
+      topic.subscribe({ bot: "worker", concurrency: 10 });
+
+      // Manually set cursor to 1 (simulate having read only msg-1)
+      const subsPath = join(busDir, "topics", "retention-cursor", "subscribers.json");
+      const subs = JSON.parse(readFileSync(subsPath, "utf-8"));
+      subs[0].cursor = 1;
+      writeFileSync(subsPath, JSON.stringify(subs));
+
+      // Backdate the first message to be older than retention
+      const messagesPath = join(busDir, "topics", "retention-cursor", "messages.jsonl");
+      const messages = readFileSync(messagesPath, "utf-8")
+        .trim()
+        .split("\n")
+        .map((l) => JSON.parse(l));
+      messages[0].ts = new Date(Date.now() - 100 * 86_400_000).toISOString();
+      writeFileSync(messagesPath, messages.map((m: unknown) => JSON.stringify(m)).join("\n") + "\n");
+
+      // Enforce retention — removes 1 old message
+      const removed = topic.enforceRetention();
+      expect(removed).toBe(1);
+
+      // Cursor should be adjusted from 1 to 0
+      const updatedSubs = topic.subscribers();
+      expect(updatedSubs[0]!.cursor).toBe(0);
+    });
+
+    it("returns 0 when no messages need removal", () => {
+      const topic = createTopic({
+        busDir,
+        config: { name: "retention-fresh", retentionDays: 7 },
+      });
+      topic.publish({ sender: "test", payload: "fresh" });
+      const removed = topic.enforceRetention();
+      expect(removed).toBe(0);
     });
   });
 

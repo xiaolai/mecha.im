@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createQueue, type DurableQueue } from "../src/queue.js";
+import type { ClaimedItem } from "../src/types.js";
 
 describe("DurableQueue", () => {
   let busDir: string;
@@ -12,7 +13,7 @@ describe("DurableQueue", () => {
     busDir = mkdtempSync(join(tmpdir(), "mecha-bus-"));
     queue = createQueue({
       busDir,
-      config: { name: "test-queue", maxRetries: 3, retryBackoffMs: 100 },
+      config: { name: "test-queue", maxRetries: 3, retryBackoffMs: 0 },
     });
   });
 
@@ -152,7 +153,7 @@ describe("DurableQueue", () => {
       // Re-create queue from same directory
       const queue2 = createQueue({
         busDir,
-        config: { name: "test-queue", maxRetries: 3, retryBackoffMs: 100 },
+        config: { name: "test-queue", maxRetries: 3, retryBackoffMs: 0 },
       });
       expect(queue2.stats().pending).toBe(1);
 
@@ -165,6 +166,151 @@ describe("DurableQueue", () => {
   describe("name", () => {
     it("exposes the queue name", () => {
       expect(queue.name).toBe("test-queue");
+    });
+  });
+
+  describe("claim timeout", () => {
+    it("auto-returns expired inflight items to pending", () => {
+      const q = createQueue({
+        busDir,
+        config: { name: "timeout-q", maxRetries: 3, retryBackoffMs: 100, claimTimeoutMs: 100 },
+      });
+      q.push({ id: "work-1", sender: "test", payload: "work" });
+      q.claim("worker");
+
+      expect(q.stats().inflight).toBe(1);
+      expect(q.stats().pending).toBe(0);
+
+      // Backdate the claimedAt to simulate timeout
+      const inflightPath = join(busDir, "queues", "timeout-q", "inflight.jsonl");
+      const items: ClaimedItem[] = readFileSync(inflightPath, "utf-8")
+        .trim()
+        .split("\n")
+        .map((l) => JSON.parse(l));
+      items[0]!.claimedAt = new Date(Date.now() - 200).toISOString(); // 200ms ago, > 100ms timeout
+      writeFileSync(inflightPath, items.map((i) => JSON.stringify(i)).join("\n") + "\n");
+
+      // Next claim should first expire the timed-out item, returning it to pending
+      const item = q.claim("worker");
+      expect(item).not.toBeNull();
+      expect(item!.message.id).toBe("work-1");
+      expect(q.stats().inflight).toBe(1); // re-claimed
+      expect(q.stats().pending).toBe(0);
+    });
+
+    it("moves expired inflight to dead letter when retries exhausted", () => {
+      const q = createQueue({
+        busDir,
+        config: { name: "timeout-dead-q", maxRetries: 1, retryBackoffMs: 0, claimTimeoutMs: 50 },
+      });
+      q.push({ id: "doomed", sender: "test", payload: "fail" });
+      q.claim("worker"); // attempt 1
+
+      // Backdate to expire
+      const inflightPath = join(busDir, "queues", "timeout-dead-q", "inflight.jsonl");
+      const items: ClaimedItem[] = readFileSync(inflightPath, "utf-8")
+        .trim()
+        .split("\n")
+        .map((l) => JSON.parse(l));
+      items[0]!.claimedAt = new Date(Date.now() - 100).toISOString();
+      writeFileSync(inflightPath, items.map((i) => JSON.stringify(i)).join("\n") + "\n");
+
+      // Next claim triggers timeout scan — attempt 1 >= maxRetries 1 → dead letter
+      const claimed = q.claim("worker");
+      expect(claimed).toBeNull(); // nothing left to claim
+      expect(q.stats().dead).toBe(1);
+      expect(q.stats().inflight).toBe(0);
+    });
+  });
+
+  describe("retry backoff", () => {
+    it("respects backoff delay on nacked messages", () => {
+      const q = createQueue({
+        busDir,
+        config: { name: "backoff-q", maxRetries: 3, retryBackoffMs: 60_000 },
+      });
+      q.push({ id: "work-1", sender: "test", payload: "work" });
+      q.claim("worker");
+      q.nack("work-1");
+
+      // Message should be in pending but not yet claimable (notBefore is in the future)
+      expect(q.stats().pending).toBe(1);
+      const claimed = q.claim("worker");
+      expect(claimed).toBeNull(); // can't claim yet, backoff hasn't elapsed
+    });
+
+    it("allows claiming after backoff elapses", () => {
+      const q = createQueue({
+        busDir,
+        config: { name: "backoff-elapsed-q", maxRetries: 3, retryBackoffMs: 100 },
+      });
+      q.push({ id: "work-1", sender: "test", payload: "work" });
+      q.claim("worker");
+      q.nack("work-1");
+
+      // Manually backdate the notBefore in the pending file
+      const pendingPath = join(busDir, "queues", "backoff-elapsed-q", "pending.jsonl");
+      const items = readFileSync(pendingPath, "utf-8")
+        .trim()
+        .split("\n")
+        .map((l) => JSON.parse(l));
+      items[0].notBefore = new Date(Date.now() - 1000).toISOString(); // already past
+      writeFileSync(pendingPath, items.map((i: unknown) => JSON.stringify(i)).join("\n") + "\n");
+
+      const claimed = q.claim("worker");
+      expect(claimed).not.toBeNull();
+      expect(claimed!.message.id).toBe("work-1");
+      expect(claimed!.attempts).toBe(2); // second attempt
+    });
+
+    it("uses exponential backoff on repeated nacks", () => {
+      const q = createQueue({
+        busDir,
+        config: { name: "exp-backoff-q", maxRetries: 5, retryBackoffMs: 1000 },
+      });
+      q.push({ id: "work-1", sender: "test", payload: "work" });
+
+      // First claim+nack: backoff = 1000 * 2^0 = 1000ms
+      q.claim("worker");
+      q.nack("work-1");
+
+      const pendingPath = join(busDir, "queues", "exp-backoff-q", "pending.jsonl");
+      let items = readFileSync(pendingPath, "utf-8")
+        .trim()
+        .split("\n")
+        .map((l) => JSON.parse(l));
+      const notBefore1 = new Date(items[0].notBefore).getTime();
+      expect(notBefore1).toBeGreaterThan(Date.now() + 500); // at least ~1s in future
+
+      // Backdate to allow second claim
+      items[0].notBefore = new Date(Date.now() - 1).toISOString();
+      writeFileSync(pendingPath, items.map((i: unknown) => JSON.stringify(i)).join("\n") + "\n");
+
+      // Second claim+nack: backoff = 1000 * 2^1 = 2000ms
+      q.claim("worker");
+      q.nack("work-1");
+
+      items = readFileSync(pendingPath, "utf-8")
+        .trim()
+        .split("\n")
+        .map((l) => JSON.parse(l));
+      const notBefore2 = new Date(items[0].notBefore).getTime();
+      expect(notBefore2).toBeGreaterThan(Date.now() + 1500); // at least ~2s in future
+    });
+
+    it("does not set notBefore when retryBackoffMs is 0", () => {
+      const q = createQueue({
+        busDir,
+        config: { name: "no-backoff-q", maxRetries: 3, retryBackoffMs: 0 },
+      });
+      q.push({ id: "work-1", sender: "test", payload: "work" });
+      q.claim("worker");
+      q.nack("work-1");
+
+      // With 0ms backoff, message should be immediately claimable
+      const claimed = q.claim("worker");
+      expect(claimed).not.toBeNull();
+      expect(claimed!.message.id).toBe("work-1");
     });
   });
 
@@ -232,7 +378,7 @@ describe("DurableQueue", () => {
       // Re-create queue — dead-letter IDs should be loaded for dedup
       const queue2 = createQueue({
         busDir,
-        config: { name: "test-queue", maxRetries: 3, retryBackoffMs: 100 },
+        config: { name: "test-queue", maxRetries: 3, retryBackoffMs: 0 },
       });
       expect(queue2.stats().dead).toBe(1);
 
@@ -250,13 +396,29 @@ describe("DurableQueue", () => {
       // Re-create queue from same directory — inflight items should be loaded
       const queue2 = createQueue({
         busDir,
-        config: { name: "test-queue", maxRetries: 3, retryBackoffMs: 100 },
+        config: { name: "test-queue", maxRetries: 3, retryBackoffMs: 0 },
       });
       expect(queue2.stats().inflight).toBe(1);
 
       // Dedup still works for the inflight message ID
       queue2.push({ id: "inflight-persist", sender: "alice", payload: "dup" });
       expect(queue2.stats().pending).toBe(0);
+    });
+  });
+
+  describe("corrupt data handling", () => {
+    it("skips corrupt lines in JSONL on startup", () => {
+      // Write a pending file with one valid and one corrupt line
+      const qDir = join(busDir, "queues", "corrupt-q");
+      mkdirSync(qDir, { recursive: true });
+      const validMsg = JSON.stringify({ id: "good", ts: new Date().toISOString(), sender: "alice", payload: "ok" });
+      writeFileSync(join(qDir, "pending.jsonl"), `${validMsg}\n{CORRUPT LINE\n`);
+
+      const q = createQueue({
+        busDir,
+        config: { name: "corrupt-q", maxRetries: 3, retryBackoffMs: 0 },
+      });
+      expect(q.stats().pending).toBe(1); // only the valid line survived
     });
   });
 });

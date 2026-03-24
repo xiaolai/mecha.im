@@ -19,7 +19,7 @@ export function registerWorkflowListCommand(parent: Command, deps: CommandDeps):
           return;
         }
 
-        const files = readdirSync(workflowsDir).filter((f) => f.endsWith(".yaml"));
+        const files = readdirSync(workflowsDir).filter((f) => f.endsWith(".yaml") || f.endsWith(".yml"));
 
         if (files.length === 0) {
           deps.formatter.info("No workflows found");
@@ -28,7 +28,7 @@ export function registerWorkflowListCommand(parent: Command, deps: CommandDeps):
 
         deps.formatter.table(
           ["Name", "File"],
-          files.map((f) => [f.replace(/\.yaml$/, ""), f]),
+          files.map((f) => [f.replace(/\.(yaml|yml)$/, ""), f]),
         );
       }),
     );
