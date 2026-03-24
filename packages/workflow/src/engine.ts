@@ -82,7 +82,7 @@ export function createEngine(opts: CreateEngineOpts): WorkflowEngine {
     /* v8 ignore stop */
     const ctx: Record<string, unknown> = { ...runState.inputs };
     for (const [name, step] of Object.entries(runState.steps)) {
-      if (step.status === "completed" && step.output !== undefined) {
+      if ((step.status === "completed" || step.status === "compensating" || step.status === "compensated") && step.output !== undefined) {
         const outputKey = definition.steps[name]?.output ?? name;
         ctx[name] = { [outputKey]: step.output };
       }
@@ -353,7 +353,7 @@ export function createEngine(opts: CreateEngineOpts): WorkflowEngine {
         try {
           await executor({
             bot: stepDef.bot,
-            prompt: stepDef.compensate,
+            prompt: renderTemplate(stepDef.compensate, buildContext()),
             stepRunId: `${step.stepRunId}:compensate`,
           });
           step.status = "compensated";

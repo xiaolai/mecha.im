@@ -276,6 +276,37 @@ describe("WorkflowEngine", () => {
       expect(engine.state().status).toBe("compensated");
     });
 
+    it("renders templates in compensation prompts", async () => {
+      const def: WorkflowDef = {
+        name: "compensate-template",
+        steps: {
+          a: { bot: "bot", prompt: "do", output: "result", compensate: "undo {{a.result}}" },
+          b: { bot: "bot", prompt: "fail", depends: ["a"] },
+        },
+      };
+      const engine = createEngine({ workflowsDir, definition: def });
+      engine.startRun();
+
+      let callIdx = 0;
+      const exec: StepExecutor = async ({ prompt }) => {
+        callIdx++;
+        if (callIdx === 1) return { output: "done-value" };
+        throw new Error("fail");
+      };
+
+      await engine.executeReady(exec); // step a succeeds
+      await engine.executeReady(exec); // step b fails
+
+      let compensatePrompt = "";
+      const compensateExec: StepExecutor = async ({ prompt }) => {
+        compensatePrompt = prompt;
+        return { output: "compensated" };
+      };
+
+      await engine.compensate(compensateExec);
+      expect(compensatePrompt).toContain("done-value");
+    });
+
     it("does nothing if run is not failed", async () => {
       const engine = createEngine({ workflowsDir, definition: linearDef });
       engine.startRun();
