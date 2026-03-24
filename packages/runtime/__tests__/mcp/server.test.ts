@@ -388,8 +388,8 @@ describe("MCP routes with mesh enabled", () => {
     const res = await rpc("tools/list");
     expect(res.statusCode).toBe(200);
     const { tools } = res.json().result;
-    // 2 workspace + 2 mesh + 5 bus + 3 workflow + 4 task = 16
-    expect(tools).toHaveLength(16);
+    // 2 workspace + 2 mesh + 6 bus + 3 workflow + 4 task = 17
+    expect(tools).toHaveLength(17);
     const names = tools.map((t: { name: string }) => t.name);
     expect(names).toContain("mesh_query");
     expect(names).toContain("mesh_discover");
@@ -398,6 +398,7 @@ describe("MCP routes with mesh enabled", () => {
     expect(names).toContain("bus_queue_claim");
     expect(names).toContain("bus_queue_ack");
     expect(names).toContain("bus_queue_nack");
+    expect(names).toContain("bus_poll");
     expect(names).toContain("workflow_list");
     expect(names).toContain("workflow_run");
     expect(names).toContain("workflow_status");

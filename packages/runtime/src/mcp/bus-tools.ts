@@ -67,6 +67,18 @@ export const BUS_TOOLS: McpToolDef[] = [
       required: ["queue", "messageId"],
     },
   },
+  {
+    name: "bus_poll",
+    description: "Read new messages from a bus topic (requires subscription)",
+    inputSchema: {
+      type: "object",
+      properties: {
+        topic: { type: "string", description: "Topic name to poll" },
+        limit: { type: "number", description: "Maximum messages to return (default 10)" },
+      },
+      required: ["topic"],
+    },
+  },
 ];
 
 /** Runtime context for bus tool execution. */
@@ -172,6 +184,20 @@ export async function handleBusTool(
         return { content: [{ type: "text", text: `Message "${messageId}" not found in inflight` }], isError: true };
       }
       return { content: [{ type: "text", text: `Returned message "${messageId}" for retry` }] };
+    }
+
+    case "bus_poll": {
+      const topicName = args.topic;
+      if (typeof topicName !== "string" || !topicName) {
+        return { content: [{ type: "text", text: "Missing required: topic (string)" }], isError: true };
+      }
+      const limit = typeof args.limit === "number" ? args.limit : 10;
+      const topic = broker.topic(topicName);
+      const messages = topic.poll(opts.botName, limit);
+      if (messages.length === 0) {
+        return { content: [{ type: "text", text: "No new messages" }] };
+      }
+      return { content: [{ type: "text", text: JSON.stringify(messages) }] };
     }
 
     default:
