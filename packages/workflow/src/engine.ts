@@ -94,7 +94,12 @@ export function createEngine(opts: CreateEngineOpts): WorkflowEngine {
   if (opts.runId) {
     const statePath = join(runsDir, `${opts.runId}.json`);
     if (existsSync(statePath)) {
-      runState = JSON.parse(readFileSync(statePath, "utf-8")) as RunState;
+      try {
+        runState = JSON.parse(readFileSync(statePath, "utf-8")) as RunState;
+      } catch {
+        // Corrupt state file — treat as no prior state
+        runState = null;
+      }
     }
   }
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { mkdtempSync, existsSync } from "node:fs";
+import { mkdtempSync, mkdirSync, existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createEngine } from "../src/engine.js";
@@ -421,6 +421,19 @@ describe("WorkflowEngine", () => {
       const engine = createEngine({ workflowsDir, definition: linearDef, runId: "nonexistent-run" });
       const runId = engine.startRun();
       expect(runId).toBe("nonexistent-run");
+      expect(engine.state().status).toBe("pending");
+    });
+
+    it("handles corrupt state file gracefully", () => {
+      // Pre-create the runs directory and write a corrupt state file
+      const runsDir = join(workflowsDir, "runs", linearDef.name);
+      mkdirSync(runsDir, { recursive: true });
+      writeFileSync(join(runsDir, "corrupt-run.json"), "{CORRUPT JSON DATA");
+
+      // Should not throw — treats corrupt state as no prior state
+      const engine = createEngine({ workflowsDir, definition: linearDef, runId: "corrupt-run" });
+      const runId = engine.startRun();
+      expect(runId).toBe("corrupt-run");
       expect(engine.state().status).toBe("pending");
     });
   });

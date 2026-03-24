@@ -11,12 +11,20 @@ function assertSafeName(name: string, label: string): void {
   }
 }
 
-/** Parse JSONL file into array of objects. */
+/** Parse JSONL file into array of objects. Skips corrupt lines. */
 function readJsonl<T>(path: string): T[] {
   if (!existsSync(path)) return [];
   const content = readFileSync(path, "utf-8").trim();
   if (!content) return [];
-  return content.split("\n").map((line) => JSON.parse(line) as T);
+  const items: T[] = [];
+  for (const line of content.split("\n")) {
+    try {
+      items.push(JSON.parse(line) as T);
+    } catch {
+      // Skip corrupt line — partial write from crash
+    }
+  }
+  return items;
 }
 
 /** Pub/sub topic with per-subscriber cursors. */
@@ -71,7 +79,12 @@ export function createTopic(opts: CreateTopicOpts): Topic {
 
   function loadSubscribers(): Subscriber[] {
     if (!existsSync(subscribersPath)) return [];
-    return JSON.parse(readFileSync(subscribersPath, "utf-8")) as Subscriber[];
+    try {
+      return JSON.parse(readFileSync(subscribersPath, "utf-8")) as Subscriber[];
+    } catch {
+      // Corrupt subscribers file — treat as empty
+      return [];
+    }
   }
 
   function saveSubscribers(subs: Subscriber[]): void {

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createQueue, type DurableQueue } from "../src/queue.js";
@@ -403,6 +403,22 @@ describe("DurableQueue", () => {
       // Dedup still works for the inflight message ID
       queue2.push({ id: "inflight-persist", sender: "alice", payload: "dup" });
       expect(queue2.stats().pending).toBe(0);
+    });
+  });
+
+  describe("corrupt data handling", () => {
+    it("skips corrupt lines in JSONL on startup", () => {
+      // Write a pending file with one valid and one corrupt line
+      const qDir = join(busDir, "queues", "corrupt-q");
+      mkdirSync(qDir, { recursive: true });
+      const validMsg = JSON.stringify({ id: "good", ts: new Date().toISOString(), sender: "alice", payload: "ok" });
+      writeFileSync(join(qDir, "pending.jsonl"), `${validMsg}\n{CORRUPT LINE\n`);
+
+      const q = createQueue({
+        busDir,
+        config: { name: "corrupt-q", maxRetries: 3, retryBackoffMs: 0 },
+      });
+      expect(q.stats().pending).toBe(1); // only the valid line survived
     });
   });
 });
