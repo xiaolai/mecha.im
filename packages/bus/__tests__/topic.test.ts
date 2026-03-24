@@ -101,6 +101,31 @@ describe("Topic", () => {
       expect((messages[0] as any).renderedPrompt).toBe("Process: data-123");
     });
 
+    it("filters messages by subscriber filter expression", () => {
+      const t = createTopic({ busDir, config: { name: "filter-test", retentionDays: 7 } });
+      t.subscribe({ bot: "worker", concurrency: 10, filter: "priority > 2" });
+      t.publish({ sender: "a", payload: { priority: 1, text: "low" } });
+      t.publish({ sender: "a", payload: { priority: 5, text: "high" } });
+
+      const messages = t.poll("worker");
+      expect(messages).toHaveLength(1);
+      expect((messages[0].payload as any).text).toBe("high");
+    });
+
+    it("advances cursor past filtered-out messages", () => {
+      const t = createTopic({ busDir, config: { name: "filter-cursor", retentionDays: 7 } });
+      t.subscribe({ bot: "worker", concurrency: 10, filter: "priority > 2" });
+      t.publish({ sender: "a", payload: { priority: 1, text: "low" } });
+      t.publish({ sender: "a", payload: { priority: 5, text: "high" } });
+
+      t.poll("worker"); // consumes both, returns 1
+
+      // Second poll should return nothing (cursor advanced past both)
+      t.publish({ sender: "a", payload: { priority: 1, text: "also-low" } });
+      const msgs = t.poll("worker");
+      expect(msgs).toHaveLength(0); // filtered out
+    });
+
     it("returns empty for unsubscribed bot", () => {
       topic.publish({ sender: "alice", payload: "test" });
       expect(topic.poll("nobody")).toEqual([]);
