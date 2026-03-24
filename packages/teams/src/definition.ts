@@ -1,3 +1,4 @@
+import { parseScheduleExpression } from "@mecha/core";
 import type { TeamDef } from "./types.js";
 
 /** Validate a team definition. Returns list of errors (empty = valid). */
@@ -48,6 +49,16 @@ export function validateTeamDef(def: TeamDef): string[] {
     }
   }
 
+  // Validate schedules
+  for (const sched of def.schedules ?? []) {
+    if (!botNames.has(sched.bot)) {
+      errors.push(`Schedule "${sched.id}" references unknown bot "${sched.bot}"`);
+    }
+    if (!parseScheduleExpression(sched.every)) {
+      errors.push(`Schedule "${sched.id}" has invalid expression "${sched.every}"`);
+    }
+  }
+
   return errors;
 }
 
@@ -68,5 +79,6 @@ export function parseTeamDef(raw: unknown): TeamDef {
     scaffold: obj.scaffold as TeamDef["scaffold"],
     bus: obj.bus as TeamDef["bus"],
     workflows: obj.workflows as TeamDef["workflows"],
+    schedules: obj.schedules as TeamDef["schedules"],
   };
 }

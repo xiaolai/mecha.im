@@ -95,6 +95,33 @@ describe("validateTeamDef", () => {
     });
     expect(errors).toContain("ACL target must be a string");
   });
+
+  it("errors on schedule referencing unknown bot", () => {
+    const errors = validateTeamDef({
+      ...validDef,
+      schedules: [{ bot: "ghost", id: "daily", every: "1h", prompt: "check" }],
+    });
+    expect(errors).toContain('Schedule "daily" references unknown bot "ghost"');
+  });
+
+  it("errors on schedule with invalid expression", () => {
+    const errors = validateTeamDef({
+      ...validDef,
+      schedules: [{ bot: "developer", id: "bad", every: "nope", prompt: "check" }],
+    });
+    expect(errors).toContain('Schedule "bad" has invalid expression "nope"');
+  });
+
+  it("accepts valid schedules", () => {
+    const errors = validateTeamDef({
+      ...validDef,
+      schedules: [
+        { bot: "developer", id: "hourly", every: "1h", prompt: "run tests" },
+        { bot: "reviewer", id: "cron-daily", every: "0 9 * * *", prompt: "review code" },
+      ],
+    });
+    expect(errors).toEqual([]);
+  });
 });
 
 describe("parseTeamDef", () => {
