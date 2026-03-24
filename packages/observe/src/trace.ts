@@ -1,13 +1,7 @@
 import { mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { assertSafeName } from "@mecha/core";
 import type { RunTrace, StepTrace } from "./types.js";
-
-/** Validate a name used as a filesystem path segment. Rejects traversal attempts. */
-function assertSafeName(name: string, label: string): void {
-  if (!name || /[/\\]|^\.\.?$/.test(name) || name.includes("..")) {
-    throw new Error(`Invalid ${label}: "${name}"`);
-  }
-}
 
 /** File-backed store for workflow run traces. */
 export interface TraceStore {

@@ -15,7 +15,7 @@ export type {
 } from "./types.js";
 export { isBotAddress, isGroupAddress } from "./types.js";
 export { botName, nodeName, parseAddress, formatAddress } from "./address.js";
-export { NAME_PATTERN, NAME_MAX_LENGTH, isValidName, isValidAddress, TAG_PATTERN, TAG_MAX_LENGTH, MAX_TAGS, validateTags, validateCapabilities, validateAddDirs, MAX_ADD_DIRS, parsePort } from "./validation.js";
+export { NAME_PATTERN, NAME_MAX_LENGTH, isValidName, isValidAddress, TAG_PATTERN, TAG_MAX_LENGTH, MAX_TAGS, validateTags, validateCapabilities, validateAddDirs, MAX_ADD_DIRS, parsePort, assertSafeName } from "./validation.js";
 export {
   MECHA_DIR,
   TOOLS_DIR,

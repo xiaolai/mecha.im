@@ -1,31 +1,9 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { renderTemplate, evaluateCondition, atomicWriteSync } from "@mecha/core";
+import { renderTemplate, evaluateCondition, atomicWriteSync, assertSafeName } from "@mecha/core";
 import type { BusMessage, Subscriber, TopicConfig } from "./types.js";
-
-/** Validate a name used as a filesystem path segment. Rejects traversal attempts. */
-function assertSafeName(name: string, label: string): void {
-  if (!name || /[/\\]|^\.\.?$/.test(name) || name.includes("..")) {
-    throw new Error(`Invalid ${label} name: "${name}"`);
-  }
-}
-
-/** Parse JSONL file into array of objects. Skips corrupt lines. */
-function readJsonl<T>(path: string): T[] {
-  if (!existsSync(path)) return [];
-  const content = readFileSync(path, "utf-8").trim();
-  if (!content) return [];
-  const items: T[] = [];
-  for (const line of content.split("\n")) {
-    try {
-      items.push(JSON.parse(line) as T);
-    } catch {
-      // Skip corrupt line — partial write from crash
-    }
-  }
-  return items;
-}
+import { readJsonl } from "./jsonl.js";
 
 /** Pub/sub topic with per-subscriber cursors. */
 export interface Topic {
