@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
+import { renderTemplate, evaluateCondition } from "@mecha/core";
 import type { BusMessage, Subscriber, TopicConfig } from "./types.js";
 
 /** Validate a name used as a filesystem path segment. Rejects traversal attempts. */
@@ -133,10 +134,34 @@ export function createTopic(opts: CreateTopicOpts): Topic {
       const messages = readJsonl<BusMessage>(messagesPath);
       const batch = messages.slice(sub.cursor, sub.cursor + effectiveLimit);
       if (batch.length > 0) {
+        // Cursor advances past all messages (including filtered-out ones)
         sub.cursor += batch.length;
         saveSubscribers(subs);
       }
-      return batch;
+
+      // Apply subscriber filter
+      let result = batch;
+      if (sub.filter) {
+        result = result.filter((msg) => {
+          const payload = typeof msg.payload === "object" && msg.payload !== null
+            ? (msg.payload as Record<string, unknown>)
+            : { value: msg.payload };
+          return evaluateCondition(sub.filter!, { ...payload, sender: msg.sender });
+        });
+      }
+
+      // Render promptTemplate
+      if (sub.promptTemplate) {
+        for (const msg of result) {
+          (msg as BusMessage & { renderedPrompt?: string }).renderedPrompt =
+            renderTemplate(sub.promptTemplate!, {
+              message: msg.payload as string,
+              sender: msg.sender,
+            });
+        }
+      }
+
+      return result;
     },
 
     subscribers() {

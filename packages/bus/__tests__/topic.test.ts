@@ -92,6 +92,15 @@ describe("Topic", () => {
       expect(messages).toHaveLength(2);
     });
 
+    it("renders promptTemplate with message payload", () => {
+      const t = createTopic({ busDir, config: { name: "template-test", retentionDays: 7 } });
+      t.subscribe({ bot: "worker", concurrency: 10, promptTemplate: "Process: {{message}}" });
+      t.publish({ sender: "source", payload: "data-123" });
+
+      const messages = t.poll("worker");
+      expect((messages[0] as any).renderedPrompt).toBe("Process: data-123");
+    });
+
     it("returns empty for unsubscribed bot", () => {
       topic.publish({ sender: "alice", payload: "test" });
       expect(topic.poll("nobody")).toEqual([]);
