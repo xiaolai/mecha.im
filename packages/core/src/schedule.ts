@@ -35,6 +35,7 @@ function parseCronField(field: string, min: number, max: number): number[] {
     } else if (part.includes("/")) {
       const [range, stepStr] = part.split("/");
       const step = Number(stepStr);
+      if (step <= 0 || !Number.isFinite(step)) continue;
       const start = range === "*" ? min : Number(range);
       for (let i = start; i <= max; i += step) values.push(i);
     } else {
