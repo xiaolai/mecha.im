@@ -66,5 +66,6 @@ export function parseTeamDef(raw: unknown): TeamDef {
     bots: (obj.bots ?? {}) as TeamDef["bots"],
     acl: obj.acl as TeamDef["acl"],
     scaffold: obj.scaffold as TeamDef["scaffold"],
+    bus: obj.bus as TeamDef["bus"],
   };
 }

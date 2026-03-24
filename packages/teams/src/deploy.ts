@@ -54,6 +54,10 @@ export interface DeployOpts {
   }) => Promise<boolean>;
   /** Callback to grant ACL. */
   grantAcl: (source: string, target: string, capabilities: string[]) => void;
+  /** Callback to create a bus topic. */
+  createBusTopic?: (name: string) => void;
+  /** Callback to create a bus queue. */
+  createBusQueue?: (name: string, opts?: { maxRetries?: number }) => void;
 }
 
 /**
@@ -113,6 +117,22 @@ export async function deployTeam(opts: DeployOpts): Promise<DeployResult> {
     }
   }
 
+  // Create bus topics and queues
+  const busTopics: string[] = [];
+  const busQueues: string[] = [];
+  if (definition.bus?.topics && opts.createBusTopic) {
+    for (const name of definition.bus.topics) {
+      opts.createBusTopic(name);
+      busTopics.push(name);
+    }
+  }
+  if (definition.bus?.queues && opts.createBusQueue) {
+    for (const q of definition.bus.queues) {
+      opts.createBusQueue(q.name, { maxRetries: q.maxRetries });
+      busQueues.push(q.name);
+    }
+  }
+
   // Register deployed team
   const teams = loadTeams(mechaDir);
   const existing = teams.findIndex((t) => t.name === definition.name);
@@ -122,6 +142,7 @@ export async function deployTeam(opts: DeployOpts): Promise<DeployResult> {
     workspace: definition.workspace,
     bots: botNames,
     deployedAt: new Date().toISOString(),
+    bus: definition.bus,
   };
   if (existing >= 0) {
     teams[existing] = entry;
@@ -135,6 +156,8 @@ export async function deployTeam(opts: DeployOpts): Promise<DeployResult> {
     bots: botNames,
     aclRules,
     scaffolded,
+    busTopics,
+    busQueues,
   };
 }
 
