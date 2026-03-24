@@ -770,6 +770,96 @@ describe("WorkflowEngine", () => {
     });
   });
 
+  describe("output schema validation", () => {
+    it("passes when output matches schema", async () => {
+      const def: WorkflowDef = {
+        name: "schema-pass",
+        steps: {
+          s: {
+            bot: "bot", prompt: "go",
+            outputSchema: {
+              type: "object",
+              required: ["status"],
+              properties: { status: { type: "string" } },
+            },
+          },
+        },
+      };
+      const engine = createEngine({ workflowsDir, definition: def });
+      engine.startRun();
+
+      const exec: StepExecutor = async () => ({
+        output: JSON.stringify({ status: "ok" }),
+      });
+      await engine.executeReady(exec);
+      expect(engine.state().steps.s!.status).toBe("completed");
+    });
+
+    it("fails when required field is missing", async () => {
+      const def: WorkflowDef = {
+        name: "schema-fail-missing",
+        steps: {
+          s: {
+            bot: "bot", prompt: "go",
+            outputSchema: {
+              type: "object",
+              required: ["status", "score"],
+              properties: { status: { type: "string" }, score: { type: "number" } },
+            },
+          },
+        },
+      };
+      const engine = createEngine({ workflowsDir, definition: def });
+      engine.startRun();
+
+      const exec: StepExecutor = async () => ({
+        output: JSON.stringify({ status: "ok" }),
+      });
+      await engine.executeReady(exec);
+      expect(engine.state().steps.s!.status).toBe("failed");
+      expect(engine.state().steps.s!.error).toContain("Missing required field: score");
+    });
+
+    it("fails when field type is wrong", async () => {
+      const def: WorkflowDef = {
+        name: "schema-fail-type",
+        steps: {
+          s: {
+            bot: "bot", prompt: "go",
+            outputSchema: {
+              type: "object",
+              properties: { score: { type: "number" } },
+            },
+          },
+        },
+      };
+      const engine = createEngine({ workflowsDir, definition: def });
+      engine.startRun();
+
+      const exec: StepExecutor = async () => ({
+        output: JSON.stringify({ score: "not-a-number" }),
+      });
+      await engine.executeReady(exec);
+      expect(engine.state().steps.s!.status).toBe("failed");
+      expect(engine.state().steps.s!.error).toContain("expected number, got string");
+    });
+
+    it("skips validation when no outputSchema", async () => {
+      const def: WorkflowDef = {
+        name: "no-schema",
+        steps: {
+          s: { bot: "bot", prompt: "go" },
+        },
+      };
+      const engine = createEngine({ workflowsDir, definition: def });
+      engine.startRun();
+
+      const exec: StepExecutor = async () => ({ output: "anything" });
+      await engine.executeReady(exec);
+      expect(engine.state().steps.s!.status).toBe("completed");
+    });
+  });
+
   describe("workflow outputs", () => {
     it("computes workflow outputs when run completes", async () => {
       const def: WorkflowDef = {

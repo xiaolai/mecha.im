@@ -46,6 +46,37 @@ function assertNoCycles(steps: Record<string, { depends?: string[] }>): void {
   for (const name of Object.keys(steps)) visit(name);
 }
 
+/** Validate step output against a simple schema. Returns array of error strings. */
+function validateOutput(output: unknown, schema: Record<string, unknown>): string[] {
+  const errors: string[] = [];
+  const schemaType = schema.type as string | undefined;
+
+  if (schemaType === "object") {
+    if (typeof output !== "object" || output === null) {
+      errors.push(`Expected object, got ${typeof output}`);
+      return errors;
+    }
+    const obj = output as Record<string, unknown>;
+    const required = (schema.required as string[]) ?? [];
+    for (const key of required) {
+      if (!(key in obj)) {
+        errors.push(`Missing required field: ${key}`);
+      }
+    }
+    const properties = (schema.properties as Record<string, { type?: string }>) ?? {};
+    for (const [key, propSchema] of Object.entries(properties)) {
+      if (key in obj && propSchema.type) {
+        const actual = typeof obj[key];
+        if (actual !== propSchema.type) {
+          errors.push(`Field "${key}": expected ${propSchema.type}, got ${actual}`);
+        }
+      }
+    }
+  }
+
+  return errors;
+}
+
 /**
  * Create a workflow engine for a specific workflow definition.
  * State is persisted to JSON files in the runs directory.
@@ -278,6 +309,25 @@ export function createEngine(opts: CreateEngineOpts): WorkflowEngine {
 
           step.output = result.output;
           step.costUsd = result.costUsd ?? 0;
+
+          // Output schema validation
+          if (stepDef.outputSchema) {
+            let parsed = step.output;
+            if (typeof parsed === "string") {
+              try { parsed = JSON.parse(parsed); } catch { /* use as-is */ }
+            }
+            const errors = validateOutput(parsed, stepDef.outputSchema);
+            if (errors.length > 0) {
+              step.status = "failed";
+              step.error = `Output schema validation failed: ${errors.join("; ")}`;
+              step.completedAt = new Date().toISOString();
+              runState.totalCostUsd += step.costUsd;
+              saveState();
+              executed.push(stepName);
+              continue;
+            }
+          }
+
           step.status = "completed";
           step.completedAt = new Date().toISOString();
           runState.totalCostUsd += step.costUsd;
