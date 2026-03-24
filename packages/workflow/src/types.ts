@@ -75,6 +75,7 @@ export interface RunState {
   startedAt: string;
   completedAt?: string;
   totalCostUsd: number;
+  outputs?: Record<string, unknown>;
 }
 
 /** Function that executes a step (sends prompt to a bot, returns result). */
