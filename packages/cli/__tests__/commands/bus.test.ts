@@ -253,14 +253,14 @@ describe("bus queue nack", () => {
 describe("bus queue dead-letters", () => {
   it("lists dead-letter messages", async () => {
     const { deps, program } = setup();
-    await program.parseAsync(["node", "mecha", "bus", "queue", "create", "dlq", "--max-retries", "2"]);
+    // Create queue with retryBackoffMs: 0 to allow immediate re-claim in test
     const { createBroker } = await import("@mecha/bus");
     const busDir = join(mechaDir, "bus");
     const broker = createBroker(busDir);
-    const q = broker.queue("dlq");
+    const q = broker.queue("dlq", { maxRetries: 2, retryBackoffMs: 0 });
     const id = q.push({ sender: "producer", payload: "work" });
     q.claim("worker"); // attempts=1
-    q.nack(id); // 1 < 2, back to pending
+    q.nack(id); // 1 < 2, back to pending (no backoff)
     q.claim("worker"); // attempts=2
     q.nack(id); // 2 >= 2, dead letter
 
