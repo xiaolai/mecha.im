@@ -31,6 +31,10 @@ export interface TeamDef {
   bots: Record<string, TeamBotDef>;
   acl?: TeamAclDef[];
   scaffold?: ScaffoldDef;
+  bus?: {
+    topics?: string[];
+    queues?: { name: string; maxRetries?: number }[];
+  };
 }
 
 /** Result of deploying a team. */
@@ -39,6 +43,8 @@ export interface DeployResult {
   bots: string[];
   aclRules: number;
   scaffolded: string[];
+  busTopics: string[];
+  busQueues: string[];
 }
 
 /** Deployed team metadata (persisted to teams.json). */
@@ -48,4 +54,7 @@ export interface DeployedTeam {
   workspace?: string;
   bots: string[];
   deployedAt: string;
+  bus?: TeamDef["bus"];
+  workflows?: string[];
+  schedules?: TeamDef["schedules"];
 }

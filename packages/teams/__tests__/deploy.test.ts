@@ -204,6 +204,53 @@ describe("deployTeam", () => {
     })).rejects.toThrow('Failed to spawn bot "broken"');
   });
 
+  it("creates bus topics and queues during deploy", async () => {
+    const def = makeDef();
+    def.bus = {
+      topics: ["events", "logs"],
+      queues: [
+        { name: "tasks", maxRetries: 5 },
+        { name: "alerts" },
+      ],
+    };
+
+    const createdTopics: string[] = [];
+    const createdQueues: Array<{ name: string; opts?: { maxRetries?: number } }> = [];
+
+    const result = await deployTeam({
+      definition: def,
+      mechaDir,
+      spawnBot: makeSpawnBot(),
+      grantAcl: makeGrantAcl(),
+      createBusTopic: (name) => { createdTopics.push(name); },
+      createBusQueue: (name, opts) => { createdQueues.push({ name, opts }); },
+    });
+
+    expect(result.busTopics).toEqual(["events", "logs"]);
+    expect(result.busQueues).toEqual(["tasks", "alerts"]);
+    expect(createdTopics).toEqual(["events", "logs"]);
+    expect(createdQueues).toEqual([
+      { name: "tasks", opts: { maxRetries: 5 } },
+      { name: "alerts", opts: { maxRetries: undefined } },
+    ]);
+
+    // Verify bus info is persisted in teams.json
+    const teams = listTeams(mechaDir);
+    expect(teams[0]!.bus).toEqual(def.bus);
+  });
+
+  it("returns empty bus arrays when no bus definition", async () => {
+    const def = makeDef();
+    const result = await deployTeam({
+      definition: def,
+      mechaDir,
+      spawnBot: makeSpawnBot(),
+      grantAcl: makeGrantAcl(),
+    });
+    expect(result.busTopics).toEqual([]);
+    expect(result.busQueues).toEqual([]);
+  });
+
   it("scaffolds with only mechaDir as allowed root when home and workspace are absent", async () => {
     const scaffoldPath = join(mechaDir, "scaffold-test.md");
     const def: TeamDef = {
