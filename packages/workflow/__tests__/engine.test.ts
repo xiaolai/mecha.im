@@ -585,6 +585,60 @@ describe("WorkflowEngine", () => {
     });
   });
 
+  describe("step timeout", () => {
+    it("fails step when executor exceeds timeout", async () => {
+      const def: WorkflowDef = {
+        name: "timeout-test",
+        steps: {
+          slow: { bot: "bot", prompt: "go", timeout: "10s" },
+        },
+      };
+      const engine = createEngine({ workflowsDir, definition: def });
+      engine.startRun();
+
+      const slowExecutor: StepExecutor = async () => {
+        await new Promise((resolve) => setTimeout(resolve, 30_000)); // 30s > 10s timeout
+        return { output: "done" };
+      };
+
+      await engine.executeReady(slowExecutor);
+      const state = engine.state();
+      expect(state.steps.slow!.status).toBe("failed");
+      expect(state.steps.slow!.error).toContain("timed out");
+    }, 15_000); // test timeout 15s > step timeout 10s
+
+    it("completes step when executor finishes before timeout", async () => {
+      const def: WorkflowDef = {
+        name: "timeout-ok",
+        steps: {
+          fast: { bot: "bot", prompt: "go", timeout: "10s" },
+        },
+      };
+      const engine = createEngine({ workflowsDir, definition: def });
+      engine.startRun();
+
+      const fastExecutor: StepExecutor = async () => ({ output: "done" });
+
+      await engine.executeReady(fastExecutor);
+      expect(engine.state().steps.fast!.status).toBe("completed");
+    });
+
+    it("uses default timeout when none specified", async () => {
+      const def: WorkflowDef = {
+        name: "timeout-default",
+        steps: {
+          normal: { bot: "bot", prompt: "go" },
+        },
+      };
+      const engine = createEngine({ workflowsDir, definition: def });
+      engine.startRun();
+
+      const executor: StepExecutor = async () => ({ output: "done" });
+      await engine.executeReady(executor);
+      expect(engine.state().steps.normal!.status).toBe("completed");
+    });
+  });
+
   describe("maxRetries", () => {
     it("retries a failed step up to maxRetries", async () => {
       const def: WorkflowDef = {

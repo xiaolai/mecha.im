@@ -8,6 +8,14 @@ import type {
   CreateEngineOpts,
 } from "./types.js";
 import { renderTemplate, evaluateCondition } from "./template.js";
+import { parseInterval } from "@mecha/core";
+
+const DEFAULT_STEP_TIMEOUT_MS = 600_000; // 10 minutes
+
+function parseTimeout(timeout?: string): number {
+  if (!timeout) return DEFAULT_STEP_TIMEOUT_MS;
+  return parseInterval(timeout) ?? DEFAULT_STEP_TIMEOUT_MS;
+}
 
 /** Validate a name used as a filesystem path segment. Rejects traversal attempts. */
 function assertSafeName(name: string, label: string): void {
@@ -240,13 +248,24 @@ export function createEngine(opts: CreateEngineOpts): WorkflowEngine {
         try {
           const ctx = buildContext();
           const renderedPrompt = renderTemplate(stepDef.prompt, ctx);
-          const result = await executor({
-            bot: stepDef.bot,
-            prompt: renderedPrompt,
-            stepRunId: step.stepRunId,
-            timeout: stepDef.timeout,
-            budgetUsd: stepDef.budgetUsd,
-          });
+          const timeoutMs = parseTimeout(stepDef.timeout);
+          let timer: ReturnType<typeof setTimeout>;
+
+          const result = await Promise.race([
+            executor({
+              bot: stepDef.bot,
+              prompt: renderedPrompt,
+              stepRunId: step.stepRunId,
+              timeout: stepDef.timeout,
+              budgetUsd: stepDef.budgetUsd,
+            }),
+            new Promise<never>((_, reject) => {
+              timer = setTimeout(
+                () => reject(new Error(`Step timed out after ${stepDef.timeout ?? "10m"}`)),
+                timeoutMs,
+              );
+            }),
+          ]).finally(() => clearTimeout(timer));
 
           step.output = result.output;
           step.costUsd = result.costUsd ?? 0;
