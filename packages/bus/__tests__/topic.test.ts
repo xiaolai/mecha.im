@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createTopic, type Topic } from "../src/topic.js";
@@ -205,6 +205,42 @@ describe("Topic", () => {
         busDir,
         config: { name: "foo..bar", retentionDays: 7 },
       })).toThrow("Invalid topic name");
+    });
+  });
+
+  describe("enforceRetention", () => {
+    it("removes messages older than retentionDays", () => {
+      const topic = createTopic({
+        busDir,
+        config: { name: "retention-test", retentionDays: 7 },
+      });
+
+      // Publish a message and manually backdate it
+      topic.publish({ sender: "test", payload: "old" });
+      const messagesPath = join(busDir, "topics", "retention-test", "messages.jsonl");
+      const messages = readFileSync(messagesPath, "utf-8")
+        .trim()
+        .split("\n")
+        .map((l) => JSON.parse(l));
+      messages[0].ts = new Date(Date.now() - 100 * 86_400_000).toISOString(); // 100 days ago
+      writeFileSync(messagesPath, messages.map((m: unknown) => JSON.stringify(m)).join("\n") + "\n");
+
+      // Publish a fresh message
+      topic.publish({ sender: "test", payload: "new" });
+
+      const removed = topic.enforceRetention();
+      expect(removed).toBe(1);
+      expect(topic.messageCount()).toBe(1);
+    });
+
+    it("returns 0 when no messages need removal", () => {
+      const topic = createTopic({
+        busDir,
+        config: { name: "retention-fresh", retentionDays: 7 },
+      });
+      topic.publish({ sender: "test", payload: "fresh" });
+      const removed = topic.enforceRetention();
+      expect(removed).toBe(0);
     });
   });
 

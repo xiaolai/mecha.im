@@ -38,6 +38,9 @@ export interface Topic {
   /** Count total messages in the topic. */
   messageCount(): number;
 
+  /** Remove messages older than retentionDays. Returns count of removed messages. */
+  enforceRetention(): number;
+
   /** Get the topic name. */
   readonly name: string;
 }
@@ -137,6 +140,22 @@ export function createTopic(opts: CreateTopicOpts): Topic {
 
     messageCount() {
       return readJsonl<BusMessage>(messagesPath).length;
+    },
+
+    enforceRetention() {
+      const cutoffMs = config.retentionDays * 86_400_000;
+      const cutoff = Date.now() - cutoffMs;
+      const messages = readJsonl<BusMessage>(messagesPath);
+      const kept = messages.filter((m) => new Date(m.ts).getTime() >= cutoff);
+      const removed = messages.length - kept.length;
+      if (removed > 0) {
+        writeFileSync(
+          messagesPath,
+          kept.map((m) => JSON.stringify(m)).join("\n") +
+            (kept.length ? "\n" : ""),
+        );
+      }
+      return removed;
     },
   };
 }
