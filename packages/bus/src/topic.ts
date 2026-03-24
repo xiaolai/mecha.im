@@ -1,7 +1,9 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { renderTemplate, evaluateCondition, atomicWriteSync, assertSafeName } from "@mecha/core";
+import { renderTemplate, evaluateCondition, atomicWriteSync, assertSafeName, createLogger } from "@mecha/core";
+
+const log = createLogger("mecha:bus");
 import type { BusMessage, Subscriber, TopicConfig } from "./types.js";
 import { readJsonl } from "./jsonl.js";
 
@@ -128,6 +130,7 @@ export function createTopic(opts: CreateTopicOpts): Topic {
         // Cursor advances past all messages (including filtered-out ones)
         sub.cursor += batch.length;
         saveSubscribers(subs);
+        log.debug("Topic polled", { topic: config.name, bot, count: batch.length });
       }
 
       // Apply subscriber filter
@@ -170,6 +173,7 @@ export function createTopic(opts: CreateTopicOpts): Topic {
       const kept = messages.filter((m) => new Date(m.ts).getTime() >= cutoff);
       const removed = messages.length - kept.length;
       if (removed > 0) {
+        log.info("Retention enforced", { topic: config.name, removed });
         atomicWriteSync(
           messagesPath,
           kept.map((m) => JSON.stringify(m)).join("\n") +

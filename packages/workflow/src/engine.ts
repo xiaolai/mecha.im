@@ -10,7 +10,9 @@ import type {
   CreateEngineOpts,
 } from "./types.js";
 import { renderTemplate, evaluateCondition } from "./template.js";
-import { parseInterval, atomicWriteSync, assertSafeName } from "@mecha/core";
+import { parseInterval, atomicWriteSync, assertSafeName, createLogger } from "@mecha/core";
+
+const log = createLogger("mecha:workflow");
 
 const DEFAULT_STEP_TIMEOUT_MS = 600_000; // 10 minutes
 
@@ -283,6 +285,7 @@ export function createEngine(opts: CreateEngineOpts): WorkflowEngine {
         step.status = "running";
         step.startedAt = new Date().toISOString();
         step.attempts++;
+        log.info("Step started", { step: stepName, attempt: step.attempts });
         saveState();
 
         try {
@@ -331,6 +334,7 @@ export function createEngine(opts: CreateEngineOpts): WorkflowEngine {
           step.status = "completed";
           step.completedAt = new Date().toISOString();
           runState!.totalCostUsd += step.costUsd;
+          log.info("Step completed", { step: stepName });
         } catch (err) {
           /* v8 ignore start -- non-Error throw fallback */
           const errorMsg = err instanceof Error ? err.message : String(err);
@@ -340,12 +344,14 @@ export function createEngine(opts: CreateEngineOpts): WorkflowEngine {
           if (stepDef.maxRetries != null && stepDef.maxRetries > 0 && step.attempts < stepDef.maxRetries) {
             step.status = "pending";  // back to pending for re-execution
             step.error = errorMsg;    // preserve last error for debugging
+            log.warn("Step retrying", { step: stepName, attempt: step.attempts, maxRetries: stepDef.maxRetries, error: errorMsg });
           } else {
             step.status = "failed";
             step.error = stepDef.maxRetries != null && stepDef.maxRetries > 0
               ? `Max retries exceeded (${stepDef.maxRetries}): ${errorMsg}`
               : errorMsg;
             step.completedAt = new Date().toISOString();
+            log.warn("Step failed", { step: stepName, error: errorMsg });
           }
         }
 
@@ -355,6 +361,7 @@ export function createEngine(opts: CreateEngineOpts): WorkflowEngine {
 
       // Budget enforcement — checked after all parallel steps complete
       if (definition.budgetUsd != null && runState.totalCostUsd >= definition.budgetUsd) {
+        log.info("Budget exceeded", { totalCost: runState.totalCostUsd, budget: definition.budgetUsd });
         for (const [, sState] of Object.entries(runState.steps)) {
           if (sState.status === "pending") {
             sState.status = "failed";
@@ -404,6 +411,7 @@ export function createEngine(opts: CreateEngineOpts): WorkflowEngine {
       if (runState.status !== "failed") return [];
 
       runState.status = "compensating";
+      log.info("Compensation started", { runId: runState.runId });
       saveState();
 
       // Walk completed steps in reverse chronological order (most recent first)
@@ -436,8 +444,10 @@ export function createEngine(opts: CreateEngineOpts): WorkflowEngine {
         } catch (err) {
           step.status = "failed"; // compensation itself failed
           /* v8 ignore start -- non-Error throw fallback */
-          step.error = `Compensation failed: ${err instanceof Error ? err.message : String(err)}`;
+          const compErr = err instanceof Error ? err.message : String(err);
           /* v8 ignore stop */
+          step.error = `Compensation failed: ${compErr}`;
+          log.warn("Compensation failed for step", { step: name, error: compErr });
           compensationFailed = true;
         }
         saveState();
