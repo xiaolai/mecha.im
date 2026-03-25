@@ -102,10 +102,25 @@ export function buildBotEnv(opts: BuildBotEnvOpts): Record<string, string> {
     // API key takes priority over OAuth in Claude CLI. If the parent shell
     // has an API key set (e.g., for Codex), it would override the user's
     // Claude Pro/Max OAuth session, causing auth failures when credits run out.
+
+    // Check for explicit CLAUDE_CODE_OAUTH_TOKEN first
     if (process.env["CLAUDE_CODE_OAUTH_TOKEN"] && !childEnv["CLAUDE_CODE_OAUTH_TOKEN"]) {
       childEnv["CLAUDE_CODE_OAUTH_TOKEN"] = process.env["CLAUDE_CODE_OAUTH_TOKEN"]!;
     }
-    // Also inherit CLAUDE_SETUP_TOKEN_* vars (OAuth session tokens per profile)
+
+    // Fall back to CLAUDE_SETUP_TOKEN_* (OAuth session tokens per profile)
+    // Use the first available one as CLAUDE_CODE_OAUTH_TOKEN if not already set
+    if (!childEnv["CLAUDE_CODE_OAUTH_TOKEN"]) {
+      for (const [key, value] of Object.entries(process.env)) {
+        if (key.startsWith("CLAUDE_SETUP_TOKEN_") && value) {
+          childEnv["CLAUDE_CODE_OAUTH_TOKEN"] = value;
+          childEnv[key] = value;
+          break;
+        }
+      }
+    }
+
+    // Also pass through all CLAUDE_SETUP_TOKEN_* vars
     for (const [key, value] of Object.entries(process.env)) {
       if (key.startsWith("CLAUDE_SETUP_TOKEN_") && value && !childEnv[key]) {
         childEnv[key] = value;
