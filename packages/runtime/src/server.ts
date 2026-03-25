@@ -30,6 +30,8 @@ export interface CreateServerOpts {
   scheduleChatFn?: ChatFn;
   /** MCP servers to connect the bot's Claude Code instance to. */
   mcpServers?: Record<string, unknown>;
+  /** Permission mode for tool use (e.g., "auto" to skip interactive prompts). */
+  permissionMode?: string;
   /** Agent daemon port for mesh routing proxy (default: 7660). */
   agentPort?: number;
   /** Agent daemon API key for mesh routing proxy. */
@@ -78,6 +80,7 @@ export function createServer(opts: CreateServerOpts): ServerResult {
     ...(opts.systemPrompt !== undefined && { systemPrompt: opts.systemPrompt }),
     ...(opts.appendSystemPrompt !== undefined && { appendSystemPrompt: opts.appendSystemPrompt }),
     ...(opts.mcpServers !== undefined && { mcpServers: opts.mcpServers }),
+    ...(opts.permissionMode !== undefined && { permissionMode: opts.permissionMode }),
   };
 
   // HTTP chat handler for /api/chat route
