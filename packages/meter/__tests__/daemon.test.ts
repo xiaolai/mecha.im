@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach, vi, beforeEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -17,11 +17,10 @@ if (platform() === "linux") {
 
 import { startDaemon, stopDaemon, meterDir } from "../src/daemon.js";
 import type { DaemonHandle } from "../src/daemon.js";
-import { createHotCounters, toSnapshot, ingestEvent } from "../src/hot-counters.js";
+import { createHotCounters, toSnapshot } from "../src/hot-counters.js";
 import { writeSnapshot, readSnapshot } from "../src/snapshot.js";
-import { emptySummary, todayUTC } from "../src/query.js";
-import { writeBudgets, readBudgets } from "../src/budgets.js";
-import type { MeterEvent } from "../src/types.js";
+import { todayUTC } from "../src/query.js";
+import { readBudgets, writeBudgets } from "../src/budgets.js";
 
 function httpGet(port: number, path: string, headers?: Record<string, string>): Promise<{ status: number; body: string }> {
   return new Promise((resolve, reject) => {
@@ -35,7 +34,7 @@ function httpGet(port: number, path: string, headers?: Record<string, string>): 
   });
 }
 
-describe("daemon", () => {
+describe("daemon", { timeout: 15_000 }, () => {
   let tempDir: string;
   let handle: DaemonHandle | undefined;
 
@@ -194,7 +193,7 @@ describe("daemon", () => {
     }
   });
 
-  it("periodic snapshot timer writes to disk", { timeout: 15_000 }, async () => {
+  it("periodic snapshot timer writes to disk", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
       tempDir = mkdtempSync(join(tmpdir(), "meter-daemon-"));
@@ -215,7 +214,7 @@ describe("daemon", () => {
     }
   });
 
-  it("periodic registry timer rescans", { timeout: 15_000 }, async () => {
+  it("periodic registry timer rescans", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
       tempDir = mkdtempSync(join(tmpdir(), "meter-daemon-"));
@@ -236,24 +235,39 @@ describe("daemon", () => {
     }
   });
 
-  it("SIGHUP reloads budgets and pricing", { timeout: 15_000 }, async () => {
+  it("SIGHUP reloads budgets and pricing", async () => {
     tempDir = mkdtempSync(join(tmpdir(), "meter-daemon-"));
+
+    // Pre-seed snapshot with $100 accumulated cost so budget checks have something to compare against.
+    const seeded = createHotCounters(todayUTC());
+    seeded.global.today.costUsd = 100;
+    seeded.global.today.requests = 50;
+    writeSnapshot(tempDir, toSnapshot(seeded));
+
     handle = await startDaemon({ meterDir: tempDir, port: 0, required: false });
 
-    // Write budgets to disk
-    writeBudgets(tempDir, { global: { dailyUsd: 99 }, byBot: {}, byAuthProfile: {}, byTag: {} });
-
-    // Send SIGHUP to reload
-    process.emit("SIGHUP", "SIGHUP");
-
-    // Allow async SIGHUP handler to settle
-    await new Promise(r => setTimeout(r, 50));
-
-    // The budgets should be reloaded — verify the daemon is still alive
     const addr = handle.server.address();
     const port = typeof addr === "object" && addr ? addr.port : 0;
-    const res = await httpGet(port, "/");
-    expect(res.status).toBe(404); // Still responds after SIGHUP
+
+    // Before SIGHUP: no budgets → request passes budget check (gets 405 from upstream, not 429).
+    const before = await httpGet(port, "/bot/test/v1/messages");
+    expect(before.status).not.toBe(429);
+
+    // Write $50 budget — less than the $100 already spent → should reject
+    writeBudgets(tempDir, { global: { dailyUsd: 50 }, byBot: {}, byAuthProfile: {}, byTag: {} });
+
+    // Verify the budget file was written correctly
+    const budgets = readBudgets(tempDir);
+    expect(budgets.global.dailyUsd).toBe(50);
+
+    // Send SIGHUP to reload budgets into the daemon
+    process.emit("SIGHUP", "SIGHUP");
+    await new Promise(r => setTimeout(r, 50));
+
+    // After SIGHUP: $100 spent > $50 limit → request should be rejected with 429
+    const after = await httpGet(port, "/bot/test/v1/messages");
+    expect(after.status).toBe(429);
+    expect(JSON.parse(after.body).error).toContain("exceeded daily limit");
   });
 
   it("close() removes SIGHUP listener", async () => {

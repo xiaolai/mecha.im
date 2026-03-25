@@ -352,8 +352,8 @@ describe("sandbox-setup", () => {
       }
 
       it("skips ANTHROPIC_BASE_URL when proxy port unreachable", () => {
-        // PID alive (process.pid) but curl probe fails (no server on 7600)
-        writeMeterProxy({ port: 7600, pid: process.pid, required: false });
+        // PID alive (ppid, not process.pid — so curl probe runs) but no server on 7600
+        writeMeterProxy({ port: 7600, pid: process.ppid, required: false });
         const spy = vi.spyOn(console, "error").mockImplementation(() => {});
         const result = prepareBotFilesystem(makeOpts());
         // Port probe fails → ANTHROPIC_BASE_URL not set (graceful degradation)
@@ -382,15 +382,31 @@ describe("sandbox-setup", () => {
       });
 
       it("throws MeterProxyRequiredError when PID alive but port dead and required", () => {
-        writeMeterProxy({ port: 7600, pid: process.pid, required: true });
+        // Use ppid (not process.pid) so curl probe runs and fails
+        writeMeterProxy({ port: 7600, pid: process.ppid, required: true });
         expect(() => prepareBotFilesystem(makeOpts())).toThrow("Metering proxy required but not running");
       });
 
       it("logs warning when PID alive but port dead and not required", () => {
-        writeMeterProxy({ port: 7600, pid: process.pid, required: false });
+        // Use ppid (not process.pid) so curl probe runs and fails
+        writeMeterProxy({ port: 7600, pid: process.ppid, required: false });
         const spy = vi.spyOn(console, "error").mockImplementation(() => {});
         const result = prepareBotFilesystem(makeOpts());
         expect(result.childEnv.ANTHROPIC_BASE_URL).toBeUndefined();
+        spy.mockRestore();
+      });
+
+      it("skips probe and sets URL when meter runs in-process (pid === process.pid)", () => {
+        // In-process meter: probe is skipped to avoid deadlock, meter considered alive
+        writeMeterProxy({ port: 7600, pid: process.pid, required: false });
+        const result = prepareBotFilesystem(makeOpts());
+        expect(result.childEnv.ANTHROPIC_BASE_URL).toBe("http://127.0.0.1:7600/bot/alice");
+      });
+
+      it("throws MeterProxyRequiredError when PID dead and required", () => {
+        writeMeterProxy({ port: 7600, pid: 999999, required: true });
+        const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+        expect(() => prepareBotFilesystem(makeOpts())).toThrow("Metering proxy required but not running");
         spy.mockRestore();
       });
     });

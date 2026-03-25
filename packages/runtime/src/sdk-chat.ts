@@ -26,7 +26,8 @@ function resolveClaudePath(): string | undefined {
     return process.env["MECHA_CLAUDE_PATH"];
   }
   try {
-    return execFileSync("which", ["claude"], { encoding: "utf-8" }).trim() || undefined;
+    const cmd = process.platform === "win32" ? "where" : "which";
+    return execFileSync(cmd, ["claude"], { encoding: "utf-8" }).trim() || undefined;
   } catch {
     return undefined;
   }
@@ -126,16 +127,28 @@ export async function sdkChat(
         maxTurns: 25,
         env: opts.env,
         abortController: ac,
-        stderr: (data: string) => { log.debug("claude stderr", { data: data.trim() }); },
+        stderr: (data: string) => {
+          // Redact secrets from stderr before logging.
+          // Pattern covers: Anthropic API keys, generic sk-* keys, Bearer tokens,
+          // OAuth tokens, env var assignments for known secret keys, and
+          // long base64/hex strings (>40 chars) that likely contain credentials.
+          const redacted = data.trim()
+            .replace(/sk-ant-[a-zA-Z0-9_-]{20,}/g, "[REDACTED]")
+            .replace(/sk-[a-zA-Z0-9_-]{20,}/g, "[REDACTED]")
+            .replace(/Bearer\s+\S{10,}/gi, "Bearer [REDACTED]")
+            .replace(/(ANTHROPIC_API_KEY|CLAUDE_CODE_OAUTH_TOKEN|CLAUDE_SETUP_TOKEN_\w+|API_KEY|SECRET|TOKEN|PASSWORD)=\S+/gi, "$1=[REDACTED]")
+            .replace(/[a-f0-9]{40,}/gi, "[REDACTED]");
+          log.debug("claude stderr", { data: redacted });
+        },
         ...(sysPrompt != null && { systemPrompt: sysPrompt }),
         ...(opts.mcpServers != null && Object.keys(opts.mcpServers).length > 0 && {
           mcpServers: opts.mcpServers as Record<string, never>,
         }),
-        // Bots are non-interactive (headless) — auto-approve all tool use.
-        // permissionMode in bot config is for future fine-grained filtering;
-        // the SDK callback model handles permissions directly, so we always
-        // allow here. Security boundary is the sandbox, not tool approval.
-        canUseTool: async () => ({ behavior: "allow" as const }),
+        // Default: bypass all permission prompts (headless bots).
+        // Security boundary is the sandbox, not tool approval.
+        // Callers can override via opts.permissionMode for stricter setups.
+        permissionMode: (opts.permissionMode ?? "bypassPermissions") as "bypassPermissions",
+        allowDangerouslySkipPermissions: (opts.permissionMode ?? "bypassPermissions") === "bypassPermissions",
       },
     })) {
       if (opts.activityEmitter && opts.botName) {

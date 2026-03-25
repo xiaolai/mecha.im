@@ -1,4 +1,4 @@
-import { resolveAuth, MeterProxyRequiredError, AuthProfileNotFoundError, ProcessSpawnError, createLogger } from "@mecha/core";
+import { resolveAuth, readAuthProfiles, MeterProxyRequiredError, AuthProfileNotFoundError, createLogger } from "@mecha/core";
 import type { ResolvedAuth } from "@mecha/core";
 import { execFileSync } from "node:child_process";
 import { accessSync, constants, unlinkSync } from "node:fs";
@@ -91,12 +91,16 @@ export function buildBotEnv(opts: BuildBotEnvOpts): Record<string, string> {
   try {
     resolved = resolveAuth(opts.mechaDir, opts.auth);
   } catch (err) {
-    // Only fall back to host env when no profiles exist (implicit auth).
+    // Only fall back to host env when no profiles exist at all (implicit auth).
     // If user explicitly passed --auth <name>, rethrow so spawn fails fast.
     // Also rethrow non-"not found" errors (corruption, permission) to surface real issues.
+    // If profiles exist but no default is set, that's a config error — rethrow.
     /* v8 ignore start -- fallback for environments without auth profiles */
     if (opts.auth !== undefined) throw err;
     if (!(err instanceof AuthProfileNotFoundError)) throw err;
+    // Check the profile store directly — only fall back if truly empty
+    const store = readAuthProfiles(opts.mechaDir);
+    if (Object.keys(store.profiles).length > 0) throw err;
     log.warn("No auth profiles found, inheriting host credentials. Use --auth <name> or create a profile with 'mecha auth add' for explicit auth.");
     // Inherit OAuth tokens but NOT ANTHROPIC_API_KEY.
     // API key takes priority over OAuth in Claude CLI. If the parent shell
@@ -144,7 +148,8 @@ export function buildBotEnv(opts: BuildBotEnvOpts): Record<string, string> {
   /* v8 ignore start -- claude path resolution */
   if (cachedClaudePath === null) {
     try {
-      const which = execFileSync("which", ["claude"], { encoding: "utf-8" }).trim();
+      const whichCmd = process.platform === "win32" ? "where" : "which";
+      const which = execFileSync(whichCmd, ["claude"], { encoding: "utf-8" }).trim();
       if (which) {
         let resolved = which;
         try {
@@ -169,15 +174,27 @@ export function buildBotEnv(opts: BuildBotEnvOpts): Record<string, string> {
     const md = meterDir(opts.mechaDir);
     const proxyInfo = readProxyInfo(md);
     if (proxyInfo) {
-      // Verify PID alive — and optionally probe the port.
+      // Verify PID alive — and probe the port with a lightweight Node.js HTTP check.
       // A hung/zombie meter process passes PID check but the port is dead,
-      // causing API 400 errors for bots. The probe is best-effort: if curl
-      // isn't available or the check fails, we still trust the PID check
-      // to avoid breaking spawn in environments without curl.
+      // causing API 400 errors for bots.
+      //
+      // IMPORTANT: Skip the probe when the meter runs in-process
+      // (proxyInfo.pid === process.pid). The probe uses execFileSync which
+      // blocks the event loop — the meter server on the same loop can't
+      // respond, causing a deadlock. In-process meter is definitionally
+      // alive if we reached this code.
       let proxyAlive = isPidAlive(proxyInfo.pid);
-      if (proxyAlive) {
+      if (proxyAlive && proxyInfo.pid !== process.pid) {
         try {
-          execFileSync("curl", ["-sf", "-m", "1", `http://127.0.0.1:${proxyInfo.port}/healthz`], { stdio: "ignore" });
+          // Probe via Node.js built-in http — no curl dependency needed.
+          // Bounded to 800ms total (500ms socket + 300ms margin).
+          execFileSync(process.execPath, ["-e", `
+            const r = require("http").get("http://127.0.0.1:${proxyInfo.port}/healthz", {timeout:500}, res => {
+              process.exit(res.statusCode === 200 ? 0 : 1);
+            });
+            r.on("error", () => process.exit(1));
+            r.on("timeout", () => { r.destroy(); process.exit(1); });
+          `], { stdio: "ignore", timeout: 800 });
         } catch {
           // Probe failed — meter PID alive but port dead. Log and skip metering.
           log.warn("Meter proxy PID alive but port unreachable, skipping metering");
@@ -190,10 +207,14 @@ export function buildBotEnv(opts: BuildBotEnvOpts): Record<string, string> {
         /* v8 ignore stop */
       } else if (!isPidAlive(proxyInfo.pid)) {
         // PID is dead — proxy.json is truly stale. Clean up so future spawns skip this check.
-        log.warn("Meter proxy is not running (stale proxy.json), cleaning up and skipping metering");
         /* v8 ignore start -- stale proxy cleanup */
         try { unlinkSync(join(md, "proxy.json")); } catch { /* already gone */ }
         /* v8 ignore stop */
+        if (proxyInfo.required) {
+          // Meter required but proxy is dead — fail closed, don't silently skip
+          throw new MeterProxyRequiredError();
+        }
+        log.warn("Meter proxy is not running (stale proxy.json), cleaned up and skipping metering");
       } else if (proxyInfo.required) {
         // PID alive but port unreachable AND meter is required — fail closed
         throw new MeterProxyRequiredError();

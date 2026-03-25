@@ -1,6 +1,9 @@
-import { type BotName, DEFAULTS, ChatRequestError } from "@mecha/core";
+import { type BotName, ChatRequestError } from "@mecha/core";
 import type { ProcessManager } from "@mecha/process";
 import { resolveBotEndpoint } from "./helpers.js";
+
+/** Chat-specific timeout aligned with runtime CHAT_TIMEOUT_MS (10 minutes). */
+const CHAT_TIMEOUT_MS = 10 * 60 * 1000;
 
 /** Options for sending a chat message to a bot. */
 export interface ChatOpts {
@@ -28,17 +31,22 @@ export async function botChat(
   const info = resolveBotEndpoint(pm, name);
 
   const url = `http://127.0.0.1:${info.port}/api/chat`;
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${info.token}`,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify(opts),
-    signal: signal
-      ? AbortSignal.any([AbortSignal.timeout(DEFAULTS.FORWARD_TIMEOUT_MS), signal])
-      : AbortSignal.timeout(DEFAULTS.FORWARD_TIMEOUT_MS),
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${info.token}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(opts),
+      signal: signal ?? AbortSignal.timeout(CHAT_TIMEOUT_MS),
+    });
+  } catch (err) {
+    // Wrap network/abort errors with bot context
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new ChatRequestError(0, `Chat request to bot "${name}" failed: ${msg}`);
+  }
 
   if (!response.ok) {
     let body: Record<string, unknown> = {};
@@ -51,5 +59,16 @@ export async function botChat(
     );
   }
 
-  return await response.json() as ChatResult;
+  const result = await response.json() as Record<string, unknown>;
+  // Validate required fields before returning
+  if (
+    typeof result.response !== "string" ||
+    typeof result.sessionId !== "string" ||
+    typeof result.durationMs !== "number" ||
+    typeof result.costUsd !== "number"
+  ) {
+    throw new ChatRequestError(502, "Invalid chat response from bot — missing required fields");
+  }
+
+  return result as unknown as ChatResult;
 }

@@ -1,5 +1,4 @@
 import type { FastifyInstance } from "fastify";
-import { DEFAULTS } from "@mecha/core";
 
 /** Function that handles a chat message and returns a response. */
 export interface HttpChatFn {
@@ -16,6 +15,11 @@ export function registerChatRoutes(
   app: FastifyInstance,
   chatFn: HttpChatFn,
 ): void {
+  /** Default chat timeout: 10 minutes (SDK queries can take minutes for complex tasks). */
+  const CHAT_TIMEOUT_MS = 10 * 60 * 1000;
+  /** Max allowed message size: 64 KB. */
+  const MAX_MESSAGE_BYTES = 65_536;
+
   app.post<{
     Body: { message: string; sessionId?: string };
   }>("/api/chat", async (request, reply) => {
@@ -26,7 +30,7 @@ export function registerChatRoutes(
     if (!message || typeof message !== "string") {
       return reply.code(400).send({ error: "message is required" });
     }
-    if (Buffer.byteLength(message, "utf8") > DEFAULTS.RELAY_MAX_MESSAGE_BYTES) {
+    if (Buffer.byteLength(message, "utf8") > MAX_MESSAGE_BYTES) {
       return reply.code(413).send({ error: "message too large" });
     }
 
@@ -38,18 +42,28 @@ export function registerChatRoutes(
       const result = await chatFn(
         message,
         sessionId,
-        AbortSignal.timeout(DEFAULTS.FORWARD_TIMEOUT_MS),
+        AbortSignal.timeout(CHAT_TIMEOUT_MS),
       );
       return reply.send(result);
     } catch (err) {
       const internal = err instanceof Error ? err.message : String(err);
       request.log.error({ err: internal }, "Chat request failed");
-      // SDK query() throws plain Error — detect auth failures by known exact prefixes.
-      // Case-sensitive matching on known SDK error signatures only (not loose substring) (R5-005).
-      const isAuthError = err instanceof Error && (
-        err.message.startsWith("No API credentials") ||
-        err.message.startsWith("ANTHROPIC_API_KEY") ||
-        err.message.startsWith("authentication failed")
+
+      // Detect timeout/abort before other classifications
+      const isTimeout = err instanceof Error && (
+        err.name === "TimeoutError" || err.name === "AbortError"
+      );
+      if (isTimeout) {
+        return reply.code(504).send({ error: "Chat request timed out" });
+      }
+
+      // SDK query() throws plain Error — detect auth failures by known prefixes.
+      // Case-insensitive matching on known SDK error signatures (R5-005).
+      const msg = err instanceof Error ? err.message.toLowerCase() : "";
+      const isAuthError = (
+        msg.startsWith("no api credentials") ||
+        msg.startsWith("anthropic_api_key") ||
+        msg.startsWith("authentication failed")
       );
       const status = isAuthError ? 401 : 500;
       const clientMsg = isAuthError
