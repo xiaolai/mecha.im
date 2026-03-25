@@ -74,7 +74,9 @@ export function createServer(opts: CreateServerOpts): ServerResult {
   // SDK chat options (used for /api/chat and schedule chatFn)
   const chatOpts = {
     workspacePath: opts.workspacePath,
-    settingSources: ["project", "user"] as const,
+    // Default to "project" only — do NOT load user settings (hooks, plugins, MCP servers)
+    // which can cause hangs in non-interactive bot processes.
+    settingSources: ["project"] as const,
     activityEmitter,
     botName: opts.botName,
     ...(opts.systemPrompt !== undefined && { systemPrompt: opts.systemPrompt }),

@@ -42,12 +42,11 @@ const { app } = createServer({
   // Auto-register the bot's own runtime MCP server so Claude Code can use
   // mesh_query, mesh_discover, and workspace tools. Merge with user-configured
   // MCP servers from config.json.
+  // Only include user-configured MCP servers from config.json.
+  // Do NOT auto-register the bot's own /mcp endpoint — it is a simple JSON-RPC
+  // handler, not a Streamable HTTP MCP server. Claude CLI expects session creation,
+  // SSE, and DELETE semantics from type:"http" servers, causing 100% CPU hang.
   mcpServers: {
-    mecha: {
-      type: "http",
-      url: `http://127.0.0.1:${env.MECHA_PORT}/mcp`,
-      headers: { Authorization: `Bearer ${env.MECHA_AUTH_TOKEN}` },
-    },
     ...(botConfig?.mcpServers as Record<string, unknown> ?? {}),
   },
   permissionMode: botConfig?.permissionMode as string | undefined,
