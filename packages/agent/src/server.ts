@@ -35,7 +35,7 @@ import type { ProcessManager } from "@mecha/process";
 import { createAuthHook, createAuthContext, verifyRequestSignature } from "./auth.js";
 import type { AuthConfig } from "./auth.js";
 import { registerTaskRoutes } from "./task-routes.js";
-import { startDiscoveryLoop } from "./discovery.js";
+import { startDiscoveryLoop, startMdnsAdvertise } from "./discovery.js";
 
 export interface AgentServerOptions {
   port: number;
@@ -415,14 +415,25 @@ export function createAgentServer(opts: AgentServerOptions): FastifyInstance {
   app.get("/tools", async () => []);
   app.get("/tools/runtime", async () => ({ claudePath: null, version: null }));
 
-  // ── Auto-discovery: scan Tailscale peers periodically ────────────
-  /* v8 ignore start -- discovery requires Tailscale CLI and network access */
+  // ── Auto-discovery: mDNS advertise + scan Tailscale/mDNS peers ───
+  /* v8 ignore start -- discovery requires network access */
   let stopDiscovery: (() => void) | undefined;
+  let stopMdns: (() => void) | undefined;
   app.addHook("onReady", async () => {
     const meshApiKey = auth.apiKey ?? "";
+
+    // Advertise this agent on the LAN via mDNS
+    stopMdns = startMdnsAdvertise({
+      nodeName: opts.nodeName,
+      port: opts.port,
+      version: "4.1.10",
+    });
+
+    // Start discovery loop (scans both Tailscale + mDNS)
     stopDiscovery = startDiscoveryLoop(mechaDir, meshApiKey);
   });
   app.addHook("onClose", async () => {
+    if (stopMdns) stopMdns();
     if (stopDiscovery) stopDiscovery();
   });
   /* v8 ignore stop */

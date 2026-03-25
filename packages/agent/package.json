@@ -17,6 +17,7 @@
     "@mecha/core": "workspace:*",
     "@mecha/meter": "workspace:*",
     "@mecha/process": "workspace:*",
+    "bonjour-service": "^1.3.0",
     "fastify": "^5.8.1",
     "otpauth": "^9.5.0"
   },
