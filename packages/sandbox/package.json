@@ -1,6 +1,6 @@
 {
   "name": "@mecha/sandbox",
-  "version": "4.1.11",
+  "version": "4.1.12",
   "description": "Platform sandbox integration for mecha.im CASAs",
   "type": "module",
   "exports": {
