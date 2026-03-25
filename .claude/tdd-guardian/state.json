@@ -1,17 +1,12 @@
 {
-  "last_gate_passed_at": "2026-03-24T08:38:00.000Z",
+  "last_gate_passed_at": "2026-03-25T02:23:00.000Z",
   "last_result": "passed",
-  "last_head_sha": "e0e67da36463045fb1c8c927ec96d69af5d503b8",
+  "last_head_sha": "a14c7a381aac8cc81498b081b37f1d3f80713d3b",
   "require_mutation": false,
   "coverage_summary_path": "reports/coverage/coverage-summary.json",
   "baseline": {
-    "branch": "worktree-orchestration-phase1",
-    "recorded_at": "2026-03-24T08:12:06.000Z",
-    "coverage": {
-      "lines": 97.99,
-      "functions": 98.32,
-      "branches": 93.39,
-      "statements": 97.7
-    }
+    "branch": "main",
+    "recorded_at": "2026-03-25T02:23:00.000Z",
+    "coverage": { "lines": 96.23, "functions": 96.06, "branches": 91.34, "statements": 95.8 }
   }
 }

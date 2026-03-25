@@ -419,7 +419,8 @@ export function createAgentServer(opts: AgentServerOptions): FastifyInstance {
   /* v8 ignore start -- discovery requires network access */
   let stopDiscovery: (() => void) | undefined;
   let stopMdns: (() => void) | undefined;
-  app.addHook("onReady", async () => {
+  // Use onListen (not onReady) so mDNS advertises only after the port is bound
+  app.addHook("onListen", async () => {
     const meshApiKey = auth.apiKey ?? "";
 
     // Advertise this agent on the LAN via mDNS
