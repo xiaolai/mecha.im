@@ -1,6 +1,6 @@
 {
   "name": "@mecha/workspace",
-  "version": "4.1.10",
+  "version": "4.1.11",
   "private": true,
   "description": "Local-first multi-agent runtime",
   "scripts": {

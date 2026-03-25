@@ -26,6 +26,14 @@ The `@mecha/agent` package provides the agent HTTP server that receives bot quer
 | `AuthContext` | Type | `auth.ts` |
 | `registerTaskRoutes` | Function | `task-routes.ts` |
 | `TaskRouteOpts` | Type | `task-routes.ts` |
+| `runDiscoveryScan` | Function | `discovery.ts` |
+| `startDiscoveryLoop` | Function | `discovery.ts` |
+| `startMdnsAdvertise` | Function | `discovery.ts` |
+| `scanMdnsPeers` | Function | `discovery.ts` |
+| `SCAN_INTERVAL_MS` | Constant | `discovery.ts` |
+| `MDNS_BROWSE_TIMEOUT_MS` | Constant | `discovery.ts` |
+| `MdnsAdvertiseOpts` | Type | `discovery.ts` |
+| `MdnsPeer` | Type | `discovery.ts` |
 
 ## `createAgentServer(opts)`
 
@@ -522,6 +530,199 @@ Cancel a pending or working task. The agent proxies the cancel request to the bo
 ### Startup Reconciliation
 
 On startup, the agent server reconciles stale tasks via `reconcileStaleTasks()`. Any tasks left in `working` or `pending` status from a previous agent process are marked as `failed` with an appropriate error message.
+
+## Discovery
+
+**Source:** `packages/agent/src/discovery.ts`
+
+Periodic peer auto-discovery via Tailscale and mDNS (LAN fallback). Scans for online Tailscale peers and mDNS-advertised Mecha agents, probes their healthz endpoint, and registers newly found peers in the discovered-nodes registry.
+
+### `MdnsAdvertiseOpts`
+
+```ts
+interface MdnsAdvertiseOpts {
+  nodeName: string;
+  port: number;
+  version: string;
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `nodeName` | `string` | Local node name to advertise |
+| `port` | `number` | Agent server port to advertise |
+| `version` | `string` | Mecha version string included in TXT record |
+
+### `MdnsPeer`
+
+```ts
+interface MdnsPeer {
+  ip: string;
+  hostname: string;
+  port: number;
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `ip` | `string` | IPv4 address of the discovered peer |
+| `hostname` | `string` | Peer hostname (from TXT `nodeName` or service name) |
+| `port` | `number` | Agent server port |
+
+### `SCAN_INTERVAL_MS`
+
+```ts
+const SCAN_INTERVAL_MS = 60_000;
+```
+
+Interval between discovery scans in milliseconds (60 seconds).
+
+### `MDNS_BROWSE_TIMEOUT_MS`
+
+```ts
+const MDNS_BROWSE_TIMEOUT_MS = 3_000;
+```
+
+Maximum time to wait for mDNS responses before resolving (3 seconds).
+
+### `startMdnsAdvertise(opts)`
+
+```ts
+function startMdnsAdvertise(opts: MdnsAdvertiseOpts): () => void
+```
+
+Publish a `_mecha._tcp` mDNS service on the LAN so that peers can discover this agent. The mesh API key is not placed in TXT records -- key exchange happens during the authenticated healthz probe.
+
+Returns a cleanup function that stops advertising and destroys the Bonjour instance. If mDNS binding fails (port 5353 in use), logs a warning and returns a no-op cleanup.
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `opts` | `MdnsAdvertiseOpts` | Advertise configuration (node name, port, version) |
+
+**Returns:** `() => void` -- cleanup function to stop advertising.
+
+```ts
+import { startMdnsAdvertise } from "@mecha/agent";
+
+const stop = startMdnsAdvertise({
+  nodeName: "alice",
+  port: 7660,
+  version: "4.1.8",
+});
+
+// Later: stop advertising
+stop();
+```
+
+### `scanMdnsPeers()`
+
+```ts
+function scanMdnsPeers(): Promise<MdnsPeer[]>
+```
+
+Browse the LAN for mDNS-advertised Mecha agents. Creates a fresh Bonjour instance for each scan. Resolves early (after a 500ms debounce) once the first peer responds, or after `MDNS_BROWSE_TIMEOUT_MS` if no peers respond. Returns an empty array if mDNS binding fails.
+
+**Returns:** `Promise<MdnsPeer[]>` -- array of discovered LAN peers.
+
+```ts
+import { scanMdnsPeers } from "@mecha/agent";
+
+const peers = await scanMdnsPeers();
+for (const peer of peers) {
+  console.log(`Found ${peer.hostname} at ${peer.ip}:${peer.port}`);
+}
+```
+
+### `runDiscoveryScan(mechaDir, meshApiKey)`
+
+```ts
+function runDiscoveryScan(mechaDir: string, meshApiKey: string): Promise<void>
+```
+
+Run a single discovery cycle:
+
+1. Scan Tailscale for online peers and mDNS for LAN peers (in parallel)
+2. Merge and deduplicate by IP (Tailscale takes precedence)
+3. Filter out local IPs to avoid self-discovery
+4. Probe each unknown peer's `/healthz` endpoint
+5. Verify the peer shares the same mesh key via an authenticated `/bots` request
+6. Register newly found Mecha agents in the discovered registry
+7. Refresh `lastSeen` for already-known peers that are still online
+8. Clean up nodes not seen for 24 hours
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `mechaDir` | `string` | Path to the `.mecha` directory |
+| `meshApiKey` | `string` | Mesh API key for authenticated peer verification |
+
+```ts
+import { runDiscoveryScan } from "@mecha/agent";
+
+await runDiscoveryScan("/home/alice/.mecha", "mesh-api-key");
+```
+
+### `startDiscoveryLoop(mechaDir, meshApiKey)`
+
+```ts
+function startDiscoveryLoop(mechaDir: string, meshApiKey: string): () => void
+```
+
+Start periodic discovery every 60 seconds. Uses chained `setTimeout` (not `setInterval`) to prevent overlapping scans -- the next scan is scheduled only after the current one finishes. Fires an initial scan immediately on startup.
+
+Returns a cleanup function that stops the timer.
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `mechaDir` | `string` | Path to the `.mecha` directory |
+| `meshApiKey` | `string` | Mesh API key for authenticated peer verification |
+
+**Returns:** `() => void` -- stop function to cancel the discovery loop.
+
+```ts
+import { startDiscoveryLoop } from "@mecha/agent";
+
+const stop = startDiscoveryLoop("/home/alice/.mecha", "mesh-api-key");
+
+// Later: stop the discovery loop
+stop();
+```
+
+## Dashboard HTTP Routes
+
+The agent server registers additional routes for the dashboard SPA beyond the core API routes documented above. These routes provide read-only access to system state, settings, and aggregated data.
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET` | `/healthz` | None | Health check. Returns `{ status: "ok" }` |
+| `GET` | `/auth/status` | None | Available auth methods (TOTP enabled, API key configured) |
+| `POST` | `/auth/login` | None | TOTP code verification, returns session cookie |
+| `POST` | `/auth/totp/verify` | None | Alias for `/auth/login` |
+| `GET` | `/bots` | Required | List local bots with state, port, tags. Supports `?node=<name>` for remote proxy |
+| `GET` | `/bots/schedules/overview` | Required | Aggregated schedules from all running bots |
+| `GET` | `/acl` | Required | List all ACL rules |
+| `GET` | `/models` | Required | Available Claude models |
+| `GET` | `/node/info` | Required | Node hostname, OS, memory, CPU, IPs |
+| `GET` | `/mesh/nodes` | Required | All nodes (manual + discovered) with health probes |
+| `GET` | `/settings/totp` | Required | TOTP enabled status |
+| `GET` | `/settings/runtime` | Required | Runtime configuration |
+| `GET` | `/settings/network` | Required | Network settings |
+| `GET` | `/settings/auth-profiles` | Required | Auth profile metadata (no tokens) |
+| `GET` | `/schedules` | Required | Aggregated schedules from all bots |
+| `GET` | `/budgets` | Required | Budget configuration |
+| `GET` | `/meter/cost` | Required | Today's cost from meter proxy |
+| `GET` | `/meter/status` | Required | Meter proxy running status |
+| `GET` | `/audit` | Required | Audit log entries |
+| `GET` | `/events/log` | Required | System event log |
+| `GET` | `/tools` | Required | MCP tools list |
+| `GET` | `/tools/runtime` | Required | Claude runtime info (path, version) |
+
+> Authentication routes (`/auth/*`) do not require a session -- they are the entry point for establishing one. All other routes (except `/healthz`) require either a valid session cookie or Bearer token.
 
 ## See also
 
