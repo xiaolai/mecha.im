@@ -224,11 +224,12 @@ describe("sandbox-setup", () => {
         expect(result.childEnv.CLAUDE_CODE_OAUTH_TOKEN).toBe("default-tok");
       });
 
-      it("falls back to host env when no profiles exist", () => {
-        // No auth profiles set up, but host env has a key
-        process.env.ANTHROPIC_API_KEY = "sk-ant-host-key";
+      it("falls back to host OAuth when no profiles exist", () => {
+        // No auth profiles set up, but host env has OAuth token
+        delete process.env.ANTHROPIC_API_KEY;
+        process.env.CLAUDE_CODE_OAUTH_TOKEN = "oauth-host-token";
         const result = prepareBotFilesystem(makeOpts());
-        expect(result.childEnv.ANTHROPIC_API_KEY).toBe("sk-ant-host-key");
+        expect(result.childEnv.CLAUDE_CODE_OAUTH_TOKEN).toBe("oauth-host-token");
       });
 
       it("sets no SDK keys when --no-auth (null) and no host env", () => {
@@ -312,13 +313,29 @@ describe("sandbox-setup", () => {
         expect(existsSync(credPath)).toBe(false);
       });
 
-      it("throws when no API credentials available from any source", () => {
-        // No auth profiles, no host env — spawn must fail with descriptive error
+      it("warns but does not throw when no API credentials available from any source", () => {
+        // No auth profiles, no host env — warns but does not fail
+        // Claude CLI can use its own OAuth session
         delete process.env.ANTHROPIC_API_KEY;
         delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
-        expect(() => prepareBotFilesystem(makeOpts())).toThrow(
-          /No API credentials available for bot "alice"/,
-        );
+        // Clear CLAUDE_SETUP_TOKEN_* vars so fallback doesn't find one
+        const savedSetupTokens: Record<string, string> = {};
+        for (const key of Object.keys(process.env)) {
+          if (key.startsWith("CLAUDE_SETUP_TOKEN_") && process.env[key]) {
+            savedSetupTokens[key] = process.env[key]!;
+            delete process.env[key];
+          }
+        }
+        try {
+          const result = prepareBotFilesystem(makeOpts());
+          expect(result.childEnv.ANTHROPIC_API_KEY).toBeUndefined();
+          expect(result.childEnv.CLAUDE_CODE_OAUTH_TOKEN).toBeUndefined();
+        } finally {
+          // Restore CLAUDE_SETUP_TOKEN_* vars
+          for (const [key, val] of Object.entries(savedSetupTokens)) {
+            process.env[key] = val;
+          }
+        }
       });
     });
 

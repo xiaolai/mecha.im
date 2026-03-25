@@ -86,6 +86,10 @@ export interface BotConfig {
   /** Meter mode: "on" (default) or "off" */
   meter?: "on" | "off";
 
+  /* — Settings sources — */
+  /** Which settings to load: project, user, local (default: ["project", "user"]) */
+  settingSources?: ("project" | "user" | "local")[];
+
   /* — Environment — */
   /** Additional directories to allow access */
   addDirs?: string[];
@@ -143,6 +147,9 @@ const BotConfigSchema: z.ZodType<BotConfig> = z.object({
 
   // Metering
   meter: z.enum(["on", "off"]).optional(),
+
+  // Settings sources
+  settingSources: z.array(z.enum(["project", "user", "local"])).optional(),
 
   // Environment
   addDirs: z.array(z.string()).optional(),

@@ -39,17 +39,17 @@ const { app } = createServer({
       return createHmac("sha256", secret).update("mecha-mesh-routing").digest("hex");
     } catch { return undefined; }
   })(),
-  // Auto-register the bot's own runtime MCP server so Claude Code can use
-  // mesh_query, mesh_discover, and workspace tools. Merge with user-configured
-  // MCP servers from config.json.
   // Only include user-configured MCP servers from config.json.
-  // Do NOT auto-register the bot's own /mcp endpoint — it is a simple JSON-RPC
-  // handler, not a Streamable HTTP MCP server. Claude CLI expects session creation,
-  // SSE, and DELETE semantics from type:"http" servers, causing 100% CPU hang.
+  // TODO: Re-enable built-in tools (mecha_query, workspace_*, bus_*) once
+  // the /mcp endpoint is upgraded to Streamable HTTP transport (RFC compliant).
+  // Current JSON-RPC endpoint is incompatible with Claude's type:"http" MCP
+  // transport. Bots still communicate via workflow steps and direct HTTP
+  // (mecha bot chat).
   mcpServers: {
     ...(botConfig?.mcpServers as Record<string, unknown> ?? {}),
   },
   permissionMode: botConfig?.permissionMode as string | undefined,
+  settingSources: botConfig?.settingSources,
 });
 
 app.listen({ port: env.MECHA_PORT, host: "127.0.0.1" }, (err) => {
