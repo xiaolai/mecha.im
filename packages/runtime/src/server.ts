@@ -36,6 +36,8 @@ export interface CreateServerOpts {
   agentPort?: number;
   /** Agent daemon API key for mesh routing proxy. */
   agentApiKey?: string;
+  /** Which settings sources to load (default: ["project", "user"]). */
+  settingSources?: readonly ("project" | "user" | "local")[];
 }
 
 /** Return value from {@link createServer}: the Fastify app and optional scheduler. */
@@ -74,9 +76,10 @@ export function createServer(opts: CreateServerOpts): ServerResult {
   // SDK chat options (used for /api/chat and schedule chatFn)
   const chatOpts = {
     workspacePath: opts.workspacePath,
-    // Default to "project" only — do NOT load user settings (hooks, plugins, MCP servers)
-    // which can cause hangs in non-interactive bot processes.
-    settingSources: ["project"] as const,
+    // Load both project and user settings by default so bots inherit user CLAUDE.md and rules.
+    // disableSlashCommands prevents user hooks from causing hangs in headless bots.
+    // Callers (or bot config) can override via opts.settingSources.
+    settingSources: opts.settingSources ?? ["project", "user"] as const,
     activityEmitter,
     botName: opts.botName,
     ...(opts.systemPrompt !== undefined && { systemPrompt: opts.systemPrompt }),

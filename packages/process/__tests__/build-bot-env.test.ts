@@ -32,6 +32,12 @@ describe("buildBotEnv", () => {
   beforeEach(() => {
     savedEnv.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
     savedEnv.CLAUDE_CODE_OAUTH_TOKEN = process.env.CLAUDE_CODE_OAUTH_TOKEN;
+    // Save and clear CLAUDE_SETUP_TOKEN_* vars (OAuth session tokens)
+    for (const key of Object.keys(process.env)) {
+      if (key.startsWith("CLAUDE_SETUP_TOKEN_")) {
+        savedEnv[key] = process.env[key];
+      }
+    }
   });
 
   afterEach(() => {
@@ -44,37 +50,33 @@ describe("buildBotEnv", () => {
     }
   });
 
-  it("throws descriptive error when no API credentials available", () => {
+  it("warns (does not throw) when no API credentials available", () => {
     delete process.env.ANTHROPIC_API_KEY;
     delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
+    // Clear all CLAUDE_SETUP_TOKEN_* vars so fallback doesn't find one
+    for (const key of Object.keys(process.env)) {
+      if (key.startsWith("CLAUDE_SETUP_TOKEN_")) delete process.env[key];
+    }
 
     // Use a mechaDir with no auth profiles directory
     const mechaDir = makeTmpDir();
 
-    expect(() => buildBotEnv(baseOpts(mechaDir))).toThrow(
-      /No API credentials available for bot "test-bot"/,
-    );
+    // No throw — Claude CLI uses its own OAuth session
+    const env = buildBotEnv(baseOpts(mechaDir));
+    expect(env.ANTHROPIC_API_KEY).toBeUndefined();
+    expect(env.CLAUDE_CODE_OAUTH_TOKEN).toBeUndefined();
   });
 
-  it("includes setup instructions in the error message", () => {
-    delete process.env.ANTHROPIC_API_KEY;
-    delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
-
-    const mechaDir = makeTmpDir();
-
-    expect(() => buildBotEnv(baseOpts(mechaDir))).toThrow(
-      /mecha auth add/,
-    );
-  });
-
-  it("succeeds when ANTHROPIC_API_KEY is in host environment", () => {
+  it("does not inherit host ANTHROPIC_API_KEY (blocked by reservedKeys)", () => {
     delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
     process.env.ANTHROPIC_API_KEY = "sk-ant-test-key";
 
+    // ANTHROPIC_API_KEY is blocked from host env to prevent API key overriding
+    // the user's Claude Pro/Max OAuth session. Auth must come from profiles.
     const mechaDir = makeTmpDir();
     const env = buildBotEnv(baseOpts(mechaDir));
 
-    expect(env.ANTHROPIC_API_KEY).toBe("sk-ant-test-key");
+    expect(env.ANTHROPIC_API_KEY).toBeUndefined();
   });
 
   it("succeeds when CLAUDE_CODE_OAUTH_TOKEN is in host environment", () => {

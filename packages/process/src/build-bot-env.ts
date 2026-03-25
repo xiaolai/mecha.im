@@ -109,21 +109,15 @@ export function buildBotEnv(opts: BuildBotEnvOpts): Record<string, string> {
     }
 
     // Fall back to CLAUDE_SETUP_TOKEN_* (OAuth session tokens per profile)
-    // Use the first available one as CLAUDE_CODE_OAUTH_TOKEN if not already set
+    // Use the first available one as CLAUDE_CODE_OAUTH_TOKEN if not already set.
+    // Do NOT copy all CLAUDE_SETUP_TOKEN_* — only the one selected above.
     if (!childEnv["CLAUDE_CODE_OAUTH_TOKEN"]) {
       for (const [key, value] of Object.entries(process.env)) {
         if (key.startsWith("CLAUDE_SETUP_TOKEN_") && value) {
           childEnv["CLAUDE_CODE_OAUTH_TOKEN"] = value;
-          childEnv[key] = value;
+          log.info("Using setup token for bot OAuth", { key });
           break;
         }
-      }
-    }
-
-    // Also pass through all CLAUDE_SETUP_TOKEN_* vars
-    for (const [key, value] of Object.entries(process.env)) {
-      if (key.startsWith("CLAUDE_SETUP_TOKEN_") && value && !childEnv[key]) {
-        childEnv[key] = value;
       }
     }
     /* v8 ignore stop */
@@ -136,7 +130,10 @@ export function buildBotEnv(opts: BuildBotEnvOpts): Record<string, string> {
   // Claude CLI can use its own OAuth session without env vars.
   // Skip when auth is explicitly null (--no-auth) — user opted out of credentials.
   if (opts.auth !== null && !childEnv["ANTHROPIC_API_KEY"] && !childEnv["CLAUDE_CODE_OAUTH_TOKEN"]) {
-    log.warn("No explicit API credentials for bot — Claude CLI will use its own OAuth session if available.");
+    log.warn(
+      `No explicit API credentials for bot "${name}" — Claude CLI will use its own OAuth session. ` +
+      "If chat fails, set CLAUDE_CODE_OAUTH_TOKEN or add an auth profile with: mecha auth add",
+    );
   }
 
   // Resolve claude CLI path in the parent process (before sandbox restricts PATH)

@@ -131,7 +131,10 @@ export async function sdkChat(
         ...(opts.mcpServers != null && Object.keys(opts.mcpServers).length > 0 && {
           mcpServers: opts.mcpServers as Record<string, never>,
         }),
-        // Auto-approve all tool use — bots run non-interactively
+        // Bots are non-interactive (headless) — auto-approve all tool use.
+        // permissionMode in bot config is for future fine-grained filtering;
+        // the SDK callback model handles permissions directly, so we always
+        // allow here. Security boundary is the sandbox, not tool approval.
         canUseTool: async () => ({ behavior: "allow" as const }),
       },
     })) {
