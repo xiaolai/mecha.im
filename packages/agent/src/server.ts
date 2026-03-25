@@ -111,8 +111,24 @@ export function createAgentServer(opts: AgentServerOptions): FastifyInstance {
   // Task protocol routes
   registerTaskRoutes(app, { mechaDir, acl, authCtx });
 
-  // Bot listing route — used by `bot ls --mesh` on remote nodes and dashboard
-  app.get("/bots", async () => {
+  // Bot listing route — local bots or proxy to remote node
+  app.get("/bots", async (req) => {
+    const node = (req.query as Record<string, string>).node;
+    if (node) {
+      // Proxy to remote node's agent server
+      const { readNodes } = await import("@mecha/core");
+      const nodes = readNodes(mechaDir);
+      const target = nodes.find((n) => n.name === node);
+      if (!target) return [];
+      try {
+        const res = await fetch(`http://${target.host}:${target.port}/bots`, {
+          headers: { Authorization: `Bearer ${target.apiKey}` },
+          signal: AbortSignal.timeout(5000),
+        });
+        if (res.ok) return res.json();
+      } catch { /* node unreachable */ }
+      return [];
+    }
     const list = opts.processManager.list();
     return list.map((b) => {
       const config = readBotConfig(join(mechaDir, b.name));
@@ -245,10 +261,52 @@ export function createAgentServer(opts: AgentServerOptions): FastifyInstance {
   // Mesh nodes
   app.get("/mesh/nodes", async () => {
     const { readNodes } = await import("@mecha/core");
-    return readNodes(mechaDir).map((n) => ({
-      name: n.name, host: n.host, port: n.port,
-      status: "unknown",
+    const nodes = readNodes(mechaDir);
+    // Probe each node's healthz in parallel
+    const results = await Promise.all(nodes.map(async (n) => {
+      const start = Date.now();
+      try {
+        const res = await fetch(`http://${n.host}:${n.port}/healthz`, {
+          headers: { Authorization: `Bearer ${n.apiKey}` },
+          signal: AbortSignal.timeout(5000),
+        });
+        if (res.ok) {
+          const latencyMs = Date.now() - start;
+          // Try to get node info
+          let info: Record<string, unknown> = {};
+          try {
+            const infoRes = await fetch(`http://${n.host}:${n.port}/node/info`, {
+              headers: { Authorization: `Bearer ${n.apiKey}` },
+              signal: AbortSignal.timeout(3000),
+            });
+            if (infoRes.ok) info = (await infoRes.json()) as Record<string, unknown>;
+          } catch { /* no info available */ }
+          // Try to get bot count
+          let botCount = 0;
+          try {
+            const botsRes = await fetch(`http://${n.host}:${n.port}/bots`, {
+              headers: { Authorization: `Bearer ${n.apiKey}` },
+              signal: AbortSignal.timeout(3000),
+            });
+            if (botsRes.ok) botCount = ((await botsRes.json()) as unknown[]).length;
+          } catch { /* no bots info */ }
+          return {
+            name: n.name, status: "online" as const, latencyMs, botCount,
+            port: n.port, tailscaleIp: n.host,
+            hostname: info.hostname as string | undefined,
+            platform: info.platform as string | undefined,
+            arch: info.arch as string | undefined,
+            cpuCount: info.cpuCount as number | undefined,
+            totalMemMB: info.totalMemMB as number | undefined,
+            freeMemMB: info.freeMemMB as number | undefined,
+          };
+        }
+        return { name: n.name, status: "offline" as const, port: n.port, tailscaleIp: n.host, error: `HTTP ${res.status}` };
+      } catch (err) {
+        return { name: n.name, status: "offline" as const, port: n.port, tailscaleIp: n.host, error: err instanceof Error ? err.message : "unreachable" };
+      }
     }));
+    return results;
   });
 
   // TOTP status
