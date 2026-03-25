@@ -20,7 +20,10 @@ vi.mock("@mecha/core", async (importOriginal) => {
 const mockBrowser = new EventEmitter() as EventEmitter & { stop: ReturnType<typeof vi.fn> };
 mockBrowser.stop = vi.fn();
 
-const mockPublishedService = { stop: vi.fn() };
+const mockPublishedService = {
+  stop: vi.fn((cb?: () => void) => { if (cb) cb(); }),
+  on: vi.fn(),
+};
 
 const mockBonjourInstance = {
   find: vi.fn().mockReturnValue(mockBrowser),
@@ -38,6 +41,15 @@ vi.mock("bonjour-service", () => {
   return { Bonjour: MockBonjour };
 });
 
+// Mock node:os networkInterfaces to control self-discovery filtering
+const { mockNetworkInterfaces } = vi.hoisted(() => ({
+  mockNetworkInterfaces: vi.fn().mockReturnValue({}),
+}));
+vi.mock("node:os", async (importOriginal) => {
+  const orig = await importOriginal<Record<string, unknown>>();
+  return { ...orig, networkInterfaces: mockNetworkInterfaces };
+});
+
 // Mock global fetch
 const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
@@ -49,6 +61,7 @@ import {
   scanMdnsPeers,
   SCAN_INTERVAL_MS,
   MDNS_BROWSE_TIMEOUT_MS,
+  MDNS_DEBOUNCE_MS,
 } from "../src/discovery.js";
 import {
   scanTailscalePeers,
@@ -69,6 +82,8 @@ describe("runDiscoveryScan", () => {
     vi.useFakeTimers();
     vi.clearAllMocks();
     mockFetch.mockReset();
+    // Return no local IPs by default so peers aren't filtered as self
+    mockNetworkInterfaces.mockReturnValue({});
     // Reset the browser emitter — remove all listeners from previous tests
     mockBrowser.removeAllListeners();
   });
@@ -363,6 +378,30 @@ describe("runDiscoveryScan", () => {
       expect.anything(),
     );
   });
+
+  it("filters out self-discovery via local IP matching", async () => {
+    // Simulate a local network interface with the same IP as a discovered peer
+    mockNetworkInterfaces.mockReturnValue({
+      en0: [{ address: "192.168.1.42", internal: false }],
+    });
+
+    // Reset find mock to default (no mDNS peers) so only Tailscale peers are tested
+    mockBonjourInstance.find.mockReturnValue(mockBrowser);
+
+    mockedScan.mockResolvedValue([
+      { ip: "192.168.1.42", hostname: "self-node" },
+      { ip: "192.168.1.99", hostname: "remote-node" },
+    ]);
+
+    mockFetch.mockResolvedValue({ ok: true, status: 200 });
+
+    await runScanWithTimer(mechaDir, "key");
+
+    const discovered = readDiscoveredNodes(mechaDir);
+    // Only the remote node should be registered, not ourselves
+    expect(discovered).toHaveLength(1);
+    expect(discovered[0]!.name).toBe("remote-node");
+  });
 });
 
 // ── scanMdnsPeers ─────────────────────────────────────────────────
@@ -454,6 +493,36 @@ describe("scanMdnsPeers", () => {
     expect(peers[0]!.hostname).toBe("my-host");
   });
 
+  it("resolves early via debounce when peers respond before hard timeout", async () => {
+    mockBonjourInstance.find.mockImplementation(() => {
+      const browser = new EventEmitter() as EventEmitter & { stop: ReturnType<typeof vi.fn> };
+      browser.stop = vi.fn();
+      // Emit a peer at 10ms (well before the 3s hard timeout)
+      setTimeout(() => {
+        browser.emit("up", {
+          addresses: ["192.168.1.50"],
+          host: "fast-peer.local",
+          port: 7660,
+          name: "mecha-fast",
+          txt: { nodeName: "fast" },
+        });
+      }, 10);
+      return browser;
+    });
+
+    const p = scanMdnsPeers();
+    // Advance past the peer emit (10ms) + debounce (500ms) but NOT to the hard timeout (3s)
+    await vi.advanceTimersByTimeAsync(10 + MDNS_DEBOUNCE_MS + 10);
+    const peers = await p;
+
+    expect(peers).toHaveLength(1);
+    expect(peers[0]!.hostname).toBe("fast");
+  });
+
+  it("exports the correct debounce constant", () => {
+    expect(MDNS_DEBOUNCE_MS).toBe(500);
+  });
+
   it("falls back to service.host when no IPv4 address is available", async () => {
     mockBonjourInstance.find.mockImplementation(() => {
       const browser = new EventEmitter() as EventEmitter & { stop: ReturnType<typeof vi.fn> };
@@ -498,10 +567,13 @@ describe("startMdnsAdvertise", () => {
       txt: { nodeName: "my-node", version: "4.1.10" },
     });
 
-    // Cleanup should stop the service and destroy the bonjour instance
+    // Verify error handler was attached on the published service
+    expect(mockPublishedService.on).toHaveBeenCalledWith("error", expect.any(Function));
+
+    // Cleanup should stop the service then destroy bonjour via callback
     stop();
-    // publish returns mockPublishedService which has stop
-    expect(mockPublishedService.stop).toHaveBeenCalled();
+    expect(mockPublishedService.stop).toHaveBeenCalledWith(expect.any(Function));
+    // The mock invokes the callback synchronously, so destroy should have been called
     expect(mockBonjourInstance.destroy).toHaveBeenCalled();
   });
 });
@@ -516,6 +588,7 @@ describe("startDiscoveryLoop", () => {
     vi.useFakeTimers();
     vi.clearAllMocks();
     mockFetch.mockReset();
+    mockNetworkInterfaces.mockReturnValue({});
     mockBrowser.removeAllListeners();
     mockedScan.mockResolvedValue([]);
   });

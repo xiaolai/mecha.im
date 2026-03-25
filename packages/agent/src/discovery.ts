@@ -16,6 +16,7 @@ import {
   refreshDiscoveredNodes,
 } from "@mecha/core";
 import type { DiscoveredNode } from "@mecha/core";
+import { networkInterfaces } from "node:os";
 import { Bonjour } from "bonjour-service";
 import type { Service } from "bonjour-service";
 
@@ -61,10 +62,20 @@ export function startMdnsAdvertise(opts: MdnsAdvertiseOpts): () => void {
         version: opts.version,
       },
     });
+    // Attach error handler so async mDNS errors don't crash the process
+    service.on?.("error", (err: Error) => {
+      log.warn("mDNS advertise error", { error: err.message });
+    });
     log.info("mDNS service advertised", { name: opts.nodeName, port: opts.port });
     return () => {
-      service.stop?.();
-      bonjour.destroy();
+      // Wait for goodbye packet before destroying the instance
+      if (service.stop) {
+        service.stop(() => { bonjour.destroy(); });
+      } else {
+        /* v8 ignore start -- defensive fallback */
+        bonjour.destroy();
+        /* v8 ignore stop */
+      }
     };
   /* v8 ignore start -- port 5353 may be in use */
   } catch (err) {
@@ -85,17 +96,35 @@ export interface MdnsPeer {
 
 /**
  * Browse the LAN for mDNS-advertised Mecha agents.
- * Waits {@link MDNS_BROWSE_TIMEOUT_MS} for multicast responses, then resolves
- * with all discovered peers. Each scan creates a fresh Bonjour instance
- * and destroys it after the timeout.
+ * Resolves early (after a {@link MDNS_DEBOUNCE_MS} debounce) once the first
+ * peer responds, or after {@link MDNS_BROWSE_TIMEOUT_MS} if none respond.
+ * Each scan creates a fresh Bonjour instance and destroys it on completion.
  */
+
+/** Minimum wait after first mDNS response before resolving (debounce). */
+export const MDNS_DEBOUNCE_MS = 500;
+
 export async function scanMdnsPeers(): Promise<MdnsPeer[]> {
   return new Promise((resolve) => {
     try {
       const bonjour = new Bonjour();
       const peers: MdnsPeer[] = [];
+      let resolved = false;
+      let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+
+      const finish = () => {
+        if (resolved) return;
+        resolved = true;
+        if (debounceTimer) clearTimeout(debounceTimer);
+        browser.stop();
+        bonjour.destroy();
+        resolve(peers);
+      };
 
       const browser = bonjour.find({ type: "mecha" });
+
+      // Attach error handler so async browse errors don't crash the process
+      browser.on?.("error", () => { /* ignore browse errors */ });
 
       browser.on("up", (service: Service) => {
         const ip = service.addresses?.find((a: string) => !a.includes(":")) ?? service.host;
@@ -106,13 +135,13 @@ export async function scanMdnsPeers(): Promise<MdnsPeer[]> {
             port: service.port,
           });
         }
+        // After first response, start a short debounce to collect stragglers
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(finish, MDNS_DEBOUNCE_MS);
       });
 
-      setTimeout(() => {
-        browser.stop();
-        bonjour.destroy();
-        resolve(peers);
-      }, MDNS_BROWSE_TIMEOUT_MS);
+      // Hard timeout — resolve regardless
+      setTimeout(finish, MDNS_BROWSE_TIMEOUT_MS);
     /* v8 ignore start -- mDNS bind failure */
     } catch (err) {
       log.warn("mDNS scan failed", {
@@ -154,7 +183,14 @@ export async function runDiscoveryScan(mechaDir: string, meshApiKey: string): Pr
     }
   }
 
-  const peers = [...allPeers.values()];
+  // Filter out self-discovery — exclude local IPs to avoid registering ourselves
+  const localIps = new Set<string>();
+  for (const ifaces of Object.values(networkInterfaces())) {
+    for (const iface of ifaces ?? []) {
+      if (!iface.internal) localIps.add(iface.address);
+    }
+  }
+  const peers = [...allPeers.values()].filter((p) => !localIps.has(p.ip));
 
   if (peers.length === 0) {
     // Still clean up expired nodes even when no peers are found
