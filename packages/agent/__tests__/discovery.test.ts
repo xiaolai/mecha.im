@@ -41,11 +41,25 @@ describe("runDiscoveryScan", () => {
     rmSync(mechaDir, { recursive: true, force: true });
   });
 
-  it("does nothing when no Tailscale peers are found", async () => {
+  it("cleans up expired nodes even when no Tailscale peers are found", async () => {
+    // Pre-populate an expired discovered node
+    const expired = "2000-01-01T00:00:00.000Z";
+    writeDiscoveredNode(mechaDir, {
+      name: "stale-node",
+      host: "100.64.0.99",
+      port: 7660,
+      apiKey: "key",
+      source: "tailscale",
+      lastSeen: expired,
+      addedAt: expired,
+    });
+    expect(readDiscoveredNodes(mechaDir)).toHaveLength(1);
+
     mockedScan.mockResolvedValue([]);
 
     await runDiscoveryScan(mechaDir, "mesh-key");
 
+    // Expired node should be cleaned up even though no peers were found
     expect(readDiscoveredNodes(mechaDir)).toHaveLength(0);
     expect(mockFetch).not.toHaveBeenCalled();
   });
@@ -69,7 +83,7 @@ describe("runDiscoveryScan", () => {
     expect(readDiscoveredNodes(mechaDir)).toHaveLength(0);
   });
 
-  it("registers a new peer when healthz responds ok", async () => {
+  it("registers a new peer when healthz and authenticated /bots both succeed", async () => {
     mockedScan.mockResolvedValue([
       { ip: "100.64.0.5", hostname: "NewPeer" },
     ]);
@@ -85,6 +99,8 @@ describe("runDiscoveryScan", () => {
     expect(discovered[0]!.port).toBe(7660);
     expect(discovered[0]!.apiKey).toBe("mesh-key");
     expect(discovered[0]!.source).toBe("tailscale");
+    // Both healthz and authenticated /bots calls should have been made
+    expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
   it("normalizes hostname with special characters", async () => {
@@ -99,6 +115,25 @@ describe("runDiscoveryScan", () => {
     const discovered = readDiscoveredNodes(mechaDir);
     expect(discovered).toHaveLength(1);
     expect(discovered[0]!.name).toBe("my-server-01");
+  });
+
+  it("skips peers where authenticated /bots probe fails after healthz succeeds", async () => {
+    mockedScan.mockResolvedValue([
+      { ip: "100.64.0.8", hostname: "wrongkey" },
+    ]);
+
+    // healthz ok, but authenticated /bots returns 401
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/healthz")) return { ok: true, status: 200 };
+      return { ok: false, status: 401 };
+    });
+
+    await runDiscoveryScan(mechaDir, "key");
+
+    // Should not register — failed authentication means different mesh
+    expect(readDiscoveredNodes(mechaDir)).toHaveLength(0);
+    // Should have made 2 calls: healthz + /bots
+    expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
   it("skips peers where healthz returns non-ok status", async () => {
