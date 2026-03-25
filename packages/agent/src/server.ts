@@ -116,10 +116,11 @@ export function createAgentServer(opts: AgentServerOptions): FastifyInstance {
   app.get("/bots", async (req) => {
     const node = (req.query as Record<string, string>).node;
     if (node) {
-      // Proxy to remote node's agent server
-      const { readNodes } = await import("@mecha/core");
+      // Proxy to remote node's agent server — search both manual and discovered registries
+      const { readNodes, readDiscoveredNodes } = await import("@mecha/core");
       const nodes = readNodes(mechaDir);
-      const target = nodes.find((n) => n.name === node);
+      const discovered = readDiscoveredNodes(mechaDir);
+      const target = nodes.find((n) => n.name === node) ?? discovered.find((n) => n.name === node);
       if (!target) return [];
       try {
         const res = await fetch(`http://${target.host}:${target.port}/bots`, {
@@ -271,11 +272,14 @@ export function createAgentServer(opts: AgentServerOptions): FastifyInstance {
       ...manualNodes.map((n) => ({ ...n, source: "manual" as const })),
       ...discoveredNodes
         .filter((d) => !manualHosts.has(d.host))
-        .map((d) => ({ name: d.name, host: d.host, port: d.port, apiKey: d.apiKey, addedAt: d.addedAt, source: d.source })),
+        .map((d) => ({ name: d.name, host: d.host, port: d.port, apiKey: d.apiKey, addedAt: d.addedAt, source: "discovered" as const })),
     ];
 
-    // Probe each node's healthz in parallel
+    // Probe each node's healthz in parallel — skip managed nodes without direct connectivity
     const results = await Promise.all(allNodes.map(async (n) => {
+      if (!n.host || !n.port) {
+        return { name: n.name, status: "offline" as const, port: n.port ?? 0, tailscaleIp: n.host ?? "", source: n.source, error: "managed node — no direct connectivity" };
+      }
       const start = Date.now();
       try {
         const res = await fetch(`http://${n.host}:${n.port}/healthz`, {

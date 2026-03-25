@@ -37,7 +37,15 @@ export const SCAN_INTERVAL_MS = 60_000;
  */
 export async function runDiscoveryScan(mechaDir: string, meshApiKey: string): Promise<void> {
   const peers = await scanTailscalePeers();
-  if (peers.length === 0) return;
+
+  if (peers.length === 0) {
+    // Still clean up expired nodes even when no peers are found
+    const expired = cleanupExpiredNodes(mechaDir, TTL_MS);
+    if (expired.length > 0) {
+      log.info("Cleaned up expired discovered nodes", { names: expired });
+    }
+    return;
+  }
 
   // Build sets of already-known hosts (manual + discovered)
   const manualNodes = readNodes(mechaDir);
@@ -61,15 +69,26 @@ export async function runDiscoveryScan(mechaDir: string, meshApiKey: string): Pr
       continue;
     }
 
-    // New peer — probe its agent healthz
+    // New peer — probe its agent healthz, then verify with an authenticated request
     try {
       const res = await fetch(`http://${peer.ip}:${AGENT_PORT}/healthz`, {
         signal: AbortSignal.timeout(3000),
       });
       if (!res.ok) continue;
 
-      // This peer has a running Mecha agent — register it
+      // Verify the peer shares the same mesh key by making an authenticated request.
+      // Only register if the authenticated request also succeeds — this proves the
+      // peer belongs to the same mesh (derives the same routing key from shared TOTP secret).
+      const authRes = await fetch(`http://${peer.ip}:${AGENT_PORT}/bots`, {
+        headers: { Authorization: `Bearer ${meshApiKey}` },
+        signal: AbortSignal.timeout(3000),
+      });
+      if (!authRes.ok) continue;
+
+      // This peer has a running Mecha agent with matching mesh key — register it.
       const name = peer.hostname.toLowerCase().replace(/[^a-z0-9-]/g, "-");
+      // All nodes in the mesh derive the same routing key from the shared TOTP
+      // secret, so the local meshApiKey is valid for querying peers.
       const entry: DiscoveredNode = {
         name,
         host: peer.ip,
@@ -102,16 +121,27 @@ export async function runDiscoveryScan(mechaDir: string, meshApiKey: string): Pr
 
 /**
  * Start the periodic discovery timer.
+ * Uses chained setTimeout (not setInterval) to prevent overlapping scans —
+ * the next scan is scheduled only after the current one finishes.
  * Returns a cleanup function that stops the timer.
  */
 export function startDiscoveryLoop(mechaDir: string, meshApiKey: string): () => void {
-  // Initial scan (fire-and-forget)
-  runDiscoveryScan(mechaDir, meshApiKey).catch(() => {});
+  let stopped = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
 
-  // Periodic scan
-  const timer = setInterval(() => {
-    runDiscoveryScan(mechaDir, meshApiKey).catch(() => {});
-  }, SCAN_INTERVAL_MS);
+  function scheduleNext(): void {
+    if (stopped) return;
+    timer = setTimeout(async () => {
+      try { await runDiscoveryScan(mechaDir, meshApiKey); } catch { /* scan error */ }
+      scheduleNext();
+    }, SCAN_INTERVAL_MS);
+  }
 
-  return () => clearInterval(timer);
+  // Initial scan (fire-and-forget), then start the chain
+  runDiscoveryScan(mechaDir, meshApiKey).catch(() => {}).then(scheduleNext);
+
+  return () => {
+    stopped = true;
+    if (timer) clearTimeout(timer);
+  };
 }
