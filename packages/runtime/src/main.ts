@@ -50,6 +50,7 @@ const { app } = createServer({
     },
     ...(botConfig?.mcpServers as Record<string, unknown> ?? {}),
   },
+  permissionMode: botConfig?.permissionMode as string | undefined,
 });
 
 app.listen({ port: env.MECHA_PORT, host: "127.0.0.1" }, (err) => {

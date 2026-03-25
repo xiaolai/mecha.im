@@ -65,6 +65,8 @@ export interface SdkChatOpts {
   botName?: string;
   /** MCP servers to connect to. */
   mcpServers?: Record<string, unknown>;
+  /** Permission mode for tool use (e.g., "auto" to skip interactive prompts). */
+  permissionMode?: string;
 }
 
 interface ChatResult {
@@ -129,6 +131,8 @@ export async function sdkChat(
         ...(opts.mcpServers != null && Object.keys(opts.mcpServers).length > 0 && {
           mcpServers: opts.mcpServers as Record<string, never>,
         }),
+        // Auto-approve all tool use — bots run non-interactively
+        canUseTool: async () => ({ behavior: "allow" as const }),
       },
     })) {
       if (opts.activityEmitter && opts.botName) {
