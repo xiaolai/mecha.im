@@ -3,31 +3,27 @@ import { join } from "node:path";
 import { readAuthProfiles } from "@mecha/core";
 import { getMeterStatus, meterDir } from "@mecha/meter";
 
-/** A single health check result with name, status, and human-readable message. */
-export interface DoctorCheck {
+interface DoctorCheck {
   name: string;
   status: "ok" | "warn" | "error";
   message: string;
 }
 
-/** Aggregate doctor result: all checks and overall healthy flag. */
-export interface DoctorResult {
+interface DoctorResult {
   checks: DoctorCheck[];
   healthy: boolean;
 }
 
-/** Runs system health checks. Keep in sync with packages/agent/src/doctor.ts. */
+/** Runs system health checks. Keep in sync with packages/service/src/doctor.ts. */
 export function mechaDoctor(mechaDir: string): DoctorResult {
   const checks: DoctorCheck[] = [];
 
-  // Check mecha directory exists
   if (existsSync(mechaDir)) {
     checks.push({ name: "mecha-dir", status: "ok", message: `Found ${mechaDir}` });
   } else {
     checks.push({ name: "mecha-dir", status: "error", message: `Missing ${mechaDir} — run mecha init` });
   }
 
-  // Check subdirectories
   for (const sub of ["auth", "tools", "logs"]) {
     const dir = join(mechaDir, sub);
     if (existsSync(dir)) {
@@ -37,7 +33,6 @@ export function mechaDoctor(mechaDir: string): DoctorResult {
     }
   }
 
-  // Check node-id
   const nodeIdPath = join(mechaDir, "node-id");
   if (existsSync(nodeIdPath)) {
     checks.push({ name: "node-id", status: "ok", message: "Node ID present" });
@@ -45,17 +40,15 @@ export function mechaDoctor(mechaDir: string): DoctorResult {
     checks.push({ name: "node-id", status: "warn", message: "No node ID — run mecha init" });
   }
 
-  // Auth profile checks — wrapped to prevent crash on corrupt auth files
+  /* v8 ignore start -- auth store may be corrupt or missing */
   try {
     const store = readAuthProfiles(mechaDir);
     const profileNames = Object.keys(store.profiles);
 
-    // Also detect env-var credentials (same logic as mechaAuthLs)
-    /* v8 ignore start -- env var detection depends on deployment environment */
+    // Also detect env-var credentials (same logic as mechaAuthLs in @mecha/service)
     const envProfiles: Array<{ name: string; type: string }> = [];
     if (process.env.ANTHROPIC_API_KEY) envProfiles.push({ name: "$env:api-key", type: "api-key" });
     if (process.env.CLAUDE_CODE_OAUTH_TOKEN) envProfiles.push({ name: "$env:oauth", type: "oauth" });
-    /* v8 ignore stop */
 
     if (profileNames.length === 0 && envProfiles.length === 0) {
       checks.push({
@@ -66,33 +59,27 @@ export function mechaDoctor(mechaDir: string): DoctorResult {
     } else {
       for (const name of profileNames) {
         const meta = store.profiles[name]!;
-        /* v8 ignore start -- display formatting branches for account/default label */
         const accountStr = meta.account ? ` (${meta.account})` : "";
         const defaultStr = store.default === name ? " [default]" : "";
-        /* v8 ignore stop */
         checks.push({
           name: `auth:${name}`,
           status: "ok",
           message: `${meta.type}${accountStr}${defaultStr}`,
         });
       }
-      /* v8 ignore start -- env profile display */
       for (const ep of envProfiles) {
         checks.push({ name: `auth:${ep.name}`, status: "ok", message: `${ep.type} (env)` });
       }
-      /* v8 ignore stop */
     }
   } catch {
-    /* v8 ignore start -- defensive: corrupt auth store */
     checks.push({
       name: "auth-profiles",
       status: "error",
       message: "Auth store is corrupt — delete ~/.mecha/auth/ and re-add profiles",
     });
-    /* v8 ignore stop */
   }
+  /* v8 ignore stop */
 
-  // Meter proxy status
   const meterStatus = getMeterStatus(meterDir(mechaDir));
   if (meterStatus.running) {
     checks.push({
@@ -108,7 +95,6 @@ export function mechaDoctor(mechaDir: string): DoctorResult {
     });
   }
 
-  // Sandbox availability (macOS only)
   /* v8 ignore start -- sandbox check only relevant on macOS */
   try {
     if (process.platform === "darwin" && existsSync("/usr/bin/sandbox-exec")) {

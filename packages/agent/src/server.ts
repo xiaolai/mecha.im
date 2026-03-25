@@ -19,6 +19,7 @@
  * - GET  /meter/status             — meter proxy status
  * - GET  /audit                    — audit log (placeholder)
  * - GET  /events/log               — event log (placeholder)
+ * - GET  /doctor                   — system health checks
  * - GET  /tools                    — MCP tools (placeholder)
  * - GET  /tools/runtime            — runtime tool info (placeholder)
  */
@@ -403,6 +404,12 @@ export function createAgentServer(opts: AgentServerOptions): FastifyInstance {
     /* v8 ignore start -- meter may not be configured */
     } catch { return { running: false }; }
     /* v8 ignore stop */
+  });
+
+  // Doctor — system health checks
+  app.get("/doctor", async () => {
+    const { mechaDoctor } = await import("./doctor.js");
+    return mechaDoctor(mechaDir);
   });
 
   // Audit log (placeholder)
