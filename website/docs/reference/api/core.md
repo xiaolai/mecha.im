@@ -1052,6 +1052,110 @@ import { ScheduleAddInput } from "@mecha/core";
 ScheduleAddInput.parse({ id: "daily-report", every: "1h", prompt: "Generate the daily report" });
 ```
 
+### Cron Utilities
+
+**Source:** `packages/core/src/schedule.ts`
+
+Functions for evaluating and scheduling cron expressions. These complement the interval-based `parseInterval` above, enabling bots to use standard 5-field cron syntax for schedules.
+
+#### `cronMatches(cron, date)`
+
+```ts
+function cronMatches(cron: string, date: Date): boolean
+```
+
+Check if a 5-field cron expression matches a given date. Fields: minute, hour, day-of-month, month, day-of-week (0=Sunday).
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `cron` | `string` | 5-field cron expression (e.g., `"*/15 * * * *"`) |
+| `date` | `Date` | Date to check against |
+
+```ts
+import { cronMatches } from "@mecha/core";
+
+const now = new Date("2026-03-25T09:30:00");
+cronMatches("30 9 * * *", now);     // true  — matches 9:30
+cronMatches("0 9 * * *", now);      // false — only matches 9:00
+cronMatches("*/15 * * * *", now);   // true  — matches every 15 minutes
+```
+
+#### `nextCronMs(cron, from?)`
+
+```ts
+function nextCronMs(cron: string, from?: Date): number | undefined
+```
+
+Calculate milliseconds until the next cron match from `from` (defaults to now). Scans minute-by-minute up to 48 hours. Returns `undefined` if the cron expression is invalid or no match is found within the scan window.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `cron` | `string` | -- | 5-field cron expression |
+| `from` | `Date` | `new Date()` | Start time for the scan |
+
+```ts
+import { nextCronMs } from "@mecha/core";
+
+const ms = nextCronMs("0 9 * * *"); // milliseconds until next 9:00 AM
+if (ms != null) {
+  console.log(`Next run in ${Math.round(ms / 60000)} minutes`);
+}
+```
+
+#### `isCronExpression(input)`
+
+```ts
+function isCronExpression(input: string): boolean
+```
+
+Test if a string is a valid 5-field cron expression. Does not validate field ranges -- only checks the structural pattern.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `input` | `string` | String to test |
+
+```ts
+import { isCronExpression } from "@mecha/core";
+
+isCronExpression("*/5 * * * *");  // true
+isCronExpression("5m");           // false (interval, not cron)
+isCronExpression("* * *");        // false (only 3 fields)
+```
+
+#### `parseScheduleExpression(expr)`
+
+```ts
+function parseScheduleExpression(
+  expr: string,
+): { type: "interval" | "cron"; nextMs: (from?: Date) => number | undefined } | undefined
+```
+
+Unified parser for both interval strings (e.g., `"5m"`) and cron expressions (e.g., `"*/15 * * * *"`). Tries interval first, then cron. Returns `undefined` if the expression is neither a valid interval nor a valid cron.
+
+The returned `nextMs` function calculates milliseconds until the next scheduled run:
+- For intervals, it returns the fixed interval value regardless of `from`.
+- For cron, it delegates to `nextCronMs`.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `expr` | `string` | Interval string or cron expression |
+
+```ts
+import { parseScheduleExpression } from "@mecha/core";
+
+const sched = parseScheduleExpression("*/30 * * * *");
+if (sched) {
+  console.log(sched.type);       // "cron"
+  console.log(sched.nextMs());   // milliseconds until next half-hour
+}
+
+const interval = parseScheduleExpression("5m");
+if (interval) {
+  console.log(interval.type);    // "interval"
+  console.log(interval.nextMs()); // 300000
+}
+```
+
 ## Configuration
 
 **Source:** `packages/core/src/mecha-settings.ts`, `packages/core/src/auth-config.ts`
@@ -2788,9 +2892,118 @@ Startup reconciliation: mark all `working` and `pending` tasks as `failed`. Call
 
 **Returns:** `number` — count of tasks reconciled
 
+## Atomic Write
+
+**Source:** `packages/core/src/atomic-write.ts`
+
+### `atomicWriteSync(filePath, data, mode?)`
+
+```ts
+function atomicWriteSync(filePath: string, data: string, mode?: number): void
+```
+
+Write a file atomically: write to a temporary file in the same directory, then rename. On POSIX, `rename` is atomic -- the file is either the old or new version, never partial. The temp file is cleaned up on rename failure.
+
+Used internally by config writers (`saveAcl`, `updateBotConfig`, `writeTotpSecret`, etc.) to prevent corrupted reads during concurrent access.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `filePath` | `string` | -- | Absolute path to the target file |
+| `data` | `string` | -- | File contents to write |
+| `mode` | `number` | OS default | File permission mode (e.g., `0o600` for owner-only) |
+
+```ts
+import { atomicWriteSync } from "@mecha/core";
+
+// Write config with restricted permissions
+atomicWriteSync("/home/alice/.mecha/acl.json", JSON.stringify(aclData), 0o600);
+```
+
+## Template
+
+**Source:** `packages/core/src/template.ts`
+
+Simple template rendering and expression evaluation for workflow step interpolation.
+
+### `resolveExpression(expr, context)`
+
+```ts
+function resolveExpression(expr: string, context: Record<string, unknown>): unknown
+```
+
+Resolve a dotted/bracketed expression against a context object. Splits `expr` on `.`, `[`, and `]` delimiters, then traverses the context tree. Used internally by `renderTemplate` and `evaluateCondition`.
+
+Blocks `__proto__`, `constructor`, and `prototype` keys for prototype chain protection. Returns `undefined` if any segment of the path is null, undefined, or not an object.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `expr` | `string` | Dotted/bracketed expression (e.g., `"step.output[0].field"`) |
+| `context` | `Record<string, unknown>` | Context object to resolve against |
+
+```ts
+import { resolveExpression } from "@mecha/core";
+
+const ctx = {
+  step: {
+    output: [{ field: "hello" }, { field: "world" }],
+  },
+};
+
+resolveExpression("step.output[0].field", ctx); // "hello"
+resolveExpression("step.output[1].field", ctx); // "world"
+resolveExpression("step.missing", ctx);          // undefined
+```
+
+### `renderTemplate(template, context)`
+
+```ts
+function renderTemplate(template: string, context: Record<string, unknown>): string
+```
+
+Replace `{{expr}}` placeholders in a template string with values resolved from context. `null` and `undefined` values render as empty strings; objects are JSON-serialized.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `template` | `string` | Template string with `{{expression}}` placeholders |
+| `context` | `Record<string, unknown>` | Context object for value resolution |
+
+```ts
+import { renderTemplate } from "@mecha/core";
+
+renderTemplate("Hello {{user.name}}, you have {{count}} items.", {
+  user: { name: "Alice" },
+  count: 3,
+});
+// "Hello Alice, you have 3 items."
+```
+
+### `evaluateCondition(condition, context)`
+
+```ts
+function evaluateCondition(condition: string, context: Record<string, unknown>): boolean
+```
+
+Evaluate a condition expression against context. Supports truthy checks, negation (`!path`), and comparisons (`==`, `!=`, `>`, `<`, `>=`, `<=`).
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `condition` | `string` | Condition expression |
+| `context` | `Record<string, unknown>` | Context object for value resolution |
+
+```ts
+import { evaluateCondition } from "@mecha/core";
+
+const ctx = { status: "success", count: 5 };
+
+evaluateCondition("status == 'success'", ctx); // true
+evaluateCondition("count > 3", ctx);           // true
+evaluateCondition("!status", ctx);             // false (status is truthy)
+evaluateCondition("missing", ctx);             // false (undefined is falsy)
+```
+
 ## See also
 
-- [Error Reference](/reference/errors) — Error classes and codes
-- [@mecha/connect](/reference/api/connect) — P2P connectivity types that depend on core identity types
-- [@mecha/process](/reference/api/process) — Process management that uses core schemas
-- [API Reference](/reference/api/) — Route summary and package overview
+- [Error Reference](/reference/errors) -- Error classes and codes
+- [@mecha/connect](/reference/api/connect) -- P2P connectivity types that depend on core identity types
+- [@mecha/process](/reference/api/process) -- Process management that uses core schemas
+- [API Reference](/reference/api/) -- Route summary and package overview
