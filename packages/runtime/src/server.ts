@@ -52,6 +52,10 @@ export function createServer(opts: CreateServerOpts): ServerResult {
     logger: { redact: ["req.headers.authorization"] },
   });
 
+  // Disable Node.js 22+ default requestTimeout (300s) — SDK queries can run for minutes.
+  // The chat route has its own AbortSignal-based timeout (CHAT_TIMEOUT_MS).
+  app.server.requestTimeout = 0;
+
   // Global error handler — map MechaError to correct HTTP status
   /* v8 ignore start -- error handler tested via route-level integration tests */
   app.setErrorHandler((err, _req, reply) => {

@@ -39,12 +39,17 @@
     "vitest": "^4.0.18"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["node-pty"],
+    "onlyBuiltDependencies": [
+      "node-pty"
+    ],
     "overrides": {
       "express-rate-limit": ">=8.2.2",
       "minimatch": ">=10.2.3",
       "hono": ">=4.12.4",
       "@hono/node-server": ">=1.19.10"
     }
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.83"
   }
 }

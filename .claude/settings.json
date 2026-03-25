@@ -32,6 +32,7 @@
     "tdd-guardian@xiaolai": true,
     "codex-toolkit@xiaolai": true,
     "echo-sleuth@xiaolai": true,
-    "docs-guardian@xiaolai": true
+    "docs-guardian@xiaolai": true,
+    "nlpm@xiaolai": true
   }
 }

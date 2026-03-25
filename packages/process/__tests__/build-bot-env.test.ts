@@ -125,4 +125,21 @@ describe("buildBotEnv", () => {
     const env = buildBotEnv(baseOpts(mechaDir));
     expect(env.ANTHROPIC_API_KEY).toBe("sk-ant-profile-key");
   });
+
+  it("sets ANTHROPIC_BASE_URL when in-process meter proxy is running (no deadlock)", () => {
+    const mechaDir = makeTmpDir();
+    const md = join(mechaDir, "meter");
+    mkdirSync(md, { recursive: true });
+
+    // Write proxy.json with pid = current process (simulates in-process meter)
+    writeFileSync(
+      join(md, "proxy.json"),
+      JSON.stringify({ port: 7600, pid: process.pid, required: true }),
+    );
+
+    // meterOff: false so the meter probe path runs.
+    // With pid === process.pid, the sync curl probe is skipped (avoids deadlock).
+    const env = buildBotEnv(baseOpts(mechaDir, { meterOff: false }));
+    expect(env.ANTHROPIC_BASE_URL).toBe("http://127.0.0.1:7600/bot/test-bot");
+  });
 });
