@@ -35,6 +35,7 @@ import type { ProcessManager } from "@mecha/process";
 import { createAuthHook, createAuthContext, verifyRequestSignature } from "./auth.js";
 import type { AuthConfig } from "./auth.js";
 import { registerTaskRoutes } from "./task-routes.js";
+import { startDiscoveryLoop } from "./discovery.js";
 
 export interface AgentServerOptions {
   port: number;
@@ -258,12 +259,23 @@ export function createAgentServer(opts: AgentServerOptions): FastifyInstance {
     });
   });
 
-  // Mesh nodes
+  // Mesh nodes — merge manual nodes + discovered nodes, deduplicated by host
   app.get("/mesh/nodes", async () => {
-    const { readNodes } = await import("@mecha/core");
-    const nodes = readNodes(mechaDir);
+    const { readNodes, readDiscoveredNodes } = await import("@mecha/core");
+    const manualNodes = readNodes(mechaDir);
+    const discoveredNodes = readDiscoveredNodes(mechaDir);
+
+    // Deduplicate: manual nodes take precedence over discovered
+    const manualHosts = new Set(manualNodes.map((n) => n.host));
+    const allNodes = [
+      ...manualNodes.map((n) => ({ ...n, source: "manual" as const })),
+      ...discoveredNodes
+        .filter((d) => !manualHosts.has(d.host))
+        .map((d) => ({ name: d.name, host: d.host, port: d.port, apiKey: d.apiKey, addedAt: d.addedAt, source: d.source })),
+    ];
+
     // Probe each node's healthz in parallel
-    const results = await Promise.all(nodes.map(async (n) => {
+    const results = await Promise.all(allNodes.map(async (n) => {
       const start = Date.now();
       try {
         const res = await fetch(`http://${n.host}:${n.port}/healthz`, {
@@ -292,7 +304,7 @@ export function createAgentServer(opts: AgentServerOptions): FastifyInstance {
           } catch { /* no bots info */ }
           return {
             name: n.name, status: "online" as const, latencyMs, botCount,
-            port: n.port, tailscaleIp: n.host,
+            port: n.port, tailscaleIp: n.host, source: n.source,
             hostname: info.hostname as string | undefined,
             platform: info.platform as string | undefined,
             arch: info.arch as string | undefined,
@@ -301,9 +313,9 @@ export function createAgentServer(opts: AgentServerOptions): FastifyInstance {
             freeMemMB: info.freeMemMB as number | undefined,
           };
         }
-        return { name: n.name, status: "offline" as const, port: n.port, tailscaleIp: n.host, error: `HTTP ${res.status}` };
+        return { name: n.name, status: "offline" as const, port: n.port, tailscaleIp: n.host, source: n.source, error: `HTTP ${res.status}` };
       } catch (err) {
-        return { name: n.name, status: "offline" as const, port: n.port, tailscaleIp: n.host, error: err instanceof Error ? err.message : "unreachable" };
+        return { name: n.name, status: "offline" as const, port: n.port, tailscaleIp: n.host, source: n.source, error: err instanceof Error ? err.message : "unreachable" };
       }
     }));
     return results;
@@ -398,6 +410,18 @@ export function createAgentServer(opts: AgentServerOptions): FastifyInstance {
   // Tools list (placeholder)
   app.get("/tools", async () => []);
   app.get("/tools/runtime", async () => ({ claudePath: null, version: null }));
+
+  // ── Auto-discovery: scan Tailscale peers periodically ────────────
+  /* v8 ignore start -- discovery requires Tailscale CLI and network access */
+  let stopDiscovery: (() => void) | undefined;
+  app.addHook("onReady", async () => {
+    const meshApiKey = auth.apiKey ?? "";
+    stopDiscovery = startDiscoveryLoop(mechaDir, meshApiKey);
+  });
+  app.addHook("onClose", async () => {
+    if (stopDiscovery) stopDiscovery();
+  });
+  /* v8 ignore stop */
 
   // Serve SPA static files if spaDir is provided.
   // @fastify/static is an optional peer dependency — resolved from the caller's
