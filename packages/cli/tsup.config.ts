@@ -8,6 +8,14 @@ const EXTERNAL = [
   "node-pty",  // native addon — must be resolved from node_modules at runtime
 ];
 
+// CJS packages (bonjour-service) bundled into ESM use `require()` for Node builtins.
+// esbuild's __require shim checks `typeof require !== "undefined"` — in ESM it's undefined,
+// so it throws. Fix: assign a real require to globalThis before the shim runs.
+const CJS_SHIM_BANNER = [
+  `import { createRequire as __cjsShimCreateRequire } from "node:module";`,
+  `if (typeof globalThis.require === "undefined") globalThis.require = __cjsShimCreateRequire(import.meta.url);`,
+].join("\n");
+
 export default defineConfig([
   {
     entry: ["src/index.ts", "src/main.ts"],
@@ -15,6 +23,7 @@ export default defineConfig([
     dts: { compilerOptions: { composite: false } },
     clean: true,
     external: EXTERNAL,
+    banner: { js: CJS_SHIM_BANNER },
   },
   {
     entry: { runtime: resolve(__dirname, "../runtime/src/main.ts") },
@@ -22,5 +31,6 @@ export default defineConfig([
     dts: false,
     clean: false,
     external: EXTERNAL,
+    banner: { js: CJS_SHIM_BANNER },
   },
 ]);

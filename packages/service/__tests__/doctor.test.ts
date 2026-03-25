@@ -72,10 +72,39 @@ describe("mechaDoctor", () => {
   it("reports error for missing auth profiles", () => {
     const mechaDir = setupMechaDir();
 
-    const result = mechaDoctor(mechaDir);
-    const authCheck = result.checks.find((c) => c.name === "auth-profiles");
-    expect(authCheck?.status).toBe("error");
-    expect(authCheck?.message).toContain("No auth profiles");
+    // Clear env vars so doctor doesn't detect synthetic env profiles
+    const savedApiKey = process.env.ANTHROPIC_API_KEY;
+    const savedOauth = process.env.CLAUDE_CODE_OAUTH_TOKEN;
+    delete process.env.ANTHROPIC_API_KEY;
+    delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
+    try {
+      const result = mechaDoctor(mechaDir);
+      const authCheck = result.checks.find((c) => c.name === "auth-profiles");
+      expect(authCheck?.status).toBe("error");
+      expect(authCheck?.message).toContain("No auth profiles");
+    } finally {
+      if (savedApiKey) process.env.ANTHROPIC_API_KEY = savedApiKey;
+      if (savedOauth) process.env.CLAUDE_CODE_OAUTH_TOKEN = savedOauth;
+    }
+  });
+
+  it("detects env-var credentials when profiles.json is empty", () => {
+    const mechaDir = setupMechaDir();
+
+    const savedApiKey = process.env.ANTHROPIC_API_KEY;
+    process.env.ANTHROPIC_API_KEY = "sk-test";
+    try {
+      const result = mechaDoctor(mechaDir);
+      const envAuth = result.checks.find((c) => c.name === "auth:$env:api-key");
+      expect(envAuth?.status).toBe("ok");
+      expect(envAuth?.message).toContain("api-key (env)");
+      // Should NOT have the "No auth profiles" error
+      const authError = result.checks.find((c) => c.name === "auth-profiles");
+      expect(authError).toBeUndefined();
+    } finally {
+      if (savedApiKey) process.env.ANTHROPIC_API_KEY = savedApiKey;
+      else delete process.env.ANTHROPIC_API_KEY;
+    }
   });
 
   it("lists each auth profile as ok check", () => {

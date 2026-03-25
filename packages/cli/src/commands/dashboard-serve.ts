@@ -78,6 +78,18 @@ export async function executeDashboardServe(opts: DashboardServeOpts, deps: Comm
   deps.registerShutdownHook?.(() => server.close());
   /* v8 ignore stop */
 
+  // Auto-start meter daemon in-process (same as `mecha start`)
+  /* v8 ignore start -- meter auto-start is best-effort */
+  try {
+    const { startMeterDaemon } = await import("@mecha/agent");
+    const handle = await startMeterDaemon(deps.mechaDir);
+    deps.registerShutdownHook?.(() => handle.close());
+    deps.formatter.success(`Meter proxy started on 127.0.0.1:${handle.info.port}`);
+  } catch (err) {
+    deps.formatter.warn(`Meter auto-start failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  /* v8 ignore stop */
+
   await server.listen({ port, host: opts.host });
 
   deps.formatter.success(`Dashboard started on http://${opts.host}:${port} (auth: TOTP)`);
