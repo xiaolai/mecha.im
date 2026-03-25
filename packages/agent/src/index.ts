@@ -10,3 +10,5 @@ export type { AuthConfig, AuthContext } from "./auth.js";
 
 export { registerTaskRoutes } from "./task-routes.js";
 export type { TaskRouteOpts } from "./task-routes.js";
+
+export { runDiscoveryScan, startDiscoveryLoop, SCAN_INTERVAL_MS } from "./discovery.js";
