@@ -98,10 +98,17 @@ export function buildBotEnv(opts: BuildBotEnvOpts): Record<string, string> {
     if (opts.auth !== undefined) throw err;
     if (!(err instanceof AuthProfileNotFoundError)) throw err;
     log.warn("No auth profiles found, inheriting host credentials. Use --auth <name> or create a profile with 'mecha auth add' for explicit auth.");
-    const sdkKeys = ["ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"] as const;
-    for (const key of sdkKeys) {
-      if (process.env[key] && !childEnv[key]) {
-        childEnv[key] = process.env[key]!;
+    // Inherit OAuth tokens but NOT ANTHROPIC_API_KEY.
+    // API key takes priority over OAuth in Claude CLI. If the parent shell
+    // has an API key set (e.g., for Codex), it would override the user's
+    // Claude Pro/Max OAuth session, causing auth failures when credits run out.
+    if (process.env["CLAUDE_CODE_OAUTH_TOKEN"] && !childEnv["CLAUDE_CODE_OAUTH_TOKEN"]) {
+      childEnv["CLAUDE_CODE_OAUTH_TOKEN"] = process.env["CLAUDE_CODE_OAUTH_TOKEN"]!;
+    }
+    // Also inherit CLAUDE_SETUP_TOKEN_* vars (OAuth session tokens per profile)
+    for (const [key, value] of Object.entries(process.env)) {
+      if (key.startsWith("CLAUDE_SETUP_TOKEN_") && value && !childEnv[key]) {
+        childEnv[key] = value;
       }
     }
     /* v8 ignore stop */
@@ -110,14 +117,11 @@ export function buildBotEnv(opts: BuildBotEnvOpts): Record<string, string> {
     childEnv[resolved.envVar] = resolved.token;
   }
 
-  // Fail fast if no API credentials are available from any source.
+  // Warn (don't fail) if no explicit API credentials are available.
+  // Claude CLI can use its own OAuth session without env vars.
   // Skip when auth is explicitly null (--no-auth) — user opted out of credentials.
   if (opts.auth !== null && !childEnv["ANTHROPIC_API_KEY"] && !childEnv["CLAUDE_CODE_OAUTH_TOKEN"]) {
-    throw new ProcessSpawnError(
-      `No API credentials available for bot "${name}". ` +
-      `Set ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN in the environment, ` +
-      `or add an auth profile with: mecha auth add`,
-    );
+    log.warn("No explicit API credentials for bot — Claude CLI will use its own OAuth session if available.");
   }
 
   // Resolve claude CLI path in the parent process (before sandbox restricts PATH)
