@@ -6,7 +6,7 @@ hero:
   text: Agentic Workflow Engine
   tagline: An event-driven server that dispatches tasks to LLM workers and writes results back to GitHub.
   image:
-    src: /favicon.svg
+    src: /mecha-512.png
     alt: Mecha
   actions:
     - theme: brand

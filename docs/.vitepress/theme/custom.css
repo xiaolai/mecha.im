@@ -1,25 +1,25 @@
-/* Mecha — terracotta brand (#C56F52) */
+/* Mecha — dark brand (#2B2C2B) */
 
 :root {
-  --vp-c-brand-1: #C56F52;
-  --vp-c-brand-2: #b3634a;
-  --vp-c-brand-3: #a05840;
-  --vp-c-brand-soft: rgba(197, 111, 82, 0.14);
+  --vp-c-brand-1: #2B2C2B;
+  --vp-c-brand-2: #3d3e3d;
+  --vp-c-brand-3: #1a1b1a;
+  --vp-c-brand-soft: rgba(43, 44, 43, 0.14);
 
   --vp-home-hero-name-color: transparent;
-  --vp-home-hero-name-background: -webkit-linear-gradient(120deg, #C56F52 30%, #e8a090);
+  --vp-home-hero-name-background: -webkit-linear-gradient(120deg, #2B2C2B 30%, #5a5b5a);
   --vp-home-hero-image-background-image: linear-gradient(-45deg, #C56F52aa 50%, #e8a09088 50%);
   --vp-home-hero-image-filter: blur(44px);
 }
 
 .dark {
-  --vp-c-brand-1: #d9856b;
-  --vp-c-brand-2: #C56F52;
-  --vp-c-brand-3: #e8a090;
-  --vp-c-brand-soft: rgba(197, 111, 82, 0.16);
+  --vp-c-brand-1: #5a5b5a;
+  --vp-c-brand-2: #4a4b4a;
+  --vp-c-brand-3: #6a6b6a;
+  --vp-c-brand-soft: rgba(43, 44, 43, 0.16);
 }
 
-/* Scale up the hero SVG icon */
+/* Scale up the hero pixel art */
 .VPHero .VPImage {
   width: 320px;
   height: 320px;

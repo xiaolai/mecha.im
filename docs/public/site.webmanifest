@@ -8,17 +8,17 @@
   "theme_color": "#C56F52",
   "icons": [
     {
-      "src": "/images/icons/mecha-web-192.png",
+      "src": "/images/icons/mecha-192.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "/images/icons/mecha-web-384.png",
+      "src": "/images/icons/mecha-384.png",
       "sizes": "384x384",
       "type": "image/png"
     },
     {
-      "src": "/images/icons/mecha-transparent-512.png",
+      "src": "/images/icons/mecha-512.png",
       "sizes": "512x512",
       "type": "image/png"
     }

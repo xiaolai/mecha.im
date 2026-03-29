@@ -13,7 +13,7 @@ export default withMermaid({
     ['link', { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/favicon-32x32.png' }],
     ['link', { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' }],
     ['link', { rel: 'manifest', href: '/site.webmanifest' }],
-    ['meta', { name: 'theme-color', content: '#C56F52' }],
+    ['meta', { name: 'theme-color', content: '#2B2C2B' }],
   ],
 
   themeConfig: {
@@ -30,6 +30,22 @@ export default withMermaid({
           text: 'Getting Started',
           items: [
             { text: 'Introduction', link: '/guide/' },
+            { text: 'Quick Start', link: '/guide/quickstart' },
+            { text: 'Installation', link: '/guide/installation' },
+          ],
+        },
+        {
+          text: 'Configuration',
+          items: [
+            { text: 'Workers', link: '/guide/workers' },
+            { text: 'Secrets', link: '/guide/secrets' },
+          ],
+        },
+        {
+          text: 'Reference',
+          items: [
+            { text: 'CLI', link: '/guide/cli' },
+            { text: 'Architecture', link: '/guide/architecture' },
           ],
         },
       ],
