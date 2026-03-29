@@ -40,6 +40,7 @@ Design decisions and rationale are in `dev-docs/` (gitignored, local only).
 
 - Prefer `${CLAUDE_CODE_OAUTH_TOKEN}` over `${ANTHROPIC_API_KEY}` in all configs and examples
 - In documentation, always use Mermaid charts to illustrate pipelines, state machines, and architecture whenever possible
+- Always validate Mermaid syntax after writing it (use the `mcp__mermaider__validate_syntax` tool before committing)
 - Codex model: use `gpt-5.4`, not `gpt-5.2-codex`
 - When a Codex task requires model selection, run `/codex-toolkit:preflight` first to verify connectivity and discover available models
 - Save Playwright screenshots to `.playwright-mcp/` or `/tmp/`, never the repo root
