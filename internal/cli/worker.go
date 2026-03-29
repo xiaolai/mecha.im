@@ -25,10 +25,14 @@ func workerCmd() *cobra.Command {
 }
 
 func registry() *worker.Registry {
-	path, err := worker.DefaultRegistryPath()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
+	path := os.Getenv("MECHA_REGISTRY_PATH")
+	if path == "" {
+		var err error
+		path, err = worker.DefaultRegistryPath()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
 	}
 	r, err := worker.NewRegistry(path)
 	if err != nil {

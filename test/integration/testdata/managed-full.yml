@@ -1,0 +1,15 @@
+name: test-full
+docker:
+  image: ghcr.io/test/worker:v1.0.0
+  host: unix:///var/run/docker.sock
+  resources:
+    cpu: 4
+    memory: 8G
+    pids: 256
+  lifecycle: persistent
+  port: 9090
+  proxy:
+    target: https://api.example.com
+    key: ${TEST_PROXY_KEY}
+  egress: [api.example.com]
+timeout: 15m
