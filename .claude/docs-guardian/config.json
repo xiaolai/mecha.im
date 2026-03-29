@@ -1,19 +1,25 @@
 {
   "language": "go",
-  "framework": "hugo",
-  "docRoot": "docs/content/",
+  "framework": "vitepress",
+  "docRoot": "docs/",
   "sourceDirectories": ["cmd/", "internal/"],
   "strictness": "warn",
-  "stalenessThresholdDays": 14,
-  "mappings": [],
+  "stalenessThresholdDays": 30,
+  "mappings": [
+    { "source": "cmd/mecha/main.go", "doc": "docs/guide/index.md" },
+    { "source": "internal/worker/**", "doc": "docs/guide/index.md" },
+    { "source": "internal/cli/**", "doc": "docs/guide/index.md" }
+  ],
   "exclude": [
     "node_modules/",
     "vendor/",
-    "dist/",
+    "docs/.vitepress/dist/",
+    "docs/.vitepress/cache/",
     "website/",
     ".git/",
     ".claude/",
     "*.lock",
-    "dev-docs/"
+    "dev-docs/",
+    "**/*_test.go"
   ]
 }
