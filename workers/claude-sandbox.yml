@@ -10,6 +10,5 @@ docker:
     CLAUDE_MODEL: claude-sonnet-4-6
     CLAUDE_PERMISSION_MODE: bypassPermissions
     CLAUDE_EFFORT: high
-    CLAUDE_OUTPUT_FORMAT: json
   token: claude.xiaolaidev
 timeout: 10m

@@ -9,8 +9,10 @@ export function buildCommand(prompt: string): BackendCommand {
   const sandbox = process.env.CODEX_SANDBOX;
   if (sandbox) args.push("--sandbox", sandbox);
 
-  const approval = process.env.CODEX_APPROVAL;
-  if (approval) args.push("--ask-for-approval", approval);
+  // codex exec has --full-auto (not --ask-for-approval, which is TUI-only)
+  if (process.env.CODEX_FULL_AUTO === "true") {
+    args.push("--full-auto");
+  }
 
   const effort = process.env.CODEX_EFFORT;
   if (effort) args.push("-c", `model_reasoning_effort='"${effort}"'`);

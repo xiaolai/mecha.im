@@ -13,6 +13,5 @@ docker:
     CLAUDE_ALLOWED_TOOLS: "Read,Grep,Glob,Bash"
     CLAUDE_PERMISSION_MODE: bypassPermissions
     CLAUDE_EFFORT: high
-    CLAUDE_OUTPUT_FORMAT: json
   token: claude.xiaolaidev
 timeout: 30m

@@ -3,7 +3,6 @@ package worker
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/netip"
 	"os/user"
 	"strconv"
@@ -53,7 +52,9 @@ func (d *DockerClient) Pull(ctx context.Context, img string) error {
 		return fmt.Errorf("pull image: %w", err)
 	}
 	defer resp.Close()
-	_, _ = io.Copy(io.Discard, resp)
+	if err := resp.Wait(ctx); err != nil {
+		return fmt.Errorf("pull image %s: %w", img, err)
+	}
 	return nil
 }
 

@@ -146,7 +146,7 @@ Every managed worker image must:
 |---------|----------|--------|
 | `CODEX_MODEL` | `--model` | `gpt-5.4`, `gpt-5.4-mini`, etc. |
 | `CODEX_SANDBOX` | `--sandbox` | `read-only`, `workspace-write`, `danger-full-access` |
-| `CODEX_APPROVAL` | `--ask-for-approval` | `untrusted`, `on-request`, `never` |
+| `CODEX_FULL_AUTO` | `--full-auto` | `"true"` to enable auto-approve + workspace-write |
 
 ### Gemini
 

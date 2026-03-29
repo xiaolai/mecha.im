@@ -94,7 +94,8 @@ Every mecha worker image must:
 | `CLAUDE_CODE_OAUTH_TOKEN` | Auth (subscription) |
 | `ANTHROPIC_API_KEY` | Auth (API key) |
 
-Exec: `claude --print --model $CLAUDE_MODEL --output-format json "prompt"`
+Claude backend uses the Agent SDK `query()` directly (not CLI flags).
+Env vars are mapped to SDK options in `docker/runtime/backends/claude.ts`.
 
 ## Codex Env Vars
 
@@ -102,9 +103,12 @@ Exec: `claude --print --model $CLAUDE_MODEL --output-format json "prompt"`
 |---|---|
 | `CODEX_MODEL` | `--model` |
 | `CODEX_SANDBOX` | `--sandbox` |
-| `CODEX_APPROVAL` | `--ask-for-approval` |
+| `CODEX_FULL_AUTO` | `--full-auto` (set to `"true"` to enable) |
 | `CODEX_EFFORT` | `-c model_reasoning_effort='"VALUE"'` |
 | `OPENAI_API_KEY` | Auth |
+
+Note: `codex exec` runs without approval prompts by default. `--full-auto` enables
+auto-approve + workspace-write. The `--ask-for-approval` flag is TUI-only (not `exec`).
 
 Exec: `codex exec --model $CODEX_MODEL --sandbox $CODEX_SANDBOX "prompt"`
 

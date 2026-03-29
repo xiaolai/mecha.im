@@ -9,6 +9,6 @@ docker:
   env:
     CODEX_MODEL: gpt-5.4
     CODEX_SANDBOX: workspace-write
-    CODEX_APPROVAL: never
+    CODEX_FULL_AUTO: "true"
   token: codex.default
 timeout: 30m
