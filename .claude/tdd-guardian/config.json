@@ -1,0 +1,17 @@
+{
+  "enabled": false,
+  "testCommand": "go test ./...",
+  "coverageCommand": "go test -coverprofile=coverage.out ./... && go tool cover -func=coverage.out",
+  "coverageSummaryPath": "coverage.out",
+  "mutationCommand": null,
+  "thresholds": {
+    "lines": 100,
+    "functions": 100,
+    "branches": 100,
+    "statements": 100
+  },
+  "mutationThreshold": 80,
+  "strictMode": true,
+  "language": "go",
+  "packageManager": "go"
+}

@@ -3,3 +3,4 @@ dist/
 *.local.yml
 .DS_Store
 .env
+dev-docs/

@@ -1,0 +1,17 @@
+{
+  "language": "go",
+  "framework": null,
+  "docRoot": "dev-docs/",
+  "sourceDirectories": ["cmd/", "internal/"],
+  "strictness": "warn",
+  "stalenessThresholdDays": 14,
+  "mappings": [],
+  "exclude": [
+    "node_modules/",
+    "vendor/",
+    "dist/",
+    ".git/",
+    ".claude/",
+    "*.lock"
+  ]
+}
