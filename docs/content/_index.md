@@ -1,4 +1,4 @@
 ---
 title: "Mecha"
-description: "Mecha turns GitHub events into LLM tasks."
+description: "Agentic Workflow Engine: Scheduling, Orchestrating, Managing Events."
 ---

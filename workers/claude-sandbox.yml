@@ -1,0 +1,15 @@
+name: claude-sandbox
+docker:
+  image: ghcr.io/xiaolai/mecha-worker-claude:latest
+  host: unix:///var/run/docker.sock
+  resources:
+    cpu: 4
+    memory: 8G
+    pids: 256
+  lifecycle: disposable
+  port: 8080
+  proxy:
+    target: https://api.anthropic.com
+    key: ${CLAUDE_CODE_OAUTH_TOKEN}
+  egress: [api.anthropic.com]
+timeout: 10m

@@ -1,0 +1,11 @@
+{
+  "enabledPlugins": {
+    "codex-toolkit@xiaolai": true,
+    "docs-guardian@xiaolai": true,
+    "echo-sleuth@xiaolai": true,
+    "grill@xiaolai": true,
+    "loc-guardian@xiaolai": true,
+    "nlpm@xiaolai": true,
+    "tdd-guardian@xiaolai": true
+  }
+}

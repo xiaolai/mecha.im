@@ -9,9 +9,7 @@ toc: true
 
 ## What is Mecha
 
-**Mecha turns GitHub events into LLM tasks.**
-
-An event-driven server that dispatches tasks to LLM workers and writes results back to GitHub.
+**Agentic Workflow Engine: Scheduling, Orchestrating, Managing Events.**
 
 ## Four Nouns
 

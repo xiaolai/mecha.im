@@ -1,6 +1,6 @@
 ---
 title: "Documentation"
-description: "Mecha documentation — learn how to turn GitHub events into LLM tasks."
+description: "Mecha documentation — Agentic Workflow Engine: Scheduling, Orchestrating, Managing Events."
 icon: article
 weight: 100
 ---
