@@ -1,18 +1,27 @@
-import type { TaskRequest, TaskResponse, BackendCommand } from "./types";
+import type { TaskRequest, TaskResponse, BackendCommand, BackendExecutor } from "./types";
 
 const BACKEND = process.env.WORKER_BACKEND || "claude";
 const PORT = parseInt(process.env.WORKER_PORT || "8080");
 const TIMEOUT_MS = parseInt(process.env.WORKER_TIMEOUT || "600000"); // 10m
 const MAX_BODY_BYTES = 10 * 1024 * 1024; // 10MB
+const DRY_RUN = process.env.WORKER_DRY_RUN === "true";
 
 let busy = false;
 
-async function loadBackend(): Promise<(prompt: string) => BackendCommand> {
+// SDK-based backends export executeTask(). CLI-based export buildCommand().
+let sdkExecutor: BackendExecutor | null = null;
+let cliBuilder: ((prompt: string) => BackendCommand) | null = null;
+
+async function loadBackend() {
   const mod = await import(`./backends/${BACKEND}.ts`);
-  return mod.buildCommand;
+  if (mod.executeTask) {
+    sdkExecutor = mod.executeTask;
+  } else if (mod.buildCommand) {
+    cliBuilder = mod.buildCommand;
+  }
 }
 
-const buildCommand = await loadBackend();
+await loadBackend();
 
 function healthHandler(): Response {
   if (busy) {
@@ -26,7 +35,6 @@ async function taskHandler(req: Request): Promise<Response> {
     return Response.json({ error: "worker busy" }, { status: 429 });
   }
 
-  // Set busy BEFORE any await to prevent race condition.
   busy = true;
 
   try {
@@ -46,53 +54,72 @@ async function taskHandler(req: Request): Promise<Response> {
       return Response.json({ error: "missing prompt" }, { status: 400 });
     }
 
-    const start = Date.now();
-    const cmd = buildCommand(body.prompt);
-    const proc = Bun.spawn([cmd.command, ...cmd.args], {
-      cwd: "/workspace",
-      env: process.env,
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-
-    // SIGTERM first, then SIGKILL after 5s grace period.
-    const killTimer = setTimeout(() => {
-      proc.kill("SIGTERM");
-      setTimeout(() => proc.kill("SIGKILL"), 5000);
-    }, TIMEOUT_MS);
-
-    const [stdout, stderr] = await Promise.all([
-      new Response(proc.stdout).text(),
-      new Response(proc.stderr).text(),
-    ]);
-
-    clearTimeout(killTimer);
-    const exitCode = await proc.exited;
-    const durationMs = Date.now() - start;
-
-    const result: TaskResponse = {
-      output: stdout.trim(),
-      metadata: {
-        model: process.env[`${BACKEND.toUpperCase()}_MODEL`] || undefined,
-        duration_ms: durationMs,
-        exit_code: exitCode,
-      },
-    };
-
-    if (stderr.trim()) {
-      result.output += "\n\n--- stderr ---\n" + stderr.trim();
+    // SDK-based backend (Claude)
+    if (sdkExecutor) {
+      if (DRY_RUN) {
+        return Response.json({ dry_run: true, backend: BACKEND, prompt: body.prompt });
+      }
+      const result = await sdkExecutor(body.prompt);
+      return Response.json(result);
     }
 
-    return Response.json(result);
+    // CLI-based backend (Codex, Gemini)
+    if (cliBuilder) {
+      const cmd = cliBuilder(body.prompt);
+
+      if (DRY_RUN) {
+        return Response.json({ dry_run: true, command: cmd.command, args: cmd.args });
+      }
+
+      return await execCLI(cmd);
+    }
+
+    return Response.json({ error: "no backend configured" }, { status: 500 });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (msg.includes("not found") || msg.includes("ENOENT")) {
-      return Response.json({ error: `${BACKEND} CLI not found` }, { status: 500 });
-    }
     return Response.json({ error: msg }, { status: 500 });
   } finally {
     busy = false;
   }
+}
+
+async function execCLI(cmd: BackendCommand): Promise<Response> {
+  const start = Date.now();
+  const proc = Bun.spawn([cmd.command, ...cmd.args], {
+    cwd: "/workspace",
+    env: process.env,
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+
+  const killTimer = setTimeout(() => {
+    proc.kill("SIGTERM");
+    setTimeout(() => proc.kill("SIGKILL"), 5000);
+  }, TIMEOUT_MS);
+
+  const [stdout, stderr] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+  ]);
+
+  clearTimeout(killTimer);
+  const exitCode = await proc.exited;
+  const durationMs = Date.now() - start;
+
+  const result: TaskResponse = {
+    output: stdout.trim(),
+    metadata: {
+      model: process.env[`${BACKEND.toUpperCase()}_MODEL`] || undefined,
+      duration_ms: durationMs,
+      exit_code: exitCode,
+    },
+  };
+
+  if (stderr.trim()) {
+    result.output += "\n\n--- stderr ---\n" + stderr.trim();
+  }
+
+  return Response.json(result);
 }
 
 const server = Bun.serve({

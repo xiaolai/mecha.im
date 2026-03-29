@@ -1,8 +1,11 @@
 {
   "name": "mecha-worker-runtime",
-  "version": "0.5.1",
+  "version": "0.0.0",
   "type": "module",
   "scripts": {
     "start": "bun run server.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "latest"
   }
 }
