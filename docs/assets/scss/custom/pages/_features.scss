@@ -1,0 +1,9 @@
+// Override: remove icon background color in feature grid cards
+.features {
+    .icon {
+        background: transparent !important;
+    }
+    &:hover .icon {
+        background: transparent !important;
+    }
+}
