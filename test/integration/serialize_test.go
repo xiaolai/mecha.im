@@ -32,7 +32,6 @@ func TestSerialize_ManagedWorker(t *testing.T) {
 		"name: test-sandbox",
 		"image: ghcr.io/test/worker:v1.0.0",
 		"lifecycle: persistent",
-		"port: 8080",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("config missing %q in:\n%s", want, out)
@@ -52,13 +51,11 @@ func TestSerialize_ManagedFullRoundTrip(t *testing.T) {
 	for _, want := range []string{
 		"name: test-full",
 		"lifecycle: persistent",
-		"port: 9090",
 		"cpu: 4",
 		"memory: 8G",
 		"pids: 256",
 		"CLAUDE_MODEL: claude-sonnet-4-6",
 		"token: claude.work",
-		"api.example.com",
 		"timeout: 15m",
 	} {
 		if !strings.Contains(out, want) {
@@ -78,9 +75,6 @@ func TestSerialize_DefaultsApplied(t *testing.T) {
 	// These should be applied as defaults.
 	if !strings.Contains(out, "lifecycle: persistent") {
 		t.Errorf("default lifecycle not applied:\n%s", out)
-	}
-	if !strings.Contains(out, "port: 8080") {
-		t.Errorf("default port not applied:\n%s", out)
 	}
 	if !strings.Contains(out, "timeout: 10m") {
 		t.Errorf("default timeout not applied:\n%s", out)

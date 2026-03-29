@@ -24,6 +24,14 @@ func skipIfNoDocker(t *testing.T) {
 	cli.Close()
 }
 
+func skipIfNoImage(t *testing.T, img string) {
+	t.Helper()
+	out, err := exec.Command("docker", "image", "inspect", img).CombinedOutput()
+	if err != nil || strings.Contains(string(out), "Error") {
+		t.Skipf("docker image %q not available (run: make image-claude)", img)
+	}
+}
+
 func TestDocker_ClientConnect(t *testing.T) {
 	skipIfNoDocker(t)
 	cli, err := worker.NewDockerClient("")
@@ -35,6 +43,7 @@ func TestDocker_ClientConnect(t *testing.T) {
 
 func TestDocker_CreateStartStop(t *testing.T) {
 	skipIfNoDocker(t)
+	skipIfNoImage(t, "mecha-worker-claude:latest")
 	cli, err := worker.NewDockerClient("")
 	if err != nil {
 		t.Fatal(err)
@@ -87,6 +96,7 @@ func TestDocker_CreateStartStop(t *testing.T) {
 
 func TestDocker_CLILifecycle(t *testing.T) {
 	skipIfNoDocker(t)
+	skipIfNoImage(t, "mecha-worker-claude:latest")
 
 	reg := tempRegistry(t)
 	yaml := `name: docker-e2e

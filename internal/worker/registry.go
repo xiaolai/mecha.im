@@ -171,6 +171,26 @@ func (r *Registry) SetRuntime(name, containerID, endpoint string) error {
 	return nil
 }
 
+func (r *Registry) StopRuntime(name string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.entries[name]; !ok {
+		return fmt.Errorf("worker %q not found", name)
+	}
+	clone := r.cloneEntries()
+	ce := clone[name]
+	ce.State = StateOffline
+	ce.StartedAt = nil
+	ce.RuntimeEndpoint = ""
+	ce.Error = ""
+	// Keep ContainerID so remove can find the stopped container.
+	if err := r.persist(clone); err != nil {
+		return err
+	}
+	r.entries = clone
+	return nil
+}
+
 func (r *Registry) ClearRuntime(name string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()

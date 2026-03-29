@@ -103,8 +103,14 @@ func workerRemoveCmd() *cobra.Command {
 			reg := registry()
 			name := args[0]
 			e, ok := reg.Get(name)
-			if ok && e.Worker.IsManaged() && e.ContainerID != "" {
-				_ = dockerRemove(reg, name)
+			if !ok {
+				return fmt.Errorf("worker %q not found", name)
+			}
+			// For managed workers: stop + remove container first.
+			if e.Worker.IsManaged() {
+				if err := dockerRemove(reg, name); err != nil {
+					return fmt.Errorf("cleanup container: %w", err)
+				}
 			}
 			if err := reg.Remove(name); err != nil {
 				return err

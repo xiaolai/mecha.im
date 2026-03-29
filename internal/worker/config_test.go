@@ -42,9 +42,6 @@ func TestLoadFile(t *testing.T) {
 				if w.Docker.Lifecycle != "persistent" {
 					t.Errorf("lifecycle = %q, want persistent", w.Docker.Lifecycle)
 				}
-				if w.Docker.Port != 8080 {
-					t.Errorf("port = %d, want 8080", w.Docker.Port)
-				}
 				if w.Timeout != 10*time.Minute {
 					t.Errorf("timeout = %v, want 10m", w.Timeout)
 				}
@@ -96,6 +93,11 @@ func TestLoadFile(t *testing.T) {
 		{
 			name:    "docker bad cwd rejected",
 			yaml:    "name: bad\ndocker:\n  image: x\n  cwd: /nonexistent/path/abc\n",
+			wantErr: true,
+		},
+		{
+			name:    "docker disposable rejected",
+			yaml:    "name: bad\ndocker:\n  image: x\n  lifecycle: disposable\n",
 			wantErr: true,
 		},
 	}

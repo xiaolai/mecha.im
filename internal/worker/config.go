@@ -3,6 +3,7 @@ package worker
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -23,12 +24,9 @@ type DockerConfig struct {
 	Cwd       string            `yaml:"cwd,omitempty"`
 	Resources ResourceConfig    `yaml:"resources,omitempty"`
 	Lifecycle string            `yaml:"lifecycle,omitempty"`
-	Port      int               `yaml:"port,omitempty"`
 	Env       map[string]string `yaml:"env,omitempty"`
 	Token     string            `yaml:"token,omitempty"`
-	Egress    []string          `yaml:"egress,omitempty"`
 	Labels    map[string]string `yaml:"labels,omitempty"`
-	Network   string            `yaml:"network,omitempty"`
 }
 
 type ResourceConfig struct {
@@ -124,8 +122,6 @@ func isYAML(name string) bool {
 	return strings.HasSuffix(name, ".yml") || strings.HasSuffix(name, ".yaml")
 }
 
-var validLifecycles = map[string]bool{"disposable": true, "persistent": true}
-
 func (w *Worker) validate() error {
 	if w.Name == "" {
 		return fmt.Errorf("name is required")
@@ -148,15 +144,34 @@ func (d *DockerConfig) validate() error {
 	if d.Image == "" {
 		return fmt.Errorf("docker.image is required")
 	}
-	if d.Lifecycle != "" && !validLifecycles[d.Lifecycle] {
-		return fmt.Errorf("docker.lifecycle must be disposable or persistent, got %q", d.Lifecycle)
+	if d.Lifecycle == "disposable" {
+		return fmt.Errorf("docker.lifecycle=disposable is not yet supported (Phase 3)")
 	}
-	if d.Port < 0 {
-		return fmt.Errorf("docker.port must be non-negative")
+	if d.Lifecycle != "" && d.Lifecycle != "persistent" {
+		return fmt.Errorf("docker.lifecycle must be persistent, got %q", d.Lifecycle)
 	}
 	if d.Cwd != "" {
-		if _, err := os.Stat(d.Cwd); err != nil {
+		resolved, err := filepath.EvalSymlinks(d.Cwd)
+		if err != nil {
 			return fmt.Errorf("docker.cwd %q: %w", d.Cwd, err)
+		}
+		info, err := os.Stat(resolved)
+		if err != nil {
+			return fmt.Errorf("docker.cwd %q: %w", d.Cwd, err)
+		}
+		if !info.IsDir() {
+			return fmt.Errorf("docker.cwd %q is not a directory", d.Cwd)
+		}
+	}
+	if d.Resources.CPU < 0 {
+		return fmt.Errorf("docker.resources.cpu must be non-negative")
+	}
+	if d.Resources.Pids < 0 {
+		return fmt.Errorf("docker.resources.pids must be non-negative")
+	}
+	if d.Resources.Memory != "" {
+		if _, err := parseMemory(d.Resources.Memory); err != nil {
+			return fmt.Errorf("docker.resources.memory: %w", err)
 		}
 	}
 	return nil
@@ -169,9 +184,6 @@ func (w *Worker) applyDefaults() {
 	if w.Docker != nil {
 		if w.Docker.Lifecycle == "" {
 			w.Docker.Lifecycle = "persistent"
-		}
-		if w.Docker.Port == 0 {
-			w.Docker.Port = 8080
 		}
 	}
 }
