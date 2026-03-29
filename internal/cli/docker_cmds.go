@@ -3,23 +3,11 @@ package cli
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
 	"mecha.im/internal/worker"
 )
-
-// Env vars that must never be injected into worker containers.
-// Checked case-insensitively.
-var blockedEnvKeys = map[string]bool{
-	"github_token": true, "gh_token": true,
-	"github_app_key": true, "github_app_id": true,
-	"github_app_private_key": true, "github_app_installation_id": true,
-	"github_pat": true, "github_access_token": true,
-	"gh_enterprise_token": true, "github_webhook_secret": true,
-}
 
 const dockerTimeout = 30 * time.Second
 
@@ -175,76 +163,3 @@ func waitForHealth(dock *worker.DockerClient, id string, timeout time.Duration) 
 	}
 }
 
-func buildContainerEnv(dc *worker.DockerConfig) (map[string]string, error) {
-	env := make(map[string]string)
-
-	// 1. Resolve token → fail if set but unresolvable.
-	if dc.Token != "" {
-		secretsPath, err := worker.DefaultSecretsPath()
-		if err != nil {
-			return nil, fmt.Errorf("resolve secrets path: %w", err)
-		}
-		secrets, err := worker.LoadSecrets(secretsPath)
-		if err != nil {
-			return nil, fmt.Errorf("load secrets for token %q: %w", dc.Token, err)
-		}
-		tokenVal, err := secrets.Resolve(dc.Token)
-		if err != nil {
-			return nil, fmt.Errorf("resolve token %q: %w", dc.Token, err)
-		}
-		envKey, envVal := worker.DetectTokenEnvVar(tokenVal)
-		if envKey == "" {
-			return nil, fmt.Errorf("unknown token format for %q", dc.Token)
-		}
-		env[envKey] = envVal
-	}
-
-	// 2. Merge explicit env (wins on collision). Block GitHub tokens.
-	for k, v := range dc.Env {
-		if blockedEnvKeys[strings.ToLower(k)] {
-			return nil, fmt.Errorf("env var %q is blocked — workers must not receive GitHub credentials", k)
-		}
-		// Scan values for credential patterns.
-		if looksLikeCredential(v) {
-			return nil, fmt.Errorf("env var %q value looks like a credential — use docker.token instead", k)
-		}
-		env[k] = v
-	}
-
-	// 3. HOME for non-root user.
-	env["HOME"] = "/tmp"
-	return env, nil
-}
-
-func looksLikeCredential(v string) bool {
-	return strings.HasPrefix(v, "ghp_") ||
-		strings.HasPrefix(v, "ghs_") ||
-		strings.HasPrefix(v, "ghr_") ||
-		strings.HasPrefix(v, "gho_") ||
-		strings.HasPrefix(v, "github_pat_")
-}
-
-func buildContainerMounts(dc *worker.DockerConfig) ([]worker.MountCfg, error) {
-	var mounts []worker.MountCfg
-	if dc.Cwd != "" {
-		resolved, err := filepath.EvalSymlinks(dc.Cwd)
-		if err != nil {
-			return nil, fmt.Errorf("resolve cwd %q: %w", dc.Cwd, err)
-		}
-		resolved, err = filepath.Abs(resolved)
-		if err != nil {
-			return nil, fmt.Errorf("abs cwd %q: %w", dc.Cwd, err)
-		}
-		info, err := os.Stat(resolved)
-		if err != nil {
-			return nil, fmt.Errorf("stat cwd %q: %w", dc.Cwd, err)
-		}
-		if !info.IsDir() {
-			return nil, fmt.Errorf("cwd %q is not a directory", dc.Cwd)
-		}
-		mounts = append(mounts, worker.MountCfg{
-			Source: resolved, Target: "/workspace", ReadOnly: false,
-		})
-	}
-	return mounts, nil
-}
