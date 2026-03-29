@@ -44,14 +44,19 @@ func TestRedactSecrets(t *testing.T) {
 			want:  "token: [REDACTED]",
 		},
 		{
-			name:  "jwt token",
-			input: "token: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.payload",
-			want:  "token: [REDACTED].payload",
+			name:  "bearer token",
+			input: "header: Bearer sometoken123.test",
+			want:  "header: [REDACTED]",
 		},
 		{
-			name:  "bearer token",
-			input: "header: Bearer eyJhbGciOiJIUzI1NiJ9.test",
-			want:  "header: [REDACTED]",
+			name:  "gitlab pat",
+			input: "token: glpat-abc123xyz456",
+			want:  "token: [REDACTED]",
+		},
+		{
+			name:  "github oauth token",
+			input: "auth: gho_abc123XYZ",
+			want:  "auth: [REDACTED]",
 		},
 		{
 			name:  "no secrets",

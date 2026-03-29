@@ -43,6 +43,7 @@ Design decisions and rationale are in `dev-docs/` (gitignored, local only).
 - Codex model: use `gpt-5.4`, not `gpt-5.2-codex`
 - When a Codex task requires model selection, run `/codex-toolkit:preflight` first to verify connectivity and discover available models
 - Save Playwright screenshots to `.playwright-mcp/` or `/tmp/`, never the repo root
+- Save grill reports to `dev-docs/grills/`, not the repo root
 
 ## Shared Memory
 

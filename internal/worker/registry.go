@@ -238,6 +238,10 @@ func (r *Registry) cloneEntries() map[string]*Entry {
 	clone := make(map[string]*Entry, len(r.entries))
 	for k, e := range r.entries {
 		ec := *e
+		if ec.Worker != nil {
+			wc := *ec.Worker
+			ec.Worker = &wc
+		}
 		clone[k] = &ec
 	}
 	return clone
@@ -246,9 +250,12 @@ func (r *Registry) cloneEntries() map[string]*Entry {
 func (r *Registry) load() error {
 	data, err := os.ReadFile(r.path)
 	if err != nil {
-		return err
+		return err // preserve os.IsNotExist for caller
 	}
-	return json.Unmarshal(data, &r.entries)
+	if err := json.Unmarshal(data, &r.entries); err != nil {
+		return fmt.Errorf("unmarshal registry: %w", err)
+	}
+	return nil
 }
 
 func (r *Registry) persist(entries map[string]*Entry) error {
@@ -261,7 +268,7 @@ func (r *Registry) persist(entries map[string]*Entry) error {
 		return fmt.Errorf("create registry dir: %w", err)
 	}
 	tmp := r.path + ".tmp"
-	f, err := os.Create(tmp)
+	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 	if err != nil {
 		return fmt.Errorf("create temp file: %w", err)
 	}
@@ -275,7 +282,10 @@ func (r *Registry) persist(entries map[string]*Entry) error {
 		os.Remove(tmp)
 		return fmt.Errorf("sync registry: %w", err)
 	}
-	f.Close()
+	if err := f.Close(); err != nil {
+		os.Remove(tmp)
+		return fmt.Errorf("close registry: %w", err)
+	}
 	if err := os.Rename(tmp, r.path); err != nil {
 		os.Remove(tmp)
 		return fmt.Errorf("rename registry: %w", err)
@@ -286,7 +296,7 @@ func (r *Registry) persist(entries map[string]*Entry) error {
 func syncDir(path string) error {
 	d, err := os.Open(path)
 	if err != nil {
-		return fmt.Errorf("open dir for sync: %w", err)
+		return fmt.Errorf("sync dir: %w", err)
 	}
 	defer d.Close()
 	return d.Sync()

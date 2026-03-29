@@ -122,9 +122,14 @@ func isYAML(name string) bool {
 	return strings.HasSuffix(name, ".yml") || strings.HasSuffix(name, ".yaml")
 }
 
+var validName = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]*$`)
+
 func (w *Worker) validate() error {
 	if w.Name == "" {
 		return fmt.Errorf("name is required")
+	}
+	if !validName.MatchString(w.Name) {
+		return fmt.Errorf("name %q is invalid (must match [a-zA-Z0-9][a-zA-Z0-9_.-]*)", w.Name)
 	}
 	if w.Endpoint == "" && w.Docker == nil {
 		return fmt.Errorf("endpoint or docker section is required")

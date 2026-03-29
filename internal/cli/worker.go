@@ -65,7 +65,7 @@ func workerAddCmd() *cobra.Command {
 func addFile(reg *worker.Registry, path string) error {
 	w, err := worker.LoadFile(path)
 	if err != nil {
-		return err
+		return fmt.Errorf("load %s: %w", path, err)
 	}
 	if err := reg.Add(w); err != nil {
 		return err

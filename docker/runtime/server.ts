@@ -3,6 +3,7 @@ import type { TaskRequest, TaskResponse, BackendCommand } from "./types";
 const BACKEND = process.env.WORKER_BACKEND || "claude";
 const PORT = parseInt(process.env.WORKER_PORT || "8080");
 const TIMEOUT_MS = parseInt(process.env.WORKER_TIMEOUT || "600000"); // 10m
+const MAX_BODY_BYTES = 10 * 1024 * 1024; // 10MB
 
 let busy = false;
 
@@ -14,6 +15,9 @@ async function loadBackend(): Promise<(prompt: string) => BackendCommand> {
 const buildCommand = await loadBackend();
 
 function healthHandler(): Response {
+  if (busy) {
+    return new Response("busy", { status: 503 });
+  }
   return new Response("ok", { status: 200 });
 }
 
@@ -22,21 +26,27 @@ async function taskHandler(req: Request): Promise<Response> {
     return Response.json({ error: "worker busy" }, { status: 429 });
   }
 
-  let body: TaskRequest;
-  try {
-    body = await req.json();
-  } catch {
-    return Response.json({ error: "invalid JSON" }, { status: 400 });
-  }
-
-  if (!body.prompt) {
-    return Response.json({ error: "missing prompt" }, { status: 400 });
-  }
-
+  // Set busy BEFORE any await to prevent race condition.
   busy = true;
-  const start = Date.now();
 
   try {
+    const contentLength = parseInt(req.headers.get("content-length") || "0");
+    if (contentLength > MAX_BODY_BYTES) {
+      return Response.json({ error: "request body too large" }, { status: 413 });
+    }
+
+    let body: TaskRequest;
+    try {
+      body = await req.json();
+    } catch {
+      return Response.json({ error: "invalid JSON" }, { status: 400 });
+    }
+
+    if (!body.prompt) {
+      return Response.json({ error: "missing prompt" }, { status: 400 });
+    }
+
+    const start = Date.now();
     const cmd = buildCommand(body.prompt);
     const proc = Bun.spawn([cmd.command, ...cmd.args], {
       cwd: "/workspace",
@@ -45,14 +55,18 @@ async function taskHandler(req: Request): Promise<Response> {
       stderr: "pipe",
     });
 
-    const timer = setTimeout(() => proc.kill(), TIMEOUT_MS);
+    // SIGTERM first, then SIGKILL after 5s grace period.
+    const killTimer = setTimeout(() => {
+      proc.kill("SIGTERM");
+      setTimeout(() => proc.kill("SIGKILL"), 5000);
+    }, TIMEOUT_MS);
 
     const [stdout, stderr] = await Promise.all([
       new Response(proc.stdout).text(),
       new Response(proc.stderr).text(),
     ]);
 
-    clearTimeout(timer);
+    clearTimeout(killTimer);
     const exitCode = await proc.exited;
     const durationMs = Date.now() - start;
 

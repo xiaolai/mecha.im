@@ -35,9 +35,12 @@ func LoadSecrets(path string) (*Secrets, error) {
 	return &s, nil
 }
 
-func DefaultSecretsPath() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".mecha", "secrets.yml")
+func DefaultSecretsPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("resolve home dir: %w", err)
+	}
+	return filepath.Join(home, ".mecha", "secrets.yml"), nil
 }
 
 func (s *Secrets) Resolve(ref string) (string, error) {

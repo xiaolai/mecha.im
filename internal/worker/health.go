@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+var healthClient = &http.Client{
+	Timeout: 10 * time.Second,
+	Transport: &http.Transport{
+		MaxIdleConnsPerHost: 2,
+		IdleConnTimeout:     30 * time.Second,
+	},
+}
+
 func CheckHealth(endpoint string, timeout time.Duration) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -17,7 +25,7 @@ func CheckHealth(endpoint string, timeout time.Duration) error {
 		return fmt.Errorf("create health request: %w", err)
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := healthClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("health check: %w", err)
 	}

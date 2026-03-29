@@ -56,7 +56,7 @@ func TestDocker_CreateStartStop(t *testing.T) {
 		Image:  "mecha-worker-claude:latest",
 		Env:    map[string]string{"CLAUDE_MODEL": "test"},
 		Labels: map[string]string{"mecha.test": "true"},
-		User:   worker.CurrentUser(),
+		User:   func() string { u, _ := worker.CurrentUser(); return u }(),
 	}
 
 	id, err := cli.Create(ctx, cfg)

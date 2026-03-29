@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"mecha.im/internal/worker"
 )
 
 var Version = "dev"
@@ -18,7 +19,7 @@ func Execute() {
 	root.AddCommand(configCmd())
 	root.AddCommand(versionCmd())
 	if err := root.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(os.Stderr, worker.RedactSecrets(err.Error()))
 		os.Exit(1)
 	}
 }
