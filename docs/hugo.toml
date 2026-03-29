@@ -8,6 +8,21 @@ ignoreLogs = ['warning-goldmark-raw-html']
 [markup.goldmark.renderer]
   unsafe = true
 
+[params]
+  description = 'Mecha turns GitHub events into LLM tasks.'
+
+[params.navbar]
+  displayTitle = true
+  displayLogo = true
+
+  [params.navbar.logo]
+    path = 'images/logo.svg'
+    width = 24
+    height = 24
+
+[params.footer]
+  displayPoweredBy = false
+
 [module]
   [[module.imports]]
     path = 'github.com/imfing/hextra'
