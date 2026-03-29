@@ -1,4 +1,5 @@
 {
+  "autoMemoryEnabled": false,
   "enabledPlugins": {
     "codex-toolkit@xiaolai": true,
     "docs-guardian@xiaolai": true,

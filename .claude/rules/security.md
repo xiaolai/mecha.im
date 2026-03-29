@@ -34,4 +34,4 @@ Worker → GitHub
 - Validate file paths with realpath() — no symlink escapes.
 - No shell interpolation of user-controlled strings.
 - Never inline secrets — always use $ENV_VAR references.
-- Redact secrets from logs (sk-ant-*, ghp_*, ghs_*, Bearer *).
+- Redact secrets from logs. See `.claude/rules/secrets.md` — Redaction section for full pattern list.
