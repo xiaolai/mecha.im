@@ -95,20 +95,16 @@ See [Secrets](./secrets) for full details.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> offline : add (YAML parsed, validated)
-
+    [*] --> offline : add
     offline --> online : start
-    note right of online : Docker: create → start → health wait
-    note right of online : Live: mark online, probe health
-
     online --> offline : stop
-    note right of offline : Docker: stop container (persistent)
-
     online --> error : health check failed
     error --> offline : stop
-
     offline --> [*] : remove
-    note right of [*] : Docker: stop + remove container
+
+    note right of offline : Definition exists, container stopped
+    note right of online : Container running, health passing
+    note right of error : Health check failed or container exited
 ```
 
 ### Docker Start Sequence
