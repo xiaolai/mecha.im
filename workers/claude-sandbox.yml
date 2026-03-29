@@ -1,15 +1,15 @@
 name: claude-sandbox
 docker:
-  image: ghcr.io/xiaolai/mecha-worker-claude:v1.0.0
-  host: unix:///var/run/docker.sock
+  image: mecha-worker-claude:latest
   resources:
     cpu: 4
     memory: 8G
     pids: 256
-  lifecycle: disposable
-  port: 8080
-  proxy:
-    target: https://api.anthropic.com
-    key: ${CLAUDE_CODE_OAUTH_TOKEN}
-  egress: [api.anthropic.com]
+  lifecycle: persistent
+  env:
+    CLAUDE_MODEL: claude-sonnet-4-6
+    CLAUDE_PERMISSION_MODE: bypassPermissions
+    CLAUDE_EFFORT: high
+    CLAUDE_OUTPUT_FORMAT: json
+  token: claude.xiaolaidev
 timeout: 10m

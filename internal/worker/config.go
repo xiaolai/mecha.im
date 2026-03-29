@@ -18,24 +18,23 @@ type Worker struct {
 }
 
 type DockerConfig struct {
-	Image     string         `yaml:"image"`
-	Host      string         `yaml:"host,omitempty"`
-	Resources ResourceConfig `yaml:"resources,omitempty"`
-	Lifecycle string         `yaml:"lifecycle,omitempty"`
-	Port      int            `yaml:"port,omitempty"`
-	Proxy     *ProxyConfig   `yaml:"proxy,omitempty"`
-	Egress    []string       `yaml:"egress,omitempty"`
+	Image     string            `yaml:"image"`
+	Host      string            `yaml:"host,omitempty"`
+	Cwd       string            `yaml:"cwd,omitempty"`
+	Resources ResourceConfig    `yaml:"resources,omitempty"`
+	Lifecycle string            `yaml:"lifecycle,omitempty"`
+	Port      int               `yaml:"port,omitempty"`
+	Env       map[string]string `yaml:"env,omitempty"`
+	Token     string            `yaml:"token,omitempty"`
+	Egress    []string          `yaml:"egress,omitempty"`
+	Labels    map[string]string `yaml:"labels,omitempty"`
+	Network   string            `yaml:"network,omitempty"`
 }
 
 type ResourceConfig struct {
 	CPU    int    `yaml:"cpu,omitempty"`
 	Memory string `yaml:"memory,omitempty"`
 	Pids   int    `yaml:"pids,omitempty"`
-}
-
-type ProxyConfig struct {
-	Target string `yaml:"target"`
-	Key    string `yaml:"key"`
 }
 
 func (w *Worker) IsManaged() bool { return w.Docker != nil }
@@ -155,12 +154,9 @@ func (d *DockerConfig) validate() error {
 	if d.Port < 0 {
 		return fmt.Errorf("docker.port must be non-negative")
 	}
-	if d.Proxy != nil {
-		if d.Proxy.Target == "" {
-			return fmt.Errorf("docker.proxy.target is required when proxy is set")
-		}
-		if d.Proxy.Key != "" && !envVarPattern.MatchString(d.Proxy.Key) {
-			return fmt.Errorf("docker.proxy.key must use ${ENV_VAR} reference, not a literal value")
+	if d.Cwd != "" {
+		if _, err := os.Stat(d.Cwd); err != nil {
+			return fmt.Errorf("docker.cwd %q: %w", d.Cwd, err)
 		}
 	}
 	return nil
@@ -172,7 +168,7 @@ func (w *Worker) applyDefaults() {
 	}
 	if w.Docker != nil {
 		if w.Docker.Lifecycle == "" {
-			w.Docker.Lifecycle = "disposable"
+			w.Docker.Lifecycle = "persistent"
 		}
 		if w.Docker.Port == 0 {
 			w.Docker.Port = 8080

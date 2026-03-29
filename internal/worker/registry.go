@@ -20,10 +20,12 @@ const (
 )
 
 type Entry struct {
-	Worker    *Worker    `json:"worker"`
-	State     State      `json:"state"`
-	Error     string     `json:"error,omitempty"`
-	StartedAt *time.Time `json:"started_at,omitempty"`
+	Worker          *Worker    `json:"worker"`
+	State           State      `json:"state"`
+	Error           string     `json:"error,omitempty"`
+	StartedAt       *time.Time `json:"started_at,omitempty"`
+	ContainerID     string     `json:"container_id,omitempty"`
+	RuntimeEndpoint string     `json:"runtime_endpoint,omitempty"`
 }
 
 type Registry struct {
