@@ -183,3 +183,34 @@ func TestTypeLabel(t *testing.T) {
 		t.Errorf("live TypeLabel = %q", live.TypeLabel())
 	}
 }
+
+func TestValidWorkerName(t *testing.T) {
+	valid := []string{
+		"alpha", "my-worker", "worker.v2", "test_1",
+		"A", "123", "a.b-c_d", "x",
+	}
+	for _, name := range valid {
+		t.Run("valid_"+name, func(t *testing.T) {
+			if !validName.MatchString(name) {
+				t.Errorf("name %q should be valid", name)
+			}
+		})
+	}
+
+	invalid := []string{
+		"", "-dash-start", ".dot-start", "_under-start",
+		"has space", "has/slash", "has:colon", "has@at",
+		"../traversal", "emoji😀",
+	}
+	for _, name := range invalid {
+		label := name
+		if label == "" {
+			label = "empty"
+		}
+		t.Run("invalid_"+label, func(t *testing.T) {
+			if validName.MatchString(name) {
+				t.Errorf("name %q should be invalid", name)
+			}
+		})
+	}
+}

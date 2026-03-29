@@ -203,3 +203,111 @@ func TestSetErrorRedactsSecrets(t *testing.T) {
 		t.Error("secret not redacted in error message")
 	}
 }
+
+func TestRegistrySetRuntime(t *testing.T) {
+	r := testRegistry(t)
+	if err := r.Add(testWorker("w")); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.SetRuntime("w", "container-abc", "http://127.0.0.1:32768"); err != nil {
+		t.Fatal(err)
+	}
+	e, _ := r.Get("w")
+	if e.State != StateOnline {
+		t.Errorf("state = %q, want online", e.State)
+	}
+	if e.ContainerID != "container-abc" {
+		t.Errorf("containerID = %q", e.ContainerID)
+	}
+	if e.RuntimeEndpoint != "http://127.0.0.1:32768" {
+		t.Errorf("endpoint = %q", e.RuntimeEndpoint)
+	}
+	if e.StartedAt == nil {
+		t.Error("startedAt should be set")
+	}
+}
+
+func TestRegistrySetRuntimeNotFound(t *testing.T) {
+	r := testRegistry(t)
+	if err := r.SetRuntime("ghost", "c", "e"); err == nil {
+		t.Error("expected not found error")
+	}
+}
+
+func TestRegistryStopRuntime(t *testing.T) {
+	r := testRegistry(t)
+	if err := r.Add(testWorker("w")); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.SetRuntime("w", "container-abc", "http://127.0.0.1:32768"); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.StopRuntime("w"); err != nil {
+		t.Fatal(err)
+	}
+	e, _ := r.Get("w")
+	if e.State != StateOffline {
+		t.Errorf("state = %q, want offline", e.State)
+	}
+	if e.RuntimeEndpoint != "" {
+		t.Errorf("endpoint should be cleared, got %q", e.RuntimeEndpoint)
+	}
+	if e.StartedAt != nil {
+		t.Error("startedAt should be nil")
+	}
+	// ContainerID preserved for remove
+	if e.ContainerID != "container-abc" {
+		t.Errorf("containerID should be preserved, got %q", e.ContainerID)
+	}
+}
+
+func TestRegistryClearRuntime(t *testing.T) {
+	r := testRegistry(t)
+	if err := r.Add(testWorker("w")); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.SetRuntime("w", "container-abc", "http://127.0.0.1:32768"); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.ClearRuntime("w"); err != nil {
+		t.Fatal(err)
+	}
+	e, _ := r.Get("w")
+	if e.State != StateOffline {
+		t.Errorf("state = %q", e.State)
+	}
+	if e.ContainerID != "" {
+		t.Errorf("containerID should be cleared, got %q", e.ContainerID)
+	}
+	if e.RuntimeEndpoint != "" {
+		t.Errorf("endpoint should be cleared, got %q", e.RuntimeEndpoint)
+	}
+}
+
+func TestRegistryRuntimePersistence(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "registry.json")
+	r1, err := NewRegistry(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r1.Add(testWorker("w")); err != nil {
+		t.Fatal(err)
+	}
+	if err := r1.SetRuntime("w", "cid-123", "http://127.0.0.1:9999"); err != nil {
+		t.Fatal(err)
+	}
+	r2, err := NewRegistry(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, ok := r2.Get("w")
+	if !ok {
+		t.Fatal("worker not found after reload")
+	}
+	if e.ContainerID != "cid-123" {
+		t.Errorf("containerID = %q after reload", e.ContainerID)
+	}
+	if e.RuntimeEndpoint != "http://127.0.0.1:9999" {
+		t.Errorf("endpoint = %q after reload", e.RuntimeEndpoint)
+	}
+}
