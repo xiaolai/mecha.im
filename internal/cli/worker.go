@@ -101,10 +101,21 @@ func workerRemoveCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			reg := registry()
-			if err := reg.Remove(args[0]); err != nil {
+			name := args[0]
+			e, ok := reg.Get(name)
+			if !ok {
+				return fmt.Errorf("worker %q not found", name)
+			}
+			// For managed workers: stop + remove container first.
+			if e.Worker.IsManaged() {
+				if err := dockerRemove(reg, name); err != nil {
+					return fmt.Errorf("cleanup container: %w", err)
+				}
+			}
+			if err := reg.Remove(name); err != nil {
 				return err
 			}
-			fmt.Printf("removed %s\n", args[0])
+			fmt.Printf("removed %s\n", name)
 			return nil
 		},
 	}
@@ -118,12 +129,25 @@ func workerStartCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			reg := registry()
 			name := args[0]
+			e, ok := reg.Get(name)
+			if !ok {
+				return fmt.Errorf("worker %q not found", name)
+			}
+			if e.State != worker.StateOffline {
+				return fmt.Errorf("worker %q must be offline to start (current: %s)", name, e.State)
+			}
+			if e.Worker.IsManaged() {
+				if err := dockerStart(reg, name); err != nil {
+					return err
+				}
+				fmt.Printf("started %s (container)\n", name)
+				return nil
+			}
+			// Unmanaged: mark online, probe health.
 			if err := reg.Start(name); err != nil {
 				return err
 			}
-			// For live workers, verify health after starting.
-			e, ok := reg.Get(name)
-			if ok && e.Worker.Endpoint != "" {
+			if e.Worker.Endpoint != "" {
 				if err := worker.CheckHealth(e.Worker.Endpoint, 5*time.Second); err != nil {
 					_ = reg.SetError(name, err.Error())
 					fmt.Printf("started %s (warning: health check failed)\n", name)
@@ -143,10 +167,22 @@ func workerStopCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			reg := registry()
-			if err := reg.Stop(args[0]); err != nil {
+			name := args[0]
+			e, ok := reg.Get(name)
+			if !ok {
+				return fmt.Errorf("worker %q not found", name)
+			}
+			if e.Worker.IsManaged() && e.ContainerID != "" {
+				if err := dockerStop(reg, name); err != nil {
+					return err
+				}
+				fmt.Printf("stopped %s (container)\n", name)
+				return nil
+			}
+			if err := reg.Stop(name); err != nil {
 				return err
 			}
-			fmt.Printf("stopped %s\n", args[0])
+			fmt.Printf("stopped %s\n", name)
 			return nil
 		},
 	}
@@ -168,7 +204,9 @@ func workerLsCmd() *cobra.Command {
 			fmt.Fprintln(tw, "NAME\tTYPE\tSTATE\tENDPOINT\tHEALTH")
 			for i, e := range entries {
 				endpoint := "-"
-				if e.Worker.Endpoint != "" {
+				if e.RuntimeEndpoint != "" {
+					endpoint = e.RuntimeEndpoint
+				} else if e.Worker.Endpoint != "" {
 					endpoint = e.Worker.Endpoint
 				}
 				health := probeResults[i]
@@ -193,7 +231,11 @@ func probeHealthConcurrent(entries []worker.Entry) []string {
 	results := make([]string, len(entries))
 	var wg sync.WaitGroup
 	for i, e := range entries {
-		if e.State == worker.StateOffline || e.Worker.Endpoint == "" {
+		ep := e.RuntimeEndpoint
+		if ep == "" {
+			ep = e.Worker.Endpoint
+		}
+		if e.State == worker.StateOffline || ep == "" {
 			results[i] = "-"
 			continue
 		}
@@ -209,7 +251,7 @@ func probeHealthConcurrent(entries []worker.Entry) []string {
 			} else {
 				results[idx] = "ok"
 			}
-		}(i, e.Worker.Endpoint)
+		}(i, ep)
 	}
 	wg.Wait()
 	return results

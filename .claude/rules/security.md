@@ -22,9 +22,13 @@ Worker → GitHub
 ## Workers Are Isolated
 
 - No GitHub token in worker containers. Period.
-- API keys injected by proxy sidecar, not passed to worker.
 - Worker knows mecha callback URL, not GitHub.
 - All GitHub writes go through Policy first.
+
+### Secret Delivery
+
+- **Phase 2**: LLM API tokens injected directly as container env vars at create time. Acceptable for local/trusted environments.
+- **Phase 3+**: Proxy sidecar intercepts outbound API calls, injects credentials, and enforces egress policy. Workers have zero secrets.
 
 ## Input Handling
 

@@ -18,7 +18,7 @@ Only these four direct dependencies:
 - `github.com/spf13/cobra` — CLI
 - `gopkg.in/yaml.v3` — config parsing
 - `modernc.org/sqlite` — persistence (pure Go, no CGO)
-- `github.com/docker/docker` — container management
+- `github.com/moby/moby` — container management (Docker SDK, moby module path)
 
 Do not add dependencies without justification.
 

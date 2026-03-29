@@ -31,8 +31,7 @@ func TestSerialize_ManagedWorker(t *testing.T) {
 	for _, want := range []string{
 		"name: test-sandbox",
 		"image: ghcr.io/test/worker:v1.0.0",
-		"lifecycle: disposable",
-		"port: 8080",
+		"lifecycle: persistent",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("config missing %q in:\n%s", want, out)
@@ -43,8 +42,6 @@ func TestSerialize_ManagedWorker(t *testing.T) {
 func TestSerialize_ManagedFullRoundTrip(t *testing.T) {
 	t.Setenv("TEST_PROXY_KEY", "dummy")
 	reg := tempRegistry(t)
-	// managed-full.yml uses ${TEST_PROXY_KEY} in docker.host is not set,
-	// but proxy.key should stay as env var reference.
 	runMecha(t, reg, "worker", "add", fixturePath("managed-full.yml"))
 
 	out, _, code := runMecha(t, reg, "config", "test-full")
@@ -54,13 +51,11 @@ func TestSerialize_ManagedFullRoundTrip(t *testing.T) {
 	for _, want := range []string{
 		"name: test-full",
 		"lifecycle: persistent",
-		"port: 9090",
 		"cpu: 4",
 		"memory: 8G",
 		"pids: 256",
-		"target: https://api.example.com",
-		"key: ${TEST_PROXY_KEY}",
-		"api.example.com",
+		"CLAUDE_MODEL: claude-sonnet-4-6",
+		"token: claude.work",
 		"timeout: 15m",
 	} {
 		if !strings.Contains(out, want) {
@@ -78,11 +73,8 @@ func TestSerialize_DefaultsApplied(t *testing.T) {
 		t.Fatalf("exit code = %d", code)
 	}
 	// These should be applied as defaults.
-	if !strings.Contains(out, "lifecycle: disposable") {
+	if !strings.Contains(out, "lifecycle: persistent") {
 		t.Errorf("default lifecycle not applied:\n%s", out)
-	}
-	if !strings.Contains(out, "port: 8080") {
-		t.Errorf("default port not applied:\n%s", out)
 	}
 	if !strings.Contains(out, "timeout: 10m") {
 		t.Errorf("default timeout not applied:\n%s", out)

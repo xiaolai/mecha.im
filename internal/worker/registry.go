@@ -20,10 +20,12 @@ const (
 )
 
 type Entry struct {
-	Worker    *Worker    `json:"worker"`
-	State     State      `json:"state"`
-	Error     string     `json:"error,omitempty"`
-	StartedAt *time.Time `json:"started_at,omitempty"`
+	Worker          *Worker    `json:"worker"`
+	State           State      `json:"state"`
+	Error           string     `json:"error,omitempty"`
+	StartedAt       *time.Time `json:"started_at,omitempty"`
+	ContainerID     string     `json:"container_id,omitempty"`
+	RuntimeEndpoint string     `json:"runtime_endpoint,omitempty"`
 }
 
 type Registry struct {
@@ -141,6 +143,67 @@ func (r *Registry) SetError(name, errMsg string) error {
 	ce := clone[name]
 	ce.State = StateError
 	ce.Error = redacted
+	if err := r.persist(clone); err != nil {
+		return err
+	}
+	r.entries = clone
+	return nil
+}
+
+func (r *Registry) SetRuntime(name, containerID, endpoint string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.entries[name]; !ok {
+		return fmt.Errorf("worker %q not found", name)
+	}
+	now := time.Now()
+	clone := r.cloneEntries()
+	ce := clone[name]
+	ce.State = StateOnline
+	ce.StartedAt = &now
+	ce.ContainerID = containerID
+	ce.RuntimeEndpoint = endpoint
+	ce.Error = ""
+	if err := r.persist(clone); err != nil {
+		return err
+	}
+	r.entries = clone
+	return nil
+}
+
+func (r *Registry) StopRuntime(name string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.entries[name]; !ok {
+		return fmt.Errorf("worker %q not found", name)
+	}
+	clone := r.cloneEntries()
+	ce := clone[name]
+	ce.State = StateOffline
+	ce.StartedAt = nil
+	ce.RuntimeEndpoint = ""
+	ce.Error = ""
+	// Keep ContainerID so remove can find the stopped container.
+	if err := r.persist(clone); err != nil {
+		return err
+	}
+	r.entries = clone
+	return nil
+}
+
+func (r *Registry) ClearRuntime(name string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.entries[name]; !ok {
+		return fmt.Errorf("worker %q not found", name)
+	}
+	clone := r.cloneEntries()
+	ce := clone[name]
+	ce.State = StateOffline
+	ce.StartedAt = nil
+	ce.ContainerID = ""
+	ce.RuntimeEndpoint = ""
+	ce.Error = ""
 	if err := r.persist(clone); err != nil {
 		return err
 	}

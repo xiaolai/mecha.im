@@ -7,9 +7,8 @@ docker:
     memory: 8G
     pids: 256
   lifecycle: persistent
-  port: 9090
-  proxy:
-    target: https://api.example.com
-    key: ${TEST_PROXY_KEY}
-  egress: [api.example.com]
+  env:
+    CLAUDE_MODEL: claude-sonnet-4-6
+    CLAUDE_EFFORT: high
+  token: claude.work
 timeout: 15m

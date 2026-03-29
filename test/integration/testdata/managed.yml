@@ -1,6 +1,4 @@
 name: test-sandbox
 docker:
   image: ghcr.io/test/worker:v1.0.0
-  lifecycle: disposable
-  port: 8080
 timeout: 10m

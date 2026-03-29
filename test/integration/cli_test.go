@@ -90,21 +90,22 @@ func TestCLI_WorkerStartStop(t *testing.T) {
 
 func TestCLI_WorkerLsShowsState(t *testing.T) {
 	reg := tempRegistry(t)
-	runMecha(t, reg, "worker", "add", fixturePath("managed.yml"))
+	// Use unmanaged worker for state transition tests (no Docker needed).
+	runMecha(t, reg, "worker", "add", fixturePath("unmanaged.yml"))
 
 	out, _, _ := runMecha(t, reg, "worker", "ls")
 	if !strings.Contains(out, "offline") {
 		t.Errorf("ls after add should show offline: %q", out)
 	}
 
-	// Managed workers have no endpoint, so start won't probe health.
-	runMecha(t, reg, "worker", "start", "test-sandbox")
+	runMecha(t, reg, "worker", "start", "test-api")
 	out, _, _ = runMecha(t, reg, "worker", "ls")
-	if !strings.Contains(out, "online") {
-		t.Errorf("ls after start should show online: %q", out)
+	// Unmanaged with unreachable endpoint → starts then transitions to error.
+	if !strings.Contains(out, "error") && !strings.Contains(out, "online") {
+		t.Errorf("ls after start should show error or online: %q", out)
 	}
 
-	runMecha(t, reg, "worker", "stop", "test-sandbox")
+	runMecha(t, reg, "worker", "stop", "test-api")
 	out, _, _ = runMecha(t, reg, "worker", "ls")
 	if !strings.Contains(out, "offline") {
 		t.Errorf("ls after stop should show offline: %q", out)

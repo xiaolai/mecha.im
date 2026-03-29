@@ -39,11 +39,8 @@ func TestLoadFile(t *testing.T) {
 				if !w.IsManaged() {
 					t.Error("should be managed")
 				}
-				if w.Docker.Lifecycle != "disposable" {
-					t.Errorf("lifecycle = %q, want disposable", w.Docker.Lifecycle)
-				}
-				if w.Docker.Port != 8080 {
-					t.Errorf("port = %d, want 8080", w.Docker.Port)
+				if w.Docker.Lifecycle != "persistent" {
+					t.Errorf("lifecycle = %q, want persistent", w.Docker.Lifecycle)
 				}
 				if w.Timeout != 10*time.Minute {
 					t.Errorf("timeout = %v, want 10m", w.Timeout)
@@ -76,22 +73,31 @@ func TestLoadFile(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "literal proxy.key rejected",
-			yaml:    "name: bad\ndocker:\n  image: x\n  proxy:\n    target: https://api.example.com\n    key: sk-ant-secret123\n",
-			wantErr: true,
-		},
-		{
-			name: "env var proxy.key accepted",
-			yaml: "name: ok\ndocker:\n  image: x\n  proxy:\n    target: https://api.example.com\n    key: ${MY_KEY}\n",
+			name: "docker env vars accepted",
+			yaml: "name: ok\ndocker:\n  image: x\n  env:\n    CLAUDE_MODEL: claude-sonnet-4-6\n",
 			want: func(t *testing.T, w *Worker) {
-				if w.Docker.Proxy.Key != "${MY_KEY}" {
-					t.Errorf("proxy.key = %q, want ${MY_KEY}", w.Docker.Proxy.Key)
+				if w.Docker.Env["CLAUDE_MODEL"] != "claude-sonnet-4-6" {
+					t.Errorf("env = %v", w.Docker.Env)
 				}
 			},
 		},
 		{
-			name:    "proxy without target rejected",
-			yaml:    "name: bad\ndocker:\n  image: x\n  proxy:\n    key: ${KEY}\n",
+			name: "docker token accepted",
+			yaml: "name: ok\ndocker:\n  image: x\n  token: claude.work\n",
+			want: func(t *testing.T, w *Worker) {
+				if w.Docker.Token != "claude.work" {
+					t.Errorf("token = %q", w.Docker.Token)
+				}
+			},
+		},
+		{
+			name:    "docker bad cwd rejected",
+			yaml:    "name: bad\ndocker:\n  image: x\n  cwd: /nonexistent/path/abc\n",
+			wantErr: true,
+		},
+		{
+			name:    "docker disposable rejected",
+			yaml:    "name: bad\ndocker:\n  image: x\n  lifecycle: disposable\n",
 			wantErr: true,
 		},
 	}

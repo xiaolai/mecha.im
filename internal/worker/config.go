@@ -3,6 +3,7 @@ package worker
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -18,24 +19,20 @@ type Worker struct {
 }
 
 type DockerConfig struct {
-	Image     string         `yaml:"image"`
-	Host      string         `yaml:"host,omitempty"`
-	Resources ResourceConfig `yaml:"resources,omitempty"`
-	Lifecycle string         `yaml:"lifecycle,omitempty"`
-	Port      int            `yaml:"port,omitempty"`
-	Proxy     *ProxyConfig   `yaml:"proxy,omitempty"`
-	Egress    []string       `yaml:"egress,omitempty"`
+	Image     string            `yaml:"image"`
+	Host      string            `yaml:"host,omitempty"`
+	Cwd       string            `yaml:"cwd,omitempty"`
+	Resources ResourceConfig    `yaml:"resources,omitempty"`
+	Lifecycle string            `yaml:"lifecycle,omitempty"`
+	Env       map[string]string `yaml:"env,omitempty"`
+	Token     string            `yaml:"token,omitempty"`
+	Labels    map[string]string `yaml:"labels,omitempty"`
 }
 
 type ResourceConfig struct {
 	CPU    int    `yaml:"cpu,omitempty"`
 	Memory string `yaml:"memory,omitempty"`
 	Pids   int    `yaml:"pids,omitempty"`
-}
-
-type ProxyConfig struct {
-	Target string `yaml:"target"`
-	Key    string `yaml:"key"`
 }
 
 func (w *Worker) IsManaged() bool { return w.Docker != nil }
@@ -125,8 +122,6 @@ func isYAML(name string) bool {
 	return strings.HasSuffix(name, ".yml") || strings.HasSuffix(name, ".yaml")
 }
 
-var validLifecycles = map[string]bool{"disposable": true, "persistent": true}
-
 func (w *Worker) validate() error {
 	if w.Name == "" {
 		return fmt.Errorf("name is required")
@@ -149,18 +144,34 @@ func (d *DockerConfig) validate() error {
 	if d.Image == "" {
 		return fmt.Errorf("docker.image is required")
 	}
-	if d.Lifecycle != "" && !validLifecycles[d.Lifecycle] {
-		return fmt.Errorf("docker.lifecycle must be disposable or persistent, got %q", d.Lifecycle)
+	if d.Lifecycle == "disposable" {
+		return fmt.Errorf("docker.lifecycle=disposable is not yet supported (Phase 3)")
 	}
-	if d.Port < 0 {
-		return fmt.Errorf("docker.port must be non-negative")
+	if d.Lifecycle != "" && d.Lifecycle != "persistent" {
+		return fmt.Errorf("docker.lifecycle must be persistent, got %q", d.Lifecycle)
 	}
-	if d.Proxy != nil {
-		if d.Proxy.Target == "" {
-			return fmt.Errorf("docker.proxy.target is required when proxy is set")
+	if d.Cwd != "" {
+		resolved, err := filepath.EvalSymlinks(d.Cwd)
+		if err != nil {
+			return fmt.Errorf("docker.cwd %q: %w", d.Cwd, err)
 		}
-		if d.Proxy.Key != "" && !envVarPattern.MatchString(d.Proxy.Key) {
-			return fmt.Errorf("docker.proxy.key must use ${ENV_VAR} reference, not a literal value")
+		info, err := os.Stat(resolved)
+		if err != nil {
+			return fmt.Errorf("docker.cwd %q: %w", d.Cwd, err)
+		}
+		if !info.IsDir() {
+			return fmt.Errorf("docker.cwd %q is not a directory", d.Cwd)
+		}
+	}
+	if d.Resources.CPU < 0 {
+		return fmt.Errorf("docker.resources.cpu must be non-negative")
+	}
+	if d.Resources.Pids < 0 {
+		return fmt.Errorf("docker.resources.pids must be non-negative")
+	}
+	if d.Resources.Memory != "" {
+		if _, err := parseMemory(d.Resources.Memory); err != nil {
+			return fmt.Errorf("docker.resources.memory: %w", err)
 		}
 	}
 	return nil
@@ -172,10 +183,7 @@ func (w *Worker) applyDefaults() {
 	}
 	if w.Docker != nil {
 		if w.Docker.Lifecycle == "" {
-			w.Docker.Lifecycle = "disposable"
-		}
-		if w.Docker.Port == 0 {
-			w.Docker.Port = 8080
+			w.Docker.Lifecycle = "persistent"
 		}
 	}
 }
