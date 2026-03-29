@@ -8,12 +8,12 @@ globs: ["**/*.go", "workers/**/*.yml"]
 ## Structure Detection
 
 If YAML has `docker:` section → managed worker (mecha controls lifecycle).
-If not → unmanaged worker (mecha just calls the endpoint).
+If not → unmanaged (live) worker (mecha just calls the endpoint).
 
 ## Common Fields
 
 ```yaml
-name: worker-name              # required, unique
+name: worker-name              # required, unique, matches [a-zA-Z0-9][a-zA-Z0-9_.-]*
 endpoint: http://host:port     # for unmanaged workers only
 timeout: 30m                   # task timeout (default: 10m)
 ```
@@ -32,7 +32,7 @@ docker:
     cpu: 4
     memory: 8G
     pids: 256
-  lifecycle: persistent           # persistent (Phase 2) | disposable (Phase 3)
+  lifecycle: persistent           # persistent only (disposable planned for Phase 3)
   env:
     CLAUDE_MODEL: claude-sonnet-4-6
     CLAUDE_SYSTEM_PROMPT: "You review PRs for security issues."
@@ -41,7 +41,6 @@ docker:
     CLAUDE_EFFORT: high
     CLAUDE_OUTPUT_FORMAT: json
   token: claude.xiaolaidev        # resolved from ~/.mecha/secrets.yml
-  network: bridge                 # optional, default bridge
   labels:                         # optional custom labels
     team: security
 timeout: 30m
@@ -59,7 +58,7 @@ timeout: 30m
 Container runs with `--user $(id -u):$(id -g)` to match host UID/GID.
 If `docker.cwd` is omitted, no workspace mount.
 
-## Credential Mounts (optional)
+## Credential Mounts (planned — not yet implemented)
 
 For subscription OAuth that requires host credential files:
 
@@ -68,14 +67,13 @@ For subscription OAuth that requires host credential files:
 | Codex | `~/.codex/` | `/home/worker/.codex/:ro` | ChatGPT login auth |
 | Gemini | `~/.gemini/` | `/home/worker/.gemini/:ro` | Google OAuth auth |
 
-Only mounted if `token:` is not set and host cred dir exists.
 Claude subscription uses `CLAUDE_CODE_OAUTH_TOKEN` env var (no file mount needed).
 
 ## Worker Image Contract
 
 Every mecha worker image must:
 - Expose port `8080`
-- Serve `GET /health` → `200 OK` when ready
+- Serve `GET /health` → `200 OK` when ready (503 when busy)
 - Serve `POST /task` → result contract JSON
 - Include `HEALTHCHECK` in Dockerfile
 - Read config from env vars (no config files inside container)
@@ -109,7 +107,6 @@ Exec: `claude --print --model $CLAUDE_MODEL --output-format json "prompt"`
 | `OPENAI_API_KEY` | Auth |
 
 Exec: `codex exec --model $CODEX_MODEL --sandbox $CODEX_SANDBOX "prompt"`
-Structured output: `codex exec --json "prompt"`
 
 ## Gemini Env Vars
 
@@ -123,13 +120,9 @@ Structured output: `codex exec --json "prompt"`
 
 Exec: `gemini --model $GEMINI_MODEL -p "prompt"`
 
-## Model Discovery
+## Model Discovery (planned — not yet implemented)
 
-`mecha serve` refreshes the model cache on startup and every 24h.
-`mecha worker add` validates the model field against the cache and
-suggests corrections if invalid. No separate command needed.
-
-Cache: `~/.mecha/models.json` — written by mecha, human-readable.
-Script: `scripts/refresh-models.sh` — discovery logic, called by mecha internally.
+Cache: `~/.mecha/models.json` — written by `mecha serve` (Phase 3).
+Script: `scripts/refresh-models.sh` — discovery logic.
 
 See `.claude/rules/secrets.md` for token types, resolution, and redaction.

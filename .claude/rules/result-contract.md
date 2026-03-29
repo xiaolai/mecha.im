@@ -5,6 +5,8 @@ globs: "**/*.go"
 
 # Result Contract
 
+> Design spec. Implemented in TypeScript (`docker/runtime/types.ts`). No Go struct yet — Phase 3.
+
 Every worker returns the same structure. Every field optional.
 
 ```json

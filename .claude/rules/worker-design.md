@@ -34,7 +34,7 @@ offline → online ↔ busy (automatic, in-container)
 
 - **offline**: definition exists, container stopped or absent.
 - **online**: container running, health check passing, accepting tasks.
-- **busy**: executing a task (tracked inside container via 429 response).
+- **busy**: executing a task (tracked inside container via 429 response). Defined but not yet surfaced to Go registry — Phase 3.
 - **error**: health check failed or container exited.
 
 ## Five Verbs

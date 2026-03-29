@@ -23,7 +23,6 @@ tokens:
     api: sk-ant-api03-zzz...           # Console API key (pay-per-token)
   codex:
     default: sk-xxx...                 # OpenAI API key
-    chatgpt: eyJ...                    # ChatGPT OAuth (JWT)
   gemini:
     default: AIza...                   # Google API key
 
@@ -41,11 +40,15 @@ github:
 
 ## How Workers Reference Tokens
 
+Workers use `docker.token` in the YAML to reference a secret:
+
 ```yaml
 name: reviewer
-claude:
-  model: claude-sonnet-4-6
+docker:
+  image: mecha-worker-claude:latest
   token: claude.xiaolaidev       # resolved from secrets.yml
+  env:
+    CLAUDE_MODEL: claude-sonnet-4-6
 ```
 
 Mecha sets the right env var per CLI:
@@ -57,26 +60,22 @@ Mecha sets the right env var per CLI:
 | `sk-...` | codex | `OPENAI_API_KEY` |
 | `AIza...` | gemini | `GEMINI_API_KEY` |
 
-Note: Codex and Gemini subscription auth uses CLI-managed credential files
-(`codex login`, Google OAuth). For these, omit `token:` and let the CLI
-fall through to its host default. Only API keys go in `secrets.yml`.
-
 Mecha auto-detects token type by prefix and sets the correct env var.
 
 ## Claude Multi-Account
 
 No `CLAUDE_CONFIG_DIR` needed. Each setup token is bound to a specific
-subscription account. Just set `CLAUDE_CODE_OAUTH_TOKEN` per worker:
+subscription account. Different workers use different tokens:
 
 ```yaml
-# Worker using xiaolaidev subscription
 name: reviewer-a
-claude:
+docker:
+  image: mecha-worker-claude:latest
   token: claude.xiaolaidev
 
-# Worker using lixiaolai subscription
 name: reviewer-b
-claude:
+docker:
+  image: mecha-worker-claude:latest
   token: claude.lixiaolai
 ```
 
@@ -84,7 +83,7 @@ Setup tokens are generated via `claude setup-token`, valid for 1 year.
 
 ## Resolution Order
 
-Worker `token:` field resolved in this order:
+Worker `docker.token` field resolved in this order:
 
 ### Claude
 
@@ -103,15 +102,22 @@ Worker `token:` field resolved in this order:
 
 ## Redaction
 
-All log output and error messages must redact patterns:
+All log output and error messages must redact these patterns
+(canonical list — matches `internal/worker/redact.go`):
 
 - `sk-ant-*` (Anthropic OAuth + API)
-- `sk-*` (OpenAI)
-- `ghp_*`, `ghs_*`, `ghr_*`, `github_pat_*` (GitHub)
-- `ya29.*` (Google OAuth)
-- `AIza*` (Google API key)
-- `Bearer *`
-- `eyJ*` (JWTs, first 20 chars only)
+- `sk-*` (OpenAI, 20+ chars)
+- `ghp_*` (GitHub PAT)
+- `ghs_*` (GitHub server token)
+- `ghr_*` (GitHub refresh token)
+- `gho_*` (GitHub OAuth token)
+- `ghu_*` (GitHub user-to-server token)
+- `ghes_*` (GitHub Enterprise Server token)
+- `github_pat_*` (GitHub fine-grained PAT)
+- `AIza*` (Google API key, 30+ chars)
+- `ya29.*` (Google OAuth access token)
+- `glpat-*` (GitLab PAT)
+- `Bearer *` (Bearer tokens)
 
 ## Rules
 

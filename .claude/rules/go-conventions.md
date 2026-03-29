@@ -13,12 +13,13 @@ globs: "**/*.go"
 
 ## Dependencies
 
-Only these four direct dependencies:
+Current direct dependencies:
 
 - `github.com/spf13/cobra` — CLI
 - `gopkg.in/yaml.v3` — config parsing
-- `modernc.org/sqlite` — persistence (pure Go, no CGO)
 - `github.com/moby/moby` — container management (Docker SDK, moby module path)
+
+Planned (Phase 3): `modernc.org/sqlite` — task/event persistence.
 
 Do not add dependencies without justification.
 
