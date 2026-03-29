@@ -150,6 +150,47 @@ func (r *Registry) SetError(name, errMsg string) error {
 	return nil
 }
 
+func (r *Registry) SetRuntime(name, containerID, endpoint string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.entries[name]; !ok {
+		return fmt.Errorf("worker %q not found", name)
+	}
+	now := time.Now()
+	clone := r.cloneEntries()
+	ce := clone[name]
+	ce.State = StateOnline
+	ce.StartedAt = &now
+	ce.ContainerID = containerID
+	ce.RuntimeEndpoint = endpoint
+	ce.Error = ""
+	if err := r.persist(clone); err != nil {
+		return err
+	}
+	r.entries = clone
+	return nil
+}
+
+func (r *Registry) ClearRuntime(name string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.entries[name]; !ok {
+		return fmt.Errorf("worker %q not found", name)
+	}
+	clone := r.cloneEntries()
+	ce := clone[name]
+	ce.State = StateOffline
+	ce.StartedAt = nil
+	ce.ContainerID = ""
+	ce.RuntimeEndpoint = ""
+	ce.Error = ""
+	if err := r.persist(clone); err != nil {
+		return err
+	}
+	r.entries = clone
+	return nil
+}
+
 func (r *Registry) Get(name string) (Entry, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
