@@ -1,7 +1,7 @@
 {
   "language": "go",
-  "framework": null,
-  "docRoot": "dev-docs/",
+  "framework": "hugo",
+  "docRoot": "docs/content/",
   "sourceDirectories": ["cmd/", "internal/"],
   "strictness": "warn",
   "stalenessThresholdDays": 14,
@@ -10,8 +10,10 @@
     "node_modules/",
     "vendor/",
     "dist/",
+    "website/",
     ".git/",
     ".claude/",
-    "*.lock"
+    "*.lock",
+    "dev-docs/"
   ]
 }
