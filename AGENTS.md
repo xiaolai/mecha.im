@@ -10,7 +10,7 @@ Four nouns: Event, Worker, Task, Policy. One pipeline. See `.claude/rules/domain
 
 - Go 1.26.1 — single binary, cross-platform (darwin/linux, amd64/arm64)
 - Cobra CLI, YAML config, SQLite persistence, Docker API
-- Hugo + Hextra for documentation (`docs/`)
+- Hugo + Lotus Docs for documentation (`docs/`)
 
 ## Build
 
@@ -34,10 +34,11 @@ Design decisions and rationale are in `dev-docs/` (gitignored, local only).
 
 ## Shared Memory
 
-**Always write new instructions, rules, and memory to `AGENTS.md` only.**
+**Write shared instructions to `AGENTS.md`. Write enforceable Go rules to `.claude/rules/`.**
 
-Never modify `CLAUDE.md` or `GEMINI.md` directly - they only import `AGENTS.md`.
-This ensures Claude Code, Codex CLI, and Gemini CLI share the same context consistently.
+- `AGENTS.md` — project-wide context, guidelines, and structure (shared across all AI tools)
+- `.claude/rules/*.md` — scoped, enforceable rules auto-loaded by glob pattern (Go conventions, domain model, security)
+- Never modify `CLAUDE.md` or `GEMINI.md` directly — they only import `AGENTS.md`
 
 ## Project Structure
 

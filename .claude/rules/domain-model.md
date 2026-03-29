@@ -10,7 +10,7 @@ Mecha has exactly four nouns: Event, Worker, Task, Policy.
 ## Pipeline
 
 ```
-Event.arrive → Event.match → Task.create → Task.dispatch → Worker.execute → Policy.filter → Task.complete
+Event.arrive → Event.match → Task.create → Task.dispatch → Policy.filter → Task.complete
 ```
 
 ## Nouns and Verbs
