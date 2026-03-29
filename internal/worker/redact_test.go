@@ -9,19 +9,44 @@ func TestRedactSecrets(t *testing.T) {
 		want  string
 	}{
 		{
+			name:  "anthropic oauth token",
+			input: "token: sk-ant-oat01-abc123XYZ",
+			want:  "token: [REDACTED]",
+		},
+		{
+			name:  "anthropic api key",
+			input: "key: sk-ant-api03-abc123XYZ",
+			want:  "key: [REDACTED]",
+		},
+		{
+			name:  "openai api key",
+			input: "failed with sk-proj-abc123XYZdef456",
+			want:  "failed with [REDACTED]",
+		},
+		{
 			name:  "github pat",
 			input: "auth error: ghp_abc123XYZ expired",
 			want:  "auth error: [REDACTED] expired",
 		},
 		{
-			name:  "anthropic key",
-			input: "failed with sk-ant-api03-abc123",
-			want:  "failed with [REDACTED]",
-		},
-		{
 			name:  "github server token",
 			input: "token ghs_abc123 revoked",
 			want:  "token [REDACTED] revoked",
+		},
+		{
+			name:  "google api key",
+			input: "key: AIzaSyBmmkGm-aBIqk0aJ414wGsl72V6XgZvJHI",
+			want:  "key: [REDACTED]",
+		},
+		{
+			name:  "google oauth access token",
+			input: "token: ya29.a0ATkoCc4abc123",
+			want:  "token: [REDACTED]",
+		},
+		{
+			name:  "jwt token",
+			input: "token: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.payload",
+			want:  "token: [REDACTED].payload",
 		},
 		{
 			name:  "bearer token",

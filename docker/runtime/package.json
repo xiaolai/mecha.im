@@ -1,0 +1,8 @@
+{
+  "name": "mecha-worker-runtime",
+  "version": "0.5.1",
+  "type": "module",
+  "scripts": {
+    "start": "bun run server.ts"
+  }
+}
