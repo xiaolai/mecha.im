@@ -31,7 +31,7 @@ Do not add dependencies without justification.
 - Concurrency: `sync.Mutex` for shared state, not channels.
 - IDs: `crypto/rand` → hex, not UUIDs.
 - Atomic writes: temp file → fsync → rename → fsync dir.
-- File limit: 200 lines per file (loc-guardian enforced).
+- File limit: 200 lines per source file (loc-guardian enforced). Test files (`*_test.go`) are exempt.
 
 ## Testing
 
