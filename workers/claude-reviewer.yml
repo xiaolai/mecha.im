@@ -1,0 +1,18 @@
+name: claude-reviewer
+docker:
+  image: mecha-worker-claude:latest
+  cwd: /path/to/project
+  resources:
+    cpu: 4
+    memory: 8G
+    pids: 256
+  lifecycle: persistent
+  env:
+    CLAUDE_MODEL: claude-sonnet-4-6
+    CLAUDE_SYSTEM_PROMPT: "You review PRs for security issues."
+    CLAUDE_ALLOWED_TOOLS: "Read,Grep,Glob,Bash"
+    CLAUDE_PERMISSION_MODE: bypassPermissions
+    CLAUDE_EFFORT: high
+    CLAUDE_OUTPUT_FORMAT: json
+  token: claude.xiaolaidev
+timeout: 30m

@@ -40,6 +40,9 @@ func dockerStart(reg *worker.Registry, name string) error {
 		User:      worker.CurrentUser(),
 	}
 
+	// Remove existing container with same name (leftover from crash/previous run).
+	_ = dock.Remove(context.Background(), cfg.Name)
+
 	fmt.Printf("creating container for %s...\n", name)
 	containerID, err := dock.Create(context.Background(), cfg)
 	if err != nil {

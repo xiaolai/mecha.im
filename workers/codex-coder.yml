@@ -1,0 +1,14 @@
+name: codex-coder
+docker:
+  image: mecha-worker-codex:latest
+  cwd: /path/to/project
+  resources:
+    cpu: 2
+    memory: 4G
+  lifecycle: persistent
+  env:
+    CODEX_MODEL: gpt-5.4
+    CODEX_SANDBOX: workspace-write
+    CODEX_APPROVAL: never
+  token: codex.default
+timeout: 30m
