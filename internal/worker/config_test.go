@@ -65,6 +65,35 @@ func TestLoadFile(t *testing.T) {
 			yaml:    "name: broken\ndocker:\n  lifecycle: disposable\n",
 			wantErr: true,
 		},
+		{
+			name:    "unknown yaml field rejected",
+			yaml:    "name: bad\nendpont: http://typo\n",
+			wantErr: true,
+		},
+		{
+			name:    "invalid lifecycle rejected",
+			yaml:    "name: bad\ndocker:\n  image: x\n  lifecycle: ephemeral\n",
+			wantErr: true,
+		},
+		{
+			name:    "literal proxy.key rejected",
+			yaml:    "name: bad\ndocker:\n  image: x\n  proxy:\n    target: https://api.example.com\n    key: sk-ant-secret123\n",
+			wantErr: true,
+		},
+		{
+			name: "env var proxy.key accepted",
+			yaml: "name: ok\ndocker:\n  image: x\n  proxy:\n    target: https://api.example.com\n    key: ${MY_KEY}\n",
+			want: func(t *testing.T, w *Worker) {
+				if w.Docker.Proxy.Key != "${MY_KEY}" {
+					t.Errorf("proxy.key = %q, want ${MY_KEY}", w.Docker.Proxy.Key)
+				}
+			},
+		},
+		{
+			name:    "proxy without target rejected",
+			yaml:    "name: bad\ndocker:\n  image: x\n  proxy:\n    key: ${KEY}\n",
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -102,6 +131,18 @@ func TestEnvInterpolation(t *testing.T) {
 	}
 	if w.Endpoint != "http://injected:9090" {
 		t.Errorf("endpoint = %q, want http://injected:9090", w.Endpoint)
+	}
+}
+
+func TestUnresolvedEnvVarFails(t *testing.T) {
+	yaml := "name: envtest\nendpoint: ${NONEXISTENT_VAR_12345}\n"
+	path := filepath.Join(t.TempDir(), "worker.yml")
+	if err := os.WriteFile(path, []byte(yaml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := LoadFile(path)
+	if err == nil {
+		t.Error("expected error for unresolved env var")
 	}
 }
 

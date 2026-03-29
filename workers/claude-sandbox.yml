@@ -1,6 +1,6 @@
 name: claude-sandbox
 docker:
-  image: ghcr.io/xiaolai/mecha-worker-claude:latest
+  image: ghcr.io/xiaolai/mecha-worker-claude:v1.0.0
   host: unix:///var/run/docker.sock
   resources:
     cpu: 4

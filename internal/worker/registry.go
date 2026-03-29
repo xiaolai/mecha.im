@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"time"
 )
@@ -42,9 +43,12 @@ func NewRegistry(path string) (*Registry, error) {
 	return r, nil
 }
 
-func DefaultRegistryPath() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".mecha", "registry.json")
+func DefaultRegistryPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("resolve home dir: %w", err)
+	}
+	return filepath.Join(home, ".mecha", "registry.json"), nil
 }
 
 func (r *Registry) Add(w *Worker) error {
@@ -53,8 +57,13 @@ func (r *Registry) Add(w *Worker) error {
 	if _, exists := r.entries[w.Name]; exists {
 		return fmt.Errorf("worker %q already exists", w.Name)
 	}
-	r.entries[w.Name] = &Entry{Worker: w, State: StateOffline}
-	return r.persist()
+	clone := r.cloneEntries()
+	clone[w.Name] = &Entry{Worker: w, State: StateOffline}
+	if err := r.persist(clone); err != nil {
+		return err
+	}
+	r.entries = clone
+	return nil
 }
 
 func (r *Registry) Remove(name string) error {
@@ -67,8 +76,13 @@ func (r *Registry) Remove(name string) error {
 	if e.State != StateOffline {
 		return fmt.Errorf("worker %q must be offline to remove (current: %s)", name, e.State)
 	}
-	delete(r.entries, name)
-	return r.persist()
+	clone := r.cloneEntries()
+	delete(clone, name)
+	if err := r.persist(clone); err != nil {
+		return err
+	}
+	r.entries = clone
+	return nil
 }
 
 func (r *Registry) Start(name string) error {
@@ -82,10 +96,16 @@ func (r *Registry) Start(name string) error {
 		return fmt.Errorf("worker %q must be offline to start (current: %s)", name, e.State)
 	}
 	now := time.Now()
-	e.State = StateOnline
-	e.StartedAt = &now
-	e.Error = ""
-	return r.persist()
+	clone := r.cloneEntries()
+	ce := clone[name]
+	ce.State = StateOnline
+	ce.StartedAt = &now
+	ce.Error = ""
+	if err := r.persist(clone); err != nil {
+		return err
+	}
+	r.entries = clone
+	return nil
 }
 
 func (r *Registry) Stop(name string) error {
@@ -98,39 +118,66 @@ func (r *Registry) Stop(name string) error {
 	if e.State != StateOnline && e.State != StateError {
 		return fmt.Errorf("worker %q must be online or error to stop (current: %s)", name, e.State)
 	}
-	e.State = StateOffline
-	e.StartedAt = nil
-	e.Error = ""
-	return r.persist()
+	clone := r.cloneEntries()
+	ce := clone[name]
+	ce.State = StateOffline
+	ce.StartedAt = nil
+	ce.Error = ""
+	if err := r.persist(clone); err != nil {
+		return err
+	}
+	r.entries = clone
+	return nil
 }
 
 func (r *Registry) SetError(name, errMsg string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	e, ok := r.entries[name]
-	if !ok {
+	if _, ok := r.entries[name]; !ok {
 		return fmt.Errorf("worker %q not found", name)
 	}
-	e.State = StateError
-	e.Error = errMsg
-	return r.persist()
+	redacted := RedactSecrets(errMsg)
+	clone := r.cloneEntries()
+	ce := clone[name]
+	ce.State = StateError
+	ce.Error = redacted
+	if err := r.persist(clone); err != nil {
+		return err
+	}
+	r.entries = clone
+	return nil
 }
 
-func (r *Registry) Get(name string) (*Entry, bool) {
+func (r *Registry) Get(name string) (Entry, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	e, ok := r.entries[name]
-	return e, ok
+	if !ok {
+		return Entry{}, false
+	}
+	return *e, true
 }
 
-func (r *Registry) List() []*Entry {
+func (r *Registry) List() []Entry {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	result := make([]*Entry, 0, len(r.entries))
+	result := make([]Entry, 0, len(r.entries))
 	for _, e := range r.entries {
-		result = append(result, e)
+		result = append(result, *e)
 	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Worker.Name < result[j].Worker.Name
+	})
 	return result
+}
+
+func (r *Registry) cloneEntries() map[string]*Entry {
+	clone := make(map[string]*Entry, len(r.entries))
+	for k, e := range r.entries {
+		ec := *e
+		clone[k] = &ec
+	}
+	return clone
 }
 
 func (r *Registry) load() error {
@@ -141,8 +188,8 @@ func (r *Registry) load() error {
 	return json.Unmarshal(data, &r.entries)
 }
 
-func (r *Registry) persist() error {
-	data, err := json.MarshalIndent(r.entries, "", "  ")
+func (r *Registry) persist(entries map[string]*Entry) error {
+	data, err := json.MarshalIndent(entries, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal registry: %w", err)
 	}
@@ -170,5 +217,14 @@ func (r *Registry) persist() error {
 		os.Remove(tmp)
 		return fmt.Errorf("rename registry: %w", err)
 	}
-	return nil
+	return syncDir(dir)
+}
+
+func syncDir(path string) error {
+	d, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("open dir for sync: %w", err)
+	}
+	defer d.Close()
+	return d.Sync()
 }

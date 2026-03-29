@@ -49,22 +49,36 @@ func (w *Worker) TypeLabel() string {
 
 var envVarPattern = regexp.MustCompile(`\$\{([^}]+)\}`)
 
-func expandEnvVar(s string) string {
-	return envVarPattern.ReplaceAllStringFunc(s, func(match string) string {
+func expandEnvVar(s string) (string, bool) {
+	allResolved := true
+	result := envVarPattern.ReplaceAllStringFunc(s, func(match string) string {
 		key := match[2 : len(match)-1]
 		if val, ok := os.LookupEnv(key); ok {
 			return val
 		}
+		allResolved = false
 		return match
 	})
+	return result, allResolved
 }
 
-func (w *Worker) interpolateEnv() {
-	w.Endpoint = expandEnvVar(w.Endpoint)
+func (w *Worker) interpolateEnv() error {
+	if w.Endpoint != "" {
+		val, resolved := expandEnvVar(w.Endpoint)
+		if !resolved {
+			return fmt.Errorf("unresolved env var in endpoint: %s", w.Endpoint)
+		}
+		w.Endpoint = val
+	}
 	// Intentionally skip proxy.key — keep as env var reference.
 	if w.Docker != nil && w.Docker.Host != "" {
-		w.Docker.Host = expandEnvVar(w.Docker.Host)
+		val, resolved := expandEnvVar(w.Docker.Host)
+		if !resolved {
+			return fmt.Errorf("unresolved env var in docker.host: %s", w.Docker.Host)
+		}
+		w.Docker.Host = val
 	}
+	return nil
 }
 
 func LoadFile(path string) (*Worker, error) {
@@ -73,10 +87,14 @@ func LoadFile(path string) (*Worker, error) {
 		return nil, fmt.Errorf("read worker file: %w", err)
 	}
 	var w Worker
-	if err := yaml.Unmarshal(data, &w); err != nil {
+	dec := yaml.NewDecoder(strings.NewReader(string(data)))
+	dec.KnownFields(true)
+	if err := dec.Decode(&w); err != nil {
 		return nil, fmt.Errorf("parse worker yaml: %w", err)
 	}
-	w.interpolateEnv()
+	if err := w.interpolateEnv(); err != nil {
+		return nil, fmt.Errorf("interpolate env: %w", err)
+	}
 	if err := w.validate(); err != nil {
 		return nil, fmt.Errorf("validate worker: %w", err)
 	}
@@ -107,6 +125,8 @@ func isYAML(name string) bool {
 	return strings.HasSuffix(name, ".yml") || strings.HasSuffix(name, ".yaml")
 }
 
+var validLifecycles = map[string]bool{"disposable": true, "persistent": true}
+
 func (w *Worker) validate() error {
 	if w.Name == "" {
 		return fmt.Errorf("name is required")
@@ -114,8 +134,34 @@ func (w *Worker) validate() error {
 	if w.Endpoint == "" && w.Docker == nil {
 		return fmt.Errorf("endpoint or docker section is required")
 	}
-	if w.Docker != nil && w.Docker.Image == "" {
+	if w.Timeout < 0 {
+		return fmt.Errorf("timeout must be non-negative")
+	}
+	if w.Docker != nil {
+		if err := w.Docker.validate(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (d *DockerConfig) validate() error {
+	if d.Image == "" {
 		return fmt.Errorf("docker.image is required")
+	}
+	if d.Lifecycle != "" && !validLifecycles[d.Lifecycle] {
+		return fmt.Errorf("docker.lifecycle must be disposable or persistent, got %q", d.Lifecycle)
+	}
+	if d.Port < 0 {
+		return fmt.Errorf("docker.port must be non-negative")
+	}
+	if d.Proxy != nil {
+		if d.Proxy.Target == "" {
+			return fmt.Errorf("docker.proxy.target is required when proxy is set")
+		}
+		if d.Proxy.Key != "" && !envVarPattern.MatchString(d.Proxy.Key) {
+			return fmt.Errorf("docker.proxy.key must use ${ENV_VAR} reference, not a literal value")
+		}
 	}
 	return nil
 }

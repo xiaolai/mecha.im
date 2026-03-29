@@ -154,3 +154,52 @@ func TestRegistrySetError(t *testing.T) {
 		t.Fatalf("stop from error state should work: %v", err)
 	}
 }
+
+func TestRegistryListSorted(t *testing.T) {
+	r := testRegistry(t)
+	for _, name := range []string{"charlie", "alpha", "bravo"} {
+		if err := r.Add(testWorker(name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	entries := r.List()
+	if len(entries) != 3 {
+		t.Fatalf("got %d entries, want 3", len(entries))
+	}
+	want := []string{"alpha", "bravo", "charlie"}
+	for i, e := range entries {
+		if e.Worker.Name != want[i] {
+			t.Errorf("entries[%d].Name = %q, want %q", i, e.Worker.Name, want[i])
+		}
+	}
+}
+
+func TestRegistryGetReturnsCopy(t *testing.T) {
+	r := testRegistry(t)
+	if err := r.Add(testWorker("w")); err != nil {
+		t.Fatal(err)
+	}
+	e, _ := r.Get("w")
+	e.State = StateOnline // mutate the copy
+	e2, _ := r.Get("w")
+	if e2.State != StateOffline {
+		t.Error("Get returned live reference, not a copy")
+	}
+}
+
+func TestSetErrorRedactsSecrets(t *testing.T) {
+	r := testRegistry(t)
+	if err := r.Add(testWorker("w")); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Start("w"); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.SetError("w", "auth failed: ghp_abc123XYZ token expired"); err != nil {
+		t.Fatal(err)
+	}
+	e, _ := r.Get("w")
+	if e.Error == "auth failed: ghp_abc123XYZ token expired" {
+		t.Error("secret not redacted in error message")
+	}
+}
