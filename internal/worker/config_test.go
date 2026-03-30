@@ -96,9 +96,13 @@ func TestLoadFile(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "docker disposable rejected",
-			yaml:    "name: bad\ndocker:\n  image: x\n  lifecycle: disposable\n",
-			wantErr: true,
+			name: "docker disposable accepted",
+			yaml: "name: ok\ndocker:\n  image: x\n  lifecycle: disposable\n",
+			want: func(t *testing.T, w *Worker) {
+				if w.Docker.Lifecycle != "disposable" {
+					t.Errorf("lifecycle = %q", w.Docker.Lifecycle)
+				}
+			},
 		},
 	}
 	for _, tt := range tests {

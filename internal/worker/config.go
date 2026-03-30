@@ -162,11 +162,8 @@ func (d *DockerConfig) validate() error {
 	if d.Image == "" {
 		return fmt.Errorf("docker.image is required")
 	}
-	if d.Lifecycle == "disposable" {
-		return fmt.Errorf("docker.lifecycle=disposable is not yet supported (Phase 3)")
-	}
-	if d.Lifecycle != "" && d.Lifecycle != "persistent" {
-		return fmt.Errorf("docker.lifecycle must be persistent, got %q", d.Lifecycle)
+	if d.Lifecycle != "" && d.Lifecycle != "persistent" && d.Lifecycle != "disposable" {
+		return fmt.Errorf("docker.lifecycle must be persistent or disposable, got %q", d.Lifecycle)
 	}
 	if d.Cwd != "" {
 		resolved, err := filepath.EvalSymlinks(d.Cwd)

@@ -140,6 +140,28 @@ func (r *Registry) ClearRuntime(name string) error {
 	})
 }
 
+// SetBusy transitions a worker from online to busy (task dispatched).
+func (r *Registry) SetBusy(name string) error {
+	return r.mutateEntry(name, func(e *Entry) error {
+		if e.State != StateOnline {
+			return fmt.Errorf("worker %q must be online to mark busy (current: %s)", name, e.State)
+		}
+		e.State = StateBusy
+		return nil
+	})
+}
+
+// SetOnline transitions a worker from busy back to online (task completed).
+func (r *Registry) SetOnline(name string) error {
+	return r.mutateEntry(name, func(e *Entry) error {
+		if e.State != StateBusy {
+			return fmt.Errorf("worker %q must be busy to mark online (current: %s)", name, e.State)
+		}
+		e.State = StateOnline
+		return nil
+	})
+}
+
 // Get returns a copy of the named entry. Safe for concurrent use.
 func (r *Registry) Get(name string) (Entry, bool) {
 	r.mu.Lock()
