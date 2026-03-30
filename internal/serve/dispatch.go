@@ -19,7 +19,10 @@ var dispatchClient = &http.Client{
 	},
 }
 
+const maxConcurrentDispatches = 16
+
 func (s *Server) dispatchLoop(ctx context.Context) {
+	sem := make(chan struct{}, maxConcurrentDispatches)
 	for {
 		select {
 		case <-ctx.Done():
@@ -29,7 +32,9 @@ func (s *Server) dispatchLoop(ctx context.Context) {
 			if !ok {
 				return
 			}
+			sem <- struct{}{} // acquire slot
 			go func(id string) {
+				defer func() { <-sem }() // release slot
 				defer func() {
 					if r := recover(); r != nil {
 						s.logger.Error("dispatch: panic", "id", id, "panic", r)
@@ -46,12 +51,6 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 	if err != nil {
 		s.logger.Error("dispatch: get task", "id", taskID, "err", err)
 		return
-	}
-
-	// Reload registry from SQLite to pick up workers added by CLI
-	if err := s.reg.Reload(); err != nil {
-		s.logger.Error("dispatch: reload registry", "err", err)
-		// Continue with stale data (Reload is safe-swap, old data preserved)
 	}
 
 	entry, ok := s.reg.Get(t.WorkerName)
@@ -140,6 +139,12 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 
 	if completeErr := s.tasks.Complete(ctx, taskID, result); completeErr != nil {
 		s.logger.Error("dispatch: complete task failed", "id", taskID, "err", completeErr)
+		// Don't finalize event if task persistence failed — prevents replay on recovery
+		workerRestored = true
+		if onlineErr := s.reg.SetOnline(t.WorkerName); onlineErr != nil {
+			s.logger.Warn("dispatch: set online after completion", "id", taskID, "err", onlineErr)
+		}
+		return
 	}
 	workerRestored = true
 	if onlineErr := s.reg.SetOnline(t.WorkerName); onlineErr != nil {
