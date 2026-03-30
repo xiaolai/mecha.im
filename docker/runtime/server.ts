@@ -54,7 +54,11 @@ async function taskHandler(req: Request): Promise<Response> {
   busy = true;
 
   try {
-    const contentLength = parseInt(req.headers.get("content-length") || "0");
+    const clHeader = req.headers.get("content-length");
+    if (!clHeader) {
+      return Response.json({ error: "Content-Length required" }, { status: 411 });
+    }
+    const contentLength = parseInt(clHeader);
     if (contentLength > MAX_BODY_BYTES) {
       return Response.json({ error: "request body too large" }, { status: 413 });
     }

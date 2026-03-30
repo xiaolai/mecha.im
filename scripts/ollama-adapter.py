@@ -18,6 +18,7 @@ import json
 import os
 import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from socketserver import ThreadingMixIn
 from urllib.request import Request, urlopen
 from urllib.error import URLError
 
@@ -114,8 +115,12 @@ class Handler(BaseHTTPRequestHandler):
         pass  # suppress access logs
 
 
+class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
+    daemon_threads = True
+
+
 if __name__ == "__main__":
-    server = HTTPServer(("0.0.0.0", ADAPTER_PORT), Handler)
+    server = ThreadingHTTPServer(("0.0.0.0", ADAPTER_PORT), Handler)
     print(f"ollama adapter ({OLLAMA_MODEL}) listening on :{ADAPTER_PORT}")
     print(f"  ollama: {OLLAMA_URL}")
     print(f"  health: http://localhost:{ADAPTER_PORT}/health")
