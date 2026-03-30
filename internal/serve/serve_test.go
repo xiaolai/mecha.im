@@ -143,6 +143,147 @@ func TestPostTaskAndGet(t *testing.T) {
 	}
 }
 
+func testServerWithKey(t *testing.T, key string) (*Server, func()) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "test.db")
+	db, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reg, _ := worker.NewRegistry(db)
+	tasks := task.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0", APIKey: key})
+	return s, func() { db.Close() }
+}
+
+func TestAuthMiddleware(t *testing.T) {
+	s, cleanup := testServerWithKey(t, "secret-123")
+	defer cleanup()
+
+	// No auth → 401
+	req := httptest.NewRequest("POST", "/task", strings.NewReader(`{"prompt":"x","worker":"w"}`))
+	rec := httptest.NewRecorder()
+	s.httpSrv.Handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("no auth: status = %d, want 401", rec.Code)
+	}
+
+	// Wrong key → 401
+	req2 := httptest.NewRequest("POST", "/task", strings.NewReader(`{"prompt":"x","worker":"w"}`))
+	req2.Header.Set("Authorization", "Bearer wrong")
+	rec2 := httptest.NewRecorder()
+	s.httpSrv.Handler.ServeHTTP(rec2, req2)
+	if rec2.Code != http.StatusUnauthorized {
+		t.Errorf("wrong key: status = %d, want 401", rec2.Code)
+	}
+
+	// Correct Bearer → passes through (400 because no worker, not 401)
+	req3 := httptest.NewRequest("POST", "/task", strings.NewReader(`{"prompt":"x","worker":"w"}`))
+	req3.Header.Set("Authorization", "Bearer secret-123")
+	rec3 := httptest.NewRecorder()
+	s.httpSrv.Handler.ServeHTTP(rec3, req3)
+	if rec3.Code == http.StatusUnauthorized {
+		t.Error("correct Bearer should not be 401")
+	}
+
+	// Correct X-API-Key → passes through
+	req4 := httptest.NewRequest("POST", "/task", strings.NewReader(`{"prompt":"x","worker":"w"}`))
+	req4.Header.Set("X-API-Key", "secret-123")
+	rec4 := httptest.NewRecorder()
+	s.httpSrv.Handler.ServeHTTP(rec4, req4)
+	if rec4.Code == http.StatusUnauthorized {
+		t.Error("correct X-API-Key should not be 401")
+	}
+
+	// Health exempt from auth
+	req5 := httptest.NewRequest("GET", "/health", nil)
+	rec5 := httptest.NewRecorder()
+	s.httpSrv.Handler.ServeHTTP(rec5, req5)
+	if rec5.Code != 200 {
+		t.Errorf("health should be 200 without auth, got %d", rec5.Code)
+	}
+}
+
+func TestListTasks(t *testing.T) {
+	s, cleanup := testServer(t)
+	defer cleanup()
+
+	// Empty list
+	req := httptest.NewRequest("GET", "/tasks", nil)
+	rec := httptest.NewRecorder()
+	s.httpSrv.Handler.ServeHTTP(rec, req)
+	if rec.Code != 200 {
+		t.Fatalf("status = %d", rec.Code)
+	}
+
+	// Create tasks and list with filter
+	s.tasks.Create(context.Background(), "w", "p1")
+	t2, _ := s.tasks.Create(context.Background(), "w", "p2")
+	s.tasks.SetDispatched(context.Background(), t2.ID)
+
+	req2 := httptest.NewRequest("GET", "/tasks?state=pending", nil)
+	rec2 := httptest.NewRecorder()
+	s.httpSrv.Handler.ServeHTTP(rec2, req2)
+	var tasks []task.Task
+	json.Unmarshal(rec2.Body.Bytes(), &tasks)
+	if len(tasks) != 1 {
+		t.Errorf("pending tasks = %d, want 1", len(tasks))
+	}
+}
+
+func TestGetTaskNotFound(t *testing.T) {
+	s, cleanup := testServer(t)
+	defer cleanup()
+
+	req := httptest.NewRequest("GET", "/task/nonexistent", nil)
+	rec := httptest.NewRecorder()
+	s.httpSrv.Handler.ServeHTTP(rec, req)
+	if rec.Code != 404 {
+		t.Errorf("status = %d, want 404", rec.Code)
+	}
+}
+
+func TestDispatchToOfflineWorker(t *testing.T) {
+	s, cleanup := testServer(t)
+	defer cleanup()
+
+	s.reg.Add(&worker.Worker{Name: "offline-w", Endpoint: "http://x"})
+	// Worker is offline — don't start it
+
+	tk, _ := s.tasks.Create(context.Background(), "offline-w", "test")
+	s.dispatchTask(context.Background(), tk.ID)
+
+	got, _ := s.tasks.Get(context.Background(), tk.ID)
+	if got.State != task.StateFailed {
+		t.Errorf("state = %q, want failed", got.State)
+	}
+	if !strings.Contains(got.ErrorMsg, "not available") {
+		t.Errorf("error = %q, want 'not available'", got.ErrorMsg)
+	}
+}
+
+func TestDispatchWorkerReturnsError(t *testing.T) {
+	s, cleanup := testServer(t)
+	defer cleanup()
+
+	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+		w.Write([]byte(`{"error":"internal"}`))
+	}))
+	defer mock.Close()
+
+	s.reg.Add(&worker.Worker{Name: "err-w", Endpoint: mock.URL})
+	s.reg.Start("err-w")
+
+	tk, _ := s.tasks.Create(context.Background(), "err-w", "test")
+	s.dispatchTask(context.Background(), tk.ID)
+
+	got, _ := s.tasks.Get(context.Background(), tk.ID)
+	if got.State != task.StateFailed {
+		t.Errorf("state = %q, want failed", got.State)
+	}
+}
+
 func TestListWorkers(t *testing.T) {
 	s, cleanup := testServer(t)
 	defer cleanup()
