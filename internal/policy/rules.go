@@ -3,6 +3,7 @@ package policy
 import (
 	"context"
 	"fmt"
+	"unicode/utf8"
 
 	"mecha.im/internal/event"
 )
@@ -80,11 +81,14 @@ func (r *RuleFilter) Apply(_ context.Context, _ *event.Event, res Result) (Resul
 	var d Decision
 	filtered := res
 
-	// Comment
+	// Comment — deep-copy before mutation to avoid modifying the caller's data
 	if filtered.Comment != nil {
 		if r.Comment == nil || r.Comment.Allow {
-			if r.Comment != nil && r.Comment.MaxLength > 0 && len(filtered.Comment.Body) > r.Comment.MaxLength {
-				filtered.Comment.Body = filtered.Comment.Body[:r.Comment.MaxLength] + "\n\n... (truncated by policy)"
+			if r.Comment != nil && r.Comment.MaxLength > 0 && utf8.RuneCountInString(filtered.Comment.Body) > r.Comment.MaxLength {
+				runes := []rune(filtered.Comment.Body)
+				cc := *filtered.Comment
+				cc.Body = string(runes[:r.Comment.MaxLength]) + "\n\n... (truncated by policy)"
+				filtered.Comment = &cc
 				d.Allowed = append(d.Allowed, "comment (truncated)")
 			} else {
 				d.Allowed = append(d.Allowed, "comment")
@@ -145,8 +149,16 @@ func filterLabels(labels *LabelAction, policy *LabelPolicy, d *Decision) *LabelA
 			filteredAdd = append(filteredAdd, l)
 		}
 	}
-	result := &LabelAction{Add: filteredAdd, Remove: labels.Remove}
-	if len(filteredAdd) > 0 || len(labels.Remove) > 0 {
+	var filteredRemove []string
+	for _, l := range labels.Remove {
+		if blocked[l] {
+			d.Denied = append(d.Denied, fmt.Sprintf("label remove %q: blocked by policy", l))
+		} else {
+			filteredRemove = append(filteredRemove, l)
+		}
+	}
+	result := &LabelAction{Add: filteredAdd, Remove: filteredRemove}
+	if len(filteredAdd) > 0 || len(filteredRemove) > 0 {
 		d.Allowed = append(d.Allowed, "labels")
 	}
 	return result
