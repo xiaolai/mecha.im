@@ -179,6 +179,44 @@ func TestSendTaskWorker500(t *testing.T) {
 	}
 }
 
+func TestDispatchWorkerNotFound(t *testing.T) {
+	s, cleanup := testDispatchServer(t)
+	defer cleanup()
+
+	tk, _ := s.tasks.Create(context.Background(), "ghost", "test")
+	s.dispatchTask(context.Background(), tk.ID)
+
+	got, _ := s.tasks.Get(context.Background(), tk.ID)
+	if got.State != task.StateFailed {
+		t.Errorf("state = %q, want failed", got.State)
+	}
+}
+
+func TestDispatchTransportErrorSetsWorkerError(t *testing.T) {
+	s, cleanup := testDispatchServer(t)
+	defer cleanup()
+
+	// Worker endpoint that immediately closes connection
+	s.reg.Add(&worker.Worker{Name: "dead-w", Endpoint: "http://127.0.0.1:1"})
+	s.reg.Start("dead-w")
+
+	tk, _ := s.tasks.Create(context.Background(), "dead-w", "test")
+	s.dispatchTask(context.Background(), tk.ID)
+
+	// Worker should be in error state (not online)
+	entry, _ := s.reg.Get("dead-w")
+	if entry.State != worker.StateError {
+		t.Errorf("worker state = %q, want error", entry.State)
+	}
+}
+
+func TestDispatchTaskNotFound(t *testing.T) {
+	s, cleanup := testDispatchServer(t)
+	defer cleanup()
+	// Should not panic — just log
+	s.dispatchTask(context.Background(), "nonexistent-task-id")
+}
+
 func TestIsTransportError(t *testing.T) {
 	tests := []struct {
 		msg  string

@@ -134,6 +134,34 @@ func TestInvalidStateTransition(t *testing.T) {
 	}
 }
 
+func TestFailFromCompleted(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	task, _ := s.Create(ctx, "w", "prompt")
+	s.SetDispatched(ctx, task.ID)
+	s.Complete(ctx, task.ID, "done")
+	if err := s.Fail(ctx, task.ID, "too late"); err == nil {
+		t.Error("expected error for completed→failed")
+	}
+}
+
+func TestDoubleDispatch(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	task, _ := s.Create(ctx, "w", "prompt")
+	s.SetDispatched(ctx, task.ID)
+	if err := s.SetDispatched(ctx, task.ID); err == nil {
+		t.Error("expected error for dispatched→dispatched")
+	}
+}
+
+func TestFailNonexistent(t *testing.T) {
+	s := testStore(t)
+	if err := s.Fail(context.Background(), "ghost", "err"); err == nil {
+		t.Error("expected error for nonexistent task")
+	}
+}
+
 func TestListAll(t *testing.T) {
 	s := testStore(t)
 	ctx := context.Background()

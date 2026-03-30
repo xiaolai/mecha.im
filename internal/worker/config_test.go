@@ -104,6 +104,36 @@ func TestLoadFile(t *testing.T) {
 				}
 			},
 		},
+		{
+			name:    "negative timeout",
+			yaml:    "name: bad\nendpoint: http://x\ntimeout: -1s\n",
+			wantErr: true,
+		},
+		{
+			name:    "negative cpu",
+			yaml:    "name: bad\ndocker:\n  image: x\n  resources:\n    cpu: -1\n",
+			wantErr: true,
+		},
+		{
+			name:    "negative pids",
+			yaml:    "name: bad\ndocker:\n  image: x\n  resources:\n    pids: -1\n",
+			wantErr: true,
+		},
+		{
+			name:    "bad memory format",
+			yaml:    "name: bad\ndocker:\n  image: x\n  resources:\n    memory: abc\n",
+			wantErr: true,
+		},
+		{
+			name:    "unknown lifecycle",
+			yaml:    "name: bad\ndocker:\n  image: x\n  lifecycle: ephemeral\n",
+			wantErr: true,
+		},
+		{
+			name:    "docker missing image",
+			yaml:    "name: broken\ndocker:\n  lifecycle: persistent\n",
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

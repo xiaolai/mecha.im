@@ -2,6 +2,7 @@ package store
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -36,6 +37,26 @@ func TestOpenIdempotent(t *testing.T) {
 		t.Fatalf("second Open: %v", err)
 	}
 	defer db2.Close()
+}
+
+func TestDefaultDBPath(t *testing.T) {
+	path, err := DefaultDBPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if path == "" {
+		t.Error("expected non-empty path")
+	}
+	if !strings.Contains(path, "mecha.db") {
+		t.Errorf("path = %q, want containing mecha.db", path)
+	}
+}
+
+func TestOpenBadPath(t *testing.T) {
+	_, err := Open("/dev/null/impossible/path.db")
+	if err == nil {
+		t.Error("expected error for bad path")
+	}
 }
 
 func TestOpenWALMode(t *testing.T) {
