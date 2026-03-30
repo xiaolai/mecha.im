@@ -108,6 +108,9 @@ func parsePullRequest(payload map[string]any, ev *event.Event) {
 	}
 	if base, ok := pr["base"].(map[string]any); ok {
 		ev.Payload["base_branch"], _ = base["ref"].(string)
+		if sha, ok := base["sha"].(string); ok {
+			ev.Payload["base_sha"] = sha
+		}
 	}
 	if labels, ok := pr["labels"].([]any); ok {
 		var names []string

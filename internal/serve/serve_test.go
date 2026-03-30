@@ -284,6 +284,32 @@ func TestDispatchWorkerReturnsError(t *testing.T) {
 	}
 }
 
+func TestNilSourcesWebhook404(t *testing.T) {
+	// Server with nil Sources/Events should not register webhook routes
+	s, cleanup := testServer(t)
+	defer cleanup()
+
+	req := httptest.NewRequest("POST", "/webhook/github", strings.NewReader("{}"))
+	rec := httptest.NewRecorder()
+	s.httpSrv.Handler.ServeHTTP(rec, req)
+	// Should be 405 or 404 since routes are not registered
+	if rec.Code == http.StatusOK || rec.Code == http.StatusAccepted {
+		t.Errorf("webhook with nil sources should not succeed, got %d", rec.Code)
+	}
+}
+
+func TestNilSourcesEvents404(t *testing.T) {
+	s, cleanup := testServer(t)
+	defer cleanup()
+
+	req := httptest.NewRequest("GET", "/events", nil)
+	rec := httptest.NewRecorder()
+	s.httpSrv.Handler.ServeHTTP(rec, req)
+	if rec.Code == http.StatusOK {
+		t.Errorf("events with nil store should not return 200, got %d", rec.Code)
+	}
+}
+
 func TestListWorkers(t *testing.T) {
 	s, cleanup := testServer(t)
 	defer cleanup()

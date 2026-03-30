@@ -234,6 +234,31 @@ func TestDispatchTaskNotFound(t *testing.T) {
 	s.dispatchTask(context.Background(), "nonexistent-task-id")
 }
 
+func TestDispatchTaskCompleteFailureStopsEventCompletion(t *testing.T) {
+	s, cleanup := testDispatchServer(t)
+
+	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"output":"ok"}`))
+	}))
+	defer mock.Close()
+
+	s.reg.Add(&worker.Worker{Name: "db-fail-w", Endpoint: mock.URL})
+	s.reg.Start("db-fail-w")
+
+	tk, _ := s.tasks.Create(context.Background(), "db-fail-w", "test")
+
+	// Close DB to force tasks.Complete to fail
+	cleanup()
+
+	s.dispatchTask(context.Background(), tk.ID)
+
+	// Worker should be restored to online (not stuck in busy)
+	entry, ok := s.reg.Get("db-fail-w")
+	if ok && entry.State == worker.StateBusy {
+		t.Error("worker should not be stuck in busy after DB failure")
+	}
+}
+
 func TestIsTransportError(t *testing.T) {
 	tests := []struct {
 		msg  string

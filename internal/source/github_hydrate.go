@@ -38,14 +38,15 @@ func (g *GitHubSource) Hydrate(ctx context.Context, ev *event.Event) error {
 func (g *GitHubSource) hydratePR(ctx context.Context, ev *event.Event) error {
 	client := &http.Client{Timeout: 30 * time.Second}
 
-	// Prefer SHA-pinned compare (immutable) over mutable PR endpoint
+	// SHA-pinned compare (immutable) — both SHAs are commit hashes, no escaping needed
 	headSHA, _ := ev.Payload["head_sha"].(string)
-	baseBranch, _ := ev.Payload["base_branch"].(string)
+	baseSHA, _ := ev.Payload["base_sha"].(string)
 	var diffURL string
-	if headSHA != "" && baseBranch != "" {
+	if headSHA != "" && baseSHA != "" {
 		diffURL = fmt.Sprintf("%s/repos/%s/%s/compare/%s...%s",
-			githubAPIBase, ev.RepoOwner, ev.RepoName, baseBranch, headSHA)
+			githubAPIBase, ev.RepoOwner, ev.RepoName, baseSHA, headSHA)
 	} else {
+		// Fallback to mutable PR endpoint (base_sha unavailable)
 		diffURL = fmt.Sprintf("%s/repos/%s/%s/pulls/%d",
 			githubAPIBase, ev.RepoOwner, ev.RepoName, ev.Number)
 	}
@@ -60,14 +61,22 @@ func (g *GitHubSource) hydratePR(ctx context.Context, ev *event.Event) error {
 		ev.Payload["diff"] = diff
 	}
 
-	// Fetch file list with pagination
+	// Fetch file list with pagination (up to 10 pages = 1000 files)
+	var allFiles []string
 	filesURL := fmt.Sprintf("%s/repos/%s/%s/pulls/%d/files?per_page=100",
 		githubAPIBase, ev.RepoOwner, ev.RepoName, ev.Number)
-	filesBody, err := g.githubGet(ctx, client, filesURL, "application/vnd.github+json")
-	if err != nil {
-		ev.Payload["file_list"] = ""
+	for page := 0; page < 10 && filesURL != ""; page++ {
+		body, nextURL, err := g.githubGetPaginated(ctx, client, filesURL)
+		if err != nil {
+			break
+		}
+		allFiles = append(allFiles, extractFileList(body)...)
+		filesURL = nextURL
+	}
+	if len(allFiles) > 0 {
+		ev.Payload["file_list"] = strings.Join(allFiles, "\n")
 	} else {
-		ev.Payload["file_list"] = extractFileNames(filesBody)
+		ev.Payload["file_list"] = ""
 	}
 
 	return nil
@@ -97,14 +106,53 @@ func (g *GitHubSource) githubGet(ctx context.Context, client *http.Client, url, 
 	return string(body), nil
 }
 
-func extractFileNames(body string) string {
+// githubGetPaginated fetches a URL and returns the body + next page URL (from Link header).
+func (g *GitHubSource) githubGetPaginated(ctx context.Context, client *http.Client, url string) (string, string, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return "", "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+g.token)
+	req.Header.Set("Accept", "application/vnd.github+json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", "", fmt.Errorf("github api: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxDiffSize+1024))
+	if err != nil {
+		return "", "", err
+	}
+	if resp.StatusCode != 200 {
+		return "", "", fmt.Errorf("github api %d: %s", resp.StatusCode, string(body[:min(len(body), 200)]))
+	}
+	return string(body), parseNextLink(resp.Header.Get("Link")), nil
+}
+
+func parseNextLink(link string) string {
+	for _, part := range strings.Split(link, ",") {
+		part = strings.TrimSpace(part)
+		if strings.Contains(part, `rel="next"`) {
+			start := strings.Index(part, "<")
+			end := strings.Index(part, ">")
+			if start >= 0 && end > start {
+				return part[start+1 : end]
+			}
+		}
+	}
+	return ""
+}
+
+func extractFileList(body string) []string {
 	var files []struct{ Filename string }
 	if err := json.Unmarshal([]byte(body), &files); err != nil {
-		return ""
+		return nil
 	}
-	var names []string
+	names := make([]string, 0, len(files))
 	for _, f := range files {
 		names = append(names, f.Filename)
 	}
-	return strings.Join(names, "\n")
+	return names
 }
