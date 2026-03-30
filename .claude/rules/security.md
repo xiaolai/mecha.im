@@ -1,29 +1,26 @@
 ---
-description: Security invariants — all GitHub writes through mecha, workers never get tokens
+description: Security design — writes through Policy, worker isolation, secret handling
 globs: "**/*.go"
 ---
 
 # Security Rules
 
-## All Writes Through Mecha
+## All Writes Through Mecha (Phase 5 goal)
 
-Workers never talk to GitHub. Mecha is the only thing that writes.
+The intended architecture routes all GitHub writes through Policy:
 
 ```
 Worker → mecha → Policy → GitHub
 ```
 
-Never:
+Workers *may* receive GitHub tokens via `docker.env` if explicitly configured.
+Policy-based write filtering is a Phase 5 feature.
 
-```
-Worker → GitHub
-```
+## Workers Are Configurable
 
-## Workers Are Isolated
-
-- No GitHub token in worker containers. Period.
-- Worker knows mecha callback URL, not GitHub.
-- All GitHub writes go through Policy first.
+- Workers receive credentials via `docker.env` or `docker.token`.
+- Any env var is allowed except runtime-reserved keys (`WORKER_BACKEND`, etc.).
+- Credential policy (what a worker is allowed to have) is a Phase 5 concern.
 
 ### Secret Delivery
 
