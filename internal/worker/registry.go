@@ -162,6 +162,15 @@ func (r *Registry) SetOnline(name string) error {
 	})
 }
 
+// Reload re-reads all workers from SQLite into the in-memory cache.
+// Called before dispatch to pick up changes made by other processes (CLI).
+func (r *Registry) Reload() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.entries = make(map[string]*Entry)
+	return r.load()
+}
+
 // Get returns a copy of the named entry. Safe for concurrent use.
 func (r *Registry) Get(name string) (Entry, bool) {
 	r.mu.Lock()

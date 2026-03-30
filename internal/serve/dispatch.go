@@ -34,6 +34,11 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 		return
 	}
 
+	// Reload registry from SQLite to pick up workers added by CLI
+	if err := s.reg.Reload(); err != nil {
+		s.logger.Error("dispatch: reload registry", "err", err)
+	}
+
 	entry, ok := s.reg.Get(t.WorkerName)
 	if !ok {
 		_ = s.tasks.Fail(ctx, taskID, "worker not found")
