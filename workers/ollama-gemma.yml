@@ -1,0 +1,3 @@
+name: ollama-gemma
+endpoint: http://overlay-node-4:8090
+timeout: 10m
