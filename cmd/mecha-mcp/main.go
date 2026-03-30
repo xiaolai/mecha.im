@@ -1,20 +1,15 @@
 package main
 
 import (
-	"embed"
 	"encoding/json"
 	"fmt"
-	"io/fs"
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 )
-
-//go:embed docs/*.md
-var docsFS embed.FS
 
 type docPage struct {
 	Slug  string `json:"slug"`
@@ -22,33 +17,30 @@ type docPage struct {
 	Body  string `json:"-"`
 }
 
-var (
-	pages     []docPage
-	pagesOnce sync.Once
-)
+var pages []docPage
 
-func loadPages() {
-	pagesOnce.Do(func() {
-		entries, err := fs.ReadDir(docsFS, "docs")
+func loadPages(dir string) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return fmt.Errorf("read docs dir %s: %w", dir, err)
+	}
+	pages = nil
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(dir, e.Name()))
 		if err != nil {
-			log.Fatalf("read embedded docs: %v", err)
+			continue
 		}
-		for _, e := range entries {
-			if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
-				continue
-			}
-			data, err := fs.ReadFile(docsFS, "docs/"+e.Name())
-			if err != nil {
-				continue
-			}
-			slug := strings.TrimSuffix(e.Name(), ".md")
-			title, body := parseFrontmatter(string(data))
-			if title == "" {
-				title = slug
-			}
-			pages = append(pages, docPage{Slug: slug, Title: title, Body: body})
+		slug := strings.TrimSuffix(e.Name(), ".md")
+		title, body := parseFrontmatter(string(data))
+		if title == "" {
+			title = slug
 		}
-	})
+		pages = append(pages, docPage{Slug: slug, Title: title, Body: body})
+	}
+	return nil
 }
 
 func parseFrontmatter(content string) (title, body string) {
@@ -100,9 +92,9 @@ type mcpRequest struct {
 }
 
 type mcpResponse struct {
-	JSONRPC string `json:"jsonrpc"`
-	ID      any    `json:"id,omitempty"`
-	Result  any    `json:"result,omitempty"`
+	JSONRPC string    `json:"jsonrpc"`
+	ID      any       `json:"id,omitempty"`
+	Result  any       `json:"result,omitempty"`
 	Error   *mcpError `json:"error,omitempty"`
 }
 
@@ -119,13 +111,8 @@ func handleMCP(msg mcpRequest) mcpResponse {
 			ID:      msg.ID,
 			Result: map[string]any{
 				"protocolVersion": "2024-11-05",
-				"capabilities": map[string]any{
-					"tools": map[string]any{},
-				},
-				"serverInfo": map[string]any{
-					"name":    "mecha-docs",
-					"version": "0.1.0",
-				},
+				"capabilities":   map[string]any{"tools": map[string]any{}},
+				"serverInfo":     map[string]any{"name": "mecha-docs", "version": "0.1.0"},
 			},
 		}
 
@@ -138,10 +125,7 @@ func handleMCP(msg mcpRequest) mcpResponse {
 					{
 						"name":        "list-topics",
 						"description": "List all mecha documentation topics",
-						"inputSchema": map[string]any{
-							"type":       "object",
-							"properties": map[string]any{},
-						},
+						"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
 					},
 					{
 						"name":        "get-page",
@@ -149,10 +133,7 @@ func handleMCP(msg mcpRequest) mcpResponse {
 						"inputSchema": map[string]any{
 							"type": "object",
 							"properties": map[string]any{
-								"slug": map[string]any{
-									"type":        "string",
-									"description": "Page slug (e.g., 'workers', 'events', 'installation')",
-								},
+								"slug": map[string]any{"type": "string", "description": "Page slug (e.g., 'workers', 'events', 'installation')"},
 							},
 							"required": []string{"slug"},
 						},
@@ -163,10 +144,7 @@ func handleMCP(msg mcpRequest) mcpResponse {
 						"inputSchema": map[string]any{
 							"type": "object",
 							"properties": map[string]any{
-								"query": map[string]any{
-									"type":        "string",
-									"description": "Search keyword or phrase",
-								},
+								"query": map[string]any{"type": "string", "description": "Search keyword or phrase"},
 							},
 							"required": []string{"query"},
 						},
@@ -184,7 +162,7 @@ func handleMCP(msg mcpRequest) mcpResponse {
 		return handleToolCall(msg.ID, params.Name, params.Arguments)
 
 	case "notifications/initialized":
-		return mcpResponse{} // no response needed
+		return mcpResponse{}
 
 	default:
 		return mcpResponse{
@@ -204,13 +182,8 @@ func handleToolCall(id any, name string, args map[string]any) mcpResponse {
 		}
 		data, _ := json.Marshal(topics)
 		return mcpResponse{
-			JSONRPC: "2.0",
-			ID:      id,
-			Result: map[string]any{
-				"content": []map[string]any{
-					{"type": "text", "text": string(data)},
-				},
-			},
+			JSONRPC: "2.0", ID: id,
+			Result: map[string]any{"content": []map[string]any{{"type": "text", "text": string(data)}}},
 		}
 
 	case "get-page":
@@ -218,24 +191,16 @@ func handleToolCall(id any, name string, args map[string]any) mcpResponse {
 		p := findPage(slug)
 		if p == nil {
 			return mcpResponse{
-				JSONRPC: "2.0",
-				ID:      id,
+				JSONRPC: "2.0", ID: id,
 				Result: map[string]any{
-					"content": []map[string]any{
-						{"type": "text", "text": fmt.Sprintf("page %q not found", slug)},
-					},
+					"content": []map[string]any{{"type": "text", "text": fmt.Sprintf("page %q not found", slug)}},
 					"isError": true,
 				},
 			}
 		}
 		return mcpResponse{
-			JSONRPC: "2.0",
-			ID:      id,
-			Result: map[string]any{
-				"content": []map[string]any{
-					{"type": "text", "text": p.Body},
-				},
-			},
+			JSONRPC: "2.0", ID: id,
+			Result: map[string]any{"content": []map[string]any{{"type": "text", "text": p.Body}}},
 		}
 
 	case "search-docs":
@@ -243,13 +208,8 @@ func handleToolCall(id any, name string, args map[string]any) mcpResponse {
 		results := searchPages(query)
 		if len(results) == 0 {
 			return mcpResponse{
-				JSONRPC: "2.0",
-				ID:      id,
-				Result: map[string]any{
-					"content": []map[string]any{
-						{"type": "text", "text": "no results for: " + query},
-					},
-				},
+				JSONRPC: "2.0", ID: id,
+				Result: map[string]any{"content": []map[string]any{{"type": "text", "text": "no results for: " + query}}},
 			}
 		}
 		var sb strings.Builder
@@ -263,25 +223,18 @@ func handleToolCall(id any, name string, args map[string]any) mcpResponse {
 			sb.WriteString("\n\n---\n\n")
 		}
 		return mcpResponse{
-			JSONRPC: "2.0",
-			ID:      id,
-			Result: map[string]any{
-				"content": []map[string]any{
-					{"type": "text", "text": sb.String()},
-				},
-			},
+			JSONRPC: "2.0", ID: id,
+			Result: map[string]any{"content": []map[string]any{{"type": "text", "text": sb.String()}}},
 		}
 
 	default:
 		return mcpResponse{
-			JSONRPC: "2.0",
-			ID:      id,
-			Error:   &mcpError{Code: -32602, Message: "unknown tool: " + name},
+			JSONRPC: "2.0", ID: id,
+			Error: &mcpError{Code: -32602, Message: "unknown tool: " + name},
 		}
 	}
 }
 
-// SSE transport for remote MCP
 func handleSSE(w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -290,21 +243,16 @@ func handleSSE(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sessionID := fmt.Sprintf("s-%d", time.Now().UnixNano())
-	messageEndpoint := fmt.Sprintf("/message?session=%s", sessionID)
-
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	// Send endpoint event
-	fmt.Fprintf(w, "event: endpoint\ndata: %s\n\n", messageEndpoint)
+	fmt.Fprintf(w, "event: endpoint\ndata: /message?session=%s\n\n", sessionID)
 	flusher.Flush()
 
-	// Keep connection alive
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
-
 	for {
 		select {
 		case <-r.Context().Done():
@@ -321,19 +269,14 @@ func handleMessage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "application/json")
 
 	var msg mcpRequest
 	if err := json.NewDecoder(r.Body).Decode(&msg); err != nil {
-		json.NewEncoder(w).Encode(mcpResponse{
-			JSONRPC: "2.0",
-			Error:   &mcpError{Code: -32700, Message: "parse error"},
-		})
+		json.NewEncoder(w).Encode(mcpResponse{JSONRPC: "2.0", Error: &mcpError{Code: -32700, Message: "parse error"}})
 		return
 	}
-
 	resp := handleMCP(msg)
 	if resp.ID == nil && resp.Error == nil && resp.Result == nil {
 		w.WriteHeader(http.StatusAccepted)
@@ -342,16 +285,15 @@ func handleMessage(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resp)
 }
 
-func handleCORS(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-	w.WriteHeader(http.StatusNoContent)
-}
-
 func main() {
-	loadPages()
-	log.Printf("loaded %d doc pages", len(pages))
+	docsDir := os.Getenv("DOCS_DIR")
+	if docsDir == "" {
+		docsDir = "website/guide"
+	}
+	if err := loadPages(docsDir); err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("loaded %d doc pages from %s", len(pages), docsDir)
 
 	addr := ":8090"
 	if v := os.Getenv("ADDR"); v != "" {
@@ -361,7 +303,12 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /sse", handleSSE)
 	mux.HandleFunc("POST /message", handleMessage)
-	mux.HandleFunc("OPTIONS /", handleCORS)
+	mux.HandleFunc("OPTIONS /", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.WriteHeader(http.StatusNoContent)
+	})
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("ok"))
 	})
