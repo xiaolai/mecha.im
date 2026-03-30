@@ -46,22 +46,42 @@
   background-color: var(--vp-c-brand-2);
 }
 
+/* Feature cards — icon and title inline (side by side) */
+.VPFeature .box {
+  display: grid !important;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 12px;
+  align-items: center;
+}
+.VPFeature .box .icon {
+  grid-row: 1;
+  grid-column: 1;
+  margin: 0 !important;
+}
+.VPFeature .box h2 {
+  grid-row: 1;
+  grid-column: 2;
+  margin: 0 !important;
+}
+.VPFeature .box .details {
+  grid-row: 2;
+  grid-column: 1 / -1;
+}
+
 /* Feature icons — no background, no border, no hover effects */
-.VPFeatures .VPFeature .VPImage {
+.VPFeature .icon,
+.VPFeature .VPImage {
   background: none !important;
   border: none !important;
   box-shadow: none !important;
   border-radius: 0 !important;
   padding: 0 !important;
+  width: 24px !important;
+  height: 24px !important;
 }
-.VPFeatures .VPFeature .icon {
-  background: none !important;
-  border: none !important;
-  box-shadow: none !important;
-  padding: 0 !important;
-}
-.VPFeatures .VPFeature:hover .icon,
-.VPFeatures .VPFeature:hover .VPImage {
+.VPFeature:hover .icon,
+.VPFeature:hover .VPImage {
   background: none !important;
   border: none !important;
   box-shadow: none !important;
