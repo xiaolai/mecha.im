@@ -1,4 +1,13 @@
 import { withMermaid } from 'vitepress-plugin-mermaid'
+import { execFileSync } from 'node:child_process'
+
+const version = (() => {
+  try {
+    return execFileSync('git', ['describe', '--tags', '--always']).toString().trim().replace(/^v/, '')
+  } catch {
+    return '0.5.1'
+  }
+})()
 
 export default withMermaid({
   lang: 'en-US',
@@ -7,6 +16,12 @@ export default withMermaid({
   base: '/',
   appearance: true,
   cleanUrls: true,
+
+  vite: {
+    define: {
+      __MECHA_VERSION__: JSON.stringify(version),
+    },
+  },
 
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }],
