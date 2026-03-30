@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"mecha.im/internal/event"
@@ -106,9 +107,11 @@ func TestGitHubSourceParseIssue(t *testing.T) {
 	}
 }
 
-func TestGitHubHydratePR(t *testing.T) {
+func TestGitHubHydratePRWithBaseSHA(t *testing.T) {
+	var diffURL string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Accept") == "application/vnd.github.diff" {
+			diffURL = r.URL.Path
 			w.Write([]byte("--- a/file.go\n+++ b/file.go\n@@ -1 +1 @@\n-old\n+new"))
 			return
 		}
@@ -128,14 +131,18 @@ func TestGitHubHydratePR(t *testing.T) {
 		RepoName:  "repo",
 		Number:    42,
 		Payload: event.Payload{
-			"head_sha":    "abc123",
-			"base_branch": "main",
+			"head_sha": "abc123",
+			"base_sha": "def456",
 		},
 	}
 
 	err := src.Hydrate(context.Background(), ev)
 	if err != nil {
 		t.Fatalf("Hydrate() error: %v", err)
+	}
+	// Verify SHA-pinned compare URL (not branch name)
+	if !strings.Contains(diffURL, "def456...abc123") {
+		t.Errorf("diff URL should use base_sha...head_sha, got %s", diffURL)
 	}
 	diff, _ := ev.Payload["diff"].(string)
 	if diff == "" {
@@ -144,6 +151,47 @@ func TestGitHubHydratePR(t *testing.T) {
 	files, _ := ev.Payload["file_list"].(string)
 	if files == "" {
 		t.Error("expected file_list to be populated")
+	}
+}
+
+func TestGitHubHydratePagination(t *testing.T) {
+	page := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Accept") == "application/vnd.github.diff" {
+			w.Write([]byte("diff"))
+			return
+		}
+		page++
+		w.Header().Set("Content-Type", "application/json")
+		if page == 1 {
+			// First page — include Link header for next page
+			next := "http://" + r.Host + "/repos/org/repo/pulls/1/files?per_page=100&page=2"
+			w.Header().Set("Link", `<`+next+`>; rel="next"`)
+			w.Write([]byte(`[{"filename":"a.go"},{"filename":"b.go"}]`))
+		} else {
+			// Second page — no more pages
+			w.Write([]byte(`[{"filename":"c.go"}]`))
+		}
+	}))
+	defer srv.Close()
+
+	old := githubAPIBase
+	githubAPIBase = srv.URL
+	defer func() { githubAPIBase = old }()
+
+	src := NewGitHubSource("", "test-token")
+	ev := &event.Event{
+		Type:      "pull_request.opened",
+		RepoOwner: "org",
+		RepoName:  "repo",
+		Number:    1,
+		Payload:   event.Payload{"head_sha": "abc", "base_sha": "def"},
+	}
+
+	src.Hydrate(context.Background(), ev)
+	files, _ := ev.Payload["file_list"].(string)
+	if !strings.Contains(files, "a.go") || !strings.Contains(files, "c.go") {
+		t.Errorf("file_list should contain files from both pages, got: %s", files)
 	}
 }
 

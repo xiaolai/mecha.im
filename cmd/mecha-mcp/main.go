@@ -61,6 +61,7 @@ func readDir(dir string) ([]docPage, error) {
 		}
 		data, err := os.ReadFile(filepath.Join(dir, e.Name()))
 		if err != nil {
+			log.Printf("warning: skipping unreadable doc %s: %v", e.Name(), err)
 			continue
 		}
 		slug := strings.TrimSuffix(e.Name(), ".md")
