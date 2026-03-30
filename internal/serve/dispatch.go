@@ -2,11 +2,12 @@ package serve
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
+	"mecha.im/internal/policy"
 	"mecha.im/internal/task"
 	"mecha.im/internal/worker"
 )
@@ -90,6 +91,15 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 		s.logger.Warn("dispatch: worker not ready", "id", taskID, "worker", t.WorkerName, "err", err)
 		return
 	}
+	// Safety net: restore worker from busy state on panic (defers run before panic propagates)
+	workerRestored := false
+	defer func() {
+		if !workerRestored {
+			if err := s.reg.SetOnline(t.WorkerName); err != nil {
+				s.logger.Warn("dispatch: restore worker after panic", "worker", t.WorkerName, "err", err)
+			}
+		}
+	}()
 
 	// Send task to worker (include API key if configured)
 	apiKey := ""
@@ -102,6 +112,7 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 		if failErr := s.tasks.Fail(ctx, taskID, redacted); failErr != nil {
 			s.logger.Error("dispatch: fail task after send error", "id", taskID, "err", failErr)
 		}
+		workerRestored = true
 		if isTransportError(err) {
 			_ = s.reg.SetError(t.WorkerName, redacted)
 		} else if onlineErr := s.reg.SetOnline(t.WorkerName); onlineErr != nil {
@@ -113,12 +124,16 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 		return
 	}
 
-	// Write-back BEFORE marking task complete (per result-contract.md)
-	wbOk := s.doWriteBack(ctx, taskID, t.EventID, result)
+	// Write-back BEFORE marking task complete (per result-contract.md).
+	// Task is always completed (stores result for audit) even if write-back fails.
+	// Event completion is gated on write-back success — failed events stay in
+	// "dispatched" state for retry, which creates a new task on re-dispatch.
+	wbOk := s.doWriteBack(ctx, taskID, t.EventID, t.WorkerName, result)
 
 	if completeErr := s.tasks.Complete(ctx, taskID, result); completeErr != nil {
 		s.logger.Error("dispatch: complete task failed", "id", taskID, "err", completeErr)
 	}
+	workerRestored = true
 	if onlineErr := s.reg.SetOnline(t.WorkerName); onlineErr != nil {
 		s.logger.Warn("dispatch: set online after completion", "id", taskID, "err", onlineErr)
 	}
@@ -131,43 +146,39 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 	s.logger.Info("task completed", "id", taskID, "worker", t.WorkerName)
 }
 
-func (s *Server) doWriteBack(ctx context.Context, taskID, eventID, result string) bool {
+func (s *Server) doWriteBack(ctx context.Context, taskID, eventID, workerName, result string) bool {
 	if eventID == "" || s.writeback == nil || s.events == nil {
-		return true // no event or no writeback configured — consider success
+		return true
 	}
 	ev, err := s.events.Get(ctx, eventID)
 	if err != nil {
 		s.logger.Error("dispatch: get event for writeback", "task", taskID, "err", err)
 		return false
 	}
-	if wbErr := s.writeback.WriteBack(ctx, ev, result); wbErr != nil {
+
+	// Parse result into typed struct
+	var res policy.Result
+	if err := json.Unmarshal([]byte(result), &res); err != nil {
+		s.logger.Warn("dispatch: parse result for policy", "task", taskID, "err", err)
+		return true // unparseable result = no write-back actions, still success
+	}
+
+	// Apply policy filter
+	policyFilter := s.getWorkerPolicy(workerName)
+	filtered, decision, err := policyFilter.Apply(ctx, ev, res)
+	if err != nil {
+		s.logger.Error("dispatch: policy error", "task", taskID, "err", err)
+		return false
+	}
+	s.logger.Info("dispatch: policy applied", "task", taskID, "worker", workerName,
+		"allowed", decision.Allowed, "denied", decision.Denied)
+
+	// Write back filtered result
+	if wbErr := s.writeback.WriteBackResult(ctx, ev, filtered); wbErr != nil {
 		s.logger.Error("dispatch: write-back failed", "task", taskID, "event", eventID, "err", wbErr)
 		return false
 	}
 	return true
 }
 
-func (s *Server) completeEvent(ctx context.Context, eventID string, success bool) {
-	if eventID == "" || s.events == nil {
-		return
-	}
-	if success {
-		if err := s.events.SetCompleted(ctx, eventID); err != nil {
-			s.logger.Error("dispatch: set event completed", "event", eventID, "err", err)
-		}
-	} else {
-		if err := s.events.SetFailed(ctx, eventID); err != nil {
-			s.logger.Error("dispatch: set event failed", "event", eventID, "err", err)
-		}
-	}
-}
-
-func isTransportError(err error) bool {
-	msg := err.Error()
-	return strings.Contains(msg, "connection refused") ||
-		strings.Contains(msg, "no such host") ||
-		strings.Contains(msg, "deadline exceeded") ||
-		strings.Contains(msg, "context canceled") ||
-		strings.Contains(msg, "EOF")
-}
 

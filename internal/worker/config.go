@@ -13,11 +13,12 @@ import (
 // Worker is the definition of a managed or unmanaged worker, parsed from YAML.
 // If Docker is non-nil, the worker is managed (mecha controls its lifecycle).
 type Worker struct {
-	Name     string        `yaml:"name"`
-	Endpoint string        `yaml:"endpoint,omitempty"`
-	Docker   *DockerConfig `yaml:"docker,omitempty"`
-	Events   []EventRule   `yaml:"events,omitempty"`
-	Timeout  time.Duration `yaml:"timeout,omitempty"`
+	Name     string            `yaml:"name"`
+	Endpoint string            `yaml:"endpoint,omitempty"`
+	Docker   *DockerConfig     `yaml:"docker,omitempty"`
+	Events   []EventRule       `yaml:"events,omitempty"`
+	Policy   map[string]any    `yaml:"policy,omitempty"`
+	Timeout  time.Duration     `yaml:"timeout,omitempty"`
 }
 
 // DockerConfig holds Docker container settings for a managed worker.
