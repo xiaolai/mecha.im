@@ -127,13 +127,15 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate HMAC signature
-	if webhookSecret != "" {
-		sig := r.Header.Get("X-Hub-Signature-256")
-		if !validateHMAC(webhookSecret, body, sig) {
-			http.Error(w, "invalid signature", http.StatusUnauthorized)
-			return
-		}
+	// Validate HMAC signature — fail closed when no secret configured
+	if webhookSecret == "" {
+		http.Error(w, "webhook disabled: no secret configured", http.StatusForbidden)
+		return
+	}
+	sig := r.Header.Get("X-Hub-Signature-256")
+	if !validateHMAC(webhookSecret, body, sig) {
+		http.Error(w, "invalid signature", http.StatusUnauthorized)
+		return
 	}
 
 	// Only react to push events
