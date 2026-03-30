@@ -12,8 +12,11 @@ vet:
 
 ci: vet test build
 
+mcp:
+	go build -ldflags "-s -w" -o mecha-mcp ./cmd/mecha-mcp
+
 clean:
-	rm -f mecha
+	rm -f mecha mecha-mcp
 
 image-base:
 	docker build -t mecha-worker-base -f docker/base/Dockerfile docker/
@@ -29,4 +32,4 @@ image-gemini: image-base
 
 images: image-claude image-codex image-gemini
 
-.PHONY: build test vet ci clean image-base image-claude image-codex image-gemini images
+.PHONY: build mcp test vet ci clean image-base image-claude image-codex image-gemini images
