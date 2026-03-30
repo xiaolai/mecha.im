@@ -3,12 +3,19 @@ package worker
 import (
 	"path/filepath"
 	"testing"
+
+	"mecha.im/internal/store"
 )
 
 func testRegistry(t *testing.T) *Registry {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "registry.json")
-	r, err := NewRegistry(path)
+	path := filepath.Join(t.TempDir(), "test.db")
+	db, err := store.Open(path)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	t.Cleanup(func() { db.Close() })
+	r, err := NewRegistry(db)
 	if err != nil {
 		t.Fatalf("new registry: %v", err)
 	}
@@ -118,15 +125,25 @@ func TestRegistryNotFound(t *testing.T) {
 }
 
 func TestRegistryPersistence(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "registry.json")
-	r1, err := NewRegistry(path)
+	path := filepath.Join(t.TempDir(), "test.db")
+	db, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r1, err := NewRegistry(db)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := r1.Add(testWorker("persist")); err != nil {
 		t.Fatal(err)
 	}
-	r2, err := NewRegistry(path)
+	db.Close()
+	db2, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db2.Close()
+	r2, err := NewRegistry(db2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -285,8 +302,12 @@ func TestRegistryClearRuntime(t *testing.T) {
 }
 
 func TestRegistryRuntimePersistence(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "registry.json")
-	r1, err := NewRegistry(path)
+	path := filepath.Join(t.TempDir(), "test.db")
+	db, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r1, err := NewRegistry(db)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -296,7 +317,13 @@ func TestRegistryRuntimePersistence(t *testing.T) {
 	if err := r1.SetRuntime("w", "cid-123", "http://127.0.0.1:9999"); err != nil {
 		t.Fatal(err)
 	}
-	r2, err := NewRegistry(path)
+	db.Close()
+	db2, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db2.Close()
+	r2, err := NewRegistry(db2)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,42 +1,32 @@
 package worker
 
 import (
+	"database/sql"
 	"fmt"
-	"os"
-	"path/filepath"
 	"sort"
 	"sync"
 	"time"
 )
 
 // Registry manages worker state with mutex-protected in-memory map
-// and atomic JSON file persistence. Thread-safe for concurrent access.
+// and SQLite persistence. Thread-safe for concurrent access.
 type Registry struct {
 	mu      sync.Mutex
 	entries map[string]*Entry
-	path    string
+	db      *sql.DB
 }
 
-// NewRegistry creates a registry backed by the given JSON file path.
-// If the file doesn't exist, starts empty. If it exists, loads entries.
-func NewRegistry(path string) (*Registry, error) {
+// NewRegistry creates a registry backed by the given SQLite database.
+// Loads existing workers from the workers table.
+func NewRegistry(db *sql.DB) (*Registry, error) {
 	r := &Registry{
 		entries: make(map[string]*Entry),
-		path:    path,
+		db:      db,
 	}
-	if err := r.load(); err != nil && !os.IsNotExist(err) {
+	if err := r.load(); err != nil {
 		return nil, fmt.Errorf("load registry: %w", err)
 	}
 	return r, nil
-}
-
-// DefaultRegistryPath returns ~/.mecha/registry.json.
-func DefaultRegistryPath() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("resolve home dir: %w", err)
-	}
-	return filepath.Join(home, ".mecha", "registry.json"), nil
 }
 
 // Add registers a new worker in offline state. Fails if name already exists.

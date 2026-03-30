@@ -29,7 +29,7 @@ func TestMain(m *testing.M) {
 func runMecha(t *testing.T, regPath string, args ...string) (string, string, int) {
 	t.Helper()
 	cmd := exec.Command(binaryPath, args...)
-	cmd.Env = append(os.Environ(), "MECHA_REGISTRY_PATH="+regPath)
+	cmd.Env = append(os.Environ(), "MECHA_DB_PATH="+regPath)
 	var stdout, stderr strings.Builder
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -47,7 +47,7 @@ func runMecha(t *testing.T, regPath string, args ...string) (string, string, int
 
 func tempRegistry(t *testing.T) string {
 	t.Helper()
-	return filepath.Join(t.TempDir(), "registry.json")
+	return filepath.Join(t.TempDir(), "mecha.db")
 }
 
 func fixtureDir() string {
