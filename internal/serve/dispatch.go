@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"mecha.im/internal/policy"
@@ -92,6 +91,15 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 		s.logger.Warn("dispatch: worker not ready", "id", taskID, "worker", t.WorkerName, "err", err)
 		return
 	}
+	// Safety net: restore worker from busy state on panic (defers run before panic propagates)
+	workerRestored := false
+	defer func() {
+		if !workerRestored {
+			if err := s.reg.SetOnline(t.WorkerName); err != nil {
+				s.logger.Warn("dispatch: restore worker after panic", "worker", t.WorkerName, "err", err)
+			}
+		}
+	}()
 
 	// Send task to worker (include API key if configured)
 	apiKey := ""
@@ -104,6 +112,7 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 		if failErr := s.tasks.Fail(ctx, taskID, redacted); failErr != nil {
 			s.logger.Error("dispatch: fail task after send error", "id", taskID, "err", failErr)
 		}
+		workerRestored = true
 		if isTransportError(err) {
 			_ = s.reg.SetError(t.WorkerName, redacted)
 		} else if onlineErr := s.reg.SetOnline(t.WorkerName); onlineErr != nil {
@@ -121,6 +130,7 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 	if completeErr := s.tasks.Complete(ctx, taskID, result); completeErr != nil {
 		s.logger.Error("dispatch: complete task failed", "id", taskID, "err", completeErr)
 	}
+	workerRestored = true
 	if onlineErr := s.reg.SetOnline(t.WorkerName); onlineErr != nil {
 		s.logger.Warn("dispatch: set online after completion", "id", taskID, "err", onlineErr)
 	}
@@ -157,9 +167,8 @@ func (s *Server) doWriteBack(ctx context.Context, taskID, eventID, workerName, r
 		s.logger.Error("dispatch: policy error", "task", taskID, "err", err)
 		return false
 	}
-	if len(decision.Denied) > 0 {
-		s.logger.Info("dispatch: policy filtered", "task", taskID, "denied", decision.Denied)
-	}
+	s.logger.Info("dispatch: policy applied", "task", taskID, "worker", workerName,
+		"allowed", decision.Allowed, "denied", decision.Denied)
 
 	// Write back filtered result
 	if wbErr := s.writeback.WriteBackResult(ctx, ev, filtered); wbErr != nil {
@@ -169,35 +178,4 @@ func (s *Server) doWriteBack(ctx context.Context, taskID, eventID, workerName, r
 	return true
 }
 
-func (s *Server) completeEvent(ctx context.Context, eventID string, success bool) {
-	if eventID == "" || s.events == nil {
-		return
-	}
-	if success {
-		if err := s.events.SetCompleted(ctx, eventID); err != nil {
-			s.logger.Error("dispatch: set event completed", "event", eventID, "err", err)
-		}
-	} else {
-		if err := s.events.SetFailed(ctx, eventID); err != nil {
-			s.logger.Error("dispatch: set event failed", "event", eventID, "err", err)
-		}
-	}
-}
-
-func (s *Server) getWorkerPolicy(workerName string) policy.Filter {
-	entry, ok := s.reg.Get(workerName)
-	if !ok || entry.Worker.Policy == nil {
-		return &policy.AllowAll{}
-	}
-	return policy.ParseRules(entry.Worker.Policy)
-}
-
-func isTransportError(err error) bool {
-	msg := err.Error()
-	return strings.Contains(msg, "connection refused") ||
-		strings.Contains(msg, "no such host") ||
-		strings.Contains(msg, "deadline exceeded") ||
-		strings.Contains(msg, "context canceled") ||
-		strings.Contains(msg, "EOF")
-}
 

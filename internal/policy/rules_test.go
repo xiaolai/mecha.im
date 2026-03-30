@@ -44,16 +44,38 @@ func TestRuleFilterBlockComment(t *testing.T) {
 
 func TestRuleFilterTruncateComment(t *testing.T) {
 	f := &RuleFilter{Comment: &CommentPolicy{Allow: true, MaxLength: 10}}
-	res := Result{Comment: &CommentAction{Body: "this is a very long comment body"}}
+	original := "this is a very long comment body"
+	res := Result{Comment: &CommentAction{Body: original}}
 	filtered, d, _ := f.Apply(context.Background(), &event.Event{}, res)
 	if filtered.Comment == nil {
 		t.Fatal("comment should exist")
 	}
-	if len(filtered.Comment.Body) > 50 { // 10 + truncation notice
-		t.Errorf("comment not truncated: len=%d", len(filtered.Comment.Body))
+	suffix := "\n\n... (truncated by policy)"
+	runes := []rune(filtered.Comment.Body)
+	// First 10 runes + suffix
+	if len(runes) != 10+len([]rune(suffix)) {
+		t.Errorf("truncated rune count = %d, want %d", len(runes), 10+len([]rune(suffix)))
 	}
 	if len(d.Allowed) != 1 || d.Allowed[0] != "comment (truncated)" {
 		t.Errorf("allowed = %v", d.Allowed)
+	}
+	// Original must not be mutated
+	if res.Comment.Body != original {
+		t.Errorf("original mutated: got %q, want %q", res.Comment.Body, original)
+	}
+}
+
+func TestRuleFilterTruncateUTF8(t *testing.T) {
+	f := &RuleFilter{Comment: &CommentPolicy{Allow: true, MaxLength: 5}}
+	res := Result{Comment: &CommentAction{Body: "\u4f60\u597d\u4e16\u754c\uff01\u6d4b\u8bd5"}} // 7 CJK chars
+	filtered, _, _ := f.Apply(context.Background(), &event.Event{}, res)
+	if filtered.Comment == nil {
+		t.Fatal("comment should exist")
+	}
+	runes := []rune(filtered.Comment.Body)
+	// First 5 CJK chars + suffix
+	if string(runes[:5]) != "\u4f60\u597d\u4e16\u754c\uff01" {
+		t.Errorf("first 5 runes = %q", string(runes[:5]))
 	}
 }
 
@@ -83,6 +105,31 @@ func TestRuleFilterBlockedLabels(t *testing.T) {
 	}
 	if len(filtered.Labels.Add) != 2 {
 		t.Errorf("add = %v, want [ok reviewed]", filtered.Labels.Add)
+	}
+}
+
+func TestRuleFilterBlockedLabelRemovals(t *testing.T) {
+	f := &RuleFilter{Labels: &LabelPolicy{Allow: true, Blocked: []string{"approved", "do-not-merge"}}}
+	res := Result{Labels: &LabelAction{
+		Add:    []string{"needs-review"},
+		Remove: []string{"approved", "stale", "do-not-merge"},
+	}}
+	filtered, d, _ := f.Apply(context.Background(), &event.Event{}, res)
+	if filtered.Labels == nil {
+		t.Fatal("labels should exist")
+	}
+	if len(filtered.Labels.Remove) != 1 || filtered.Labels.Remove[0] != "stale" {
+		t.Errorf("remove = %v, want [stale]", filtered.Labels.Remove)
+	}
+	// Should have 2 denied entries for blocked removals
+	deniedCount := 0
+	for _, msg := range d.Denied {
+		if msg != "" {
+			deniedCount++
+		}
+	}
+	if deniedCount != 2 {
+		t.Errorf("denied = %v, want 2 entries", d.Denied)
 	}
 }
 
