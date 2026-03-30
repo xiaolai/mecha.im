@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -17,6 +18,11 @@ func dockerStart(reg *worker.Registry, name string) error {
 		return fmt.Errorf("worker %q not found", name)
 	}
 	dc := e.Worker.Docker
+
+	// Re-validate config loaded from SQLite (may predate new security rules)
+	if err := dc.Validate(); err != nil {
+		return fmt.Errorf("validate worker %q config: %w", name, err)
+	}
 
 	env, err := buildContainerEnv(dc)
 	if err != nil {
@@ -64,7 +70,9 @@ func dockerStart(reg *worker.Registry, name string) error {
 	defer cancel()
 	containerID, err := dock.Create(ctx, cfg)
 	if err != nil {
-		_ = reg.SetError(name, err.Error())
+		if setErr := reg.SetError(name, err.Error()); setErr != nil {
+			fmt.Fprintf(os.Stderr, "warning: failed to set error state for %s: %v\n", name, setErr)
+		}
 		return fmt.Errorf("create container: %w", err)
 	}
 
@@ -72,19 +80,29 @@ func dockerStart(reg *worker.Registry, name string) error {
 	defer cancel2()
 	if err := dock.Start(ctx2, containerID); err != nil {
 		rmCtx, rmCancel := context.WithTimeout(context.Background(), 10*time.Second)
-		_ = dock.Remove(rmCtx, containerID)
+		if rmErr := dock.Remove(rmCtx, containerID); rmErr != nil {
+			fmt.Fprintf(os.Stderr, "warning: failed to remove container %s: %v\n", containerID, rmErr)
+		}
 		rmCancel()
-		_ = reg.SetError(name, err.Error())
+		if setErr := reg.SetError(name, err.Error()); setErr != nil {
+			fmt.Fprintf(os.Stderr, "warning: failed to set error state for %s: %v\n", name, setErr)
+		}
 		return fmt.Errorf("start container: %w", err)
 	}
 
 	endpoint, err := waitForHealth(dock, containerID, 30*time.Second)
 	if err != nil {
 		stopCtx, stopCancel := context.WithTimeout(context.Background(), 10*time.Second)
-		_ = dock.Stop(stopCtx, containerID, 5*time.Second)
-		_ = dock.Remove(stopCtx, containerID)
+		if stopErr := dock.Stop(stopCtx, containerID, 5*time.Second); stopErr != nil {
+			fmt.Fprintf(os.Stderr, "warning: failed to stop container %s: %v\n", containerID, stopErr)
+		}
+		if rmErr := dock.Remove(stopCtx, containerID); rmErr != nil {
+			fmt.Fprintf(os.Stderr, "warning: failed to remove container %s: %v\n", containerID, rmErr)
+		}
 		stopCancel()
-		_ = reg.SetError(name, err.Error())
+		if setErr := reg.SetError(name, err.Error()); setErr != nil {
+			fmt.Fprintf(os.Stderr, "warning: failed to set error state for %s: %v\n", name, setErr)
+		}
 		return fmt.Errorf("health check: %w", err)
 	}
 
@@ -135,8 +153,16 @@ func dockerRemove(reg *worker.Registry, name string) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), dockerTimeout)
 	defer cancel()
-	_ = dock.Stop(ctx, containerRef, 5*time.Second)
-	_ = dock.Remove(ctx, containerRef)
+	if err := dock.Stop(ctx, containerRef, 5*time.Second); err != nil &&
+		!strings.Contains(err.Error(), "No such container") &&
+		!strings.Contains(err.Error(), "not found") {
+		fmt.Fprintf(os.Stderr, "warning: failed to stop container %s: %v\n", containerRef, err)
+	}
+	if err := dock.Remove(ctx, containerRef); err != nil &&
+		!strings.Contains(err.Error(), "No such container") &&
+		!strings.Contains(err.Error(), "not found") {
+		fmt.Fprintf(os.Stderr, "warning: failed to remove container %s: %v\n", containerRef, err)
+	}
 	return reg.ClearRuntime(name)
 }
 

@@ -1,7 +1,10 @@
 FROM mecha-worker-base
 
-RUN curl -fsSL https://raw.githubusercontent.com/openai/codex/main/codex-cli/scripts/install.sh | bash \
-    || npm install -g @openai/codex
+USER root
+
+RUN npm install -g @openai/codex
+
+USER worker
 
 ENV WORKER_BACKEND=codex
 EXPOSE 8080

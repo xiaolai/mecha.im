@@ -17,6 +17,10 @@ RUN groupadd -r worker && useradd -r -g worker -m -s /bin/bash worker
 
 COPY runtime/ /app/
 WORKDIR /app
-RUN bun install --production && chmod +x /app/entrypoint.sh
+# Use frozen lockfile when available for reproducible builds.
+# Generate lockfile: cd docker/runtime && bun install && cp bun.lock ../
+RUN if [ -f bun.lock ]; then bun install --frozen-lockfile --production; else bun install --production; fi \
+    && chmod +x /app/entrypoint.sh
 
 WORKDIR /workspace
+USER worker

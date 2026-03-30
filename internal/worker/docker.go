@@ -99,9 +99,11 @@ func (d *DockerClient) Create(ctx context.Context, cfg ContainerCfg) (string, er
 		resources.NanoCPUs = int64(cfg.Resources.CPU) * 1e9
 	}
 	if cfg.Resources.Memory != "" {
-		if mem, err := parseMemory(cfg.Resources.Memory); err == nil {
-			resources.Memory = mem
+		mem, err := parseMemory(cfg.Resources.Memory)
+		if err != nil {
+			return "", fmt.Errorf("invalid memory spec %q: %w", cfg.Resources.Memory, err)
 		}
+		resources.Memory = mem
 	}
 	if cfg.Resources.Pids > 0 {
 		resources.PidsLimit = ptr(int64(cfg.Resources.Pids))
@@ -119,6 +121,8 @@ func (d *DockerClient) Create(ctx context.Context, cfg ContainerCfg) (string, er
 			PortBindings: portMap,
 			Mounts:       mounts,
 			Resources:    resources,
+			SecurityOpt:  []string{"no-new-privileges:true"},
+			CapDrop:      []string{"ALL"},
 		},
 		Name: cfg.Name,
 	})

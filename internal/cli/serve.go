@@ -52,12 +52,13 @@ func serveCmd() *cobra.Command {
 			// Load secrets for GitHub adapter + write-back
 			secretsPath, err := worker.DefaultSecretsPath()
 			if err != nil {
-				logger.Warn("secrets path error", "err", err)
+				return fmt.Errorf("resolve secrets path: %w", err)
 			}
 			secrets, err := worker.LoadSecrets(secretsPath)
 			if err != nil {
-				logger.Warn("secrets load error (GitHub features disabled)", "err", err)
-				secrets = &worker.Secrets{} // safe empty default
+				// LoadSecrets already returns empty for missing file;
+				// other errors (bad permissions, invalid YAML) are fatal.
+				return fmt.Errorf("load secrets: %w", err)
 			}
 
 			// Register event sources
@@ -65,11 +66,11 @@ func serveCmd() *cobra.Command {
 			ghToken := secrets.GitHub.Token
 			ghSecret := secrets.GitHub.WebhookSecret
 			if ghToken != "" || ghSecret != "" {
+				if ghSecret == "" {
+					return fmt.Errorf("github.webhook_secret is required in secrets.yml when github source is enabled (set github.webhook_secret or remove github.token to disable)")
+				}
 				sources.Register(source.NewGitHubSource(ghSecret, ghToken))
 				logger.Info("github source registered")
-				if ghSecret == "" {
-					logger.Warn("WARNING: webhook secret is empty — webhooks are NOT authenticated")
-				}
 			}
 
 			// Write-back client

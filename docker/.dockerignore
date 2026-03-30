@@ -1,0 +1,11 @@
+**/.env*
+**/*.pem
+**/*.key
+**/secrets.*
+dev-docs/
+.claude/
+.codex/
+.gemini/
+node_modules/
+.git/
+*.md

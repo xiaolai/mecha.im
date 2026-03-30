@@ -34,7 +34,9 @@ func workerLsCmd() *cobra.Command {
 				}
 				health := probeResults[i]
 				if health == "unreachable" && e.State == worker.StateOnline {
-					_ = reg.SetError(e.Worker.Name, "health check failed")
+					if setErr := reg.SetError(e.Worker.Name, "health check failed"); setErr != nil {
+						fmt.Fprintf(os.Stderr, "warning: failed to set error state for %s: %v\n", e.Worker.Name, setErr)
+					}
 				}
 				fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
 					e.Worker.Name,
