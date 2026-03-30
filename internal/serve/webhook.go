@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"text/template"
 	"time"
 
@@ -47,6 +48,11 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.events.Create(r.Context(), ev); err != nil {
+		// Unique constraint on delivery_id → treat as duplicate
+		if strings.Contains(err.Error(), "UNIQUE constraint") {
+			writeJSON(w, http.StatusOK, map[string]string{"status": "duplicate"})
+			return
+		}
 		s.logger.Error("webhook: persist event", "err", err)
 		writeError(w, http.StatusInternalServerError, "persist event failed")
 		return
@@ -111,7 +117,8 @@ func (s *Server) matchAndHydrate(ctx context.Context, ev *event.Event, src sourc
 			}
 
 			if err := s.events.SetDispatched(ctx, ev.ID, t.ID); err != nil {
-				s.logger.Error("webhook: set dispatched", "event", ev.ID, "err", err)
+				s.logger.Error("webhook: set dispatched failed, not enqueuing", "event", ev.ID, "err", err)
+				return
 			}
 			s.pending <- t.ID
 			s.logger.Info("webhook: dispatched", "event", ev.ID, "task", t.ID, "worker", entry.Worker.Name)

@@ -57,6 +57,7 @@ func serveCmd() *cobra.Command {
 			secrets, err := worker.LoadSecrets(secretsPath)
 			if err != nil {
 				logger.Warn("secrets load error (GitHub features disabled)", "err", err)
+				secrets = &worker.Secrets{} // safe empty default
 			}
 
 			// Register event sources

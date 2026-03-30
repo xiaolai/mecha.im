@@ -105,39 +105,64 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 		if failErr := s.tasks.Fail(ctx, taskID, redacted); failErr != nil {
 			s.logger.Error("dispatch: fail task after send error", "id", taskID, "err", failErr)
 		}
-		// Transport failures → worker error state. Task-level failures → back to online.
 		if isTransportError(err) {
 			_ = s.reg.SetError(t.WorkerName, redacted)
 		} else if onlineErr := s.reg.SetOnline(t.WorkerName); onlineErr != nil {
 			s.logger.Warn("dispatch: set online after failure", "id", taskID, "err", onlineErr)
 		}
+		// Update event on failure
+		s.completeEvent(ctx, t.EventID, false)
 		s.logger.Error("dispatch: send failed", "id", taskID, "err", redacted)
 		return
 	}
 
+	// Write-back BEFORE marking task complete (per result-contract.md)
+	wbOk := s.doWriteBack(ctx, taskID, t.EventID, result)
+
 	if completeErr := s.tasks.Complete(ctx, taskID, result); completeErr != nil {
-		s.logger.Error("dispatch: complete task failed — result lost", "id", taskID, "err", completeErr)
+		s.logger.Error("dispatch: complete task failed", "id", taskID, "err", completeErr)
 	}
 	if onlineErr := s.reg.SetOnline(t.WorkerName); onlineErr != nil {
 		s.logger.Warn("dispatch: set online after completion", "id", taskID, "err", onlineErr)
 	}
 
-	// Write-back: if task originated from an event, write result to GitHub
-	if t.EventID != "" && s.writeback != nil && s.events != nil {
-		ev, err := s.events.Get(ctx, t.EventID)
-		if err == nil {
-			if wbErr := s.writeback.WriteBack(ctx, ev, result); wbErr != nil {
-				s.logger.Error("dispatch: write-back failed", "id", taskID, "event", ev.ID, "err", wbErr)
-				// Event stays in dispatched state — can be retried
-			} else {
-				if err := s.events.SetCompleted(ctx, ev.ID); err != nil {
-					s.logger.Error("dispatch: set event completed", "event", ev.ID, "err", err)
-				}
-			}
-		}
+	if wbOk {
+		s.completeEvent(ctx, t.EventID, true)
 	}
+	// If write-back failed, event stays dispatched for retry
 
 	s.logger.Info("task completed", "id", taskID, "worker", t.WorkerName)
+}
+
+func (s *Server) doWriteBack(ctx context.Context, taskID, eventID, result string) bool {
+	if eventID == "" || s.writeback == nil || s.events == nil {
+		return true // no event or no writeback configured — consider success
+	}
+	ev, err := s.events.Get(ctx, eventID)
+	if err != nil {
+		s.logger.Error("dispatch: get event for writeback", "task", taskID, "err", err)
+		return false
+	}
+	if wbErr := s.writeback.WriteBack(ctx, ev, result); wbErr != nil {
+		s.logger.Error("dispatch: write-back failed", "task", taskID, "event", eventID, "err", wbErr)
+		return false
+	}
+	return true
+}
+
+func (s *Server) completeEvent(ctx context.Context, eventID string, success bool) {
+	if eventID == "" || s.events == nil {
+		return
+	}
+	if success {
+		if err := s.events.SetCompleted(ctx, eventID); err != nil {
+			s.logger.Error("dispatch: set event completed", "event", eventID, "err", err)
+		}
+	} else {
+		if err := s.events.SetFailed(ctx, eventID); err != nil {
+			s.logger.Error("dispatch: set event failed", "event", eventID, "err", err)
+		}
+	}
 }
 
 func isTransportError(err error) bool {

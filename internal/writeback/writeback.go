@@ -3,6 +3,7 @@ package writeback
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -64,8 +65,7 @@ func (c *Client) WriteBack(ctx context.Context, ev *event.Event, resultJSON stri
 
 	var result TaskResult
 	if err := json.Unmarshal([]byte(resultJSON), &result); err != nil {
-		c.logger.Warn("writeback: parse result", "event", ev.ID, "err", err)
-		return nil
+		return fmt.Errorf("parse result: %w", err)
 	}
 
 	owner, repo := ev.RepoOwner, ev.RepoName

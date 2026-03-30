@@ -24,11 +24,10 @@ func init() {
 }
 
 // Hydrate enriches an event with data from the GitHub API.
-// Fetches diff and file list for pull_request events.
-// Keyed to immutable SHA — safe to call after persist.
+// Uses SHA-pinned endpoints to avoid TOCTOU with mutable PR state.
 func (g *GitHubSource) Hydrate(ctx context.Context, ev *event.Event) error {
 	if g.token == "" || ev.Number == 0 {
-		return nil // no token or not a PR/issue — nothing to hydrate
+		return nil
 	}
 	if strings.HasPrefix(ev.Type, "pull_request") {
 		return g.hydratePR(ctx, ev)
@@ -39,9 +38,17 @@ func (g *GitHubSource) Hydrate(ctx context.Context, ev *event.Event) error {
 func (g *GitHubSource) hydratePR(ctx context.Context, ev *event.Event) error {
 	client := &http.Client{Timeout: 30 * time.Second}
 
-	// Fetch diff
-	diffURL := fmt.Sprintf("%s/repos/%s/%s/pulls/%d",
-		githubAPIBase, ev.RepoOwner, ev.RepoName, ev.Number)
+	// Prefer SHA-pinned compare (immutable) over mutable PR endpoint
+	headSHA, _ := ev.Payload["head_sha"].(string)
+	baseBranch, _ := ev.Payload["base_branch"].(string)
+	var diffURL string
+	if headSHA != "" && baseBranch != "" {
+		diffURL = fmt.Sprintf("%s/repos/%s/%s/compare/%s...%s",
+			githubAPIBase, ev.RepoOwner, ev.RepoName, baseBranch, headSHA)
+	} else {
+		diffURL = fmt.Sprintf("%s/repos/%s/%s/pulls/%d",
+			githubAPIBase, ev.RepoOwner, ev.RepoName, ev.Number)
+	}
 	diff, err := g.githubGet(ctx, client, diffURL, "application/vnd.github.diff")
 	if err != nil {
 		ev.Payload["diff"] = ""
@@ -53,8 +60,8 @@ func (g *GitHubSource) hydratePR(ctx context.Context, ev *event.Event) error {
 		ev.Payload["diff"] = diff
 	}
 
-	// Fetch file list
-	filesURL := fmt.Sprintf("%s/repos/%s/%s/pulls/%d/files",
+	// Fetch file list with pagination
+	filesURL := fmt.Sprintf("%s/repos/%s/%s/pulls/%d/files?per_page=100",
 		githubAPIBase, ev.RepoOwner, ev.RepoName, ev.Number)
 	filesBody, err := g.githubGet(ctx, client, filesURL, "application/vnd.github+json")
 	if err != nil {
@@ -91,7 +98,6 @@ func (g *GitHubSource) githubGet(ctx context.Context, client *http.Client, url, 
 }
 
 func extractFileNames(body string) string {
-	// Quick parse: look for "filename" fields in JSON array
 	var files []struct{ Filename string }
 	if err := json.Unmarshal([]byte(body), &files); err != nil {
 		return ""
@@ -102,4 +108,3 @@ func extractFileNames(body string) string {
 	}
 	return strings.Join(names, "\n")
 }
-
