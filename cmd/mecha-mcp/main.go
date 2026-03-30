@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -17,14 +18,37 @@ type docPage struct {
 	Body  string `json:"-"`
 }
 
-var pages []docPage
+var (
+	docsDir string
+	mu      sync.RWMutex
+	pages   []docPage
+)
 
-func loadPages(dir string) error {
+// reloadPages reads all markdown files from disk.
+// Called on startup and before each tool call.
+func reloadPages() {
+	loaded, err := readDir(docsDir)
+	if err != nil {
+		log.Printf("reload docs: %v", err)
+		return
+	}
+	mu.Lock()
+	pages = loaded
+	mu.Unlock()
+}
+
+func getPages() []docPage {
+	mu.RLock()
+	defer mu.RUnlock()
+	return pages
+}
+
+func readDir(dir string) ([]docPage, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return fmt.Errorf("read docs dir %s: %w", dir, err)
+		return nil, fmt.Errorf("read docs dir %s: %w", dir, err)
 	}
-	pages = nil
+	var result []docPage
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
 			continue
@@ -38,9 +62,9 @@ func loadPages(dir string) error {
 		if title == "" {
 			title = slug
 		}
-		pages = append(pages, docPage{Slug: slug, Title: title, Body: body})
+		result = append(result, docPage{Slug: slug, Title: title, Body: body})
 	}
-	return nil
+	return result, nil
 }
 
 func parseFrontmatter(content string) (title, body string) {
@@ -62,19 +86,19 @@ func parseFrontmatter(content string) (title, body string) {
 	return title, body
 }
 
-func findPage(slug string) *docPage {
-	for i := range pages {
-		if pages[i].Slug == slug {
-			return &pages[i]
+func findPage(slug string, pp []docPage) *docPage {
+	for i := range pp {
+		if pp[i].Slug == slug {
+			return &pp[i]
 		}
 	}
 	return nil
 }
 
-func searchPages(query string) []docPage {
+func searchPages(query string, pp []docPage) []docPage {
 	q := strings.ToLower(query)
 	var results []docPage
-	for _, p := range pages {
+	for _, p := range pp {
 		if strings.Contains(strings.ToLower(p.Title), q) ||
 			strings.Contains(strings.ToLower(p.Body), q) {
 			results = append(results, p)
@@ -174,10 +198,12 @@ func handleMCP(msg mcpRequest) mcpResponse {
 }
 
 func handleToolCall(id any, name string, args map[string]any) mcpResponse {
+	pp := getPages()
+
 	switch name {
 	case "list-topics":
 		var topics []map[string]string
-		for _, p := range pages {
+		for _, p := range pp {
 			topics = append(topics, map[string]string{"slug": p.Slug, "title": p.Title})
 		}
 		data, _ := json.Marshal(topics)
@@ -188,7 +214,7 @@ func handleToolCall(id any, name string, args map[string]any) mcpResponse {
 
 	case "get-page":
 		slug, _ := args["slug"].(string)
-		p := findPage(slug)
+		p := findPage(slug, pp)
 		if p == nil {
 			return mcpResponse{
 				JSONRPC: "2.0", ID: id,
@@ -205,7 +231,7 @@ func handleToolCall(id any, name string, args map[string]any) mcpResponse {
 
 	case "search-docs":
 		query, _ := args["query"].(string)
-		results := searchPages(query)
+		results := searchPages(query, pp)
 		if len(results) == 0 {
 			return mcpResponse{
 				JSONRPC: "2.0", ID: id,
@@ -285,15 +311,41 @@ func handleMessage(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resp)
 }
 
+// watchDir polls the docs directory for changes and reloads when modified.
+func watchDir(dir string, interval time.Duration) {
+	var lastMod time.Time
+	for {
+		time.Sleep(interval)
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+		var newest time.Time
+		for _, e := range entries {
+			if info, err := e.Info(); err == nil {
+				if info.ModTime().After(newest) {
+					newest = info.ModTime()
+				}
+			}
+		}
+		if newest.After(lastMod) {
+			lastMod = newest
+			reloadPages()
+			log.Printf("docs reloaded (%d pages)", len(getPages()))
+		}
+	}
+}
+
 func main() {
-	docsDir := os.Getenv("DOCS_DIR")
+	docsDir = os.Getenv("DOCS_DIR")
 	if docsDir == "" {
 		docsDir = "website/guide"
 	}
-	if err := loadPages(docsDir); err != nil {
-		log.Fatal(err)
-	}
-	log.Printf("loaded %d doc pages from %s", len(pages), docsDir)
+	reloadPages()
+	log.Printf("loaded %d doc pages from %s", len(getPages()), docsDir)
+
+	// Watch for file changes every 5 seconds
+	go watchDir(docsDir, 5*time.Second)
 
 	addr := ":8090"
 	if v := os.Getenv("ADDR"); v != "" {
