@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"text/template"
+	"time"
 
 	"mecha.im/internal/event"
 	"mecha.im/internal/source"
@@ -22,7 +23,7 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body, err := io.ReadAll(io.LimitReader(r.Body, 25<<20))
+	body, err := io.ReadAll(io.LimitReader(r.Body, 5<<20)) // 5MB limit
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "read body failed")
 		return
@@ -34,7 +35,13 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if s.events.DeliveryExists(r.Context(), ev.DeliveryID) {
+	exists, err := s.events.DeliveryExists(r.Context(), ev.DeliveryID)
+	if err != nil {
+		s.logger.Error("webhook: check delivery", "err", err)
+		writeError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+	if exists {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "duplicate"})
 		return
 	}
@@ -47,8 +54,17 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusAccepted, ev)
 
-	// Match + hydrate + dispatch in background
-	go s.matchAndHydrate(context.Background(), ev, src)
+	// Match + hydrate + dispatch in background with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	go func() {
+		defer cancel()
+		defer func() {
+			if r := recover(); r != nil {
+				s.logger.Error("webhook: panic in matchAndHydrate", "event", ev.ID, "panic", r)
+			}
+		}()
+		s.matchAndHydrate(ctx, ev, src)
+	}()
 }
 
 func (s *Server) matchAndHydrate(ctx context.Context, ev *event.Event, src source.Source) {
@@ -62,7 +78,8 @@ func (s *Server) matchAndHydrate(ctx context.Context, ev *event.Event, src sourc
 			if !matchesRule(rule, ev) {
 				continue
 			}
-			// First match — hydrate if possible
+
+			// Hydrate if source supports it
 			if h, ok := src.(source.Hydrator); ok {
 				if err := h.Hydrate(ctx, ev); err != nil {
 					s.logger.Warn("webhook: hydrate", "event", ev.ID, "err", err)
@@ -72,28 +89,39 @@ func (s *Server) matchAndHydrate(ctx context.Context, ev *event.Event, src sourc
 			prompt, err := renderPrompt(rule, ev)
 			if err != nil {
 				s.logger.Error("webhook: render prompt", "event", ev.ID, "err", err)
-				_ = s.events.SetFailed(ctx, ev.ID)
+				if err := s.events.SetFailed(ctx, ev.ID); err != nil {
+					s.logger.Error("webhook: set failed", "event", ev.ID, "err", err)
+				}
+				return
+			}
+
+			if err := s.events.SetMatched(ctx, ev.ID, entry.Worker.Name); err != nil {
+				s.logger.Error("webhook: set matched", "event", ev.ID, "err", err)
 				return
 			}
 
 			taskCtx := buildTaskContext(ev)
-			_ = s.events.SetMatched(ctx, ev.ID, entry.Worker.Name)
-
 			t, err := s.tasks.CreateWithEvent(ctx, entry.Worker.Name, prompt, taskCtx, ev.ID)
 			if err != nil {
 				s.logger.Error("webhook: create task", "event", ev.ID, "err", err)
-				_ = s.events.SetFailed(ctx, ev.ID)
+				if err := s.events.SetFailed(ctx, ev.ID); err != nil {
+					s.logger.Error("webhook: set failed", "event", ev.ID, "err", err)
+				}
 				return
 			}
 
-			_ = s.events.SetDispatched(ctx, ev.ID, t.ID)
+			if err := s.events.SetDispatched(ctx, ev.ID, t.ID); err != nil {
+				s.logger.Error("webhook: set dispatched", "event", ev.ID, "err", err)
+			}
 			s.pending <- t.ID
 			s.logger.Info("webhook: dispatched", "event", ev.ID, "task", t.ID, "worker", entry.Worker.Name)
 			return
 		}
 	}
 
-	_ = s.events.SetSkipped(ctx, ev.ID)
+	if err := s.events.SetSkipped(ctx, ev.ID); err != nil {
+		s.logger.Error("webhook: set skipped", "event", ev.ID, "err", err)
+	}
 	s.logger.Info("webhook: no matching worker", "event", ev.ID, "type", ev.Type)
 }
 
