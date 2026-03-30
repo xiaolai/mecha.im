@@ -128,7 +128,10 @@ func (s *Server) Start(ctx context.Context) error {
 
 func (s *Server) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if s.apiKey == "" || r.URL.Path == "/health" || strings.HasPrefix(r.URL.Path, "/webhook/") {
+		// Webhook paths rely on source-level auth (HMAC signature), not API key.
+		// /health is always public for load-balancer probes.
+		if s.apiKey == "" || r.URL.Path == "/health" ||
+			(strings.HasPrefix(r.URL.Path, "/webhook/") && s.sources != nil && s.sources.Len() > 0) {
 			next.ServeHTTP(w, r)
 			return
 		}

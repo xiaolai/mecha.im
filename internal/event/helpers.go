@@ -30,12 +30,16 @@ func scanEvent(s rowScanner) (*Event, error) {
 	ev.Raw = json.RawMessage(raw)
 	ev.CreatedAt = time.Unix(createdAt, 0)
 	ev.UpdatedAt = time.Unix(updatedAt, 0)
-	json.Unmarshal([]byte(payloadStr), &ev.Payload)
+	if payloadStr != "" {
+		if err := json.Unmarshal([]byte(payloadStr), &ev.Payload); err != nil {
+			return nil, fmt.Errorf("unmarshal event payload: %w", err)
+		}
+	}
 	return &ev, nil
 }
 
 func genID() (string, error) {
-	b := make([]byte, 8)
+	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
 		return "", err
 	}

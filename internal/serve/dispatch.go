@@ -114,7 +114,9 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 		}
 		workerRestored = true
 		if isTransportError(err) {
-			_ = s.reg.SetError(t.WorkerName, redacted)
+			if setErr := s.reg.SetError(t.WorkerName, redacted); setErr != nil {
+				s.logger.Error("dispatch: set worker error state", "worker", t.WorkerName, "err", setErr)
+			}
 		} else if onlineErr := s.reg.SetOnline(t.WorkerName); onlineErr != nil {
 			s.logger.Warn("dispatch: set online after failure", "id", taskID, "err", onlineErr)
 		}

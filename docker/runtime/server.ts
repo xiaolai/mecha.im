@@ -1,8 +1,13 @@
 import type { TaskRequest, TaskResponse, BackendCommand, BackendExecutor } from "./types";
 
+const VALID_BACKENDS = ["claude", "codex", "gemini"];
 const BACKEND = process.env.WORKER_BACKEND || "claude";
-const PORT = parseInt(process.env.WORKER_PORT || "8081"); // internal; Caddy on 8080
-const TIMEOUT_MS = parseInt(process.env.WORKER_TIMEOUT || "600000"); // 10m
+if (!VALID_BACKENDS.includes(BACKEND)) {
+  console.error(`fatal: WORKER_BACKEND="${BACKEND}" is not valid (must be one of: ${VALID_BACKENDS.join(", ")})`);
+  process.exit(1);
+}
+const PORT = parseInt(process.env.WORKER_PORT || "8081") || 8081;
+const TIMEOUT_MS = parseInt(process.env.WORKER_TIMEOUT || "600000") || 600000;
 const MAX_BODY_BYTES = 10 * 1024 * 1024; // 10MB
 const DRY_RUN = process.env.WORKER_DRY_RUN === "true";
 const API_KEY = process.env.WORKER_API_KEY || "";
@@ -14,11 +19,19 @@ let sdkExecutor: BackendExecutor | null = null;
 let cliBuilder: ((prompt: string) => BackendCommand) | null = null;
 
 async function loadBackend() {
-  const mod = await import(`./backends/${BACKEND}.ts`);
-  if (mod.executeTask) {
-    sdkExecutor = mod.executeTask;
-  } else if (mod.buildCommand) {
-    cliBuilder = mod.buildCommand;
+  try {
+    const mod = await import(`./backends/${BACKEND}.ts`);
+    if (mod.executeTask) {
+      sdkExecutor = mod.executeTask;
+    } else if (mod.buildCommand) {
+      cliBuilder = mod.buildCommand;
+    } else {
+      console.error(`fatal: backend "${BACKEND}" exports neither executeTask nor buildCommand`);
+      process.exit(1);
+    }
+  } catch (err) {
+    console.error(`fatal: failed to load backend "${BACKEND}": ${err}`);
+    process.exit(1);
   }
 }
 
@@ -97,7 +110,8 @@ async function taskHandler(req: Request): Promise<Response> {
     return Response.json({ error: "no backend configured" }, { status: 500 });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    return Response.json({ error: msg }, { status: 500 });
+    console.error(`task handler error: ${msg}`);
+    return Response.json({ error: "internal server error" }, { status: 500 });
   } finally {
     busy = false;
   }

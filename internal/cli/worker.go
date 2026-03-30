@@ -150,7 +150,9 @@ func workerStartCmd() *cobra.Command {
 			}
 			if e.Worker.Endpoint != "" {
 				if err := worker.CheckHealth(e.Worker.Endpoint, 5*time.Second); err != nil {
-					_ = reg.SetError(name, err.Error())
+					if setErr := reg.SetError(name, err.Error()); setErr != nil {
+						fmt.Fprintf(os.Stderr, "warning: failed to set error state for %s: %v\n", name, setErr)
+					}
 					fmt.Printf("started %s (warning: health check failed)\n", name)
 					return nil
 				}

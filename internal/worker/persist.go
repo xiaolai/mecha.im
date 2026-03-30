@@ -63,10 +63,16 @@ func (r *Registry) persist(entries map[string]*Entry) error {
 	}
 	for rows.Next() {
 		var name string
-		rows.Scan(&name)
+		if err := rows.Scan(&name); err != nil {
+			rows.Close()
+			return fmt.Errorf("scan worker name: %w", err)
+		}
 		dbNames[name] = true
 	}
 	rows.Close()
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate worker names: %w", err)
+	}
 
 	for _, e := range entries {
 		def, err := json.Marshal(e.Worker)

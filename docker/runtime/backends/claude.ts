@@ -1,7 +1,7 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import type { TaskResponse } from "../types";
 
-const TIMEOUT_MS = parseInt(process.env.WORKER_TIMEOUT || "600000"); // 10m
+const TIMEOUT_MS = parseInt(process.env.WORKER_TIMEOUT || "600000") || 600000;
 
 export async function executeTask(prompt: string): Promise<TaskResponse> {
   const abortController = new AbortController();
@@ -17,8 +17,14 @@ export async function executeTask(prompt: string): Promise<TaskResponse> {
   if (process.env.CLAUDE_SYSTEM_PROMPT) options.systemPrompt = process.env.CLAUDE_SYSTEM_PROMPT;
   if (process.env.CLAUDE_PERMISSION_MODE) options.permissionMode = process.env.CLAUDE_PERMISSION_MODE;
   if (process.env.CLAUDE_EFFORT) options.effort = process.env.CLAUDE_EFFORT;
-  if (process.env.CLAUDE_MAX_BUDGET_USD) options.maxBudgetUsd = parseFloat(process.env.CLAUDE_MAX_BUDGET_USD);
-  if (process.env.CLAUDE_MAX_TURNS) options.maxTurns = parseInt(process.env.CLAUDE_MAX_TURNS);
+  if (process.env.CLAUDE_MAX_BUDGET_USD) {
+    const budget = parseFloat(process.env.CLAUDE_MAX_BUDGET_USD);
+    if (!isNaN(budget) && budget > 0) options.maxBudgetUsd = budget;
+  }
+  if (process.env.CLAUDE_MAX_TURNS) {
+    const turns = parseInt(process.env.CLAUDE_MAX_TURNS);
+    if (!isNaN(turns) && turns > 0) options.maxTurns = turns;
+  }
 
   if (process.env.CLAUDE_ALLOWED_TOOLS) {
     options.allowedTools = process.env.CLAUDE_ALLOWED_TOOLS.split(",").map((s: string) => s.trim());

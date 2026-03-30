@@ -38,16 +38,35 @@ type CommitPolicy struct {
 	Allow bool `yaml:"allow" json:"allow"`
 }
 
+// parseBoolField extracts a bool from a map, returning an error if the value
+// exists but is not a bool (e.g. "yes" or 1).
+func parseBoolField(m map[string]any, key, section string) (bool, error) {
+	v, ok := m[key]
+	if !ok {
+		return false, nil
+	}
+	b, ok := v.(bool)
+	if !ok {
+		return false, fmt.Errorf("policy.%s.%s must be a boolean, got %T(%v)", section, key, v, v)
+	}
+	return b, nil
+}
+
 // ParseRules converts a raw YAML map into a RuleFilter.
 // Returns AllowAll if the map is nil or empty.
-func ParseRules(raw map[string]any) Filter {
+// Returns an error if field types are wrong (e.g. allow: "yes").
+func ParseRules(raw map[string]any) (Filter, error) {
 	if len(raw) == 0 {
-		return &AllowAll{}
+		return &AllowAll{}, nil
 	}
 	r := &RuleFilter{}
 	if cm, ok := raw["comment"].(map[string]any); ok {
 		r.Comment = &CommentPolicy{}
-		r.Comment.Allow, _ = cm["allow"].(bool)
+		allow, err := parseBoolField(cm, "allow", "comment")
+		if err != nil {
+			return nil, err
+		}
+		r.Comment.Allow = allow
 		if ml, ok := cm["max_length"].(int); ok {
 			r.Comment.MaxLength = ml
 		} else if ml, ok := cm["max_length"].(float64); ok {
@@ -56,7 +75,11 @@ func ParseRules(raw map[string]any) Filter {
 	}
 	if lm, ok := raw["labels"].(map[string]any); ok {
 		r.Labels = &LabelPolicy{}
-		r.Labels.Allow, _ = lm["allow"].(bool)
+		allow, err := parseBoolField(lm, "allow", "labels")
+		if err != nil {
+			return nil, err
+		}
+		r.Labels.Allow = allow
 		if bl, ok := lm["blocked"].([]any); ok {
 			for _, b := range bl {
 				if s, ok := b.(string); ok {
@@ -67,13 +90,21 @@ func ParseRules(raw map[string]any) Filter {
 	}
 	if sm, ok := raw["status"].(map[string]any); ok {
 		r.Status = &StatusPolicy{}
-		r.Status.Allow, _ = sm["allow"].(bool)
+		allow, err := parseBoolField(sm, "allow", "status")
+		if err != nil {
+			return nil, err
+		}
+		r.Status.Allow = allow
 	}
 	if cm, ok := raw["commit"].(map[string]any); ok {
 		r.Commit = &CommitPolicy{}
-		r.Commit.Allow, _ = cm["allow"].(bool)
+		allow, err := parseBoolField(cm, "allow", "commit")
+		if err != nil {
+			return nil, err
+		}
+		r.Commit.Allow = allow
 	}
-	return r
+	return r, nil
 }
 
 // Apply filters the result according to the configured rules.
