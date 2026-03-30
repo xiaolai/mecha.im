@@ -207,6 +207,50 @@ func TestLoadDir(t *testing.T) {
 	}
 }
 
+func TestDockerHostInterpolation(t *testing.T) {
+	t.Setenv("TEST_DOCKER_HOST", "tcp://remote:2375")
+	yaml := "name: test\ndocker:\n  image: x\n  host: ${TEST_DOCKER_HOST}\n"
+	path := filepath.Join(t.TempDir(), "w.yml")
+	os.WriteFile(path, []byte(yaml), 0o644)
+	w, err := LoadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w.Docker.Host != "tcp://remote:2375" {
+		t.Errorf("host = %q", w.Docker.Host)
+	}
+}
+
+func TestDockerHostUnresolved(t *testing.T) {
+	yaml := "name: test\ndocker:\n  image: x\n  host: ${NONEXISTENT_HOST_VAR_XYZ}\n"
+	path := filepath.Join(t.TempDir(), "w.yml")
+	os.WriteFile(path, []byte(yaml), 0o644)
+	_, err := LoadFile(path)
+	if err == nil {
+		t.Error("expected error for unresolved docker.host var")
+	}
+}
+
+func TestLoadDirEmpty(t *testing.T) {
+	dir := t.TempDir()
+	workers, err := LoadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(workers) != 0 {
+		t.Errorf("got %d workers from empty dir", len(workers))
+	}
+}
+
+func TestLoadDirBadFile(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "bad.yml"), []byte("invalid: yaml: ["), 0o644)
+	_, err := LoadDir(dir)
+	if err == nil {
+		t.Error("expected error for invalid YAML")
+	}
+}
+
 func TestTypeLabel(t *testing.T) {
 	managed := &Worker{Name: "m", Docker: &DockerConfig{Image: "x"}}
 	if managed.TypeLabel() != "managed" {

@@ -301,6 +301,27 @@ func TestRegistryClearRuntime(t *testing.T) {
 	}
 }
 
+func TestRegistryRemoveSuccess(t *testing.T) {
+	r := testRegistry(t)
+	r.Add(testWorker("w"))
+	if err := r.Remove("w"); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	if _, ok := r.Get("w"); ok {
+		t.Error("worker should be gone after remove")
+	}
+	if len(r.List()) != 0 {
+		t.Error("list should be empty")
+	}
+}
+
+func TestRegistryRemoveNotFound(t *testing.T) {
+	r := testRegistry(t)
+	if err := r.Remove("ghost"); err == nil {
+		t.Error("expected not found error")
+	}
+}
+
 func TestRegistryRemoveOnline(t *testing.T) {
 	r := testRegistry(t)
 	r.Add(testWorker("w"))

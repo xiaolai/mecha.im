@@ -179,6 +179,23 @@ func TestSendTaskWorker500(t *testing.T) {
 	}
 }
 
+func TestDispatchWorkerNoEndpoint(t *testing.T) {
+	s, cleanup := testDispatchServer(t)
+	defer cleanup()
+
+	// Worker with no endpoint
+	s.reg.Add(&worker.Worker{Name: "no-ep"})
+	s.reg.Start("no-ep")
+
+	tk, _ := s.tasks.Create(context.Background(), "no-ep", "test")
+	s.dispatchTask(context.Background(), tk.ID)
+
+	got, _ := s.tasks.Get(context.Background(), tk.ID)
+	if got.State != task.StateFailed {
+		t.Errorf("state = %q, want failed (no endpoint)", got.State)
+	}
+}
+
 func TestDispatchWorkerNotFound(t *testing.T) {
 	s, cleanup := testDispatchServer(t)
 	defer cleanup()
