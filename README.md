@@ -51,17 +51,18 @@ Every PR now gets an automated security review.
 ## Install
 
 ```bash
-# Build from source
-git clone https://github.com/xiaolai/mecha.im.git
-cd mecha.im
-make build
-sudo cp mecha /usr/local/bin/
+# macOS (Apple Silicon)
+curl -L https://github.com/xiaolai/mecha.im/releases/latest/download/mecha-darwin-arm64.tar.gz | tar xz
+sudo mv mecha /usr/local/bin/
 
-# Or via go install
-go install mecha.im/cmd/mecha@latest
+# Linux (x86_64)
+curl -L https://github.com/xiaolai/mecha.im/releases/latest/download/mecha-linux-amd64.tar.gz | tar xz
+sudo mv mecha /usr/local/bin/
 ```
 
-Requires Go 1.26+. Docker 28+ for container workers (optional for adapter workers).
+Or build from source (requires Go 1.26+): `git clone` + `make build`.
+
+Docker 28+ needed for container workers only. Adapter workers (Ollama, vLLM) need no Docker.
 
 ## Three worker types
 
