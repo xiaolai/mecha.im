@@ -124,7 +124,10 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 		return
 	}
 
-	// Write-back BEFORE marking task complete (per result-contract.md)
+	// Write-back BEFORE marking task complete (per result-contract.md).
+	// Task is always completed (stores result for audit) even if write-back fails.
+	// Event completion is gated on write-back success — failed events stay in
+	// "dispatched" state for retry, which creates a new task on re-dispatch.
 	wbOk := s.doWriteBack(ctx, taskID, t.EventID, t.WorkerName, result)
 
 	if completeErr := s.tasks.Complete(ctx, taskID, result); completeErr != nil {
