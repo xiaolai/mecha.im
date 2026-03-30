@@ -3,7 +3,7 @@ layout: home
 
 hero:
   name: Mecha
-  text: AI on your PRs. Your infra. Your rules.
+  text: An Event-Driven Agentic Workflow Engine.
   tagline: Turn GitHub events into LLM tasks — one binary, YAML config, policy-controlled write-back.
   image:
     src: /mecha-512.png

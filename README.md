@@ -1,6 +1,6 @@
 # Mecha
 
-**Run AI on your PRs. Your infra. Your rules.**
+**An event-driven agentic workflow engine.**
 
 Mecha turns GitHub events into LLM tasks — one Go binary, YAML config, policy-controlled write-back.
 
