@@ -1,11 +1,8 @@
 package serve
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -16,9 +13,8 @@ import (
 
 var dispatchClient = &http.Client{
 	Transport: &http.Transport{
-		MaxIdleConnsPerHost:   10,
-		IdleConnTimeout:       60 * time.Second,
-		ResponseHeaderTimeout: 30 * time.Second,
+		MaxIdleConnsPerHost: 10,
+		IdleConnTimeout:     60 * time.Second,
 	},
 }
 
@@ -32,8 +28,14 @@ func (s *Server) dispatchLoop(ctx context.Context) {
 			if !ok {
 				return
 			}
-			// Fan out: dispatch each task in its own goroutine
-			go s.dispatchTask(ctx, taskID)
+			go func(id string) {
+				defer func() {
+					if r := recover(); r != nil {
+						s.logger.Error("dispatch: panic", "id", id, "panic", r)
+					}
+				}()
+				s.dispatchTask(ctx, id)
+			}(taskID)
 		}
 	}
 }
@@ -100,23 +102,64 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 		if failErr := s.tasks.Fail(ctx, taskID, redacted); failErr != nil {
 			s.logger.Error("dispatch: fail task after send error", "id", taskID, "err", failErr)
 		}
-		// Transport failures → worker error state. Task-level failures → back to online.
 		if isTransportError(err) {
 			_ = s.reg.SetError(t.WorkerName, redacted)
 		} else if onlineErr := s.reg.SetOnline(t.WorkerName); onlineErr != nil {
 			s.logger.Warn("dispatch: set online after failure", "id", taskID, "err", onlineErr)
 		}
+		// Update event on failure
+		s.completeEvent(ctx, t.EventID, false)
 		s.logger.Error("dispatch: send failed", "id", taskID, "err", redacted)
 		return
 	}
 
+	// Write-back BEFORE marking task complete (per result-contract.md)
+	wbOk := s.doWriteBack(ctx, taskID, t.EventID, result)
+
 	if completeErr := s.tasks.Complete(ctx, taskID, result); completeErr != nil {
-		s.logger.Error("dispatch: complete task failed — result lost", "id", taskID, "err", completeErr)
+		s.logger.Error("dispatch: complete task failed", "id", taskID, "err", completeErr)
 	}
 	if onlineErr := s.reg.SetOnline(t.WorkerName); onlineErr != nil {
 		s.logger.Warn("dispatch: set online after completion", "id", taskID, "err", onlineErr)
 	}
+
+	if wbOk {
+		s.completeEvent(ctx, t.EventID, true)
+	}
+	// If write-back failed, event stays dispatched for retry
+
 	s.logger.Info("task completed", "id", taskID, "worker", t.WorkerName)
+}
+
+func (s *Server) doWriteBack(ctx context.Context, taskID, eventID, result string) bool {
+	if eventID == "" || s.writeback == nil || s.events == nil {
+		return true // no event or no writeback configured — consider success
+	}
+	ev, err := s.events.Get(ctx, eventID)
+	if err != nil {
+		s.logger.Error("dispatch: get event for writeback", "task", taskID, "err", err)
+		return false
+	}
+	if wbErr := s.writeback.WriteBack(ctx, ev, result); wbErr != nil {
+		s.logger.Error("dispatch: write-back failed", "task", taskID, "event", eventID, "err", wbErr)
+		return false
+	}
+	return true
+}
+
+func (s *Server) completeEvent(ctx context.Context, eventID string, success bool) {
+	if eventID == "" || s.events == nil {
+		return
+	}
+	if success {
+		if err := s.events.SetCompleted(ctx, eventID); err != nil {
+			s.logger.Error("dispatch: set event completed", "event", eventID, "err", err)
+		}
+	} else {
+		if err := s.events.SetFailed(ctx, eventID); err != nil {
+			s.logger.Error("dispatch: set event failed", "event", eventID, "err", err)
+		}
+	}
 }
 
 func isTransportError(err error) bool {
@@ -128,41 +171,3 @@ func isTransportError(err error) bool {
 		strings.Contains(msg, "EOF")
 }
 
-func (s *Server) sendTask(ctx context.Context, endpoint, taskID, prompt string, timeout time.Duration, apiKey string) (string, error) {
-	if timeout == 0 {
-		timeout = 10 * time.Minute
-	}
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	payload, _ := json.Marshal(map[string]string{
-		"id":     taskID,
-		"prompt": prompt,
-	})
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint+"/task", bytes.NewReader(payload))
-	if err != nil {
-		return "", fmt.Errorf("create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	if apiKey != "" {
-		req.Header.Set("Authorization", "Bearer "+apiKey)
-	}
-
-	resp, err := dispatchClient.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("send task: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
-	if err != nil {
-		return "", fmt.Errorf("read response: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("worker returned %d: %s", resp.StatusCode, worker.RedactSecrets(string(body)))
-	}
-
-	return string(body), nil
-}

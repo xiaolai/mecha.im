@@ -6,30 +6,40 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
+	"mecha.im/internal/event"
+	"mecha.im/internal/source"
 	"mecha.im/internal/task"
 	"mecha.im/internal/worker"
+	"mecha.im/internal/writeback"
 )
 
 // Server is the mecha HTTP daemon that accepts tasks and dispatches to workers.
 type Server struct {
-	reg     *worker.Registry
-	tasks   *task.Store
-	pending chan string
-	addr    string
-	apiKey  string
-	httpSrv *http.Server
-	logger  *slog.Logger
+	reg       *worker.Registry
+	tasks     *task.Store
+	events    *event.Store
+	sources   *source.Registry
+	writeback *writeback.Client
+	pending   chan string
+	addr      string
+	apiKey    string
+	httpSrv   *http.Server
+	logger    *slog.Logger
 }
 
 // Config holds server startup parameters.
 type Config struct {
-	Registry *worker.Registry
-	Tasks    *task.Store
-	Addr     string
-	APIKey   string
-	Logger   *slog.Logger
+	Registry  *worker.Registry
+	Tasks     *task.Store
+	Events    *event.Store
+	Sources   *source.Registry
+	WriteBack *writeback.Client
+	Addr      string
+	APIKey    string
+	Logger    *slog.Logger
 }
 
 // New creates a server but does not start it.
@@ -41,12 +51,15 @@ func New(cfg Config) *Server {
 		panic("serve.New: Registry and Tasks must not be nil")
 	}
 	s := &Server{
-		reg:     cfg.Registry,
-		tasks:   cfg.Tasks,
-		pending: make(chan string, 256),
-		addr:    cfg.Addr,
-		apiKey:  cfg.APIKey,
-		logger:  cfg.Logger,
+		reg:       cfg.Registry,
+		tasks:     cfg.Tasks,
+		events:    cfg.Events,
+		sources:   cfg.Sources,
+		writeback: cfg.WriteBack,
+		pending:   make(chan string, 256),
+		addr:      cfg.Addr,
+		apiKey:    cfg.APIKey,
+		logger:    cfg.Logger,
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /task", s.handlePostTask)
@@ -54,6 +67,9 @@ func New(cfg Config) *Server {
 	mux.HandleFunc("GET /tasks", s.handleListTasks)
 	mux.HandleFunc("GET /workers", s.handleListWorkers)
 	mux.HandleFunc("GET /health", s.handleHealth)
+	mux.HandleFunc("POST /webhook/{source}", s.handleWebhook)
+	mux.HandleFunc("GET /events", s.handleListEvents)
+	mux.HandleFunc("GET /event/{id}", s.handleGetEvent)
 
 	s.httpSrv = &http.Server{
 		Addr:              cfg.Addr,
@@ -111,7 +127,7 @@ func (s *Server) Start(ctx context.Context) error {
 
 func (s *Server) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if s.apiKey == "" || r.URL.Path == "/health" {
+		if s.apiKey == "" || r.URL.Path == "/health" || strings.HasPrefix(r.URL.Path, "/webhook/") {
 			next.ServeHTTP(w, r)
 			return
 		}

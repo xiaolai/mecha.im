@@ -54,12 +54,15 @@ export default withMermaid({
           items: [
             { text: 'Workers', link: '/guide/workers' },
             { text: 'Secrets', link: '/guide/secrets' },
+            { text: 'Events & Webhooks', link: '/guide/events' },
           ],
         },
         {
           text: 'Reference',
           items: [
             { text: 'CLI', link: '/guide/cli' },
+            { text: 'Server', link: '/guide/server' },
+            { text: 'API', link: '/guide/api' },
             { text: 'Architecture', link: '/guide/architecture' },
           ],
         },
