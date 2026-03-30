@@ -1,14 +1,5 @@
 #!/usr/bin/env python3
-"""
-mecha-icon - Generate SVG/PNG icons for Mecha (Mr.White)
-
-Usage:
-  mecha-icon.py [options]
-  mecha-icon.py --png -o ./icons
-  mecha-icon.py --bg '#2B2C2B' --radius 0.2237
-  mecha-icon.py -c '#2b2c2b' -e '#C56F52'
-  mecha-icon.py --all -o ~/project/icons
-"""
+"""Generate SVG/PNG icons for Mecha (Mr.White). Run with --help for options."""
 
 import argparse
 import os
