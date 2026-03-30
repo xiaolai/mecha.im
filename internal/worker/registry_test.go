@@ -301,6 +301,45 @@ func TestRegistryClearRuntime(t *testing.T) {
 	}
 }
 
+func TestRegistryRemoveOnline(t *testing.T) {
+	r := testRegistry(t)
+	r.Add(testWorker("w"))
+	r.Start("w")
+	if err := r.Remove("w"); err == nil {
+		t.Error("expected error removing online worker")
+	}
+}
+
+func TestRegistryRemoveError(t *testing.T) {
+	r := testRegistry(t)
+	r.Add(testWorker("w"))
+	r.Start("w")
+	r.SetError("w", "fail")
+	if err := r.Remove("w"); err == nil {
+		t.Error("expected error removing error-state worker")
+	}
+}
+
+func TestRegistryStopOffline(t *testing.T) {
+	r := testRegistry(t)
+	r.Add(testWorker("w"))
+	if err := r.Stop("w"); err == nil {
+		t.Error("expected error stopping offline worker")
+	}
+}
+
+func TestRegistryAddPersistError(t *testing.T) {
+	r := testRegistry(t)
+	w1 := testWorker("w1")
+	if err := r.Add(w1); err != nil {
+		t.Fatal(err)
+	}
+	// Duplicate
+	if err := r.Add(w1); err == nil {
+		t.Error("expected duplicate error")
+	}
+}
+
 func TestRegistrySetBusy(t *testing.T) {
 	r := testRegistry(t)
 	r.Add(testWorker("w"))
