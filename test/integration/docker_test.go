@@ -74,7 +74,7 @@ func TestDocker_CreateStartStop(t *testing.T) {
 	if err != nil {
 		t.Fatalf("endpoint: %v", err)
 	}
-	if !strings.HasPrefix(endpoint, "http://127.0.0.1:") {
+	if !strings.HasPrefix(endpoint, "http://") {
 		t.Errorf("endpoint = %q", endpoint)
 	}
 
@@ -138,8 +138,8 @@ timeout: 5m
 	if !strings.Contains(out, "online") {
 		t.Errorf("expected online: %s", out)
 	}
-	if !strings.Contains(out, "127.0.0.1") {
-		t.Errorf("expected endpoint: %s", out)
+	if !strings.Contains(out, "http://") {
+		t.Errorf("expected endpoint URL: %s", out)
 	}
 
 	// Stop

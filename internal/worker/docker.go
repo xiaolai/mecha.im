@@ -3,7 +3,6 @@ package worker
 import (
 	"context"
 	"fmt"
-	"net/netip"
 	"os/user"
 	"strconv"
 	"time"
@@ -76,7 +75,6 @@ func (d *DockerClient) Create(ctx context.Context, cfg ContainerCfg) (string, er
 	portSet := network.PortSet{port: struct{}{}}
 	portMap := network.PortMap{
 		port: []network.PortBinding{{
-			HostIP:   netip.MustParseAddr("127.0.0.1"),
 			HostPort: "",
 		}},
 	}
@@ -153,7 +151,8 @@ func (d *DockerClient) Remove(ctx context.Context, id string) error {
 	return nil
 }
 
-// Endpoint inspects a container and returns the mapped http://127.0.0.1:<port> URL.
+// Endpoint inspects a container and returns its mapped HTTP URL.
+// Uses the bound host IP, or 0.0.0.0 if bound to all interfaces.
 func (d *DockerClient) Endpoint(ctx context.Context, id string) (string, error) {
 	result, err := d.cli.ContainerInspect(ctx, id, client.ContainerInspectOptions{})
 	if err != nil {
@@ -164,7 +163,11 @@ func (d *DockerClient) Endpoint(ctx context.Context, id string) (string, error) 
 	if !ok || len(bindings) == 0 {
 		return "", fmt.Errorf("no port binding for 8080")
 	}
-	return "http://127.0.0.1:" + bindings[0].HostPort, nil
+	host := bindings[0].HostIP.String()
+	if host == "0.0.0.0" || host == "invalid IP" {
+		host = "0.0.0.0"
+	}
+	return "http://" + host + ":" + bindings[0].HostPort, nil
 }
 
 // Close releases the Docker client connection.
