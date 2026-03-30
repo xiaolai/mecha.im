@@ -104,4 +104,4 @@ Under active development. Core pipeline is implemented and working:
 
 ## License
 
-MIT
+ISC

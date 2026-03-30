@@ -79,7 +79,7 @@ export default withMermaid({
     ],
 
     footer: {
-      message: 'Released under the MIT License.',
+      message: 'Released under the ISC License.',
       copyright: 'Copyright 2026 Mecha',
     },
 
