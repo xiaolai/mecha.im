@@ -145,6 +145,13 @@ func workerStartCmd() *cobra.Command {
 				fmt.Printf("started %s (container)\n", name)
 				return nil
 			}
+			if e.Worker.IsAdapter() {
+				if err := adapterStart(reg, name); err != nil {
+					return err
+				}
+				fmt.Printf("started %s (adapter: %s)\n", name, e.Worker.Adapter.Type)
+				return nil
+			}
 			if err := reg.Start(name); err != nil {
 				return err
 			}

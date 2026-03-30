@@ -12,13 +12,23 @@ import (
 
 // Worker is the definition of a managed or unmanaged worker, parsed from YAML.
 // If Docker is non-nil, the worker is managed (mecha controls its lifecycle).
+// If Adapter is non-nil, the worker uses an in-process adapter for a native LLM API.
 type Worker struct {
 	Name     string            `yaml:"name"`
 	Endpoint string            `yaml:"endpoint,omitempty"`
 	Docker   *DockerConfig     `yaml:"docker,omitempty"`
+	Adapter  *AdapterConfig    `yaml:"adapter,omitempty"`
 	Events   []EventRule       `yaml:"events,omitempty"`
 	Policy   map[string]any    `yaml:"policy,omitempty"`
 	Timeout  time.Duration     `yaml:"timeout,omitempty"`
+}
+
+// AdapterConfig holds settings for an in-process LLM adapter.
+type AdapterConfig struct {
+	Type     string `yaml:"type"`               // "ollama" or "openai"
+	Upstream string `yaml:"upstream"`            // base URL of the LLM API
+	Model    string `yaml:"model"`               // model name
+	APIKey   string `yaml:"api_key,omitempty"`   // API key for OpenAI-compatible endpoints
 }
 
 // DockerConfig holds Docker container settings for a managed worker.
@@ -46,10 +56,16 @@ type ResourceConfig struct {
 // IsManaged returns true if the worker has a Docker section (mecha controls lifecycle).
 func (w *Worker) IsManaged() bool { return w.Docker != nil }
 
-// TypeLabel returns "managed" for Docker workers or "live" for unmanaged endpoints.
+// IsAdapter returns true if the worker uses an in-process adapter.
+func (w *Worker) IsAdapter() bool { return w.Adapter != nil }
+
+// TypeLabel returns "managed" for Docker, "adapter" for adapters, or "live" for unmanaged.
 func (w *Worker) TypeLabel() string {
 	if w.IsManaged() {
 		return "managed"
+	}
+	if w.IsAdapter() {
+		return "adapter"
 	}
 	return "live"
 }
@@ -145,14 +161,22 @@ func (w *Worker) validate() error {
 	if !validName.MatchString(w.Name) {
 		return fmt.Errorf("name %q is invalid (must match [a-zA-Z0-9][a-zA-Z0-9_.-]*)", w.Name)
 	}
-	if w.Endpoint == "" && w.Docker == nil {
-		return fmt.Errorf("endpoint or docker section is required")
+	if w.Endpoint == "" && w.Docker == nil && w.Adapter == nil {
+		return fmt.Errorf("endpoint, docker, or adapter section is required")
+	}
+	if w.Docker != nil && w.Adapter != nil {
+		return fmt.Errorf("cannot have both docker and adapter sections")
 	}
 	if w.Timeout < 0 {
 		return fmt.Errorf("timeout must be non-negative")
 	}
 	if w.Docker != nil {
 		if err := w.Docker.Validate(); err != nil {
+			return err
+		}
+	}
+	if w.Adapter != nil {
+		if err := w.Adapter.Validate(); err != nil {
 			return err
 		}
 	}
