@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "exclude": [
+    "website",
+    "docker",
+    "node_modules"
+  ]
+}
