@@ -4,7 +4,7 @@ description: "Run a complete implementation phase — plan, build, audit, test, 
 
 # Phase Workflow
 
-Execute a full implementation phase from planning to merge.
+Execute a full implementation phase from planning to merge. This is an autonomous workflow — use `/make-your-calls` mode throughout. Minimize confirmation prompts, use professional judgment, and keep moving through the steps without stopping to ask unless genuinely blocked.
 
 ## Input
 
