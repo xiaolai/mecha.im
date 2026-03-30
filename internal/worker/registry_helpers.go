@@ -46,6 +46,10 @@ func deepCopyEntry(e *Entry) Entry {
 			dc.Labels = copyMapStr(dc.Labels)
 			wc.Docker = &dc
 		}
+		if wc.Adapter != nil {
+			ac := *wc.Adapter
+			wc.Adapter = &ac
+		}
 		ec.Worker = &wc
 	}
 	return ec

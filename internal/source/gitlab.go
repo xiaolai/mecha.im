@@ -1,0 +1,189 @@
+package source
+
+import (
+	"crypto/subtle"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"strings"
+
+	"mecha.im/internal/event"
+)
+
+// GitLabSource parses GitLab webhook payloads into events.
+type GitLabSource struct {
+	secret string
+}
+
+// NewGitLabSource creates a GitLab webhook source.
+// secret is matched against X-Gitlab-Token header (empty = skip validation).
+func NewGitLabSource(secret string) *GitLabSource {
+	return &GitLabSource{secret: secret}
+}
+
+// Name returns "gitlab".
+func (g *GitLabSource) Name() string { return "gitlab" }
+
+// Parse validates the token and normalizes the webhook payload.
+func (g *GitLabSource) Parse(headers http.Header, body []byte) (*event.Event, error) {
+	if g.secret != "" {
+		token := headers.Get("X-Gitlab-Token")
+		if subtle.ConstantTimeCompare([]byte(token), []byte(g.secret)) != 1 {
+			return nil, fmt.Errorf("invalid gitlab webhook token")
+		}
+	}
+
+	glEvent := headers.Get("X-Gitlab-Event")
+	if glEvent == "" {
+		return nil, fmt.Errorf("missing X-Gitlab-Event header")
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil, fmt.Errorf("parse webhook body: %w", err)
+	}
+
+	eventType := normalizeGitLabEvent(glEvent, payload)
+
+	deliveryID := headers.Get("X-Gitlab-Instance") + "/" + headers.Get("X-Request-Id")
+	if deliveryID == "/" {
+		deliveryID = "" // both headers missing — dedup skipped
+	}
+
+	ev := &event.Event{
+		DeliveryID: deliveryID,
+		Source:     "gitlab",
+		Type:       eventType,
+		Raw:        json.RawMessage(body),
+		Payload:    make(event.Payload),
+	}
+
+	// Extract project info
+	if project, ok := payload["project"].(map[string]any); ok {
+		if ns, ok := project["path_with_namespace"].(string); ok {
+			parts := strings.SplitN(ns, "/", 2)
+			if len(parts) == 2 {
+				ev.RepoOwner = parts[0]
+				ev.RepoName = parts[1]
+			}
+		}
+	}
+	if user, ok := payload["user"].(map[string]any); ok {
+		ev.Sender, _ = user["username"].(string)
+	}
+
+	switch glEvent {
+	case "Merge Request Hook":
+		parseGitLabMergeRequest(payload, ev)
+	case "Push Hook", "Tag Push Hook":
+		parseGitLabPush(payload, ev)
+	case "Note Hook":
+		parseGitLabNote(payload, ev)
+	case "Issue Hook":
+		parseGitLabIssue(payload, ev)
+	}
+
+	return ev, nil
+}
+
+func normalizeGitLabEvent(glEvent string, payload map[string]any) string {
+	// Normalize GitLab event names to dot-separated format
+	switch glEvent {
+	case "Merge Request Hook":
+		action, _ := payload["object_attributes"].(map[string]any)
+		if action != nil {
+			if a, ok := action["action"].(string); ok {
+				return "merge_request." + a
+			}
+		}
+		return "merge_request"
+	case "Push Hook":
+		return "push"
+	case "Tag Push Hook":
+		return "tag_push"
+	case "Note Hook":
+		return "note"
+	case "Issue Hook":
+		action, _ := payload["object_attributes"].(map[string]any)
+		if action != nil {
+			if a, ok := action["action"].(string); ok {
+				return "issue." + a
+			}
+		}
+		return "issue"
+	default:
+		return strings.ToLower(strings.ReplaceAll(glEvent, " ", "_"))
+	}
+}
+
+func parseGitLabMergeRequest(payload map[string]any, ev *event.Event) {
+	attrs, _ := payload["object_attributes"].(map[string]any)
+	if attrs == nil {
+		return
+	}
+	ev.Number = intVal(attrs["iid"])
+	ev.Payload["number"] = ev.Number
+	ev.Payload["title"], _ = attrs["title"].(string)
+	ev.Payload["body"], _ = attrs["description"].(string)
+	if src, ok := attrs["source_branch"].(string); ok {
+		ev.Payload["head_branch"] = src
+	}
+	if tgt, ok := attrs["target_branch"].(string); ok {
+		ev.Payload["base_branch"] = tgt
+	}
+	if sha, ok := attrs["last_commit"].(map[string]any); ok {
+		if id, ok := sha["id"].(string); ok {
+			ev.Ref = id
+			ev.Payload["head_sha"] = id
+		}
+	}
+}
+
+func parseGitLabPush(payload map[string]any, ev *event.Event) {
+	ev.Ref, _ = payload["ref"].(string)
+	ev.Payload["ref"] = ev.Ref
+	if after, ok := payload["after"].(string); ok {
+		ev.Payload["head_sha"] = after
+	}
+	if commits, ok := payload["commits"].([]any); ok {
+		var msgs []string
+		for _, c := range commits {
+			if cm, ok := c.(map[string]any); ok {
+				id, _ := cm["id"].(string)
+				msg, _ := cm["message"].(string)
+				if len(id) > 8 {
+					id = id[:8]
+				}
+				msgs = append(msgs, id+" "+msg)
+			}
+		}
+		ev.Payload["commits"] = strings.Join(msgs, "\n")
+	}
+}
+
+func parseGitLabNote(payload map[string]any, ev *event.Event) {
+	attrs, _ := payload["object_attributes"].(map[string]any)
+	if attrs != nil {
+		ev.Payload["comment"], _ = attrs["note"].(string)
+	}
+	if mr, ok := payload["merge_request"].(map[string]any); ok {
+		ev.Number = intVal(mr["iid"])
+		ev.Payload["number"] = ev.Number
+		ev.Payload["title"], _ = mr["title"].(string)
+	} else if issue, ok := payload["issue"].(map[string]any); ok {
+		ev.Number = intVal(issue["iid"])
+		ev.Payload["number"] = ev.Number
+		ev.Payload["title"], _ = issue["title"].(string)
+	}
+}
+
+func parseGitLabIssue(payload map[string]any, ev *event.Event) {
+	attrs, _ := payload["object_attributes"].(map[string]any)
+	if attrs == nil {
+		return
+	}
+	ev.Number = intVal(attrs["iid"])
+	ev.Payload["number"] = ev.Number
+	ev.Payload["title"], _ = attrs["title"].(string)
+	ev.Payload["body"], _ = attrs["description"].(string)
+}
