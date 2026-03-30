@@ -53,7 +53,7 @@ Mecha is under active development. Worker, Task, and Event nouns are implemented
 | Task dispatch (create/dispatch/complete/fail) | ✅ Implemented |
 | GitHub webhooks (event → task) | ✅ Implemented |
 | GitHub write-back (comments, status, labels) | ✅ Implemented |
-| Policy filtering | 🔲 Phase 5 (stub exists) |
+| Policy filtering (result write-back control) | ✅ Implemented |
 
 ## Four Nouns
 
