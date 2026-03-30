@@ -51,6 +51,7 @@ func dockerStart(reg *worker.Registry, name string) error {
 		Resources: dc.Resources,
 		Labels:    labels,
 		User:      userStr,
+		Expose:    dc.Expose,
 	}
 
 	// Remove existing container with same name (crash recovery).

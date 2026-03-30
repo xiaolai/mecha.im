@@ -31,7 +31,7 @@ type DockerConfig struct {
 	Env       map[string]string `yaml:"env,omitempty"`
 	Token     string            `yaml:"token,omitempty"`
 	APIKey    string            `yaml:"api_key,omitempty"`
-	Domain    string            `yaml:"domain,omitempty"`
+	Expose    bool              `yaml:"expose,omitempty"`
 	Labels    map[string]string `yaml:"labels,omitempty"`
 }
 

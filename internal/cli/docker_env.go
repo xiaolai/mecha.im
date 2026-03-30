@@ -33,10 +33,14 @@ func buildContainerEnv(dc *worker.DockerConfig) (map[string]string, error) {
 		env[envKey] = envVal
 	}
 
-	// 2. Merge explicit env (wins on collision). Block GitHub tokens.
+	// 2. Merge explicit env (wins on collision). Block GitHub tokens + reserved keys.
 	for k, v := range dc.Env {
-		if blockedEnvKeys[strings.ToLower(k)] {
+		lower := strings.ToLower(k)
+		if blockedEnvKeys[lower] {
 			return nil, fmt.Errorf("env var %q is blocked — workers must not receive GitHub credentials", k)
+		}
+		if reservedEnvKeys[lower] {
+			return nil, fmt.Errorf("env var %q is reserved by mecha runtime — remove from docker.env", k)
 		}
 		if looksLikeCredential(v) {
 			return nil, fmt.Errorf("env var %q value looks like a credential — use docker.token instead", k)
@@ -44,17 +48,12 @@ func buildContainerEnv(dc *worker.DockerConfig) (map[string]string, error) {
 		env[k] = v
 	}
 
-	// 3. API key for worker authentication.
+	// 3. API key for worker authentication (supports ${ENV_VAR} references).
 	if dc.APIKey != "" {
 		env["WORKER_API_KEY"] = dc.APIKey
 	}
 
-	// 4. Domain for Caddy HTTPS.
-	if dc.Domain != "" {
-		env["WORKER_DOMAIN"] = dc.Domain
-	}
-
-	// 5. HOME for non-root user.
+	// 4. HOME for non-root user.
 	env["HOME"] = "/tmp"
 	return env, nil
 }

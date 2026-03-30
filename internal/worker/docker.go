@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"fmt"
+	"net/netip"
 	"os/user"
 	"strconv"
 	"time"
@@ -28,6 +29,7 @@ type ContainerCfg struct {
 	Resources ResourceConfig
 	Labels    map[string]string
 	User      string
+	Expose    bool // bind to 0.0.0.0 (network-accessible) instead of 127.0.0.1
 }
 
 // MountCfg describes a bind mount from host to container.
@@ -73,8 +75,13 @@ func (d *DockerClient) Create(ctx context.Context, cfg ContainerCfg) (string, er
 
 	port := network.MustParsePort("8080/tcp")
 	portSet := network.PortSet{port: struct{}{}}
+	hostIP := "127.0.0.1"
+	if cfg.Expose {
+		hostIP = "0.0.0.0"
+	}
 	portMap := network.PortMap{
 		port: []network.PortBinding{{
+			HostIP:   netip.MustParseAddr(hostIP),
 			HostPort: "",
 		}},
 	}
@@ -152,7 +159,6 @@ func (d *DockerClient) Remove(ctx context.Context, id string) error {
 }
 
 // Endpoint inspects a container and returns its mapped HTTP URL.
-// Uses the bound host IP, or 0.0.0.0 if bound to all interfaces.
 func (d *DockerClient) Endpoint(ctx context.Context, id string) (string, error) {
 	result, err := d.cli.ContainerInspect(ctx, id, client.ContainerInspectOptions{})
 	if err != nil {
@@ -164,8 +170,8 @@ func (d *DockerClient) Endpoint(ctx context.Context, id string) (string, error) 
 		return "", fmt.Errorf("no port binding for 8080")
 	}
 	host := bindings[0].HostIP.String()
-	if host == "0.0.0.0" || host == "invalid IP" {
-		host = "0.0.0.0"
+	if !bindings[0].HostIP.IsValid() || host == "0.0.0.0" {
+		host = "127.0.0.1"
 	}
 	return "http://" + host + ":" + bindings[0].HostPort, nil
 }

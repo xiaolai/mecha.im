@@ -54,7 +54,7 @@ Non-Docker LLM APIs (Ollama, vLLM, OpenAI-compatible, etc.) need an adapter
 to translate their native API into the mecha worker contract (`GET /health` +
 `POST /task`).
 
-Design: **Go plugin modules**, not CLI commands.
+Design: **compiled-in Go adapter registry**, not dynamic plugins or sidecars.
 
 ```
 adapter/

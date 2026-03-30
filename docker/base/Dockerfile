@@ -8,9 +8,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Caddy (static binary)
+# Install Caddy v2.9 (static binary, pinned version)
 RUN ARCH=$(dpkg --print-architecture) \
-    && curl -fsSL "https://caddyserver.com/api/download?os=linux&arch=${ARCH}" -o /usr/local/bin/caddy \
+    && curl -fsSL "https://caddyserver.com/api/download?os=linux&arch=${ARCH}&version=v2.9.1" -o /usr/local/bin/caddy \
     && chmod +x /usr/local/bin/caddy
 
 RUN groupadd -r worker && useradd -r -g worker -m -s /bin/bash worker

@@ -40,8 +40,8 @@ docker:
     CLAUDE_PERMISSION_MODE: bypassPermissions
     CLAUDE_EFFORT: high
   token: claude.xiaolaidev        # resolved from ~/.mecha/secrets.yml
-  api_key: my-secret-key-123     # optional, enables Bearer auth on /task
-  domain: worker.example.com     # optional, enables Caddy HTTPS
+  api_key: ${WORKER_SECRET}       # optional, enables Bearer auth on /task
+  expose: true                    # optional, bind to 0.0.0.0 (default: 127.0.0.1)
   labels:                         # optional custom labels
     team: security
 timeout: 30m

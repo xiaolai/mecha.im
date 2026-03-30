@@ -12,6 +12,13 @@ var blockedEnvKeys = map[string]bool{
 	"gh_enterprise_token": true, "github_webhook_secret": true,
 }
 
+// reservedEnvKeys are set by mecha runtime and must not be overridden via docker.env.
+var reservedEnvKeys = map[string]bool{
+	"worker_backend": true, "worker_port": true,
+	"worker_api_key": true, "worker_timeout": true,
+	"worker_dry_run": true, "home": true,
+}
+
 // looksLikeCredential returns true if v resembles a GitHub credential by prefix.
 func looksLikeCredential(v string) bool {
 	return strings.HasPrefix(v, "ghp_") ||
