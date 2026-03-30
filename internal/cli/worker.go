@@ -189,6 +189,9 @@ func workerStopCmd() *cobra.Command {
 				fmt.Printf("stopped %s (container)\n", name)
 				return nil
 			}
+			if e.Worker.IsAdapter() {
+				adapterStop(name)
+			}
 			if err := reg.Stop(name); err != nil {
 				return err
 			}

@@ -1,6 +1,8 @@
 package source
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -41,11 +43,16 @@ func (g *GenericSource) Parse(headers http.Header, body []byte) (*event.Event, e
 		return nil, fmt.Errorf("parse webhook body: %w", err)
 	}
 
+	// Generate delivery ID from content hash for deduplication
+	h := sha256.Sum256(append([]byte(eventType+":"), body...))
+	deliveryID := g.name + ":" + hex.EncodeToString(h[:16])
+
 	ev := &event.Event{
-		Source:  g.name,
-		Type:    eventType,
-		Raw:     json.RawMessage(body),
-		Payload: make(event.Payload),
+		DeliveryID: deliveryID,
+		Source:     g.name,
+		Type:       eventType,
+		Raw:        json.RawMessage(body),
+		Payload:    make(event.Payload),
 	}
 
 	// Copy all top-level string/number fields into Payload for template access

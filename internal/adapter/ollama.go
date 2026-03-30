@@ -31,7 +31,7 @@ func (o *OllamaAdapter) Name() string { return "ollama" }
 func (o *OllamaAdapter) Health(ctx context.Context) error {
 	req, err := http.NewRequestWithContext(ctx, "GET", o.upstream+"/", nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("create health request: %w", err)
 	}
 	resp, err := (&http.Client{Timeout: 5 * time.Second}).Do(req)
 	if err != nil {
