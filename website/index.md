@@ -17,16 +17,20 @@ hero:
       link: https://github.com/xiaolai/mecha.im
 
 features:
-  - icon: "🔀"
+  - icon:
+      src: /icons/git-pull-request.svg
     title: Run Claude, Codex, or Gemini on every PR
     details: GitHub or GitLab webhook arrives, mecha matches it to a worker, dispatches the prompt, writes the result back. Automatic.
-  - icon: "🔧"
+  - icon:
+      src: /icons/replace.svg
     title: Switch models in one line
     details: Docker workers for Claude/Codex/Gemini. Adapters for Ollama, vLLM, or any OpenAI-compatible API. Same contract, swap the YAML.
-  - icon: "🛡️"
+  - icon:
+      src: /icons/shield-check.svg
     title: Control what AI can write back
     details: Policy decides per-worker — allow comments, block labels, limit length, deny commits. One YAML block. One security boundary.
-  - icon: "📦"
+  - icon:
+      src: /icons/package.svg
     title: Self-hosted single binary
     details: Built in Go. No cloud dependency. No runtime. Your code stays on your infra. Works on macOS and Linux.
 ---

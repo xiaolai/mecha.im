@@ -34,3 +34,24 @@
   border-color: var(--vp-c-brand-2);
   background-color: var(--vp-c-brand-2);
 }
+
+/* Feature icons — no background, no border, no hover effects */
+.VPFeatures .VPFeature .VPImage {
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+}
+.VPFeatures .VPFeature .icon {
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+.VPFeatures .VPFeature:hover .icon,
+.VPFeatures .VPFeature:hover .VPImage {
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
