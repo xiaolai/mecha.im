@@ -1,11 +1,16 @@
 package main
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -19,13 +24,14 @@ type docPage struct {
 }
 
 var (
-	docsDir string
-	mu      sync.RWMutex
-	pages   []docPage
+	docsDir       string
+	repoDir       string
+	webhookSecret string
+	mu            sync.RWMutex
+	pages         []docPage
 )
 
 // reloadPages reads all markdown files from disk.
-// Called on startup and before each tool call.
 func reloadPages() {
 	loaded, err := readDir(docsDir)
 	if err != nil {
@@ -107,7 +113,66 @@ func searchPages(query string, pp []docPage) []docPage {
 	return results
 }
 
-// MCP protocol types
+// --- GitHub webhook handler ---
+
+func handleWebhook(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err != nil {
+		http.Error(w, "read body failed", http.StatusBadRequest)
+		return
+	}
+
+	// Validate HMAC signature
+	if webhookSecret != "" {
+		sig := r.Header.Get("X-Hub-Signature-256")
+		if !validateHMAC(webhookSecret, body, sig) {
+			http.Error(w, "invalid signature", http.StatusUnauthorized)
+			return
+		}
+	}
+
+	// Only react to push events
+	if r.Header.Get("X-GitHub-Event") != "push" {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ignored"))
+		return
+	}
+
+	// git pull in background, then reload
+	go func() {
+		log.Printf("webhook: pulling %s", repoDir)
+		cmd := exec.Command("git", "-C", repoDir, "pull", "--ff-only")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			log.Printf("webhook: git pull failed: %s: %v", string(out), err)
+			return
+		}
+		log.Printf("webhook: git pull ok: %s", strings.TrimSpace(string(out)))
+		reloadPages()
+		log.Printf("webhook: docs reloaded (%d pages)", len(getPages()))
+	}()
+
+	w.WriteHeader(http.StatusAccepted)
+	w.Write([]byte("pulling"))
+}
+
+func validateHMAC(secret string, body []byte, sig string) bool {
+	if !strings.HasPrefix(sig, "sha256=") {
+		return false
+	}
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(body)
+	expected := "sha256=" + hex.EncodeToString(mac.Sum(nil))
+	return hmac.Equal([]byte(expected), []byte(sig))
+}
+
+// --- MCP protocol ---
+
 type mcpRequest struct {
 	JSONRPC string          `json:"jsonrpc"`
 	ID      any             `json:"id,omitempty"`
@@ -261,6 +326,8 @@ func handleToolCall(id any, name string, args map[string]any) mcpResponse {
 	}
 }
 
+// --- SSE transport ---
+
 func handleSSE(w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -311,41 +378,27 @@ func handleMessage(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resp)
 }
 
-// watchDir polls the docs directory for changes and reloads when modified.
-func watchDir(dir string, interval time.Duration) {
-	var lastMod time.Time
-	for {
-		time.Sleep(interval)
-		entries, err := os.ReadDir(dir)
-		if err != nil {
-			continue
-		}
-		var newest time.Time
-		for _, e := range entries {
-			if info, err := e.Info(); err == nil {
-				if info.ModTime().After(newest) {
-					newest = info.ModTime()
-				}
-			}
-		}
-		if newest.After(lastMod) {
-			lastMod = newest
-			reloadPages()
-			log.Printf("docs reloaded (%d pages)", len(getPages()))
-		}
-	}
-}
+// --- main ---
 
 func main() {
 	docsDir = os.Getenv("DOCS_DIR")
 	if docsDir == "" {
 		docsDir = "website/guide"
 	}
+	repoDir = os.Getenv("REPO_DIR")
+	if repoDir == "" {
+		repoDir = "."
+	}
+	webhookSecret = os.Getenv("WEBHOOK_SECRET")
+
 	reloadPages()
 	log.Printf("loaded %d doc pages from %s", len(getPages()), docsDir)
 
-	// Watch for file changes every 5 seconds
-	go watchDir(docsDir, 5*time.Second)
+	if webhookSecret != "" {
+		log.Printf("github webhook enabled (HMAC validated)")
+	} else {
+		log.Printf("warning: WEBHOOK_SECRET not set, webhook endpoint is unauthenticated")
+	}
 
 	addr := ":8090"
 	if v := os.Getenv("ADDR"); v != "" {
@@ -355,6 +408,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /sse", handleSSE)
 	mux.HandleFunc("POST /message", handleMessage)
+	mux.HandleFunc("POST /webhook", handleWebhook)
 	mux.HandleFunc("OPTIONS /", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
