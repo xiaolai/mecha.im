@@ -21,6 +21,8 @@ type Task struct {
 	ID           string     `json:"id"`
 	WorkerName   string     `json:"worker_name"`
 	Prompt       string     `json:"prompt"`
+	Context      string     `json:"context,omitempty"`
+	EventID      string     `json:"event_id,omitempty"`
 	State        State      `json:"state"`
 	Result       string     `json:"result,omitempty"`
 	ErrorMsg     string     `json:"error,omitempty"`

@@ -13,7 +13,8 @@ import (
 type Secrets struct {
 	Tokens map[string]map[string]string `yaml:"tokens"`
 	GitHub struct {
-		Token string `yaml:"token"`
+		Token         string `yaml:"token"`
+		WebhookSecret string `yaml:"webhook_secret"`
 	} `yaml:"github"`
 }
 
