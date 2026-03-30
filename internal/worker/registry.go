@@ -175,7 +175,7 @@ func (r *Registry) Reload() error {
 	return nil
 }
 
-// Get returns a copy of the named entry. Safe for concurrent use.
+// Get returns a deep copy of the named entry. Safe for concurrent use.
 func (r *Registry) Get(name string) (Entry, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -183,16 +183,16 @@ func (r *Registry) Get(name string) (Entry, bool) {
 	if !ok {
 		return Entry{}, false
 	}
-	return *e, true
+	return deepCopyEntry(e), true
 }
 
-// List returns copies of all entries sorted by worker name.
+// List returns deep copies of all entries sorted by worker name.
 func (r *Registry) List() []Entry {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	result := make([]Entry, 0, len(r.entries))
 	for _, e := range r.entries {
-		result = append(result, *e)
+		result = append(result, deepCopyEntry(e))
 	}
 	sort.Slice(result, func(i, j int) bool {
 		return result[i].Worker.Name < result[j].Worker.Name
@@ -215,6 +215,15 @@ func (r *Registry) mutateEntry(name string, fn func(e *Entry) error) error {
 	}
 	r.entries = clone
 	return nil
+}
+
+func deepCopyEntry(e *Entry) Entry {
+	ec := *e
+	if ec.Worker != nil {
+		wc := *ec.Worker
+		ec.Worker = &wc
+	}
+	return ec
 }
 
 func (r *Registry) cloneEntries() map[string]*Entry {

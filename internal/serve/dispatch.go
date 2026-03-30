@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"mecha.im/internal/task"
@@ -14,10 +15,10 @@ import (
 )
 
 var dispatchClient = &http.Client{
-	Timeout: 15 * time.Minute,
 	Transport: &http.Transport{
-		MaxIdleConnsPerHost: 10,
-		IdleConnTimeout:     60 * time.Second,
+		MaxIdleConnsPerHost:   10,
+		IdleConnTimeout:       60 * time.Second,
+		ResponseHeaderTimeout: 30 * time.Second,
 	},
 }
 
@@ -63,7 +64,7 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 	if ep == "" {
 		ep = entry.Worker.Endpoint
 	}
-	if ep == "" || (entry.State != worker.StateOnline && entry.State != worker.StateBusy) {
+	if ep == "" || entry.State != worker.StateOnline {
 		if err := s.tasks.Fail(ctx, taskID, fmt.Sprintf("worker %q not available (state: %s)", t.WorkerName, entry.State)); err != nil {
 			s.logger.Error("dispatch: fail task", "id", taskID, "err", err)
 		}
@@ -79,20 +80,30 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 		}
 	}
 
-	// Mark worker busy — fail task if state transition fails
+	// Mark worker busy — fail task if state transition fails (prevents concurrent dispatch)
 	if err := s.reg.SetBusy(t.WorkerName); err != nil {
-		s.logger.Warn("dispatch: set busy failed (continuing)", "id", taskID, "worker", t.WorkerName, "err", err)
-		// Don't fail — worker may already be busy (persistent) or state mismatch from reload
+		if failErr := s.tasks.Fail(ctx, taskID, "worker busy or unavailable"); failErr != nil {
+			s.logger.Error("dispatch: fail task", "id", taskID, "err", failErr)
+		}
+		s.logger.Warn("dispatch: worker not ready", "id", taskID, "worker", t.WorkerName, "err", err)
+		return
 	}
 
-	// Send task to worker
-	result, err := s.sendTask(ctx, ep, taskID, t.Prompt, entry.Worker.Timeout)
+	// Send task to worker (include API key if configured)
+	apiKey := ""
+	if entry.Worker.Docker != nil {
+		apiKey = entry.Worker.Docker.APIKey
+	}
+	result, err := s.sendTask(ctx, ep, taskID, t.Prompt, entry.Worker.Timeout, apiKey)
 	if err != nil {
 		redacted := worker.RedactSecrets(err.Error())
 		if failErr := s.tasks.Fail(ctx, taskID, redacted); failErr != nil {
 			s.logger.Error("dispatch: fail task after send error", "id", taskID, "err", failErr)
 		}
-		if onlineErr := s.reg.SetOnline(t.WorkerName); onlineErr != nil {
+		// Transport failures → worker error state. Task-level failures → back to online.
+		if isTransportError(err) {
+			_ = s.reg.SetError(t.WorkerName, redacted)
+		} else if onlineErr := s.reg.SetOnline(t.WorkerName); onlineErr != nil {
 			s.logger.Warn("dispatch: set online after failure", "id", taskID, "err", onlineErr)
 		}
 		s.logger.Error("dispatch: send failed", "id", taskID, "err", redacted)
@@ -108,7 +119,16 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 	s.logger.Info("task completed", "id", taskID, "worker", t.WorkerName)
 }
 
-func (s *Server) sendTask(ctx context.Context, endpoint, taskID, prompt string, timeout time.Duration) (string, error) {
+func isTransportError(err error) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "connection refused") ||
+		strings.Contains(msg, "no such host") ||
+		strings.Contains(msg, "deadline exceeded") ||
+		strings.Contains(msg, "context canceled") ||
+		strings.Contains(msg, "EOF")
+}
+
+func (s *Server) sendTask(ctx context.Context, endpoint, taskID, prompt string, timeout time.Duration, apiKey string) (string, error) {
 	if timeout == 0 {
 		timeout = 10 * time.Minute
 	}
@@ -125,6 +145,9 @@ func (s *Server) sendTask(ctx context.Context, endpoint, taskID, prompt string, 
 		return "", fmt.Errorf("create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+	}
 
 	resp, err := dispatchClient.Do(req)
 	if err != nil {
