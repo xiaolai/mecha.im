@@ -18,6 +18,9 @@ docs/resources/
 .claude/*.local.*
 CLAUDE.local.md
 
+# Plugin-generated reports (regenerated on demand, not source)
+.claude/docs-guardian/audit-report.md
+
 # Codex CLI - local files (sessions, logs, config)
 .codex/*
 !.codex/skills/
