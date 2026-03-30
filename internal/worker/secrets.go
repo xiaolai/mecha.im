@@ -16,6 +16,9 @@ type Secrets struct {
 		Token         string `yaml:"token"`
 		WebhookSecret string `yaml:"webhook_secret"`
 	} `yaml:"github"`
+	GitLab struct {
+		WebhookSecret string `yaml:"webhook_secret"`
+	} `yaml:"gitlab"`
 }
 
 // LoadSecrets reads a secrets YAML file. Returns empty secrets if file doesn't exist.

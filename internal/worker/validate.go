@@ -88,6 +88,29 @@ func (d *DockerConfig) Validate() error {
 	return nil
 }
 
+// validAdapterTypes are the supported adapter backend types.
+var validAdapterTypes = map[string]bool{
+	"ollama": true,
+	"openai": true,
+}
+
+// Validate checks AdapterConfig fields.
+func (a *AdapterConfig) Validate() error {
+	if a.Type == "" {
+		return fmt.Errorf("adapter.type is required")
+	}
+	if !validAdapterTypes[a.Type] {
+		return fmt.Errorf("adapter.type must be ollama or openai, got %q", a.Type)
+	}
+	if a.Upstream == "" {
+		return fmt.Errorf("adapter.upstream is required")
+	}
+	if a.Model == "" {
+		return fmt.Errorf("adapter.model is required")
+	}
+	return nil
+}
+
 func (w *Worker) applyDefaults() {
 	if w.Timeout == 0 {
 		w.Timeout = 10 * 60 * 1e9 // 10 minutes in nanoseconds

@@ -73,6 +73,11 @@ func serveCmd() *cobra.Command {
 				logger.Info("github source registered")
 			}
 
+			if glSecret := secrets.GitLab.WebhookSecret; glSecret != "" {
+				sources.Register(source.NewGitLabSource(glSecret))
+				logger.Info("gitlab source registered")
+			}
+
 			// Write-back client
 			var wb *writeback.Client
 			if ghToken != "" {

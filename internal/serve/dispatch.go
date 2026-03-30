@@ -63,6 +63,12 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 		return
 	}
 
+	// Disposable workers get a one-shot container per task
+	if entry.Worker.Docker != nil && entry.Worker.Docker.Lifecycle == "disposable" {
+		s.dispatchDisposable(ctx, taskID, t, entry)
+		return
+	}
+
 	ep := entry.RuntimeEndpoint
 	if ep == "" {
 		ep = entry.Worker.Endpoint

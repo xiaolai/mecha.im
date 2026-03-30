@@ -74,6 +74,11 @@ func (c *Client) removeLabel(ctx context.Context, owner, repo string, number int
 	return nil
 }
 
+func (c *Client) postCommitSuggestion(ctx context.Context, owner, repo string, number int, message, diff string) error {
+	body := fmt.Sprintf("**Suggested commit:** %s\n\n```diff\n%s\n```", message, diff)
+	return c.postComment(ctx, owner, repo, number, body)
+}
+
 func (c *Client) githubPost(ctx context.Context, url string, payload []byte) error {
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(payload))
 	if err != nil {

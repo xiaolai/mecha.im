@@ -170,6 +170,56 @@ func TestWriteBackResultErrorsJoined(t *testing.T) {
 	}
 }
 
+func TestWriteBackResultCommitSuggestion(t *testing.T) {
+	var called bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" || !strings.Contains(r.URL.Path, "/comments") {
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+		var body map[string]string
+		json.NewDecoder(r.Body).Decode(&body)
+		if !strings.Contains(body["body"], "```diff") {
+			t.Errorf("body should contain diff block, got %s", body["body"])
+		}
+		if !strings.Contains(body["body"], "Suggested commit") {
+			t.Errorf("body should contain commit message header")
+		}
+		called = true
+		w.WriteHeader(201)
+	}))
+	defer srv.Close()
+	restore := OverrideAPIBase(srv.URL)
+	defer restore()
+
+	c := NewClient("test-token", slog.Default())
+	err := c.WriteBackResult(context.Background(), testEvent(), policy.Result{
+		Commit: &policy.CommitAction{Message: "fix typo", Diff: "--- a/f.go\n+++ b/f.go"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !called {
+		t.Error("commit suggestion endpoint was not called")
+	}
+}
+
+func TestWriteBackResultCommitNoDiff(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("should not call API when diff is empty")
+	}))
+	defer srv.Close()
+	restore := OverrideAPIBase(srv.URL)
+	defer restore()
+
+	c := NewClient("test-token", slog.Default())
+	err := c.WriteBackResult(context.Background(), testEvent(), policy.Result{
+		Commit: &policy.CommitAction{Message: "fix", Diff: ""},
+	})
+	if err != nil {
+		t.Fatalf("should succeed without API call: %v", err)
+	}
+}
+
 func TestWriteBackResultNoNumber(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("should not call API when Number is 0")
