@@ -420,7 +420,7 @@ func main() {
 	if repoDir == "" {
 		repoDir = "."
 	}
-	webhookSecret = os.Getenv("WEBHOOK_SECRET")
+	webhookSecret = os.Getenv("GITHUB_MECHA_MCP_WEBHOOK_SECRET")
 
 	reloadPages()
 	log.Printf("loaded %d doc pages from %s", len(getPages()), docsDir)
@@ -428,7 +428,7 @@ func main() {
 	if webhookSecret != "" {
 		log.Printf("github webhook enabled (HMAC validated)")
 	} else {
-		log.Printf("warning: WEBHOOK_SECRET not set, webhook endpoint is unauthenticated")
+		log.Printf("warning: GITHUB_MECHA_MCP_WEBHOOK_SECRET not set, webhook endpoint is unauthenticated")
 	}
 
 	addr := ":8090"
