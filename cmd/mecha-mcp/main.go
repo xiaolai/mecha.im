@@ -139,7 +139,14 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 	// Only react to push events
 	if r.Header.Get("X-GitHub-Event") != "push" {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ignored"))
+		w.Write([]byte("ignored: not a push event"))
+		return
+	}
+
+	// Check if push touches website/ files
+	if !touchesDocs(body) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ignored: no docs changes"))
 		return
 	}
 
@@ -159,6 +166,30 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusAccepted)
 	w.Write([]byte("pulling"))
+}
+
+// touchesDocs checks if any commit in the push payload modifies website/ files.
+func touchesDocs(body []byte) bool {
+	var payload struct {
+		Commits []struct {
+			Added    []string `json:"added"`
+			Modified []string `json:"modified"`
+			Removed  []string `json:"removed"`
+		} `json:"commits"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return true // can't parse — pull to be safe
+	}
+	for _, c := range payload.Commits {
+		for _, files := range [][]string{c.Added, c.Modified, c.Removed} {
+			for _, f := range files {
+				if strings.HasPrefix(f, "website/") {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func validateHMAC(secret string, body []byte, sig string) bool {
