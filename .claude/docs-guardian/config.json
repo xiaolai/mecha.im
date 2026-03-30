@@ -7,8 +7,14 @@
   "stalenessThresholdDays": 30,
   "mappings": [
     { "source": "cmd/mecha/main.go", "doc": "docs/guide/index.md" },
-    { "source": "internal/worker/**", "doc": "docs/guide/index.md" },
-    { "source": "internal/cli/**", "doc": "docs/guide/index.md" }
+    { "source": "internal/cli/**", "doc": "docs/guide/cli.md" },
+    { "source": "internal/worker/config.go", "doc": "docs/guide/workers.md" },
+    { "source": "internal/worker/docker.go", "doc": "docs/guide/architecture.md" },
+    { "source": "internal/worker/registry.go", "doc": "docs/guide/architecture.md" },
+    { "source": "internal/worker/secrets.go", "doc": "docs/guide/secrets.md" },
+    { "source": "internal/worker/health.go", "doc": "docs/guide/workers.md" },
+    { "source": "internal/worker/types.go", "doc": "docs/guide/workers.md" },
+    { "source": "docker/**", "doc": "docs/guide/architecture.md" }
   ],
   "exclude": [
     "node_modules/",
