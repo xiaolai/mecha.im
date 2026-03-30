@@ -9,10 +9,13 @@ import (
 	"syscall"
 
 	"github.com/spf13/cobra"
+	"mecha.im/internal/event"
 	"mecha.im/internal/serve"
+	"mecha.im/internal/source"
 	"mecha.im/internal/store"
 	"mecha.im/internal/task"
 	"mecha.im/internal/worker"
+	"mecha.im/internal/writeback"
 )
 
 func serveCmd() *cobra.Command {
@@ -40,17 +43,40 @@ func serveCmd() *cobra.Command {
 				return fmt.Errorf("load registry: %w", err)
 			}
 			tasks := task.NewStore(db)
+			events := event.NewStore(db)
 
 			logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 				Level: slog.LevelInfo,
 			}))
 
+			// Load secrets for GitHub adapter + write-back
+			secretsPath, _ := worker.DefaultSecretsPath()
+			secrets, _ := worker.LoadSecrets(secretsPath)
+
+			// Register event sources
+			sources := source.NewRegistry()
+			ghToken := secrets.GitHub.Token
+			ghSecret := secrets.GitHub.WebhookSecret
+			if ghToken != "" || ghSecret != "" {
+				sources.Register(source.NewGitHubSource(ghSecret, ghToken))
+				logger.Info("github source registered")
+			}
+
+			// Write-back client
+			var wb *writeback.Client
+			if ghToken != "" {
+				wb = writeback.NewClient(ghToken, logger)
+			}
+
 			srv := serve.New(serve.Config{
-				Registry: reg,
-				Tasks:    tasks,
-				Addr:     addr,
-				APIKey:   apiKey,
-				Logger:   logger,
+				Registry:  reg,
+				Tasks:     tasks,
+				Events:    events,
+				Sources:   sources,
+				WriteBack: wb,
+				Addr:      addr,
+				APIKey:    apiKey,
+				Logger:    logger,
 			})
 
 			ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -60,6 +86,6 @@ func serveCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&addr, "addr", "127.0.0.1:8080", "listen address")
-	cmd.Flags().StringVar(&apiKey, "api-key", "", "API key for authentication (empty = no auth)")
+	cmd.Flags().StringVar(&apiKey, "api-key", "", "API key for authentication")
 	return cmd
 }

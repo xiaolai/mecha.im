@@ -21,15 +21,20 @@ func NewStore(db *sql.DB) *Store {
 
 // Create inserts a new task in pending state and returns it.
 func (s *Store) Create(ctx context.Context, workerName, prompt string) (*Task, error) {
+	return s.CreateWithEvent(ctx, workerName, prompt, "{}", "")
+}
+
+// CreateWithEvent inserts a task with event context and optional event ID.
+func (s *Store) CreateWithEvent(ctx context.Context, workerName, prompt, taskCtx, eventID string) (*Task, error) {
 	id, err := genID()
 	if err != nil {
 		return nil, fmt.Errorf("generate task id: %w", err)
 	}
 	now := time.Now()
 	_, err = s.db.ExecContext(ctx,
-		`INSERT INTO tasks (id, worker_name, prompt, state, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?)`,
-		id, workerName, prompt, string(StatePending), now.Unix(), now.Unix(),
+		`INSERT INTO tasks (id, worker_name, prompt, context, event_id, state, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		id, workerName, prompt, taskCtx, eventID, string(StatePending), now.Unix(), now.Unix(),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("insert task: %w", err)
@@ -38,6 +43,8 @@ func (s *Store) Create(ctx context.Context, workerName, prompt string) (*Task, e
 		ID:         id,
 		WorkerName: workerName,
 		Prompt:     prompt,
+		Context:    taskCtx,
+		EventID:    eventID,
 		State:      StatePending,
 		CreatedAt:  now,
 		UpdatedAt:  now,
@@ -47,7 +54,7 @@ func (s *Store) Create(ctx context.Context, workerName, prompt string) (*Task, e
 // Get retrieves a task by ID.
 func (s *Store) Get(ctx context.Context, id string) (*Task, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT id, worker_name, prompt, state, result, error_msg,
+		`SELECT id, worker_name, prompt, context, event_id, state, result, error_msg,
 		        created_at, updated_at, dispatched_at, completed_at
 		 FROM tasks WHERE id = ?`, id)
 	return scanTask(row)
@@ -55,7 +62,7 @@ func (s *Store) Get(ctx context.Context, id string) (*Task, error) {
 
 // List returns all tasks, optionally filtered by state.
 func (s *Store) List(ctx context.Context, state string) ([]Task, error) {
-	query := `SELECT id, worker_name, prompt, state, result, error_msg,
+	query := `SELECT id, worker_name, prompt, context, event_id, state, result, error_msg,
 	                  created_at, updated_at, dispatched_at, completed_at
 	           FROM tasks`
 	var args []any
@@ -166,10 +173,11 @@ type scanner interface {
 func scanTask(s scanner) (*Task, error) {
 	var t Task
 	var state, result, errMsg string
+	var taskCtx, eventID sql.NullString
 	var createdAt, updatedAt int64
 	var dispatchedAt, completedAt sql.NullInt64
-	err := s.Scan(&t.ID, &t.WorkerName, &t.Prompt, &state, &result, &errMsg,
-		&createdAt, &updatedAt, &dispatchedAt, &completedAt)
+	err := s.Scan(&t.ID, &t.WorkerName, &t.Prompt, &taskCtx, &eventID,
+		&state, &result, &errMsg, &createdAt, &updatedAt, &dispatchedAt, &completedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("task not found")
@@ -179,6 +187,12 @@ func scanTask(s scanner) (*Task, error) {
 	t.State = State(state)
 	t.Result = result
 	t.ErrorMsg = errMsg
+	if taskCtx.Valid {
+		t.Context = taskCtx.String
+	}
+	if eventID.Valid {
+		t.EventID = eventID.String
+	}
 	t.CreatedAt = time.Unix(createdAt, 0)
 	t.UpdatedAt = time.Unix(updatedAt, 0)
 	if dispatchedAt.Valid {
