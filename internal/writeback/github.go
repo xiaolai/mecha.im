@@ -20,6 +20,14 @@ func init() {
 	}
 }
 
+// OverrideAPIBase replaces the GitHub API base URL and returns a restore function.
+// Intended for cross-package testing.
+func OverrideAPIBase(url string) func() {
+	old := apiBase
+	apiBase = strings.TrimRight(url, "/")
+	return func() { apiBase = old }
+}
+
 func (c *Client) postComment(ctx context.Context, owner, repo string, number int, body string) error {
 	u := fmt.Sprintf("%s/repos/%s/%s/issues/%d/comments",
 		apiBase, url.PathEscape(owner), url.PathEscape(repo), number)
