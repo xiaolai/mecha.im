@@ -38,6 +38,8 @@ github:
 
 Add an `events:` section to your worker YAML:
 
+<!-- @formatter:off -->
+::: v-pre
 ```yaml
 name: pr-reviewer
 docker:
@@ -65,6 +67,8 @@ events:
       ### Diff
       {{.diff}}
 ```
+:::
+<!-- @formatter:on -->
 
 ### 3. Configure GitHub Webhook
 
@@ -109,6 +113,7 @@ Each rule in the `events:` section defines when the worker should handle an even
 
 Available in the `prompt` template:
 
+::: v-pre
 | Variable | Source |
 |----------|--------|
 | `{{.repo_owner}}` | Repository owner |
@@ -123,6 +128,7 @@ Available in the `prompt` template:
 | `{{.base_branch}}` | Target branch |
 | `{{.head_sha}}` | Head commit SHA |
 | `{{.labels}}` | Comma-separated label names |
+:::
 
 ## Write-Back
 

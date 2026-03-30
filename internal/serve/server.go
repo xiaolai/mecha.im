@@ -2,6 +2,7 @@ package serve
 
 import (
 	"context"
+	"crypto/subtle"
 	"fmt"
 	"log/slog"
 	"net"
@@ -133,7 +134,10 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 		}
 		auth := r.Header.Get("Authorization")
 		key := r.Header.Get("X-API-Key")
-		if auth == "Bearer "+s.apiKey || key == s.apiKey {
+		expected := []byte(s.apiKey)
+		bearerMatch := subtle.ConstantTimeCompare([]byte(strings.TrimPrefix(auth, "Bearer ")), expected) == 1
+		keyMatch := subtle.ConstantTimeCompare([]byte(key), expected) == 1
+		if bearerMatch || keyMatch {
 			next.ServeHTTP(w, r)
 			return
 		}

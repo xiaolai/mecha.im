@@ -55,6 +55,7 @@ export default withMermaid({
             { text: 'Workers', link: '/guide/workers' },
             { text: 'Secrets', link: '/guide/secrets' },
             { text: 'Events & Webhooks', link: '/guide/events' },
+            { text: 'Policy', link: '/guide/policy' },
           ],
         },
         {

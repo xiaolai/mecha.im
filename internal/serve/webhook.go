@@ -115,7 +115,12 @@ func (s *Server) matchAndHydrate(ctx context.Context, ev *event.Event, src sourc
 				s.logger.Error("webhook: set dispatched failed, not enqueuing", "event", ev.ID, "err", err)
 				return
 			}
-			s.pending <- t.ID
+			select {
+			case s.pending <- t.ID:
+			case <-ctx.Done():
+				s.logger.Error("webhook: enqueue timed out", "event", ev.ID, "task", t.ID)
+				return
+			}
 			s.logger.Info("webhook: dispatched", "event", ev.ID, "task", t.ID, "worker", entry.Worker.Name)
 			return
 		}

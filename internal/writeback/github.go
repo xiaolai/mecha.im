@@ -21,25 +21,28 @@ func init() {
 }
 
 func (c *Client) postComment(ctx context.Context, owner, repo string, number int, body string) error {
-	url := fmt.Sprintf("%s/repos/%s/%s/issues/%d/comments", apiBase, owner, repo, number)
+	u := fmt.Sprintf("%s/repos/%s/%s/issues/%d/comments",
+		apiBase, url.PathEscape(owner), url.PathEscape(repo), number)
 	payload, _ := json.Marshal(map[string]string{"body": body})
-	return c.githubPost(ctx, url, payload)
+	return c.githubPost(ctx, u, payload)
 }
 
 func (c *Client) setStatus(ctx context.Context, owner, repo, sha, state, desc string) error {
-	url := fmt.Sprintf("%s/repos/%s/%s/statuses/%s", apiBase, owner, repo, sha)
+	u := fmt.Sprintf("%s/repos/%s/%s/statuses/%s",
+		apiBase, url.PathEscape(owner), url.PathEscape(repo), url.PathEscape(sha))
 	payload, _ := json.Marshal(map[string]string{
 		"state":       state,
 		"description": desc,
 		"context":     "mecha",
 	})
-	return c.githubPost(ctx, url, payload)
+	return c.githubPost(ctx, u, payload)
 }
 
 func (c *Client) addLabel(ctx context.Context, owner, repo string, number int, label string) error {
-	url := fmt.Sprintf("%s/repos/%s/%s/issues/%d/labels", apiBase, owner, repo, number)
+	u := fmt.Sprintf("%s/repos/%s/%s/issues/%d/labels",
+		apiBase, url.PathEscape(owner), url.PathEscape(repo), number)
 	payload, _ := json.Marshal(map[string][]string{"labels": {label}})
-	return c.githubPost(ctx, url, payload)
+	return c.githubPost(ctx, u, payload)
 }
 
 func (c *Client) removeLabel(ctx context.Context, owner, repo string, number int, label string) error {
@@ -47,7 +50,7 @@ func (c *Client) removeLabel(ctx context.Context, owner, repo string, number int
 		url.PathEscape(owner), url.PathEscape(repo), number, url.PathEscape(label))
 	req, err := http.NewRequestWithContext(ctx, "DELETE", url, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("create delete request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+c.token)
 	req.Header.Set("Accept", "application/vnd.github+json")
@@ -66,7 +69,7 @@ func (c *Client) removeLabel(ctx context.Context, owner, repo string, number int
 func (c *Client) githubPost(ctx context.Context, url string, payload []byte) error {
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(payload))
 	if err != nil {
-		return err
+		return fmt.Errorf("create post request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+c.token)
 	req.Header.Set("Accept", "application/vnd.github+json")
