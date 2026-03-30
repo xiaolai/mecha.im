@@ -46,15 +46,27 @@ func (r *Registry) persist(entries map[string]*Entry) error {
 	}
 	defer tx.Rollback()
 
-	if _, err := tx.Exec("DELETE FROM workers"); err != nil {
-		return fmt.Errorf("clear workers: %w", err)
-	}
-	stmt, err := tx.Prepare(`INSERT INTO workers (name, definition, state, error_msg, container_id, endpoint, started_at)
+	// Upsert each entry (INSERT OR REPLACE)
+	stmt, err := tx.Prepare(`INSERT OR REPLACE INTO workers
+		(name, definition, state, error_msg, container_id, endpoint, started_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
-		return fmt.Errorf("prepare insert: %w", err)
+		return fmt.Errorf("prepare upsert: %w", err)
 	}
 	defer stmt.Close()
+
+	// Track names to detect deletions
+	dbNames := map[string]bool{}
+	rows, err := tx.Query("SELECT name FROM workers")
+	if err != nil {
+		return fmt.Errorf("query names: %w", err)
+	}
+	for rows.Next() {
+		var name string
+		rows.Scan(&name)
+		dbNames[name] = true
+	}
+	rows.Close()
 
 	for _, e := range entries {
 		def, err := json.Marshal(e.Worker)
@@ -65,9 +77,19 @@ func (r *Registry) persist(entries map[string]*Entry) error {
 		if e.StartedAt != nil {
 			startedAt = sql.NullInt64{Int64: e.StartedAt.Unix(), Valid: true}
 		}
-		if _, err := stmt.Exec(e.Worker.Name, string(def), string(e.State), e.Error, e.ContainerID, e.RuntimeEndpoint, startedAt); err != nil {
-			return fmt.Errorf("insert worker %q: %w", e.Worker.Name, err)
+		if _, err := stmt.Exec(e.Worker.Name, string(def), string(e.State),
+			e.Error, e.ContainerID, e.RuntimeEndpoint, startedAt); err != nil {
+			return fmt.Errorf("upsert worker %q: %w", e.Worker.Name, err)
+		}
+		delete(dbNames, e.Worker.Name)
+	}
+
+	// Delete removed workers
+	for name := range dbNames {
+		if _, err := tx.Exec("DELETE FROM workers WHERE name = ?", name); err != nil {
+			return fmt.Errorf("delete worker %q: %w", name, err)
 		}
 	}
+
 	return tx.Commit()
 }

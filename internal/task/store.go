@@ -71,7 +71,7 @@ func (s *Store) List(ctx context.Context, state string) ([]Task, error) {
 	defer rows.Close()
 	var tasks []Task
 	for rows.Next() {
-		t, err := scanTaskRow(rows)
+		t, err := scanTask(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -163,43 +163,17 @@ type scanner interface {
 	Scan(dest ...any) error
 }
 
-func scanTask(row *sql.Row) (*Task, error) {
+func scanTask(s scanner) (*Task, error) {
 	var t Task
 	var state, result, errMsg string
 	var createdAt, updatedAt int64
 	var dispatchedAt, completedAt sql.NullInt64
-	err := row.Scan(&t.ID, &t.WorkerName, &t.Prompt, &state, &result, &errMsg,
+	err := s.Scan(&t.ID, &t.WorkerName, &t.Prompt, &state, &result, &errMsg,
 		&createdAt, &updatedAt, &dispatchedAt, &completedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("task not found")
 		}
-		return nil, fmt.Errorf("scan task: %w", err)
-	}
-	t.State = State(state)
-	t.Result = result
-	t.ErrorMsg = errMsg
-	t.CreatedAt = time.Unix(createdAt, 0)
-	t.UpdatedAt = time.Unix(updatedAt, 0)
-	if dispatchedAt.Valid {
-		dt := time.Unix(dispatchedAt.Int64, 0)
-		t.DispatchedAt = &dt
-	}
-	if completedAt.Valid {
-		ct := time.Unix(completedAt.Int64, 0)
-		t.CompletedAt = &ct
-	}
-	return &t, nil
-}
-
-func scanTaskRow(rows *sql.Rows) (*Task, error) {
-	var t Task
-	var state, result, errMsg string
-	var createdAt, updatedAt int64
-	var dispatchedAt, completedAt sql.NullInt64
-	err := rows.Scan(&t.ID, &t.WorkerName, &t.Prompt, &state, &result, &errMsg,
-		&createdAt, &updatedAt, &dispatchedAt, &completedAt)
-	if err != nil {
 		return nil, fmt.Errorf("scan task: %w", err)
 	}
 	t.State = State(state)
