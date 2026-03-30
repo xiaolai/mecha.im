@@ -170,6 +170,64 @@ func TestParseRulesNil(t *testing.T) {
 	}
 }
 
+func TestParseRulesEmpty(t *testing.T) {
+	f := ParseRules(map[string]any{})
+	if _, ok := f.(*AllowAll); !ok {
+		t.Error("empty map should return AllowAll")
+	}
+}
+
+func TestParseRulesMalformedTypes(t *testing.T) {
+	// Wrong type for comment (string instead of map) — should not panic
+	raw := map[string]any{
+		"comment": "yes",
+		"labels":  42,
+		"status":  true,
+	}
+	f := ParseRules(raw)
+	rf, ok := f.(*RuleFilter)
+	if !ok {
+		t.Fatal("expected RuleFilter")
+	}
+	// All should be nil since type assertions failed
+	if rf.Comment != nil {
+		t.Error("comment should be nil for wrong type")
+	}
+	if rf.Labels != nil {
+		t.Error("labels should be nil for wrong type")
+	}
+	if rf.Status != nil {
+		t.Error("status should be nil for wrong type")
+	}
+}
+
+func TestParseRulesUnknownKeys(t *testing.T) {
+	raw := map[string]any{
+		"unknown_key": map[string]any{"allow": true},
+		"comment":     map[string]any{"allow": true},
+	}
+	f := ParseRules(raw)
+	rf, ok := f.(*RuleFilter)
+	if !ok {
+		t.Fatal("expected RuleFilter")
+	}
+	if rf.Comment == nil || !rf.Comment.Allow {
+		t.Error("valid comment key should be parsed")
+	}
+}
+
+func TestRuleFilterEmptyResult(t *testing.T) {
+	f := &RuleFilter{Comment: &CommentPolicy{Allow: false}}
+	res := Result{} // empty result — no actions
+	_, d, err := f.Apply(context.Background(), &event.Event{}, res)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(d.Allowed) != 0 || len(d.Denied) != 0 {
+		t.Errorf("empty result should produce empty decision, got allowed=%v denied=%v", d.Allowed, d.Denied)
+	}
+}
+
 func TestParseRulesWithConfig(t *testing.T) {
 	raw := map[string]any{
 		"comment": map[string]any{"allow": true, "max_length": float64(5000)},
