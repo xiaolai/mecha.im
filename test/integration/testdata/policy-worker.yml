@@ -1,0 +1,16 @@
+name: policy-test
+endpoint: http://localhost:9999
+timeout: 5m
+policy:
+  comment:
+    allow: true
+    max_length: 5000
+  labels:
+    allow: true
+    blocked:
+      - approved
+      - do-not-merge
+  status:
+    allow: false
+  commit:
+    allow: false
