@@ -9,6 +9,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Secrets holds tokens loaded from ~/.mecha/secrets.yml.
 type Secrets struct {
 	Tokens map[string]map[string]string `yaml:"tokens"`
 	GitHub struct {
@@ -16,6 +17,8 @@ type Secrets struct {
 	} `yaml:"github"`
 }
 
+// LoadSecrets reads a secrets YAML file. Returns empty secrets if file doesn't exist.
+// Warns on stderr if file permissions are too open (want 0600).
 func LoadSecrets(path string) (*Secrets, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -35,6 +38,7 @@ func LoadSecrets(path string) (*Secrets, error) {
 	return &s, nil
 }
 
+// DefaultSecretsPath returns ~/.mecha/secrets.yml.
 func DefaultSecretsPath() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -43,6 +47,7 @@ func DefaultSecretsPath() (string, error) {
 	return filepath.Join(home, ".mecha", "secrets.yml"), nil
 }
 
+// Resolve looks up a token by "backend.name" reference (e.g. "claude.xiaolaidev").
 func (s *Secrets) Resolve(ref string) (string, error) {
 	if s == nil || s.Tokens == nil {
 		return "", fmt.Errorf("no secrets loaded")
@@ -63,6 +68,8 @@ func (s *Secrets) Resolve(ref string) (string, error) {
 	return val, nil
 }
 
+// DetectTokenEnvVar maps a token value to the correct env var name by prefix.
+// Returns ("", token) if the prefix is unrecognized.
 func DetectTokenEnvVar(token string) (string, string) {
 	switch {
 	case strings.HasPrefix(token, "sk-ant-oat"):

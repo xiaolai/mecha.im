@@ -11,6 +11,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Worker is the definition of a managed or unmanaged worker, parsed from YAML.
+// If Docker is non-nil, the worker is managed (mecha controls its lifecycle).
 type Worker struct {
 	Name     string        `yaml:"name"`
 	Endpoint string        `yaml:"endpoint,omitempty"`
@@ -18,6 +20,8 @@ type Worker struct {
 	Timeout  time.Duration `yaml:"timeout,omitempty"`
 }
 
+// DockerConfig holds Docker container settings for a managed worker.
+// All fields except Image are optional.
 type DockerConfig struct {
 	Image     string            `yaml:"image"`
 	Host      string            `yaml:"host,omitempty"`
@@ -29,14 +33,17 @@ type DockerConfig struct {
 	Labels    map[string]string `yaml:"labels,omitempty"`
 }
 
+// ResourceConfig specifies container CPU, memory, and process limits.
 type ResourceConfig struct {
 	CPU    int    `yaml:"cpu,omitempty"`
 	Memory string `yaml:"memory,omitempty"`
 	Pids   int    `yaml:"pids,omitempty"`
 }
 
+// IsManaged returns true if the worker has a Docker section (mecha controls lifecycle).
 func (w *Worker) IsManaged() bool { return w.Docker != nil }
 
+// TypeLabel returns "managed" for Docker workers or "live" for unmanaged endpoints.
 func (w *Worker) TypeLabel() string {
 	if w.IsManaged() {
 		return "managed"
@@ -78,6 +85,8 @@ func (w *Worker) interpolateEnv() error {
 	return nil
 }
 
+// LoadFile reads a worker YAML file, parses it with strict field checking,
+// interpolates environment variables, validates, and applies defaults.
 func LoadFile(path string) (*Worker, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -99,6 +108,8 @@ func LoadFile(path string) (*Worker, error) {
 	return &w, nil
 }
 
+// LoadDir loads all .yml/.yaml files in a directory as workers.
+// Non-YAML files are silently skipped. Fails on first invalid file.
 func LoadDir(dir string) ([]*Worker, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {

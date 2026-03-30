@@ -9,12 +9,16 @@ import (
 	"time"
 )
 
+// Registry manages worker state with mutex-protected in-memory map
+// and atomic JSON file persistence. Thread-safe for concurrent access.
 type Registry struct {
 	mu      sync.Mutex
 	entries map[string]*Entry
 	path    string
 }
 
+// NewRegistry creates a registry backed by the given JSON file path.
+// If the file doesn't exist, starts empty. If it exists, loads entries.
 func NewRegistry(path string) (*Registry, error) {
 	r := &Registry{
 		entries: make(map[string]*Entry),
@@ -26,6 +30,7 @@ func NewRegistry(path string) (*Registry, error) {
 	return r, nil
 }
 
+// DefaultRegistryPath returns ~/.mecha/registry.json.
 func DefaultRegistryPath() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -34,6 +39,7 @@ func DefaultRegistryPath() (string, error) {
 	return filepath.Join(home, ".mecha", "registry.json"), nil
 }
 
+// Add registers a new worker in offline state. Fails if name already exists.
 func (r *Registry) Add(w *Worker) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -49,6 +55,7 @@ func (r *Registry) Add(w *Worker) error {
 	return nil
 }
 
+// Remove deletes a worker from the registry. Worker must be offline.
 func (r *Registry) Remove(name string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -68,6 +75,7 @@ func (r *Registry) Remove(name string) error {
 	return nil
 }
 
+// Start transitions a worker from offline to online. Used for unmanaged workers.
 func (r *Registry) Start(name string) error {
 	return r.mutateEntry(name, func(e *Entry) error {
 		if e.State != StateOffline {
@@ -81,6 +89,7 @@ func (r *Registry) Start(name string) error {
 	})
 }
 
+// Stop transitions a worker from online or error to offline.
 func (r *Registry) Stop(name string) error {
 	return r.mutateEntry(name, func(e *Entry) error {
 		if e.State != StateOnline && e.State != StateError {
@@ -93,6 +102,7 @@ func (r *Registry) Stop(name string) error {
 	})
 }
 
+// SetError transitions a worker to error state with a redacted error message.
 func (r *Registry) SetError(name, errMsg string) error {
 	return r.mutateEntry(name, func(e *Entry) error {
 		e.State = StateError
@@ -101,6 +111,8 @@ func (r *Registry) SetError(name, errMsg string) error {
 	})
 }
 
+// SetRuntime records a Docker container's ID and endpoint, transitions to online.
+// Used after a successful container start + health check.
 func (r *Registry) SetRuntime(name, containerID, endpoint string) error {
 	return r.mutateEntry(name, func(e *Entry) error {
 		now := time.Now()
@@ -113,6 +125,8 @@ func (r *Registry) SetRuntime(name, containerID, endpoint string) error {
 	})
 }
 
+// StopRuntime transitions to offline and clears the endpoint, but keeps ContainerID
+// so that Remove can find and delete the stopped container.
 func (r *Registry) StopRuntime(name string) error {
 	return r.mutateEntry(name, func(e *Entry) error {
 		e.State = StateOffline
@@ -123,6 +137,8 @@ func (r *Registry) StopRuntime(name string) error {
 	})
 }
 
+// ClearRuntime transitions to offline and clears all runtime fields including ContainerID.
+// Used after container removal.
 func (r *Registry) ClearRuntime(name string) error {
 	return r.mutateEntry(name, func(e *Entry) error {
 		e.State = StateOffline
@@ -134,6 +150,7 @@ func (r *Registry) ClearRuntime(name string) error {
 	})
 }
 
+// Get returns a copy of the named entry. Safe for concurrent use.
 func (r *Registry) Get(name string) (Entry, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -144,6 +161,7 @@ func (r *Registry) Get(name string) (Entry, bool) {
 	return *e, true
 }
 
+// List returns copies of all entries sorted by worker name.
 func (r *Registry) List() []Entry {
 	r.mu.Lock()
 	defer r.mu.Unlock()

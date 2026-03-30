@@ -14,10 +14,13 @@ import (
 	"github.com/moby/moby/client"
 )
 
+// DockerClient wraps the moby Docker client for container lifecycle operations.
+// Call Close() when done.
 type DockerClient struct {
 	cli *client.Client
 }
 
+// ContainerCfg holds all parameters needed to create a Docker container.
 type ContainerCfg struct {
 	Name      string
 	Image     string
@@ -28,12 +31,14 @@ type ContainerCfg struct {
 	User      string
 }
 
+// MountCfg describes a bind mount from host to container.
 type MountCfg struct {
 	Source   string
 	Target  string
 	ReadOnly bool
 }
 
+// NewDockerClient creates a Docker client. Empty host uses DOCKER_HOST env var.
 func NewDockerClient(host string) (*DockerClient, error) {
 	opts := []client.Opt{client.FromEnv, client.WithAPIVersionNegotiation()}
 	if host != "" {
@@ -46,6 +51,7 @@ func NewDockerClient(host string) (*DockerClient, error) {
 	return &DockerClient{cli: cli}, nil
 }
 
+// Pull downloads a Docker image, waiting for completion. Returns error on failure.
 func (d *DockerClient) Pull(ctx context.Context, img string) error {
 	resp, err := d.cli.ImagePull(ctx, img, client.ImagePullOptions{})
 	if err != nil {
@@ -58,6 +64,8 @@ func (d *DockerClient) Pull(ctx context.Context, img string) error {
 	return nil
 }
 
+// Create builds a container from cfg, binding port 8080 to a random localhost port.
+// Returns the container ID.
 func (d *DockerClient) Create(ctx context.Context, cfg ContainerCfg) (string, error) {
 	env := make([]string, 0, len(cfg.Env))
 	for k, v := range cfg.Env {
@@ -117,6 +125,7 @@ func (d *DockerClient) Create(ctx context.Context, cfg ContainerCfg) (string, er
 	return resp.ID, nil
 }
 
+// Start starts a created container by ID.
 func (d *DockerClient) Start(ctx context.Context, id string) error {
 	_, err := d.cli.ContainerStart(ctx, id, client.ContainerStartOptions{})
 	if err != nil {
@@ -125,6 +134,7 @@ func (d *DockerClient) Start(ctx context.Context, id string) error {
 	return nil
 }
 
+// Stop gracefully stops a container with the given timeout.
 func (d *DockerClient) Stop(ctx context.Context, id string, timeout time.Duration) error {
 	secs := int(timeout.Seconds())
 	_, err := d.cli.ContainerStop(ctx, id, client.ContainerStopOptions{Timeout: &secs})
@@ -134,6 +144,7 @@ func (d *DockerClient) Stop(ctx context.Context, id string, timeout time.Duratio
 	return nil
 }
 
+// Remove force-removes a container by ID or name.
 func (d *DockerClient) Remove(ctx context.Context, id string) error {
 	_, err := d.cli.ContainerRemove(ctx, id, client.ContainerRemoveOptions{Force: true})
 	if err != nil {
@@ -142,6 +153,7 @@ func (d *DockerClient) Remove(ctx context.Context, id string) error {
 	return nil
 }
 
+// Endpoint inspects a container and returns the mapped http://127.0.0.1:<port> URL.
 func (d *DockerClient) Endpoint(ctx context.Context, id string) (string, error) {
 	result, err := d.cli.ContainerInspect(ctx, id, client.ContainerInspectOptions{})
 	if err != nil {
@@ -155,8 +167,10 @@ func (d *DockerClient) Endpoint(ctx context.Context, id string) (string, error) 
 	return "http://127.0.0.1:" + bindings[0].HostPort, nil
 }
 
+// Close releases the Docker client connection.
 func (d *DockerClient) Close() error { return d.cli.Close() }
 
+// CurrentUser returns the current OS user as "uid:gid" for container --user flag.
 func CurrentUser() (string, error) {
 	u, err := user.Current()
 	if err != nil {

@@ -20,6 +20,7 @@ var secretPatterns = regexp.MustCompile(
 		`)`,
 )
 
+// RedactSecrets replaces known credential patterns with [REDACTED].
 func RedactSecrets(s string) string {
 	return secretPatterns.ReplaceAllString(s, "[REDACTED]")
 }

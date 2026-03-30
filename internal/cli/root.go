@@ -8,8 +8,10 @@ import (
 	"mecha.im/internal/worker"
 )
 
+// Version is set at build time via -ldflags.
 var Version = "dev"
 
+// Execute runs the root Cobra command. Calls os.Exit(1) on error.
 func Execute() {
 	root := &cobra.Command{
 		Use:   "mecha",

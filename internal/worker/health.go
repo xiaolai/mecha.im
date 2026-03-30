@@ -15,6 +15,7 @@ var healthClient = &http.Client{
 	},
 }
 
+// CheckHealth sends GET <endpoint>/health and returns nil on HTTP 200.
 func CheckHealth(endpoint string, timeout time.Duration) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
