@@ -3,7 +3,7 @@
 # Usage: sudo bash deploy/setup-mcp.sh
 set -e
 
-WEBHOOK_SECRET="***REDACTED***"
+WEBHOOK_SECRET="${GITHUB_MECHA_MCP_WEBHOOK_SECRET:?Set GITHUB_MECHA_MCP_WEBHOOK_SECRET before running}"
 
 echo "==> Installing binary"
 cp /tmp/mecha-mcp /usr/local/bin/mecha-mcp
