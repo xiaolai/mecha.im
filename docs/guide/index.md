@@ -75,4 +75,4 @@ flowchart LR
     F --> T[Task.complete]
 ```
 
-Currently only the Worker noun is implemented. The pipeline will connect all four nouns in Phase 3+.
+All four nouns and the full pipeline are implemented. Events arrive via webhooks, match to workers, create tasks, get dispatched, pass through policy filtering, and complete with write-back to GitHub.
