@@ -15,7 +15,12 @@ func (s *Server) getWorkerPolicy(workerName string) policy.Filter {
 		s.logger.Warn("dispatch: no policy configured, using AllowAll", "worker", workerName)
 		return &policy.AllowAll{}
 	}
-	return policy.ParseRules(entry.Worker.Policy)
+	f, err := policy.ParseRules(entry.Worker.Policy)
+	if err != nil {
+		s.logger.Error("dispatch: invalid policy config, denying all write-back", "worker", workerName, "err", err)
+		return &policy.DenyAll{}
+	}
+	return f
 }
 
 func (s *Server) completeEvent(ctx context.Context, eventID string, success bool) {

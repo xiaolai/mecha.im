@@ -1,6 +1,10 @@
 FROM mecha-worker-base
 
-RUN npm install -g @google/gemini-cli || true
+USER root
+
+RUN npm install -g @google/gemini-cli
+
+USER worker
 
 ENV WORKER_BACKEND=gemini
 EXPOSE 8080

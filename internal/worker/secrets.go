@@ -19,7 +19,7 @@ type Secrets struct {
 }
 
 // LoadSecrets reads a secrets YAML file. Returns empty secrets if file doesn't exist.
-// Warns on stderr if file permissions are too open (want 0600).
+// Returns an error if file permissions are too open (want 0600).
 func LoadSecrets(path string) (*Secrets, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -30,7 +30,8 @@ func LoadSecrets(path string) (*Secrets, error) {
 	}
 	info, err := os.Stat(path)
 	if err == nil && info.Mode().Perm()&0o077 != 0 {
-		fmt.Fprintf(os.Stderr, "warning: %s has open permissions (want 0600)\n", path)
+		return nil, fmt.Errorf("secrets file %s has permissions %04o (want 0600) — fix with: chmod 600 %s",
+			path, info.Mode().Perm(), path)
 	}
 	var s Secrets
 	if err := yaml.Unmarshal(data, &s); err != nil {

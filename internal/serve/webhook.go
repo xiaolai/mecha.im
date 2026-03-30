@@ -101,7 +101,10 @@ func (s *Server) matchAndHydrate(ctx context.Context, ev *event.Event, src sourc
 				return
 			}
 
-			taskCtx := buildTaskContext(ev)
+			taskCtx, ctxErr := buildTaskContext(ev)
+			if ctxErr != nil {
+				s.logger.Error("webhook: build task context", "event", ev.ID, "err", ctxErr)
+			}
 			t, err := s.tasks.CreateWithEvent(ctx, entry.Worker.Name, prompt, taskCtx, ev.ID)
 			if err != nil {
 				s.logger.Error("webhook: create task", "event", ev.ID, "err", err)
@@ -150,7 +153,11 @@ func (s *Server) handleGetEvent(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	ev, err := s.events.Get(r.Context(), id)
 	if err != nil {
-		writeError(w, http.StatusNotFound, "event not found")
+		if strings.Contains(err.Error(), "not found") {
+			writeError(w, http.StatusNotFound, "event not found")
+		} else {
+			writeError(w, http.StatusInternalServerError, "internal error")
+		}
 		return
 	}
 	writeJSON(w, http.StatusOK, ev)

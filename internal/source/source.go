@@ -38,3 +38,11 @@ func (r *Registry) Get(name string) (Source, bool) {
 	s, ok := r.sources[name]
 	return s, ok
 }
+
+// Len returns the number of registered sources.
+func (r *Registry) Len() int {
+	if r == nil {
+		return 0
+	}
+	return len(r.sources)
+}

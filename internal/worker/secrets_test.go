@@ -114,13 +114,13 @@ func TestLoadSecretsInvalidYAML(t *testing.T) {
 func TestLoadSecretsOpenPermissions(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "secrets.yml")
 	os.WriteFile(path, []byte("tokens: {}"), 0o644)
-	// Should warn but not error
-	s, err := LoadSecrets(path)
-	if err != nil {
-		t.Fatal(err)
+	// Should return error for insecure permissions
+	_, err := LoadSecrets(path)
+	if err == nil {
+		t.Fatal("expected error for open permissions")
 	}
-	if s == nil {
-		t.Error("should return secrets despite open perms")
+	if !strings.Contains(err.Error(), "permissions") {
+		t.Errorf("error = %q, want permissions-related", err)
 	}
 }
 
