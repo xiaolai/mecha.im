@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"mecha.im/internal/store"
 	"mecha.im/internal/worker"
 )
 
@@ -23,16 +24,21 @@ func workerCmd() *cobra.Command {
 }
 
 func registry() *worker.Registry {
-	path := os.Getenv("MECHA_REGISTRY_PATH")
+	path := os.Getenv("MECHA_DB_PATH")
 	if path == "" {
 		var err error
-		path, err = worker.DefaultRegistryPath()
+		path, err = store.DefaultDBPath()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			os.Exit(1)
 		}
 	}
-	r, err := worker.NewRegistry(path)
+	db, err := store.Open(path)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+	r, err := worker.NewRegistry(db)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)

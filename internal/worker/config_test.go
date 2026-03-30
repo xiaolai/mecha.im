@@ -96,8 +96,42 @@ func TestLoadFile(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "docker disposable rejected",
-			yaml:    "name: bad\ndocker:\n  image: x\n  lifecycle: disposable\n",
+			name: "docker disposable accepted",
+			yaml: "name: ok\ndocker:\n  image: x\n  lifecycle: disposable\n",
+			want: func(t *testing.T, w *Worker) {
+				if w.Docker.Lifecycle != "disposable" {
+					t.Errorf("lifecycle = %q", w.Docker.Lifecycle)
+				}
+			},
+		},
+		{
+			name:    "negative timeout",
+			yaml:    "name: bad\nendpoint: http://x\ntimeout: -1s\n",
+			wantErr: true,
+		},
+		{
+			name:    "negative cpu",
+			yaml:    "name: bad\ndocker:\n  image: x\n  resources:\n    cpu: -1\n",
+			wantErr: true,
+		},
+		{
+			name:    "negative pids",
+			yaml:    "name: bad\ndocker:\n  image: x\n  resources:\n    pids: -1\n",
+			wantErr: true,
+		},
+		{
+			name:    "bad memory format",
+			yaml:    "name: bad\ndocker:\n  image: x\n  resources:\n    memory: abc\n",
+			wantErr: true,
+		},
+		{
+			name:    "unknown lifecycle",
+			yaml:    "name: bad\ndocker:\n  image: x\n  lifecycle: ephemeral\n",
+			wantErr: true,
+		},
+		{
+			name:    "docker missing image",
+			yaml:    "name: broken\ndocker:\n  lifecycle: persistent\n",
 			wantErr: true,
 		},
 	}
@@ -170,6 +204,50 @@ func TestLoadDir(t *testing.T) {
 	}
 	if len(workers) != 2 {
 		t.Errorf("got %d workers, want 2", len(workers))
+	}
+}
+
+func TestDockerHostInterpolation(t *testing.T) {
+	t.Setenv("TEST_DOCKER_HOST", "tcp://remote:2375")
+	yaml := "name: test\ndocker:\n  image: x\n  host: ${TEST_DOCKER_HOST}\n"
+	path := filepath.Join(t.TempDir(), "w.yml")
+	os.WriteFile(path, []byte(yaml), 0o644)
+	w, err := LoadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w.Docker.Host != "tcp://remote:2375" {
+		t.Errorf("host = %q", w.Docker.Host)
+	}
+}
+
+func TestDockerHostUnresolved(t *testing.T) {
+	yaml := "name: test\ndocker:\n  image: x\n  host: ${NONEXISTENT_HOST_VAR_XYZ}\n"
+	path := filepath.Join(t.TempDir(), "w.yml")
+	os.WriteFile(path, []byte(yaml), 0o644)
+	_, err := LoadFile(path)
+	if err == nil {
+		t.Error("expected error for unresolved docker.host var")
+	}
+}
+
+func TestLoadDirEmpty(t *testing.T) {
+	dir := t.TempDir()
+	workers, err := LoadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(workers) != 0 {
+		t.Errorf("got %d workers from empty dir", len(workers))
+	}
+}
+
+func TestLoadDirBadFile(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "bad.yml"), []byte("invalid: yaml: ["), 0o644)
+	_, err := LoadDir(dir)
+	if err == nil {
+		t.Error("expected error for invalid YAML")
 	}
 }
 

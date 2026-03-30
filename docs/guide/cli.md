@@ -129,7 +129,7 @@ name: coder
 
 | Variable | Description |
 |----------|-------------|
-| `MECHA_REGISTRY_PATH` | Override registry file location (default: `~/.mecha/registry.json`) |
+| `MECHA_DB_PATH` | Override database location (default: `~/.mecha/mecha.db`) |
 
 ## Exit Codes
 
