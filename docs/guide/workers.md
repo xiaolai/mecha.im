@@ -57,6 +57,7 @@ timeout: 30m                            # task timeout
 | `docker.resources.memory` | No | unlimited | Memory limit (`512M`, `4G`) |
 | `docker.resources.pids` | No | unlimited | Max processes |
 | `docker.lifecycle` | No | `persistent` | Only `persistent` supported (Phase 2) |
+| `docker.host` | No | local socket | Docker daemon URL (e.g. `unix:///var/run/docker.sock`) |
 | `docker.env` | No | `{}` | Environment variables passed to container |
 | `docker.token` | No | — | Token reference from `~/.mecha/secrets.yml` |
 | `docker.labels` | No | `{}` | Custom Docker container labels |
@@ -129,31 +130,36 @@ Every managed worker image must:
 
 ### Claude
 
-| Env Var | CLI Flag | Values |
-|---------|----------|--------|
-| `CLAUDE_MODEL` | `--model` | `claude-sonnet-4-6`, `claude-opus-4-6`, etc. |
-| `CLAUDE_SYSTEM_PROMPT` | `--system-prompt` | Any string |
-| `CLAUDE_ALLOWED_TOOLS` | `--allowed-tools` | Comma-separated: `Read,Grep,Glob,Bash` |
-| `CLAUDE_DISALLOWED_TOOLS` | `--disallowed-tools` | Comma-separated |
-| `CLAUDE_PERMISSION_MODE` | `--permission-mode` | `default`, `plan`, `auto`, `bypassPermissions` |
-| `CLAUDE_EFFORT` | `--effort` | `low`, `medium`, `high`, `max` |
-| `CLAUDE_OUTPUT_FORMAT` | `--output-format` | `text`, `json`, `stream-json` |
-| `CLAUDE_MAX_BUDGET_USD` | `--max-budget-usd` | e.g. `5.00` |
+Claude uses the Agent SDK `query()` directly. Env vars map to SDK options:
+
+| Env Var | SDK Option | Values |
+|---------|-----------|--------|
+| `CLAUDE_MODEL` | `model` | `claude-sonnet-4-6`, `claude-opus-4-6`, etc. |
+| `CLAUDE_SYSTEM_PROMPT` | `systemPrompt` | Any string |
+| `CLAUDE_ALLOWED_TOOLS` | `allowedTools` | Comma-separated: `Read,Grep,Glob,Bash` |
+| `CLAUDE_DISALLOWED_TOOLS` | `disallowedTools` | Comma-separated |
+| `CLAUDE_PERMISSION_MODE` | `permissionMode` | `default`, `plan`, `acceptEdits`, `bypassPermissions` |
+| `CLAUDE_EFFORT` | `effort` | `low`, `medium`, `high`, `max` |
+| `CLAUDE_MAX_BUDGET_USD` | `maxBudgetUsd` | e.g. `5.00` |
+| `CLAUDE_MAX_TURNS` | `maxTurns` | e.g. `50` |
 
 ### Codex
+
+Codex uses `codex exec` CLI. Env vars map to CLI flags:
 
 | Env Var | CLI Flag | Values |
 |---------|----------|--------|
 | `CODEX_MODEL` | `--model` | `gpt-5.4`, `gpt-5.4-mini`, etc. |
 | `CODEX_SANDBOX` | `--sandbox` | `read-only`, `workspace-write`, `danger-full-access` |
 | `CODEX_FULL_AUTO` | `--full-auto` | `"true"` to enable auto-approve + workspace-write |
+| `CODEX_EFFORT` | `-c model_reasoning_effort` | `low`, `medium`, `high` |
 
 ### Gemini
 
 | Env Var | CLI Flag | Values |
 |---------|----------|--------|
 | `GEMINI_MODEL` | `--model` | `gemini-2.5-pro`, `gemini-2.5-flash`, etc. |
-| `GEMINI_SANDBOX` | `--sandbox` | `true`, `docker`, `podman` |
+| `GEMINI_SANDBOX` | `--sandbox` | `"true"` to enable sandboxed execution |
 | `GEMINI_APPROVAL_MODE` | `--approval-mode` | `default`, `auto_edit`, `yolo`, `plan` |
 | `GEMINI_OUTPUT_FORMAT` | `--output-format` | `text`, `json`, `stream-json` |
 

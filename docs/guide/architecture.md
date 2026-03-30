@@ -24,7 +24,7 @@ flowchart TB
     end
 
     CLI -->|create/start/stop| Docker
-    C1 -->|POST /task| Claude[claude --print]
+    C1 -->|POST /task| Claude[Agent SDK query]
     C2 -->|POST /task| Codex[codex exec]
     C3 -->|POST /task| Gemini[gemini -p]
 ```
@@ -43,18 +43,21 @@ The single binary handles all worker management:
 
 ### Worker runtime (TypeScript/Bun)
 
-Inside each container, a Bun HTTP server receives tasks and shells out to the LLM CLI:
+Inside each container, a Bun HTTP server receives tasks and dispatches to the backend:
+
+- **Claude**: calls the Agent SDK `query()` directly (structured response, no subprocess)
+- **Codex/Gemini**: shells out to the CLI (`codex exec` / `gemini -p`)
 
 ```mermaid
 sequenceDiagram
     participant M as mecha
     participant S as Bun server (port 8080)
-    participant C as claude --print
+    participant SDK as Agent SDK
 
     M->>S: POST /task {"prompt": "..."}
     S->>S: Check busy flag
-    S->>C: Spawn process with args
-    C-->>S: stdout + exit code
+    S->>SDK: query({prompt, options})
+    SDK-->>S: SDKResultMessage
     S-->>M: {"output": "...", "metadata": {...}}
 ```
 

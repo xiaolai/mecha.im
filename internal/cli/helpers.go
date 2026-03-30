@@ -12,10 +12,13 @@ var blockedEnvKeys = map[string]bool{
 	"gh_enterprise_token": true, "github_webhook_secret": true,
 }
 
+// looksLikeCredential returns true if v resembles a GitHub credential by prefix.
 func looksLikeCredential(v string) bool {
 	return strings.HasPrefix(v, "ghp_") ||
 		strings.HasPrefix(v, "ghs_") ||
 		strings.HasPrefix(v, "ghr_") ||
 		strings.HasPrefix(v, "gho_") ||
+		strings.HasPrefix(v, "ghu_") ||
+		strings.HasPrefix(v, "ghes_") ||
 		strings.HasPrefix(v, "github_pat_")
 }

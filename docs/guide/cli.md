@@ -34,14 +34,14 @@ If a worker with the same name already exists, the command fails. When adding a 
 
 ## mecha worker remove
 
-Remove a worker definition. The worker must be offline.
+Remove a worker definition.
 
 ```bash
 $ mecha worker remove reviewer
 removed reviewer
 ```
 
-For managed workers, `remove` also stops and deletes the Docker container.
+For managed workers, `remove` first stops and deletes the Docker container (even if the worker is still online), then removes the registry entry.
 
 ## mecha worker start
 
@@ -98,7 +98,7 @@ api-service   live     error   http://100.64.0.3:8080  unreachable
 | ENDPOINT | Runtime URL (managed: auto-assigned port, live: from YAML) |
 | HEALTH | `ok`, `unreachable`, `-` (offline), or error message |
 
-Health is probed concurrently — all workers checked in parallel.
+Health is probed concurrently for online workers. Workers in `error` state show their stored error message without a live probe. Offline workers show `-`.
 
 ## mecha config
 

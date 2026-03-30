@@ -14,6 +14,8 @@ func TestLooksLikeCredential(t *testing.T) {
 		{"ghs_abc123", true},
 		{"ghr_abc123", true},
 		{"gho_abc123", true},
+		{"ghu_abc123", true},
+		{"ghes_abc123", true},
 		{"github_pat_abc123", true},
 		{"hello-world", false},
 		{"sk-ant-oat01-abc", false},
