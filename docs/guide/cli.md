@@ -125,6 +125,27 @@ name: coder
 ...
 ```
 
+## mecha serve
+
+Start the HTTP server for task dispatch and webhook handling.
+
+```bash
+$ mecha serve
+time=... level=INFO msg=serving addr=127.0.0.1:8080
+
+$ mecha serve --addr 0.0.0.0:8080 --api-key my-secret
+time=... level=INFO msg=serving addr=0.0.0.0:8080
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--addr` | `127.0.0.1:8080` | Listen address |
+| `--api-key` | (empty) | API key for authentication |
+
+The server provides HTTP endpoints for task management, worker status, and webhook handling. See [API Reference](./api) and [Events](./events).
+
+Shutdown: `Ctrl+C` (SIGINT) or `kill` (SIGTERM). In-flight tasks complete before exit.
+
 ## Environment Variables
 
 | Variable | Description |

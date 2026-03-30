@@ -41,7 +41,7 @@ Each worker is a Docker container running an LLM CLI (Claude, Codex, or Gemini).
 
 ## Current Status
 
-Mecha is under active development. The **Worker** noun is fully implemented.
+Mecha is under active development. Worker, Task, and Event nouns are implemented.
 
 | Component | Status |
 |-----------|--------|
@@ -49,10 +49,11 @@ Mecha is under active development. The **Worker** noun is fully implemented.
 | Docker container management | ✅ Implemented |
 | Secrets management | ✅ Implemented |
 | Health checks | ✅ Implemented |
-| Event handling (webhooks) | 🔲 Phase 3 |
-| Task dispatch | 🔲 Phase 3 |
-| Policy filtering | 🔲 Phase 4 |
-| GitHub integration | 🔲 Phase 5 |
+| `mecha serve` HTTP server | ✅ Implemented |
+| Task dispatch (create/dispatch/complete/fail) | ✅ Implemented |
+| GitHub webhooks (event → task) | ✅ Implemented |
+| GitHub write-back (comments, status, labels) | ✅ Implemented |
+| Policy filtering | 🔲 Phase 5 (stub exists) |
 
 ## Four Nouns
 
