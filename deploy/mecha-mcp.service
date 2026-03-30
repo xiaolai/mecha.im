@@ -9,6 +9,8 @@ Group=www-data
 ExecStart=/usr/local/bin/mecha-mcp
 Environment=ADDR=127.0.0.1:8090
 Environment=DOCS_DIR=/opt/mecha/website/guide
+Environment=REPO_DIR=/opt/mecha
+Environment=WEBHOOK_SECRET=changeme
 Restart=always
 RestartSec=5
 
