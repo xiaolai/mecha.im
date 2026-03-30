@@ -56,7 +56,7 @@ func TestBuildContainerEnv(t *testing.T) {
 		{
 			name:    "token ref with no matching token",
 			dc:      &worker.DockerConfig{Token: "claude.nonexistent"},
-			wantErr: "not found",
+			wantErr: "resolve token",
 		},
 		{
 			name: "empty token skips resolution",
