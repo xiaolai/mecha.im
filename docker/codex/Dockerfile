@@ -6,4 +6,4 @@ RUN curl -fsSL https://raw.githubusercontent.com/openai/codex/main/codex-cli/scr
 ENV WORKER_BACKEND=codex
 EXPOSE 8080
 HEALTHCHECK --interval=10s --timeout=3s CMD curl -sf http://localhost:8080/health || exit 1
-ENTRYPOINT ["bun", "run", "/app/server.ts"]
+ENTRYPOINT ["/app/entrypoint.sh"]

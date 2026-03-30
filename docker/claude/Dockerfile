@@ -14,4 +14,4 @@ RUN bun add @anthropic-ai/claude-agent-sdk
 ENV WORKER_BACKEND=claude
 EXPOSE 8080
 HEALTHCHECK --interval=10s --timeout=3s CMD curl -sf http://localhost:8080/health || exit 1
-ENTRYPOINT ["bun", "run", "/app/server.ts"]
+ENTRYPOINT ["/app/entrypoint.sh"]

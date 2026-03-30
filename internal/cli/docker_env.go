@@ -44,7 +44,17 @@ func buildContainerEnv(dc *worker.DockerConfig) (map[string]string, error) {
 		env[k] = v
 	}
 
-	// 3. HOME for non-root user.
+	// 3. API key for worker authentication.
+	if dc.APIKey != "" {
+		env["WORKER_API_KEY"] = dc.APIKey
+	}
+
+	// 4. Domain for Caddy HTTPS.
+	if dc.Domain != "" {
+		env["WORKER_DOMAIN"] = dc.Domain
+	}
+
+	// 5. HOME for non-root user.
 	env["HOME"] = "/tmp"
 	return env, nil
 }
