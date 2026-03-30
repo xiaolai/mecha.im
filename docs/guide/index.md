@@ -52,15 +52,18 @@ Mecha is under active development. Worker, Task, and Event nouns are implemented
 | `mecha serve` HTTP server | ✅ Implemented |
 | Task dispatch (create/dispatch/complete/fail) | ✅ Implemented |
 | GitHub webhooks (event → task) | ✅ Implemented |
-| GitHub write-back (comments, status, labels) | ✅ Implemented |
+| GitHub write-back (comments, status, labels, commit suggestions) | ✅ Implemented |
 | Policy filtering (result write-back control) | ✅ Implemented |
+| GitLab + generic webhook sources | ✅ Implemented |
+| Disposable (one-shot) containers | ✅ Implemented |
+| Adapter workers (Ollama, OpenAI-compatible) | ✅ Implemented |
 
 ## Four Nouns
 
 The full system (when complete) is built on four concepts:
 
 - **Event** — something happened (webhook, schedule, API call)
-- **Worker** — takes a prompt, returns a result (Docker container)
+- **Worker** — takes a prompt, returns a result (Docker container, adapter, or external endpoint)
 - **Task** — an event matched to a worker
 - **Policy** — what a result is allowed to contain
 
