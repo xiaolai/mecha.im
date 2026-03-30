@@ -1,6 +1,6 @@
 ---
 description: Documentation conventions — Mermaid validation, VitePress structure, content standards
-globs: "docs/**/*.md"
+globs: "website/**/*.md"
 ---
 
 # Documentation Rules
@@ -14,8 +14,8 @@ globs: "docs/**/*.md"
 ## VitePress
 
 - Every page must have YAML frontmatter with `title` and `description`
-- Sidebar config: `docs/.vitepress/config.mts`
-- Custom styles: `docs/.vitepress/theme/custom.css`
+- Sidebar config: `website/.vitepress/config.mts`
+- Custom styles: `website/.vitepress/theme/custom.css`
 
 ## Content Standards
 

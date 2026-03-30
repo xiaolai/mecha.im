@@ -4,9 +4,8 @@ dist/
 .DS_Store
 .env
 dev-docs/
-website/
 .playwright-mcp/
-docs/resources/
+website/resources/
 
 # =============================================================================
 # AI CODING ASSISTANTS

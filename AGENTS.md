@@ -10,7 +10,7 @@ Four nouns: Event, Worker, Task, Policy. One pipeline. See `.claude/rules/domain
 
 - Go 1.26.1 — single binary, cross-platform (darwin/linux, amd64/arm64)
 - Cobra CLI, YAML config, JSON file persistence, Docker API
-- VitePress for documentation (`docs/`)
+- VitePress for documentation (`website/`)
 
 ## Build
 
@@ -23,14 +23,14 @@ make ci       # vet + test + build
 ## Docs Build
 
 ```
-cd docs
+cd website
 npm install          # first time only
 npm run dev          # dev server at localhost:5173
 npm run build        # production build → .vitepress/dist/
 ```
 
-Config: `docs/.vitepress/config.mts`
-Custom styles: `docs/.vitepress/theme/custom.css`
+Config: `website/.vitepress/config.mts`
+Custom styles: `website/.vitepress/theme/custom.css`
 
 ## Architecture Docs
 
