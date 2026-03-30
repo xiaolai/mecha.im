@@ -68,6 +68,9 @@ func New(cfg Config) *Server {
 
 // Start begins serving HTTP and the dispatch loop. Blocks until ctx is cancelled.
 func (s *Server) Start(ctx context.Context) error {
+	// Start dispatch loop first so recovered tasks are consumed
+	go s.dispatchLoop(ctx)
+
 	// Recover pending tasks from previous run
 	ids, err := s.tasks.Pending(ctx)
 	if err != nil {
@@ -81,8 +84,6 @@ func (s *Server) Start(ctx context.Context) error {
 			s.logger.Warn("pending queue full, skipping recovery", "id", id)
 		}
 	}
-
-	go s.dispatchLoop(ctx)
 
 	ln, err := net.Listen("tcp", s.addr)
 	if err != nil {
