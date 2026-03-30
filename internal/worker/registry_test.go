@@ -301,6 +301,82 @@ func TestRegistryClearRuntime(t *testing.T) {
 	}
 }
 
+func TestRegistrySetBusy(t *testing.T) {
+	r := testRegistry(t)
+	r.Add(testWorker("w"))
+	r.Start("w")
+
+	if err := r.SetBusy("w"); err != nil {
+		t.Fatalf("SetBusy: %v", err)
+	}
+	e, _ := r.Get("w")
+	if e.State != StateBusy {
+		t.Errorf("state = %q, want busy", e.State)
+	}
+
+	// offline → busy should fail
+	r.Add(testWorker("w2"))
+	if err := r.SetBusy("w2"); err == nil {
+		t.Error("expected error for offline→busy")
+	}
+}
+
+func TestRegistrySetOnline(t *testing.T) {
+	r := testRegistry(t)
+	r.Add(testWorker("w"))
+	r.Start("w")
+	r.SetBusy("w")
+
+	if err := r.SetOnline("w"); err != nil {
+		t.Fatalf("SetOnline: %v", err)
+	}
+	e, _ := r.Get("w")
+	if e.State != StateOnline {
+		t.Errorf("state = %q, want online", e.State)
+	}
+
+	// online → online should fail
+	if err := r.SetOnline("w"); err == nil {
+		t.Error("expected error for online→online")
+	}
+}
+
+func TestRegistryReload(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "test.db")
+	db, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	r, _ := NewRegistry(db)
+	r.Add(testWorker("w1"))
+	r.Start("w1")
+
+	// Simulate CLI adding a worker via separate connection
+	db2, _ := store.Open(path)
+	r2, _ := NewRegistry(db2)
+	w2 := &Worker{Name: "w2", Endpoint: "http://y"}
+	r2.Add(w2)
+	db2.Close()
+
+	// Reload should pick up w2
+	if err := r.Reload(); err != nil {
+		t.Fatalf("Reload: %v", err)
+	}
+	if _, ok := r.Get("w2"); !ok {
+		t.Error("w2 not found after Reload")
+	}
+	// w1 should still be present
+	e1, ok := r.Get("w1")
+	if !ok {
+		t.Error("w1 lost after Reload")
+	}
+	if e1.State != StateOnline {
+		t.Errorf("w1 state = %q after Reload", e1.State)
+	}
+}
+
 func TestRegistryRuntimePersistence(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "test.db")
 	db, err := store.Open(path)

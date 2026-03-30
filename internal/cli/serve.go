@@ -16,7 +16,7 @@ import (
 )
 
 func serveCmd() *cobra.Command {
-	var addr string
+	var addr, apiKey string
 	cmd := &cobra.Command{
 		Use:   "serve",
 		Short: "Start the mecha HTTP server",
@@ -49,6 +49,7 @@ func serveCmd() *cobra.Command {
 				Registry: reg,
 				Tasks:    tasks,
 				Addr:     addr,
+				APIKey:   apiKey,
 				Logger:   logger,
 			})
 
@@ -59,5 +60,6 @@ func serveCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&addr, "addr", "127.0.0.1:8080", "listen address")
+	cmd.Flags().StringVar(&apiKey, "api-key", "", "API key for authentication (empty = no auth)")
 	return cmd
 }

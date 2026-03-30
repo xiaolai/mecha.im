@@ -13,7 +13,7 @@ import (
 // Schema tables are created if they don't exist.
 func Open(path string) (*sql.DB, error) {
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, fmt.Errorf("create db dir: %w", err)
 	}
 	db, err := sql.Open("sqlite", path)
