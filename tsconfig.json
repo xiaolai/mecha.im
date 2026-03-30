@@ -1,12 +1,3 @@
 {
-  "compilerOptions": {
-    "noEmit": true
-  },
-  "exclude": [
-    "docker",
-    "node_modules"
-  ],
-  "references": [
-    { "path": "website" }
-  ]
+  "exclude": ["docker", "node_modules"]
 }
