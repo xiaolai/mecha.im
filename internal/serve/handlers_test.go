@@ -85,17 +85,49 @@ func TestPostTaskInvalidJSON(t *testing.T) {
 	}
 }
 
-func TestGetTaskDBError(t *testing.T) {
+func TestGetTaskNotFoundByID(t *testing.T) {
 	s, cleanup := testServer(t)
 	defer cleanup()
 
-	// Create task then get it (happy path already tested)
-	// Test with valid ID format but not in DB → 404
 	req := httptest.NewRequest("GET", "/task/abcdef1234567890", nil)
 	rec := httptest.NewRecorder()
 	s.httpSrv.Handler.ServeHTTP(rec, req)
 	if rec.Code != 404 {
 		t.Errorf("status = %d, want 404", rec.Code)
+	}
+}
+
+func TestGetTaskSuccess(t *testing.T) {
+	s, cleanup := testServer(t)
+	defer cleanup()
+
+	tk, _ := s.tasks.Create(context.Background(), "w", "hello")
+	req := httptest.NewRequest("GET", "/task/"+tk.ID, nil)
+	rec := httptest.NewRecorder()
+	s.httpSrv.Handler.ServeHTTP(rec, req)
+	if rec.Code != 200 {
+		t.Errorf("status = %d, want 200", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "hello") {
+		t.Errorf("body = %q, want prompt in response", rec.Body.String())
+	}
+}
+
+func TestListTasksWithResults(t *testing.T) {
+	s, cleanup := testServer(t)
+	defer cleanup()
+
+	s.tasks.Create(context.Background(), "w", "p1")
+	s.tasks.Create(context.Background(), "w", "p2")
+
+	req := httptest.NewRequest("GET", "/tasks", nil)
+	rec := httptest.NewRecorder()
+	s.httpSrv.Handler.ServeHTTP(rec, req)
+	if rec.Code != 200 {
+		t.Errorf("status = %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "p1") || !strings.Contains(rec.Body.String(), "p2") {
+		t.Errorf("missing tasks in response: %s", rec.Body.String())
 	}
 }
 

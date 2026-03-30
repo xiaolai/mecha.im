@@ -3,6 +3,7 @@ package worker
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -98,5 +99,61 @@ func TestLoadSecretsMissingFile(t *testing.T) {
 	}
 	if s == nil {
 		t.Fatal("should return empty secrets")
+	}
+}
+
+func TestLoadSecretsInvalidYAML(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "bad.yml")
+	os.WriteFile(path, []byte("invalid: yaml: ["), 0o600)
+	_, err := LoadSecrets(path)
+	if err == nil {
+		t.Error("expected error for invalid YAML")
+	}
+}
+
+func TestLoadSecretsOpenPermissions(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "secrets.yml")
+	os.WriteFile(path, []byte("tokens: {}"), 0o644)
+	// Should warn but not error
+	s, err := LoadSecrets(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s == nil {
+		t.Error("should return secrets despite open perms")
+	}
+}
+
+func TestDefaultSecretsPath(t *testing.T) {
+	path, err := DefaultSecretsPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if path == "" || !strings.Contains(path, "secrets.yml") {
+		t.Errorf("path = %q", path)
+	}
+}
+
+func TestResolveNilSecrets(t *testing.T) {
+	var s *Secrets
+	_, err := s.Resolve("claude.work")
+	if err == nil {
+		t.Error("expected error for nil secrets")
+	}
+}
+
+func TestResolveBadFormat(t *testing.T) {
+	s := &Secrets{Tokens: map[string]map[string]string{}}
+	_, err := s.Resolve("noperiod")
+	if err == nil {
+		t.Error("expected error for bad ref format")
+	}
+}
+
+func TestResolveNoBackend(t *testing.T) {
+	s := &Secrets{Tokens: map[string]map[string]string{}}
+	_, err := s.Resolve("unknown.key")
+	if err == nil {
+		t.Error("expected error for unknown backend")
 	}
 }
