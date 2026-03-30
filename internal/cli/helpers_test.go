@@ -1,53 +1,25 @@
 package cli
 
 import (
-	"strings"
 	"testing"
 )
 
-func TestLooksLikeCredential(t *testing.T) {
-	tests := []struct {
-		input string
-		want  bool
-	}{
-		{"ghp_abc123", true},
-		{"ghs_abc123", true},
-		{"ghr_abc123", true},
-		{"gho_abc123", true},
-		{"ghu_abc123", true},
-		{"ghes_abc123", true},
-		{"github_pat_abc123", true},
-		{"hello-world", false},
-		{"sk-ant-oat01-abc", false},
-		{"CLAUDE_MODEL", false},
-		{"", false},
+func TestReservedEnvKeys(t *testing.T) {
+	reserved := []string{
+		"WORKER_BACKEND", "worker_port", "WORKER_API_KEY",
+		"Worker_Timeout", "WORKER_DRY_RUN", "HOME",
 	}
-	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
-			got := looksLikeCredential(tt.input)
-			if got != tt.want {
-				t.Errorf("looksLikeCredential(%q) = %v, want %v", tt.input, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestBlockedEnvKeys(t *testing.T) {
-	blocked := []string{
-		"github_token", "gh_token", "github_app_key", "github_app_id",
-		"github_app_private_key", "github_app_installation_id",
-		"github_pat", "github_access_token",
-		"gh_enterprise_token", "github_webhook_secret",
-	}
-	for _, k := range blocked {
-		if !blockedEnvKeys[k] {
-			t.Errorf("blockedEnvKeys[%q] = false, want true", k)
+	for _, k := range reserved {
+		if !isReservedEnvKey(k) {
+			t.Errorf("%q should be reserved", k)
 		}
 	}
-	allowed := []string{"MY_VAR", "claude_model", "openai_api_key", "home"}
+	allowed := []string{
+		"CLAUDE_MODEL", "GITHUB_TOKEN", "MY_VAR", "OPENAI_API_KEY",
+	}
 	for _, k := range allowed {
-		if blockedEnvKeys[strings.ToLower(k)] {
-			t.Errorf("blockedEnvKeys[%q] should not be blocked", k)
+		if isReservedEnvKey(k) {
+			t.Errorf("%q should not be reserved", k)
 		}
 	}
 }
