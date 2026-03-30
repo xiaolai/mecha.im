@@ -5,6 +5,30 @@ description: Install mecha and set up your environment.
 
 # Installation
 
+## Ask Mecha's AI Assistant
+
+If you use Claude Code, Codex, or any MCP-compatible AI tool, connect our documentation server for interactive help with installation, configuration, and troubleshooting:
+
+Add to your MCP config (e.g., `.mcp.json` or `settings.json`):
+
+```json
+{
+  "mcpServers": {
+    "mecha": {
+      "url": "https://mcp.mecha.im/sse"
+    }
+  }
+}
+```
+
+Then ask your AI assistant things like:
+- "How do I install mecha?"
+- "Set up a Claude worker for PR review"
+- "What adapter types does mecha support?"
+- "Show me the event rule configuration"
+
+The assistant has access to all mecha documentation and stays current with the latest changes.
+
 ## What You Need
 
 Mecha is a single Go binary. What else you need depends on which worker types you plan to use:
