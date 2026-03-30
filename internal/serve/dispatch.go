@@ -116,6 +116,16 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 	if onlineErr := s.reg.SetOnline(t.WorkerName); onlineErr != nil {
 		s.logger.Warn("dispatch: set online after completion", "id", taskID, "err", onlineErr)
 	}
+
+	// Write-back: if task originated from an event, write result to GitHub
+	if t.EventID != "" && s.writeback != nil && s.events != nil {
+		ev, err := s.events.Get(ctx, t.EventID)
+		if err == nil {
+			s.writeback.WriteBack(ctx, ev, result)
+			_ = s.events.SetCompleted(ctx, ev.ID)
+		}
+	}
+
 	s.logger.Info("task completed", "id", taskID, "worker", t.WorkerName)
 }
 

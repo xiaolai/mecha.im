@@ -17,6 +17,7 @@ type Worker struct {
 	Name     string        `yaml:"name"`
 	Endpoint string        `yaml:"endpoint,omitempty"`
 	Docker   *DockerConfig `yaml:"docker,omitempty"`
+	Events   []EventRule   `yaml:"events,omitempty"`
 	Timeout  time.Duration `yaml:"timeout,omitempty"`
 }
 
@@ -152,6 +153,11 @@ func (w *Worker) validate() error {
 	}
 	if w.Docker != nil {
 		if err := w.Docker.validate(); err != nil {
+			return err
+		}
+	}
+	for i, rule := range w.Events {
+		if err := rule.validate(i); err != nil {
 			return err
 		}
 	}

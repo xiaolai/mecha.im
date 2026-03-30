@@ -1,6 +1,6 @@
 package store
 
-const schemaSQL = `
+const schemaV1 = `
 CREATE TABLE IF NOT EXISTS workers (
 	name         TEXT PRIMARY KEY,
 	definition   TEXT NOT NULL,
@@ -26,4 +26,32 @@ CREATE TABLE IF NOT EXISTS tasks (
 
 CREATE INDEX IF NOT EXISTS idx_tasks_state ON tasks(state);
 CREATE INDEX IF NOT EXISTS idx_tasks_worker ON tasks(worker_name);
+`
+
+const schemaV2 = `
+ALTER TABLE tasks ADD COLUMN event_id TEXT;
+ALTER TABLE tasks ADD COLUMN context TEXT NOT NULL DEFAULT '{}';
+
+CREATE TABLE IF NOT EXISTS events (
+	id           TEXT PRIMARY KEY,
+	delivery_id  TEXT NOT NULL DEFAULT '',
+	source       TEXT NOT NULL,
+	type         TEXT NOT NULL,
+	repo_owner   TEXT NOT NULL DEFAULT '',
+	repo_name    TEXT NOT NULL DEFAULT '',
+	ref          TEXT NOT NULL DEFAULT '',
+	number       INTEGER NOT NULL DEFAULT 0,
+	sender       TEXT NOT NULL DEFAULT '',
+	payload      TEXT NOT NULL DEFAULT '{}',
+	raw          TEXT NOT NULL DEFAULT '',
+	state        TEXT NOT NULL DEFAULT 'received',
+	worker_name  TEXT NOT NULL DEFAULT '',
+	task_id      TEXT NOT NULL DEFAULT '',
+	created_at   INTEGER NOT NULL,
+	updated_at   INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_events_state ON events(state);
+CREATE INDEX IF NOT EXISTS idx_events_source ON events(source, type);
+CREATE INDEX IF NOT EXISTS idx_events_delivery ON events(delivery_id);
 `
