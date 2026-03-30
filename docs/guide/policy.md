@@ -76,9 +76,7 @@ Status values are validated against the GitHub API allowed set: `error`, `failur
 |-------|------|-------------|
 | `allow` | bool | Allow code change suggestions |
 
-::: warning
-Commit write-back is not yet implemented. The policy filter processes commit rules, but no write-back action is taken. This will be implemented in a future phase.
-:::
+When allowed, the worker's diff is posted as a PR comment with a suggested commit message and a fenced diff code block. Requires the event to have a PR number (`ev.Number > 0`) and a non-empty diff.
 
 ## Default Behavior
 

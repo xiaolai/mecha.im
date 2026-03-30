@@ -146,11 +146,7 @@ func workerStartCmd() *cobra.Command {
 				return nil
 			}
 			if e.Worker.IsAdapter() {
-				if err := adapterStart(reg, name); err != nil {
-					return err
-				}
-				fmt.Printf("started %s (adapter: %s)\n", name, e.Worker.Adapter.Type)
-				return nil
+				return fmt.Errorf("adapter workers run in-process and must be started via 'mecha serve' (not 'worker start')")
 			}
 			if err := reg.Start(name); err != nil {
 				return err

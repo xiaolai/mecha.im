@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"time"
 
 	"mecha.im/internal/task"
@@ -24,6 +25,11 @@ func (s *Server) disposableContainer(ctx context.Context, entry worker.Entry) (e
 	dc := entry.Worker.Docker
 	cleanup = func() {} // safe default
 
+	// Re-validate config loaded from SQLite (may predate new security rules)
+	if err := dc.Validate(); err != nil {
+		return "", cleanup, fmt.Errorf("validate config: %w", err)
+	}
+
 	dock, err := worker.NewDockerClient(dc.Host)
 	if err != nil {
 		return "", cleanup, fmt.Errorf("docker client: %w", err)
@@ -32,7 +38,7 @@ func (s *Server) disposableContainer(ctx context.Context, entry worker.Entry) (e
 	suffix := randomSuffix()
 	name := fmt.Sprintf("mecha-disposable-%s-%s", entry.Worker.Name, suffix)
 
-	env, err := worker.BuildContainerEnv(dc, nil)
+	env, err := worker.BuildContainerEnv(dc, validateDisposableEnv)
 	if err != nil {
 		dock.Close()
 		return "", cleanup, fmt.Errorf("build env: %w", err)
@@ -159,6 +165,15 @@ func (s *Server) dispatchDisposable(ctx context.Context, taskID string, t *task.
 		s.completeEvent(ctx, t.EventID, true)
 	}
 	s.logger.Info("disposable: task completed", "id", taskID, "worker", entry.Worker.Name)
+}
+
+// validateDisposableEnv rejects reserved runtime env keys in docker.env.
+func validateDisposableEnv(k, _ string) error {
+	lower := strings.ToLower(k)
+	if strings.HasPrefix(lower, "worker_") || lower == "home" {
+		return fmt.Errorf("env var %q is reserved by mecha runtime", k)
+	}
+	return nil
 }
 
 func randomSuffix() string {

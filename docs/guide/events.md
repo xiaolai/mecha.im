@@ -172,7 +172,8 @@ stateDiagram-v2
     received --> skipped : no matching worker
     matched --> dispatched : task created
     dispatched --> completed : result written back
-    dispatched --> failed : worker error or write-back failure
+    dispatched --> failed : worker send error
+    note right of dispatched : write-back failure stays dispatched for retry
 ```
 
 ## Delivery Deduplication

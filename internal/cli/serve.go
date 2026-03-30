@@ -95,6 +95,17 @@ func serveCmd() *cobra.Command {
 				Logger:    logger,
 			})
 
+			// Auto-start adapter workers (in-process, need long-lived server)
+			for _, entry := range reg.List() {
+				if entry.Worker.IsAdapter() && entry.State == worker.StateOffline {
+					if err := adapterStart(reg, entry.Worker.Name); err != nil {
+						logger.Warn("adapter start failed", "worker", entry.Worker.Name, "err", err)
+					} else {
+						logger.Info("adapter started", "worker", entry.Worker.Name, "type", entry.Worker.Adapter.Type)
+					}
+				}
+			}
+
 			ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 			defer stop()
 
