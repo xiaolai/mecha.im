@@ -50,7 +50,7 @@ func (c *Client) removeLabel(ctx context.Context, owner, repo string, number int
 		url.PathEscape(owner), url.PathEscape(repo), number, url.PathEscape(label))
 	req, err := http.NewRequestWithContext(ctx, "DELETE", url, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("create delete request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+c.token)
 	req.Header.Set("Accept", "application/vnd.github+json")
@@ -69,7 +69,7 @@ func (c *Client) removeLabel(ctx context.Context, owner, repo string, number int
 func (c *Client) githubPost(ctx context.Context, url string, payload []byte) error {
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(payload))
 	if err != nil {
-		return err
+		return fmt.Errorf("create post request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+c.token)
 	req.Header.Set("Accept", "application/vnd.github+json")

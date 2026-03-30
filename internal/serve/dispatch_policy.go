@@ -2,6 +2,8 @@ package serve
 
 import (
 	"context"
+	"errors"
+	"net"
 	"strings"
 
 	"mecha.im/internal/policy"
@@ -32,9 +34,19 @@ func (s *Server) completeEvent(ctx context.Context, eventID string, success bool
 }
 
 func isTransportError(err error) bool {
+	// Check typed network errors first
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return true
+	}
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return true
+	}
+	// Fallback: string matching for wrapped errors that lose type info
 	msg := err.Error()
 	return strings.Contains(msg, "connection refused") ||
 		strings.Contains(msg, "no such host") ||
+		strings.Contains(msg, "connection reset") ||
 		strings.Contains(msg, "deadline exceeded") ||
 		strings.Contains(msg, "context canceled") ||
 		strings.Contains(msg, "EOF")

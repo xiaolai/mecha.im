@@ -1,6 +1,8 @@
 package worker
 
-import "fmt"
+import (
+	"fmt"
+)
 
 // Reload re-reads all workers from SQLite into the in-memory cache.
 // Loads into a temporary map and swaps on success (safe on failure).
@@ -9,7 +11,7 @@ func (r *Registry) Reload() error {
 	defer r.mu.Unlock()
 	tmp := &Registry{db: r.db, entries: make(map[string]*Entry)}
 	if err := tmp.load(); err != nil {
-		return err
+		return fmt.Errorf("reload registry: %w", err)
 	}
 	r.entries = tmp.entries
 	return nil
@@ -26,7 +28,7 @@ func (r *Registry) mutateEntry(name string, fn func(e *Entry) error) error {
 		return err
 	}
 	if err := r.persist(clone); err != nil {
-		return err
+		return fmt.Errorf("persist registry: %w", err)
 	}
 	r.entries = clone
 	return nil
@@ -64,9 +66,14 @@ func copyMapAny(m map[string]any) map[string]any {
 	}
 	c := make(map[string]any, len(m))
 	for k, v := range m {
-		if sub, ok := v.(map[string]any); ok {
-			c[k] = copyMapAny(sub)
-		} else {
+		switch val := v.(type) {
+		case map[string]any:
+			c[k] = copyMapAny(val)
+		case []any:
+			s := make([]any, len(val))
+			copy(s, val)
+			c[k] = s
+		default:
 			c[k] = v
 		}
 	}
