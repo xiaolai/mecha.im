@@ -34,30 +34,38 @@ func (s *Store) Create(ctx context.Context, ev *Event) error {
 	ev.CreatedAt = now
 	ev.UpdatedAt = now
 
-	payload, _ := json.Marshal(ev.Payload)
-	raw := string(ev.Raw)
+	payload, err := json.Marshal(ev.Payload)
+	if err != nil {
+		return fmt.Errorf("marshal event payload: %w", err)
+	}
 
-	_, err := s.db.ExecContext(ctx,
+	_, err = s.db.ExecContext(ctx,
 		`INSERT INTO events (id, delivery_id, source, type, repo_owner, repo_name,
 		 ref, number, sender, payload, raw, state, created_at, updated_at)
 		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		ev.ID, ev.DeliveryID, ev.Source, ev.Type, ev.RepoOwner, ev.RepoName,
-		ev.Ref, ev.Number, ev.Sender, string(payload), raw,
+		ev.Ref, ev.Number, ev.Sender, string(payload), string(ev.Raw),
 		string(ev.State), now.Unix(), now.Unix(),
 	)
-	return err
+	if err != nil {
+		return fmt.Errorf("insert event: %w", err)
+	}
+	return nil
 }
 
 // DeliveryExists checks if a delivery ID has already been processed.
-func (s *Store) DeliveryExists(ctx context.Context, deliveryID string) bool {
+func (s *Store) DeliveryExists(ctx context.Context, deliveryID string) (bool, error) {
 	if deliveryID == "" {
-		return false
+		return false, nil
 	}
 	var count int
-	s.db.QueryRowContext(ctx,
+	err := s.db.QueryRowContext(ctx,
 		"SELECT COUNT(*) FROM events WHERE delivery_id = ?", deliveryID,
 	).Scan(&count)
-	return count > 0
+	if err != nil {
+		return false, fmt.Errorf("check delivery: %w", err)
+	}
+	return count > 0, nil
 }
 
 // Get retrieves an event by ID.
@@ -98,42 +106,67 @@ func (s *Store) List(ctx context.Context, state string) ([]Event, error) {
 
 // SetMatched transitions received → matched with worker name.
 func (s *Store) SetMatched(ctx context.Context, id, workerName string) error {
-	return s.updateState(ctx, id, StateMatched, "worker_name", workerName)
+	return s.transitionWithExtra(ctx, id, StateReceived, StateMatched, workerName,
+		"UPDATE events SET state = ?, worker_name = ?, updated_at = ? WHERE id = ? AND state = ?")
 }
 
 // SetDispatched transitions matched → dispatched with task ID.
 func (s *Store) SetDispatched(ctx context.Context, id, taskID string) error {
-	return s.updateState(ctx, id, StateDispatched, "task_id", taskID)
+	return s.transitionWithExtra(ctx, id, StateMatched, StateDispatched, taskID,
+		"UPDATE events SET state = ?, task_id = ?, updated_at = ? WHERE id = ? AND state = ?")
 }
 
-// SetCompleted marks the event as completed.
+// SetCompleted transitions dispatched → completed.
 func (s *Store) SetCompleted(ctx context.Context, id string) error {
-	return s.updateState(ctx, id, StateCompleted, "", "")
+	return s.transition(ctx, id, StateDispatched, StateCompleted,
+		"UPDATE events SET state = ?, updated_at = ? WHERE id = ? AND state = ?")
 }
 
-// SetFailed marks the event as failed.
+// SetFailed marks the event as failed from any active state.
 func (s *Store) SetFailed(ctx context.Context, id string) error {
-	return s.updateState(ctx, id, StateFailed, "", "")
-}
-
-// SetSkipped marks the event as skipped (no matching worker).
-func (s *Store) SetSkipped(ctx context.Context, id string) error {
-	return s.updateState(ctx, id, StateSkipped, "", "")
-}
-
-func (s *Store) updateState(ctx context.Context, id string, state State, extraCol, extraVal string) error {
 	now := time.Now().Unix()
-	var err error
-	if extraCol != "" {
-		_, err = s.db.ExecContext(ctx,
-			fmt.Sprintf("UPDATE events SET state = ?, %s = ?, updated_at = ? WHERE id = ?", extraCol),
-			string(state), extraVal, now, id)
-	} else {
-		_, err = s.db.ExecContext(ctx,
-			"UPDATE events SET state = ?, updated_at = ? WHERE id = ?",
-			string(state), now, id)
+	res, err := s.db.ExecContext(ctx,
+		"UPDATE events SET state = ?, updated_at = ? WHERE id = ? AND state NOT IN (?, ?)",
+		string(StateFailed), now, id, string(StateCompleted), string(StateSkipped))
+	if err != nil {
+		return fmt.Errorf("fail event: %w", err)
 	}
-	return err
+	return checkRows(res, id, "fail")
+}
+
+// SetSkipped transitions received → skipped (no matching worker).
+func (s *Store) SetSkipped(ctx context.Context, id string) error {
+	return s.transition(ctx, id, StateReceived, StateSkipped,
+		"UPDATE events SET state = ?, updated_at = ? WHERE id = ? AND state = ?")
+}
+
+func (s *Store) transition(ctx context.Context, id string, from, to State, query string) error {
+	now := time.Now().Unix()
+	res, err := s.db.ExecContext(ctx, query, string(to), now, id, string(from))
+	if err != nil {
+		return fmt.Errorf("transition event %s→%s: %w", from, to, err)
+	}
+	return checkRows(res, id, string(to))
+}
+
+func (s *Store) transitionWithExtra(ctx context.Context, id string, from, to State, extra, query string) error {
+	now := time.Now().Unix()
+	res, err := s.db.ExecContext(ctx, query, string(to), extra, now, id, string(from))
+	if err != nil {
+		return fmt.Errorf("transition event %s→%s: %w", from, to, err)
+	}
+	return checkRows(res, id, string(to))
+}
+
+func checkRows(res sql.Result, id, verb string) error {
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return fmt.Errorf("%s event %q: not found or invalid state", verb, id)
+	}
+	return nil
 }
 
 type rowScanner interface{ Scan(dest ...any) error }

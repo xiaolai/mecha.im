@@ -16,9 +16,8 @@ import (
 
 var dispatchClient = &http.Client{
 	Transport: &http.Transport{
-		MaxIdleConnsPerHost:   10,
-		IdleConnTimeout:       60 * time.Second,
-		ResponseHeaderTimeout: 30 * time.Second,
+		MaxIdleConnsPerHost: 10,
+		IdleConnTimeout:     60 * time.Second,
 	},
 }
 
@@ -32,8 +31,14 @@ func (s *Server) dispatchLoop(ctx context.Context) {
 			if !ok {
 				return
 			}
-			// Fan out: dispatch each task in its own goroutine
-			go s.dispatchTask(ctx, taskID)
+			go func(id string) {
+				defer func() {
+					if r := recover(); r != nil {
+						s.logger.Error("dispatch: panic", "id", id, "panic", r)
+					}
+				}()
+				s.dispatchTask(ctx, id)
+			}(taskID)
 		}
 	}
 }
@@ -121,8 +126,14 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 	if t.EventID != "" && s.writeback != nil && s.events != nil {
 		ev, err := s.events.Get(ctx, t.EventID)
 		if err == nil {
-			s.writeback.WriteBack(ctx, ev, result)
-			_ = s.events.SetCompleted(ctx, ev.ID)
+			if wbErr := s.writeback.WriteBack(ctx, ev, result); wbErr != nil {
+				s.logger.Error("dispatch: write-back failed", "id", taskID, "event", ev.ID, "err", wbErr)
+				// Event stays in dispatched state — can be retried
+			} else {
+				if err := s.events.SetCompleted(ctx, ev.ID); err != nil {
+					s.logger.Error("dispatch: set event completed", "event", ev.ID, "err", err)
+				}
+			}
 		}
 	}
 

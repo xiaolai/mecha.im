@@ -53,5 +53,5 @@ CREATE TABLE IF NOT EXISTS events (
 
 CREATE INDEX IF NOT EXISTS idx_events_state ON events(state);
 CREATE INDEX IF NOT EXISTS idx_events_source ON events(source, type);
-CREATE INDEX IF NOT EXISTS idx_events_delivery ON events(delivery_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_events_delivery ON events(delivery_id) WHERE delivery_id != '';
 `

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 )
@@ -42,7 +43,8 @@ func (c *Client) addLabel(ctx context.Context, owner, repo string, number int, l
 }
 
 func (c *Client) removeLabel(ctx context.Context, owner, repo string, number int, label string) error {
-	url := fmt.Sprintf("%s/repos/%s/%s/issues/%d/labels/%s", apiBase, owner, repo, number, label)
+	url := fmt.Sprintf("%s/repos/%s/%s/issues/%d/labels/%s", apiBase,
+		url.PathEscape(owner), url.PathEscape(repo), number, url.PathEscape(label))
 	req, err := http.NewRequestWithContext(ctx, "DELETE", url, nil)
 	if err != nil {
 		return err

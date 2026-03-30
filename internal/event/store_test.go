@@ -60,13 +60,19 @@ func TestDeliveryDedupe(t *testing.T) {
 	ev := &Event{DeliveryID: "abc-123", Source: "github", Type: "push"}
 	s.Create(ctx, ev)
 
-	if !s.DeliveryExists(ctx, "abc-123") {
+	exists, err := s.DeliveryExists(ctx, "abc-123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !exists {
 		t.Error("should find existing delivery")
 	}
-	if s.DeliveryExists(ctx, "xyz-999") {
+	exists2, _ := s.DeliveryExists(ctx, "xyz-999")
+	if exists2 {
 		t.Error("should not find unknown delivery")
 	}
-	if s.DeliveryExists(ctx, "") {
+	exists3, _ := s.DeliveryExists(ctx, "")
+	if exists3 {
 		t.Error("empty delivery should return false")
 	}
 }
