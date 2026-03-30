@@ -86,15 +86,15 @@ func (s *Server) disposableContainer(ctx context.Context, entry worker.Entry) (e
 		return "", cleanup, fmt.Errorf("start container: %w", err)
 	}
 
-	ep, err := waitForDisposableHealth(dock, containerID, disposableHealthTimeout)
+	ep, err := waitForDisposableHealth(ctx, dock, containerID, disposableHealthTimeout)
 	if err != nil {
 		return "", cleanup, fmt.Errorf("health check: %w", err)
 	}
 	return ep, cleanup, nil
 }
 
-func waitForDisposableHealth(dock *worker.DockerClient, id string, timeout time.Duration) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+func waitForDisposableHealth(parent context.Context, dock *worker.DockerClient, id string, timeout time.Duration) (string, error) {
+	ctx, cancel := context.WithTimeout(parent, timeout)
 	defer cancel()
 
 	ep, err := dock.Endpoint(ctx, id)
@@ -162,7 +162,7 @@ func (s *Server) dispatchDisposable(ctx context.Context, taskID string, t *task.
 }
 
 func randomSuffix() string {
-	b := make([]byte, 4)
+	b := make([]byte, 8)
 	rand.Read(b)
 	return hex.EncodeToString(b)
 }

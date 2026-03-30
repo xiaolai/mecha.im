@@ -34,7 +34,7 @@ func (o *OpenAIAdapter) Name() string { return "openai" }
 func (o *OpenAIAdapter) Health(ctx context.Context) error {
 	req, err := http.NewRequestWithContext(ctx, "GET", o.upstream+"/v1/models", nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("create health request: %w", err)
 	}
 	if o.apiKey != "" {
 		req.Header.Set("Authorization", "Bearer "+o.apiKey)
@@ -44,8 +44,8 @@ func (o *OpenAIAdapter) Health(ctx context.Context) error {
 		return fmt.Errorf("api unreachable: %w", err)
 	}
 	resp.Body.Close()
-	if resp.StatusCode >= 500 {
-		return fmt.Errorf("api status %d", resp.StatusCode)
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("api health check status %d", resp.StatusCode)
 	}
 	return nil
 }

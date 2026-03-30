@@ -5,9 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
-	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -29,18 +30,21 @@ type Runner struct {
 	adapter  Adapter
 	listener net.Listener
 	server   *http.Server
-	busy     sync.Mutex
-	isBusy   bool
+	busy     atomic.Bool
+	logger   *slog.Logger
 }
 
 // NewRunner creates a runner for the given adapter.
 // The runner listens on a random localhost port.
-func NewRunner(a Adapter) (*Runner, error) {
+func NewRunner(a Adapter, logger *slog.Logger) (*Runner, error) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return nil, fmt.Errorf("listen: %w", err)
 	}
-	r := &Runner{adapter: a, listener: ln}
+	if logger == nil {
+		logger = slog.Default()
+	}
+	r := &Runner{adapter: a, listener: ln, logger: logger}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", r.handleHealth)
 	mux.HandleFunc("POST /task", r.handleTask)
@@ -55,7 +59,11 @@ func NewRunner(a Adapter) (*Runner, error) {
 
 // Start begins serving. Non-blocking — runs in a goroutine.
 func (r *Runner) Start() {
-	go r.server.Serve(r.listener)
+	go func() {
+		if err := r.server.Serve(r.listener); err != nil && err != http.ErrServerClosed {
+			r.logger.Error("adapter server exited", "adapter", r.adapter.Name(), "err", err)
+		}
+	}()
 }
 
 // Stop shuts down the HTTP server gracefully.
@@ -69,14 +77,14 @@ func (r *Runner) Endpoint() string {
 }
 
 func (r *Runner) handleHealth(w http.ResponseWriter, req *http.Request) {
-	if r.isBusy {
+	if r.busy.Load() {
 		w.WriteHeader(http.StatusServiceUnavailable)
 		w.Write([]byte("busy"))
 		return
 	}
 	if err := r.adapter.Health(req.Context()); err != nil {
 		w.WriteHeader(http.StatusServiceUnavailable)
-		w.Write([]byte(err.Error()))
+		w.Write([]byte("upstream unavailable"))
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -84,21 +92,13 @@ func (r *Runner) handleHealth(w http.ResponseWriter, req *http.Request) {
 }
 
 func (r *Runner) handleTask(w http.ResponseWriter, req *http.Request) {
-	r.busy.Lock()
-	if r.isBusy {
-		r.busy.Unlock()
+	if !r.busy.CompareAndSwap(false, true) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusTooManyRequests)
 		w.Write([]byte(`{"error":"worker busy"}`))
 		return
 	}
-	r.isBusy = true
-	r.busy.Unlock()
-	defer func() {
-		r.busy.Lock()
-		r.isBusy = false
-		r.busy.Unlock()
-	}()
+	defer r.busy.Store(false)
 
 	body, err := io.ReadAll(io.LimitReader(req.Body, 10<<20))
 	if err != nil {
@@ -115,7 +115,8 @@ func (r *Runner) handleTask(w http.ResponseWriter, req *http.Request) {
 
 	result, err := r.adapter.SendTask(req.Context(), payload.Prompt)
 	if err != nil {
-		writeAdapterError(w, http.StatusInternalServerError, err.Error())
+		r.logger.Error("adapter task failed", "adapter", r.adapter.Name(), "err", err)
+		writeAdapterError(w, http.StatusInternalServerError, "task failed")
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")

@@ -33,7 +33,7 @@ func (m *mockAdapter) SendTask(ctx context.Context, prompt string) ([]byte, erro
 }
 
 func TestRunnerHealthy(t *testing.T) {
-	r, err := NewRunner(&mockAdapter{output: "hello"})
+	r, err := NewRunner(&mockAdapter{output: "hello"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +52,7 @@ func TestRunnerHealthy(t *testing.T) {
 }
 
 func TestRunnerTask(t *testing.T) {
-	r, err := NewRunner(&mockAdapter{output: "result:"})
+	r, err := NewRunner(&mockAdapter{output: "result:"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +81,7 @@ func TestRunnerTask(t *testing.T) {
 }
 
 func TestRunnerUnhealthyUpstream(t *testing.T) {
-	r, err := NewRunner(&mockAdapter{healthErr: fmt.Errorf("unreachable")})
+	r, err := NewRunner(&mockAdapter{healthErr: fmt.Errorf("unreachable")}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

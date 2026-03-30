@@ -45,11 +45,17 @@ func (g *GitLabSource) Parse(headers http.Header, body []byte) (*event.Event, er
 
 	eventType := normalizeGitLabEvent(glEvent, payload)
 
+	deliveryID := headers.Get("X-Gitlab-Instance") + "/" + headers.Get("X-Request-Id")
+	if deliveryID == "/" {
+		deliveryID = "" // both headers missing — dedup skipped
+	}
+
 	ev := &event.Event{
-		Source:  "gitlab",
-		Type:    eventType,
-		Raw:     json.RawMessage(body),
-		Payload: make(event.Payload),
+		DeliveryID: deliveryID,
+		Source:     "gitlab",
+		Type:       eventType,
+		Raw:        json.RawMessage(body),
+		Payload:    make(event.Payload),
 	}
 
 	// Extract project info
