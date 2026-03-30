@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process'
 
 const version = (() => {
   try {
-    return execFileSync('git', ['describe', '--tags', '--always']).toString().trim().replace(/^v/, '')
+    return execFileSync('git', ['describe', '--tags', '--abbrev=0']).toString().trim().replace(/^v/, '')
   } catch {
     return '0.5.1'
   }
