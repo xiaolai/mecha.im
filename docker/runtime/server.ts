@@ -1,10 +1,11 @@
 import type { TaskRequest, TaskResponse, BackendCommand, BackendExecutor } from "./types";
 
 const BACKEND = process.env.WORKER_BACKEND || "claude";
-const PORT = parseInt(process.env.WORKER_PORT || "8080");
+const PORT = parseInt(process.env.WORKER_PORT || "8081"); // internal; Caddy on 8080
 const TIMEOUT_MS = parseInt(process.env.WORKER_TIMEOUT || "600000"); // 10m
 const MAX_BODY_BYTES = 10 * 1024 * 1024; // 10MB
 const DRY_RUN = process.env.WORKER_DRY_RUN === "true";
+const API_KEY = process.env.WORKER_API_KEY || "";
 
 let busy = false;
 
@@ -22,6 +23,21 @@ async function loadBackend() {
 }
 
 await loadBackend();
+
+function checkApiKey(req: Request): Response | null {
+  if (!API_KEY) return null; // no key configured, skip check
+  // Health endpoint is exempt (needed for Docker HEALTHCHECK)
+  const url = new URL(req.url);
+  if (url.pathname === "/health") return null;
+
+  const authHeader = req.headers.get("authorization") || "";
+  const apiKeyHeader = req.headers.get("x-api-key") || "";
+
+  if (authHeader === `Bearer ${API_KEY}` || apiKeyHeader === API_KEY) {
+    return null; // authorized
+  }
+  return Response.json({ error: "unauthorized" }, { status: 401 });
+}
 
 function healthHandler(): Response {
   if (busy) {
@@ -125,6 +141,9 @@ async function execCLI(cmd: BackendCommand): Promise<Response> {
 const server = Bun.serve({
   port: PORT,
   async fetch(req) {
+    const denied = checkApiKey(req);
+    if (denied) return denied;
+
     const url = new URL(req.url);
     if (url.pathname === "/health" && req.method === "GET") {
       return healthHandler();
@@ -136,4 +155,4 @@ const server = Bun.serve({
   },
 });
 
-console.log(`mecha worker (${BACKEND}) listening on :${server.port}`);
+console.log(`mecha worker (${BACKEND}) listening on :${server.port}${API_KEY ? " [api-key enabled]" : ""}`);

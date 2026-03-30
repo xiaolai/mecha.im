@@ -39,8 +39,9 @@ docker:
     CLAUDE_ALLOWED_TOOLS: "Read,Grep,Glob,Bash"
     CLAUDE_PERMISSION_MODE: bypassPermissions
     CLAUDE_EFFORT: high
-    CLAUDE_OUTPUT_FORMAT: json
   token: claude.xiaolaidev        # resolved from ~/.mecha/secrets.yml
+  api_key: my-secret-key-123     # optional, enables Bearer auth on /task
+  domain: worker.example.com     # optional, enables Caddy HTTPS
   labels:                         # optional custom labels
     team: security
 timeout: 30m

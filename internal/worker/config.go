@@ -30,6 +30,8 @@ type DockerConfig struct {
 	Lifecycle string            `yaml:"lifecycle,omitempty"`
 	Env       map[string]string `yaml:"env,omitempty"`
 	Token     string            `yaml:"token,omitempty"`
+	APIKey    string            `yaml:"api_key,omitempty"`
+	Domain    string            `yaml:"domain,omitempty"`
 	Labels    map[string]string `yaml:"labels,omitempty"`
 }
 
