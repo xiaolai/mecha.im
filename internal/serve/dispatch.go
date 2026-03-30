@@ -2,11 +2,13 @@ package serve
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
+	"mecha.im/internal/policy"
 	"mecha.im/internal/task"
 	"mecha.im/internal/worker"
 )
@@ -114,7 +116,7 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 	}
 
 	// Write-back BEFORE marking task complete (per result-contract.md)
-	wbOk := s.doWriteBack(ctx, taskID, t.EventID, result)
+	wbOk := s.doWriteBack(ctx, taskID, t.EventID, t.WorkerName, result)
 
 	if completeErr := s.tasks.Complete(ctx, taskID, result); completeErr != nil {
 		s.logger.Error("dispatch: complete task failed", "id", taskID, "err", completeErr)
@@ -131,16 +133,36 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 	s.logger.Info("task completed", "id", taskID, "worker", t.WorkerName)
 }
 
-func (s *Server) doWriteBack(ctx context.Context, taskID, eventID, result string) bool {
+func (s *Server) doWriteBack(ctx context.Context, taskID, eventID, workerName, result string) bool {
 	if eventID == "" || s.writeback == nil || s.events == nil {
-		return true // no event or no writeback configured — consider success
+		return true
 	}
 	ev, err := s.events.Get(ctx, eventID)
 	if err != nil {
 		s.logger.Error("dispatch: get event for writeback", "task", taskID, "err", err)
 		return false
 	}
-	if wbErr := s.writeback.WriteBack(ctx, ev, result); wbErr != nil {
+
+	// Parse result into typed struct
+	var res policy.Result
+	if err := json.Unmarshal([]byte(result), &res); err != nil {
+		s.logger.Warn("dispatch: parse result for policy", "task", taskID, "err", err)
+		return true // unparseable result = no write-back actions, still success
+	}
+
+	// Apply policy filter
+	policyFilter := s.getWorkerPolicy(workerName)
+	filtered, decision, err := policyFilter.Apply(ctx, ev, res)
+	if err != nil {
+		s.logger.Error("dispatch: policy error", "task", taskID, "err", err)
+		return false
+	}
+	if len(decision.Denied) > 0 {
+		s.logger.Info("dispatch: policy filtered", "task", taskID, "denied", decision.Denied)
+	}
+
+	// Write back filtered result
+	if wbErr := s.writeback.WriteBackResult(ctx, ev, filtered); wbErr != nil {
 		s.logger.Error("dispatch: write-back failed", "task", taskID, "event", eventID, "err", wbErr)
 		return false
 	}
@@ -160,6 +182,14 @@ func (s *Server) completeEvent(ctx context.Context, eventID string, success bool
 			s.logger.Error("dispatch: set event failed", "event", eventID, "err", err)
 		}
 	}
+}
+
+func (s *Server) getWorkerPolicy(workerName string) policy.Filter {
+	entry, ok := s.reg.Get(workerName)
+	if !ok || entry.Worker.Policy == nil {
+		return &policy.AllowAll{}
+	}
+	return policy.ParseRules(entry.Worker.Policy)
 }
 
 func isTransportError(err error) bool {
