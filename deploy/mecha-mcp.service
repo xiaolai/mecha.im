@@ -1,0 +1,15 @@
+[Unit]
+Description=Mecha MCP Documentation Server
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+ExecStart=/usr/local/bin/mecha-mcp
+Environment=ADDR=127.0.0.1:8090
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
