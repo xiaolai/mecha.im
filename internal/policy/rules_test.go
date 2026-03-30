@@ -164,14 +164,20 @@ func TestRuleFilterAllowByDefault(t *testing.T) {
 }
 
 func TestParseRulesNil(t *testing.T) {
-	f := ParseRules(nil)
+	f, err := ParseRules(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if _, ok := f.(*AllowAll); !ok {
 		t.Error("nil map should return AllowAll")
 	}
 }
 
 func TestParseRulesEmpty(t *testing.T) {
-	f := ParseRules(map[string]any{})
+	f, err := ParseRules(map[string]any{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if _, ok := f.(*AllowAll); !ok {
 		t.Error("empty map should return AllowAll")
 	}
@@ -184,7 +190,10 @@ func TestParseRulesMalformedTypes(t *testing.T) {
 		"labels":  42,
 		"status":  true,
 	}
-	f := ParseRules(raw)
+	f, err := ParseRules(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
 	rf, ok := f.(*RuleFilter)
 	if !ok {
 		t.Fatal("expected RuleFilter")
@@ -201,12 +210,25 @@ func TestParseRulesMalformedTypes(t *testing.T) {
 	}
 }
 
+func TestParseRulesBoolTypeError(t *testing.T) {
+	raw := map[string]any{
+		"comment": map[string]any{"allow": "yes"},
+	}
+	_, err := ParseRules(raw)
+	if err == nil {
+		t.Error("expected error for non-bool allow value")
+	}
+}
+
 func TestParseRulesUnknownKeys(t *testing.T) {
 	raw := map[string]any{
 		"unknown_key": map[string]any{"allow": true},
 		"comment":     map[string]any{"allow": true},
 	}
-	f := ParseRules(raw)
+	f, err := ParseRules(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
 	rf, ok := f.(*RuleFilter)
 	if !ok {
 		t.Fatal("expected RuleFilter")
@@ -235,7 +257,10 @@ func TestParseRulesWithConfig(t *testing.T) {
 		"status":  map[string]any{"allow": false},
 		"commit":  map[string]any{"allow": false},
 	}
-	f := ParseRules(raw)
+	f, err := ParseRules(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
 	rf, ok := f.(*RuleFilter)
 	if !ok {
 		t.Fatal("expected RuleFilter")

@@ -152,7 +152,7 @@ func (w *Worker) validate() error {
 		return fmt.Errorf("timeout must be non-negative")
 	}
 	if w.Docker != nil {
-		if err := w.Docker.validate(); err != nil {
+		if err := w.Docker.Validate(); err != nil {
 			return err
 		}
 	}

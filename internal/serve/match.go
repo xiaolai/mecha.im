@@ -54,7 +54,7 @@ func renderPrompt(rule worker.EventRule, ev *event.Event) (string, error) {
 	return buf.String(), nil
 }
 
-func buildTaskContext(ev *event.Event) string {
+func buildTaskContext(ev *event.Event) (string, error) {
 	ctx := map[string]any{
 		"repo":   ev.RepoOwner + "/" + ev.RepoName,
 		"number": ev.Number,
@@ -70,6 +70,9 @@ func buildTaskContext(ev *event.Event) string {
 	if sha, ok := ev.Payload["head_sha"]; ok {
 		ctx["head_sha"] = sha
 	}
-	b, _ := json.Marshal(ctx)
-	return string(b)
+	b, err := json.Marshal(ctx)
+	if err != nil {
+		return "{}", fmt.Errorf("marshal task context: %w", err)
+	}
+	return string(b), nil
 }
