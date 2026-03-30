@@ -10,7 +10,10 @@ ExecStart=/usr/local/bin/mecha-mcp
 Environment=ADDR=127.0.0.1:8090
 Environment=DOCS_DIR=/opt/mecha/website/guide
 Environment=REPO_DIR=/opt/mecha
-Environment=WEBHOOK_SECRET=changeme
+# Set WEBHOOK_SECRET via systemd override on the server:
+#   systemctl edit mecha-mcp
+#   [Service]
+#   Environment=WEBHOOK_SECRET=<secret>
 Restart=always
 RestartSec=5
 
