@@ -11,14 +11,17 @@ Workers are defined in YAML files. Each file describes one worker.
 
 ```mermaid
 flowchart TD
-    YAML{YAML has docker: section?}
-    YAML -->|Yes| Managed[Managed Worker]
-    YAML -->|No| Unmanaged[Unmanaged Worker]
+    YAML{YAML structure?}
+    YAML -->|has docker:| Managed[Managed Worker]
+    YAML -->|has adapter:| Adapter[Adapter Worker]
+    YAML -->|has endpoint:| Unmanaged[Unmanaged Worker]
     Managed --> Docker[mecha creates/starts Docker container]
+    Adapter --> InProcess[mecha runs in-process HTTP adapter]
     Unmanaged --> Endpoint[mecha calls existing HTTP endpoint]
 ```
 
-- **Managed**: has a `docker:` section. Mecha controls the container lifecycle.
+- **Managed**: has a `docker:` section. Mecha controls the Docker container lifecycle.
+- **Adapter**: has an `adapter:` section. Mecha runs an in-process adapter translating a native LLM API.
 - **Unmanaged**: has an `endpoint:` field. Mecha just calls it.
 
 ## Managed Worker (Docker)
@@ -32,7 +35,7 @@ docker:
     cpu: 4                              # CPU cores
     memory: 8G                          # memory limit (M or G)
     pids: 256                           # process limit
-  lifecycle: persistent                 # only "persistent" for now
+  lifecycle: persistent                 # "persistent" (default) or "disposable"
   env:                                  # environment variables
     CLAUDE_MODEL: claude-sonnet-4-6
     CLAUDE_SYSTEM_PROMPT: "You review code."
@@ -56,7 +59,7 @@ timeout: 30m                            # task timeout
 | `docker.resources.cpu` | No | unlimited | CPU cores |
 | `docker.resources.memory` | No | unlimited | Memory limit (`512M`, `4G`) |
 | `docker.resources.pids` | No | unlimited | Max processes |
-| `docker.lifecycle` | No | `persistent` | Only `persistent` supported (Phase 2) |
+| `docker.lifecycle` | No | `persistent` | `persistent` (reuse container) or `disposable` (new container per task) |
 | `docker.host` | No | local socket | Docker daemon URL (e.g. `unix:///var/run/docker.sock`) |
 | `docker.env` | No | `{}` | Environment variables passed to container |
 | `docker.token` | No | — | Token reference from `~/.mecha/secrets.yml` |
@@ -76,6 +79,69 @@ The path is validated:
 - Must exist
 - Must be a directory (not a file)
 - Symlinks are resolved (no traversal)
+
+### Disposable (One-Shot) Containers
+
+Set `lifecycle: disposable` to create a fresh container per task. The container is destroyed after the task completes.
+
+```yaml
+name: sandbox-runner
+docker:
+  image: mecha-worker-claude:latest
+  lifecycle: disposable
+  token: claude.xiaolaidev
+timeout: 10m
+```
+
+- **persistent** (default): container stays running, reused across tasks
+- **disposable**: new container per task, destroyed after completion
+
+Disposable workers don't need `worker start` — the dispatch loop creates containers on demand.
+
+## Adapter Worker
+
+Adapters translate native LLM APIs (Ollama, vLLM, OpenAI-compatible) into the mecha worker contract. They run in-process — no Docker required.
+
+```yaml
+name: local-llm
+adapter:
+  type: ollama                       # "ollama" or "openai"
+  upstream: http://localhost:11434   # base URL of the LLM API
+  model: gemma2:9b                   # model name
+timeout: 10m
+```
+
+### Adapter Types
+
+| Type | Upstream API | Health Check | Task Endpoint |
+|------|-------------|--------------|---------------|
+| `ollama` | Ollama `/api/chat` | `GET /` | Chat completions |
+| `openai` | OpenAI-compatible `/v1/chat/completions` | `GET /v1/models` | Chat completions |
+
+### OpenAI-Compatible Example
+
+Works with vLLM, LiteLLM, llama.cpp server, or any OpenAI-compatible API:
+
+```yaml
+name: vllm-worker
+adapter:
+  type: openai
+  upstream: http://gpu-server:8000
+  model: meta-llama/Llama-3-70b
+  api_key: ${VLLM_API_KEY}          # optional
+timeout: 15m
+```
+
+### Fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `adapter.type` | Yes | `ollama` or `openai` |
+| `adapter.upstream` | Yes | Base URL of the LLM API |
+| `adapter.model` | Yes | Model name passed to the API |
+| `adapter.api_key` | No | API key for authenticated endpoints |
+
+Mecha starts an in-process HTTP server when you run `worker start`. The adapter translates the worker contract (`GET /health`, `POST /task`) into native API calls.
 
 ## Unmanaged Worker
 

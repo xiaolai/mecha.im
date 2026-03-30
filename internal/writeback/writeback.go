@@ -76,8 +76,11 @@ func (c *Client) WriteBackResult(ctx context.Context, ev *event.Event, res polic
 			}
 		}
 	}
-	if res.Commit != nil {
-		c.logger.Info("writeback: commit action not yet implemented, skipping", "event", ev.ID)
+	if res.Commit != nil && res.Commit.Diff != "" && ev.Number > 0 {
+		if err := c.postCommitSuggestion(ctx, owner, repo, ev.Number, res.Commit.Message, res.Commit.Diff); err != nil {
+			c.logger.Error("writeback: commit suggestion", "event", ev.ID, "err", err)
+			errs = append(errs, err)
+		}
 	}
 	return errors.Join(errs...)
 }

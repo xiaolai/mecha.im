@@ -5,18 +5,20 @@ description: Connect GitHub webhooks to LLM workers via event matching rules.
 
 # Events & Webhooks
 
-Events connect external sources (GitHub) to mecha workers. When a webhook arrives, mecha matches it to a worker, renders a prompt, dispatches a task, and writes the result back to GitHub.
+Events connect external sources (GitHub, GitLab, or custom webhooks) to mecha workers. When a webhook arrives, mecha matches it to a worker, renders a prompt, dispatches a task, and writes the result back.
 
 ## Pipeline
 
 ```mermaid
 flowchart LR
-    GH[GitHub Webhook] -->|POST /webhook/github| Mecha
-    Mecha -->|parse + verify HMAC| Event[Event Store]
+    GH[GitHub] -->|POST /webhook/github| Mecha
+    GL[GitLab] -->|POST /webhook/gitlab| Mecha
+    Custom[Custom] -->|POST /webhook/custom| Mecha
+    Mecha -->|parse + verify| Event[Event Store]
     Event -->|match worker| Task[Task Queue]
-    Task -->|dispatch| Worker[Claude/Codex]
+    Task -->|dispatch| Worker[Claude/Codex/Ollama]
     Worker -->|result| Mecha
-    Mecha -->|comment/status/labels| GH
+    Mecha -->|write-back| GH
 ```
 
 ## Setup
@@ -90,7 +92,7 @@ Each rule in the `events:` section defines when the worker should handle an even
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `source` | Yes | Event source (`github`) |
+| `source` | Yes | Event source (`github`, `gitlab`, or custom name) |
 | `on` | Yes | List of event types to match |
 | `filter` | No | Key-value payload filters (equality match) |
 | `prompt` | Yes | Go template rendered with event data |
@@ -170,16 +172,91 @@ stateDiagram-v2
     received --> skipped : no matching worker
     matched --> dispatched : task created
     dispatched --> completed : result written back
-    dispatched --> failed : worker error or write-back failure
+    dispatched --> failed : worker send error
+    note right of dispatched : write-back failure stays dispatched for retry
 ```
 
 ## Delivery Deduplication
 
 GitHub may retry webhook deliveries. Mecha deduplicates using the `X-GitHub-Delivery` header — each delivery is processed exactly once.
 
+## GitLab Source
+
+Add `gitlab.webhook_secret` to `~/.mecha/secrets.yml`:
+
+```yaml
+gitlab:
+  webhook_secret: your_gitlab_secret
+```
+
+### GitLab Event Types
+
+| Type | Trigger |
+|------|---------|
+| `merge_request.open` | MR created |
+| `merge_request.update` | MR updated |
+| `merge_request.merge` | MR merged |
+| `push` | Push to branch |
+| `tag_push` | Tag created |
+| `note` | Comment on MR/issue |
+| `issue.open` | Issue created |
+
+### GitLab Worker Example
+
+<!-- @formatter:off -->
+::: v-pre
+```yaml
+events:
+  - source: gitlab
+    on:
+      - merge_request.open
+    prompt: "Review MR #{{.number}}: {{.title}}"
+```
+:::
+<!-- @formatter:on -->
+
+## Generic Webhook Source
+
+For custom integrations (Jenkins, Buildkite, etc.), register a generic source. The event type is read from a configurable HTTP header.
+
+Generic sources are registered programmatically (not via secrets). They use content-hash deduplication and have no built-in authentication — use the server's API key for access control.
+
+### Generic Worker Example
+
+<!-- @formatter:off -->
+::: v-pre
+```yaml
+events:
+  - source: jenkins
+    on:
+      - build.completed
+    filter:
+      status: "failure"
+    prompt: "Analyze this build failure: {{.branch}}"
+```
+:::
+<!-- @formatter:on -->
+
+## Commit Suggestions
+
+Workers can return a `commit` field with suggested code changes. Mecha posts the diff as a PR comment:
+
+```json
+{
+  "output": "Fixed the typo",
+  "commit": {
+    "message": "fix: correct variable name",
+    "diff": "--- a/main.go\n+++ b/main.go\n@@ -1 +1 @@\n-old\n+new"
+  }
+}
+```
+
+The diff is rendered as a markdown code block in the PR comment. Requires `policy.commit.allow: true` in the worker config.
+
 ## Security
 
-- Webhooks are verified via HMAC-SHA256 (constant-time comparison)
-- Webhook endpoints are exempt from API key auth (use their own signature verification)
-- If no webhook secret is configured, a startup warning is logged
+- GitHub webhooks verified via HMAC-SHA256 (constant-time comparison)
+- GitLab webhooks verified via `X-Gitlab-Token` (constant-time comparison)
+- Webhook endpoints are exempt from API key auth (use their own verification)
 - Diff is fetched using SHA-pinned compare endpoints (immutable)
+- Delivery deduplication prevents replay attacks

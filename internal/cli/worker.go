@@ -145,6 +145,9 @@ func workerStartCmd() *cobra.Command {
 				fmt.Printf("started %s (container)\n", name)
 				return nil
 			}
+			if e.Worker.IsAdapter() {
+				return fmt.Errorf("adapter workers run in-process and must be started via 'mecha serve' (not 'worker start')")
+			}
 			if err := reg.Start(name); err != nil {
 				return err
 			}
@@ -181,6 +184,9 @@ func workerStopCmd() *cobra.Command {
 				}
 				fmt.Printf("stopped %s (container)\n", name)
 				return nil
+			}
+			if e.Worker.IsAdapter() {
+				adapterStop(name)
 			}
 			if err := reg.Stop(name); err != nil {
 				return err
