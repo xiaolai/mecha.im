@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "jsx": "preserve",
+    "types": ["vitepress/client"],
+    "paths": {
+      "vitepress": ["./node_modules/vitepress"],
+      "vue": ["./node_modules/vue"]
+    }
+  },
+  "include": [
+    ".vitepress/**/*.ts",
+    ".vitepress/**/*.vue"
+  ]
+}

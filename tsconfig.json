@@ -3,8 +3,10 @@
     "noEmit": true
   },
   "exclude": [
-    "website",
     "docker",
     "node_modules"
+  ],
+  "references": [
+    { "path": "website" }
   ]
 }
