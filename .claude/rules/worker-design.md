@@ -47,3 +47,35 @@ offline → online ↔ busy (automatic, in-container)
 
 - **persistent**: container stays running across tasks, reused.
 - **disposable**: one container per task, destroyed after (Phase 3).
+
+## Adapters (Phase 3)
+
+Non-Docker LLM APIs (Ollama, vLLM, OpenAI-compatible, etc.) need an adapter
+to translate their native API into the mecha worker contract (`GET /health` +
+`POST /task`).
+
+Design: **Go plugin modules**, not CLI commands.
+
+```
+adapter/
+  ollama.go     → Ollama /api/chat → worker contract
+  openai.go     → OpenAI /v1/chat/completions → worker contract
+  litellm.go    → LiteLLM proxy → worker contract
+```
+
+Each adapter is a Go package implementing a common interface. Workers reference
+an adapter by name in YAML:
+
+```yaml
+name: local-llm
+adapter: ollama
+upstream: http://spark01:11434
+model: gemma2:9b
+timeout: 10m
+```
+
+Mecha starts the adapter in-process (no sidecar, no separate binary). The
+adapter handles health-check translation and request/response mapping.
+
+Current: `scripts/ollama-adapter.py` is a reference implementation (Python,
+not production). Replace with Go adapters in Phase 3.
