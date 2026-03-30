@@ -5,20 +5,32 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+
+	"mecha.im/internal/store"
 )
 
-func TestRegistryConcurrentAddGet(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "registry.json")
-	r, err := NewRegistry(path)
+func testDB(t *testing.T) *Registry {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "test.db")
+	db, err := store.Open(path)
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { db.Close() })
+	r, err := NewRegistry(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return r
+}
+
+func TestRegistryConcurrentAddGet(t *testing.T) {
+	r := testDB(t)
 
 	const n = 20
 	var wg sync.WaitGroup
 	errs := make(chan error, n*2)
 
-	// Writers: add unique workers
 	for i := 0; i < n; i++ {
 		wg.Add(1)
 		go func(id int) {
@@ -30,7 +42,6 @@ func TestRegistryConcurrentAddGet(t *testing.T) {
 		}(i)
 	}
 
-	// Readers: list and get concurrently
 	for i := 0; i < n; i++ {
 		wg.Add(1)
 		go func(id int) {
@@ -54,13 +65,8 @@ func TestRegistryConcurrentAddGet(t *testing.T) {
 }
 
 func TestRegistryConcurrentStateTransitions(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "registry.json")
-	r, err := NewRegistry(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	r := testDB(t)
 
-	// Pre-populate workers
 	const n = 10
 	for i := 0; i < n; i++ {
 		w := &Worker{Name: fmt.Sprintf("s-%d", i), Endpoint: "http://localhost:8080"}
@@ -70,8 +76,6 @@ func TestRegistryConcurrentStateTransitions(t *testing.T) {
 	}
 
 	var wg sync.WaitGroup
-
-	// Cycle state transitions concurrently
 	for i := 0; i < n; i++ {
 		wg.Add(1)
 		go func(id int) {
@@ -89,7 +93,6 @@ func TestRegistryConcurrentStateTransitions(t *testing.T) {
 
 	wg.Wait()
 
-	// All workers should still exist with valid states
 	entries := r.List()
 	if len(entries) != n {
 		t.Errorf("got %d entries, want %d", len(entries), n)
@@ -97,7 +100,6 @@ func TestRegistryConcurrentStateTransitions(t *testing.T) {
 	for _, e := range entries {
 		switch e.State {
 		case StateOffline, StateOnline, StateError:
-			// valid
 		default:
 			t.Errorf("worker %q has invalid state %q", e.Worker.Name, e.State)
 		}
@@ -105,16 +107,11 @@ func TestRegistryConcurrentStateTransitions(t *testing.T) {
 }
 
 func TestRegistryConcurrentListDuringMutation(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "registry.json")
-	r, err := NewRegistry(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	r := testDB(t)
 
 	done := make(chan struct{})
 	var writerWg sync.WaitGroup
 
-	// Continuous reader (not in WaitGroup — stopped via channel)
 	go func() {
 		for {
 			select {
@@ -131,7 +128,6 @@ func TestRegistryConcurrentListDuringMutation(t *testing.T) {
 		}
 	}()
 
-	// Writers
 	for i := 0; i < 20; i++ {
 		writerWg.Add(1)
 		go func(id int) {

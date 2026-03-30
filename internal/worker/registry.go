@@ -1,42 +1,32 @@
 package worker
 
 import (
+	"database/sql"
 	"fmt"
-	"os"
-	"path/filepath"
 	"sort"
 	"sync"
 	"time"
 )
 
 // Registry manages worker state with mutex-protected in-memory map
-// and atomic JSON file persistence. Thread-safe for concurrent access.
+// and SQLite persistence. Thread-safe for concurrent access.
 type Registry struct {
 	mu      sync.Mutex
 	entries map[string]*Entry
-	path    string
+	db      *sql.DB
 }
 
-// NewRegistry creates a registry backed by the given JSON file path.
-// If the file doesn't exist, starts empty. If it exists, loads entries.
-func NewRegistry(path string) (*Registry, error) {
+// NewRegistry creates a registry backed by the given SQLite database.
+// Loads existing workers from the workers table.
+func NewRegistry(db *sql.DB) (*Registry, error) {
 	r := &Registry{
 		entries: make(map[string]*Entry),
-		path:    path,
+		db:      db,
 	}
-	if err := r.load(); err != nil && !os.IsNotExist(err) {
+	if err := r.load(); err != nil {
 		return nil, fmt.Errorf("load registry: %w", err)
 	}
 	return r, nil
-}
-
-// DefaultRegistryPath returns ~/.mecha/registry.json.
-func DefaultRegistryPath() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("resolve home dir: %w", err)
-	}
-	return filepath.Join(home, ".mecha", "registry.json"), nil
 }
 
 // Add registers a new worker in offline state. Fails if name already exists.
@@ -150,7 +140,42 @@ func (r *Registry) ClearRuntime(name string) error {
 	})
 }
 
-// Get returns a copy of the named entry. Safe for concurrent use.
+// SetBusy transitions a worker from online to busy (task dispatched).
+func (r *Registry) SetBusy(name string) error {
+	return r.mutateEntry(name, func(e *Entry) error {
+		if e.State != StateOnline {
+			return fmt.Errorf("worker %q must be online to mark busy (current: %s)", name, e.State)
+		}
+		e.State = StateBusy
+		return nil
+	})
+}
+
+// SetOnline transitions a worker from busy back to online (task completed).
+func (r *Registry) SetOnline(name string) error {
+	return r.mutateEntry(name, func(e *Entry) error {
+		if e.State != StateBusy {
+			return fmt.Errorf("worker %q must be busy to mark online (current: %s)", name, e.State)
+		}
+		e.State = StateOnline
+		return nil
+	})
+}
+
+// Reload re-reads all workers from SQLite into the in-memory cache.
+// Loads into a temporary map and swaps on success (safe on failure).
+func (r *Registry) Reload() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	tmp := &Registry{db: r.db, entries: make(map[string]*Entry)}
+	if err := tmp.load(); err != nil {
+		return err
+	}
+	r.entries = tmp.entries
+	return nil
+}
+
+// Get returns a deep copy of the named entry. Safe for concurrent use.
 func (r *Registry) Get(name string) (Entry, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -158,16 +183,16 @@ func (r *Registry) Get(name string) (Entry, bool) {
 	if !ok {
 		return Entry{}, false
 	}
-	return *e, true
+	return deepCopyEntry(e), true
 }
 
-// List returns copies of all entries sorted by worker name.
+// List returns deep copies of all entries sorted by worker name.
 func (r *Registry) List() []Entry {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	result := make([]Entry, 0, len(r.entries))
 	for _, e := range r.entries {
-		result = append(result, *e)
+		result = append(result, deepCopyEntry(e))
 	}
 	sort.Slice(result, func(i, j int) bool {
 		return result[i].Worker.Name < result[j].Worker.Name
@@ -190,6 +215,15 @@ func (r *Registry) mutateEntry(name string, fn func(e *Entry) error) error {
 	}
 	r.entries = clone
 	return nil
+}
+
+func deepCopyEntry(e *Entry) Entry {
+	ec := *e
+	if ec.Worker != nil {
+		wc := *ec.Worker
+		ec.Worker = &wc
+	}
+	return ec
 }
 
 func (r *Registry) cloneEntries() map[string]*Entry {

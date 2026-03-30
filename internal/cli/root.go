@@ -19,6 +19,7 @@ func Execute() {
 	}
 	root.AddCommand(workerCmd())
 	root.AddCommand(configCmd())
+	root.AddCommand(serveCmd())
 	root.AddCommand(versionCmd())
 	if err := root.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, worker.RedactSecrets(err.Error()))

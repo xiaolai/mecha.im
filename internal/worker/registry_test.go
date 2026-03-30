@@ -3,12 +3,19 @@ package worker
 import (
 	"path/filepath"
 	"testing"
+
+	"mecha.im/internal/store"
 )
 
 func testRegistry(t *testing.T) *Registry {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "registry.json")
-	r, err := NewRegistry(path)
+	path := filepath.Join(t.TempDir(), "test.db")
+	db, err := store.Open(path)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	t.Cleanup(func() { db.Close() })
+	r, err := NewRegistry(db)
 	if err != nil {
 		t.Fatalf("new registry: %v", err)
 	}
@@ -118,15 +125,25 @@ func TestRegistryNotFound(t *testing.T) {
 }
 
 func TestRegistryPersistence(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "registry.json")
-	r1, err := NewRegistry(path)
+	path := filepath.Join(t.TempDir(), "test.db")
+	db, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r1, err := NewRegistry(db)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := r1.Add(testWorker("persist")); err != nil {
 		t.Fatal(err)
 	}
-	r2, err := NewRegistry(path)
+	db.Close()
+	db2, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db2.Close()
+	r2, err := NewRegistry(db2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -284,9 +301,149 @@ func TestRegistryClearRuntime(t *testing.T) {
 	}
 }
 
+func TestRegistryRemoveSuccess(t *testing.T) {
+	r := testRegistry(t)
+	r.Add(testWorker("w"))
+	if err := r.Remove("w"); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	if _, ok := r.Get("w"); ok {
+		t.Error("worker should be gone after remove")
+	}
+	if len(r.List()) != 0 {
+		t.Error("list should be empty")
+	}
+}
+
+func TestRegistryRemoveNotFound(t *testing.T) {
+	r := testRegistry(t)
+	if err := r.Remove("ghost"); err == nil {
+		t.Error("expected not found error")
+	}
+}
+
+func TestRegistryRemoveOnline(t *testing.T) {
+	r := testRegistry(t)
+	r.Add(testWorker("w"))
+	r.Start("w")
+	if err := r.Remove("w"); err == nil {
+		t.Error("expected error removing online worker")
+	}
+}
+
+func TestRegistryRemoveError(t *testing.T) {
+	r := testRegistry(t)
+	r.Add(testWorker("w"))
+	r.Start("w")
+	r.SetError("w", "fail")
+	if err := r.Remove("w"); err == nil {
+		t.Error("expected error removing error-state worker")
+	}
+}
+
+func TestRegistryStopOffline(t *testing.T) {
+	r := testRegistry(t)
+	r.Add(testWorker("w"))
+	if err := r.Stop("w"); err == nil {
+		t.Error("expected error stopping offline worker")
+	}
+}
+
+func TestRegistryAddPersistError(t *testing.T) {
+	r := testRegistry(t)
+	w1 := testWorker("w1")
+	if err := r.Add(w1); err != nil {
+		t.Fatal(err)
+	}
+	// Duplicate
+	if err := r.Add(w1); err == nil {
+		t.Error("expected duplicate error")
+	}
+}
+
+func TestRegistrySetBusy(t *testing.T) {
+	r := testRegistry(t)
+	r.Add(testWorker("w"))
+	r.Start("w")
+
+	if err := r.SetBusy("w"); err != nil {
+		t.Fatalf("SetBusy: %v", err)
+	}
+	e, _ := r.Get("w")
+	if e.State != StateBusy {
+		t.Errorf("state = %q, want busy", e.State)
+	}
+
+	// offline → busy should fail
+	r.Add(testWorker("w2"))
+	if err := r.SetBusy("w2"); err == nil {
+		t.Error("expected error for offline→busy")
+	}
+}
+
+func TestRegistrySetOnline(t *testing.T) {
+	r := testRegistry(t)
+	r.Add(testWorker("w"))
+	r.Start("w")
+	r.SetBusy("w")
+
+	if err := r.SetOnline("w"); err != nil {
+		t.Fatalf("SetOnline: %v", err)
+	}
+	e, _ := r.Get("w")
+	if e.State != StateOnline {
+		t.Errorf("state = %q, want online", e.State)
+	}
+
+	// online → online should fail
+	if err := r.SetOnline("w"); err == nil {
+		t.Error("expected error for online→online")
+	}
+}
+
+func TestRegistryReload(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "test.db")
+	db, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	r, _ := NewRegistry(db)
+	r.Add(testWorker("w1"))
+	r.Start("w1")
+
+	// Simulate CLI adding a worker via separate connection
+	db2, _ := store.Open(path)
+	r2, _ := NewRegistry(db2)
+	w2 := &Worker{Name: "w2", Endpoint: "http://y"}
+	r2.Add(w2)
+	db2.Close()
+
+	// Reload should pick up w2
+	if err := r.Reload(); err != nil {
+		t.Fatalf("Reload: %v", err)
+	}
+	if _, ok := r.Get("w2"); !ok {
+		t.Error("w2 not found after Reload")
+	}
+	// w1 should still be present
+	e1, ok := r.Get("w1")
+	if !ok {
+		t.Error("w1 lost after Reload")
+	}
+	if e1.State != StateOnline {
+		t.Errorf("w1 state = %q after Reload", e1.State)
+	}
+}
+
 func TestRegistryRuntimePersistence(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "registry.json")
-	r1, err := NewRegistry(path)
+	path := filepath.Join(t.TempDir(), "test.db")
+	db, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r1, err := NewRegistry(db)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -296,7 +453,13 @@ func TestRegistryRuntimePersistence(t *testing.T) {
 	if err := r1.SetRuntime("w", "cid-123", "http://127.0.0.1:9999"); err != nil {
 		t.Fatal(err)
 	}
-	r2, err := NewRegistry(path)
+	db.Close()
+	db2, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db2.Close()
+	r2, err := NewRegistry(db2)
 	if err != nil {
 		t.Fatal(err)
 	}
