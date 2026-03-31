@@ -9,12 +9,18 @@ import (
 type State string
 
 const (
-	StateReceived  State = "received"
-	StateMatched   State = "matched"
+	// StateReceived means the event arrived and was persisted, not yet matched.
+	StateReceived State = "received"
+	// StateMatched means the event matched a worker by event rules.
+	StateMatched State = "matched"
+	// StateDispatched means a task was created and sent to a worker.
 	StateDispatched State = "dispatched"
+	// StateCompleted means the worker returned a result and write-back succeeded.
 	StateCompleted State = "completed"
-	StateFailed    State = "failed"
-	StateSkipped   State = "skipped"
+	// StateFailed means processing errored or timed out.
+	StateFailed State = "failed"
+	// StateSkipped means no matching worker was found for this event.
+	StateSkipped State = "skipped"
 )
 
 // Attrs holds provider-specific fields available to prompt templates.
