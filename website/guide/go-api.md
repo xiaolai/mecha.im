@@ -136,8 +136,8 @@ Event types and SQLite persistence.
 
 | Type | Description |
 |------|-------------|
-| `Event` | Something that happened from an external source (webhook payload) |
-| `Payload` | Map of enriched fields available to prompt templates |
+| `Event` | Something that happened from an external source. Provider-neutral: Actor, Subject, Attrs |
+| `Attrs` | Map of provider-specific fields available to prompt templates |
 | `State` | Event lifecycle state |
 | `Store` | Manages event persistence in SQLite |
 
@@ -166,6 +166,8 @@ Event types and SQLite persistence.
 | `SetCompleted(ctx, id) error` | Transition dispatched -> completed |
 | `SetFailed(ctx, id) error` | Mark as failed from any active state |
 | `SetSkipped(ctx, id) error` | Transition received -> skipped |
+| `UpdateAttrs(ctx, id, attrs) error` | Persist hydrated attrs back to the database |
+| `Received(ctx) ([]string, error)` | Return IDs of events stuck in received state (crash recovery) |
 
 ## task
 
@@ -231,6 +233,7 @@ Policy filtering for write-back results.
 |----------|-------------|
 | `ParseRules(raw) (Filter, error)` | Convert a raw YAML map into a `RuleFilter`. Returns `AllowAll` if empty |
 | `RuleFilter.Apply(ctx, ev, result) (Result, Decision, error)` | Filter result according to configured rules |
+| `AllowAll.Apply(ctx, ev, result) (Result, Decision, error)` | Passes all actions through unchanged |
 | `DenyAll.Apply(ctx, ev, result) (Result, Decision, error)` | Returns empty result with all actions denied |
 
 ## source
@@ -241,25 +244,44 @@ Webhook source parsing (GitHub, GitLab, generic).
 
 | Type | Description |
 |------|-------------|
-| `Source` | Interface: parses incoming webhooks into normalized events |
+| `Source` | Interface: parses incoming webhooks into normalized events (`Name`, `Parse`) |
+| `Trigger` | Interface: generates events actively — cron, polling, subscriptions (`Name`, `Start`) |
 | `Hydrator` | Interface: enriches events with additional data (e.g. fetching diffs) |
-| `Registry` | Holds registered event sources by name |
-| `GitHubSource` | Parses GitHub webhook payloads. Validates HMAC signatures |
-| `GitLabSource` | Parses GitLab webhook payloads. Validates X-Gitlab-Token |
-| `GenericSource` | Parses arbitrary JSON webhooks. Event type from configurable header |
+| `Verifier` | Interface: handles webhook verification challenges (Meta, Slack) |
+| `Authenticated` | Marker interface: sources that validate webhooks themselves (HMAC, token) |
+| `Responder` | Interface: writes task results back to an external platform (`Name`, `Respond`) |
+| `Registry` | Holds registered sources, triggers, and responders by name |
+| `GitHubSource` | Parses GitHub webhook payloads. Validates HMAC-SHA256. Implements `Authenticated` |
+| `GitLabSource` | Parses GitLab webhook payloads. Validates X-Gitlab-Token. Implements `Authenticated` |
+| `GenericSource` | Parses arbitrary JSON webhooks. Event type from configurable header. No built-in auth |
 
-### Functions
+### Constructors
 
 | Function | Description |
 |----------|-------------|
 | `NewRegistry() *Registry` | Create an empty source registry |
-| `Register(s Source)` | Add a source to the registry |
-| `Get(name) (Source, bool)` | Look up a source by name |
-| `Len() int` | Number of registered sources |
 | `NewGitHubSource(secret, token) *GitHubSource` | Create GitHub webhook source |
 | `NewGitLabSource(secret) *GitLabSource` | Create GitLab webhook source |
 | `NewGenericSource(name, typeHeader) *GenericSource` | Create generic webhook source |
-| `Hydrate(ctx, ev) error` | Enrich a GitHub event with diff and file data |
+
+### Registry Methods
+
+| Method | Description |
+|--------|-------------|
+| `Register(s Source)` | Add a webhook source to the registry |
+| `RegisterTrigger(t Trigger)` | Add an active trigger to the registry |
+| `RegisterResponder(resp Responder)` | Add a write-back responder to the registry |
+| `Get(name) (Source, bool)` | Look up a source by name |
+| `GetTrigger(name) (Trigger, bool)` | Look up a trigger by name |
+| `GetResponder(name) (Responder, bool)` | Look up a responder by name |
+| `Triggers() map[string]Trigger` | Return a copy of all registered triggers |
+| `Len() int` | Number of registered sources |
+
+### Source Methods
+
+| Method | Description |
+|--------|-------------|
+| `GitHubSource.Hydrate(ctx, ev) error` | Enrich a GitHub event with diff and file data |
 
 ## adapter
 
@@ -322,12 +344,14 @@ GitHub write-back integration.
 
 | Type | Description |
 |------|-------------|
-| `Client` | Writes task results back to GitHub (comments, labels, status, commit suggestions) |
+| `Client` | Writes task results back to GitHub. Implements `source.Responder` |
 
 ### Functions
 
 | Function | Description |
 |----------|-------------|
 | `NewClient(token, logger) *Client` | Create a write-back client |
+| `Name() string` | Returns `"github"` (implements `source.Responder`) |
+| `Respond(ctx, event, result) error` | Write a policy-filtered result to GitHub (implements `source.Responder`) |
 | `WriteBackResult(ctx, event, result) error` | Write a policy-filtered result to GitHub |
 | `OverrideAPIBase(url) func()` | Test utility: replace GitHub API base URL, returns restore function |

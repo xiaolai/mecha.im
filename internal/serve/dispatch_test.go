@@ -269,12 +269,32 @@ func TestIsTransportError(t *testing.T) {
 		{"deadline exceeded", true},
 		{"context canceled", true},
 		{"EOF", true},
+		{"connection reset", true},
 		{"worker returned 500", false},
 		{"task failed", false},
 	}
 	for _, tt := range tests {
 		if got := isTransportError(fmt.Errorf("%s", tt.msg)); got != tt.want {
 			t.Errorf("isTransportError(%q) = %v, want %v", tt.msg, got, tt.want)
+		}
+	}
+}
+
+func TestIsUniqueViolation(t *testing.T) {
+	tests := []struct {
+		msg  string
+		want bool
+	}{
+		{"UNIQUE constraint failed: events.delivery_id", true},
+		{"unique constraint failed", true},
+		{"constraint failed: events.delivery_id", true},
+		{"sqlite error code 2067", true},
+		{"insert failed: some other reason", false},
+		{"duplicate key", false},
+	}
+	for _, tt := range tests {
+		if got := isUniqueViolation(fmt.Errorf("%s", tt.msg)); got != tt.want {
+			t.Errorf("isUniqueViolation(%q) = %v, want %v", tt.msg, got, tt.want)
 		}
 	}
 }

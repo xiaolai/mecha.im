@@ -9,29 +9,35 @@ import (
 type State string
 
 const (
-	StateReceived  State = "received"
-	StateMatched   State = "matched"
+	// StateReceived means the event arrived and was persisted, not yet matched.
+	StateReceived State = "received"
+	// StateMatched means the event matched a worker by event rules.
+	StateMatched State = "matched"
+	// StateDispatched means a task was created and sent to a worker.
 	StateDispatched State = "dispatched"
+	// StateCompleted means the worker returned a result and write-back succeeded.
 	StateCompleted State = "completed"
-	StateFailed    State = "failed"
-	StateSkipped   State = "skipped"
+	// StateFailed means processing errored or timed out.
+	StateFailed State = "failed"
+	// StateSkipped means no matching worker was found for this event.
+	StateSkipped State = "skipped"
 )
 
-// Payload is a map of enriched fields available to prompt templates.
-type Payload map[string]any
+// Attrs holds provider-specific fields available to prompt templates.
+type Attrs map[string]any
 
 // Event is something that happened from an external source.
+// All provider-specific data lives in Attrs — the struct itself
+// contains only universal, provider-neutral fields.
 type Event struct {
 	ID         string          `json:"id"`
 	DeliveryID string          `json:"delivery_id"`
+	DedupKey   string          `json:"dedup_key,omitempty"` // reserved for semantic dedup (cron/polling); not yet enforced
 	Source     string          `json:"source"`
 	Type       string          `json:"type"`
-	RepoOwner  string          `json:"repo_owner"`
-	RepoName   string          `json:"repo_name"`
-	Ref        string          `json:"ref"`
-	Number     int             `json:"number"`
-	Sender     string          `json:"sender"`
-	Payload    Payload         `json:"payload"`
+	Actor      string          `json:"actor"`
+	Subject    string          `json:"subject"`
+	Attrs      Attrs           `json:"attrs"`
 	Raw        json.RawMessage `json:"raw,omitempty"`
 	State      State           `json:"state"`
 	WorkerName string          `json:"worker_name,omitempty"`

@@ -19,6 +19,21 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Handle verification challenges (Meta, Slack)
+	if r.Method == "GET" {
+		if v, ok := src.(source.Verifier); ok {
+			resp, err := v.Verify(r)
+			if err != nil {
+				writeError(w, http.StatusForbidden, "verification failed")
+				return
+			}
+			w.Write(resp)
+			return
+		}
+		writeError(w, http.StatusMethodNotAllowed, "GET not supported")
+		return
+	}
+
 	body, err := io.ReadAll(io.LimitReader(r.Body, 5<<20)) // 5MB limit
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "read body failed")
@@ -43,8 +58,7 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.events.Create(r.Context(), ev); err != nil {
-		// Unique constraint on delivery_id → treat as duplicate
-		if strings.Contains(err.Error(), "UNIQUE constraint") {
+		if isUniqueViolation(err) {
 			writeJSON(w, http.StatusOK, map[string]string{"status": "duplicate"})
 			return
 		}
@@ -73,18 +87,31 @@ func (s *Server) matchAndHydrate(ctx context.Context, ev *event.Event, src sourc
 		s.logger.Error("webhook: reload registry", "err", err)
 	}
 
+	hydrated := false
 	entries := s.reg.List()
 	for _, entry := range entries {
 		for _, rule := range entry.Worker.Events {
 			if !matchesRule(rule, ev) {
 				continue
 			}
+			if !rule.IsAuto() {
+				s.logger.Info("webhook: rule matched but auto=false, skipping", "event", ev.ID, "worker", entry.Worker.Name)
+				continue
+			}
 
-			// Hydrate if source supports it
-			if h, ok := src.(source.Hydrator); ok {
-				if err := h.Hydrate(ctx, ev); err != nil {
-					s.logger.Warn("webhook: hydrate", "event", ev.ID, "err", err)
+			// Hydrate once on first match — avoids wasted API calls
+			// when no rule matches, and avoids duplicate calls when
+			// multiple rules match.
+			if !hydrated {
+				if h, ok := src.(source.Hydrator); ok {
+					if err := h.Hydrate(ctx, ev); err != nil {
+						s.logger.Warn("webhook: hydrate", "event", ev.ID, "err", err)
+					}
+					if err := s.events.UpdateAttrs(ctx, ev.ID, ev.Attrs); err != nil {
+						s.logger.Warn("webhook: persist hydrated attrs", "event", ev.ID, "err", err)
+					}
 				}
+				hydrated = true
 			}
 
 			prompt, err := renderPrompt(rule, ev)
@@ -115,7 +142,10 @@ func (s *Server) matchAndHydrate(ctx context.Context, ev *event.Event, src sourc
 			}
 
 			if err := s.events.SetDispatched(ctx, ev.ID, t.ID); err != nil {
-				s.logger.Error("webhook: set dispatched failed, not enqueuing", "event", ev.ID, "err", err)
+				s.logger.Error("webhook: set dispatched failed, failing task", "event", ev.ID, "err", err)
+				if failErr := s.tasks.Fail(ctx, t.ID, "event transition failed"); failErr != nil {
+					s.logger.Error("webhook: compensate task fail", "task", t.ID, "err", failErr)
+				}
 				return
 			}
 			select {

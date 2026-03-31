@@ -26,7 +26,8 @@ func init() {
 // Hydrate enriches an event with data from the GitHub API.
 // Uses SHA-pinned endpoints to avoid TOCTOU with mutable PR state.
 func (g *GitHubSource) Hydrate(ctx context.Context, ev *event.Event) error {
-	if g.token == "" || ev.Number == 0 {
+	number := attrInt(ev.Attrs, "number")
+	if g.token == "" || number == 0 {
 		return nil
 	}
 	if strings.HasPrefix(ev.Type, "pull_request") {
@@ -37,46 +38,61 @@ func (g *GitHubSource) Hydrate(ctx context.Context, ev *event.Event) error {
 
 func (g *GitHubSource) hydratePR(ctx context.Context, ev *event.Event) error {
 	client := &http.Client{Timeout: 30 * time.Second}
+	owner, _ := ev.Attrs["repo_owner"].(string)
+	repo, _ := ev.Attrs["repo_name"].(string)
+	number := attrInt(ev.Attrs, "number")
 
-	// SHA-pinned compare (immutable) — both SHAs are commit hashes, no escaping needed
-	headSHA, _ := ev.Payload["head_sha"].(string)
-	baseSHA, _ := ev.Payload["base_sha"].(string)
+	// SHA-pinned compare (immutable)
+	headSHA, _ := ev.Attrs["head_sha"].(string)
+	baseSHA, _ := ev.Attrs["base_sha"].(string)
 	var diffURL string
 	if headSHA != "" && baseSHA != "" {
 		diffURL = fmt.Sprintf("%s/repos/%s/%s/compare/%s...%s",
-			githubAPIBase, ev.RepoOwner, ev.RepoName, baseSHA, headSHA)
+			githubAPIBase, owner, repo, baseSHA, headSHA)
 	} else {
-		// Fallback to mutable PR endpoint (base_sha unavailable)
 		diffURL = fmt.Sprintf("%s/repos/%s/%s/pulls/%d",
-			githubAPIBase, ev.RepoOwner, ev.RepoName, ev.Number)
+			githubAPIBase, owner, repo, number)
 	}
 	diff, err := g.githubGet(ctx, client, diffURL, "application/vnd.github.diff")
 	if err != nil {
-		ev.Payload["diff"] = ""
-		ev.Payload["diff_error"] = err.Error()
+		ev.Attrs["diff"] = ""
+		ev.Attrs["diff_error"] = err.Error()
 	} else {
 		if len(diff) > maxDiffSize {
 			diff = diff[:maxDiffSize] + "\n... (truncated)"
 		}
-		ev.Payload["diff"] = diff
+		ev.Attrs["diff"] = diff
 	}
 
-	// Fetch file list with pagination (up to 10 pages = 1000 files)
+	// Fetch file list — prefer SHA-pinned compare (immutable, consistent with diff).
+	// Falls back to mutable PR files endpoint when SHAs unavailable.
 	var allFiles []string
-	filesURL := fmt.Sprintf("%s/repos/%s/%s/pulls/%d/files?per_page=100",
-		githubAPIBase, ev.RepoOwner, ev.RepoName, ev.Number)
-	for page := 0; page < 10 && filesURL != ""; page++ {
-		body, nextURL, err := g.githubGetPaginated(ctx, client, filesURL)
-		if err != nil {
-			break
+	var filesURL string
+	if headSHA != "" && baseSHA != "" {
+		// Compare endpoint returns files[] in JSON response (single page, up to 300 files)
+		compareURL := fmt.Sprintf("%s/repos/%s/%s/compare/%s...%s",
+			githubAPIBase, owner, repo, baseSHA, headSHA)
+		body, err := g.githubGet(ctx, client, compareURL, "application/vnd.github+json")
+		if err == nil {
+			allFiles = extractCompareFiles(body)
 		}
-		allFiles = append(allFiles, extractFileList(body)...)
-		filesURL = nextURL
+	}
+	if len(allFiles) == 0 {
+		filesURL = fmt.Sprintf("%s/repos/%s/%s/pulls/%d/files?per_page=100",
+			githubAPIBase, owner, repo, number)
+		for page := 0; page < 10 && filesURL != ""; page++ {
+			body, nextURL, err := g.githubGetPaginated(ctx, client, filesURL)
+			if err != nil {
+				break
+			}
+			allFiles = append(allFiles, extractFileList(body)...)
+			filesURL = nextURL
+		}
 	}
 	if len(allFiles) > 0 {
-		ev.Payload["file_list"] = strings.Join(allFiles, "\n")
+		ev.Attrs["file_list"] = strings.Join(allFiles, "\n")
 	} else {
-		ev.Payload["file_list"] = ""
+		ev.Attrs["file_list"] = ""
 	}
 
 	return nil
@@ -155,4 +171,24 @@ func extractFileList(body string) []string {
 		names = append(names, f.Filename)
 	}
 	return names
+}
+
+// extractCompareFiles extracts filenames from a GitHub compare API JSON response.
+func extractCompareFiles(body string) []string {
+	var resp struct {
+		Files []struct{ Filename string } `json:"files"`
+	}
+	if err := json.Unmarshal([]byte(body), &resp); err != nil {
+		return nil
+	}
+	names := make([]string, 0, len(resp.Files))
+	for _, f := range resp.Files {
+		names = append(names, f.Filename)
+	}
+	return names
+}
+
+// attrInt extracts an integer from Attrs (handles float64 from JSON).
+func attrInt(attrs event.Attrs, key string) int {
+	return intVal(attrs[key])
 }

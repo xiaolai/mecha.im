@@ -13,11 +13,11 @@ type rowScanner interface{ Scan(dest ...any) error }
 
 func scanEvent(s rowScanner) (*Event, error) {
 	var ev Event
-	var state, payloadStr, raw, wn, tid string
+	var state, attrsStr, raw, wn, tid string
 	var createdAt, updatedAt int64
-	err := s.Scan(&ev.ID, &ev.DeliveryID, &ev.Source, &ev.Type,
-		&ev.RepoOwner, &ev.RepoName, &ev.Ref, &ev.Number, &ev.Sender,
-		&payloadStr, &raw, &state, &wn, &tid, &createdAt, &updatedAt)
+	err := s.Scan(&ev.ID, &ev.DeliveryID, &ev.DedupKey,
+		&ev.Source, &ev.Type, &ev.Actor, &ev.Subject,
+		&attrsStr, &raw, &state, &wn, &tid, &createdAt, &updatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("event not found")
@@ -30,10 +30,13 @@ func scanEvent(s rowScanner) (*Event, error) {
 	ev.Raw = json.RawMessage(raw)
 	ev.CreatedAt = time.Unix(createdAt, 0)
 	ev.UpdatedAt = time.Unix(updatedAt, 0)
-	if payloadStr != "" {
-		if err := json.Unmarshal([]byte(payloadStr), &ev.Payload); err != nil {
-			return nil, fmt.Errorf("unmarshal event payload: %w", err)
+	if attrsStr != "" && attrsStr != "null" {
+		if err := json.Unmarshal([]byte(attrsStr), &ev.Attrs); err != nil {
+			return nil, fmt.Errorf("unmarshal event attrs: %w", err)
 		}
+	}
+	if ev.Attrs == nil {
+		ev.Attrs = make(Attrs)
 	}
 	return &ev, nil
 }

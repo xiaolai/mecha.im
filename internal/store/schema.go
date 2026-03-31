@@ -55,3 +55,39 @@ CREATE INDEX IF NOT EXISTS idx_events_state ON events(state);
 CREATE INDEX IF NOT EXISTS idx_events_source ON events(source, type);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_events_delivery ON events(delivery_id) WHERE delivery_id != '';
 `
+
+// schemaV3 generalizes events: removes git-specific columns,
+// adds actor/subject/dedup_key, renames payload→attrs.
+const schemaV3 = `
+CREATE TABLE IF NOT EXISTS events_v3 (
+	id           TEXT PRIMARY KEY,
+	delivery_id  TEXT NOT NULL DEFAULT '',
+	dedup_key    TEXT NOT NULL DEFAULT '',
+	source       TEXT NOT NULL,
+	type         TEXT NOT NULL,
+	actor        TEXT NOT NULL DEFAULT '',
+	subject      TEXT NOT NULL DEFAULT '',
+	attrs        TEXT NOT NULL DEFAULT '{}',
+	raw          TEXT NOT NULL DEFAULT '',
+	state        TEXT NOT NULL DEFAULT 'received',
+	worker_name  TEXT NOT NULL DEFAULT '',
+	task_id      TEXT NOT NULL DEFAULT '',
+	created_at   INTEGER NOT NULL,
+	updated_at   INTEGER NOT NULL
+);
+
+INSERT INTO events_v3 (id, delivery_id, dedup_key, source, type,
+	actor, subject, attrs, raw, state, worker_name, task_id, created_at, updated_at)
+SELECT id, delivery_id, '', source, type,
+	sender, CASE WHEN repo_owner != '' THEN repo_owner || '/' || repo_name ELSE '' END,
+	payload, raw, state, worker_name, task_id, created_at, updated_at
+FROM events;
+
+DROP TABLE events;
+ALTER TABLE events_v3 RENAME TO events;
+
+CREATE INDEX IF NOT EXISTS idx_events_state ON events(state);
+CREATE INDEX IF NOT EXISTS idx_events_source ON events(source, type);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_events_delivery ON events(delivery_id) WHERE delivery_id != '';
+CREATE INDEX IF NOT EXISTS idx_events_dedup ON events(dedup_key) WHERE dedup_key != '';
+`
