@@ -64,17 +64,30 @@ func (g *GitHubSource) hydratePR(ctx context.Context, ev *event.Event) error {
 		ev.Attrs["diff"] = diff
 	}
 
-	// Fetch file list with pagination (up to 10 pages = 1000 files)
+	// Fetch file list — prefer SHA-pinned compare (immutable, consistent with diff).
+	// Falls back to mutable PR files endpoint when SHAs unavailable.
 	var allFiles []string
-	filesURL := fmt.Sprintf("%s/repos/%s/%s/pulls/%d/files?per_page=100",
-		githubAPIBase, owner, repo, number)
-	for page := 0; page < 10 && filesURL != ""; page++ {
-		body, nextURL, err := g.githubGetPaginated(ctx, client, filesURL)
-		if err != nil {
-			break
+	var filesURL string
+	if headSHA != "" && baseSHA != "" {
+		// Compare endpoint returns files[] in JSON response (single page, up to 300 files)
+		compareURL := fmt.Sprintf("%s/repos/%s/%s/compare/%s...%s",
+			githubAPIBase, owner, repo, baseSHA, headSHA)
+		body, err := g.githubGet(ctx, client, compareURL, "application/vnd.github+json")
+		if err == nil {
+			allFiles = extractCompareFiles(body)
 		}
-		allFiles = append(allFiles, extractFileList(body)...)
-		filesURL = nextURL
+	}
+	if len(allFiles) == 0 {
+		filesURL = fmt.Sprintf("%s/repos/%s/%s/pulls/%d/files?per_page=100",
+			githubAPIBase, owner, repo, number)
+		for page := 0; page < 10 && filesURL != ""; page++ {
+			body, nextURL, err := g.githubGetPaginated(ctx, client, filesURL)
+			if err != nil {
+				break
+			}
+			allFiles = append(allFiles, extractFileList(body)...)
+			filesURL = nextURL
+		}
 	}
 	if len(allFiles) > 0 {
 		ev.Attrs["file_list"] = strings.Join(allFiles, "\n")
@@ -155,6 +168,21 @@ func extractFileList(body string) []string {
 	}
 	names := make([]string, 0, len(files))
 	for _, f := range files {
+		names = append(names, f.Filename)
+	}
+	return names
+}
+
+// extractCompareFiles extracts filenames from a GitHub compare API JSON response.
+func extractCompareFiles(body string) []string {
+	var resp struct {
+		Files []struct{ Filename string } `json:"files"`
+	}
+	if err := json.Unmarshal([]byte(body), &resp); err != nil {
+		return nil
+	}
+	names := make([]string, 0, len(resp.Files))
+	for _, f := range resp.Files {
 		names = append(names, f.Filename)
 	}
 	return names

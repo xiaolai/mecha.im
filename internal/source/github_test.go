@@ -161,7 +161,53 @@ func TestGitHubHydratePRWithBaseSHA(t *testing.T) {
 	}
 }
 
-func TestGitHubHydratePagination(t *testing.T) {
+func TestGitHubHydrateSHAPinnedFiles(t *testing.T) {
+	// When base_sha and head_sha are available, file list should come from
+	// the SHA-pinned compare endpoint (immutable), not the mutable PR files endpoint.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Accept") == "application/vnd.github.diff" {
+			w.Write([]byte("diff"))
+			return
+		}
+		// Compare endpoint returns {files: [...]} JSON
+		if strings.Contains(r.URL.Path, "/compare/") {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"files":[{"filename":"a.go"},{"filename":"b.go"},{"filename":"c.go"}]}`))
+			return
+		}
+		// PR files endpoint should NOT be called when SHAs are available
+		t.Error("PR files endpoint should not be called when SHAs are available")
+		w.WriteHeader(500)
+	}))
+	defer srv.Close()
+
+	old := githubAPIBase
+	githubAPIBase = srv.URL
+	defer func() { githubAPIBase = old }()
+
+	src := NewGitHubSource("", "test-token")
+	ev := &event.Event{
+		Type:    "pull_request.opened",
+		Subject: "org/repo",
+		Attrs: event.Attrs{
+			"repo_owner": "org",
+			"repo_name":  "repo",
+			"number":     1,
+			"head_sha":   "abc",
+			"base_sha":   "def",
+		},
+	}
+
+	src.Hydrate(context.Background(), ev)
+	files, _ := ev.Attrs["file_list"].(string)
+	if !strings.Contains(files, "a.go") || !strings.Contains(files, "c.go") {
+		t.Errorf("file_list should contain all files from compare endpoint, got: %s", files)
+	}
+}
+
+func TestGitHubHydratePaginationFallback(t *testing.T) {
+	// When SHAs are NOT available, file list falls back to the mutable
+	// PR files endpoint with pagination.
 	page := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Accept") == "application/vnd.github.diff" {
@@ -192,8 +238,7 @@ func TestGitHubHydratePagination(t *testing.T) {
 			"repo_owner": "org",
 			"repo_name":  "repo",
 			"number":     1,
-			"head_sha":   "abc",
-			"base_sha":   "def",
+			// No head_sha/base_sha — forces fallback to PR files endpoint
 		},
 	}
 
