@@ -46,7 +46,8 @@ func runWorkerChecks(ctx context.Context) bool {
 	ok := true
 	for _, e := range entries {
 		if ctx.Err() != nil {
-			printStatus("warn", "timeout — skipping remaining workers")
+			printStatus("fail", "timeout — skipping remaining workers")
+			ok = false
 			break
 		}
 		fmt.Printf("  %s (%s)\n", e.Worker.Name, e.Worker.TypeLabel())
@@ -87,6 +88,10 @@ func checkWorkerCwd(w *worker.Worker) bool {
 		printStatus("fail", fmt.Sprintf("    cwd %s is not a directory", w.Docker.Cwd))
 		return false
 	}
+	if worker.IsSensitivePath(resolved) {
+		printStatus("fail", fmt.Sprintf("    cwd %s resolves to sensitive path %s", w.Docker.Cwd, resolved))
+		return false
+	}
 	if resolved != w.Docker.Cwd {
 		printStatus("ok", fmt.Sprintf("    cwd %s exists (-> %s)", w.Docker.Cwd, resolved))
 	} else {
@@ -114,6 +119,10 @@ func checkWorkerToken(w *worker.Worker, secrets *worker.Secrets) bool {
 
 func checkWorkerImage(ctx context.Context, w *worker.Worker, dc *worker.DockerClient) bool {
 	if dc == nil {
+		return true
+	}
+	if w.Docker.Host != "" {
+		printStatus("warn", "    image "+w.Docker.Image+": skipped (custom docker.host)")
 		return true
 	}
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
