@@ -10,12 +10,35 @@ Mecha has exactly four nouns: Event, Worker, Task, Policy.
 ## Pipeline
 
 ```
-Event.arrive → Event.match → Task.create → Task.dispatch → Policy.filter → Task.complete
+Event.arrive → Event.match → Task.create → Task.dispatch → Policy.filter → Respond
 ```
+
+## Event Model (Universal)
+
+Events are provider-neutral. All provider-specific data lives in `Attrs`.
+
+| Field | Purpose | Example |
+|---|---|---|
+| `Source` | Provider name | `github`, `slack`, `telegram`, `cron` |
+| `Type` | Event type | `pull_request.opened`, `message`, `tick` |
+| `Actor` | Who triggered | username, phone, bot name |
+| `Subject` | What it's about | `owner/repo`, `#channel`, `schedule-daily` |
+| `Attrs` | Provider-specific fields | `repo_owner`, `number`, `diff`, `text` |
+| `DedupKey` | Semantic dedup | Content hash for polls/cron |
+
+## Provider Interfaces
+
+| Interface | Direction | Purpose |
+|---|---|---|
+| `Source` | Inbound (passive) | Parse webhooks into Events |
+| `Trigger` | Inbound (active) | Generate events (cron, polling) |
+| `Hydrator` | Enrichment | Fetch additional data via API |
+| `Verifier` | Handshake | Challenge-response verification |
+| `Responder` | Outbound | Write results back to platform |
 
 ## Nouns and Verbs
 
-- **Event**: arrive, match
+- **Event**: arrive, match, hydrate, skip, fail
 - **Worker**: add, remove, start, stop, ls
 - **Task**: create, dispatch, complete, fail
 - **Policy**: filter
@@ -28,3 +51,4 @@ Event.arrive → Event.match → Task.create → Task.dispatch → Policy.filter
 - One noun, one lifecycle.
 - No hidden nouns. Unowned logic means a missing noun.
 - Verbs are idempotent where possible.
+- Responder is keyed by target, not source (ingress != egress).
