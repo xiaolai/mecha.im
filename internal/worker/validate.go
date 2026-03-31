@@ -8,6 +8,9 @@ import (
 	"strings"
 )
 
+// validEnvVarKey matches POSIX-portable environment variable names.
+var validEnvVarKey = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
+
 var validName = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]*$`)
 
 // sensitivePathPrefixes are host paths that must not be bind-mounted into containers.
@@ -139,8 +142,20 @@ func (s *SSHConfig) Validate() error {
 		return fmt.Errorf("ssh.port must be 0-65535, got %d", s.Port)
 	}
 	if s.Key != "" {
-		if _, err := os.Stat(s.Key); err != nil {
+		info, err := os.Stat(s.Key)
+		if err != nil {
 			return fmt.Errorf("ssh.key %q: %w", s.Key, err)
+		}
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("ssh.key %q is not a regular file", s.Key)
+		}
+		if info.Mode().Perm()&0o077 != 0 {
+			return fmt.Errorf("ssh.key %q has permissions %04o (want 0600)", s.Key, info.Mode().Perm())
+		}
+	}
+	for k := range s.Env {
+		if !validEnvVarKey.MatchString(k) {
+			return fmt.Errorf("ssh.env key %q is invalid (must match [a-zA-Z_][a-zA-Z0-9_]*)", k)
 		}
 	}
 	return nil

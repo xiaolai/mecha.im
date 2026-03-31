@@ -122,6 +122,8 @@ func (r *Registry) StopRuntime(name string) error {
 		e.State = StateOffline
 		e.StartedAt = nil
 		e.RuntimeEndpoint = ""
+		e.TunnelPID = 0
+		e.TunnelLocalPort = 0
 		e.Error = ""
 		return nil
 	})
@@ -135,10 +137,13 @@ func (r *Registry) ClearRuntime(name string) error {
 		e.StartedAt = nil
 		e.ContainerID = ""
 		e.RuntimeEndpoint = ""
+		e.TunnelPID = 0
+		e.TunnelLocalPort = 0
 		e.Error = ""
 		return nil
 	})
 }
+
 
 // SetBusy transitions a worker from online to busy (task dispatched).
 func (r *Registry) SetBusy(name string) error {

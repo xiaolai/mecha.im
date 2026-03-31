@@ -111,3 +111,13 @@ func copyEvents(events []EventRule) []EventRule {
 	}
 	return c
 }
+
+// SetSSHTunnel records SSH tunnel PID and local port for the named worker.
+// Used after a successful interactive SSH tunnel start.
+func (r *Registry) SetSSHTunnel(name string, pid, localPort int) error {
+	return r.mutateEntry(name, func(e *Entry) error {
+		e.TunnelPID = pid
+		e.TunnelLocalPort = localPort
+		return nil
+	})
+}
