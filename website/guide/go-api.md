@@ -255,11 +255,19 @@ Webhook source parsing (GitHub, GitLab, generic).
 | `GitLabSource` | Parses GitLab webhook payloads. Validates X-Gitlab-Token. Implements `Authenticated` |
 | `GenericSource` | Parses arbitrary JSON webhooks. Event type from configurable header. No built-in auth |
 
-### Functions
+### Constructors
 
 | Function | Description |
 |----------|-------------|
 | `NewRegistry() *Registry` | Create an empty source registry |
+| `NewGitHubSource(secret, token) *GitHubSource` | Create GitHub webhook source |
+| `NewGitLabSource(secret) *GitLabSource` | Create GitLab webhook source |
+| `NewGenericSource(name, typeHeader) *GenericSource` | Create generic webhook source |
+
+### Registry Methods
+
+| Method | Description |
+|--------|-------------|
 | `Register(s Source)` | Add a webhook source to the registry |
 | `RegisterTrigger(t Trigger)` | Add an active trigger to the registry |
 | `RegisterResponder(resp Responder)` | Add a write-back responder to the registry |
@@ -268,10 +276,12 @@ Webhook source parsing (GitHub, GitLab, generic).
 | `GetResponder(name) (Responder, bool)` | Look up a responder by name |
 | `Triggers() map[string]Trigger` | Return a copy of all registered triggers |
 | `Len() int` | Number of registered sources |
-| `NewGitHubSource(secret, token) *GitHubSource` | Create GitHub webhook source |
-| `NewGitLabSource(secret) *GitLabSource` | Create GitLab webhook source |
-| `NewGenericSource(name, typeHeader) *GenericSource` | Create generic webhook source |
-| `Hydrate(ctx, ev) error` | Enrich a GitHub event with diff and file data |
+
+### Source Methods
+
+| Method | Description |
+|--------|-------------|
+| `GitHubSource.Hydrate(ctx, ev) error` | Enrich a GitHub event with diff and file data |
 
 ## adapter
 

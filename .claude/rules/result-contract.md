@@ -32,7 +32,7 @@ Write-back is routed through the Responder registry, keyed by target platform:
 - `source.Responder` interface: `Name() string`, `Respond(ctx, ev, result) error`
 - GitHub writeback.Client implements Responder (registered automatically)
 - Dispatch tries Responder registry first, falls back to legacy writeback
-- Responder is keyed by target, not source (a GitHub event can respond to Slack)
+- Responder is looked up by `ev.Source` (e.g., GitHub events use the GitHub responder)
 
 ## Rules
 
@@ -40,4 +40,4 @@ Write-back is routed through the Responder registry, keyed by target platform:
 - Policy filters the result before write-back. Denied fields are dropped.
 - A completed task means its result has already been written back.
 - The worker decides what to return. Policy decides what gets through.
-- Responder is looked up by `ev.Source` (default), but can be overridden by target.
+- Responder is looked up by `ev.Source`. Target override is planned but not yet implemented.
