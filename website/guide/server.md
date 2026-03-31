@@ -43,7 +43,7 @@ flowchart LR
 ```
 
 1. Workers are added via `mecha worker add` (CLI) — stored in SQLite
-2. Server loads workers on startup and reloads before each dispatch
+2. Server loads workers on startup and reloads the registry before each webhook match
 3. Tasks are queued in a channel (256 buffer), dispatched in parallel
 4. Results are written back to GitHub if the task originated from a webhook
 

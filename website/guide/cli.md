@@ -41,7 +41,7 @@ $ mecha worker remove reviewer
 removed reviewer
 ```
 
-For managed workers, `remove` first stops and deletes the Docker container (even if the worker is still online), then removes the registry entry.
+For managed workers, `remove` first stops and deletes the Docker container (even if the worker is still online), then removes the registry entry. Unmanaged and adapter workers must be stopped (`worker stop`) before removal.
 
 ## mecha worker start
 
@@ -164,7 +164,7 @@ Workers (2 registered)
 |-------|-----|------|------|
 | `docker.cwd` | Directory exists | — | Missing or not a directory |
 | `docker.token` | Resolves from secrets | No secrets file loaded | Token reference not found |
-| Docker image | Available locally | Not found locally | — |
+| Docker image | Available locally | — | Not found locally (worker start will fail) |
 | Adapter upstream | Responds to health check | Unreachable | — |
 
 Exit code `1` if any check returns `[FAIL]`. Warnings (`[!!]`) do not affect exit code.
