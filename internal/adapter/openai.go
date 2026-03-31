@@ -29,8 +29,10 @@ func NewOpenAIAdapter(upstream, model, apiKey string) *OpenAIAdapter {
 	}
 }
 
+// Name returns the adapter type identifier.
 func (o *OpenAIAdapter) Name() string { return "openai" }
 
+// Health checks whether the OpenAI-compatible API is reachable.
 func (o *OpenAIAdapter) Health(ctx context.Context) error {
 	req, err := http.NewRequestWithContext(ctx, "GET", o.upstream+"/v1/models", nil)
 	if err != nil {
@@ -50,6 +52,7 @@ func (o *OpenAIAdapter) Health(ctx context.Context) error {
 	return nil
 }
 
+// SendTask sends a prompt to the OpenAI-compatible /v1/chat/completions endpoint.
 func (o *OpenAIAdapter) SendTask(ctx context.Context, prompt string) ([]byte, error) {
 	start := time.Now()
 

@@ -323,6 +323,7 @@ SSH client, runner, and tunnel for remote worker execution.
 |--------|-------------|
 | `Start(ctx) (localPort, error)` | Open tunnel with fast failure detection (500ms) |
 | `Stop() error` | Tear down tunnel with 5s timeout |
+| `LocalPort() int` | Return the local port of the tunnel |
 | `PID() int` | Return tunnel process ID (for persistence) |
 | `Endpoint() string` | Return `http://127.0.0.1:<port>` |
 

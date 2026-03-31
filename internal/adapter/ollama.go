@@ -26,8 +26,10 @@ func NewOllamaAdapter(upstream, model string) *OllamaAdapter {
 	}
 }
 
+// Name returns the adapter type identifier.
 func (o *OllamaAdapter) Name() string { return "ollama" }
 
+// Health checks whether the Ollama instance is reachable.
 func (o *OllamaAdapter) Health(ctx context.Context) error {
 	req, err := http.NewRequestWithContext(ctx, "GET", o.upstream+"/", nil)
 	if err != nil {
@@ -44,6 +46,7 @@ func (o *OllamaAdapter) Health(ctx context.Context) error {
 	return nil
 }
 
+// SendTask sends a prompt to Ollama's /api/chat and returns the result JSON.
 func (o *OllamaAdapter) SendTask(ctx context.Context, prompt string) ([]byte, error) {
 	start := time.Now()
 
