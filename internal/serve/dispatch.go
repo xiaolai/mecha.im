@@ -30,7 +30,12 @@ func (s *Server) dispatchLoop(ctx context.Context) {
 			if !ok {
 				return
 			}
-			sem <- struct{}{} // acquire slot
+			select {
+			case sem <- struct{}{}: // acquire slot
+			case <-ctx.Done():
+				s.logger.Warn("dispatch: shutdown while waiting for slot", "task", taskID)
+				return
+			}
 			go func(id string) {
 				defer func() { <-sem }() // release slot
 				defer func() {
@@ -129,15 +134,12 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 		return
 	}
 
-	// Write-back BEFORE marking task complete (per result-contract.md).
-	// Task is always completed (stores result for audit) even if write-back fails.
-	// Event completion is gated on write-back success — failed events stay in
-	// "dispatched" state for retry, which creates a new task on re-dispatch.
-	wbOk := s.doWriteBack(ctx, taskID, t.EventID, t.WorkerName, result)
-
+	// Complete task FIRST (durable), then write-back (side effects).
+	// This prevents duplicate side effects on recovery: if mecha crashes
+	// after write-back but before task completion, recovery would re-dispatch
+	// and duplicate comments/labels/statuses.
 	if completeErr := s.tasks.Complete(ctx, taskID, result); completeErr != nil {
 		s.logger.Error("dispatch: complete task failed", "id", taskID, "err", completeErr)
-		// Don't finalize event if task persistence failed — prevents replay on recovery
 		workerRestored = true
 		if onlineErr := s.reg.SetOnline(t.WorkerName); onlineErr != nil {
 			s.logger.Warn("dispatch: set online after completion", "id", taskID, "err", onlineErr)
@@ -149,10 +151,13 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 		s.logger.Warn("dispatch: set online after completion", "id", taskID, "err", onlineErr)
 	}
 
+	// Write-back after task is durably completed.
+	// Event completion is gated on write-back success — failed events stay
+	// "dispatched" for retry, which creates a new task on re-dispatch.
+	wbOk := s.doWriteBack(ctx, taskID, t.EventID, t.WorkerName, result)
 	if wbOk {
 		s.completeEvent(ctx, t.EventID, true)
 	}
-	// If write-back failed, event stays dispatched for retry
 
 	s.logger.Info("task completed", "id", taskID, "worker", t.WorkerName)
 }

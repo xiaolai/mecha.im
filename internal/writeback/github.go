@@ -74,8 +74,13 @@ func (c *Client) removeLabel(ctx context.Context, owner, repo string, number int
 	return nil
 }
 
+const maxCommentSize = 60000 // GitHub comment limit is 65536; leave margin
+
 func (c *Client) postCommitSuggestion(ctx context.Context, owner, repo string, number int, message, diff string) error {
 	body := fmt.Sprintf("**Suggested commit:** %s\n\n```diff\n%s\n```", message, diff)
+	if len(body) > maxCommentSize {
+		body = body[:maxCommentSize] + "\n\n... (truncated — diff too large for GitHub comment)"
+	}
 	return c.postComment(ctx, owner, repo, number, body)
 }
 

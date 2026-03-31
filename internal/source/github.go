@@ -101,7 +101,12 @@ func parsePullRequest(payload map[string]any, ev *event.Event) {
 	if pr == nil {
 		return
 	}
-	ev.Attrs["number"] = intVal(pr["number"])
+	// GitHub puts number at top level; nested is fallback
+	if n := intVal(payload["number"]); n != 0 {
+		ev.Attrs["number"] = n
+	} else {
+		ev.Attrs["number"] = intVal(pr["number"])
+	}
 	ev.Attrs["title"], _ = pr["title"].(string)
 	ev.Attrs["body"], _ = pr["body"].(string)
 	if head, ok := pr["head"].(map[string]any); ok {

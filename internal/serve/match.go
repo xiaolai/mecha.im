@@ -34,7 +34,7 @@ func matchesRule(rule worker.EventRule, ev *event.Event) bool {
 }
 
 func renderPrompt(rule worker.EventRule, ev *event.Event) (string, error) {
-	tmpl, err := template.New("prompt").Parse(rule.Prompt)
+	tmpl, err := template.New("prompt").Option("missingkey=error").Parse(rule.Prompt)
 	if err != nil {
 		return "", fmt.Errorf("parse template: %w", err)
 	}

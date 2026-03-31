@@ -45,9 +45,13 @@ func (g *GitLabSource) Parse(headers http.Header, body []byte) (*event.Event, er
 
 	eventType := normalizeGitLabEvent(glEvent, payload)
 
-	deliveryID := headers.Get("X-Gitlab-Instance") + "/" + headers.Get("X-Request-Id")
-	if deliveryID == "/" {
-		deliveryID = "" // both headers missing — dedup skipped
+	// Prefer X-Gitlab-Event-UUID (idempotency key) over X-Request-Id (correlation)
+	deliveryID := headers.Get("X-Gitlab-Event-UUID")
+	if deliveryID == "" {
+		deliveryID = headers.Get("X-Gitlab-Instance") + "/" + headers.Get("X-Request-Id")
+		if deliveryID == "/" {
+			deliveryID = ""
+		}
 	}
 
 	ev := &event.Event{
@@ -58,8 +62,10 @@ func (g *GitLabSource) Parse(headers http.Header, body []byte) (*event.Event, er
 		Attrs:      make(event.Attrs),
 	}
 
-	// Extract Actor
-	if user, ok := payload["user"].(map[string]any); ok {
+	// Extract Actor — top-level user_username preferred per GitLab docs
+	if username, ok := payload["user_username"].(string); ok && username != "" {
+		ev.Actor = username
+	} else if user, ok := payload["user"].(map[string]any); ok {
 		ev.Actor, _ = user["username"].(string)
 	}
 
