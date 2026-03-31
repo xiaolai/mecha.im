@@ -1,5 +1,5 @@
 ---
-description: Worker YAML specification — Docker-based workers with LLM CLI backends
+description: Worker YAML specification — Docker, SSH, and adapter workers with LLM CLI backends
 globs: ["**/*.go", "workers/**/*.yml"]
 ---
 
@@ -8,7 +8,10 @@ globs: ["**/*.go", "workers/**/*.yml"]
 ## Structure Detection
 
 If YAML has `docker:` section → managed worker (mecha controls lifecycle).
-If not → unmanaged (live) worker (mecha just calls the endpoint).
+If YAML has `adapter:` section → adapter worker (in-process LLM API translation).
+If YAML has `ssh:` section → SSH worker (remote execution via SSH).
+If none → unmanaged (live) worker (mecha just calls the endpoint).
+Only one of `docker:`, `adapter:`, or `ssh:` is allowed.
 
 ## Common Fields
 
@@ -69,6 +72,48 @@ For subscription OAuth that requires host credential files:
 | Gemini | `~/.gemini/` | `/home/worker/.gemini/:ro` | Google OAuth auth |
 
 Claude subscription uses `CLAUDE_CODE_OAUTH_TOKEN` env var (no file mount needed).
+
+## SSH Worker
+
+SSH workers run Claude CLI on a remote machine. Two modes:
+
+```yaml
+# Oneshot: fresh CLI invocation per task, no persistent process
+name: mini-reviewer
+ssh:
+  host: mac-mini-home              # hostname or Tailscale IP
+  user: joker
+  mode: oneshot
+  cwd: /Users/joker/projects/repo
+  env:
+    CLAUDE_MODEL: claude-sonnet-4-6
+  token: claude.xiaolaidev
+timeout: 30m
+
+# Interactive: persistent runtime server, tunneled back
+name: mini-coder
+ssh:
+  host: mac-mini-home
+  user: joker
+  mode: interactive
+  cwd: /Users/joker/projects/repo
+  env:
+    CLAUDE_MODEL: claude-sonnet-4-6
+  token: claude.xiaolaidev
+timeout: 30m
+```
+
+- `ssh.host` — hostname or IP (required)
+- `ssh.user` — SSH user (required)
+- `ssh.mode` — `oneshot` or `interactive` (required)
+- `ssh.port` — SSH port (default: 22)
+- `ssh.cwd` — remote working directory
+- `ssh.env` — env vars passed via SSH
+- `ssh.token` — token ref from `~/.mecha/secrets.yml`
+- `ssh.key` — path to SSH private key (uses agent by default)
+
+Token resolution works the same as Docker: `ssh.token` resolves from secrets,
+auto-detects env var by prefix, merged with `ssh.env`.
 
 ## Worker Image Contract
 

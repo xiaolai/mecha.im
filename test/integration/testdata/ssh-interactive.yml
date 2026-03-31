@@ -1,0 +1,9 @@
+name: test-ssh-interactive
+ssh:
+  host: 127.0.0.1
+  user: testuser
+  mode: interactive
+  cwd: /tmp
+  env:
+    CLAUDE_MODEL: claude-sonnet-4-6
+timeout: 5m

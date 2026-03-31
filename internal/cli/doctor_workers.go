@@ -68,6 +68,10 @@ func checkWorkerEntry(ctx context.Context, e worker.Entry, secrets *worker.Secre
 	if w.Adapter != nil {
 		ok = checkAdapterUpstream(w) && ok
 	}
+	if w.SSH != nil {
+		ok = checkSSHToken(w, secrets) && ok
+		ok = checkSSHConnectivity(ctx, w) && ok
+	}
 	return ok
 }
 

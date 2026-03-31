@@ -14,14 +14,17 @@ flowchart TD
     YAML{YAML structure?}
     YAML -->|has docker:| Managed[Managed Worker]
     YAML -->|has adapter:| Adapter[Adapter Worker]
+    YAML -->|has ssh:| SSH[SSH Worker]
     YAML -->|has endpoint:| Unmanaged[Unmanaged Worker]
     Managed --> Docker[mecha creates/starts Docker container]
     Adapter --> InProcess[mecha runs in-process HTTP adapter]
+    SSH --> Remote[mecha runs claude CLI on remote machine via SSH]
     Unmanaged --> Endpoint[mecha calls existing HTTP endpoint]
 ```
 
 - **Managed**: has a `docker:` section. Mecha controls the Docker container lifecycle.
 - **Adapter**: has an `adapter:` section. Mecha runs an in-process adapter translating a native LLM API.
+- **SSH**: has an `ssh:` section. Mecha runs Claude CLI on a remote machine over SSH.
 - **Unmanaged**: has an `endpoint:` field. Mecha just calls it.
 
 ## Managed Worker (Docker)
@@ -153,6 +156,100 @@ timeout: 15m
 | `adapter.api_key` | No | API key for authenticated endpoints |
 
 Mecha starts an in-process HTTP server when you run `worker start`. The adapter translates the worker contract (`GET /health`, `POST /task`) into native API calls.
+
+## SSH Worker
+
+SSH workers run Claude CLI directly on a remote machine over SSH. No Docker required on the remote host — just the `claude` CLI.
+
+### Two Modes
+
+```mermaid
+flowchart LR
+    subgraph Oneshot
+        A[POST /task] --> B[SSH into remote]
+        B --> C["claude -p prompt --output-format json"]
+        C --> D[capture output]
+        D --> E[return result]
+    end
+    subgraph Interactive
+        F[worker start] --> G[SSH: start runtime server]
+        G --> H[SSH tunnel remote:port to localhost]
+        H --> I[health check through tunnel]
+        I --> J[worker online]
+        J --> K["POST /task forwarded through tunnel"]
+    end
+```
+
+### Oneshot Mode
+
+Each task is a fresh SSH connection + `claude -p` invocation. No persistent process on the remote machine.
+
+```yaml
+name: mini-reviewer
+ssh:
+  host: mac-mini-home                  # hostname or IP
+  user: joker                          # SSH user
+  mode: oneshot                        # fresh CLI invocation per task
+  cwd: /Users/joker/projects/my-repo   # remote working directory
+  env:
+    CLAUDE_MODEL: claude-sonnet-4-6
+  token: claude.xiaolaidev             # from ~/.mecha/secrets.yml
+timeout: 30m
+```
+
+- `worker start` validates SSH connectivity and checks that `claude` is installed on the remote
+- Each task runs `claude -p "prompt" --output-format json --bare --dangerously-skip-permissions`
+- `worker stop` just marks the worker offline (nothing to kill)
+
+### Interactive Mode
+
+Starts a persistent runtime server on the remote machine with an SSH tunnel back.
+
+```yaml
+name: mini-coder
+ssh:
+  host: mac-mini-home
+  user: joker
+  mode: interactive                    # persistent runtime server
+  cwd: /Users/joker/projects/my-repo
+  env:
+    CLAUDE_MODEL: claude-sonnet-4-6
+  token: claude.xiaolaidev
+timeout: 30m
+```
+
+- `worker start` SSHs in, launches the runtime server, creates a tunnel, health-checks
+- Tasks are forwarded through the tunnel to the running server
+- `worker stop` kills the remote process and tears down the tunnel
+
+### Fields
+
+| Field | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `ssh.host` | Yes | -- | Remote hostname or IP address |
+| `ssh.user` | Yes | -- | SSH username |
+| `ssh.mode` | Yes | -- | `oneshot` or `interactive` |
+| `ssh.port` | No | `22` | SSH port |
+| `ssh.cwd` | No | -- | Remote working directory for `claude -p` |
+| `ssh.env` | No | `{}` | Environment variables passed via SSH |
+| `ssh.token` | No | -- | Token reference from `~/.mecha/secrets.yml` |
+| `ssh.key` | No | -- | Path to SSH private key (uses SSH agent by default) |
+
+### Prerequisites
+
+The remote machine needs:
+- SSH access (key-based auth recommended)
+- `claude` CLI installed and in `$PATH`
+- For interactive mode: `bun` runtime and the mecha worker runtime
+
+### When to Use Which Mode
+
+| | Oneshot | Interactive |
+|---|---|---|
+| Process on remote | None | Runtime server |
+| State between tasks | None | Full conversation context |
+| Startup cost per task | ~2-3s (SSH + CLI boot) | ~50ms (HTTP) |
+| Best for | Code review, one-off analysis | Multi-step workflows, iterative tasks |
 
 ## Unmanaged Worker
 
