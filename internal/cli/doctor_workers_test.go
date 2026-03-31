@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"testing"
 
 	"mecha.im/internal/worker"
@@ -67,7 +68,7 @@ func TestCheckWorkerEntryNoDocker(t *testing.T) {
 		},
 	}
 	// Should return true (no docker/adapter checks)
-	if !checkWorkerEntry(e, nil, nil) {
+	if !checkWorkerEntry(context.Background(), e, nil, nil) {
 		t.Error("live worker entry should pass")
 	}
 }

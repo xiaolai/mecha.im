@@ -4,29 +4,32 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"mecha.im/internal/store"
 	"mecha.im/internal/worker"
 )
 
-func runWorkerChecks() bool {
+func runWorkerChecks(ctx context.Context) bool {
 	path := os.Getenv("MECHA_DB_PATH")
 	if path == "" {
 		p, err := store.DefaultDBPath()
 		if err != nil {
-			return true // already reported
+			return true // already reported by checkDatabase
 		}
 		path = p
 	}
 	db, err := store.Open(path)
 	if err != nil {
-		return true // already reported
+		return true // already reported by checkDatabase
 	}
 	defer db.Close()
 	reg, err := worker.NewRegistry(db)
 	if err != nil {
-		return true // already reported
+		fmt.Println("\nWorkers")
+		printStatus("fail", "load worker registry: "+err.Error())
+		return false
 	}
 	entries := reg.List()
 	if len(entries) == 0 {
@@ -42,19 +45,23 @@ func runWorkerChecks() bool {
 	fmt.Printf("\nWorkers (%d registered)\n", len(entries))
 	ok := true
 	for _, e := range entries {
+		if ctx.Err() != nil {
+			printStatus("warn", "timeout — skipping remaining workers")
+			break
+		}
 		fmt.Printf("  %s (%s)\n", e.Worker.Name, e.Worker.TypeLabel())
-		ok = checkWorkerEntry(e, secrets, dc) && ok
+		ok = checkWorkerEntry(ctx, e, secrets, dc) && ok
 	}
 	return ok
 }
 
-func checkWorkerEntry(e worker.Entry, secrets *worker.Secrets, dc *worker.DockerClient) bool {
+func checkWorkerEntry(ctx context.Context, e worker.Entry, secrets *worker.Secrets, dc *worker.DockerClient) bool {
 	ok := true
 	w := e.Worker
 	if w.Docker != nil {
 		ok = checkWorkerCwd(w) && ok
 		ok = checkWorkerToken(w, secrets) && ok
-		ok = checkWorkerImage(w, dc) && ok
+		ok = checkWorkerImage(ctx, w, dc) && ok
 	}
 	if w.Adapter != nil {
 		ok = checkAdapterUpstream(w) && ok
@@ -66,7 +73,12 @@ func checkWorkerCwd(w *worker.Worker) bool {
 	if w.Docker.Cwd == "" {
 		return true
 	}
-	info, err := os.Stat(w.Docker.Cwd)
+	resolved, err := filepath.EvalSymlinks(w.Docker.Cwd)
+	if err != nil {
+		printStatus("fail", fmt.Sprintf("    cwd %s: %v", w.Docker.Cwd, err))
+		return false
+	}
+	info, err := os.Stat(resolved)
 	if err != nil {
 		printStatus("fail", fmt.Sprintf("    cwd %s: %v", w.Docker.Cwd, err))
 		return false
@@ -75,7 +87,11 @@ func checkWorkerCwd(w *worker.Worker) bool {
 		printStatus("fail", fmt.Sprintf("    cwd %s is not a directory", w.Docker.Cwd))
 		return false
 	}
-	printStatus("ok", fmt.Sprintf("    cwd %s exists", w.Docker.Cwd))
+	if resolved != w.Docker.Cwd {
+		printStatus("ok", fmt.Sprintf("    cwd %s exists (-> %s)", w.Docker.Cwd, resolved))
+	} else {
+		printStatus("ok", fmt.Sprintf("    cwd %s exists", w.Docker.Cwd))
+	}
 	return true
 }
 
@@ -96,11 +112,11 @@ func checkWorkerToken(w *worker.Worker, secrets *worker.Secrets) bool {
 	return true
 }
 
-func checkWorkerImage(w *worker.Worker, dc *worker.DockerClient) bool {
+func checkWorkerImage(ctx context.Context, w *worker.Worker, dc *worker.DockerClient) bool {
 	if dc == nil {
 		return true
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	exists, err := dc.ImageExists(ctx, w.Docker.Image)
 	if err != nil {

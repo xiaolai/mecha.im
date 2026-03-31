@@ -12,14 +12,18 @@ import (
 	"mecha.im/internal/worker"
 )
 
+const doctorTimeout = 60 * time.Second
+
 func doctorCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "doctor",
 		Short: "Check system health and configuration",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx, cancel := context.WithTimeout(cmd.Context(), doctorTimeout)
+			defer cancel()
 			ok := true
-			ok = runSystemChecks() && ok
-			ok = runWorkerChecks() && ok
+			ok = runSystemChecks(ctx) && ok
+			ok = runWorkerChecks(ctx) && ok
 			fmt.Println()
 			if !ok {
 				return fmt.Errorf("some checks failed")
@@ -30,13 +34,13 @@ func doctorCmd() *cobra.Command {
 	}
 }
 
-func runSystemChecks() bool {
+func runSystemChecks(ctx context.Context) bool {
 	fmt.Println("\nSystem")
 	ok := true
 	ok = checkMechaDir() && ok
 	ok = checkDatabase() && ok
 	ok = checkSecrets() && ok
-	ok = checkDocker() && ok
+	ok = checkDocker(ctx) && ok
 	return ok
 }
 
@@ -76,16 +80,24 @@ func checkDatabase() bool {
 		return false
 	}
 	defer db.Close()
-	workers, tasks := countRows(db)
+	workers, tasks, err := countRows(db)
+	if err != nil {
+		printStatus("warn", "database opens but query failed: "+err.Error())
+		return true
+	}
 	printStatus("ok", fmt.Sprintf("database opens (%d workers, %d tasks)", workers, tasks))
 	return true
 }
 
-func countRows(db *sql.DB) (int, int) {
+func countRows(db *sql.DB) (int, int, error) {
 	var workers, tasks int
-	_ = db.QueryRow("SELECT COUNT(*) FROM workers").Scan(&workers)
-	_ = db.QueryRow("SELECT COUNT(*) FROM tasks").Scan(&tasks)
-	return workers, tasks
+	if err := db.QueryRow("SELECT COUNT(*) FROM workers").Scan(&workers); err != nil {
+		return 0, 0, fmt.Errorf("count workers: %w", err)
+	}
+	if err := db.QueryRow("SELECT COUNT(*) FROM tasks").Scan(&tasks); err != nil {
+		return 0, 0, fmt.Errorf("count tasks: %w", err)
+	}
+	return workers, tasks, nil
 }
 
 func checkSecrets() bool {
@@ -100,7 +112,7 @@ func checkSecrets() bool {
 	}
 	secrets, err := worker.LoadSecrets(path)
 	if err != nil {
-		printStatus("fail", "secrets: "+worker.RedactSecrets(err.Error()))
+		printStatus("fail", "secrets: "+err.Error())
 		return false
 	}
 	groups := len(secrets.Tokens)
@@ -108,14 +120,14 @@ func checkSecrets() bool {
 	return true
 }
 
-func checkDocker() bool {
+func checkDocker(ctx context.Context) bool {
 	dc, err := worker.NewDockerClient("")
 	if err != nil {
 		printStatus("fail", "docker client: "+err.Error())
 		return false
 	}
 	defer dc.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	apiVer, err := dc.Ping(ctx)
 	if err != nil {
@@ -127,6 +139,7 @@ func checkDocker() bool {
 }
 
 func printStatus(status, msg string) {
+	msg = worker.RedactSecrets(msg)
 	var prefix string
 	switch status {
 	case "ok":
@@ -135,6 +148,8 @@ func printStatus(status, msg string) {
 		prefix = "  [!!]  "
 	case "fail":
 		prefix = "  [FAIL]"
+	default:
+		prefix = "  [??]  "
 	}
 	fmt.Printf("%s %s\n", prefix, msg)
 }
