@@ -65,7 +65,7 @@ func workerRemoveCmd() *cobra.Command {
 			}
 			if e.Worker.IsSSH() && e.State != worker.StateOffline {
 				if err := sshStop(reg, name); err != nil {
-					fmt.Fprintf(os.Stderr, "warning: ssh cleanup for %s: %v\n", name, err)
+					fmt.Fprintf(os.Stderr, "warning: ssh cleanup for %s: %v\n", name, worker.RedactSecrets(err.Error()))
 				}
 			}
 			if err := reg.Remove(name); err != nil {

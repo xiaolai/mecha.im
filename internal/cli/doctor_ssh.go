@@ -30,18 +30,19 @@ func checkSSHToken(w *worker.Worker, secrets *worker.Secrets) bool {
 // checkSSHConnectivity pings the remote host and checks for claude CLI.
 func checkSSHConnectivity(ctx context.Context, w *worker.Worker) bool {
 	client := &ssh.Client{
-		Host: w.SSH.Host,
-		User: w.SSH.User,
-		Port: w.SSH.Port,
-		Key:  w.SSH.Key,
+		Host:       w.SSH.Host,
+		User:       w.SSH.User,
+		Port:       w.SSH.Port,
+		Key:        w.SSH.Key,
+		RedactFunc: worker.RedactSecrets,
 	}
 
 	pingCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	if err := client.Ping(pingCtx); err != nil {
-		printStatus("warn", fmt.Sprintf("    ssh %s@%s unreachable", w.SSH.User, w.SSH.Host))
-		return true // warn, not fail — host might be offline
+		printStatus("warn", fmt.Sprintf("    ssh %s@%s unreachable: %v", w.SSH.User, w.SSH.Host, worker.RedactSecrets(err.Error())))
+		return true // warn, not fail — host might be temporarily down
 	}
 	printStatus("ok", fmt.Sprintf("    ssh %s@%s reachable", w.SSH.User, w.SSH.Host))
 
@@ -53,5 +54,17 @@ func checkSSHConnectivity(ctx context.Context, w *worker.Worker) bool {
 		return false
 	}
 	printStatus("ok", "    claude cli available on "+w.SSH.Host)
+
+	// Check bun for interactive mode.
+	if w.SSH.Mode == "interactive" {
+		bunCtx, bunCancel := context.WithTimeout(ctx, 10*time.Second)
+		defer bunCancel()
+		out, err := client.Run(bunCtx, "which bun 2>/dev/null || echo NOTFOUND")
+		if err != nil || fmt.Sprintf("%s", out) == "NOTFOUND\n" {
+			printStatus("warn", "    bun not found on "+w.SSH.Host+" (needed for interactive mode)")
+		} else {
+			printStatus("ok", "    bun available on "+w.SSH.Host)
+		}
+	}
 	return true
 }
