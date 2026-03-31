@@ -29,11 +29,11 @@ func TestGenericSourceParse(t *testing.T) {
 	if ev.Type != "build.completed" {
 		t.Errorf("Type = %q, want build.completed", ev.Type)
 	}
-	if ev.Payload["status"] != "success" {
-		t.Errorf("status = %v", ev.Payload["status"])
+	if ev.Attrs["status"] != "success" {
+		t.Errorf("status = %v", ev.Attrs["status"])
 	}
-	if ev.Payload["branch"] != "main" {
-		t.Errorf("branch = %v", ev.Payload["branch"])
+	if ev.Attrs["branch"] != "main" {
+		t.Errorf("branch = %v", ev.Attrs["branch"])
 	}
 }
 

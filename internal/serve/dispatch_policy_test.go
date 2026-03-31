@@ -110,13 +110,17 @@ func setupDispatchEvent(t *testing.T, s *Server, es *event.Store, workerEndpoint
 	}
 
 	ev := &event.Event{
-		Source:    "github",
-		Type:     "pull_request",
-		RepoOwner: "testorg",
-		RepoName:  "testrepo",
-		Number:    42,
-		Sender:    "alice",
-		Payload:   map[string]any{"head_sha": "abc123def"},
+		Source:  "github",
+		Type:    "pull_request",
+		Actor:   "alice",
+		Subject: "testorg/testrepo",
+		Attrs: event.Attrs{
+			"repo_owner": "testorg",
+			"repo_name":  "testrepo",
+			"number":     42,
+			"sender":     "alice",
+			"head_sha":   "abc123def",
+		},
 	}
 	if err := es.Create(ctx, ev); err != nil {
 		t.Fatal(err)
@@ -273,13 +277,11 @@ func TestDoWriteBack_PolicyBlocksAll(t *testing.T) {
 
 	s.dispatchTask(context.Background(), taskID)
 
-	// Event should complete (all blocked by policy, but that's not an error)
 	ev, _ := es.Get(context.Background(), eventID)
 	if ev.State != event.StateCompleted {
 		t.Errorf("event state = %q, want completed", ev.State)
 	}
 
-	// No GitHub API calls should have been made
 	calls := rec.getCalls()
 	if len(calls) > 0 {
 		t.Errorf("expected no GitHub API calls, got %d: %+v", len(calls), calls)
@@ -311,7 +313,6 @@ func TestDoWriteBack_PolicyTruncatesComment(t *testing.T) {
 
 	s.dispatchTask(context.Background(), taskID)
 
-	// Check that the comment body was truncated
 	calls := rec.getCalls()
 	var commentBody string
 	for _, c := range calls {
@@ -362,7 +363,6 @@ func TestDoWriteBack_PolicyLabelBlocklist(t *testing.T) {
 
 	s.dispatchTask(context.Background(), taskID)
 
-	// Check that "production" was filtered from both add and remove
 	calls := rec.getCalls()
 	for _, c := range calls {
 		if strings.Contains(c.Path, "/labels") {
@@ -372,7 +372,6 @@ func TestDoWriteBack_PolicyLabelBlocklist(t *testing.T) {
 			}
 		}
 	}
-	// "approved" and "safe" should have been added
 	var addCalls int
 	for _, c := range calls {
 		if c.Method == "POST" && strings.Contains(c.Path, "/labels") {
@@ -389,7 +388,6 @@ func TestDoWriteBack_UnparseableResult(t *testing.T) {
 	s, es, cleanup := testFullServer(t, rec.handler())
 	defer cleanup()
 
-	// Worker returns non-JSON response
 	workerSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("plain text response, not JSON"))
 	}))
@@ -400,19 +398,16 @@ func TestDoWriteBack_UnparseableResult(t *testing.T) {
 
 	s.dispatchTask(context.Background(), taskID)
 
-	// Task should complete (bad JSON is stored as result)
 	tk, _ := s.tasks.Get(context.Background(), taskID)
 	if tk.State != task.StateCompleted {
 		t.Errorf("task state = %q, want completed", tk.State)
 	}
 
-	// Event should complete (unparseable = no write-back actions, not a failure)
 	ev, _ := es.Get(context.Background(), eventID)
 	if ev.State != event.StateCompleted {
 		t.Errorf("event state = %q, want completed (unparseable result is not a failure)", ev.State)
 	}
 
-	// No GitHub API calls
 	calls := rec.getCalls()
 	if len(calls) > 0 {
 		t.Errorf("expected no GitHub API calls for unparseable result, got %d", len(calls))
@@ -420,7 +415,6 @@ func TestDoWriteBack_UnparseableResult(t *testing.T) {
 }
 
 func TestDoWriteBack_GitHubError_EventStaysDispatched(t *testing.T) {
-	// GitHub returns 500 for all API calls
 	s, es, cleanup := testFullServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(500)
 		w.Write([]byte(`{"message":"internal server error"}`))
@@ -440,13 +434,11 @@ func TestDoWriteBack_GitHubError_EventStaysDispatched(t *testing.T) {
 
 	s.dispatchTask(context.Background(), taskID)
 
-	// Task should still complete (result stored for audit)
 	tk, _ := s.tasks.Get(context.Background(), taskID)
 	if tk.State != task.StateCompleted {
 		t.Errorf("task state = %q, want completed (result stored even if writeback fails)", tk.State)
 	}
 
-	// Event should stay dispatched (writeback failed, not completed for retry)
 	ev, _ := es.Get(context.Background(), eventID)
 	if ev.State != event.StateDispatched {
 		t.Errorf("event state = %q, want dispatched (writeback failed, stays for retry)", ev.State)
@@ -458,25 +450,21 @@ func TestDoWriteBack_SendError_EventFailed(t *testing.T) {
 	s, es, cleanup := testFullServer(t, rec.handler())
 	defer cleanup()
 
-	// Worker endpoint that refuses connections
 	w := &worker.Worker{Name: "send-fail-w", Endpoint: "http://127.0.0.1:1"}
 	taskID, eventID := setupDispatchEvent(t, s, es, "http://127.0.0.1:1", w)
 
 	s.dispatchTask(context.Background(), taskID)
 
-	// Task should be failed (send error)
 	tk, _ := s.tasks.Get(context.Background(), taskID)
 	if tk.State != task.StateFailed {
 		t.Errorf("task state = %q, want failed", tk.State)
 	}
 
-	// Event should be failed (send error triggers completeEvent(false))
 	ev, _ := es.Get(context.Background(), eventID)
 	if ev.State != event.StateFailed {
 		t.Errorf("event state = %q, want failed", ev.State)
 	}
 
-	// No GitHub API calls (never reached writeback)
 	calls := rec.getCalls()
 	if len(calls) > 0 {
 		t.Errorf("expected no GitHub API calls on send error, got %d", len(calls))
@@ -490,7 +478,6 @@ func TestGetWorkerPolicy_None(t *testing.T) {
 	s.reg.Add(&worker.Worker{Name: "no-policy-w", Endpoint: "http://x"})
 
 	filter := s.getWorkerPolicy("no-policy-w")
-	// Should return AllowAll when no policy configured
 	if _, ok := filter.(*policy.AllowAll); !ok {
 		t.Errorf("expected *AllowAll, got %T", filter)
 	}
@@ -509,7 +496,6 @@ func TestGetWorkerPolicy_Configured(t *testing.T) {
 	})
 
 	filter := s.getWorkerPolicy("policy-w")
-	// Should NOT be AllowAll
 	if _, ok := filter.(*policy.AllowAll); ok {
 		t.Error("expected RuleFilter, got AllowAll")
 	}
@@ -570,7 +556,6 @@ func TestCompleteEvent_EmptyID(t *testing.T) {
 }
 
 func TestDoWriteBack_NoEventStore(t *testing.T) {
-	// Server without events — tests the early-return path
 	path := filepath.Join(t.TempDir(), "test.db")
 	db, _ := store.Open(path)
 	defer db.Close()
@@ -579,7 +564,6 @@ func TestDoWriteBack_NoEventStore(t *testing.T) {
 
 	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
 
-	// doWriteBack should return true (no-op) when events is nil
 	ok := s.doWriteBack(context.Background(), "t1", "e1", "w1", `{"output":"x"}`)
 	if !ok {
 		t.Error("doWriteBack should return true when events is nil")
@@ -591,7 +575,6 @@ func TestDoWriteBack_EmptyEventID(t *testing.T) {
 	s, _, cleanup := testFullServer(t, rec.handler())
 	defer cleanup()
 
-	// doWriteBack should return true when eventID is empty
 	ok := s.doWriteBack(context.Background(), "t1", "", "w1", `{"output":"x"}`)
 	if !ok {
 		t.Error("doWriteBack should return true when eventID is empty")
@@ -599,8 +582,6 @@ func TestDoWriteBack_EmptyEventID(t *testing.T) {
 }
 
 func TestDispatchFullPipeline_WithEvents(t *testing.T) {
-	// End-to-end: dispatch → worker → policy → writeback → event completed
-	// Uses the dispatch loop (async), not just dispatchTask
 	rec := &ghRecorder{}
 	s, es, cleanup := testFullServer(t, rec.handler())
 	defer cleanup()
@@ -628,7 +609,6 @@ func TestDispatchFullPipeline_WithEvents(t *testing.T) {
 	go s.dispatchLoop(ctx)
 	s.pending <- taskID
 
-	// Wait for completion
 	deadline := time.After(5 * time.Second)
 	for {
 		select {
@@ -639,7 +619,6 @@ func TestDispatchFullPipeline_WithEvents(t *testing.T) {
 			ev, _ := es.Get(context.Background(), eventID)
 			if ev.State == event.StateCompleted {
 				cancel()
-				// Verify GitHub calls happened
 				calls := rec.getCalls()
 				if len(calls) == 0 {
 					t.Error("expected GitHub API calls from writeback")

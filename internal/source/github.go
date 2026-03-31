@@ -28,6 +28,9 @@ func NewGitHubSource(secret, token string) *GitHubSource {
 // Name returns "github".
 func (g *GitHubSource) Name() string { return "github" }
 
+// Authenticated marks GitHub as self-authenticating (HMAC-SHA256).
+func (g *GitHubSource) Authenticated() {}
+
 // Parse validates the HMAC signature and normalizes the webhook payload.
 // No network calls — hydration is separate.
 func (g *GitHubSource) Parse(headers http.Header, body []byte) (*event.Event, error) {
@@ -60,22 +63,26 @@ func (g *GitHubSource) Parse(headers http.Header, body []byte) (*event.Event, er
 		Source:     "github",
 		Type:       eventType,
 		Raw:        json.RawMessage(body),
-		Payload:    make(event.Payload),
+		Attrs:      make(event.Attrs),
 	}
 
-	// Extract common fields
+	// Extract Actor
+	if sender, ok := payload["sender"].(map[string]any); ok {
+		ev.Actor, _ = sender["login"].(string)
+	}
+
+	// Extract Subject (owner/repo)
 	if repo, ok := payload["repository"].(map[string]any); ok {
 		if full, ok := repo["full_name"].(string); ok {
+			ev.Subject = full
 			parts := strings.SplitN(full, "/", 2)
 			if len(parts) == 2 {
-				ev.RepoOwner = parts[0]
-				ev.RepoName = parts[1]
+				ev.Attrs["repo_owner"] = parts[0]
+				ev.Attrs["repo_name"] = parts[1]
 			}
 		}
 	}
-	if sender, ok := payload["sender"].(map[string]any); ok {
-		ev.Sender, _ = sender["login"].(string)
-	}
+	ev.Attrs["sender"] = ev.Actor
 
 	// Event-specific extraction
 	switch ghEvent {
@@ -97,19 +104,23 @@ func parsePullRequest(payload map[string]any, ev *event.Event) {
 	if pr == nil {
 		return
 	}
-	ev.Number = intVal(pr["number"])
-	ev.Payload["number"] = ev.Number
-	ev.Payload["title"], _ = pr["title"].(string)
-	ev.Payload["body"], _ = pr["body"].(string)
+	// GitHub puts number at top level; nested is fallback
+	if n := intVal(payload["number"]); n != 0 {
+		ev.Attrs["number"] = n
+	} else {
+		ev.Attrs["number"] = intVal(pr["number"])
+	}
+	ev.Attrs["title"], _ = pr["title"].(string)
+	ev.Attrs["body"], _ = pr["body"].(string)
 	if head, ok := pr["head"].(map[string]any); ok {
-		ev.Ref, _ = head["sha"].(string)
-		ev.Payload["head_sha"] = ev.Ref
-		ev.Payload["head_branch"], _ = head["ref"].(string)
+		ev.Attrs["head_sha"], _ = head["sha"].(string)
+		ev.Attrs["head_branch"], _ = head["ref"].(string)
+		ev.Attrs["ref"], _ = head["sha"].(string)
 	}
 	if base, ok := pr["base"].(map[string]any); ok {
-		ev.Payload["base_branch"], _ = base["ref"].(string)
+		ev.Attrs["base_branch"], _ = base["ref"].(string)
 		if sha, ok := base["sha"].(string); ok {
-			ev.Payload["base_sha"] = sha
+			ev.Attrs["base_sha"] = sha
 		}
 	}
 	if labels, ok := pr["labels"].([]any); ok {
@@ -121,18 +132,18 @@ func parsePullRequest(payload map[string]any, ev *event.Event) {
 				}
 			}
 		}
-		ev.Payload["labels"] = strings.Join(names, ", ")
+		ev.Attrs["labels"] = strings.Join(names, ", ")
 	}
 }
 
 func parsePush(payload map[string]any, ev *event.Event) {
-	ev.Ref, _ = payload["ref"].(string)
-	ev.Payload["ref"] = ev.Ref
+	ref, _ := payload["ref"].(string)
+	ev.Attrs["ref"] = ref
 	if after, ok := payload["after"].(string); ok {
-		ev.Payload["head_sha"] = after
+		ev.Attrs["head_sha"] = after
 	}
 	if compare, ok := payload["compare"].(string); ok {
-		ev.Payload["compare_url"] = compare
+		ev.Attrs["compare_url"] = compare
 	}
 	if commits, ok := payload["commits"].([]any); ok {
 		var msgs []string
@@ -146,7 +157,7 @@ func parsePush(payload map[string]any, ev *event.Event) {
 				msgs = append(msgs, id+" "+msg)
 			}
 		}
-		ev.Payload["commits"] = strings.Join(msgs, "\n")
+		ev.Attrs["commits"] = strings.Join(msgs, "\n")
 	}
 }
 
@@ -155,20 +166,18 @@ func parseIssue(payload map[string]any, ev *event.Event) {
 	if issue == nil {
 		return
 	}
-	ev.Number = intVal(issue["number"])
-	ev.Payload["number"] = ev.Number
-	ev.Payload["title"], _ = issue["title"].(string)
-	ev.Payload["body"], _ = issue["body"].(string)
+	ev.Attrs["number"] = intVal(issue["number"])
+	ev.Attrs["title"], _ = issue["title"].(string)
+	ev.Attrs["body"], _ = issue["body"].(string)
 }
 
 func parseIssueComment(payload map[string]any, ev *event.Event) {
 	if issue, ok := payload["issue"].(map[string]any); ok {
-		ev.Number = intVal(issue["number"])
-		ev.Payload["number"] = ev.Number
-		ev.Payload["title"], _ = issue["title"].(string)
+		ev.Attrs["number"] = intVal(issue["number"])
+		ev.Attrs["title"], _ = issue["title"].(string)
 	}
 	if comment, ok := payload["comment"].(map[string]any); ok {
-		ev.Payload["comment"], _ = comment["body"].(string)
+		ev.Attrs["comment"], _ = comment["body"].(string)
 	}
 }
 
@@ -181,4 +190,3 @@ func validateSignature(secret string, body []byte, sig string) bool {
 	expected := "sha256=" + hex.EncodeToString(mac.Sum(nil))
 	return hmac.Equal([]byte(expected), []byte(sig))
 }
-

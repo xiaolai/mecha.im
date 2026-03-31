@@ -52,18 +52,18 @@ func (g *GenericSource) Parse(headers http.Header, body []byte) (*event.Event, e
 		Source:     g.name,
 		Type:       eventType,
 		Raw:        json.RawMessage(body),
-		Payload:    make(event.Payload),
+		Attrs:      make(event.Attrs),
 	}
 
-	// Copy all top-level string/number fields into Payload for template access
+	// Copy all top-level string/number fields into Attrs for template access
 	for k, v := range payload {
 		switch val := v.(type) {
 		case string:
-			ev.Payload[k] = val
+			ev.Attrs[k] = val
 		case float64:
-			ev.Payload[k] = val
+			ev.Attrs[k] = val
 		case bool:
-			ev.Payload[k] = val
+			ev.Attrs[k] = val
 		}
 	}
 

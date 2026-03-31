@@ -22,14 +22,12 @@ func testStore(t *testing.T) *Store {
 func TestCreateAndGet(t *testing.T) {
 	s := testStore(t)
 	ev := &Event{
-		Source:    "github",
-		Type:      "pull_request.opened",
-		RepoOwner: "owner",
-		RepoName:  "repo",
-		Number:    42,
-		Sender:    "user",
-		Payload:   Payload{"title": "Fix bug"},
-		Raw:       json.RawMessage(`{"action":"opened"}`),
+		Source:  "github",
+		Type:    "pull_request.opened",
+		Actor:   "user",
+		Subject: "owner/repo",
+		Attrs:   Attrs{"title": "Fix bug", "number": 42, "repo_owner": "owner", "repo_name": "repo"},
+		Raw:     json.RawMessage(`{"action":"opened"}`),
 	}
 	if err := s.Create(context.Background(), ev); err != nil {
 		t.Fatal(err)
@@ -48,8 +46,14 @@ func TestCreateAndGet(t *testing.T) {
 	if got.State != StateReceived {
 		t.Errorf("state = %q", got.State)
 	}
-	if got.Payload["title"] != "Fix bug" {
-		t.Errorf("payload = %v", got.Payload)
+	if got.Attrs["title"] != "Fix bug" {
+		t.Errorf("attrs = %v", got.Attrs)
+	}
+	if got.Actor != "user" {
+		t.Errorf("actor = %q", got.Actor)
+	}
+	if got.Subject != "owner/repo" {
+		t.Errorf("subject = %q", got.Subject)
 	}
 }
 
@@ -135,5 +139,39 @@ func TestGetNotFound(t *testing.T) {
 	_, err := s.Get(context.Background(), "ghost")
 	if err == nil {
 		t.Error("expected error")
+	}
+}
+
+func TestUpdateAttrs(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	ev := &Event{Source: "github", Type: "push", Attrs: Attrs{"a": "1"}}
+	s.Create(ctx, ev)
+
+	err := s.UpdateAttrs(ctx, ev.ID, Attrs{"a": "1", "diff": "some diff"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, _ := s.Get(ctx, ev.ID)
+	if got.Attrs["diff"] != "some diff" {
+		t.Errorf("attrs = %v", got.Attrs)
+	}
+}
+
+func TestReceived(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	ev1 := &Event{Source: "github", Type: "push"}
+	ev2 := &Event{Source: "slack", Type: "message"}
+	s.Create(ctx, ev1)
+	s.Create(ctx, ev2)
+	s.SetMatched(ctx, ev2.ID, "w")
+
+	ids, err := s.Received(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ids) != 1 || ids[0] != ev1.ID {
+		t.Errorf("received = %v, want [%s]", ids, ev1.ID)
 	}
 }

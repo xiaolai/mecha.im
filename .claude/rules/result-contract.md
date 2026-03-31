@@ -5,7 +5,7 @@ globs: "**/*.go"
 
 # Result Contract
 
-> Design spec. Implemented in TypeScript (`docker/runtime/types.ts`). No Go struct yet — Phase 3.
+> Implemented in Go (`internal/policy/result.go`) and TypeScript (`docker/runtime/types.ts`).
 
 Every worker returns the same structure. Every field optional.
 
@@ -25,9 +25,19 @@ Every worker returns the same structure. Every field optional.
 }
 ```
 
+## Write-Back
+
+Write-back is routed through the Responder registry, keyed by target platform:
+
+- `source.Responder` interface: `Name() string`, `Respond(ctx, ev, result) error`
+- GitHub writeback.Client implements Responder (registered automatically)
+- Dispatch tries Responder registry first, falls back to legacy writeback
+- Responder is looked up by `ev.Source` (e.g., GitHub events use the GitHub responder)
+
 ## Rules
 
 - Result and side effects are one thing. No separate "action" phase.
 - Policy filters the result before write-back. Denied fields are dropped.
 - A completed task means its result has already been written back.
 - The worker decides what to return. Policy decides what gets through.
+- Responder is looked up by `ev.Source`. Target override is planned but not yet implemented.
