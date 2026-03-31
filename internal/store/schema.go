@@ -28,6 +28,11 @@ CREATE INDEX IF NOT EXISTS idx_tasks_state ON tasks(state);
 CREATE INDEX IF NOT EXISTS idx_tasks_worker ON tasks(worker_name);
 `
 
+const schemaV3 = `
+ALTER TABLE workers ADD COLUMN tunnel_pid INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE workers ADD COLUMN tunnel_local_port INTEGER NOT NULL DEFAULT 0;
+`
+
 const schemaV2 = `
 ALTER TABLE tasks ADD COLUMN event_id TEXT;
 ALTER TABLE tasks ADD COLUMN context TEXT NOT NULL DEFAULT '{}';

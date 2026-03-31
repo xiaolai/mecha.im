@@ -24,4 +24,6 @@ type Entry struct {
 	StartedAt       *time.Time `json:"started_at,omitempty"`
 	ContainerID     string     `json:"container_id,omitempty"`
 	RuntimeEndpoint string     `json:"runtime_endpoint,omitempty"`
+	TunnelPID       int        `json:"tunnel_pid,omitempty"`
+	TunnelLocalPort int        `json:"tunnel_local_port,omitempty"`
 }

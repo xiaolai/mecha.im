@@ -8,7 +8,7 @@ import (
 )
 
 func (r *Registry) load() error {
-	rows, err := r.db.Query("SELECT name, definition, state, error_msg, container_id, endpoint, started_at FROM workers")
+	rows, err := r.db.Query("SELECT name, definition, state, error_msg, container_id, endpoint, started_at, tunnel_pid, tunnel_local_port FROM workers")
 	if err != nil {
 		return fmt.Errorf("query workers: %w", err)
 	}
@@ -16,7 +16,8 @@ func (r *Registry) load() error {
 	for rows.Next() {
 		var name, def, state, errMsg, cid, ep string
 		var startedAt sql.NullInt64
-		if err := rows.Scan(&name, &def, &state, &errMsg, &cid, &ep, &startedAt); err != nil {
+		var tunnelPID, tunnelLocalPort int
+		if err := rows.Scan(&name, &def, &state, &errMsg, &cid, &ep, &startedAt, &tunnelPID, &tunnelLocalPort); err != nil {
 			return fmt.Errorf("scan worker: %w", err)
 		}
 		var w Worker
@@ -29,6 +30,8 @@ func (r *Registry) load() error {
 			Error:           errMsg,
 			ContainerID:     cid,
 			RuntimeEndpoint: ep,
+			TunnelPID:       tunnelPID,
+			TunnelLocalPort: tunnelLocalPort,
 		}
 		if startedAt.Valid {
 			t := time.Unix(startedAt.Int64, 0)
@@ -48,8 +51,8 @@ func (r *Registry) persist(entries map[string]*Entry) error {
 
 	// Upsert each entry (INSERT OR REPLACE)
 	stmt, err := tx.Prepare(`INSERT OR REPLACE INTO workers
-		(name, definition, state, error_msg, container_id, endpoint, started_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)`)
+		(name, definition, state, error_msg, container_id, endpoint, started_at, tunnel_pid, tunnel_local_port)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return fmt.Errorf("prepare upsert: %w", err)
 	}
@@ -84,7 +87,8 @@ func (r *Registry) persist(entries map[string]*Entry) error {
 			startedAt = sql.NullInt64{Int64: e.StartedAt.Unix(), Valid: true}
 		}
 		if _, err := stmt.Exec(e.Worker.Name, string(def), string(e.State),
-			e.Error, e.ContainerID, e.RuntimeEndpoint, startedAt); err != nil {
+			e.Error, e.ContainerID, e.RuntimeEndpoint, startedAt,
+			e.TunnelPID, e.TunnelLocalPort); err != nil {
 			return fmt.Errorf("upsert worker %q: %w", e.Worker.Name, err)
 		}
 		delete(dbNames, e.Worker.Name)

@@ -35,7 +35,7 @@ func (r *Runner) ExecTask(ctx context.Context, prompt string) (json.RawMessage, 
 	if err != nil {
 		return nil, fmt.Errorf("exec task: %w", err)
 	}
-	raw := strings.TrimSpace(out)
+	raw := extractJSON(out)
 	if !json.Valid([]byte(raw)) {
 		return nil, fmt.Errorf("exec task: invalid JSON output: %.200s", raw)
 	}
@@ -51,6 +51,33 @@ func (r *Runner) buildCLICommand(prompt string) string {
 	}
 	b.WriteString("claude -p '")
 	b.WriteString(escaped)
-	b.WriteString("' --output-format json --bare --dangerously-skip-permissions")
+	b.WriteString("' --output-format json --bare")
+	// Permission mode is configurable via CLAUDE_PERMISSION_MODE env var.
+	// Default to bypassPermissions for headless workers.
+	mode := "bypassPermissions"
+	if m, ok := r.Env["CLAUDE_PERMISSION_MODE"]; ok && m != "" {
+		mode = m
+	}
+	fmt.Fprintf(&b, " --permission-mode %s", mode)
 	return b.String()
+}
+
+// extractJSON strips non-JSON prefix/suffix (MOTD, banners, SSH noise).
+// Looks for the first '[' or '{' and the last ']' or '}'.
+func extractJSON(s string) string {
+	s = strings.TrimSpace(s)
+	startBrace := strings.IndexAny(s, "[{")
+	if startBrace < 0 {
+		return s
+	}
+	opener := s[startBrace]
+	var closer byte = '}'
+	if opener == '[' {
+		closer = ']'
+	}
+	endBrace := strings.LastIndexByte(s, closer)
+	if endBrace < startBrace {
+		return s
+	}
+	return s[startBrace : endBrace+1]
 }
