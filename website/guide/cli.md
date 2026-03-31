@@ -41,24 +41,42 @@ $ mecha worker remove reviewer
 removed reviewer
 ```
 
-For managed workers, `remove` first stops and deletes the Docker container (even if the worker is still online), then removes the registry entry. Unmanaged and adapter workers must be stopped (`worker stop`) before removal.
+For Docker workers, `remove` first stops and deletes the container, then removes the registry entry. For SSH workers, `remove` kills the tunnel and remote process if still running. Unmanaged and adapter workers must be stopped (`worker stop`) before removal.
 
 ## mecha worker start
 
 Start a worker. Transitions from offline to online.
 
 ```bash
-# Managed worker (Docker)
+# Docker worker
 $ mecha worker start reviewer
 creating container for reviewer...
 started reviewer (container)
+
+# SSH worker (oneshot)
+$ mecha worker start ssh-reviewer
+connecting to joker@mac-mini-home...
+checking claude cli on mac-mini-home...
+started ssh-reviewer (ssh/oneshot)
+
+# SSH worker (interactive)
+$ mecha worker start ssh-coder
+connecting to joker@mac-mini-home...
+checking claude cli on mac-mini-home...
+starting runtime server on mac-mini-home...
+tunnel mac-mini-home:8081 -> localhost:49152 (pid 12345)
+started ssh-coder (ssh/interactive)
 
 # Unmanaged worker
 $ mecha worker start api-service
 started api-service
 ```
 
-**Managed workers**: mecha creates a Docker container, injects env vars and tokens, starts it, and waits for `GET /health` to return 200. If health doesn't pass within 30 seconds, the container is stopped and removed.
+**Docker workers**: mecha creates a Docker container, injects env vars and tokens, starts it, and waits for `GET /health` to return 200. If health doesn't pass within 30 seconds, the container is stopped and removed.
+
+**SSH workers (oneshot)**: mecha validates SSH connectivity and checks that `claude` CLI is installed on the remote host. No persistent process — each task runs `claude -p` via a fresh SSH connection.
+
+**SSH workers (interactive)**: mecha starts a runtime server on the remote host, creates an SSH tunnel back, and waits for health. The tunnel PID is persisted so `stop` works from any CLI invocation.
 
 **Unmanaged workers**: mecha marks the worker online and probes its endpoint. If the health check fails, the worker transitions to error state with a warning.
 
@@ -67,16 +85,20 @@ started api-service
 Stop a worker. Transitions from online (or error) to offline.
 
 ```bash
-# Managed worker
+# Docker worker
 $ mecha worker stop reviewer
 stopped reviewer (container)
+
+# SSH worker
+$ mecha worker stop ssh-reviewer
+stopped ssh-reviewer (ssh)
 
 # Unmanaged worker
 $ mecha worker stop api-service
 stopped api-service
 ```
 
-For managed workers, the Docker container is stopped but not removed (persistent lifecycle). It can be started again.
+For Docker workers, the container is stopped but not removed (persistent lifecycle). For SSH interactive workers, the remote server process is killed and the SSH tunnel is torn down. Oneshot SSH workers have no persistent process to stop.
 
 ## mecha worker ls
 
@@ -84,19 +106,21 @@ List all registered workers with state and health.
 
 ```bash
 $ mecha worker ls
-NAME          TYPE     STATE   ENDPOINT                HEALTH
-reviewer      managed  online  http://127.0.0.1:32768  ok
-coder         managed  offline -                       -
-api-service   live     error   http://100.64.0.3:8080  unreachable
+NAME            TYPE     STATE   ENDPOINT                HEALTH
+reviewer        managed  online  http://127.0.0.1:32768  ok
+ssh-reviewer    ssh      online  -                       -
+ssh-coder       ssh      online  http://127.0.0.1:49152  ok
+coder           managed  offline -                       -
+api-service     live     error   http://100.64.0.3:8080  unreachable
 ```
 
 | Column | Description |
 |--------|-------------|
 | NAME | Worker name from YAML |
-| TYPE | `managed` (Docker) or `live` (unmanaged) |
+| TYPE | `managed` (Docker), `ssh`, `adapter`, or `live` (unmanaged) |
 | STATE | `offline`, `online`, or `error` |
-| ENDPOINT | Runtime URL (managed: auto-assigned port, live: from YAML) |
-| HEALTH | `ok`, `unreachable`, `-` (offline), or error message |
+| ENDPOINT | Runtime URL. Docker: auto-assigned port. SSH oneshot: `-` (no persistent endpoint). SSH interactive: tunneled port. Live: from YAML |
+| HEALTH | `ok`, `unreachable`, `-` (offline/oneshot), or error message |
 
 Health is probed concurrently for online workers. Workers in `error` state show their stored error message without a live probe. Offline workers show `-`.
 
@@ -166,6 +190,10 @@ Workers (2 registered)
 | `docker.token` | Resolves from secrets | No secrets file loaded | Token reference not found |
 | Docker image | Available locally | — | Not found locally (worker start will fail) |
 | Adapter upstream | Responds to health check | Unreachable | — |
+| `ssh.token` | Resolves from secrets | No secrets file loaded | Token reference not found |
+| SSH connectivity | Host reachable via SSH | Unreachable (includes error detail) | — |
+| `claude` CLI on remote | Found in PATH | — | Not found (worker start will fail) |
+| `bun` on remote | Found (interactive mode) | Not found | — |
 
 Exit code `1` if any check returns `[FAIL]`. Warnings (`[!!]`) do not affect exit code.
 
