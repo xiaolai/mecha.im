@@ -210,7 +210,7 @@ Policy filtering for write-back results.
 
 | Type | Description |
 |------|-------------|
-| `Result` | Shared worker result contract (output, comment, labels, status, commit) |
+| `Result` | Shared worker result contract (output, comment, labels, status, commit, metadata) |
 | `CommentAction` | Posts a comment to a PR or issue |
 | `LabelAction` | Adds or removes labels |
 | `StatusAction` | Sets a commit status |
