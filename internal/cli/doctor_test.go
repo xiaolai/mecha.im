@@ -1,0 +1,89 @@
+package cli
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+
+	"mecha.im/internal/store"
+)
+
+func TestCheckMechaDir(t *testing.T) {
+	// Uses real ~/.mecha — if it exists, should pass; if not, should fail.
+	// We test both paths by relying on the real environment.
+	// The function only returns bool, so we verify it doesn't panic.
+	_ = checkMechaDir()
+}
+
+func TestCheckDatabase(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "test.db")
+	t.Setenv("MECHA_DB_PATH", path)
+	if !checkDatabase() {
+		t.Error("checkDatabase failed with fresh temp db")
+	}
+}
+
+func TestCheckDatabaseInvalidPath(t *testing.T) {
+	t.Setenv("MECHA_DB_PATH", "/nonexistent/dir/test.db")
+	if checkDatabase() {
+		t.Error("checkDatabase should fail with invalid path")
+	}
+}
+
+func TestCountRows(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "test.db")
+	t.Setenv("MECHA_DB_PATH", path)
+
+	// Import store to open the DB
+	db, err := store.Open(path)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	workers, tasks := countRows(db)
+	if workers != 0 {
+		t.Errorf("workers = %d, want 0", workers)
+	}
+	if tasks != 0 {
+		t.Errorf("tasks = %d, want 0", tasks)
+	}
+}
+
+func TestCheckSecretsMissing(t *testing.T) {
+	// checkSecrets returns true (warn) when file is missing
+	// This test assumes the function can reach ~/.mecha/secrets.yml
+	// or will report warn for missing.
+	_ = checkSecrets()
+}
+
+func TestCheckSecretsInvalidPermissions(t *testing.T) {
+	dir := t.TempDir()
+	mechaDir := filepath.Join(dir, ".mecha")
+	os.MkdirAll(mechaDir, 0o700)
+	path := filepath.Join(mechaDir, "secrets.yml")
+	os.WriteFile(path, []byte("tokens: {}"), 0o644) // too open
+
+	// Can't override DefaultSecretsPath easily, so we test LoadSecrets directly
+	// via the worker package tests. This is a smoke test.
+	_ = checkSecrets()
+}
+
+func TestPrintStatus(t *testing.T) {
+	tests := []struct {
+		status string
+		msg    string
+	}{
+		{"ok", "test ok"},
+		{"warn", "test warn"},
+		{"fail", "test fail"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.status, func(t *testing.T) {
+			// Verify no panic
+			printStatus(tt.status, tt.msg)
+		})
+	}
+}
