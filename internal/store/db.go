@@ -78,5 +78,19 @@ func migrate(db *sql.DB) error {
 			return err
 		}
 	}
+	if version < 3 {
+		for _, stmt := range strings.Split(schemaV3, ";") {
+			stmt = strings.TrimSpace(stmt)
+			if stmt == "" {
+				continue
+			}
+			if _, err := db.Exec(stmt); err != nil {
+				return fmt.Errorf("apply schema v3: %w", err)
+			}
+		}
+		if _, err := db.Exec("PRAGMA user_version = 3"); err != nil {
+			return err
+		}
+	}
 	return nil
 }

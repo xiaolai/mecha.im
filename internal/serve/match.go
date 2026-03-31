@@ -25,7 +25,7 @@ func matchesRule(rule worker.EventRule, ev *event.Event) bool {
 		return false
 	}
 	for k, v := range rule.Filter {
-		actual := fmt.Sprint(ev.Payload[k])
+		actual := fmt.Sprint(ev.Attrs[k])
 		if actual != v {
 			return false
 		}
@@ -38,13 +38,13 @@ func renderPrompt(rule worker.EventRule, ev *event.Event) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("parse template: %w", err)
 	}
+	// Build template data from Attrs + universal fields
 	data := make(map[string]any)
-	data["repo_owner"] = ev.RepoOwner
-	data["repo_name"] = ev.RepoName
-	data["ref"] = ev.Ref
-	data["number"] = ev.Number
-	data["sender"] = ev.Sender
-	for k, v := range ev.Payload {
+	data["actor"] = ev.Actor
+	data["subject"] = ev.Subject
+	data["source"] = ev.Source
+	data["type"] = ev.Type
+	for k, v := range ev.Attrs {
 		data[k] = v
 	}
 	var buf bytes.Buffer
@@ -56,19 +56,16 @@ func renderPrompt(rule worker.EventRule, ev *event.Event) (string, error) {
 
 func buildTaskContext(ev *event.Event) (string, error) {
 	ctx := map[string]any{
-		"repo":   ev.RepoOwner + "/" + ev.RepoName,
-		"number": ev.Number,
-		"ref":    ev.Ref,
-		"sender": ev.Sender,
+		"source":  ev.Source,
+		"actor":   ev.Actor,
+		"subject": ev.Subject,
 	}
-	if diff, ok := ev.Payload["diff"]; ok {
-		ctx["diff"] = diff
-	}
-	if files, ok := ev.Payload["file_list"]; ok {
-		ctx["files"] = files
-	}
-	if sha, ok := ev.Payload["head_sha"]; ok {
-		ctx["head_sha"] = sha
+	// Copy well-known attrs for task context
+	for _, key := range []string{"repo_owner", "repo_name", "number", "ref",
+		"diff", "file_list", "head_sha", "sender"} {
+		if v, ok := ev.Attrs[key]; ok {
+			ctx[key] = v
+		}
 	}
 	b, err := json.Marshal(ctx)
 	if err != nil {

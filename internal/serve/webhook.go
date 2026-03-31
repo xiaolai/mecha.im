@@ -19,6 +19,21 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Handle verification challenges (Meta, Slack)
+	if r.Method == "GET" {
+		if v, ok := src.(source.Verifier); ok {
+			resp, err := v.Verify(r)
+			if err != nil {
+				writeError(w, http.StatusForbidden, "verification failed")
+				return
+			}
+			w.Write(resp)
+			return
+		}
+		writeError(w, http.StatusMethodNotAllowed, "GET not supported")
+		return
+	}
+
 	body, err := io.ReadAll(io.LimitReader(r.Body, 5<<20)) // 5MB limit
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "read body failed")
@@ -84,6 +99,10 @@ func (s *Server) matchAndHydrate(ctx context.Context, ev *event.Event, src sourc
 			if h, ok := src.(source.Hydrator); ok {
 				if err := h.Hydrate(ctx, ev); err != nil {
 					s.logger.Warn("webhook: hydrate", "event", ev.ID, "err", err)
+				}
+				// Persist hydrated attrs back to DB
+				if err := s.events.UpdateAttrs(ctx, ev.ID, ev.Attrs); err != nil {
+					s.logger.Warn("webhook: persist hydrated attrs", "event", ev.ID, "err", err)
 				}
 			}
 

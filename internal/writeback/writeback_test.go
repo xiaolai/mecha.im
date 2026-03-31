@@ -15,11 +15,15 @@ import (
 
 func testEvent() *event.Event {
 	return &event.Event{
-		ID:        "ev-1",
-		RepoOwner: "testorg",
-		RepoName:  "testrepo",
-		Number:    42,
-		Payload:   map[string]any{"head_sha": "abc123"},
+		ID:      "ev-1",
+		Actor:   "alice",
+		Subject: "testorg/testrepo",
+		Attrs: event.Attrs{
+			"repo_owner": "testorg",
+			"repo_name":  "testrepo",
+			"number":     42,
+			"head_sha":   "abc123",
+		},
 	}
 }
 
@@ -164,7 +168,6 @@ func TestWriteBackResultErrorsJoined(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	// Both comment and status should fail — errors.Join produces multi-line
 	if !strings.Contains(err.Error(), "github 500") {
 		t.Errorf("error should contain github 500: %v", err)
 	}
@@ -222,7 +225,7 @@ func TestWriteBackResultCommitNoDiff(t *testing.T) {
 
 func TestWriteBackResultNoNumber(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Error("should not call API when Number is 0")
+		t.Error("should not call API when number is 0")
 	}))
 	defer srv.Close()
 	old := apiBase
@@ -230,7 +233,7 @@ func TestWriteBackResultNoNumber(t *testing.T) {
 	defer func() { apiBase = old }()
 
 	ev := testEvent()
-	ev.Number = 0
+	ev.Attrs["number"] = 0
 	c := NewClient("test-token", slog.Default())
 	err := c.WriteBackResult(context.Background(), ev, policy.Result{
 		Comment: &policy.CommentAction{Body: "hello"},
@@ -238,5 +241,12 @@ func TestWriteBackResultNoNumber(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("should succeed with no actions: %v", err)
+	}
+}
+
+func TestResponderInterface(t *testing.T) {
+	c := NewClient("token", slog.Default())
+	if c.Name() != "github" {
+		t.Errorf("Name() = %q, want github", c.Name())
 	}
 }

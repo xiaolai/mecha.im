@@ -78,10 +78,11 @@ func serveCmd() *cobra.Command {
 				logger.Info("gitlab source registered")
 			}
 
-			// Write-back client
+			// Write-back client + responder registration
 			var wb *writeback.Client
 			if ghToken != "" {
 				wb = writeback.NewClient(ghToken, logger)
+				sources.RegisterResponder(wb)
 			}
 
 			srv := serve.New(serve.Config{
