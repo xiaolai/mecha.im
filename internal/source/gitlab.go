@@ -55,22 +55,26 @@ func (g *GitLabSource) Parse(headers http.Header, body []byte) (*event.Event, er
 		Source:     "gitlab",
 		Type:       eventType,
 		Raw:        json.RawMessage(body),
-		Payload:    make(event.Payload),
+		Attrs:      make(event.Attrs),
 	}
 
-	// Extract project info
+	// Extract Actor
+	if user, ok := payload["user"].(map[string]any); ok {
+		ev.Actor, _ = user["username"].(string)
+	}
+
+	// Extract Subject (owner/repo)
 	if project, ok := payload["project"].(map[string]any); ok {
 		if ns, ok := project["path_with_namespace"].(string); ok {
+			ev.Subject = ns
 			parts := strings.SplitN(ns, "/", 2)
 			if len(parts) == 2 {
-				ev.RepoOwner = parts[0]
-				ev.RepoName = parts[1]
+				ev.Attrs["repo_owner"] = parts[0]
+				ev.Attrs["repo_name"] = parts[1]
 			}
 		}
 	}
-	if user, ok := payload["user"].(map[string]any); ok {
-		ev.Sender, _ = user["username"].(string)
-	}
+	ev.Attrs["sender"] = ev.Actor
 
 	switch glEvent {
 	case "Merge Request Hook":
@@ -87,7 +91,6 @@ func (g *GitLabSource) Parse(headers http.Header, body []byte) (*event.Event, er
 }
 
 func normalizeGitLabEvent(glEvent string, payload map[string]any) string {
-	// Normalize GitLab event names to dot-separated format
 	switch glEvent {
 	case "Merge Request Hook":
 		action, _ := payload["object_attributes"].(map[string]any)
@@ -121,29 +124,28 @@ func parseGitLabMergeRequest(payload map[string]any, ev *event.Event) {
 	if attrs == nil {
 		return
 	}
-	ev.Number = intVal(attrs["iid"])
-	ev.Payload["number"] = ev.Number
-	ev.Payload["title"], _ = attrs["title"].(string)
-	ev.Payload["body"], _ = attrs["description"].(string)
+	ev.Attrs["number"] = intVal(attrs["iid"])
+	ev.Attrs["title"], _ = attrs["title"].(string)
+	ev.Attrs["body"], _ = attrs["description"].(string)
 	if src, ok := attrs["source_branch"].(string); ok {
-		ev.Payload["head_branch"] = src
+		ev.Attrs["head_branch"] = src
 	}
 	if tgt, ok := attrs["target_branch"].(string); ok {
-		ev.Payload["base_branch"] = tgt
+		ev.Attrs["base_branch"] = tgt
 	}
 	if sha, ok := attrs["last_commit"].(map[string]any); ok {
 		if id, ok := sha["id"].(string); ok {
-			ev.Ref = id
-			ev.Payload["head_sha"] = id
+			ev.Attrs["ref"] = id
+			ev.Attrs["head_sha"] = id
 		}
 	}
 }
 
 func parseGitLabPush(payload map[string]any, ev *event.Event) {
-	ev.Ref, _ = payload["ref"].(string)
-	ev.Payload["ref"] = ev.Ref
+	ref, _ := payload["ref"].(string)
+	ev.Attrs["ref"] = ref
 	if after, ok := payload["after"].(string); ok {
-		ev.Payload["head_sha"] = after
+		ev.Attrs["head_sha"] = after
 	}
 	if commits, ok := payload["commits"].([]any); ok {
 		var msgs []string
@@ -157,23 +159,21 @@ func parseGitLabPush(payload map[string]any, ev *event.Event) {
 				msgs = append(msgs, id+" "+msg)
 			}
 		}
-		ev.Payload["commits"] = strings.Join(msgs, "\n")
+		ev.Attrs["commits"] = strings.Join(msgs, "\n")
 	}
 }
 
 func parseGitLabNote(payload map[string]any, ev *event.Event) {
 	attrs, _ := payload["object_attributes"].(map[string]any)
 	if attrs != nil {
-		ev.Payload["comment"], _ = attrs["note"].(string)
+		ev.Attrs["comment"], _ = attrs["note"].(string)
 	}
 	if mr, ok := payload["merge_request"].(map[string]any); ok {
-		ev.Number = intVal(mr["iid"])
-		ev.Payload["number"] = ev.Number
-		ev.Payload["title"], _ = mr["title"].(string)
+		ev.Attrs["number"] = intVal(mr["iid"])
+		ev.Attrs["title"], _ = mr["title"].(string)
 	} else if issue, ok := payload["issue"].(map[string]any); ok {
-		ev.Number = intVal(issue["iid"])
-		ev.Payload["number"] = ev.Number
-		ev.Payload["title"], _ = issue["title"].(string)
+		ev.Attrs["number"] = intVal(issue["iid"])
+		ev.Attrs["title"], _ = issue["title"].(string)
 	}
 }
 
@@ -182,8 +182,7 @@ func parseGitLabIssue(payload map[string]any, ev *event.Event) {
 	if attrs == nil {
 		return
 	}
-	ev.Number = intVal(attrs["iid"])
-	ev.Payload["number"] = ev.Number
-	ev.Payload["title"], _ = attrs["title"].(string)
-	ev.Payload["body"], _ = attrs["description"].(string)
+	ev.Attrs["number"] = intVal(attrs["iid"])
+	ev.Attrs["title"], _ = attrs["title"].(string)
+	ev.Attrs["body"], _ = attrs["description"].(string)
 }

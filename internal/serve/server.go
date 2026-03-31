@@ -70,6 +70,7 @@ func New(cfg Config) *Server {
 	mux.HandleFunc("GET /health", s.handleHealth)
 	if s.sources != nil && s.events != nil {
 		mux.HandleFunc("POST /webhook/{source}", s.handleWebhook)
+		mux.HandleFunc("GET /webhook/{source}", s.handleWebhook)
 		mux.HandleFunc("GET /events", s.handleListEvents)
 		mux.HandleFunc("GET /event/{id}", s.handleGetEvent)
 	}

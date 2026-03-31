@@ -160,7 +160,11 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 }
 
 func (s *Server) doWriteBack(ctx context.Context, taskID, eventID, workerName, result string) bool {
-	if eventID == "" || s.writeback == nil || s.events == nil {
+	if eventID == "" || s.events == nil {
+		return true
+	}
+	// Need either legacy writeback or responder registry
+	if s.writeback == nil && s.sources == nil {
 		return true
 	}
 	ev, err := s.events.Get(ctx, eventID)
@@ -186,10 +190,21 @@ func (s *Server) doWriteBack(ctx context.Context, taskID, eventID, workerName, r
 	s.logger.Info("dispatch: policy applied", "task", taskID, "worker", workerName,
 		"allowed", decision.Allowed, "denied", decision.Denied)
 
-	// Write back filtered result
-	if wbErr := s.writeback.WriteBackResult(ctx, ev, filtered); wbErr != nil {
-		s.logger.Error("dispatch: write-back failed", "task", taskID, "event", eventID, "err", wbErr)
-		return false
+	// Try responder registry first, fall back to legacy writeback
+	if s.sources != nil {
+		if resp, ok := s.sources.GetResponder(ev.Source); ok {
+			if wbErr := resp.Respond(ctx, ev, filtered); wbErr != nil {
+				s.logger.Error("dispatch: responder failed", "task", taskID, "event", eventID, "source", ev.Source, "err", wbErr)
+				return false
+			}
+			return true
+		}
+	}
+	if s.writeback != nil {
+		if wbErr := s.writeback.WriteBackResult(ctx, ev, filtered); wbErr != nil {
+			s.logger.Error("dispatch: write-back failed", "task", taskID, "event", eventID, "err", wbErr)
+			return false
+		}
 	}
 	return true
 }

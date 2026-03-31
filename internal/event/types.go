@@ -17,21 +17,21 @@ const (
 	StateSkipped   State = "skipped"
 )
 
-// Payload is a map of enriched fields available to prompt templates.
-type Payload map[string]any
+// Attrs holds provider-specific fields available to prompt templates.
+type Attrs map[string]any
 
 // Event is something that happened from an external source.
+// All provider-specific data lives in Attrs — the struct itself
+// contains only universal, provider-neutral fields.
 type Event struct {
 	ID         string          `json:"id"`
 	DeliveryID string          `json:"delivery_id"`
+	DedupKey   string          `json:"dedup_key,omitempty"`
 	Source     string          `json:"source"`
 	Type       string          `json:"type"`
-	RepoOwner  string          `json:"repo_owner"`
-	RepoName   string          `json:"repo_name"`
-	Ref        string          `json:"ref"`
-	Number     int             `json:"number"`
-	Sender     string          `json:"sender"`
-	Payload    Payload         `json:"payload"`
+	Actor      string          `json:"actor"`
+	Subject    string          `json:"subject"`
+	Attrs      Attrs           `json:"attrs"`
 	Raw        json.RawMessage `json:"raw,omitempty"`
 	State      State           `json:"state"`
 	WorkerName string          `json:"worker_name,omitempty"`

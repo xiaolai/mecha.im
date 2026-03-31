@@ -42,14 +42,20 @@ func TestGitHubSourceParsePR(t *testing.T) {
 	if ev.Type != "pull_request.opened" {
 		t.Errorf("Type = %q, want pull_request.opened", ev.Type)
 	}
-	if ev.RepoOwner != "org" || ev.RepoName != "repo" {
-		t.Errorf("repo = %s/%s, want org/repo", ev.RepoOwner, ev.RepoName)
+	if ev.Subject != "org/repo" {
+		t.Errorf("Subject = %q, want org/repo", ev.Subject)
 	}
-	if ev.Number != 1 {
-		t.Errorf("Number = %d, want 1", ev.Number)
+	if ev.Actor != "user" {
+		t.Errorf("Actor = %q, want user", ev.Actor)
 	}
-	if ev.Payload["head_sha"] != "abc" {
-		t.Errorf("head_sha = %v, want abc", ev.Payload["head_sha"])
+	if ev.Attrs["repo_owner"] != "org" || ev.Attrs["repo_name"] != "repo" {
+		t.Errorf("repo = %s/%s, want org/repo", ev.Attrs["repo_owner"], ev.Attrs["repo_name"])
+	}
+	if ev.Attrs["number"] != 1 {
+		t.Errorf("number = %v, want 1", ev.Attrs["number"])
+	}
+	if ev.Attrs["head_sha"] != "abc" {
+		t.Errorf("head_sha = %v, want abc", ev.Attrs["head_sha"])
 	}
 }
 
@@ -80,11 +86,11 @@ func TestGitHubSourceParsePush(t *testing.T) {
 	if ev.Type != "push" {
 		t.Errorf("Type = %q, want push", ev.Type)
 	}
-	if ev.Ref != "refs/heads/main" {
-		t.Errorf("Ref = %q", ev.Ref)
+	if ev.Attrs["ref"] != "refs/heads/main" {
+		t.Errorf("ref = %v", ev.Attrs["ref"])
 	}
-	if ev.Payload["head_sha"] != "deadbeef1234" {
-		t.Errorf("head_sha = %v", ev.Payload["head_sha"])
+	if ev.Attrs["head_sha"] != "deadbeef1234" {
+		t.Errorf("head_sha = %v", ev.Attrs["head_sha"])
 	}
 }
 
@@ -102,8 +108,8 @@ func TestGitHubSourceParseIssue(t *testing.T) {
 	if ev.Type != "issues.opened" {
 		t.Errorf("Type = %q", ev.Type)
 	}
-	if ev.Number != 5 {
-		t.Errorf("Number = %d, want 5", ev.Number)
+	if ev.Attrs["number"] != 5 {
+		t.Errorf("number = %v, want 5", ev.Attrs["number"])
 	}
 }
 
@@ -126,13 +132,14 @@ func TestGitHubHydratePRWithBaseSHA(t *testing.T) {
 
 	src := NewGitHubSource("", "test-token")
 	ev := &event.Event{
-		Type:      "pull_request.opened",
-		RepoOwner: "org",
-		RepoName:  "repo",
-		Number:    42,
-		Payload: event.Payload{
-			"head_sha": "abc123",
-			"base_sha": "def456",
+		Type:    "pull_request.opened",
+		Subject: "org/repo",
+		Attrs: event.Attrs{
+			"repo_owner": "org",
+			"repo_name":  "repo",
+			"number":     42,
+			"head_sha":   "abc123",
+			"base_sha":   "def456",
 		},
 	}
 
@@ -144,11 +151,11 @@ func TestGitHubHydratePRWithBaseSHA(t *testing.T) {
 	if !strings.Contains(diffURL, "def456...abc123") {
 		t.Errorf("diff URL should use base_sha...head_sha, got %s", diffURL)
 	}
-	diff, _ := ev.Payload["diff"].(string)
+	diff, _ := ev.Attrs["diff"].(string)
 	if diff == "" {
 		t.Error("expected diff to be populated")
 	}
-	files, _ := ev.Payload["file_list"].(string)
+	files, _ := ev.Attrs["file_list"].(string)
 	if files == "" {
 		t.Error("expected file_list to be populated")
 	}
@@ -164,12 +171,10 @@ func TestGitHubHydratePagination(t *testing.T) {
 		page++
 		w.Header().Set("Content-Type", "application/json")
 		if page == 1 {
-			// First page — include Link header for next page
 			next := "http://" + r.Host + "/repos/org/repo/pulls/1/files?per_page=100&page=2"
 			w.Header().Set("Link", `<`+next+`>; rel="next"`)
 			w.Write([]byte(`[{"filename":"a.go"},{"filename":"b.go"}]`))
 		} else {
-			// Second page — no more pages
 			w.Write([]byte(`[{"filename":"c.go"}]`))
 		}
 	}))
@@ -181,15 +186,19 @@ func TestGitHubHydratePagination(t *testing.T) {
 
 	src := NewGitHubSource("", "test-token")
 	ev := &event.Event{
-		Type:      "pull_request.opened",
-		RepoOwner: "org",
-		RepoName:  "repo",
-		Number:    1,
-		Payload:   event.Payload{"head_sha": "abc", "base_sha": "def"},
+		Type:    "pull_request.opened",
+		Subject: "org/repo",
+		Attrs: event.Attrs{
+			"repo_owner": "org",
+			"repo_name":  "repo",
+			"number":     1,
+			"head_sha":   "abc",
+			"base_sha":   "def",
+		},
 	}
 
 	src.Hydrate(context.Background(), ev)
-	files, _ := ev.Payload["file_list"].(string)
+	files, _ := ev.Attrs["file_list"].(string)
 	if !strings.Contains(files, "a.go") || !strings.Contains(files, "c.go") {
 		t.Errorf("file_list should contain files from both pages, got: %s", files)
 	}
@@ -197,19 +206,19 @@ func TestGitHubHydratePagination(t *testing.T) {
 
 func TestGitHubHydrateSkipsWithoutToken(t *testing.T) {
 	src := NewGitHubSource("", "")
-	ev := &event.Event{Type: "pull_request.opened", Number: 1, Payload: event.Payload{}}
+	ev := &event.Event{Type: "pull_request.opened", Attrs: event.Attrs{"number": 1}}
 	err := src.Hydrate(context.Background(), ev)
 	if err != nil {
 		t.Fatalf("should succeed without token: %v", err)
 	}
-	if _, ok := ev.Payload["diff"]; ok {
+	if _, ok := ev.Attrs["diff"]; ok {
 		t.Error("should not hydrate without token")
 	}
 }
 
 func TestGitHubHydrateSkipsNonPR(t *testing.T) {
 	src := NewGitHubSource("", "token")
-	ev := &event.Event{Type: "push", Number: 0, Payload: event.Payload{}}
+	ev := &event.Event{Type: "push", Attrs: event.Attrs{"number": 0}}
 	err := src.Hydrate(context.Background(), ev)
 	if err != nil {
 		t.Fatalf("Hydrate() error: %v", err)
