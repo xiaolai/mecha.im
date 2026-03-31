@@ -58,10 +58,7 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.events.Create(r.Context(), ev); err != nil {
-		// Unique constraint on delivery_id → treat as duplicate.
-		// Match both modernc.org/sqlite and mattn/go-sqlite3 error formats.
-		if strings.Contains(err.Error(), "UNIQUE constraint") ||
-			strings.Contains(err.Error(), "unique constraint") {
+		if isUniqueViolation(err) {
 			writeJSON(w, http.StatusOK, map[string]string{"status": "duplicate"})
 			return
 		}

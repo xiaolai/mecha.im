@@ -82,6 +82,15 @@ func (s *Server) doWriteBack(ctx context.Context, taskID, eventID, workerName, r
 	return true
 }
 
+// isUniqueViolation checks if an error is a SQLite unique constraint violation.
+// Handles both modernc.org/sqlite (code 2067) and string fallback.
+func isUniqueViolation(err error) bool {
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "unique constraint") ||
+		strings.Contains(msg, "constraint failed") ||
+		strings.Contains(msg, "code 2067")
+}
+
 func isTransportError(err error) bool {
 	// Check typed network errors first
 	var netErr net.Error
