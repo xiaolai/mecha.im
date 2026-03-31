@@ -63,7 +63,7 @@ events:
       Review this pull request for security and correctness.
 
       ## PR #{{.number}}: {{.title}}
-      Author: {{.sender}}
+      Author: {{.actor}}
       Branch: {{.head_branch}} -> {{.base_branch}}
 
       ### Diff
@@ -116,12 +116,23 @@ Each rule in the `events:` section defines when the worker should handle an even
 Available in the `prompt` template:
 
 ::: v-pre
-| Variable | Source |
-|----------|--------|
+**Universal fields** (available for all sources):
+
+| Variable | Description |
+|----------|-------------|
+| `{{.actor}}` | Who triggered the event (username, login, phone) |
+| `{{.subject}}` | What it's about (`owner/repo`, `#channel`, schedule name) |
+| `{{.source}}` | Provider name (`github`, `gitlab`, custom) |
+| `{{.type}}` | Event type (`pull_request.opened`, `push`, `message`) |
+
+**GitHub/GitLab attrs** (source-specific, from `Attrs` map):
+
+| Variable | Description |
+|----------|-------------|
 | `{{.repo_owner}}` | Repository owner |
 | `{{.repo_name}}` | Repository name |
-| `{{.number}}` | PR/issue number |
-| `{{.sender}}` | Who triggered the event |
+| `{{.number}}` | PR/issue/MR number |
+| `{{.sender}}` | Who triggered (GitHub-specific alias for `actor`) |
 | `{{.title}}` | PR/issue title |
 | `{{.body}}` | PR/issue body |
 | `{{.diff}}` | PR diff (fetched via API, max 500KB) |
@@ -257,6 +268,6 @@ The diff is rendered as a markdown code block in the PR comment. Requires `polic
 
 - GitHub webhooks verified via HMAC-SHA256 (constant-time comparison)
 - GitLab webhooks verified via `X-Gitlab-Token` (constant-time comparison)
-- Webhook endpoints are exempt from API key auth (use their own verification)
+- Authenticated sources (GitHub, GitLab) are exempt from API key auth — they use their own verification. Generic sources without built-in auth must supply the server API key
 - Diff is fetched using SHA-pinned compare endpoints (immutable)
 - Delivery deduplication prevents replay attacks

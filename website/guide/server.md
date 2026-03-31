@@ -44,7 +44,7 @@ flowchart LR
 
 1. Workers are added via `mecha worker add` (CLI) — stored in SQLite
 2. Server loads workers on startup and reloads the registry before each webhook match
-3. Tasks are queued in a channel (256 buffer), dispatched in parallel
+3. Tasks are queued in a channel (256 buffer), dispatched in parallel (up to 16 concurrent)
 4. Results are written back to GitHub if the task originated from a webhook
 
 ## Graceful Shutdown
@@ -54,9 +54,12 @@ flowchart LR
 2. In-flight dispatches complete
 3. Workers are NOT stopped (persistent containers keep running)
 
-## Task Recovery
+## Startup Recovery
 
-On startup, `mecha serve` recovers tasks stuck in `pending` or `dispatched` state from the previous run and re-queues them for dispatch.
+On startup, `mecha serve` recovers from crashes:
+
+- **Tasks** stuck in `pending` or `dispatched` state are re-queued for dispatch
+- **Events** stuck in `received` state (crashed before matching) are re-processed through the match pipeline if their source is still registered, or marked `failed` for operator review if the source is gone
 
 ## SQLite Database
 
