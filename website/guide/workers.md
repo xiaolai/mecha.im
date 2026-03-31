@@ -63,6 +63,8 @@ timeout: 30m                            # task timeout
 | `docker.host` | No | local socket | Docker daemon URL (e.g. `unix:///var/run/docker.sock`) |
 | `docker.env` | No | `{}` | Environment variables passed to container |
 | `docker.token` | No | — | Token reference from `~/.mecha/secrets.yml` |
+| `docker.expose` | No | `false` | Bind to `0.0.0.0` instead of `127.0.0.1` (network-accessible) |
+| `docker.api_key` | No | — | Bearer auth key for `/task` endpoint. **Required** when `expose: true` |
 | `docker.labels` | No | `{}` | Custom Docker container labels |
 | `timeout` | No | `10m` | Max task execution time |
 
@@ -76,9 +78,18 @@ docker:
 ```
 
 The path is validated:
-- Must exist
-- Must be a directory (not a file)
-- Symlinks are resolved (no traversal)
+- Must exist and be a directory (not a file)
+- Symlinks are resolved before checking (no traversal)
+- Sensitive host paths are blocked:
+
+| Blocked Paths | Reason |
+|---------------|--------|
+| `/etc`, `/proc`, `/sys`, `/dev`, `/boot` | System directories |
+| `~/.ssh`, `~/.gnupg` | Credential stores |
+| `~/.aws`, `~/.config/gcloud` | Cloud credentials |
+| `~/.mecha` | Mecha's own config and secrets |
+
+`mecha doctor` re-checks these paths for workers already in the registry.
 
 ### Disposable (One-Shot) Containers
 
@@ -235,6 +246,8 @@ Codex uses `codex exec` CLI. Env vars map to CLI flags:
 stateDiagram-v2
     [*] --> offline : worker add
     offline --> online : worker start
+    online --> busy : task dispatched
+    busy --> online : task complete
     online --> offline : worker stop
     online --> error : health check failed
     error --> offline : worker stop
@@ -242,5 +255,6 @@ stateDiagram-v2
 ```
 
 - **offline**: definition exists, container stopped or absent
-- **online**: container running, health check passing
+- **online**: container running, health check passing, accepting tasks
+- **busy**: executing a task (returns 429 to new requests)
 - **error**: health check failed or container exited

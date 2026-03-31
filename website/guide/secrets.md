@@ -74,10 +74,10 @@ Mecha auto-detects the token type by its prefix and sets the correct environment
 
 | Token prefix | Environment variable set |
 |---|---|
-| `sk-ant-oat01-` | `CLAUDE_CODE_OAUTH_TOKEN` |
-| `sk-ant-api03-` | `ANTHROPIC_API_KEY` |
-| `sk-` | `OPENAI_API_KEY` |
-| `AIza` | `GEMINI_API_KEY` |
+| `sk-ant-oat*` | `CLAUDE_CODE_OAUTH_TOKEN` (subscription OAuth) |
+| `sk-ant-*` (other) | `ANTHROPIC_API_KEY` (Console API key) |
+| `sk-*` | `OPENAI_API_KEY` |
+| `AIza*` | `GEMINI_API_KEY` |
 
 ## Multi-Account Claude
 
@@ -112,6 +112,5 @@ So if you set both `token: claude.work` and `env: { CLAUDE_CODE_OAUTH_TOKEN: ...
 ## Security
 
 - Tokens are injected as container environment variables, not CLI arguments
-- `GITHUB_TOKEN`, `GH_TOKEN`, and related keys are **blocked** — workers cannot receive GitHub credentials
-- Env values that look like GitHub PATs (`ghp_*`, `ghs_*`, etc.) are rejected
+- Reserved keys (`WORKER_BACKEND`, `WORKER_PORT`, `WORKER_API_KEY`, `WORKER_TIMEOUT`, `WORKER_DRY_RUN`, `HOME`) cannot be overridden via `docker.env`
 - Error messages are redacted before display — token patterns replaced with `[REDACTED]`

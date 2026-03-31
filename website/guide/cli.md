@@ -41,7 +41,7 @@ $ mecha worker remove reviewer
 removed reviewer
 ```
 
-For managed workers, `remove` first stops and deletes the Docker container (even if the worker is still online), then removes the registry entry.
+For managed workers, `remove` first stops and deletes the Docker container (even if the worker is still online), then removes the registry entry. Unmanaged and adapter workers must be stopped (`worker stop`) before removal.
 
 ## mecha worker start
 
@@ -124,6 +124,50 @@ name: reviewer
 name: coder
 ...
 ```
+
+## mecha doctor
+
+Check system health and configuration. Read-only — never modifies state.
+
+```bash
+$ mecha doctor
+
+System
+  [ok]   ~/.mecha/ exists
+  [ok]   database opens (2 workers, 5 tasks)
+  [ok]   secrets file valid (1 token groups)
+  [ok]   docker daemon reachable (API 1.47)
+
+Workers (2 registered)
+  claude-reviewer (managed)
+    [ok]   cwd /home/user/project exists
+    [ok]   token claude.xiaolaidev resolves
+    [ok]   image mecha-worker-claude:latest available
+  ollama-local (adapter)
+    [!!]   upstream http://localhost:11434 unreachable
+
+  [ok]   all checks passed
+```
+
+### System Checks
+
+| Check | ok | warn | fail |
+|-------|-----|------|------|
+| `~/.mecha/` directory | Exists | — | Missing or not a directory |
+| Database | Opens, reports worker/task counts | — | Cannot open or migrate |
+| Secrets file | Valid YAML, correct permissions | File missing (optional) | Bad permissions or invalid YAML |
+| Docker daemon | Responds to ping | — | Unreachable |
+
+### Per-Worker Checks
+
+| Check | ok | warn | fail |
+|-------|-----|------|------|
+| `docker.cwd` | Directory exists | — | Missing or not a directory |
+| `docker.token` | Resolves from secrets | No secrets file loaded | Token reference not found |
+| Docker image | Available locally | — | Not found locally (worker start will fail) |
+| Adapter upstream | Responds to health check | Unreachable | — |
+
+Exit code `1` if any check returns `[FAIL]`. Warnings (`[!!]`) do not affect exit code.
 
 ## mecha serve
 
