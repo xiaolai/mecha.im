@@ -1,5 +1,5 @@
 ---
-description: Worker architecture — endpoint abstraction, managed vs unmanaged, state machine
+description: Worker architecture — endpoint abstraction, managed/SSH/adapter/unmanaged, state machine
 globs: "internal/worker/**/*.go"
 ---
 
@@ -14,15 +14,21 @@ GET /health → 200
 
 Same HTTP contract regardless of how the worker runs.
 
-## Managed vs Unmanaged
+## Worker Types
 
-If YAML has `docker:` section → managed (mecha controls lifecycle).
-If not → unmanaged (mecha just calls the endpoint).
+If YAML has `docker:` section → managed (mecha controls container lifecycle).
+If YAML has `adapter:` section → adapter (in-process LLM API translation).
+If YAML has `ssh:` section → SSH (remote execution via SSH).
+If none → unmanaged (mecha just calls the endpoint).
 No `type` field. The structure is the answer.
 
 Managed workers run LLM CLIs (Claude, Codex, Gemini) inside Docker
 containers. All configuration via container env vars. Workspace
 mounted from host via bind mount.
+
+SSH workers run Claude CLI on a remote machine. Two modes:
+- **oneshot**: SSH → `claude -p` → capture → return. No persistent process.
+- **interactive**: SSH → start runtime server → tunnel → health check.
 
 ## States
 
