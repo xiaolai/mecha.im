@@ -4,8 +4,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
+
+var validName = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]*$`)
 
 // sensitivePathPrefixes are host paths that must not be bind-mounted into containers.
 var sensitivePathPrefixes = []string{
@@ -143,18 +146,3 @@ func (s *SSHConfig) Validate() error {
 	return nil
 }
 
-func (w *Worker) applyDefaults() {
-	if w.Timeout == 0 {
-		w.Timeout = 10 * 60 * 1e9 // 10 minutes in nanoseconds
-	}
-	if w.Docker != nil {
-		if w.Docker.Lifecycle == "" {
-			w.Docker.Lifecycle = "persistent"
-		}
-	}
-	if w.SSH != nil {
-		if w.SSH.Port == 0 {
-			w.SSH.Port = 22
-		}
-	}
-}
