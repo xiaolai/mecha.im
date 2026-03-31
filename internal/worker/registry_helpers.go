@@ -50,6 +50,11 @@ func deepCopyEntry(e *Entry) Entry {
 			ac := *wc.Adapter
 			wc.Adapter = &ac
 		}
+		if wc.SSH != nil {
+			sc := *wc.SSH
+			sc.Env = copyMapStr(sc.Env)
+			wc.SSH = &sc
+		}
 		ec.Worker = &wc
 	}
 	return ec
