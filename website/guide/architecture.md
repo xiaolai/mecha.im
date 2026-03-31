@@ -11,7 +11,7 @@ description: How mecha works under the hood.
 flowchart TB
     subgraph Host ["Host Machine"]
         CLI[mecha CLI]
-        Registry[(~/.mecha/registry.json)]
+        Registry[(SQLite Registry)]
         Secrets[(~/.mecha/secrets.yml)]
         CLI --> Registry
         CLI --> Secrets
@@ -20,13 +20,20 @@ flowchart TB
     subgraph Docker ["Docker"]
         C1[Claude Worker Container]
         C2[Codex Worker Container]
-        C3[Gemini Worker Container]
+    end
+
+    subgraph Remote ["Remote Machine via SSH"]
+        R1["claude -p (oneshot)"]
+        R2[Runtime Server + Tunnel]
+    end
+
+    subgraph Adapters ["In-Process Adapters"]
+        A1[Ollama/vLLM Adapter]
     end
 
     CLI -->|create/start/stop| Docker
-    C1 -->|POST /task| Claude[Agent SDK query]
-    C2 -->|POST /task| Codex[codex exec]
-    C3 -->|POST /task| Gemini[gemini -p]
+    CLI -->|ssh| Remote
+    CLI -->|in-process| Adapters
 ```
 
 ## Components
@@ -38,8 +45,10 @@ The single binary handles all worker management:
 | Package | Responsibility |
 |---------|---------------|
 | `cmd/mecha/` | Entry point |
-| `internal/cli/` | Cobra commands, Docker lifecycle glue |
+| `internal/cli/` | Cobra commands, Docker/SSH/adapter lifecycle glue |
 | `internal/worker/` | Config, registry, Docker client, secrets, health, redaction |
+| `internal/ssh/` | SSH client, runner (oneshot exec), tunnel (port forwarding) |
+| `internal/adapter/` | In-process LLM API adapters (Ollama, OpenAI-compatible) |
 
 ### Worker runtime (TypeScript/Bun)
 
@@ -132,7 +141,7 @@ sequenceDiagram
     M-->>U: started reviewer (container)
 ```
 
-### Rollback on Failure
+### Rollback on Failure (Docker)
 
 | Failure point | Cleanup |
 |---|---|
@@ -140,6 +149,54 @@ sequenceDiagram
 | Start fails | Remove created container, set error |
 | Health timeout | Stop + remove container, set error |
 | Registry persist fails | Container runs, recoverable via label discovery |
+
+### SSH Start Sequence (Oneshot)
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant M as mecha
+    participant R as Remote Host
+
+    U->>M: worker start ssh-reviewer
+    M->>R: SSH ping (echo ok)
+    R-->>M: ok
+    M->>R: which claude
+    R-->>M: /usr/local/bin/claude
+    M->>M: Save to registry (online, no endpoint)
+    M-->>U: started ssh-reviewer (ssh/oneshot)
+```
+
+### SSH Start Sequence (Interactive)
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant M as mecha
+    participant R as Remote Host
+
+    U->>M: worker start ssh-coder
+    M->>R: SSH ping + check claude + check bun
+    M->>R: SSH: nohup bun run server.ts (PID file)
+    R-->>M: listening on :8081
+    M->>M: Open SSH tunnel (localhost:random -> remote:8081)
+    loop Every 2s, max 30s
+        M->>R: GET /health (through tunnel)
+        R-->>M: 200 OK
+    end
+    M->>M: Save endpoint + tunnel PID to registry
+    M-->>U: started ssh-coder (ssh/interactive)
+```
+
+### Rollback on Failure (SSH)
+
+| Failure point | Cleanup |
+|---|---|
+| SSH ping fails | Set error state |
+| claude CLI missing | Set error state |
+| Remote server crash | Set error, PID file cleaned |
+| Tunnel fails | Kill remote server via PID file, set error |
+| Health timeout | Stop tunnel, kill remote server, set error |
 
 ## Security Model
 
@@ -155,10 +212,12 @@ flowchart LR
     Policy -->|filtered result| GitHub
 ```
 
-- Workers receive LLM tokens via env vars (Phase 2)
+- Docker workers receive LLM tokens via container env vars
+- SSH workers receive tokens via temp file (sourced and deleted — never in `ps` output)
 - GitHub tokens are blocked from container env
-- All GitHub writes go through mecha → Policy (Phase 3+)
-- Error messages are redacted before display
+- All GitHub writes go through mecha -> Policy (Phase 3+)
+- Error messages are redacted before display (13 credential patterns)
+- SSH env var keys are validated against `^[a-zA-Z_][a-zA-Z0-9_]*$` to prevent injection
 
 ## Dependencies
 
