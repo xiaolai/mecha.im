@@ -53,7 +53,11 @@ func checkMechaDir() bool {
 	dir := home + "/.mecha"
 	info, err := os.Stat(dir)
 	if err != nil {
-		printStatus("fail", "~/.mecha/ does not exist")
+		if os.IsNotExist(err) {
+			printStatus("fail", "~/.mecha/ does not exist")
+		} else {
+			printStatus("fail", "~/.mecha/: "+err.Error())
+		}
 		return false
 	}
 	if !info.IsDir() {
