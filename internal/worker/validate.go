@@ -4,8 +4,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
+
+var validName = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]*$`)
 
 // sensitivePathPrefixes are host paths that must not be bind-mounted into containers.
 var sensitivePathPrefixes = []string{
@@ -112,13 +115,34 @@ func (a *AdapterConfig) Validate() error {
 	return nil
 }
 
-func (w *Worker) applyDefaults() {
-	if w.Timeout == 0 {
-		w.Timeout = 10 * 60 * 1e9 // 10 minutes in nanoseconds
+// validSSHModes are the supported SSH execution modes.
+var validSSHModes = map[string]bool{
+	"oneshot":     true,
+	"interactive": true,
+}
+
+// Validate checks SSHConfig fields for correctness.
+func (s *SSHConfig) Validate() error {
+	if s.Host == "" {
+		return fmt.Errorf("ssh.host is required")
 	}
-	if w.Docker != nil {
-		if w.Docker.Lifecycle == "" {
-			w.Docker.Lifecycle = "persistent"
+	if s.User == "" {
+		return fmt.Errorf("ssh.user is required")
+	}
+	if s.Mode == "" {
+		return fmt.Errorf("ssh.mode is required (oneshot or interactive)")
+	}
+	if !validSSHModes[s.Mode] {
+		return fmt.Errorf("ssh.mode must be oneshot or interactive, got %q", s.Mode)
+	}
+	if s.Port < 0 || s.Port > 65535 {
+		return fmt.Errorf("ssh.port must be 0-65535, got %d", s.Port)
+	}
+	if s.Key != "" {
+		if _, err := os.Stat(s.Key); err != nil {
+			return fmt.Errorf("ssh.key %q: %w", s.Key, err)
 		}
 	}
+	return nil
 }
+

@@ -13,14 +13,28 @@ import (
 // Worker is the definition of a managed or unmanaged worker, parsed from YAML.
 // If Docker is non-nil, the worker is managed (mecha controls its lifecycle).
 // If Adapter is non-nil, the worker uses an in-process adapter for a native LLM API.
+// If SSH is non-nil, the worker runs on a remote machine via SSH.
 type Worker struct {
 	Name     string            `yaml:"name"`
 	Endpoint string            `yaml:"endpoint,omitempty"`
 	Docker   *DockerConfig     `yaml:"docker,omitempty"`
 	Adapter  *AdapterConfig    `yaml:"adapter,omitempty"`
+	SSH      *SSHConfig        `yaml:"ssh,omitempty"`
 	Events   []EventRule       `yaml:"events,omitempty"`
 	Policy   map[string]any    `yaml:"policy,omitempty"`
 	Timeout  time.Duration     `yaml:"timeout,omitempty"`
+}
+
+// SSHConfig holds settings for a remote SSH-based worker.
+type SSHConfig struct {
+	Host  string            `yaml:"host"`
+	User  string            `yaml:"user"`
+	Port  int               `yaml:"port,omitempty"`
+	Mode  string            `yaml:"mode"`
+	Cwd   string            `yaml:"cwd,omitempty"`
+	Env   map[string]string `yaml:"env,omitempty"`
+	Token string            `yaml:"token,omitempty"`
+	Key   string            `yaml:"key,omitempty"`
 }
 
 // AdapterConfig holds settings for an in-process LLM adapter.
@@ -59,13 +73,19 @@ func (w *Worker) IsManaged() bool { return w.Docker != nil }
 // IsAdapter returns true if the worker uses an in-process adapter.
 func (w *Worker) IsAdapter() bool { return w.Adapter != nil }
 
-// TypeLabel returns "managed" for Docker, "adapter" for adapters, or "live" for unmanaged.
+// IsSSH returns true if the worker uses SSH to run on a remote machine.
+func (w *Worker) IsSSH() bool { return w.SSH != nil }
+
+// TypeLabel returns "managed", "adapter", "ssh", or "live".
 func (w *Worker) TypeLabel() string {
 	if w.IsManaged() {
 		return "managed"
 	}
 	if w.IsAdapter() {
 		return "adapter"
+	}
+	if w.IsSSH() {
+		return "ssh"
 	}
 	return "live"
 }
@@ -152,39 +172,4 @@ func isYAML(name string) bool {
 	return strings.HasSuffix(name, ".yml") || strings.HasSuffix(name, ".yaml")
 }
 
-var validName = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]*$`)
-
-func (w *Worker) validate() error {
-	if w.Name == "" {
-		return fmt.Errorf("name is required")
-	}
-	if !validName.MatchString(w.Name) {
-		return fmt.Errorf("name %q is invalid (must match [a-zA-Z0-9][a-zA-Z0-9_.-]*)", w.Name)
-	}
-	if w.Endpoint == "" && w.Docker == nil && w.Adapter == nil {
-		return fmt.Errorf("endpoint, docker, or adapter section is required")
-	}
-	if w.Docker != nil && w.Adapter != nil {
-		return fmt.Errorf("cannot have both docker and adapter sections")
-	}
-	if w.Timeout < 0 {
-		return fmt.Errorf("timeout must be non-negative")
-	}
-	if w.Docker != nil {
-		if err := w.Docker.Validate(); err != nil {
-			return err
-		}
-	}
-	if w.Adapter != nil {
-		if err := w.Adapter.Validate(); err != nil {
-			return err
-		}
-	}
-	for i, rule := range w.Events {
-		if err := rule.validate(i); err != nil {
-			return err
-		}
-	}
-	return nil
-}
 

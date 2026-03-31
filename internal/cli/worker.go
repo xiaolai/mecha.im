@@ -46,57 +46,6 @@ func registry() *worker.Registry {
 	return r
 }
 
-func workerAddCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "add <path>",
-		Short: "Add worker from YAML file or directory",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			path := args[0]
-			reg := registry()
-			info, err := os.Stat(path)
-			if err != nil {
-				return fmt.Errorf("stat path: %w", err)
-			}
-			if info.IsDir() {
-				return addDir(reg, path)
-			}
-			return addFile(reg, path)
-		},
-	}
-}
-
-func addFile(reg *worker.Registry, path string) error {
-	w, err := worker.LoadFile(path)
-	if err != nil {
-		return fmt.Errorf("load %s: %w", path, err)
-	}
-	if err := reg.Add(w); err != nil {
-		return err
-	}
-	fmt.Printf("added %s (%s)\n", w.Name, w.TypeLabel())
-	return nil
-}
-
-func addDir(reg *worker.Registry, dir string) error {
-	workers, err := worker.LoadDir(dir)
-	if err != nil {
-		return err
-	}
-	for _, w := range workers {
-		if _, exists := reg.Get(w.Name); exists {
-			return fmt.Errorf("worker %q already exists, aborting batch add", w.Name)
-		}
-	}
-	for _, w := range workers {
-		if err := reg.Add(w); err != nil {
-			return err
-		}
-		fmt.Printf("added %s (%s)\n", w.Name, w.TypeLabel())
-	}
-	return nil
-}
-
 func workerRemoveCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "remove <name>",
@@ -112,6 +61,11 @@ func workerRemoveCmd() *cobra.Command {
 			if e.Worker.IsManaged() {
 				if err := dockerRemove(reg, name); err != nil {
 					return fmt.Errorf("cleanup container: %w", err)
+				}
+			}
+			if e.Worker.IsSSH() && e.State != worker.StateOffline {
+				if err := sshStop(reg, name); err != nil {
+					fmt.Fprintf(os.Stderr, "warning: ssh cleanup for %s: %v\n", name, err)
 				}
 			}
 			if err := reg.Remove(name); err != nil {
@@ -143,6 +97,13 @@ func workerStartCmd() *cobra.Command {
 					return err
 				}
 				fmt.Printf("started %s (container)\n", name)
+				return nil
+			}
+			if e.Worker.IsSSH() {
+				if err := sshStart(reg, name); err != nil {
+					return err
+				}
+				fmt.Printf("started %s (ssh/%s)\n", name, e.Worker.SSH.Mode)
 				return nil
 			}
 			if e.Worker.IsAdapter() {
@@ -183,6 +144,13 @@ func workerStopCmd() *cobra.Command {
 					return err
 				}
 				fmt.Printf("stopped %s (container)\n", name)
+				return nil
+			}
+			if e.Worker.IsSSH() {
+				if err := sshStop(reg, name); err != nil {
+					return err
+				}
+				fmt.Printf("stopped %s (ssh)\n", name)
 				return nil
 			}
 			if e.Worker.IsAdapter() {

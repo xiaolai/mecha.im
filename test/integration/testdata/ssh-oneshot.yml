@@ -1,0 +1,6 @@
+name: test-ssh-oneshot
+ssh:
+  host: 127.0.0.1
+  user: testuser
+  mode: oneshot
+timeout: 5m
