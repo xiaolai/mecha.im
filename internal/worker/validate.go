@@ -16,7 +16,8 @@ var sensitivePathPrefixes = []string{
 // (including /root). Prevents mounting credential stores into containers.
 var sensitiveSubdirs = []string{".mecha", ".ssh", ".gnupg", ".aws", ".config/gcloud"}
 
-func isSensitivePath(absPath string) bool {
+// IsSensitivePath reports whether absPath is a protected system or credential path.
+func IsSensitivePath(absPath string) bool {
 	for _, prefix := range sensitivePathPrefixes {
 		if absPath == prefix || strings.HasPrefix(absPath, prefix+"/") {
 			return true
@@ -70,7 +71,7 @@ func (d *DockerConfig) Validate() error {
 		if !info.IsDir() {
 			return fmt.Errorf("docker.cwd %q is not a directory", d.Cwd)
 		}
-		if isSensitivePath(resolved) {
+		if IsSensitivePath(resolved) {
 			return fmt.Errorf("docker.cwd %q resolves to sensitive path %q — mount denied", d.Cwd, resolved)
 		}
 	}

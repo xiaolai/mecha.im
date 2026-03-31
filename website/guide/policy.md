@@ -107,7 +107,7 @@ flowchart LR
     W --> T[Task.complete]
 ```
 
-If policy denies all actions, the result is effectively a no-op -- the task completes but nothing is written to GitHub29.
+If policy denies all actions, the result is effectively a no-op -- the task completes but nothing is written to GitHub.
 
 ## Examples
 
