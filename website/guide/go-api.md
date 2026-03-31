@@ -24,8 +24,9 @@ Worker configuration, Docker lifecycle, registry, secrets, and health checking.
 
 | Type | Description |
 |------|-------------|
-| `Worker` | Worker definition parsed from YAML. If `Docker` is non-nil, managed; if `Adapter` is non-nil, adapter; otherwise unmanaged |
+| `Worker` | Worker definition parsed from YAML. If `Docker` is non-nil, managed; if `SSH` is non-nil, SSH; if `Adapter` is non-nil, adapter; otherwise unmanaged |
 | `DockerConfig` | Docker container settings (image, cwd, resources, env, token, lifecycle) |
+| `SSHConfig` | SSH remote worker settings (host, user, port, mode, cwd, env, token, key) |
 | `AdapterConfig` | In-process LLM adapter settings (type, upstream, model, api_key) |
 | `ResourceConfig` | Container CPU, memory, and PID limits |
 | `EventRule` | Defines when a worker handles an event (source, on, filter, prompt) |
@@ -46,8 +47,9 @@ Worker configuration, Docker lifecycle, registry, secrets, and health checking.
 | Method | Description |
 |--------|-------------|
 | `IsManaged() bool` | True if worker has a Docker section |
+| `IsSSH() bool` | True if worker has an SSH section |
 | `IsAdapter() bool` | True if worker uses an in-process adapter |
-| `TypeLabel() string` | Returns `"managed"`, `"adapter"`, or `"live"` |
+| `TypeLabel() string` | Returns `"managed"`, `"ssh"`, `"adapter"`, or `"live"` |
 
 ### EventRule Methods
 
@@ -67,6 +69,7 @@ Worker configuration, Docker lifecycle, registry, secrets, and health checking.
 | Function | Description |
 |----------|-------------|
 | `DockerConfig.Validate() error` | Checks image required, lifecycle values, expose/api_key coupling, cwd path safety, resource specs |
+| `SSHConfig.Validate() error` | Checks host/user/mode required, mode is `oneshot` or `interactive`, key file is regular with 0600, env keys are valid POSIX names |
 | `AdapterConfig.Validate() error` | Checks type is `ollama` or `openai`, upstream and model required |
 | `IsSensitivePath(absPath) bool` | Reports whether a path is a protected system or credential path (`/etc`, `~/.ssh`, etc.) |
 
@@ -91,6 +94,7 @@ Worker configuration, Docker lifecycle, registry, secrets, and health checking.
 |----------|-------------|
 | `BuildContainerEnv(dc, validate) (map, error)` | Assemble env vars: resolve token from secrets, merge `docker.env`, set HOME |
 | `BuildContainerMounts(dc) ([]MountCfg, error)` | Resolve `docker.cwd` into a bind mount at `/workspace` |
+| `BuildSSHEnv(sc) (map, error)` | Assemble env vars for SSH: resolve token from secrets, merge `ssh.env` |
 | `CurrentUser() (string, error)` | Returns `"uid:gid"` for the container `--user` flag |
 
 ### Registry
@@ -111,6 +115,7 @@ Worker configuration, Docker lifecycle, registry, secrets, and health checking.
 | `SetBusy(name) error` | Transition online to busy (task dispatched) |
 | `SetOnline(name) error` | Transition busy to online (task completed) |
 | `SetError(name, errMsg) error` | Transition to error state with redacted message |
+| `SetSSHTunnel(name, pid, localPort) error` | Record SSH tunnel PID and local port for interactive workers |
 
 ### Secrets
 
@@ -284,6 +289,48 @@ In-process LLM adapters translating native APIs to the worker contract.
 | `Runner.Endpoint() string` | Return the HTTP URL the runner listens on |
 | `NewOllamaAdapter(upstream, model) *OllamaAdapter` | Create adapter for a running Ollama instance |
 | `NewOpenAIAdapter(upstream, model, apiKey) *OpenAIAdapter` | Create adapter for an OpenAI-compatible endpoint |
+
+## ssh
+
+SSH client, runner, and tunnel for remote worker execution.
+
+### Types
+
+| Type | Description |
+|------|-------------|
+| `Client` | Wraps the host `ssh` binary. Fields: Host, User, Port, Key, RedactFunc |
+| `Runner` | Oneshot task executor. Fields: Client, Mode, Cwd, Env |
+| `Tunnel` | SSH local port forward (`-N -L`). Manages a background SSH process |
+
+### Client Methods
+
+| Method | Description |
+|--------|-------------|
+| `Run(ctx, command) (string, error)` | Execute a command on the remote host, return stdout |
+| `RunWithEnv(ctx, env, command) (string, error)` | Execute with env vars delivered via temp file (never in ps) |
+| `Ping(ctx) error` | Verify SSH connectivity with `echo ok` |
+
+### Runner Methods
+
+| Method | Description |
+|--------|-------------|
+| `CheckCLI(ctx) error` | Verify `claude` is in PATH on the remote host |
+| `ExecTask(ctx, prompt) (json.RawMessage, error)` | Run `claude -p` on remote, return JSON output |
+
+### Tunnel Methods
+
+| Method | Description |
+|--------|-------------|
+| `Start(ctx) (localPort, error)` | Open tunnel with fast failure detection (500ms) |
+| `Stop() error` | Tear down tunnel with 5s timeout |
+| `PID() int` | Return tunnel process ID (for persistence) |
+| `Endpoint() string` | Return `http://127.0.0.1:<port>` |
+
+### Functions
+
+| Function | Description |
+|----------|-------------|
+| `ParseRemotePort(output) (int, error)` | Extract port from runtime server startup output |
 
 ## serve
 
