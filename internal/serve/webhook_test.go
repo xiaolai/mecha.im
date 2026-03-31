@@ -421,7 +421,8 @@ func TestWebhookEventListAndGet(t *testing.T) {
 
 // --- Crash recovery ---
 
-func TestCrashRecoveryStuckReceived(t *testing.T) {
+func TestCrashRecoverySourceGone(t *testing.T) {
+	// Events with unregistered sources should be marked failed
 	path := filepath.Join(t.TempDir(), "test.db")
 	db, err := store.Open(path)
 	if err != nil {
@@ -431,14 +432,10 @@ func TestCrashRecoveryStuckReceived(t *testing.T) {
 	reg, _ := worker.NewRegistry(db)
 	tasks := task.NewStore(db)
 	es := event.NewStore(db)
+	sources := source.NewRegistry() // empty — no sources registered
 
-	// Simulate a crash: events stuck in "received" state
-	ev1 := &event.Event{Source: "github", Type: "push"}
-	ev2 := &event.Event{Source: "slack", Type: "message"}
-	if err := es.Create(context.Background(), ev1); err != nil {
-		t.Fatal(err)
-	}
-	if err := es.Create(context.Background(), ev2); err != nil {
+	ev := &event.Event{Source: "gone-source", Type: "push"}
+	if err := es.Create(context.Background(), ev); err != nil {
 		t.Fatal(err)
 	}
 
@@ -446,28 +443,63 @@ func TestCrashRecoveryStuckReceived(t *testing.T) {
 		Registry: reg,
 		Tasks:    tasks,
 		Events:   es,
+		Sources:  sources,
 		Addr:     "127.0.0.1:0",
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	errCh := make(chan error, 1)
 	go func() { errCh <- srv.Start(ctx) }()
-
-	// Wait for recovery to process
 	time.Sleep(1 * time.Second)
 	cancel()
 	<-errCh
 
-	// Both events should now be "failed" (recovered)
-	got1, _ := es.Get(context.Background(), ev1.ID)
-	got2, _ := es.Get(context.Background(), ev2.ID)
-	if got1.State != event.StateFailed {
-		t.Errorf("ev1 state = %q, want failed (recovered)", got1.State)
+	got, _ := es.Get(context.Background(), ev.ID)
+	if got.State != event.StateFailed {
+		t.Errorf("state = %q, want failed (source gone)", got.State)
 	}
-	if got2.State != event.StateFailed {
-		t.Errorf("ev2 state = %q, want failed (recovered)", got2.State)
+	db.Close()
+}
+
+func TestCrashRecoveryReprocess(t *testing.T) {
+	// Events with registered sources should be re-matched (skipped if no worker)
+	path := filepath.Join(t.TempDir(), "test.db")
+	db, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
 	}
 
+	reg, _ := worker.NewRegistry(db)
+	tasks := task.NewStore(db)
+	es := event.NewStore(db)
+	sources := source.NewRegistry()
+	sources.Register(source.NewGitHubSource("secret", ""))
+
+	ev := &event.Event{Source: "github", Type: "push"}
+	if err := es.Create(context.Background(), ev); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := New(Config{
+		Registry: reg,
+		Tasks:    tasks,
+		Events:   es,
+		Sources:  sources,
+		Addr:     "127.0.0.1:0",
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	errCh := make(chan error, 1)
+	go func() { errCh <- srv.Start(ctx) }()
+	time.Sleep(2 * time.Second)
+	cancel()
+	<-errCh
+
+	// No workers registered → event should be skipped (re-matched but no match)
+	got, _ := es.Get(context.Background(), ev.ID)
+	if got.State != event.StateSkipped {
+		t.Errorf("state = %q, want skipped (re-matched, no workers)", got.State)
+	}
 	db.Close()
 }
 
@@ -753,5 +785,200 @@ func TestWebhookAttrsPersisted(t *testing.T) {
 	}
 	if ev.Attrs["head_sha"] != "sha123" {
 		t.Errorf("head_sha = %v, want sha123", ev.Attrs["head_sha"])
+	}
+}
+
+// --- GitLab webhook through full pipeline ---
+
+func TestWebhookGitLabPipeline(t *testing.T) {
+	rec := &ghRecorder{}
+	s, es, sources, cleanup := testWebhookServer(t, rec.handler(), "")
+	defer cleanup()
+
+	sources.Register(source.NewGitLabSource("gl-secret"))
+
+	workerSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{"output": "MR reviewed"})
+	}))
+	defer workerSrv.Close()
+
+	w := &worker.Worker{
+		Name:     "gl-reviewer",
+		Endpoint: workerSrv.URL,
+		Events: []worker.EventRule{{
+			Source: "gitlab",
+			On:     []string{"merge_request.open"},
+			Prompt: "Review MR by {{ .actor }}",
+		}},
+	}
+	if err := s.reg.Add(w); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.reg.Start("gl-reviewer"); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go s.dispatchLoop(ctx)
+
+	body := []byte(`{
+		"object_kind": "merge_request",
+		"user": {"username": "dev"},
+		"user_username": "dev",
+		"project": {"path_with_namespace": "group/project"},
+		"object_attributes": {
+			"iid": 10, "title": "Add feature", "description": "Details",
+			"action": "open", "source_branch": "feature", "target_branch": "main",
+			"last_commit": {"id": "abc123"}
+		}
+	}`)
+	req := httptest.NewRequest("POST", "/webhook/gitlab", strings.NewReader(string(body)))
+	req.Header.Set("X-Gitlab-Event", "Merge Request Hook")
+	req.Header.Set("X-Gitlab-Token", "gl-secret")
+	req.Header.Set("X-Gitlab-Event-UUID", "gl-dedup-1")
+	rec2 := httptest.NewRecorder()
+	s.httpSrv.Handler.ServeHTTP(rec2, req)
+
+	if rec2.Code != http.StatusAccepted {
+		t.Fatalf("gitlab webhook: status = %d, want 202: %s", rec2.Code, rec2.Body.String())
+	}
+
+	var evResp event.Event
+	json.Unmarshal(rec2.Body.Bytes(), &evResp)
+	waitForEventState(t, es, evResp.ID, event.StateCompleted, 10*time.Second)
+
+	ev, _ := es.Get(context.Background(), evResp.ID)
+	if ev.Actor != "dev" {
+		t.Errorf("Actor = %q, want dev", ev.Actor)
+	}
+	if ev.Subject != "group/project" {
+		t.Errorf("Subject = %q, want group/project", ev.Subject)
+	}
+	if ev.DeliveryID != "gl-dedup-1" {
+		t.Errorf("DeliveryID = %q, want gl-dedup-1 (X-Gitlab-Event-UUID)", ev.DeliveryID)
+	}
+}
+
+// --- Filter matching edge cases ---
+
+func TestWebhookFilterMatching(t *testing.T) {
+	s, es, _, cleanup := testWebhookServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}), "")
+	defer cleanup()
+
+	workerSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{"output": "filtered"})
+	}))
+	defer workerSrv.Close()
+
+	// Worker that only matches action=closed
+	w := &worker.Worker{
+		Name:     "close-handler",
+		Endpoint: workerSrv.URL,
+		Events: []worker.EventRule{{
+			Source: "github",
+			On:     []string{"pull_request.closed"},
+			Filter: map[string]string{"action": "closed"},
+			Prompt: "PR closed",
+		}},
+	}
+	s.reg.Add(w)
+	s.reg.Start("close-handler")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go s.dispatchLoop(ctx)
+
+	// Send "opened" event — should NOT match the "closed" filter
+	body := []byte(`{"action":"opened","number":1,"repository":{"full_name":"o/r"},"sender":{"login":"u"},"pull_request":{"number":1,"title":"T","head":{"sha":"a","ref":"b"},"base":{"ref":"main"}}}`)
+	req := httptest.NewRequest("POST", "/webhook/github", strings.NewReader(string(body)))
+	req.Header.Set("X-GitHub-Event", "pull_request")
+	req.Header.Set("X-GitHub-Delivery", "filter-test-1")
+	req.Header.Set("X-Hub-Signature-256", signGitHub("test-secret", body))
+	rec := httptest.NewRecorder()
+	s.httpSrv.Handler.ServeHTTP(rec, req)
+
+	var evResp event.Event
+	json.Unmarshal(rec.Body.Bytes(), &evResp)
+	waitForEventState(t, es, evResp.ID, event.StateSkipped, 5*time.Second)
+}
+
+// --- Event listing with state filter ---
+
+func TestWebhookEventListByState(t *testing.T) {
+	s, es, _, cleanup := testWebhookServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}), "")
+	defer cleanup()
+
+	// Create events in different states
+	ev1 := &event.Event{Source: "github", Type: "push"}
+	ev2 := &event.Event{Source: "github", Type: "push"}
+	es.Create(context.Background(), ev1)
+	es.Create(context.Background(), ev2)
+	es.SetMatched(context.Background(), ev2.ID, "w")
+
+	// Filter by received
+	req := httptest.NewRequest("GET", "/events?state=received", nil)
+	rec := httptest.NewRecorder()
+	s.httpSrv.Handler.ServeHTTP(rec, req)
+	if rec.Code != 200 {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	var events []event.Event
+	json.Unmarshal(rec.Body.Bytes(), &events)
+	if len(events) != 1 {
+		t.Errorf("received events = %d, want 1", len(events))
+	}
+
+	// Filter by matched
+	req2 := httptest.NewRequest("GET", "/events?state=matched", nil)
+	rec2 := httptest.NewRecorder()
+	s.httpSrv.Handler.ServeHTTP(rec2, req2)
+	var matched []event.Event
+	json.Unmarshal(rec2.Body.Bytes(), &matched)
+	if len(matched) != 1 {
+		t.Errorf("matched events = %d, want 1", len(matched))
+	}
+}
+
+// --- Event not found ---
+
+func TestWebhookEventNotFound(t *testing.T) {
+	s, _, _, cleanup := testWebhookServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}), "")
+	defer cleanup()
+
+	req := httptest.NewRequest("GET", "/event/nonexistent", nil)
+	rec := httptest.NewRecorder()
+	s.httpSrv.Handler.ServeHTTP(rec, req)
+	if rec.Code != 404 {
+		t.Errorf("status = %d, want 404", rec.Code)
+	}
+}
+
+// --- Hydration only on match (not wasted) ---
+
+func TestWebhookHydrationOnlyOnMatch(t *testing.T) {
+	hydrateCalled := false
+	s, es, _, cleanup := testWebhookServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// GitHub API mock — if hydration runs, this gets called
+		hydrateCalled = true
+		w.WriteHeader(200)
+	}), "")
+	defer cleanup()
+
+	// No workers → no match → hydration should NOT run
+	body := []byte(`{"action":"opened","number":1,"repository":{"full_name":"o/r"},"sender":{"login":"u"},"pull_request":{"number":1,"title":"T","head":{"sha":"a","ref":"b"},"base":{"ref":"main","sha":"c"}}}`)
+	req := httptest.NewRequest("POST", "/webhook/github", strings.NewReader(string(body)))
+	req.Header.Set("X-GitHub-Event", "pull_request")
+	req.Header.Set("X-GitHub-Delivery", "no-hydrate-1")
+	req.Header.Set("X-Hub-Signature-256", signGitHub("test-secret", body))
+	rec := httptest.NewRecorder()
+	s.httpSrv.Handler.ServeHTTP(rec, req)
+
+	var evResp event.Event
+	json.Unmarshal(rec.Body.Bytes(), &evResp)
+	waitForEventState(t, es, evResp.ID, event.StateSkipped, 5*time.Second)
+
+	if hydrateCalled {
+		t.Error("hydration should not run when no worker matches")
 	}
 }

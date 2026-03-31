@@ -106,18 +106,34 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 
 	// Recover events stuck in "received" state (crashed before matching).
-	// Mark them as failed so they appear in event listings for manual review.
-	if s.events != nil {
+	// Re-run matchAndHydrate if the source is still registered; otherwise
+	// mark as failed for manual review.
+	if s.events != nil && s.sources != nil {
 		stuckIDs, err := s.events.Received(ctx)
 		if err != nil {
 			s.logger.Error("recover received events", "err", err)
 		} else {
 			for _, eid := range stuckIDs {
-				if err := s.events.SetFailed(ctx, eid); err != nil {
-					s.logger.Error("fail stuck event", "event", eid, "err", err)
-				} else {
-					s.logger.Warn("recovered stuck event (marked failed)", "event", eid)
+				ev, err := s.events.Get(ctx, eid)
+				if err != nil {
+					s.logger.Error("recover: get event", "event", eid, "err", err)
+					continue
 				}
+				src, ok := s.sources.Get(ev.Source)
+				if !ok {
+					// Source no longer registered — mark failed
+					if err := s.events.SetFailed(ctx, eid); err != nil {
+						s.logger.Error("recover: fail event", "event", eid, "err", err)
+					}
+					s.logger.Warn("recovered stuck event (source gone, marked failed)", "event", eid, "source", ev.Source)
+					continue
+				}
+				s.logger.Info("recovering stuck event", "event", eid, "source", ev.Source)
+				go func(ev *event.Event, src source.Source) {
+					rctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+					defer cancel()
+					s.matchAndHydrate(rctx, ev, src)
+				}(ev, src)
 			}
 		}
 	}
