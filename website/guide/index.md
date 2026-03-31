@@ -39,25 +39,6 @@ flowchart LR
 
 Each worker is a Docker container running an LLM CLI (Claude, Codex, or Gemini). Mecha creates the container, injects auth tokens, waits for health, and tracks state. You interact with workers via HTTP.
 
-## Current Status
-
-Mecha is under active development. Worker, Task, and Event nouns are implemented.
-
-| Component | Status |
-|-----------|--------|
-| Worker lifecycle (add/remove/start/stop/ls) | ✅ Implemented |
-| Docker container management | ✅ Implemented |
-| Secrets management | ✅ Implemented |
-| Health checks | ✅ Implemented |
-| `mecha serve` HTTP server | ✅ Implemented |
-| Task dispatch (create/dispatch/complete/fail) | ✅ Implemented |
-| GitHub webhooks (event → task) | ✅ Implemented |
-| GitHub write-back (comments, status, labels, commit suggestions) | ✅ Implemented |
-| Policy filtering (result write-back control) | ✅ Implemented |
-| GitLab + generic webhook sources | ✅ Implemented |
-| Disposable (one-shot) containers | ✅ Implemented |
-| Adapter workers (Ollama, OpenAI-compatible) | ✅ Implemented |
-
 ## Four Nouns
 
 The full system (when complete) is built on four concepts:

@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 // Tunnel manages an SSH local port forward from localhost to a remote port.
@@ -22,8 +23,8 @@ type Tunnel struct {
 	cancel    context.CancelFunc
 }
 
-// Start opens an SSH tunnel: localhost:random → remote:RemotePort.
-// Returns the local port. Call Stop to tear down.
+// Start opens an SSH tunnel: localhost:random -> remote:RemotePort.
+// Returns the local port. Detects fast SSH failures within 500ms.
 func (t *Tunnel) Start(ctx context.Context) (int, error) {
 	localPort, err := freePort()
 	if err != nil {
@@ -37,7 +38,6 @@ func (t *Tunnel) Start(ctx context.Context) (int, error) {
 	args = append(args, "-N", "-L", forward, t.Client.destination())
 	cmd := exec.CommandContext(tunnelCtx, "ssh", args...)
 
-	// Capture stderr for diagnostics.
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		cancel()
@@ -49,7 +49,7 @@ func (t *Tunnel) Start(ctx context.Context) (int, error) {
 		return 0, fmt.Errorf("start tunnel: %w", err)
 	}
 
-	// Read first line of stderr in background for early failure detection.
+	// Read first stderr line in background for fast failure detection.
 	errCh := make(chan string, 1)
 	go func() {
 		scanner := bufio.NewScanner(stderr)
@@ -58,6 +58,16 @@ func (t *Tunnel) Start(ctx context.Context) (int, error) {
 		}
 		close(errCh)
 	}()
+
+	// Wait briefly to detect immediate failures (auth error, refused, etc).
+	select {
+	case errLine := <-errCh:
+		cancel()
+		_ = cmd.Wait()
+		return 0, fmt.Errorf("ssh tunnel failed: %s", errLine)
+	case <-time.After(500 * time.Millisecond):
+		// No immediate error — tunnel is likely connecting.
+	}
 
 	t.mu.Lock()
 	t.cmd = cmd
@@ -80,7 +90,7 @@ func (t *Tunnel) Endpoint() string {
 	return "http://127.0.0.1:" + strconv.Itoa(t.LocalPort())
 }
 
-// Stop tears down the SSH tunnel.
+// Stop tears down the SSH tunnel. Returns error if process cleanup fails.
 func (t *Tunnel) Stop() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -90,10 +100,26 @@ func (t *Tunnel) Stop() error {
 	}
 	if t.cmd != nil && t.cmd.Process != nil {
 		_ = t.cmd.Process.Kill()
-		_ = t.cmd.Wait()
+		// Wait with a timeout to avoid blocking forever on zombie processes.
+		done := make(chan error, 1)
+		go func() { done <- t.cmd.Wait() }()
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+		}
 		t.cmd = nil
 	}
 	return nil
+}
+
+// PID returns the tunnel process ID, or 0 if not running.
+func (t *Tunnel) PID() int {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.cmd != nil && t.cmd.Process != nil {
+		return t.cmd.Process.Pid
+	}
+	return 0
 }
 
 // freePort finds an available TCP port on localhost.
@@ -108,17 +134,14 @@ func freePort() (int, error) {
 }
 
 // ParseRemotePort extracts a port number from runtime server startup output.
-// Expects output containing "listening on :PORT" or just "PORT".
 func ParseRemotePort(output string) (int, error) {
 	line := strings.TrimSpace(output)
-	// Try "listening on :8081" pattern.
 	if idx := strings.LastIndex(line, ":"); idx >= 0 {
 		portStr := line[idx+1:]
 		if p, err := strconv.Atoi(strings.TrimSpace(portStr)); err == nil && p > 0 {
 			return p, nil
 		}
 	}
-	// Try plain number.
 	if p, err := strconv.Atoi(line); err == nil && p > 0 {
 		return p, nil
 	}
