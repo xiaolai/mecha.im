@@ -105,6 +105,76 @@ func TestLoadFile(t *testing.T) {
 			},
 		},
 		{
+			name: "ssh oneshot worker",
+			yaml: "name: mini\nssh:\n  host: 100.100.1.7\n  user: joker\n  mode: oneshot\n",
+			want: func(t *testing.T, w *Worker) {
+				if !w.IsSSH() {
+					t.Error("should be ssh")
+				}
+				if w.TypeLabel() != "ssh" {
+					t.Errorf("TypeLabel = %q", w.TypeLabel())
+				}
+				if w.SSH.Mode != "oneshot" {
+					t.Errorf("mode = %q", w.SSH.Mode)
+				}
+				if w.SSH.Port != 22 {
+					t.Errorf("port = %d, want 22 (default)", w.SSH.Port)
+				}
+			},
+		},
+		{
+			name: "ssh interactive worker",
+			yaml: "name: mini\nssh:\n  host: 100.100.1.7\n  user: joker\n  mode: interactive\n  cwd: /tmp/project\n  port: 2222\n",
+			want: func(t *testing.T, w *Worker) {
+				if w.SSH.Mode != "interactive" {
+					t.Errorf("mode = %q", w.SSH.Mode)
+				}
+				if w.SSH.Port != 2222 {
+					t.Errorf("port = %d", w.SSH.Port)
+				}
+				if w.SSH.Cwd != "/tmp/project" {
+					t.Errorf("cwd = %q", w.SSH.Cwd)
+				}
+			},
+		},
+		{
+			name: "ssh with env and token",
+			yaml: "name: mini\nssh:\n  host: h\n  user: u\n  mode: oneshot\n  env:\n    CLAUDE_MODEL: claude-sonnet-4-6\n  token: claude.work\n",
+			want: func(t *testing.T, w *Worker) {
+				if w.SSH.Env["CLAUDE_MODEL"] != "claude-sonnet-4-6" {
+					t.Errorf("env = %v", w.SSH.Env)
+				}
+				if w.SSH.Token != "claude.work" {
+					t.Errorf("token = %q", w.SSH.Token)
+				}
+			},
+		},
+		{
+			name:    "ssh missing host",
+			yaml:    "name: bad\nssh:\n  user: joker\n  mode: oneshot\n",
+			wantErr: true,
+		},
+		{
+			name:    "ssh missing user",
+			yaml:    "name: bad\nssh:\n  host: h\n  mode: oneshot\n",
+			wantErr: true,
+		},
+		{
+			name:    "ssh missing mode",
+			yaml:    "name: bad\nssh:\n  host: h\n  user: u\n",
+			wantErr: true,
+		},
+		{
+			name:    "ssh invalid mode",
+			yaml:    "name: bad\nssh:\n  host: h\n  user: u\n  mode: daemon\n",
+			wantErr: true,
+		},
+		{
+			name:    "ssh and docker together rejected",
+			yaml:    "name: bad\nssh:\n  host: h\n  user: u\n  mode: oneshot\ndocker:\n  image: x\n",
+			wantErr: true,
+		},
+		{
 			name:    "negative timeout",
 			yaml:    "name: bad\nendpoint: http://x\ntimeout: -1s\n",
 			wantErr: true,
@@ -259,6 +329,10 @@ func TestTypeLabel(t *testing.T) {
 	live := &Worker{Name: "l", Endpoint: "http://x"}
 	if live.TypeLabel() != "live" {
 		t.Errorf("live TypeLabel = %q", live.TypeLabel())
+	}
+	sshW := &Worker{Name: "s", SSH: &SSHConfig{Host: "h", User: "u", Mode: "oneshot"}}
+	if sshW.TypeLabel() != "ssh" {
+		t.Errorf("ssh TypeLabel = %q", sshW.TypeLabel())
 	}
 }
 
