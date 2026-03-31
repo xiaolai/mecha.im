@@ -1,11 +1,39 @@
 ---
 title: Events & Webhooks
-description: Connect GitHub webhooks to LLM workers via event matching rules.
+description: Universal event ingestion — connect webhooks, polling, and scheduled triggers to LLM workers.
 ---
 
 # Events & Webhooks
 
-Events connect external sources (GitHub, GitLab, or custom webhooks) to mecha workers. When a webhook arrives, mecha matches it to a worker, renders a prompt, dispatches a task, and writes the result back.
+Events connect external sources to mecha workers. Sources can be passive (webhooks from GitHub, GitLab, or custom services) or active (cron schedules, API polling). When an event arrives, mecha matches it to a worker, renders a prompt, dispatches a task, and writes the result back.
+
+## Universal Event Model
+
+Every event — regardless of source — has the same shape:
+
+| Field | Description | Example |
+|-------|-------------|---------|
+| `Source` | Provider name | `github`, `gitlab`, `slack`, `cron` |
+| `Type` | Event type | `pull_request.opened`, `push`, `message`, `tick` |
+| `Actor` | Who triggered it | username, login, bot name |
+| `Subject` | What it's about | `owner/repo`, `#channel`, schedule name |
+| `Attrs` | Provider-specific data | `repo_owner`, `number`, `diff`, `text` |
+| `DedupKey` | Semantic dedup key | Content hash for polls/cron (reserved) |
+
+`Actor` and `Subject` are universal — available for all sources. `Attrs` keys are provider-specific (e.g., `repo_owner` exists for GitHub/GitLab but not for a custom webhook).
+
+## Provider Interfaces
+
+| Interface | Direction | Description |
+|-----------|-----------|-------------|
+| `Source` | Inbound (passive) | Parses webhooks into events (`Parse`) |
+| `Trigger` | Inbound (active) | Generates events on schedule or poll (`Start`) |
+| `Hydrator` | Enrichment | Fetches additional data via API (e.g., PR diffs) |
+| `Verifier` | Handshake | Handles webhook verification challenges (Meta, Slack) |
+| `Authenticated` | Marker | Sources with built-in auth (HMAC, token) skip API key check |
+| `Responder` | Outbound | Writes results back to the source platform |
+
+GitHub and GitLab implement `Source` + `Hydrator` + `Authenticated`. Generic sources implement only `Source`.
 
 ## Pipeline
 
@@ -14,11 +42,13 @@ flowchart LR
     GH[GitHub] -->|POST /webhook/github| Mecha
     GL[GitLab] -->|POST /webhook/gitlab| Mecha
     Custom[Custom] -->|POST /webhook/custom| Mecha
+    Cron[Cron/Poll] -->|Trigger.Start| Mecha
     Mecha -->|parse + verify| Event[Event Store]
-    Event -->|match worker| Task[Task Queue]
+    Event -->|match rules| Hydrate[Hydrate]
+    Hydrate -->|enrich| Task[Task Queue]
     Task -->|dispatch| Worker[Claude/Codex/Ollama]
-    Worker -->|result| Mecha
-    Mecha -->|write-back| GH
+    Worker -->|result| Policy[Policy Filter]
+    Policy -->|write-back| Responder[Responder]
 ```
 
 ## Setup
@@ -143,9 +173,9 @@ Available in the `prompt` template:
 | `{{.labels}}` | Comma-separated label names |
 :::
 
-## Write-Back
+## Write-Back (Responder)
 
-When a worker returns a result with write-back fields, mecha posts them to GitHub:
+When a worker returns a result with write-back fields, mecha routes them through the **Responder** registered for the event's source. The GitHub Responder posts comments, labels, and statuses to the GitHub API. Custom Responders can be registered for other platforms (Slack, Telegram, etc.).
 
 ```json
 {
@@ -178,18 +208,28 @@ Write-back requires `github.token` in secrets.yml with appropriate permissions.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> received : webhook arrives
+    [*] --> received : event arrives
     received --> matched : worker rule matched
     received --> skipped : no matching worker
+    received --> failed : crash recovery (source gone)
     matched --> dispatched : task created
-    dispatched --> completed : result written back
+    dispatched --> completed : result + write-back OK
     dispatched --> failed : worker send error
-    note right of dispatched : write-back failure stays dispatched for retry
+    note right of dispatched : write-back failure keeps event dispatched (retry eligible)
 ```
+
+- **received → failed**: on startup, events stuck in `received` (crashed before matching) are re-processed if the source is still registered, or marked `failed` if the source is gone
+- **dispatched → dispatched**: if write-back fails but the task completed, the event stays `dispatched` (not `failed`) so it can be retried
 
 ## Delivery Deduplication
 
-GitHub may retry webhook deliveries. Mecha deduplicates using the `X-GitHub-Delivery` header — each delivery is processed exactly once.
+Each event source uses its own deduplication strategy:
+
+| Source | Dedup key | Header |
+|--------|-----------|--------|
+| GitHub | `X-GitHub-Delivery` header | Unique per delivery |
+| GitLab | `X-Gitlab-Event-UUID` header (preferred), falls back to `X-Request-Id` | Unique per delivery |
+| Generic | Content hash (SHA-256 of event type + body) | Deterministic |
 
 ## GitLab Source
 
