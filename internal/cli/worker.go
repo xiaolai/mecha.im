@@ -114,6 +114,11 @@ func workerRemoveCmd() *cobra.Command {
 					return fmt.Errorf("cleanup container: %w", err)
 				}
 			}
+			if e.Worker.IsSSH() && e.State != worker.StateOffline {
+				if err := sshStop(reg, name); err != nil {
+					fmt.Fprintf(os.Stderr, "warning: ssh cleanup for %s: %v\n", name, err)
+				}
+			}
 			if err := reg.Remove(name); err != nil {
 				return err
 			}
@@ -143,6 +148,13 @@ func workerStartCmd() *cobra.Command {
 					return err
 				}
 				fmt.Printf("started %s (container)\n", name)
+				return nil
+			}
+			if e.Worker.IsSSH() {
+				if err := sshStart(reg, name); err != nil {
+					return err
+				}
+				fmt.Printf("started %s (ssh/%s)\n", name, e.Worker.SSH.Mode)
 				return nil
 			}
 			if e.Worker.IsAdapter() {
@@ -183,6 +195,13 @@ func workerStopCmd() *cobra.Command {
 					return err
 				}
 				fmt.Printf("stopped %s (container)\n", name)
+				return nil
+			}
+			if e.Worker.IsSSH() {
+				if err := sshStop(reg, name); err != nil {
+					return err
+				}
+				fmt.Printf("stopped %s (ssh)\n", name)
 				return nil
 			}
 			if e.Worker.IsAdapter() {
