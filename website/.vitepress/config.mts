@@ -65,6 +65,7 @@ export default withMermaid({
             { text: 'Server', link: '/guide/server' },
             { text: 'API', link: '/guide/api' },
             { text: 'Architecture', link: '/guide/architecture' },
+            { text: 'Go API', link: '/guide/go-api' },
           ],
         },
       ],
