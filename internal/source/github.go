@@ -28,6 +28,9 @@ func NewGitHubSource(secret, token string) *GitHubSource {
 // Name returns "github".
 func (g *GitHubSource) Name() string { return "github" }
 
+// Authenticated marks GitHub as self-authenticating (HMAC-SHA256).
+func (g *GitHubSource) Authenticated() {}
+
 // Parse validates the HMAC signature and normalizes the webhook payload.
 // No network calls — hydration is separate.
 func (g *GitHubSource) Parse(headers http.Header, body []byte) (*event.Event, error) {

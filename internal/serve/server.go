@@ -105,6 +105,23 @@ func (s *Server) Start(ctx context.Context) error {
 		}
 	}
 
+	// Recover events stuck in "received" state (crashed before matching).
+	// Mark them as failed so they appear in event listings for manual review.
+	if s.events != nil {
+		stuckIDs, err := s.events.Received(ctx)
+		if err != nil {
+			s.logger.Error("recover received events", "err", err)
+		} else {
+			for _, eid := range stuckIDs {
+				if err := s.events.SetFailed(ctx, eid); err != nil {
+					s.logger.Error("fail stuck event", "event", eid, "err", err)
+				} else {
+					s.logger.Warn("recovered stuck event (marked failed)", "event", eid)
+				}
+			}
+		}
+	}
+
 	ln, err := net.Listen("tcp", s.addr)
 	if err != nil {
 		return fmt.Errorf("listen: %w", err)
@@ -131,12 +148,27 @@ func (s *Server) Start(ctx context.Context) error {
 
 func (s *Server) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Webhook paths rely on source-level auth (HMAC signature), not API key.
 		// /health is always public for load-balancer probes.
-		if s.apiKey == "" || r.URL.Path == "/health" ||
-			(strings.HasPrefix(r.URL.Path, "/webhook/") && s.sources != nil && s.sources.Len() > 0) {
+		if r.URL.Path == "/health" {
 			next.ServeHTTP(w, r)
 			return
+		}
+		// No API key configured → all endpoints open (operator's choice).
+		if s.apiKey == "" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		// Webhook paths: only skip API key auth if the source has its own
+		// auth (HMAC signature, token validation). Sources without auth
+		// (like GenericSource) must pass the API key check.
+		if strings.HasPrefix(r.URL.Path, "/webhook/") && s.sources != nil {
+			sourceName := strings.TrimPrefix(r.URL.Path, "/webhook/")
+			if src, ok := s.sources.Get(sourceName); ok {
+				if _, hasAuth := src.(source.Authenticated); hasAuth {
+					next.ServeHTTP(w, r)
+					return
+				}
+			}
 		}
 		auth := r.Header.Get("Authorization")
 		key := r.Header.Get("X-API-Key")

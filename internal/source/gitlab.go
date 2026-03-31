@@ -24,6 +24,9 @@ func NewGitLabSource(secret string) *GitLabSource {
 // Name returns "gitlab".
 func (g *GitLabSource) Name() string { return "gitlab" }
 
+// Authenticated marks GitLab as self-authenticating (token comparison).
+func (g *GitLabSource) Authenticated() {}
+
 // Parse validates the token and normalizes the webhook payload.
 func (g *GitLabSource) Parse(headers http.Header, body []byte) (*event.Event, error) {
 	if g.secret != "" {

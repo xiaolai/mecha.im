@@ -26,6 +26,13 @@ type Hydrator interface {
 	Hydrate(ctx context.Context, ev *event.Event) error
 }
 
+// Authenticated is a marker interface for sources that validate webhooks
+// themselves (e.g., HMAC signature, token comparison). Sources without
+// this marker require server-level API key auth on their webhook paths.
+type Authenticated interface {
+	Authenticated()
+}
+
 // Verifier handles webhook verification challenges (e.g., Meta, Slack).
 type Verifier interface {
 	Verify(r *http.Request) ([]byte, error)
