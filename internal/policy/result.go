@@ -3,11 +3,12 @@ package policy
 // Result is the shared worker result contract.
 // Used by policy filtering and write-back.
 type Result struct {
-	Output  string         `json:"output"`
-	Comment *CommentAction `json:"comment,omitempty"`
-	Labels  *LabelAction   `json:"labels,omitempty"`
-	Status  *StatusAction  `json:"status,omitempty"`
-	Commit  *CommitAction  `json:"commit,omitempty"`
+	Output   string         `json:"output"`
+	Comment  *CommentAction `json:"comment,omitempty"`
+	Labels   *LabelAction   `json:"labels,omitempty"`
+	Status   *StatusAction  `json:"status,omitempty"`
+	Commit   *CommitAction  `json:"commit,omitempty"`
+	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
 // CommentAction posts a comment to a PR or issue.
