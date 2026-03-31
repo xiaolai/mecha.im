@@ -5,9 +5,15 @@ description: Your first Claude worker in 5 minutes.
 
 # Quick Start
 
-Get a Claude worker running in a Docker container in 5 minutes.
+Get a Claude worker running in 5 minutes.
 
-## Prerequisites
+::: tip No Docker? Use SSH workers
+If you have a remote machine with `claude` CLI installed, you can skip Docker entirely. See [SSH Quick Start](#ssh-quick-start-no-docker) below.
+:::
+
+## Docker Quick Start
+
+### Prerequisites
 
 - [Go 1.26+](https://go.dev/dl/) installed
 - [Docker](https://docs.docker.com/get-docker/) running (or [Colima](https://github.com/abiosoft/colima) on macOS)
@@ -119,6 +125,81 @@ curl -s -X POST http://127.0.0.1:32768/task \
 ./mecha worker stop my-reviewer
 ./mecha worker remove my-reviewer
 ```
+
+## SSH Quick Start (No Docker)
+
+Run Claude CLI on a remote machine via SSH — no Docker needed.
+
+### Prerequisites
+
+- A remote machine with SSH access and `claude` CLI installed
+- A Claude setup token (from `claude setup-token`)
+
+### Step 1: Build mecha
+
+```bash
+git clone https://github.com/xiaolai/mecha.im.git
+cd mecha.im
+make build
+```
+
+### Step 2: Set up secrets
+
+```bash
+mkdir -p ~/.mecha
+cat > ~/.mecha/secrets.yml << 'EOF'
+tokens:
+  claude:
+    default: YOUR_CLAUDE_SETUP_TOKEN_HERE
+EOF
+chmod 600 ~/.mecha/secrets.yml
+```
+
+### Step 3: Create a worker YAML
+
+```bash
+cat > workers/ssh-reviewer.yml << 'EOF'
+name: ssh-reviewer
+ssh:
+  host: your-remote-host         # hostname or IP
+  user: your-username             # SSH user
+  mode: oneshot                   # fresh CLI invocation per task
+  cwd: /home/user/projects/repo  # remote working directory
+  env:
+    CLAUDE_MODEL: claude-haiku-4-5-20251001
+  token: claude.default
+timeout: 10m
+EOF
+```
+
+### Step 4: Start the worker
+
+```bash
+./mecha worker add workers/ssh-reviewer.yml
+./mecha worker start ssh-reviewer
+```
+
+You should see:
+
+```
+added ssh-reviewer (ssh)
+connecting to your-username@your-remote-host...
+checking claude cli on your-remote-host...
+started ssh-reviewer (ssh/oneshot)
+```
+
+### Step 5: Check status
+
+```bash
+./mecha worker ls
+```
+
+```
+NAME            TYPE  STATE   ENDPOINT  HEALTH
+ssh-reviewer    ssh   online  -         -
+```
+
+Oneshot SSH workers have no persistent endpoint — tasks are executed directly via SSH on demand.
 
 ## Next Steps
 

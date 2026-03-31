@@ -33,11 +33,13 @@ The assistant has access to all mecha documentation and stays current with the l
 
 Mecha is a single binary — no runtime dependencies. What else you need depends on your worker type:
 
-| | Docker Workers | Adapter Workers | Unmanaged Workers |
-|---|---|---|---|
-| **What it does** | Runs Claude/Codex/Gemini in containers | Translates Ollama/vLLM APIs in-process | Calls your existing HTTP endpoint |
-| **Docker 28+** | Yes | No | No |
-| **LLM running locally** | No (bundled in image) | Yes (Ollama, vLLM, etc.) | You manage it |
+| | Docker Workers | SSH Workers | Adapter Workers | Unmanaged Workers |
+|---|---|---|---|---|
+| **What it does** | Runs Claude/Codex/Gemini in containers | Runs Claude CLI on a remote machine via SSH | Translates Ollama/vLLM APIs in-process | Calls your existing HTTP endpoint |
+| **Docker 28+** | Yes | No | No | No |
+| **SSH access** | No | Yes (key-based) | No | No |
+| **Remote `claude` CLI** | No (bundled in image) | Yes | No | No |
+| **LLM running locally** | No (bundled in image) | No (runs on remote) | Yes (Ollama, vLLM, etc.) | You manage it |
 
 ## Install Mecha
 
@@ -110,7 +112,7 @@ Skip this step if you only plan to use Codex, Gemini, or adapter workers (Ollama
 
 ## Set Up Docker (for Docker Workers Only)
 
-Skip this section if you only plan to use adapter or unmanaged workers.
+Skip this section if you only plan to use SSH, adapter, or unmanaged workers.
 
 ### macOS
 

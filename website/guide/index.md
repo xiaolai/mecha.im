@@ -5,7 +5,7 @@ description: What Mecha is and why it exists.
 
 # What is Mecha
 
-**Mecha is a workflow engine that runs LLM agents inside Docker containers, managed by a single Go binary.**
+**Mecha is a workflow engine that runs LLM agents in Docker containers, on remote machines via SSH, or through in-process adapters — managed by a single Go binary.**
 
 ## The Problem
 
@@ -17,12 +17,12 @@ Mecha gives you a YAML-driven lifecycle for LLM workers:
 
 ```
 mecha worker add workers/reviewer.yml    # define it
-mecha worker start reviewer              # run it (Docker container)
+mecha worker start reviewer              # run it
 curl http://localhost:32768/task          # use it
 mecha worker stop reviewer               # stop it
 ```
 
-One binary. One YAML per worker. Docker handles isolation.
+One binary. One YAML per worker. Docker, SSH, or adapters handle execution.
 
 ## How It Works
 
@@ -32,19 +32,22 @@ flowchart LR
     Add --> Registry[(Registry)]
     Registry --> Start[mecha worker start]
     Start --> Docker[Docker Container]
-    Docker --> Health[GET /health → 200]
-    Docker --> Task[POST /task → result]
-    Task --> CLI[claude/codex/gemini CLI]
+    Start --> SSH[Remote Machine via SSH]
+    Start --> Adapter[In-Process Adapter]
+    Docker --> Task[POST /task]
+    SSH --> Task
+    Adapter --> Task
+    Task --> CLI[claude/codex/gemini]
 ```
 
-Each worker is a Docker container running an LLM CLI (Claude, Codex, or Gemini). Mecha creates the container, injects auth tokens, waits for health, and tracks state. You interact with workers via HTTP.
+Each worker runs an LLM CLI — in a Docker container, on a remote machine via SSH, or through an in-process adapter. Mecha creates the runtime, injects auth tokens, waits for health, and tracks state.
 
 ## Four Nouns
 
 The full system (when complete) is built on four concepts:
 
 - **Event** — something happened (webhook, schedule, API call)
-- **Worker** — takes a prompt, returns a result (Docker container, adapter, or external endpoint)
+- **Worker** — takes a prompt, returns a result (Docker container, SSH remote, adapter, or external endpoint)
 - **Task** — an event matched to a worker
 - **Policy** — what a result is allowed to contain
 
