@@ -87,17 +87,7 @@ func (s *Server) matchAndHydrate(ctx context.Context, ev *event.Event, src sourc
 		s.logger.Error("webhook: reload registry", "err", err)
 	}
 
-	// Hydrate once before matching — avoids duplicate API calls if
-	// multiple rules match the same event.
-	if h, ok := src.(source.Hydrator); ok {
-		if err := h.Hydrate(ctx, ev); err != nil {
-			s.logger.Warn("webhook: hydrate", "event", ev.ID, "err", err)
-		}
-		if err := s.events.UpdateAttrs(ctx, ev.ID, ev.Attrs); err != nil {
-			s.logger.Warn("webhook: persist hydrated attrs", "event", ev.ID, "err", err)
-		}
-	}
-
+	hydrated := false
 	entries := s.reg.List()
 	for _, entry := range entries {
 		for _, rule := range entry.Worker.Events {
@@ -107,6 +97,21 @@ func (s *Server) matchAndHydrate(ctx context.Context, ev *event.Event, src sourc
 			if !rule.IsAuto() {
 				s.logger.Info("webhook: rule matched but auto=false, skipping", "event", ev.ID, "worker", entry.Worker.Name)
 				continue
+			}
+
+			// Hydrate once on first match — avoids wasted API calls
+			// when no rule matches, and avoids duplicate calls when
+			// multiple rules match.
+			if !hydrated {
+				if h, ok := src.(source.Hydrator); ok {
+					if err := h.Hydrate(ctx, ev); err != nil {
+						s.logger.Warn("webhook: hydrate", "event", ev.ID, "err", err)
+					}
+					if err := s.events.UpdateAttrs(ctx, ev.ID, ev.Attrs); err != nil {
+						s.logger.Warn("webhook: persist hydrated attrs", "event", ev.ID, "err", err)
+					}
+				}
+				hydrated = true
 			}
 
 			prompt, err := renderPrompt(rule, ev)
