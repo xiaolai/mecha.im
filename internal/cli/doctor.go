@@ -78,6 +78,10 @@ func checkDatabase() bool {
 			return false
 		}
 	}
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		printStatus("fail", "database not found: "+path)
+		return false
+	}
 	db, err := store.Open(path)
 	if err != nil {
 		printStatus("fail", "database: "+err.Error())
@@ -86,8 +90,8 @@ func checkDatabase() bool {
 	defer db.Close()
 	workers, tasks, err := countRows(db)
 	if err != nil {
-		printStatus("warn", "database opens but query failed: "+err.Error())
-		return true
+		printStatus("fail", "database schema broken: "+err.Error())
+		return false
 	}
 	printStatus("ok", fmt.Sprintf("database opens (%d workers, %d tasks)", workers, tasks))
 	return true

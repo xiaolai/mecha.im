@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"time"
@@ -133,20 +134,45 @@ func checkWorkerImage(ctx context.Context, w *worker.Worker, dc *worker.DockerCl
 		return true
 	}
 	if !exists {
-		printStatus("warn", "    image "+w.Docker.Image+" not found locally")
-		return true
+		printStatus("fail", "    image "+w.Docker.Image+" not found locally (worker start will fail)")
+		return false
 	}
 	printStatus("ok", "    image "+w.Docker.Image+" available")
 	return true
 }
 
 func checkAdapterUpstream(w *worker.Worker) bool {
-	if err := worker.CheckHealth(w.Adapter.Upstream, 5*time.Second); err != nil {
+	// Each adapter type has a different health endpoint:
+	// ollama: GET /, openai: GET /v1/models
+	healthPath := "/"
+	if w.Adapter.Type == "openai" {
+		healthPath = "/v1/models"
+	}
+	endpoint := w.Adapter.Upstream + healthPath
+	if err := probeHTTP(endpoint, 5*time.Second); err != nil {
 		printStatus("warn", "    upstream "+w.Adapter.Upstream+" unreachable")
 		return true
 	}
 	printStatus("ok", "    upstream "+w.Adapter.Upstream+" reachable")
 	return true
+}
+
+func probeHTTP(url string, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("status %d", resp.StatusCode)
+	}
+	return nil
 }
 
 func loadSecretsQuiet() *worker.Secrets {

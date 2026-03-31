@@ -18,9 +18,23 @@ func TestCheckMechaDir(t *testing.T) {
 func TestCheckDatabase(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "test.db")
+	// Create the DB first (doctor expects it to exist)
+	db, err := store.Open(path)
+	if err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	db.Close()
 	t.Setenv("MECHA_DB_PATH", path)
 	if !checkDatabase() {
-		t.Error("checkDatabase failed with fresh temp db")
+		t.Error("checkDatabase failed with existing db")
+	}
+}
+
+func TestCheckDatabaseMissing(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("MECHA_DB_PATH", filepath.Join(dir, "nonexistent.db"))
+	if checkDatabase() {
+		t.Error("checkDatabase should fail when db file missing")
 	}
 }
 
