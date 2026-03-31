@@ -76,7 +76,7 @@ CREATE TABLE IF NOT EXISTS events_v3 (
 	updated_at   INTEGER NOT NULL
 );
 
-INSERT OR IGNORE INTO events_v3 (id, delivery_id, dedup_key, source, type,
+INSERT INTO events_v3 (id, delivery_id, dedup_key, source, type,
 	actor, subject, attrs, raw, state, worker_name, task_id, created_at, updated_at)
 SELECT id, delivery_id, '', source, type,
 	sender, CASE WHEN repo_owner != '' THEN repo_owner || '/' || repo_name ELSE '' END,

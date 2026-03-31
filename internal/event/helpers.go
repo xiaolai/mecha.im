@@ -30,10 +30,13 @@ func scanEvent(s rowScanner) (*Event, error) {
 	ev.Raw = json.RawMessage(raw)
 	ev.CreatedAt = time.Unix(createdAt, 0)
 	ev.UpdatedAt = time.Unix(updatedAt, 0)
-	if attrsStr != "" {
+	if attrsStr != "" && attrsStr != "null" {
 		if err := json.Unmarshal([]byte(attrsStr), &ev.Attrs); err != nil {
 			return nil, fmt.Errorf("unmarshal event attrs: %w", err)
 		}
+	}
+	if ev.Attrs == nil {
+		ev.Attrs = make(Attrs)
 	}
 	return &ev, nil
 }

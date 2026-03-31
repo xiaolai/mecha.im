@@ -58,8 +58,10 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.events.Create(r.Context(), ev); err != nil {
-		// Unique constraint on delivery_id → treat as duplicate
-		if strings.Contains(err.Error(), "UNIQUE constraint") {
+		// Unique constraint on delivery_id → treat as duplicate.
+		// Match both modernc.org/sqlite and mattn/go-sqlite3 error formats.
+		if strings.Contains(err.Error(), "UNIQUE constraint") ||
+			strings.Contains(err.Error(), "unique constraint") {
 			writeJSON(w, http.StatusOK, map[string]string{"status": "duplicate"})
 			return
 		}
@@ -88,22 +90,26 @@ func (s *Server) matchAndHydrate(ctx context.Context, ev *event.Event, src sourc
 		s.logger.Error("webhook: reload registry", "err", err)
 	}
 
+	// Hydrate once before matching — avoids duplicate API calls if
+	// multiple rules match the same event.
+	if h, ok := src.(source.Hydrator); ok {
+		if err := h.Hydrate(ctx, ev); err != nil {
+			s.logger.Warn("webhook: hydrate", "event", ev.ID, "err", err)
+		}
+		if err := s.events.UpdateAttrs(ctx, ev.ID, ev.Attrs); err != nil {
+			s.logger.Warn("webhook: persist hydrated attrs", "event", ev.ID, "err", err)
+		}
+	}
+
 	entries := s.reg.List()
 	for _, entry := range entries {
 		for _, rule := range entry.Worker.Events {
 			if !matchesRule(rule, ev) {
 				continue
 			}
-
-			// Hydrate if source supports it
-			if h, ok := src.(source.Hydrator); ok {
-				if err := h.Hydrate(ctx, ev); err != nil {
-					s.logger.Warn("webhook: hydrate", "event", ev.ID, "err", err)
-				}
-				// Persist hydrated attrs back to DB
-				if err := s.events.UpdateAttrs(ctx, ev.ID, ev.Attrs); err != nil {
-					s.logger.Warn("webhook: persist hydrated attrs", "event", ev.ID, "err", err)
-				}
+			if !rule.IsAuto() {
+				s.logger.Info("webhook: rule matched but auto=false, skipping", "event", ev.ID, "worker", entry.Worker.Name)
+				continue
 			}
 
 			prompt, err := renderPrompt(rule, ev)
@@ -134,7 +140,10 @@ func (s *Server) matchAndHydrate(ctx context.Context, ev *event.Event, src sourc
 			}
 
 			if err := s.events.SetDispatched(ctx, ev.ID, t.ID); err != nil {
-				s.logger.Error("webhook: set dispatched failed, not enqueuing", "event", ev.ID, "err", err)
+				s.logger.Error("webhook: set dispatched failed, failing task", "event", ev.ID, "err", err)
+				if failErr := s.tasks.Fail(ctx, t.ID, "event transition failed"); failErr != nil {
+					s.logger.Error("webhook: compensate task fail", "task", t.ID, "err", failErr)
+				}
 				return
 			}
 			select {

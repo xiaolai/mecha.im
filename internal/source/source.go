@@ -87,9 +87,13 @@ func (r *Registry) GetResponder(name string) (Responder, bool) {
 	return resp, ok
 }
 
-// Triggers returns all registered triggers.
+// Triggers returns a copy of all registered triggers.
 func (r *Registry) Triggers() map[string]Trigger {
-	return r.triggers
+	cp := make(map[string]Trigger, len(r.triggers))
+	for k, v := range r.triggers {
+		cp[k] = v
+	}
+	return cp
 }
 
 // Len returns the number of registered sources.
