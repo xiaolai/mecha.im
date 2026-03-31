@@ -157,10 +157,12 @@ func (s *Server) dispatchDisposable(ctx context.Context, taskID string, t *task.
 		return
 	}
 
-	wbOk := s.doWriteBack(ctx, taskID, t.EventID, entry.Worker.Name, result)
+	// Complete task before write-back to prevent duplicate side effects on recovery
 	if completeErr := s.tasks.Complete(ctx, taskID, result); completeErr != nil {
 		s.logger.Error("disposable: complete task failed", "id", taskID, "err", completeErr)
+		return
 	}
+	wbOk := s.doWriteBack(ctx, taskID, t.EventID, entry.Worker.Name, result)
 	if wbOk {
 		s.completeEvent(ctx, t.EventID, true)
 	}
