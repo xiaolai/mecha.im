@@ -91,3 +91,9 @@ CREATE INDEX IF NOT EXISTS idx_events_source ON events(source, type);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_events_delivery ON events(delivery_id) WHERE delivery_id != '';
 CREATE INDEX IF NOT EXISTS idx_events_dedup ON events(dedup_key) WHERE dedup_key != '';
 `
+
+// schemaV4 adds dedup_key to tasks for idempotent dispatch on crash recovery.
+const schemaV4 = `
+ALTER TABLE tasks ADD COLUMN dedup_key TEXT NOT NULL DEFAULT '';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_dedup ON tasks(dedup_key) WHERE dedup_key != '';
+`
