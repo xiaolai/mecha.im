@@ -3,7 +3,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "start": "bun run server.ts"
+    "start": "bun run server.ts",
+    "test": "bun test"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "latest"
