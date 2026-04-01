@@ -2,6 +2,7 @@ package serve
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -42,6 +43,14 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 
 	ev, err := src.Parse(r.Header, body)
 	if err != nil {
+		// Handle Slack url_verification challenge
+		if errors.Is(err, source.ErrSlackChallenge) {
+			if resp, ok := source.VerifyChallenge(body); ok {
+				w.Header().Set("Content-Type", "application/json")
+				w.Write(resp)
+				return
+			}
+		}
 		writeError(w, http.StatusUnauthorized, "webhook validation failed")
 		return
 	}
@@ -58,7 +67,8 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.events.Create(r.Context(), ev); err != nil {
-		if isUniqueViolation(err) {
+		if isUniqueViolation(err) || errors.Is(err, event.ErrDuplicateDedup) {
+			eventsDedupSkip.Add(1)
 			writeJSON(w, http.StatusOK, map[string]string{"status": "duplicate"})
 			return
 		}

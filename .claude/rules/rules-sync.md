@@ -20,7 +20,12 @@ in the same commit.
 | `internal/worker/types.go` (State enum) | `worker-design.md` — state machine |
 | `internal/worker/redact.go` (patterns) | `secrets.md` — redaction patterns list |
 | `internal/source/source.go` (interfaces) | `domain-model.md` — provider interfaces table |
+| `internal/source/slack.go` (Slack source) | `secrets.md` — Slack signing_secret field |
+| `internal/source/telegram.go` (Telegram source) | `secrets.md` — Telegram secret_token field |
+| `internal/source/gitlab_respond.go` (responder) | `domain-model.md` — responder capabilities |
 | `internal/event/types.go` (Event struct) | `domain-model.md` — event model fields |
+| `internal/event/dedup.go` (dedup enforcement) | `domain-model.md` — DedupKey description |
+| `internal/task/retry.go` (retry logic) | `domain-model.md` — Task verbs |
 | `internal/policy/result.go` (Result struct) | `result-contract.md` — JSON example |
 | `internal/adapter/*.go` (adapter types) | `worker-design.md` — adapter section |
 | `internal/cli/helpers.go` (reserved env vars) | `security.md` — reserved keys list |

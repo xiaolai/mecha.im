@@ -36,9 +36,10 @@ func scanTask(s scanner) (*Task, error) {
 	var state, result, errMsg string
 	var taskCtx, eventID, dedupKey sql.NullString
 	var createdAt, updatedAt int64
-	var dispatchedAt, completedAt sql.NullInt64
+	var dispatchedAt, completedAt, nextRetryAt sql.NullInt64
 	err := s.Scan(&t.ID, &t.WorkerName, &t.Prompt, &taskCtx, &eventID, &dedupKey,
-		&state, &result, &errMsg, &createdAt, &updatedAt, &dispatchedAt, &completedAt)
+		&state, &result, &errMsg, &t.Attempts, &t.MaxRetries,
+		&nextRetryAt, &createdAt, &updatedAt, &dispatchedAt, &completedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("task not found")
@@ -56,6 +57,10 @@ func scanTask(s scanner) (*Task, error) {
 	}
 	if dedupKey.Valid {
 		t.DedupKey = dedupKey.String
+	}
+	if nextRetryAt.Valid {
+		nra := time.Unix(nextRetryAt.Int64, 0)
+		t.NextRetryAt = &nra
 	}
 	t.CreatedAt = time.Unix(createdAt, 0)
 	t.UpdatedAt = time.Unix(updatedAt, 0)

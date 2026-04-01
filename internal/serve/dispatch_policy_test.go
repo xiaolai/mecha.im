@@ -453,11 +453,24 @@ func TestDoWriteBack_SendError_EventFailed(t *testing.T) {
 	w := &worker.Worker{Name: "send-fail-w", Endpoint: "http://127.0.0.1:1"}
 	taskID, eventID := setupDispatchEvent(t, s, es, "http://127.0.0.1:1", w)
 
+	// First dispatch: transport error (connection refused) → retry with backoff.
+	// Worker is set to error state. Task goes to pending with attempts=1.
 	s.dispatchTask(context.Background(), taskID)
 
 	tk, _ := s.tasks.Get(context.Background(), taskID)
+	if tk.State != task.StatePending {
+		t.Errorf("task state after first attempt = %q, want pending (retry)", tk.State)
+	}
+	if tk.Attempts != 1 {
+		t.Errorf("task attempts = %d, want 1", tk.Attempts)
+	}
+
+	// Second dispatch: worker is in error state → permanent failure.
+	s.dispatchTask(context.Background(), taskID)
+
+	tk, _ = s.tasks.Get(context.Background(), taskID)
 	if tk.State != task.StateFailed {
-		t.Errorf("task state = %q, want failed", tk.State)
+		t.Errorf("task state after second attempt = %q, want failed", tk.State)
 	}
 
 	ev, _ := es.Get(context.Background(), eventID)

@@ -24,7 +24,7 @@ Events are provider-neutral. All provider-specific data lives in `Attrs`.
 | `Actor` | Who triggered | username, phone, bot name |
 | `Subject` | What it's about | `owner/repo`, `#channel`, `schedule-daily` |
 | `Attrs` | Provider-specific fields | `repo_owner`, `number`, `diff`, `text` |
-| `DedupKey` | Semantic dedup | Content hash for polls/cron |
+| `DedupKey` | Semantic dedup (enforced) | Content hash for polls/cron — active events block duplicates |
 
 ## Provider Interfaces
 
@@ -41,7 +41,7 @@ Events are provider-neutral. All provider-specific data lives in `Attrs`.
 
 - **Event**: arrive, match, hydrate, skip, fail
 - **Worker**: add, remove, start, stop, ls
-- **Task**: create, dispatch, complete, fail
+- **Task**: create, dispatch, complete, fail, retry
 - **Policy**: filter
 
 ## Rules

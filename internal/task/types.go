@@ -27,6 +27,9 @@ type Task struct {
 	State        State      `json:"state"`
 	Result       string     `json:"result,omitempty"`
 	ErrorMsg     string     `json:"error,omitempty"`
+	Attempts     int        `json:"attempts"`
+	MaxRetries   int        `json:"max_retries"`
+	NextRetryAt  *time.Time `json:"next_retry_at,omitempty"`
 	CreatedAt    time.Time  `json:"created_at"`
 	UpdatedAt    time.Time  `json:"updated_at"`
 	DispatchedAt *time.Time `json:"dispatched_at,omitempty"`

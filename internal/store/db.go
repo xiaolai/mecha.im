@@ -119,5 +119,22 @@ func migrate(db *sql.DB) error {
 			return err
 		}
 	}
+	if version < 5 {
+		for _, stmt := range strings.Split(schemaV5, ";") {
+			stmt = strings.TrimSpace(stmt)
+			if stmt == "" {
+				continue
+			}
+			if _, err := db.Exec(stmt); err != nil {
+				if strings.Contains(err.Error(), "duplicate column") {
+					continue
+				}
+				return fmt.Errorf("apply schema v5: %w", err)
+			}
+		}
+		if _, err := db.Exec("PRAGMA user_version = 5"); err != nil {
+			return err
+		}
+	}
 	return nil
 }

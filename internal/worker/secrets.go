@@ -19,6 +19,12 @@ type Secrets struct {
 	GitLab struct {
 		WebhookSecret string `yaml:"webhook_secret"`
 	} `yaml:"gitlab"`
+	Slack struct {
+		SigningSecret string `yaml:"signing_secret"`
+	} `yaml:"slack"`
+	Telegram struct {
+		SecretToken string `yaml:"secret_token"`
+	} `yaml:"telegram"`
 }
 
 // LoadSecrets reads a secrets YAML file. Returns empty secrets if file doesn't exist.

@@ -35,6 +35,13 @@ Write-back is routed through the Responder registry, keyed by target platform:
 - Dispatch tries Responder registry first, falls back to legacy writeback
 - Responder is looked up by `ev.Source` (e.g., GitHub events use the GitHub responder)
 
+## Task Retry
+
+Transport errors (connection refused, timeout, DNS failure) trigger automatic retry
+with exponential backoff (30s, 60s, 120s). Tasks that exceed `max_retries` (default: 3)
+are dead-lettered (permanently failed). Non-transport errors (4xx, invalid response)
+fail immediately without retry.
+
 ## Rules
 
 - Result and side effects are one thing. No separate "action" phase.
@@ -42,3 +49,4 @@ Write-back is routed through the Responder registry, keyed by target platform:
 - A completed task means its result has already been written back.
 - The worker decides what to return. Policy decides what gets through.
 - Responder is looked up by `ev.Source`. Target override is planned but not yet implemented.
+- Failed tasks with retry attempts remaining are re-queued with exponential backoff.
