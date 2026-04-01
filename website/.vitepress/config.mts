@@ -53,6 +53,7 @@ export default withMermaid({
           text: 'Configuration',
           items: [
             { text: 'Workers', link: '/guide/workers' },
+            { text: 'Adapter Workers', link: '/guide/adapters' },
             { text: 'Dual-Agent Workers', link: '/guide/dual-agent' },
             { text: 'Secrets', link: '/guide/secrets' },
             { text: 'Events & Webhooks', link: '/guide/events' },
@@ -64,6 +65,7 @@ export default withMermaid({
           items: [
             { text: 'CLI', link: '/guide/cli' },
             { text: 'Server', link: '/guide/server' },
+            { text: 'MCP Server', link: '/guide/mcp-server' },
             { text: 'API', link: '/guide/api' },
             { text: 'Architecture', link: '/guide/architecture' },
             { text: 'Go API', link: '/guide/go-api' },
