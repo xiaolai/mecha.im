@@ -8,7 +8,7 @@ description: Run Claude and Codex together in a single worker for cross-model co
 Mecha supports running Claude and Codex together in a single Docker container. Claude acts as the primary agent, with Codex available as an MCP tool for second opinions, web search, and alternative implementations.
 
 ::: tip
-Set `CODEX_API_KEY` or `CODEX_MCP=true` in your worker's `docker.env` to enable. The Claude backend automatically spawns `codex mcp-server` as a stdio child process.
+Add `codex` to `docker.credentials` to enable. The Claude backend auto-detects `~/.codex/auth.json` in the container and spawns `codex mcp-server` as a stdio child process. API key users can set `CODEX_MCP: "true"` + `CODEX_API_KEY` in `docker.env` instead.
 :::
 
 ## Why Two Models?
@@ -60,7 +60,7 @@ The system prompt tells Claude when and how to use them.
 name: claude-with-codex
 docker:
   image: mecha-worker:latest
-  credentials: [claude]                  # Claude subscription auth
+  credentials: [claude, codex]           # mount both CLI credentials
   cwd: /path/to/project
   resources:
     cpu: 4
@@ -69,7 +69,6 @@ docker:
     CLAUDE_MODEL: claude-sonnet-4-6
     CLAUDE_EFFORT: high
     CLAUDE_PERMISSION_MODE: bypassPermissions
-    CODEX_API_KEY: ${CODEX_KEY}          # enables Codex MCP
     CLAUDE_SYSTEM_PROMPT: |
       You are a code review agent. Use your built-in tools for file access.
       When you need a second opinion or web search, use the Codex MCP tools.
@@ -82,20 +81,19 @@ Setting `CODEX_API_KEY` automatically enables the Codex MCP server. Claude's sys
 
 Both models need their own credentials:
 
-| Model | Auth method | How |
+| Model | Auth method (preferred) | How |
 |---|---|---|
-| Claude | Subscription | `credentials: [claude]` (mounts `~/.claude/`) or `token: claude.name` |
-| Codex | API key | `CODEX_API_KEY` in `docker.env` or `token: codex.name` |
-| Codex | Subscription | `credentials: [codex]` (mounts `~/.codex/`) + set `CODEX_MCP: "true"` |
+| Claude | Subscription | `credentials: [claude]` (mounts `~/.claude/`) |
+| Codex | Subscription | `credentials: [codex]` (mounts `~/.codex/auth.json`) |
 
-If using credential mounts for both:
+The backend auto-detects `~/.codex/auth.json` when credentials are mounted — no extra env vars needed.
 
 ```yaml
 docker:
-  credentials: [claude]
-  env:
-    CODEX_MCP: "true"    # enable Codex MCP using mounted credentials
+  credentials: [claude, codex]    # both subscription credentials
 ```
+
+For API key users (no subscription), set `CODEX_MCP: "true"` and `CODEX_API_KEY` in `docker.env` instead.
 
 ## Request Flow
 
@@ -130,11 +128,10 @@ Claude decides when to consult Codex. It might never call Codex if the task is s
 name: dual-reviewer
 docker:
   image: mecha-worker:latest
-  credentials: claude
+  credentials: [claude, codex]
   cwd: /path/to/project
   env:
     CLAUDE_MODEL: claude-sonnet-4-6
-    CODEX_API_KEY: ${CODEX_KEY}
     CLAUDE_SYSTEM_PROMPT: |
       Review the PR diff for bugs, security issues, and code quality.
       After your review, use the Codex tool to get an independent review
@@ -170,8 +167,7 @@ Use separate workers when:
 
 | Env var | Purpose | Default |
 |---|---|---|
-| `CODEX_API_KEY` | Codex API key — also enables MCP wiring | — |
-| `CODEX_MCP` | Enable Codex MCP without API key (use credential mount) | `"false"` |
-| `CODEX_MCP_MODEL` | Override model for Codex sessions | Codex default |
+| `CODEX_MCP` | Force-enable Codex MCP (not needed if `~/.codex/auth.json` is mounted) | auto-detected |
+| `CODEX_API_KEY` | Codex API key for non-subscription users | — |
 
 All standard [Claude env vars](/guide/workers#claude-env-vars) are also supported.

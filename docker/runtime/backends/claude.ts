@@ -2,7 +2,12 @@ import { query } from "@anthropic-ai/claude-agent-sdk";
 import type { TaskResponse } from "../types";
 
 const TIMEOUT_MS = parseInt(process.env.WORKER_TIMEOUT || "600000") || 600000;
-const CODEX_MCP_ENABLED = !!(process.env.CODEX_API_KEY || process.env.CODEX_MCP === "true");
+// Codex MCP is enabled when:
+// 1. Subscription credentials are mounted (~/.codex/auth.json exists), or
+// 2. Explicitly set via CODEX_MCP=true (for API key users who set CODEX_API_KEY in env)
+import { existsSync } from "node:fs";
+const CODEX_CRED_PATH = `${process.env.HOME || "/home/worker"}/.codex/auth.json`;
+const CODEX_MCP_ENABLED = process.env.CODEX_MCP === "true" || existsSync(CODEX_CRED_PATH);
 const CODEX_MCP_TOOLS = ["mcp__codex__codex", "mcp__codex__codex-reply", "mcp__codex__websearch"];
 
 if (CODEX_MCP_ENABLED) {
@@ -41,10 +46,13 @@ export async function executeTask(prompt: string): Promise<TaskResponse> {
 
   // Wire Codex as an MCP server if enabled
   if (CODEX_MCP_ENABLED) {
+    // Inherit HOME so Codex finds ~/.codex/auth.json (subscription credentials)
+    // and PATH so it can locate the codex binary.
     const codexEnv: Record<string, string> = {
       HOME: process.env.HOME || "/home/worker",
       PATH: process.env.PATH || "/usr/local/bin:/usr/bin:/bin",
     };
+    // API key users can still set CODEX_API_KEY directly
     if (process.env.CODEX_API_KEY) codexEnv.CODEX_API_KEY = process.env.CODEX_API_KEY;
 
     options.mcpServers = {
