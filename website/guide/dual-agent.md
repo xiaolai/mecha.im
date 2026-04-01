@@ -8,7 +8,7 @@ description: Run Claude and Codex together in a single worker for cross-model co
 Mecha supports running Claude and Codex together in a single Docker container. Claude acts as the primary agent, with Codex available as an MCP tool for second opinions, web search, and alternative implementations.
 
 ::: tip
-Add `codex` to `docker.credentials` to enable. The Claude backend auto-detects `~/.codex/auth.json` in the container and spawns `codex mcp-server` as a stdio child process. API key users can set `CODEX_MCP: "true"` + `CODEX_API_KEY` in `docker.env` instead.
+Add `codex` to `docker.credentials` to enable. The Claude backend auto-detects `~/.codex/auth.json` in the container and spawns `codex mcp-server` as a stdio child process. API key users can set `CODEX_API_KEY` in `docker.env` instead — auto-detection kicks in when either credential file or API key is present.
 :::
 
 ## Why Two Models?
@@ -75,8 +75,6 @@ docker:
 timeout: 30m
 ```
 
-Setting `CODEX_API_KEY` automatically enables the Codex MCP server. Claude's system prompt guides when to use it.
-
 ## Authentication
 
 Both models need their own credentials:
@@ -93,7 +91,7 @@ docker:
   credentials: [claude, codex]    # both subscription credentials
 ```
 
-For API key users (no subscription), set `CODEX_MCP: "true"` and `CODEX_API_KEY` in `docker.env` instead.
+For API key users (no subscription), set `CODEX_API_KEY` in `docker.env` — the backend auto-enables Codex MCP when an API key is detected.
 
 ## Request Flow
 
