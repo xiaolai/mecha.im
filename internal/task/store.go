@@ -55,20 +55,20 @@ func (s *Store) CreateWithEvent(ctx context.Context, workerName, prompt, taskCtx
 	}, nil
 }
 
+const taskColumns = `id, worker_name, prompt, context, event_id, dedup_key,
+	state, result, error_msg, attempts, max_retries, next_retry_at,
+	created_at, updated_at, dispatched_at, completed_at`
+
 // Get retrieves a task by ID.
 func (s *Store) Get(ctx context.Context, id string) (*Task, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT id, worker_name, prompt, context, event_id, dedup_key, state, result, error_msg,
-		        created_at, updated_at, dispatched_at, completed_at
-		 FROM tasks WHERE id = ?`, id)
+		`SELECT `+taskColumns+` FROM tasks WHERE id = ?`, id)
 	return scanTask(row)
 }
 
 // List returns all tasks, optionally filtered by state.
 func (s *Store) List(ctx context.Context, state string) ([]Task, error) {
-	query := `SELECT id, worker_name, prompt, context, event_id, dedup_key, state, result, error_msg,
-	                  created_at, updated_at, dispatched_at, completed_at
-	           FROM tasks`
+	query := `SELECT ` + taskColumns + ` FROM tasks`
 	var args []any
 	if state != "" {
 		query += " WHERE state = ?"

@@ -97,3 +97,11 @@ const schemaV4 = `
 ALTER TABLE tasks ADD COLUMN dedup_key TEXT NOT NULL DEFAULT '';
 CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_dedup ON tasks(dedup_key) WHERE dedup_key != '';
 `
+
+// schemaV5 adds retry tracking to tasks and dedup enforcement index to events.
+const schemaV5 = `
+ALTER TABLE tasks ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE tasks ADD COLUMN max_retries INTEGER NOT NULL DEFAULT 3;
+ALTER TABLE tasks ADD COLUMN next_retry_at INTEGER;
+CREATE INDEX IF NOT EXISTS idx_tasks_retry ON tasks(state, next_retry_at) WHERE state = 'pending' AND next_retry_at IS NOT NULL;
+`

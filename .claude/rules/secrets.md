@@ -25,6 +25,16 @@ tokens:
 
 github:
   token: ghp_xxx...
+  webhook_secret: whsec_xxx...
+
+gitlab:
+  webhook_secret: glsec_xxx...
+
+slack:
+  signing_secret: abc123def456...
+
+telegram:
+  secret_token: tgsec_xxx...
 ```
 
 ## Auth Strategy

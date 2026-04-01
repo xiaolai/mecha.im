@@ -8,16 +8,19 @@ import (
 
 // Metrics exposed via expvar at /debug/vars (stdlib, zero dependencies).
 var (
-	tasksCreated    = expvar.NewInt("tasks_created")
-	tasksCompleted  = expvar.NewInt("tasks_completed")
-	tasksFailed     = expvar.NewInt("tasks_failed")
-	tasksRecovered  = expvar.NewInt("tasks_recovered")
-	tasksDedupSkip  = expvar.NewInt("tasks_dedup_skipped")
-	dispatchLatency = expvar.NewFloat("dispatch_latency_ms_avg")
-	queueDepth      = expvar.NewInt("queue_depth")
+	tasksCreated     = expvar.NewInt("tasks_created")
+	tasksCompleted   = expvar.NewInt("tasks_completed")
+	tasksFailed      = expvar.NewInt("tasks_failed")
+	tasksRecovered   = expvar.NewInt("tasks_recovered")
+	tasksRetried     = expvar.NewInt("tasks_retried")
+	tasksDedupSkip   = expvar.NewInt("tasks_dedup_skipped")
+	tasksRateLimited = expvar.NewInt("tasks_rate_limited")
+	dispatchLatency  = expvar.NewFloat("dispatch_latency_ms_avg")
+	queueDepth       = expvar.NewInt("queue_depth")
 	webhooksReceived = expvar.NewInt("webhooks_received")
-	writebackOK     = expvar.NewInt("writeback_ok")
-	writebackFail   = expvar.NewInt("writeback_fail")
+	writebackOK      = expvar.NewInt("writeback_ok")
+	writebackFail    = expvar.NewInt("writeback_fail")
+	eventsDedupSkip  = expvar.NewInt("events_dedup_skipped")
 )
 
 // latencyTracker keeps a running average of dispatch latency (thread-safe).

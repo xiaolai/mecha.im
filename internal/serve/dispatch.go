@@ -50,6 +50,7 @@ func (s *Server) dispatchLoop(ctx context.Context) {
 }
 
 func (s *Server) dispatchTask(ctx context.Context, taskID string) {
+	queueDepth.Add(-1) // consumed from pending channel
 	t, err := s.tasks.Get(ctx, taskID)
 	if err != nil {
 		s.logger.Error("dispatch: get task", "id", taskID, "err", err)
@@ -79,6 +80,7 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 		if err := s.tasks.Fail(ctx, taskID, fmt.Sprintf("worker %q not available (state: %s)", t.WorkerName, entry.State)); err != nil {
 			s.logger.Error("dispatch: fail task", "id", taskID, "err", err)
 		}
+		s.completeEvent(ctx, t.EventID, false)
 		s.logger.Warn("dispatch: worker unavailable", "id", taskID, "worker", t.WorkerName, "state", entry.State)
 		return
 	}
@@ -111,6 +113,22 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 		}
 	}()
 
+	// Rate limit check — re-queue if worker is throttled
+	if s.limiter != nil && !s.limiter.Allow(t.WorkerName) {
+		tasksRateLimited.Add(1)
+		workerRestored = true
+		if onlineErr := s.reg.SetOnline(t.WorkerName); onlineErr != nil {
+			s.logger.Warn("dispatch: set online after rate limit", "id", taskID, "err", onlineErr)
+		}
+		select {
+		case s.pending <- taskID:
+			s.logger.Info("dispatch: rate limited, re-queued", "id", taskID, "worker", t.WorkerName)
+		default:
+			s.logger.Warn("dispatch: rate limited and queue full", "id", taskID)
+		}
+		return
+	}
+
 	// Send task to worker (include API key if configured)
 	apiKey := ""
 	if entry.Worker.Docker != nil {
@@ -119,21 +137,36 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 	result, err := s.sendTask(ctx, ep, taskID, t.Prompt, entry.Worker.Timeout, apiKey)
 	if err != nil {
 		redacted := worker.RedactSecrets(err.Error())
-		if failErr := s.tasks.Fail(ctx, taskID, redacted); failErr != nil {
-			s.logger.Error("dispatch: fail task after send error", "id", taskID, "err", failErr)
-		}
-		workerRestored = true
+		// Retry transient errors; permanently fail the rest.
 		if isTransportError(err) {
+			retried, retryErr := s.tasks.RetryOrFail(ctx, taskID, redacted)
+			if retryErr != nil {
+				s.logger.Error("dispatch: retry-or-fail", "id", taskID, "err", retryErr)
+			}
+			if retried {
+				tasksRetried.Add(1)
+				s.logger.Info("dispatch: task queued for retry", "id", taskID, "worker", t.WorkerName)
+			} else {
+				tasksFailed.Add(1)
+				s.completeEvent(ctx, t.EventID, false)
+				s.logger.Error("dispatch: task dead-lettered", "id", taskID, "err", redacted)
+			}
+			workerRestored = true
 			if setErr := s.reg.SetError(t.WorkerName, redacted); setErr != nil {
 				s.logger.Error("dispatch: set worker error state", "worker", t.WorkerName, "err", setErr)
 			}
-		} else if onlineErr := s.reg.SetOnline(t.WorkerName); onlineErr != nil {
-			s.logger.Warn("dispatch: set online after failure", "id", taskID, "err", onlineErr)
+		} else {
+			if failErr := s.tasks.Fail(ctx, taskID, redacted); failErr != nil {
+				s.logger.Error("dispatch: fail task after send error", "id", taskID, "err", failErr)
+			}
+			workerRestored = true
+			if onlineErr := s.reg.SetOnline(t.WorkerName); onlineErr != nil {
+				s.logger.Warn("dispatch: set online after failure", "id", taskID, "err", onlineErr)
+			}
+			tasksFailed.Add(1)
+			s.completeEvent(ctx, t.EventID, false)
+			s.logger.Error("dispatch: send failed", "id", taskID, "err", redacted)
 		}
-		tasksFailed.Add(1)
-		// Update event on failure
-		s.completeEvent(ctx, t.EventID, false)
-		s.logger.Error("dispatch: send failed", "id", taskID, "err", redacted)
 		return
 	}
 
@@ -166,5 +199,3 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 	latency.observe(time.Since(dispatchStart))
 	s.logger.Info("task completed", "id", taskID, "worker", t.WorkerName)
 }
-
-

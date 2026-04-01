@@ -2,13 +2,11 @@ package serve
 
 import (
 	"context"
-	"crypto/subtle"
 	"expvar"
 	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
-	"strings"
 	"time"
 
 	"mecha.im/internal/event"
@@ -26,6 +24,7 @@ type Server struct {
 	sources   *source.Registry
 	writeback *writeback.Client
 	docker    *worker.DockerClient
+	limiter   *RateLimiter
 	pending   chan string
 	addr      string
 	apiKey    string
@@ -41,6 +40,7 @@ type Config struct {
 	Sources   *source.Registry
 	WriteBack *writeback.Client
 	Docker    *worker.DockerClient
+	Limiter   *RateLimiter
 	Addr      string
 	APIKey    string
 	Logger    *slog.Logger
@@ -61,6 +61,7 @@ func New(cfg Config) *Server {
 		sources:   cfg.Sources,
 		writeback: cfg.WriteBack,
 		docker:    cfg.Docker,
+		limiter:   cfg.Limiter,
 		pending:   make(chan string, 256),
 		addr:      cfg.Addr,
 		apiKey:    cfg.APIKey,
@@ -73,6 +74,7 @@ func New(cfg Config) *Server {
 	mux.HandleFunc("GET /workers", s.handleListWorkers)
 	mux.HandleFunc("GET /health", s.handleHealth)
 	mux.Handle("GET /debug/vars", expvar.Handler())
+	mux.HandleFunc("GET /metrics", prometheusHandler())
 	if s.sources != nil && s.events != nil {
 		mux.HandleFunc("POST /webhook/{source}", s.handleWebhook)
 		mux.HandleFunc("GET /webhook/{source}", s.handleWebhook)
@@ -95,6 +97,17 @@ func New(cfg Config) *Server {
 func (s *Server) Start(ctx context.Context) error {
 	// Start dispatch loop first so recovered tasks are consumed
 	go s.dispatchLoop(ctx)
+
+	// Start retry loop — re-enqueues failed tasks after backoff
+	go s.retryLoop(ctx)
+
+	// Start rate limiter cleanup — prevents unbounded bucket growth
+	if s.limiter != nil {
+		go s.limiterCleanupLoop(ctx)
+	}
+
+	// Start pending scan — catches orphaned tasks not in the channel
+	go s.pendingLoop(ctx)
 
 	// Start reconciliation loop — detects registry/Docker state drift
 	if s.docker != nil {
@@ -195,39 +208,3 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 }
 
-func (s *Server) authMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// /health is always public for load-balancer probes.
-		if r.URL.Path == "/health" {
-			next.ServeHTTP(w, r)
-			return
-		}
-		// No API key configured → all endpoints open (operator's choice).
-		if s.apiKey == "" {
-			next.ServeHTTP(w, r)
-			return
-		}
-		// Webhook paths: only skip API key auth if the source has its own
-		// auth (HMAC signature, token validation). Sources without auth
-		// (like GenericSource) must pass the API key check.
-		if strings.HasPrefix(r.URL.Path, "/webhook/") && s.sources != nil {
-			sourceName := strings.TrimPrefix(r.URL.Path, "/webhook/")
-			if src, ok := s.sources.Get(sourceName); ok {
-				if _, hasAuth := src.(source.Authenticated); hasAuth {
-					next.ServeHTTP(w, r)
-					return
-				}
-			}
-		}
-		auth := r.Header.Get("Authorization")
-		key := r.Header.Get("X-API-Key")
-		expected := []byte(s.apiKey)
-		bearerMatch := subtle.ConstantTimeCompare([]byte(strings.TrimPrefix(auth, "Bearer ")), expected) == 1
-		keyMatch := subtle.ConstantTimeCompare([]byte(key), expected) == 1
-		if bearerMatch || keyMatch {
-			next.ServeHTTP(w, r)
-			return
-		}
-		writeError(w, http.StatusUnauthorized, "unauthorized")
-	})
-}

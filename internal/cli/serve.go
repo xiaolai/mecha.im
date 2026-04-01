@@ -78,6 +78,16 @@ func serveCmd() *cobra.Command {
 				logger.Info("gitlab source registered")
 			}
 
+			if slackSecret := secrets.Slack.SigningSecret; slackSecret != "" {
+				sources.Register(source.NewSlackSource(slackSecret))
+				logger.Info("slack source registered")
+			}
+
+			if tgSecret := secrets.Telegram.SecretToken; tgSecret != "" {
+				sources.Register(source.NewTelegramSource(tgSecret))
+				logger.Info("telegram source registered")
+			}
+
 			// Write-back client + responder registration
 			var wb *writeback.Client
 			if ghToken != "" {
@@ -85,12 +95,16 @@ func serveCmd() *cobra.Command {
 				sources.RegisterResponder(wb)
 			}
 
+			// Rate limiter: 2 req/s per worker, burst of 5
+			limiter := serve.NewRateLimiter(2.0, 5)
+
 			srv := serve.New(serve.Config{
 				Registry:  reg,
 				Tasks:     tasks,
 				Events:    events,
 				Sources:   sources,
 				WriteBack: wb,
+				Limiter:   limiter,
 				Addr:      addr,
 				APIKey:    apiKey,
 				Logger:    logger,

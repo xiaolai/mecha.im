@@ -4,9 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 )
+
+// ErrDuplicateDedup is returned when an event with the same dedup_key is
+// already active (received, matched, or dispatched).
+var ErrDuplicateDedup = errors.New("duplicate dedup key: active event exists")
 
 // Store manages event persistence in SQLite.
 type Store struct {
@@ -22,7 +27,21 @@ const eventColumns = `id, delivery_id, dedup_key, source, type, actor, subject,
 	attrs, raw, state, worker_name, task_id, created_at, updated_at`
 
 // Create persists a new event in received state.
+// If the event has a non-empty DedupKey and an active event with the same key
+// exists, returns ErrDuplicateDedup.
+//
+// Safety: The check-then-insert is serialized by SQLite's MaxOpenConns(1).
+// If migrating to a concurrent database, wrap in a transaction.
 func (s *Store) Create(ctx context.Context, ev *Event) error {
+	if ev.DedupKey != "" {
+		active, err := s.DedupKeyActive(ctx, ev.DedupKey)
+		if err != nil {
+			return fmt.Errorf("dedup check: %w", err)
+		}
+		if active {
+			return ErrDuplicateDedup
+		}
+	}
 	if ev.ID == "" {
 		id, err := genID()
 		if err != nil {
@@ -153,26 +172,6 @@ func (s *Store) SetSkipped(ctx context.Context, id string) error {
 		"UPDATE events SET state = ?, updated_at = ? WHERE id = ? AND state = ?")
 }
 
-// Received returns IDs of events stuck in received state (for crash recovery).
-func (s *Store) Received(ctx context.Context) ([]string, error) {
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT id FROM events WHERE state = ? ORDER BY created_at`,
-		string(StateReceived),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("query received: %w", err)
-	}
-	defer rows.Close()
-	var ids []string
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		ids = append(ids, id)
-	}
-	return ids, rows.Err()
-}
 
 func (s *Store) transition(ctx context.Context, id string, from, to State, query string) error {
 	now := time.Now().Unix()
