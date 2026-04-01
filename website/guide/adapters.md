@@ -123,8 +123,9 @@ Adapters are compiled-in Go packages implementing the `adapter.Adapter` interfac
 
 ```go
 type Adapter interface {
+    Name() string
     Health(ctx context.Context) error
-    Execute(ctx context.Context, prompt string) (policy.Result, error)
+    SendTask(ctx context.Context, prompt string) ([]byte, error)
 }
 ```
 

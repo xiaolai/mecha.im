@@ -90,6 +90,7 @@ Worker configuration, Docker lifecycle, registry, secrets, and health checking.
 | Function | Description |
 |----------|-------------|
 | `BuildContainerEnv(dc, validate) (map, error)` | Assemble env vars: resolve token from secrets, merge `docker.env`, set HOME |
+| `ResolveCwd(cwd) (string, error)` | Canonicalize cwd: resolve symlinks, make absolute, verify dir exists |
 | `BuildContainerMounts(dc) ([]MountCfg, error)` | Resolve `docker.cwd` into a bind mount at `/workspace` |
 | `CurrentUser() (string, error)` | Returns `"uid:gid"` for the container `--user` flag |
 
