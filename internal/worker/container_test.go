@@ -107,6 +107,124 @@ func TestBuildContainerMountsSymlink(t *testing.T) {
 	}
 }
 
+func TestBuildContainerMountsCredentialsSingle(t *testing.T) {
+	tests := []struct {
+		name   string
+		cred   string
+		target string
+	}{
+		{"claude", "claude", "/home/worker/.claude"},
+		{"codex", "codex", "/home/worker/.codex"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			home, _ := os.UserHomeDir()
+			hostDir := filepath.Join(home, "."+tt.name)
+			if _, err := os.Stat(hostDir); err != nil {
+				t.Skipf("%s not found on host", hostDir)
+			}
+			dc := &DockerConfig{Credentials: []string{tt.cred}}
+			mounts, err := BuildContainerMounts(dc)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(mounts) != 1 {
+				t.Fatalf("got %d mounts, want 1", len(mounts))
+			}
+			if mounts[0].Target != tt.target {
+				t.Errorf("target = %q, want %q", mounts[0].Target, tt.target)
+			}
+			if !mounts[0].ReadOnly {
+				t.Error("credential mount should be read-only")
+			}
+		})
+	}
+}
+
+func TestBuildContainerMountsCredentialsDual(t *testing.T) {
+	home, _ := os.UserHomeDir()
+	for _, dir := range []string{".claude", ".codex"} {
+		if _, err := os.Stat(filepath.Join(home, dir)); err != nil {
+			t.Skipf("%s not found on host", dir)
+		}
+	}
+	dc := &DockerConfig{Credentials: []string{"claude", "codex"}}
+	mounts, err := BuildContainerMounts(dc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(mounts) != 2 {
+		t.Fatalf("got %d mounts, want 2", len(mounts))
+	}
+	if mounts[0].Target != "/home/worker/.claude" {
+		t.Errorf("first target = %q", mounts[0].Target)
+	}
+	if mounts[1].Target != "/home/worker/.codex" {
+		t.Errorf("second target = %q", mounts[1].Target)
+	}
+}
+
+func TestBuildContainerMountsCredentialsMissing(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	dc := &DockerConfig{Credentials: []string{"codex"}}
+	_, err := BuildContainerMounts(dc)
+	if err == nil {
+		t.Error("expected error for missing credential dir")
+	}
+}
+
+func TestBuildContainerMountsCredentialsInvalid(t *testing.T) {
+	dc := &DockerConfig{Credentials: []string{"invalid"}}
+	_, err := BuildContainerMounts(dc)
+	if err == nil {
+		t.Error("expected error for invalid backend")
+	}
+}
+
+func TestBuildContainerMountsCwdPlusCredentials(t *testing.T) {
+	home, _ := os.UserHomeDir()
+	if _, err := os.Stat(filepath.Join(home, ".claude")); err != nil {
+		t.Skip(".claude not found on host")
+	}
+	dir := t.TempDir()
+	dc := &DockerConfig{Cwd: dir, Credentials: []string{"claude"}}
+	mounts, err := BuildContainerMounts(dc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(mounts) != 2 {
+		t.Fatalf("got %d mounts, want 2", len(mounts))
+	}
+	if mounts[0].Target != "/workspace" {
+		t.Errorf("first mount target = %q", mounts[0].Target)
+	}
+	if mounts[1].Target != "/home/worker/.claude" {
+		t.Errorf("second mount target = %q", mounts[1].Target)
+	}
+}
+
+func TestBuildContainerEnvCredentialsHome(t *testing.T) {
+	dc := &DockerConfig{Credentials: []string{"codex"}}
+	env, err := BuildContainerEnv(dc, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if env["HOME"] != "/home/worker" {
+		t.Errorf("HOME = %q, want /home/worker", env["HOME"])
+	}
+}
+
+func TestBuildContainerEnvNoCredentialsHome(t *testing.T) {
+	dc := &DockerConfig{}
+	env, err := BuildContainerEnv(dc, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if env["HOME"] != "/tmp" {
+		t.Errorf("HOME = %q, want /tmp", env["HOME"])
+	}
+}
+
 func TestBuildContainerMountsBadPath(t *testing.T) {
 	dc := &DockerConfig{Cwd: "/nonexistent/path"}
 	_, err := BuildContainerMounts(dc)

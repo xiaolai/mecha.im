@@ -109,7 +109,7 @@ Show resolved worker configuration as YAML.
 $ mecha config reviewer
 name: reviewer
 docker:
-  image: mecha-worker-claude:latest
+  image: mecha-worker:latest
   lifecycle: persistent
   env:
     CLAUDE_MODEL: claude-sonnet-4-6
@@ -142,7 +142,7 @@ Workers (2 registered)
   claude-reviewer (managed)
     [ok]   cwd /home/user/project exists
     [ok]   token claude.xiaolaidev resolves
-    [ok]   image mecha-worker-claude:latest available
+    [ok]   image mecha-worker:latest available
   ollama-local (adapter)
     [!!]   upstream http://localhost:11434 unreachable
 

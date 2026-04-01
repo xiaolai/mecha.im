@@ -1,11 +1,5 @@
-import type { TaskRequest, TaskResponse, BackendCommand, BackendExecutor } from "./types";
+import type { TaskRequest, TaskResponse, BackendExecutor } from "./types";
 
-const VALID_BACKENDS = ["claude", "codex", "gemini"];
-const BACKEND = process.env.WORKER_BACKEND || "claude";
-if (!VALID_BACKENDS.includes(BACKEND)) {
-  console.error(`fatal: WORKER_BACKEND="${BACKEND}" is not valid (must be one of: ${VALID_BACKENDS.join(", ")})`);
-  process.exit(1);
-}
 const PORT = parseInt(process.env.WORKER_PORT || "8081") || 8081;
 const TIMEOUT_MS = parseInt(process.env.WORKER_TIMEOUT || "600000") || 600000;
 const MAX_BODY_BYTES = 10 * 1024 * 1024; // 10MB
@@ -13,33 +7,22 @@ const DRY_RUN = process.env.WORKER_DRY_RUN === "true";
 const API_KEY = process.env.WORKER_API_KEY || "";
 
 let busy = false;
+let executor: BackendExecutor;
 
-// SDK-based backends export executeTask(). CLI-based export buildCommand().
-let sdkExecutor: BackendExecutor | null = null;
-let cliBuilder: ((prompt: string) => BackendCommand) | null = null;
-
-async function loadBackend() {
-  try {
-    const mod = await import(`./backends/${BACKEND}.ts`);
-    if (mod.executeTask) {
-      sdkExecutor = mod.executeTask;
-    } else if (mod.buildCommand) {
-      cliBuilder = mod.buildCommand;
-    } else {
-      console.error(`fatal: backend "${BACKEND}" exports neither executeTask nor buildCommand`);
-      process.exit(1);
-    }
-  } catch (err) {
-    console.error(`fatal: failed to load backend "${BACKEND}": ${err}`);
+try {
+  const mod = await import("./backends/claude.ts");
+  if (!mod.executeTask) {
+    console.error("fatal: claude backend does not export executeTask");
     process.exit(1);
   }
+  executor = mod.executeTask;
+} catch (err) {
+  console.error(`fatal: failed to load claude backend: ${err}`);
+  process.exit(1);
 }
 
-await loadBackend();
-
 function checkApiKey(req: Request): Response | null {
-  if (!API_KEY) return null; // no key configured, skip check
-  // Health endpoint is exempt (needed for Docker HEALTHCHECK)
+  if (!API_KEY) return null;
   const url = new URL(req.url);
   if (url.pathname === "/health") return null;
 
@@ -47,7 +30,7 @@ function checkApiKey(req: Request): Response | null {
   const apiKeyHeader = req.headers.get("x-api-key") || "";
 
   if (authHeader === `Bearer ${API_KEY}` || apiKeyHeader === API_KEY) {
-    return null; // authorized
+    return null;
   }
   return Response.json({ error: "unauthorized" }, { status: 401 });
 }
@@ -87,27 +70,12 @@ async function taskHandler(req: Request): Promise<Response> {
       return Response.json({ error: "missing prompt" }, { status: 400 });
     }
 
-    // SDK-based backend (Claude)
-    if (sdkExecutor) {
-      if (DRY_RUN) {
-        return Response.json({ dry_run: true, backend: BACKEND, prompt: body.prompt });
-      }
-      const result = await sdkExecutor(body.prompt);
-      return Response.json(result);
+    if (DRY_RUN) {
+      return Response.json({ dry_run: true, backend: "claude", prompt: body.prompt });
     }
 
-    // CLI-based backend (Codex, Gemini)
-    if (cliBuilder) {
-      const cmd = cliBuilder(body.prompt);
-
-      if (DRY_RUN) {
-        return Response.json({ dry_run: true, command: cmd.command, args: cmd.args });
-      }
-
-      return await execCLI(cmd);
-    }
-
-    return Response.json({ error: "no backend configured" }, { status: 500 });
+    const result = await executor(body.prompt);
+    return Response.json(result);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`task handler error: ${msg}`);
@@ -115,45 +83,6 @@ async function taskHandler(req: Request): Promise<Response> {
   } finally {
     busy = false;
   }
-}
-
-async function execCLI(cmd: BackendCommand): Promise<Response> {
-  const start = Date.now();
-  const proc = Bun.spawn([cmd.command, ...cmd.args], {
-    cwd: "/workspace",
-    env: process.env,
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-
-  const killTimer = setTimeout(() => {
-    proc.kill("SIGTERM");
-    setTimeout(() => proc.kill("SIGKILL"), 5000);
-  }, TIMEOUT_MS);
-
-  const [stdout, stderr] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-  ]);
-
-  clearTimeout(killTimer);
-  const exitCode = await proc.exited;
-  const durationMs = Date.now() - start;
-
-  const result: TaskResponse = {
-    output: stdout.trim(),
-    metadata: {
-      model: process.env[`${BACKEND.toUpperCase()}_MODEL`] || undefined,
-      duration_ms: durationMs,
-      exit_code: exitCode,
-    },
-  };
-
-  if (stderr.trim()) {
-    result.output += "\n\n--- stderr ---\n" + stderr.trim();
-  }
-
-  return Response.json(result);
 }
 
 const server = Bun.serve({
@@ -173,4 +102,4 @@ const server = Bun.serve({
   },
 });
 
-console.log(`mecha worker (${BACKEND}) listening on :${server.port}${API_KEY ? " [api-key enabled]" : ""}`);
+console.log(`mecha worker listening on :${server.port}${API_KEY ? " [api-key enabled]" : ""}`);

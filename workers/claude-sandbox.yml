@@ -1,6 +1,6 @@
 name: claude-sandbox
 docker:
-  image: mecha-worker-claude:latest
+  image: mecha-worker:latest
   resources:
     cpu: 4
     memory: 8G

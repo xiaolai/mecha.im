@@ -1,7 +1,8 @@
 name: codex-coder
 docker:
-  image: mecha-worker-codex:latest
+  image: mecha-worker:latest
   cwd: /path/to/project
+  credentials: codex
   resources:
     cpu: 2
     memory: 4G
@@ -10,5 +11,4 @@ docker:
     CODEX_MODEL: gpt-5.4
     CODEX_SANDBOX: workspace-write
     CODEX_FULL_AUTO: "true"
-  token: codex.default
 timeout: 30m
