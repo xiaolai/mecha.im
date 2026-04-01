@@ -26,6 +26,7 @@ if (CODEX_MCP_ENABLED) {
   console.log(`codex MCP enabled via ${method} — codex mcp-server will be spawned as child process`);
 }
 
+/** Execute a task using the Claude Agent SDK. Optionally wires Codex as an MCP child process. */
 export async function executeTask(prompt: string): Promise<TaskResponse> {
   const abortController = new AbortController();
   const timeout = setTimeout(() => abortController.abort(), TIMEOUT_MS);
@@ -128,6 +129,7 @@ export async function executeTask(prompt: string): Promise<TaskResponse> {
   }
 }
 
+/** Sum a token field across all model usage entries (multi-turn may have multiple). */
 function sumTokens(usage: Record<string, any> | undefined, field: string): number {
   if (!usage) return 0;
   return Object.values(usage).reduce((sum: number, m: any) => sum + (m[field] || 0), 0);

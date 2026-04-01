@@ -1,3 +1,4 @@
+/** Inbound task request from the mecha Go orchestrator via POST /task. */
 export interface TaskRequest {
   id: string;
   prompt: string;
@@ -10,6 +11,7 @@ export interface TaskRequest {
   };
 }
 
+/** Outbound task result — matches the Go result contract (internal/policy/result.go). All fields optional except output. */
 export interface TaskResponse {
   output: string;
   comment?: { target: string; body: string };
@@ -25,5 +27,5 @@ export interface TaskResponse {
   };
 }
 
-// SDK-based backend implements this directly
+/** Backend executor function — the Claude backend implements this via Agent SDK query(). */
 export type BackendExecutor = (prompt: string) => Promise<TaskResponse>;
