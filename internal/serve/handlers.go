@@ -96,5 +96,9 @@ func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleListWorkers(w http.ResponseWriter, r *http.Request) {
 	entries := s.reg.List()
-	writeJSON(w, http.StatusOK, entries)
+	sanitized := make([]worker.Entry, len(entries))
+	for i := range entries {
+		sanitized[i] = entries[i].Sanitized()
+	}
+	writeJSON(w, http.StatusOK, sanitized)
 }

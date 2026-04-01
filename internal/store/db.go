@@ -20,6 +20,8 @@ func Open(path string) (*sql.DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
+	// Restrict DB file permissions — contains worker definitions with env vars.
+	os.Chmod(path, 0o600)
 	db.SetMaxOpenConns(1)
 	for _, pragma := range []string{
 		"PRAGMA journal_mode=WAL",
