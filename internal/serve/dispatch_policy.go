@@ -67,17 +67,21 @@ func (s *Server) doWriteBack(ctx context.Context, taskID, eventID, workerName, r
 	if s.sources != nil {
 		if resp, ok := s.sources.GetResponder(ev.Source); ok {
 			if wbErr := resp.Respond(ctx, ev, filtered); wbErr != nil {
+				writebackFail.Add(1)
 				s.logger.Error("dispatch: responder failed", "task", taskID, "event", eventID, "source", ev.Source, "err", wbErr)
 				return false
 			}
+			writebackOK.Add(1)
 			return true
 		}
 	}
 	if s.writeback != nil {
 		if wbErr := s.writeback.WriteBackResult(ctx, ev, filtered); wbErr != nil {
+			writebackFail.Add(1)
 			s.logger.Error("dispatch: write-back failed", "task", taskID, "event", eventID, "err", wbErr)
 			return false
 		}
+		writebackOK.Add(1)
 	}
 	return true
 }

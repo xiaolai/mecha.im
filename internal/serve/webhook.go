@@ -69,8 +69,9 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusAccepted, ev)
 
+	webhooksReceived.Add(1)
 	// Match + hydrate + dispatch in background with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(withTraceID(context.Background()), 5*time.Minute)
 	go func() {
 		defer cancel()
 		defer func() {
@@ -78,6 +79,7 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 				s.logger.Error("webhook: panic in matchAndHydrate", "event", ev.ID, "panic", r)
 			}
 		}()
+		s.logger.Info("webhook: processing", "event", ev.ID, "trace", traceID(ctx))
 		s.matchAndHydrate(ctx, ev, src)
 	}()
 }
