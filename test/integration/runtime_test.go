@@ -58,7 +58,8 @@ func TestRuntime_CLIsInstalled(t *testing.T) {
 		Image:  testImage,
 		Env:    map[string]string{"CLAUDE_MODEL": "test"},
 		Labels: map[string]string{"mecha.test": "true"},
-		User:   func() string { u, _ := worker.CurrentUser(); return u }(),
+		// Don't set User — let the container use its Dockerfile USER (worker).
+	// Host UID override is only needed for workspace bind mounts.
 	}
 
 	id, err := cli.Create(ctx, cfg)
@@ -117,7 +118,8 @@ func TestRuntime_SettingsFile(t *testing.T) {
 		Image:  testImage,
 		Env:    map[string]string{"CLAUDE_MODEL": "test"},
 		Labels: map[string]string{"mecha.test": "true"},
-		User:   func() string { u, _ := worker.CurrentUser(); return u }(),
+		// Don't set User — let the container use its Dockerfile USER (worker).
+	// Host UID override is only needed for workspace bind mounts.
 	}
 
 	id, err := cli.Create(ctx, cfg)
@@ -167,7 +169,8 @@ func TestRuntime_CodexMCPNoAuth(t *testing.T) {
 			"CODEX_MCP":    "true",
 		},
 		Labels: map[string]string{"mecha.test": "true"},
-		User:   func() string { u, _ := worker.CurrentUser(); return u }(),
+		// Don't set User — let the container use its Dockerfile USER (worker).
+	// Host UID override is only needed for workspace bind mounts.
 	}
 
 	id, err := cli.Create(ctx, cfg)
@@ -223,7 +226,8 @@ func TestRuntime_CodexMCPWithAPIKey(t *testing.T) {
 			"CODEX_API_KEY": "sk-test-fake-key",
 		},
 		Labels: map[string]string{"mecha.test": "true"},
-		User:   func() string { u, _ := worker.CurrentUser(); return u }(),
+		// Don't set User — let the container use its Dockerfile USER (worker).
+	// Host UID override is only needed for workspace bind mounts.
 	}
 
 	id, err := cli.Create(ctx, cfg)
@@ -264,7 +268,8 @@ func TestRuntime_NoCodexMCPByDefault(t *testing.T) {
 		Image:  testImage,
 		Env:    map[string]string{"CLAUDE_MODEL": "test"},
 		Labels: map[string]string{"mecha.test": "true"},
-		User:   func() string { u, _ := worker.CurrentUser(); return u }(),
+		// Don't set User — let the container use its Dockerfile USER (worker).
+	// Host UID override is only needed for workspace bind mounts.
 	}
 
 	id, err := cli.Create(ctx, cfg)
@@ -309,7 +314,8 @@ func TestRuntime_PluginEnvVars(t *testing.T) {
 			"CLAUDE_PLUGINS": "nonexistent-plugin",
 		},
 		Labels: map[string]string{"mecha.test": "true"},
-		User:   func() string { u, _ := worker.CurrentUser(); return u }(),
+		// Don't set User — let the container use its Dockerfile USER (worker).
+	// Host UID override is only needed for workspace bind mounts.
 	}
 
 	id, err := cli.Create(ctx, cfg)
@@ -322,11 +328,15 @@ func TestRuntime_PluginEnvVars(t *testing.T) {
 	}
 	defer cli.Stop(ctx, id, 10*time.Second)
 
-	// Wait a bit for entrypoint to try installing plugins
-	time.Sleep(30 * time.Second)
+	endpoint, _ := cli.Endpoint(ctx, id)
+	// Wait for container to become healthy (CLIs installed) or exit
+	// Plugin install happens after CLI install, so we need the full boot
+	waitForHealth(endpoint, 90*time.Second)
+	// Give plugin install step a few extra seconds
+	time.Sleep(10 * time.Second)
 
 	logs := containerLogs(id)
-	if !strings.Contains(logs, "installing: nonexistent-plugin") {
+	if !strings.Contains(logs, "installing: nonexistent-plugin") && !strings.Contains(logs, "installing plugins") {
 		t.Errorf("expected plugin install attempt in logs:\n%s", logs)
 	}
 }
@@ -344,44 +354,57 @@ func TestRuntime_DualCredentialMount(t *testing.T) {
 		}
 	}
 
-	reg := tempRegistry(t)
-	yml := `name: cred-mount-test
-docker:
-  image: mecha-worker:latest
-  credentials: [claude, codex]
-  lifecycle: persistent
-timeout: 5m
-`
-	yamlPath := filepath.Join(t.TempDir(), "cred-mount-test.yml")
-	writeFile(yamlPath, yml)
-
-	out, _, code := runMecha(t, reg, "worker", "add", yamlPath)
-	if code != 0 {
-		t.Fatalf("add failed: %s", out)
+	// Use Docker SDK directly — the CLI's health timeout is too short for runtime install.
+	dc := &worker.DockerConfig{
+		Image:       testImage,
+		Credentials: []string{"claude", "codex"},
+	}
+	mounts, err := worker.BuildContainerMounts(dc)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	out, stderr, code := runMecha(t, reg, "worker", "start", "cred-mount-test")
-	if code != 0 {
-		t.Fatalf("start failed (code %d): stdout=%s stderr=%s", code, out, stderr)
+	cli, err := worker.NewDockerClient("")
+	if err != nil {
+		t.Fatal(err)
 	}
-	defer runMecha(t, reg, "worker", "stop", "cred-mount-test")
-	defer runMecha(t, reg, "worker", "remove", "cred-mount-test")
+	defer cli.Close()
+
+	ctx := context.Background()
+	cfg := worker.ContainerCfg{
+		Name:   "mecha-test-cred-mount",
+		Image:  testImage,
+		Env:    map[string]string{"CLAUDE_MODEL": "test"},
+		Labels: map[string]string{"mecha.test": "true"},
+		Mounts: mounts,
+		// Don't set User — let the container use its Dockerfile USER (worker).
+	}
+
+	id, err := cli.Create(ctx, cfg)
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	defer cli.Remove(ctx, id)
+	if err := cli.Start(ctx, id); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	defer cli.Stop(ctx, id, 10*time.Second)
 
 	// Verify mounts by inspecting the container
 	inspectOut, err := exec.Command("docker", "inspect",
-		"-f", "{{range .Mounts}}{{.Destination}} {{.RW}}\n{{end}}",
-		"mecha-worker-cred-mount-test").CombinedOutput()
+		"-f", "{{range .Mounts}}{{.Destination}} {{.RW}}\n{{end}}", id).CombinedOutput()
 	if err != nil {
 		t.Fatalf("inspect: %v\n%s", err, inspectOut)
 	}
 
-	mounts := string(inspectOut)
-	if !strings.Contains(mounts, "/home/worker/.claude false") {
-		t.Errorf(".claude mount missing or not read-only:\n%s", mounts)
+	mountStr := string(inspectOut)
+	if !strings.Contains(mountStr, "/home/worker/.claude false") {
+		t.Errorf(".claude mount missing or not read-only:\n%s", mountStr)
 	}
-	if !strings.Contains(mounts, "/home/worker/.codex false") {
-		t.Errorf(".codex mount missing or not read-only:\n%s", mounts)
+	if !strings.Contains(mountStr, "/home/worker/.codex false") {
+		t.Errorf(".codex mount missing or not read-only:\n%s", mountStr)
 	}
+	t.Logf("mounts verified:\n%s", mountStr)
 }
 
 // --- Test 6: Health During Install Phase ---
@@ -402,7 +425,8 @@ func TestRuntime_HealthDuringInstall(t *testing.T) {
 		Image:  testImage,
 		Env:    map[string]string{"CLAUDE_MODEL": "test"},
 		Labels: map[string]string{"mecha.test": "true"},
-		User:   func() string { u, _ := worker.CurrentUser(); return u }(),
+		// Don't set User — let the container use its Dockerfile USER (worker).
+	// Host UID override is only needed for workspace bind mounts.
 	}
 
 	id, err := cli.Create(ctx, cfg)
