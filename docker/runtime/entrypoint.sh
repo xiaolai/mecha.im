@@ -18,7 +18,11 @@ done
 claude --version
 
 echo "installing codex CLI..."
-bun install -g @openai/codex
+mkdir -p "$HOME/.codex-cli" && cd "$HOME/.codex-cli"
+bun init -y > /dev/null 2>&1
+bun add @openai/codex
+ln -sf "$HOME/.codex-cli/node_modules/.bin/codex" "$HOME/.local/bin/codex"
+cd /workspace
 codex --version
 
 # --- Configure Claude settings ---

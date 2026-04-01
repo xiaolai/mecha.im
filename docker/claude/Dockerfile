@@ -14,6 +14,8 @@ RUN mkdir -p /home/worker/.local/bin /home/worker/.bun/install/global \
     && chown -R worker:worker /home/worker/.local /home/worker/.bun
 
 USER worker
+ENV HOME="/home/worker"
+ENV BUN_INSTALL="/home/worker/.bun"
 ENV PATH="/home/worker/.local/bin:/home/worker/.bun/bin:$PATH"
 
 EXPOSE 8080
