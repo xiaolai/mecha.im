@@ -2,6 +2,12 @@ import { query } from "@anthropic-ai/claude-agent-sdk";
 import type { TaskResponse } from "../types";
 
 const TIMEOUT_MS = parseInt(process.env.WORKER_TIMEOUT || "600000") || 600000;
+const CODEX_MCP_ENABLED = !!(process.env.CODEX_API_KEY || process.env.CODEX_MCP === "true");
+const CODEX_MCP_TOOLS = ["mcp__codex__codex", "mcp__codex__codex-reply", "mcp__codex__websearch"];
+
+if (CODEX_MCP_ENABLED) {
+  console.log("codex MCP enabled — codex mcp-server will be spawned as child process");
+}
 
 export async function executeTask(prompt: string): Promise<TaskResponse> {
   const abortController = new AbortController();
@@ -31,6 +37,30 @@ export async function executeTask(prompt: string): Promise<TaskResponse> {
   }
   if (process.env.CLAUDE_DISALLOWED_TOOLS) {
     options.disallowedTools = process.env.CLAUDE_DISALLOWED_TOOLS.split(",").map((s: string) => s.trim());
+  }
+
+  // Wire Codex as an MCP server if enabled
+  if (CODEX_MCP_ENABLED) {
+    const codexEnv: Record<string, string> = {
+      HOME: process.env.HOME || "/home/worker",
+      PATH: process.env.PATH || "/usr/local/bin:/usr/bin:/bin",
+    };
+    if (process.env.CODEX_API_KEY) codexEnv.CODEX_API_KEY = process.env.CODEX_API_KEY;
+
+    options.mcpServers = {
+      codex: {
+        command: "codex",
+        args: ["mcp-server"],
+        env: codexEnv,
+      },
+    };
+
+    // Add Codex MCP tools to allowed tools
+    const allowed = (options.allowedTools as string[]) || [];
+    for (const tool of CODEX_MCP_TOOLS) {
+      if (!allowed.includes(tool)) allowed.push(tool);
+    }
+    if (allowed.length > 0) options.allowedTools = allowed;
   }
 
   try {
