@@ -17,10 +17,12 @@ RUN cp "$(readlink -f /root/.local/bin/claude)" /usr/local/bin/claude \
 # Claude Agent SDK is pinned in docker/runtime/package.json and installed
 # by the base image's bun install step. No separate install needed here.
 
-# Credential mount target
-RUN mkdir -p /home/worker/.claude && chown worker:worker /home/worker/.claude
-# Note: Codex CLI will be installed here once the MCP wiring in claude.ts is implemented.
-# See dev-docs/research/dual-agent-worker.md for the design.
+# Install Codex CLI (used as MCP server for dual-agent workers)
+RUN bun install -g @openai/codex
+
+# Credential mount targets for both CLIs
+RUN mkdir -p /home/worker/.claude /home/worker/.codex \
+    && chown worker:worker /home/worker/.claude /home/worker/.codex
 
 USER worker
 
