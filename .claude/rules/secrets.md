@@ -13,92 +13,106 @@ globs: "**/*.go"
 
 ## Format
 
-Stores both **subscription OAuth tokens** and **API keys**:
+Stores subscription tokens and API keys:
 
 ```yaml
 tokens:
   claude:
     xiaolaidev: sk-ant-oat01-xxx...    # subscription setup token
     lixiaolai: sk-ant-oat01-yyy...     # different subscription
-    api: sk-ant-api03-zzz...           # Console API key (pay-per-token)
   codex:
-    default: sk-xxx...                 # OpenAI API key
-  gemini:
-    default: AIza...                   # Google API key
+    default: sk-xxx...                 # API key → CODEX_API_KEY (not OPENAI_API_KEY)
 
 github:
   token: ghp_xxx...
 ```
 
-## Token Types
+## Auth Strategy
 
-| CLI | Subscription (OAuth) | API Key |
-|-----|---------------------|---------|
-| Claude | `sk-ant-oat01-...` via `claude setup-token` | `sk-ant-api03-...` from Console |
-| Codex | via `codex login` (stored in `~/.codex/auth.json`) | `sk-...` from OpenAI |
-| Gemini | via Google OAuth (stored in `~/.gemini/oauth_creds.json`) | `AIza...` from Google Cloud |
+**Optimized for subscription users.** Prefer subscription auth for Docker workers.
 
-## How Workers Reference Tokens
+| CLI | Docker worker auth | Method |
+|-----|---|---|
+| Claude | `credentials: claude` or `token: claude.name` | Credential mount or OAuth env var |
+| Codex | `credentials: codex` or `token: codex.name` | Credential mount or `CODEX_API_KEY` env var |
 
-Workers use `docker.token` in the YAML to reference a secret:
+Gemini is not supported as a managed Docker worker — its credential files are
+scrypt-encrypted to hostname+username, not portable into containers.
+Use Gemini API endpoints as unmanaged workers instead.
+
+### How to authenticate each CLI on the host
+
+| CLI | Command | Headless? | What it creates |
+|---|---|---|---|
+| Claude | `claude setup-token` | Yes | Portable token for `~/.mecha/secrets.yml` |
+| Claude | `claude login` | Yes | Credentials in `~/.claude/` |
+| Codex | `codex login` | Yes (browser) | Session in `~/.codex/auth.json` |
+| Codex | `codex login --device-auth` | Yes (URL+code) | Session in `~/.codex/auth.json` |
+| Codex | `codex login --with-api-key` | Yes (stdin) | Key in `~/.codex/auth.json` |
+
+## How Workers Reference Auth
+
+### Credential mounts (Claude, Codex)
+
+Mount host CLI credential directory read-only into the container.
+The CLI inside uses its native auth flow — no env var injection needed.
 
 ```yaml
-name: reviewer
+name: codex-coder
 docker:
-  image: mecha-worker-claude:latest
-  token: claude.xiaolaidev       # resolved from secrets.yml
+  image: mecha-worker:latest
+  credentials: codex             # mounts ~/.codex/ → /home/worker/.codex/:ro
   env:
-    CLAUDE_MODEL: claude-sonnet-4-6
+    CODEX_MODEL: gpt-5.4
 ```
 
-Mecha sets the right env var per CLI:
+### Token injection
 
-| `token:` resolves to | CLI | Env var set |
-|---|---|---|
-| `sk-ant-oat01-...` | claude | `CLAUDE_CODE_OAUTH_TOKEN` |
-| `sk-ant-api03-...` | claude | `ANTHROPIC_API_KEY` |
-| `sk-...` | codex | `OPENAI_API_KEY` |
-| `AIza...` | gemini | `GEMINI_API_KEY` |
-
-Mecha auto-detects token type by prefix and sets the correct env var.
-
-## Claude Multi-Account
-
-No `CLAUDE_CONFIG_DIR` needed. Each setup token is bound to a specific
-subscription account. Different workers use different tokens:
+`docker.token` resolves from `~/.mecha/secrets.yml` and injects as an env var.
 
 ```yaml
+# Claude multi-account via subscription tokens
 name: reviewer-a
 docker:
-  image: mecha-worker-claude:latest
-  token: claude.xiaolaidev
+  image: mecha-worker:latest
+  token: claude.xiaolaidev       # sk-ant-oat01-... → CLAUDE_CODE_OAUTH_TOKEN
 
-name: reviewer-b
+# Codex via API key
+name: codex-coder
 docker:
-  image: mecha-worker-claude:latest
-  token: claude.lixiaolai
+  image: mecha-worker:latest
+  token: codex.default            # sk-... → CODEX_API_KEY
 ```
 
-Setup tokens are generated via `claude setup-token`, valid for 1 year.
+Mecha auto-detects token type by prefix:
+
+| Prefix | Env var set |
+|---|---|
+| `sk-ant-oat` | `CLAUDE_CODE_OAUTH_TOKEN` |
+| `sk-ant-` | `ANTHROPIC_API_KEY` |
+| `sk-` | `CODEX_API_KEY` |
+
+`docker.credentials` and `docker.token` are mutually exclusive.
 
 ## Resolution Order
 
-Worker `docker.token` field resolved in this order:
-
 ### Claude
 
-1. `token: claude.name` → from `~/.mecha/secrets.yml`, sets `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY` (auto-detected by prefix)
-2. Fall through to host default (Keychain / `~/.claude/.credentials.json`)
+1. `credentials: claude` → mounts `~/.claude/` read-only
+2. `token: claude.name` → from `~/.mecha/secrets.yml`, sets `CLAUDE_CODE_OAUTH_TOKEN`
+3. Fall through to host default (Keychain / `~/.claude/.credentials.json`)
 
 ### Codex
 
-1. `token: codex.name` → from `~/.mecha/secrets.yml`, sets `OPENAI_API_KEY`
-2. Fall through to host default (`~/.codex/auth.json`)
+1. `credentials: codex` → mounts `~/.codex/` read-only (subscription login session)
+2. `token: codex.name` → from `~/.mecha/secrets.yml`, sets `CODEX_API_KEY`
+3. `CODEX_API_KEY` env var directly in `docker.env`
+
+Note: Codex CLI reads `CODEX_API_KEY`, not `OPENAI_API_KEY`, at runtime.
 
 ### Gemini
 
-1. `token: gemini.name` → from `~/.mecha/secrets.yml`, sets `GEMINI_API_KEY`
-2. Fall through to host default (`~/.gemini/oauth_creds.json`)
+Not supported as a managed Docker worker. Use unmanaged endpoints.
 
 ## Redaction
 
@@ -122,7 +136,9 @@ All log output and error messages must redact these patterns
 ## Rules
 
 - Secrets file is optional. Workers can fall through to host CLI defaults.
+- Prefer `credentials:` (subscription auth) for Claude and Codex Docker workers.
 - Mecha loads secrets once at startup, holds in memory, never persists.
-- Workers receive secrets via environment variables only, never CLI args.
+- Workers receive secrets via environment variables or read-only credential mounts, never CLI args.
+- Credential mounts are always read-only. Workers cannot modify host credentials.
 - Secrets file must be mode 0600. Mecha warns if permissions are too open.
 - Token type is auto-detected by prefix. No manual type annotation needed.

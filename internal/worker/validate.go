@@ -14,7 +14,12 @@ var sensitivePathPrefixes = []string{
 
 // sensitiveSubdirs are directory names that are blocked under any user's home
 // (including /root). Prevents mounting credential stores into containers.
-var sensitiveSubdirs = []string{".mecha", ".ssh", ".gnupg", ".aws", ".config/gcloud"}
+// CLI credential dirs (.claude, .codex, .gemini) are also blocked from cwd
+// mounts but allowed through the explicit docker.credentials field.
+var sensitiveSubdirs = []string{
+	".mecha", ".ssh", ".gnupg", ".aws", ".config/gcloud",
+	".claude", ".codex", ".gemini",
+}
 
 // IsSensitivePath reports whether absPath is a protected system or credential path.
 func IsSensitivePath(absPath string) bool {
@@ -54,6 +59,19 @@ func (d *DockerConfig) Validate() error {
 	}
 	if d.Expose && d.APIKey == "" {
 		return fmt.Errorf("docker.api_key is required when docker.expose is true (network-accessible workers must be authenticated)")
+	}
+	if len(d.Credentials) > 0 {
+		validCreds := map[string]bool{"claude": true, "codex": true}
+		seen := map[string]bool{}
+		for _, cred := range d.Credentials {
+			if !validCreds[cred] {
+				return fmt.Errorf("docker.credentials: %q is not valid (want claude or codex)", cred)
+			}
+			if seen[cred] {
+				return fmt.Errorf("docker.credentials: duplicate %q", cred)
+			}
+			seen[cred] = true
+		}
 	}
 	if d.Cwd != "" {
 		resolved, err := filepath.EvalSymlinks(d.Cwd)

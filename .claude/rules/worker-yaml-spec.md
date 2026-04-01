@@ -26,20 +26,20 @@ determined by the image. All config via `docker.env`.
 ```yaml
 name: claude-reviewer
 docker:
-  image: ghcr.io/xiaolai/mecha-worker-claude:v1
+  image: ghcr.io/xiaolai/mecha-worker:v1
   cwd: /path/to/project          # host dir mounted to /workspace
+  credentials: claude             # mounts ~/.claude/ read-only (subscription auth)
   resources:
     cpu: 4
     memory: 8G
     pids: 256
-  lifecycle: persistent           # persistent only (disposable planned for Phase 3)
+  lifecycle: persistent           # persistent or disposable
   env:
     CLAUDE_MODEL: claude-sonnet-4-6
     CLAUDE_SYSTEM_PROMPT: "You review PRs for security issues."
     CLAUDE_ALLOWED_TOOLS: "Read,Grep,Glob,Bash"
     CLAUDE_PERMISSION_MODE: bypassPermissions
     CLAUDE_EFFORT: high
-  token: claude.xiaolaidev        # resolved from ~/.mecha/secrets.yml
   api_key: ${WORKER_SECRET}       # optional, enables Bearer auth on /task
   expose: true                    # optional, bind to 0.0.0.0 (default: 127.0.0.1)
   labels:                         # optional custom labels
@@ -47,28 +47,40 @@ docker:
 timeout: 30m
 ```
 
-## Token Precedence
+## Authentication
+
+Optimized for subscription users. Prefer subscription auth where the CLI supports
+headless use. API endpoints are better served as unmanaged workers.
+
+### Credential Mounts (`docker.credentials`)
+
+Bind-mounts the host CLI credential directory read-only into the container.
+The CLI inside the container uses its native auth — no env var injection needed.
+
+| `credentials:` | Host path | Container path | CLI auth method |
+|---|---|---|---|
+| `claude` | `~/.claude/` | `/home/worker/.claude/:ro` | Claude Code credentials |
+| `codex` | `~/.codex/` | `/home/worker/.codex/:ro` | Codex login session |
+
+When `credentials` is set, `HOME` is set to `/home/worker` so CLIs find their
+credential files. The host credential dir must exist (run the CLI to authenticate first).
+
+Claude also supports `docker.token` for OAuth token injection via env var
+(`sk-ant-oat01-...` → `CLAUDE_CODE_OAUTH_TOKEN`). Both are subscription auth.
+
+### Token Injection (`docker.token`)
 
 1. `docker.token` → resolved from `~/.mecha/secrets.yml` → auto-detect env var by prefix
 2. Merged into `docker.env`
 3. Explicit `docker.env` values win on collision (user override)
+
+`docker.credentials` and `docker.token` are mutually exclusive.
 
 ## Workspace Mount
 
 `docker.cwd` (host path) → `/workspace` (container, read-write).
 Container runs with `--user $(id -u):$(id -g)` to match host UID/GID.
 If `docker.cwd` is omitted, no workspace mount.
-
-## Credential Mounts (planned — not yet implemented)
-
-For subscription OAuth that requires host credential files:
-
-| Backend | Host path | Container path | When needed |
-|---|---|---|---|
-| Codex | `~/.codex/` | `/home/worker/.codex/:ro` | ChatGPT login auth |
-| Gemini | `~/.gemini/` | `/home/worker/.gemini/:ro` | Google OAuth auth |
-
-Claude subscription uses `CLAUDE_CODE_OAUTH_TOKEN` env var (no file mount needed).
 
 ## Worker Image Contract
 
@@ -78,7 +90,7 @@ Every mecha worker image must:
 - Serve `POST /task` → result contract JSON
 - Include `HEALTHCHECK` in Dockerfile
 - Read config from env vars (no config files inside container)
-- Set `WORKER_BACKEND` env var (`claude`, `codex`, or `gemini`)
+- Set `WORKER_BACKEND` env var (`claude` or `codex`)
 
 ## Claude Env Vars
 
@@ -106,24 +118,26 @@ Env vars are mapped to SDK options in `docker/runtime/backends/claude.ts`.
 | `CODEX_SANDBOX` | `--sandbox` |
 | `CODEX_FULL_AUTO` | `--full-auto` (set to `"true"` to enable) |
 | `CODEX_EFFORT` | `-c model_reasoning_effort='"VALUE"'` |
-| `OPENAI_API_KEY` | Auth |
+
+Auth: `credentials: codex` (mounts `~/.codex/` with login session) or
+`token: codex.name` (resolves to `CODEX_API_KEY` env var — not `OPENAI_API_KEY`).
 
 Note: `codex exec` runs without approval prompts by default. `--full-auto` enables
 auto-approve + workspace-write. The `--ask-for-approval` flag is TUI-only (not `exec`).
 
 Exec: `codex exec --model $CODEX_MODEL --sandbox $CODEX_SANDBOX "prompt"`
 
-## Gemini Env Vars
+## Gemini
 
-| Env var | CLI flag |
-|---|---|
-| `GEMINI_MODEL` | `--model` |
-| `GEMINI_SANDBOX` | `--sandbox` |
-| `GEMINI_APPROVAL_MODE` | `--approval-mode` |
-| `GEMINI_OUTPUT_FORMAT` | `--output-format` |
-| `GEMINI_API_KEY` | Auth |
+Gemini is not supported as a managed Docker worker. Its credential files are
+scrypt-encrypted to hostname+username, making them non-portable into containers.
+Use Gemini API endpoints as unmanaged workers instead:
 
-Exec: `gemini --model $GEMINI_MODEL -p "prompt"`
+```yaml
+name: gemini-coder
+endpoint: http://localhost:8090
+timeout: 30m
+```
 
 ## Model Discovery (planned — not yet implemented)
 

@@ -25,11 +25,5 @@ export interface TaskResponse {
   };
 }
 
-// CLI-based backends return this to build a spawn command
-export interface BackendCommand {
-  command: string;
-  args: string[];
-}
-
-// SDK-based backends implement this directly
+// SDK-based backend implements this directly
 export type BackendExecutor = (prompt: string) => Promise<TaskResponse>;

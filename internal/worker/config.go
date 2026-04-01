@@ -34,16 +34,17 @@ type AdapterConfig struct {
 // DockerConfig holds Docker container settings for a managed worker.
 // All fields except Image are optional.
 type DockerConfig struct {
-	Image     string            `yaml:"image"`
-	Host      string            `yaml:"host,omitempty"`
-	Cwd       string            `yaml:"cwd,omitempty"`
-	Resources ResourceConfig    `yaml:"resources,omitempty"`
-	Lifecycle string            `yaml:"lifecycle,omitempty"`
-	Env       map[string]string `yaml:"env,omitempty"`
-	Token     string            `yaml:"token,omitempty"`
-	APIKey    string            `yaml:"api_key,omitempty"`
-	Expose    bool              `yaml:"expose,omitempty"`
-	Labels    map[string]string `yaml:"labels,omitempty"`
+	Image       string            `yaml:"image"`
+	Host        string            `yaml:"host,omitempty"`
+	Cwd         string            `yaml:"cwd,omitempty"`
+	Credentials []string          `yaml:"credentials,omitempty"`
+	Resources   ResourceConfig    `yaml:"resources,omitempty"`
+	Lifecycle   string            `yaml:"lifecycle,omitempty"`
+	Env         map[string]string `yaml:"env,omitempty"`
+	Token       string            `yaml:"token,omitempty"`
+	APIKey      string            `yaml:"api_key,omitempty"`
+	Expose      bool              `yaml:"expose,omitempty"`
+	Labels      map[string]string `yaml:"labels,omitempty"`
 }
 
 // ResourceConfig specifies container CPU, memory, and process limits.

@@ -25,7 +25,7 @@ Add a `policy` section to your worker YAML:
 ```yaml
 name: reviewer
 docker:
-  image: mecha-worker-claude:latest
+  image: mecha-worker:latest
   token: claude.xiaolaidev
 policy:
   comment:

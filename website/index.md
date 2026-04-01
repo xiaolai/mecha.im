@@ -59,7 +59,7 @@ features:
 ```yaml
 name: pr-reviewer
 docker:
-  image: mecha-worker-claude:latest
+  image: mecha-worker:latest
   token: claude.default
   env:
     CLAUDE_MODEL: claude-sonnet-4-6

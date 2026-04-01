@@ -53,6 +53,7 @@ export default withMermaid({
           text: 'Configuration',
           items: [
             { text: 'Workers', link: '/guide/workers' },
+            { text: 'Dual-Agent Workers', link: '/guide/dual-agent' },
             { text: 'Secrets', link: '/guide/secrets' },
             { text: 'Events & Webhooks', link: '/guide/events' },
             { text: 'Policy', link: '/guide/policy' },

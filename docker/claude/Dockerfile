@@ -13,6 +13,13 @@ RUN cp "$(readlink -f /root/.local/bin/claude)" /usr/local/bin/claude \
 WORKDIR /app
 RUN bun add @anthropic-ai/claude-agent-sdk
 
+# Install Codex CLI (available as MCP server for dual-agent workers)
+RUN bun install -g @openai/codex
+
+# Credential mount targets for both CLIs
+RUN mkdir -p /home/worker/.claude /home/worker/.codex \
+    && chown worker:worker /home/worker/.claude /home/worker/.codex
+
 USER worker
 
 ENV WORKER_BACKEND=claude
