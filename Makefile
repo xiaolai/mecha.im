@@ -13,7 +13,7 @@ vet:
 ci: vet test build
 
 mcp:
-	go build -ldflags "-s -w" -o mecha-mcp ./cmd/mecha-mcp
+	go build -ldflags "-s -w -X main.Version=$(VERSION)" -o mecha-mcp ./cmd/mecha-mcp
 
 clean:
 	rm -f mecha mecha-mcp

@@ -6,6 +6,9 @@ import (
 	"os"
 )
 
+// Version is set by ldflags at build time.
+var Version = "dev"
+
 func main() {
 	docsDir = os.Getenv("DOCS_DIR")
 	if docsDir == "" {
