@@ -34,6 +34,7 @@ Events are provider-neutral. All provider-specific data lives in `Attrs`.
 | `Trigger` | Inbound (active) | Generate events (cron, polling) |
 | `Hydrator` | Enrichment | Fetch additional data via API |
 | `Verifier` | Handshake | Challenge-response verification |
+| `Authenticated` | Inbound (marker) | Sources that self-validate (HMAC) skip server-level API key auth |
 | `Responder` | Outbound | Write results back to platform |
 
 ## Nouns and Verbs
@@ -51,4 +52,4 @@ Events are provider-neutral. All provider-specific data lives in `Attrs`.
 - One noun, one lifecycle.
 - No hidden nouns. Unowned logic means a missing noun.
 - Verbs are idempotent where possible.
-- Responder is keyed by target, not source (ingress != egress).
+- Responder is keyed by `ev.Source`. Target-based routing is planned but not yet implemented.

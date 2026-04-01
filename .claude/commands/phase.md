@@ -109,7 +109,7 @@ Split any over-limit files using project extraction rules. Apply quality gate.
 /docs-guardian:audit
 ```
 After fixing, validate all Mermaid diagrams with `mcp__mermaider__validate_syntax`.
-If docs changed, run `cd docs && npm run build` to verify VitePress builds.
+If docs changed, run `cd website && npm run build` to verify VitePress builds.
 Apply quality gate.
 
 ### Step 11: Final Gate

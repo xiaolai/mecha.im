@@ -91,7 +91,7 @@ If `docker.cwd` is omitted, no workspace mount.
 ## Worker Image Contract
 
 Every mecha worker image must:
-- Expose port `8080`
+- Expose port `8080` (Caddy proxies to Bun on 8081 internally)
 - Serve `GET /health` → `200 OK` when ready (503 when busy)
 - Serve `POST /task` → result contract JSON
 - Include `HEALTHCHECK` in Dockerfile
@@ -117,22 +117,22 @@ Claude backend uses the Agent SDK `query()` directly (not CLI flags).
 non-interactive use) — no need to set it unless you want to restrict.
 Env vars are mapped to SDK options in `docker/runtime/backends/claude.ts`.
 
-## Codex Env Vars
+## Codex MCP Integration
 
-| Env var | CLI flag / config |
+Codex runs as an MCP child process inside the Claude backend, not as a
+standalone executor. The runtime auto-detects Codex availability:
+
+| Env var | Purpose |
 |---|---|
-| `CODEX_MODEL` | `--model` |
-| `CODEX_SANDBOX` | `--sandbox` |
-| `CODEX_FULL_AUTO` | `--full-auto` (set to `"true"` to enable) |
-| `CODEX_EFFORT` | `-c model_reasoning_effort='"VALUE"'` |
+| `CODEX_MCP` | Force-enable Codex MCP (`"true"`) — not needed if credentials mounted |
+| `CODEX_API_KEY` | API key for non-subscription users (auto-enables MCP) |
 
-Auth: `credentials: [codex]` (mounts `~/.codex/` with login session) or
-`token: codex.name` (resolves to `CODEX_API_KEY` env var — not `OPENAI_API_KEY`).
+**Auto-detection**: The backend checks for `~/.codex/auth.json` (mounted via
+`credentials: [codex]`) or `CODEX_API_KEY` in env. If either is present,
+`codex mcp-server` is spawned as a stdio child process.
 
-Note: `codex exec` runs without approval prompts by default. `--full-auto` enables
-auto-approve + workspace-write. The `--ask-for-approval` flag is TUI-only (not `exec`).
-
-Exec: `codex exec --model $CODEX_MODEL --sandbox $CODEX_SANDBOX "prompt"`
+Auth: `credentials: [codex]` (preferred — mounts `~/.codex/` with login session) or
+`CODEX_API_KEY` env var (not `OPENAI_API_KEY`).
 
 ## Gemini
 
