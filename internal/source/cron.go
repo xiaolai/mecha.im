@@ -2,9 +2,8 @@ package source
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
+	"hash/fnv"
 	"time"
 
 	"mecha.im/internal/event"
@@ -42,8 +41,9 @@ func (c *CronTrigger) Start(ctx context.Context, emit func(*event.Event)) error 
 				Attrs:   event.Attrs{"tick_time": t.Format(time.RFC3339)},
 			}
 			// Dedup key prevents duplicate processing if emit is slow
-			h := sha256.Sum256([]byte(fmt.Sprintf("%s:%s:%d", c.name, c.subject, t.Unix())))
-			ev.DedupKey = hex.EncodeToString(h[:8])
+			h := fnv.New64a()
+			fmt.Fprintf(h, "%s:%s:%d", c.name, c.subject, t.Unix())
+			ev.DedupKey = fmt.Sprintf("%016x", h.Sum64())
 			emit(ev)
 		}
 	}

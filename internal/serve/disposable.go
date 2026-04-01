@@ -189,6 +189,9 @@ func validateDisposableEnv(k, _ string) error {
 
 func randomSuffix() string {
 	b := make([]byte, 8)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		// Fallback to timestamp-based suffix if entropy unavailable
+		return hex.EncodeToString([]byte(fmt.Sprintf("%08x", time.Now().UnixNano())))
+	}
 	return hex.EncodeToString(b)
 }

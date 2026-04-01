@@ -42,7 +42,7 @@ func handleMCP(msg mcpRequest) mcpResponse {
 		return mcpResponse{JSONRPC: "2.0", ID: msg.ID, Result: map[string]any{
 			"protocolVersion": "2024-11-05",
 			"capabilities":   map[string]any{"tools": map[string]any{}},
-			"serverInfo":     map[string]any{"name": "mecha-docs", "version": "0.2.0"},
+			"serverInfo":     map[string]any{"name": "mecha-docs", "version": Version},
 		}}
 	case "tools/list":
 		return mcpResponse{JSONRPC: "2.0", ID: msg.ID, Result: map[string]any{"tools": toolDefs}}
@@ -133,7 +133,7 @@ func handleToolCall(id any, name string, args map[string]any) mcpResponse {
 		return text(p.Body)
 
 	case "get-version":
-		return text("mecha v0.5.13\n\nRecent: unified worker image, dual-agent MCP, plugin support, expvar metrics, cron triggers, GitLab responder")
+		return text("mecha " + Version)
 
 	default:
 		return mcpResponse{JSONRPC: "2.0", ID: id, Error: &mcpError{Code: -32602, Message: "unknown tool: " + name}}

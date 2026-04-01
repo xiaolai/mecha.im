@@ -25,6 +25,7 @@ type Server struct {
 	events    *event.Store
 	sources   *source.Registry
 	writeback *writeback.Client
+	docker    *worker.DockerClient
 	pending   chan string
 	addr      string
 	apiKey    string
@@ -39,6 +40,7 @@ type Config struct {
 	Events    *event.Store
 	Sources   *source.Registry
 	WriteBack *writeback.Client
+	Docker    *worker.DockerClient
 	Addr      string
 	APIKey    string
 	Logger    *slog.Logger
@@ -58,6 +60,7 @@ func New(cfg Config) *Server {
 		events:    cfg.Events,
 		sources:   cfg.Sources,
 		writeback: cfg.WriteBack,
+		docker:    cfg.Docker,
 		pending:   make(chan string, 256),
 		addr:      cfg.Addr,
 		apiKey:    cfg.APIKey,
@@ -92,6 +95,11 @@ func New(cfg Config) *Server {
 func (s *Server) Start(ctx context.Context) error {
 	// Start dispatch loop first so recovered tasks are consumed
 	go s.dispatchLoop(ctx)
+
+	// Start reconciliation loop — detects registry/Docker state drift
+	if s.docker != nil {
+		go s.reconcileLoop(ctx, s.docker, 60*time.Second)
+	}
 
 	// Recover pending tasks from previous run
 	ids, err := s.tasks.Pending(ctx)
