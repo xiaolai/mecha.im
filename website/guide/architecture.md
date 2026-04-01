@@ -11,22 +11,19 @@ description: How mecha works under the hood.
 flowchart TB
     subgraph Host ["Host Machine"]
         CLI[mecha CLI]
-        Registry[(~/.mecha/registry.json)]
+        DB[(~/.mecha/mecha.db)]
         Secrets[(~/.mecha/secrets.yml)]
-        CLI --> Registry
+        CLI --> DB
         CLI --> Secrets
     end
 
     subgraph Docker ["Docker"]
-        C1[Claude Worker Container]
-        C2[Codex Worker Container]
-        C3[Gemini Worker Container]
+        C1[mecha-worker Container]
     end
 
     CLI -->|create/start/stop| Docker
-    C1 -->|POST /task| Claude[Agent SDK query]
-    C2 -->|POST /task| Codex[codex exec]
-    C3 -->|POST /task| Gemini[gemini -p]
+    C1 -->|POST /task| SDK[Claude Agent SDK]
+    C1 -.->|MCP child process| Codex[codex mcp-server]
 ```
 
 ## Components
@@ -46,7 +43,7 @@ The single binary handles all worker management:
 Inside each container, a Bun HTTP server receives tasks and dispatches to the backend:
 
 - **Claude**: calls the Agent SDK `query()` directly (structured response, no subprocess)
-- **Codex/Gemini**: shells out to the CLI (`codex exec` / `gemini -p`)
+- **Codex**: available as an MCP child process within the Claude session (auto-detected via credential mount)
 
 ```mermaid
 sequenceDiagram
@@ -65,20 +62,15 @@ The server is single-flight: one task at a time. A second request while busy ret
 
 ### Registry
 
-State is persisted to `~/.mecha/registry.json`:
+State is persisted to `~/.mecha/mecha.db` (SQLite, WAL mode):
 
-```json
-{
-  "reviewer": {
-    "worker": { "name": "reviewer", "docker": { ... } },
-    "state": "online",
-    "container_id": "abc123...",
-    "runtime_endpoint": "http://127.0.0.1:32768"
-  }
-}
-```
+| Table | Purpose |
+|---|---|
+| `workers` | Worker definitions + runtime state (JSON) |
+| `tasks` | Task lifecycle (pending → dispatched → completed/failed) |
+| `events` | Webhook events + matching state |
 
-The file uses atomic writes (temp → fsync → rename → fsync dir) for crash safety. Permissions are set to `0600`.
+The registry uses clone-on-write: mutations clone the in-memory map, persist to SQLite in a transaction, then swap the pointer. On persistence failure, in-memory state is unchanged.
 
 ### Secrets
 
@@ -151,13 +143,13 @@ flowchart LR
     CLI -->|API call| LLM[LLM API]
 
     Container -.-x|BLOCKED| GitHub[GitHub API]
-    Mecha -->|Phase 3+| Policy
+    Mecha --> Policy
     Policy -->|filtered result| GitHub
 ```
 
-- Workers receive LLM tokens via env vars (Phase 2)
+- Workers receive LLM tokens via env vars or credential mounts
 - GitHub tokens are blocked from container env
-- All GitHub writes go through mecha → Policy (Phase 3+)
+- All GitHub writes go through mecha → Policy
 - Error messages are redacted before display
 
 ## Dependencies
@@ -167,3 +159,4 @@ flowchart LR
 | `github.com/spf13/cobra` | 1.10.2 | CLI framework |
 | `gopkg.in/yaml.v3` | 3.0.1 | Worker YAML parsing |
 | `github.com/moby/moby` | client 0.3.0 | Docker container management |
+| `modernc.org/sqlite` | 1.48.0 | SQLite persistence (workers, tasks, events) |

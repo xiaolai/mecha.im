@@ -29,7 +29,7 @@ You now have a `./mecha` binary.
 make image
 ```
 
-This builds `mecha-worker-base` (Bun + common tools) and `mecha-worker` (base + Claude Code CLI).
+This builds `mecha-worker-base` (Bun + common tools) and `mecha-worker` (unified image). CLIs (Claude Code, Codex) are installed at container start time.
 
 ## Step 3: Set up secrets
 

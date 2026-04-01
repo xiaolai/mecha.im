@@ -65,7 +65,7 @@ irm https://raw.githubusercontent.com/xiaolai/mecha.im/main/scripts/install.ps1 
 ```
 :::
 
-Pin a specific version with `MECHA_VERSION=v0.5.11` or change the install directory with `MECHA_INSTALL_DIR=/opt/bin`.
+Pin a specific version with `MECHA_VERSION=v0.5.13` or change the install directory with `MECHA_INSTALL_DIR=/opt/bin`.
 
 ### Option C: Go Install
 
@@ -161,7 +161,7 @@ sudo usermod -aG docker $USER   # log out and back in
 ### Build Worker Images
 
 ```bash
-make image    # builds mecha-worker (Claude + Codex)
+make image    # builds mecha-worker (unified image)
 ```
 
 Or equivalently:
@@ -170,7 +170,7 @@ Or equivalently:
 make image
 ```
 
-Each image is built on `mecha-worker-base` (Ubuntu + Bun runtime + tools like git, curl, ripgrep).
+Each image is built on `mecha-worker-base` (Debian/Bun + tools like git, curl, ripgrep). CLIs (Claude Code, Codex) are installed at container start time, not build time — workers always run the latest versions.
 
 ::: tip Gemini workers
 Gemini is not supported as a managed Docker worker — its credential files are encrypted to the host machine and not portable into containers. Use Gemini API endpoints as [unmanaged workers](./workers) instead.

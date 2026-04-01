@@ -34,10 +34,10 @@ flowchart LR
     Start --> Docker[Docker Container]
     Docker --> Health[GET /health → 200]
     Docker --> Task[POST /task → result]
-    Task --> CLI[claude/codex/gemini CLI]
+    Task --> SDK[Claude Agent SDK + Codex MCP]
 ```
 
-Each worker is a Docker container running an LLM CLI (Claude, Codex, or Gemini). Mecha creates the container, injects auth tokens, waits for health, and tracks state. You interact with workers via HTTP.
+Each worker is a Docker container running the Claude Agent SDK, with Codex available as an MCP tool. Mecha creates the container, mounts credentials, waits for health, and tracks state. You interact with workers via HTTP.
 
 ## Current Status
 
