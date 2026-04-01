@@ -75,7 +75,7 @@ EOF
 
 You should see:
 
-```
+```text
 added my-reviewer (managed)
 creating container for my-reviewer...
 started my-reviewer (container)
@@ -87,7 +87,7 @@ started my-reviewer (container)
 ./mecha worker ls
 ```
 
-```
+```text
 NAME          TYPE     STATE   ENDPOINT                HEALTH
 my-reviewer   managed  online  http://127.0.0.1:32768  ok
 ```

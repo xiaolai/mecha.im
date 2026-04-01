@@ -76,7 +76,7 @@ The registry uses clone-on-write: mutations clone the in-memory map, persist to 
 
 Tokens live in `~/.mecha/secrets.yml`, referenced by `backend.name`:
 
-```
+```text
 docker.token: claude.xiaolaidev
   → secrets.yml lookup
   → sk-ant-oat01-xxx...

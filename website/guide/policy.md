@@ -86,7 +86,7 @@ Workers without a `policy` section use **AllowAll** -- all write-back actions ar
 
 Every policy evaluation logs both allowed and denied actions:
 
-```
+```text
 INFO dispatch: policy applied task=abc123 worker=reviewer
     allowed=[comment, labels] denied=[status: blocked by policy]
 ```

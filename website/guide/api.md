@@ -9,7 +9,7 @@ All endpoints are served by `mecha serve`. Authentication via `Authorization: Be
 
 ## Health
 
-```
+```http
 GET /health
 ```
 
@@ -23,7 +23,7 @@ Returns server status. Exempt from API key auth.
 
 ### Create Task
 
-```
+```http
 POST /task
 ```
 
@@ -50,7 +50,7 @@ Response `202 Accepted`:
 
 ### Get Task
 
-```
+```http
 GET /task/{id}
 ```
 
@@ -69,7 +69,7 @@ Response `200`:
 
 ### List Tasks
 
-```
+```http
 GET /tasks
 GET /tasks?state=pending
 GET /tasks?state=completed
@@ -81,7 +81,7 @@ Returns array of tasks, newest first. Filter by state: `pending`, `dispatched`, 
 
 ### List Workers
 
-```
+```http
 GET /workers
 ```
 
@@ -91,7 +91,7 @@ Returns all registered workers with current state.
 
 ### Receive Webhook
 
-```
+```http
 POST /webhook/{source}
 ```
 
@@ -103,7 +103,7 @@ See [Events](./events) for webhook setup.
 
 ### List Events
 
-```
+```http
 GET /events
 GET /events?state=received
 ```
@@ -112,7 +112,7 @@ Returns events, newest first. Filter by state: `received`, `matched`, `dispatche
 
 ### Get Event
 
-```
+```http
 GET /event/{id}
 ```
 

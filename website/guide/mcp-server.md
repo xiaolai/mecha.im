@@ -96,7 +96,7 @@ Add to your `.mcp.json`:
 
 Then use the tools:
 
-```
+```text
 mcp__mecha-docs__list-topics
 mcp__mecha-docs__get-page {"slug": "workers"}
 mcp__mecha-docs__search-docs {"query": "dual agent"}

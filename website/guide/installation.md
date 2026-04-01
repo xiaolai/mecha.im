@@ -170,7 +170,7 @@ Or equivalently:
 make image
 ```
 
-Each image is built on `mecha-worker-base` (Debian/Bun + tools like git, curl, ripgrep). CLIs (Claude Code, Codex) are installed at container start time, not build time — workers always run the latest versions.
+Each image is built on `mecha-worker-base` (`oven/bun:1-slim` + git, curl, ripgrep, Caddy). CLIs (Claude Code, Codex) are installed at container start time, not build time — workers always run the latest versions.
 
 ::: tip Gemini workers
 Gemini is not supported as a managed Docker worker — its credential files are encrypted to the host machine and not portable into containers. Use Gemini API endpoints as [unmanaged workers](./workers) instead.
