@@ -115,7 +115,9 @@ func (s *Server) Start(ctx context.Context) error {
 			if dup {
 				tasksDedupSkip.Add(1)
 				s.logger.Info("recover: skipping duplicate task", "id", id, "dedup_key", t.DedupKey)
-				_ = s.tasks.Fail(ctx, id, "skipped: duplicate of completed task")
+				if failErr := s.tasks.Fail(ctx, id, "skipped: duplicate of completed task"); failErr != nil {
+					s.logger.Warn("recover: fail dedup task", "id", id, "err", failErr)
+				}
 				continue
 			}
 		}
