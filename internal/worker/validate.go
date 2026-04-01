@@ -22,14 +22,20 @@ var sensitiveSubdirs = []string{
 }
 
 // IsSensitivePath reports whether absPath is a protected system or credential path.
+// Also rejects home directories themselves (mounting $HOME as cwd would expose
+// all sensitive subdirs inside the container).
 func IsSensitivePath(absPath string) bool {
 	for _, prefix := range sensitivePathPrefixes {
 		if absPath == prefix || strings.HasPrefix(absPath, prefix+"/") {
 			return true
 		}
 	}
-	// Block sensitive subdirs under home (including /root)
 	for _, home := range userHomes() {
+		// Block home directory itself — contains sensitive subdirs
+		if absPath == home {
+			return true
+		}
+		// Block sensitive subdirs under home
 		for _, sub := range sensitiveSubdirs {
 			blocked := filepath.Join(home, sub)
 			if absPath == blocked || strings.HasPrefix(absPath, blocked+"/") {
@@ -72,22 +78,14 @@ func (d *DockerConfig) Validate() error {
 			}
 			seen[cred] = true
 		}
+		if d.Token != "" {
+			return fmt.Errorf("docker.credentials and docker.token are mutually exclusive — use credentials for subscription auth, token for API keys")
+		}
 	}
 	if d.Cwd != "" {
-		resolved, err := filepath.EvalSymlinks(d.Cwd)
+		resolved, err := ResolveCwd(d.Cwd)
 		if err != nil {
-			return fmt.Errorf("docker.cwd %q: %w", d.Cwd, err)
-		}
-		resolved, err = filepath.Abs(resolved)
-		if err != nil {
-			return fmt.Errorf("docker.cwd abs %q: %w", d.Cwd, err)
-		}
-		info, err := os.Stat(resolved)
-		if err != nil {
-			return fmt.Errorf("docker.cwd %q: %w", d.Cwd, err)
-		}
-		if !info.IsDir() {
-			return fmt.Errorf("docker.cwd %q is not a directory", d.Cwd)
+			return fmt.Errorf("docker.cwd: %w", err)
 		}
 		if IsSensitivePath(resolved) {
 			return fmt.Errorf("docker.cwd %q resolves to sensitive path %q — mount denied", d.Cwd, resolved)

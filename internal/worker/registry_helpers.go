@@ -36,6 +36,10 @@ func (r *Registry) mutateEntry(name string, fn func(e *Entry) error) error {
 
 func deepCopyEntry(e *Entry) Entry {
 	ec := *e
+	if ec.StartedAt != nil {
+		t := *ec.StartedAt
+		ec.StartedAt = &t
+	}
 	if ec.Worker != nil {
 		wc := *ec.Worker
 		wc.Policy = copyMapAny(wc.Policy)
@@ -44,6 +48,7 @@ func deepCopyEntry(e *Entry) Entry {
 			dc := *wc.Docker
 			dc.Env = copyMapStr(dc.Env)
 			dc.Labels = copyMapStr(dc.Labels)
+			dc.Credentials = copySliceStr(dc.Credentials)
 			wc.Docker = &dc
 		}
 		if wc.Adapter != nil {
@@ -74,9 +79,7 @@ func copyMapAny(m map[string]any) map[string]any {
 		case map[string]any:
 			c[k] = copyMapAny(val)
 		case []any:
-			s := make([]any, len(val))
-			copy(s, val)
-			c[k] = s
+			c[k] = copySliceAny(val)
 		default:
 			c[k] = v
 		}
@@ -92,6 +95,33 @@ func copyMapStr(m map[string]string) map[string]string {
 	for k, v := range m {
 		c[k] = v
 	}
+	return c
+}
+
+func copySliceAny(s []any) []any {
+	if s == nil {
+		return nil
+	}
+	c := make([]any, len(s))
+	for i, v := range s {
+		switch val := v.(type) {
+		case map[string]any:
+			c[i] = copyMapAny(val)
+		case []any:
+			c[i] = copySliceAny(val)
+		default:
+			c[i] = v
+		}
+	}
+	return c
+}
+
+func copySliceStr(s []string) []string {
+	if s == nil {
+		return nil
+	}
+	c := make([]string, len(s))
+	copy(c, s)
 	return c
 }
 

@@ -28,7 +28,7 @@ name: claude-reviewer
 docker:
   image: ghcr.io/xiaolai/mecha-worker:v1
   cwd: /path/to/project          # host dir mounted to /workspace
-  credentials: claude             # mounts ~/.claude/ read-only (subscription auth)
+  credentials: [claude]           # mounts ~/.claude/ read-only (subscription auth)
   resources:
     cpu: 4
     memory: 8G
@@ -40,7 +40,7 @@ docker:
     CLAUDE_ALLOWED_TOOLS: "Read,Grep,Glob,Bash"
     CLAUDE_PERMISSION_MODE: bypassPermissions
     CLAUDE_EFFORT: high
-  api_key: ${WORKER_SECRET}       # optional, enables Bearer auth on /task
+  api_key: my-secret-key          # optional, enables Bearer auth on /task
   expose: true                    # optional, bind to 0.0.0.0 (default: 127.0.0.1)
   labels:                         # optional custom labels
     team: security
@@ -119,7 +119,7 @@ Env vars are mapped to SDK options in `docker/runtime/backends/claude.ts`.
 | `CODEX_FULL_AUTO` | `--full-auto` (set to `"true"` to enable) |
 | `CODEX_EFFORT` | `-c model_reasoning_effort='"VALUE"'` |
 
-Auth: `credentials: codex` (mounts `~/.codex/` with login session) or
+Auth: `credentials: [codex]` (mounts `~/.codex/` with login session) or
 `token: codex.name` (resolves to `CODEX_API_KEY` env var — not `OPENAI_API_KEY`).
 
 Note: `codex exec` runs without approval prompts by default. `--full-auto` enables

@@ -8,7 +8,7 @@ description: Run Claude and Codex together in a single worker for cross-model co
 Mecha supports running Claude and Codex together in a single Docker container. Claude acts as the primary agent, with Codex available as an MCP tool for second opinions, web search, and alternative implementations.
 
 ::: warning Planned Feature
-Dual-agent workers are under active development. This page documents the architecture and intended usage. The `mecha-worker` image is not yet published.
+Dual-agent workers are under active development. The Codex MCP wiring inside the Claude backend is **not yet implemented** — the Codex CLI is installed in the image but no runtime code path activates it. This page documents the intended architecture and configuration.
 :::
 
 ## Why Two Models?
@@ -44,7 +44,7 @@ No special networking — the MCP server communicates over stdin/stdout of a chi
 
 ## Available MCP Tools
 
-When Codex MCP is enabled, Claude gets access to these tools:
+When Codex MCP is enabled (planned), Claude will get access to these tools:
 
 | Tool | What it does |
 |---|---|
@@ -76,7 +76,7 @@ docker:
 timeout: 30m
 ```
 
-Setting `CODEX_API_KEY` automatically enables the Codex MCP server. Claude's system prompt guides when to use it.
+Once implemented, setting `CODEX_API_KEY` will automatically enable the Codex MCP server. Claude's system prompt will guide when to use it.
 
 ## Authentication
 
