@@ -32,15 +32,39 @@ var (
 )
 
 // reloadPages reads all markdown files from disk.
+// rulesDir and examplesDir are additional knowledge sources.
+var (
+	rulesDir    string
+	examplesDir string
+	rules       []docPage
+	examples    []docPage
+)
+
 func reloadPages() {
 	loaded, err := readDir(docsDir)
 	if err != nil {
 		log.Printf("reload docs: %v", err)
 		return
 	}
+	rls, _ := readDir(rulesDir)
+	exs, _ := readDir(examplesDir)
 	mu.Lock()
 	pages = loaded
+	rules = rls
+	examples = exs
 	mu.Unlock()
+}
+
+func getRules() []docPage {
+	mu.RLock()
+	defer mu.RUnlock()
+	return rules
+}
+
+func getExamples() []docPage {
+	mu.RLock()
+	defer mu.RUnlock()
+	return examples
 }
 
 func getPages() []docPage {
@@ -272,6 +296,32 @@ func handleMCP(msg mcpRequest) mcpResponse {
 							"required": []string{"query"},
 						},
 					},
+					{
+						"name":        "get-spec",
+						"description": "Get a project rule/spec by name (e.g., 'worker-yaml-spec', 'domain-model', 'secrets')",
+						"inputSchema": map[string]any{
+							"type": "object",
+							"properties": map[string]any{
+								"name": map[string]any{"type": "string", "description": "Rule name (without .md extension)"},
+							},
+							"required": []string{"name"},
+						},
+					},
+					{
+						"name":        "get-examples",
+						"description": "List example worker YAML files or get a specific one by name",
+						"inputSchema": map[string]any{
+							"type": "object",
+							"properties": map[string]any{
+								"name": map[string]any{"type": "string", "description": "Example name (e.g., 'claude-reviewer'). Omit to list all."},
+							},
+						},
+					},
+					{
+						"name":        "get-version",
+						"description": "Get current mecha version and recent changelog",
+						"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
+					},
 				},
 			},
 		}
@@ -352,6 +402,65 @@ func handleToolCall(id any, name string, args map[string]any) mcpResponse {
 			Result: map[string]any{"content": []map[string]any{{"type": "text", "text": sb.String()}}},
 		}
 
+	case "get-spec":
+		name, _ := args["name"].(string)
+		rls := getRules()
+		p := findPage(name, rls)
+		if p == nil {
+			var available []string
+			for _, r := range rls {
+				available = append(available, r.Slug)
+			}
+			return mcpResponse{
+				JSONRPC: "2.0", ID: id,
+				Result: map[string]any{
+					"content": []map[string]any{{"type": "text", "text": fmt.Sprintf("spec %q not found. Available: %v", name, available)}},
+					"isError": true,
+				},
+			}
+		}
+		return mcpResponse{
+			JSONRPC: "2.0", ID: id,
+			Result: map[string]any{"content": []map[string]any{{"type": "text", "text": p.Body}}},
+		}
+
+	case "get-examples":
+		exs := getExamples()
+		name, hasName := args["name"].(string)
+		if !hasName || name == "" {
+			var list []map[string]string
+			for _, e := range exs {
+				list = append(list, map[string]string{"name": e.Slug, "title": e.Title})
+			}
+			data, _ := json.Marshal(list)
+			return mcpResponse{
+				JSONRPC: "2.0", ID: id,
+				Result: map[string]any{"content": []map[string]any{{"type": "text", "text": string(data)}}},
+			}
+		}
+		p := findPage(name, exs)
+		if p == nil {
+			return mcpResponse{
+				JSONRPC: "2.0", ID: id,
+				Result: map[string]any{
+					"content": []map[string]any{{"type": "text", "text": fmt.Sprintf("example %q not found", name)}},
+					"isError": true,
+				},
+			}
+		}
+		return mcpResponse{
+			JSONRPC: "2.0", ID: id,
+			Result: map[string]any{"content": []map[string]any{{"type": "text", "text": p.Body}}},
+		}
+
+	case "get-version":
+		version := "v0.5.13"
+		text := fmt.Sprintf("mecha %s\n\nRecent: unified worker image, dual-agent MCP, plugin support, expvar metrics, cron triggers, GitLab responder", version)
+		return mcpResponse{
+			JSONRPC: "2.0", ID: id,
+			Result: map[string]any{"content": []map[string]any{{"type": "text", "text": text}}},
+		}
+
 	default:
 		return mcpResponse{
 			JSONRPC: "2.0", ID: id,
@@ -423,10 +532,18 @@ func main() {
 	if repoDir == "" {
 		repoDir = "."
 	}
+	rulesDir = os.Getenv("RULES_DIR")
+	if rulesDir == "" {
+		rulesDir = ".claude/rules"
+	}
+	examplesDir = os.Getenv("EXAMPLES_DIR")
+	if examplesDir == "" {
+		examplesDir = "workers"
+	}
 	webhookSecret = os.Getenv("GITHUB_MECHA_MCP_WEBHOOK_SECRET")
 
 	reloadPages()
-	log.Printf("loaded %d doc pages from %s", len(getPages()), docsDir)
+	log.Printf("loaded %d docs, %d rules, %d examples", len(getPages()), len(getRules()), len(getExamples()))
 
 	if webhookSecret != "" {
 		log.Printf("github webhook enabled (HMAC validated)")
