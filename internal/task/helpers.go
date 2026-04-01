@@ -34,10 +34,10 @@ type scanner interface {
 func scanTask(s scanner) (*Task, error) {
 	var t Task
 	var state, result, errMsg string
-	var taskCtx, eventID sql.NullString
+	var taskCtx, eventID, dedupKey sql.NullString
 	var createdAt, updatedAt int64
 	var dispatchedAt, completedAt sql.NullInt64
-	err := s.Scan(&t.ID, &t.WorkerName, &t.Prompt, &taskCtx, &eventID,
+	err := s.Scan(&t.ID, &t.WorkerName, &t.Prompt, &taskCtx, &eventID, &dedupKey,
 		&state, &result, &errMsg, &createdAt, &updatedAt, &dispatchedAt, &completedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -53,6 +53,9 @@ func scanTask(s scanner) (*Task, error) {
 	}
 	if eventID.Valid {
 		t.EventID = eventID.String
+	}
+	if dedupKey.Valid {
+		t.DedupKey = dedupKey.String
 	}
 	t.CreatedAt = time.Unix(createdAt, 0)
 	t.UpdatedAt = time.Unix(updatedAt, 0)

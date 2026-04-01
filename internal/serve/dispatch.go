@@ -83,6 +83,8 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 		return
 	}
 
+	dispatchStart := time.Now()
+
 	// Mark dispatched — skip if already dispatched (recovery path)
 	if t.State == task.StatePending {
 		if err := s.tasks.SetDispatched(ctx, taskID); err != nil {
@@ -128,6 +130,7 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 		} else if onlineErr := s.reg.SetOnline(t.WorkerName); onlineErr != nil {
 			s.logger.Warn("dispatch: set online after failure", "id", taskID, "err", onlineErr)
 		}
+		tasksFailed.Add(1)
 		// Update event on failure
 		s.completeEvent(ctx, t.EventID, false)
 		s.logger.Error("dispatch: send failed", "id", taskID, "err", redacted)
@@ -159,6 +162,8 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 		s.completeEvent(ctx, t.EventID, true)
 	}
 
+	tasksCompleted.Add(1)
+	latency.observe(time.Since(dispatchStart))
 	s.logger.Info("task completed", "id", taskID, "worker", t.WorkerName)
 }
 

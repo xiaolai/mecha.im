@@ -23,16 +23,21 @@ func (s *Store) Create(ctx context.Context, workerName, prompt string) (*Task, e
 }
 
 // CreateWithEvent inserts a task with event context and optional event ID.
+// The dedup_key (event_id + worker_name) prevents duplicate dispatch on crash recovery.
 func (s *Store) CreateWithEvent(ctx context.Context, workerName, prompt, taskCtx, eventID string) (*Task, error) {
 	id, err := genID()
 	if err != nil {
 		return nil, fmt.Errorf("generate task id: %w", err)
 	}
 	now := time.Now()
+	dedupKey := ""
+	if eventID != "" {
+		dedupKey = eventID + ":" + workerName
+	}
 	_, err = s.db.ExecContext(ctx,
-		`INSERT INTO tasks (id, worker_name, prompt, context, event_id, state, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		id, workerName, prompt, taskCtx, eventID, string(StatePending), now.Unix(), now.Unix(),
+		`INSERT INTO tasks (id, worker_name, prompt, context, event_id, dedup_key, state, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		id, workerName, prompt, taskCtx, eventID, dedupKey, string(StatePending), now.Unix(), now.Unix(),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("insert task: %w", err)
@@ -43,6 +48,7 @@ func (s *Store) CreateWithEvent(ctx context.Context, workerName, prompt, taskCtx
 		Prompt:     prompt,
 		Context:    taskCtx,
 		EventID:    eventID,
+		DedupKey:   dedupKey,
 		State:      StatePending,
 		CreatedAt:  now,
 		UpdatedAt:  now,
@@ -52,7 +58,7 @@ func (s *Store) CreateWithEvent(ctx context.Context, workerName, prompt, taskCtx
 // Get retrieves a task by ID.
 func (s *Store) Get(ctx context.Context, id string) (*Task, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT id, worker_name, prompt, context, event_id, state, result, error_msg,
+		`SELECT id, worker_name, prompt, context, event_id, dedup_key, state, result, error_msg,
 		        created_at, updated_at, dispatched_at, completed_at
 		 FROM tasks WHERE id = ?`, id)
 	return scanTask(row)
@@ -60,7 +66,7 @@ func (s *Store) Get(ctx context.Context, id string) (*Task, error) {
 
 // List returns all tasks, optionally filtered by state.
 func (s *Store) List(ctx context.Context, state string) ([]Task, error) {
-	query := `SELECT id, worker_name, prompt, context, event_id, state, result, error_msg,
+	query := `SELECT id, worker_name, prompt, context, event_id, dedup_key, state, result, error_msg,
 	                  created_at, updated_at, dispatched_at, completed_at
 	           FROM tasks`
 	var args []any
@@ -122,6 +128,23 @@ func (s *Store) Fail(ctx context.Context, id, errMsg string) error {
 		return fmt.Errorf("fail task: %w", err)
 	}
 	return checkRowAffected(res, id, "fail")
+}
+
+// HasCompletedDedup checks if a task with the given dedup_key has already completed.
+// Used during crash recovery to prevent duplicate dispatch.
+func (s *Store) HasCompletedDedup(ctx context.Context, dedupKey string) (bool, error) {
+	if dedupKey == "" {
+		return false, nil
+	}
+	var count int
+	err := s.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM tasks WHERE dedup_key = ? AND state = ?`,
+		dedupKey, string(StateCompleted),
+	).Scan(&count)
+	if err != nil {
+		return false, fmt.Errorf("check dedup: %w", err)
+	}
+	return count > 0, nil
 }
 
 // Pending returns IDs of tasks in pending or dispatched state (for recovery).

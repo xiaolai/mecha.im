@@ -2,6 +2,18 @@
 
 All notable changes to mecha are documented here.
 
+## v0.5.14 (unreleased)
+
+- **Secret redaction**: GET /workers API redacts env values, token, api_key
+- **Idempotent dispatch**: dedup_key prevents duplicate write-back on crash recovery (schema V4)
+- **Observability**: expvar metrics (tasks, dispatch latency, queue depth, write-back) + trace IDs
+- **Cron trigger**: first Trigger interface implementation — fires events on interval
+- **GitLab responder**: post comments back to MRs/issues via GitLab API
+- **Registry reconciliation**: periodic health check detects container drift
+- **MCP server expanded**: 6 tools (was 3), loads rules + examples, split into 4 files
+- Testing: IsSensitivePath edge cases, TS runtime tests, Docker tests in CI
+- CI: docker job builds image and runs integration tests
+
 ## v0.5.13
 
 - 8 Docker integration tests: runtime CLI install, Codex MCP detection, credential mounts, plugin env vars, health transitions

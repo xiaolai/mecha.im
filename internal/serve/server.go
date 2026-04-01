@@ -3,6 +3,7 @@ package serve
 import (
 	"context"
 	"crypto/subtle"
+	"expvar"
 	"fmt"
 	"log/slog"
 	"net"
@@ -68,6 +69,7 @@ func New(cfg Config) *Server {
 	mux.HandleFunc("GET /tasks", s.handleListTasks)
 	mux.HandleFunc("GET /workers", s.handleListWorkers)
 	mux.HandleFunc("GET /health", s.handleHealth)
+	mux.Handle("GET /debug/vars", expvar.Handler())
 	if s.sources != nil && s.events != nil {
 		mux.HandleFunc("POST /webhook/{source}", s.handleWebhook)
 		mux.HandleFunc("GET /webhook/{source}", s.handleWebhook)
@@ -97,8 +99,29 @@ func (s *Server) Start(ctx context.Context) error {
 		return fmt.Errorf("recover pending tasks: %w", err)
 	}
 	for _, id := range ids {
+		// Check idempotency: if a task with the same dedup_key already completed,
+		// skip re-dispatch to prevent duplicate write-back (e.g., duplicate PR comments).
+		t, getErr := s.tasks.Get(ctx, id)
+		if getErr != nil {
+			s.logger.Warn("recover: get task failed", "id", id, "err", getErr)
+			continue
+		}
+		if t.DedupKey != "" {
+			dup, dupErr := s.tasks.HasCompletedDedup(ctx, t.DedupKey)
+			if dupErr != nil {
+				s.logger.Warn("recover: dedup check failed", "id", id, "err", dupErr)
+				continue
+			}
+			if dup {
+				tasksDedupSkip.Add(1)
+				s.logger.Info("recover: skipping duplicate task", "id", id, "dedup_key", t.DedupKey)
+				_ = s.tasks.Fail(ctx, id, "skipped: duplicate of completed task")
+				continue
+			}
+		}
 		select {
 		case s.pending <- id:
+			tasksRecovered.Add(1)
 			s.logger.Info("recovered task", "id", id)
 		default:
 			s.logger.Warn("pending queue full, skipping recovery", "id", id)

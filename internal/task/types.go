@@ -23,6 +23,7 @@ type Task struct {
 	Prompt       string     `json:"prompt"`
 	Context      string     `json:"context,omitempty"`
 	EventID      string     `json:"event_id,omitempty"`
+	DedupKey     string     `json:"dedup_key,omitempty"`
 	State        State      `json:"state"`
 	Result       string     `json:"result,omitempty"`
 	ErrorMsg     string     `json:"error,omitempty"`
