@@ -262,6 +262,59 @@ func TestTypeLabel(t *testing.T) {
 	}
 }
 
+func TestCredentialsSingleParsed(t *testing.T) {
+	yml := "name: ok\ndocker:\n  image: x\n  credentials:\n    - codex\n"
+	path := filepath.Join(t.TempDir(), "w.yml")
+	os.WriteFile(path, []byte(yml), 0o644)
+	w, err := LoadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(w.Docker.Credentials) != 1 || w.Docker.Credentials[0] != "codex" {
+		t.Errorf("credentials = %v, want [codex]", w.Docker.Credentials)
+	}
+}
+
+func TestCredentialsDualParsed(t *testing.T) {
+	yml := "name: ok\ndocker:\n  image: x\n  credentials: [claude, codex]\n"
+	path := filepath.Join(t.TempDir(), "w.yml")
+	os.WriteFile(path, []byte(yml), 0o644)
+	w, err := LoadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(w.Docker.Credentials) != 2 {
+		t.Fatalf("credentials = %v, want [claude, codex]", w.Docker.Credentials)
+	}
+	if w.Docker.Credentials[0] != "claude" || w.Docker.Credentials[1] != "codex" {
+		t.Errorf("credentials = %v", w.Docker.Credentials)
+	}
+}
+
+func TestCredentialsInvalidValue(t *testing.T) {
+	for _, cred := range []string{"ollama", "gemini"} {
+		t.Run(cred, func(t *testing.T) {
+			yml := "name: bad\ndocker:\n  image: x\n  credentials: [" + cred + "]\n"
+			path := filepath.Join(t.TempDir(), "w.yml")
+			os.WriteFile(path, []byte(yml), 0o644)
+			_, err := LoadFile(path)
+			if err == nil {
+				t.Errorf("expected error for credentials: %s", cred)
+			}
+		})
+	}
+}
+
+func TestCredentialsDuplicate(t *testing.T) {
+	yml := "name: bad\ndocker:\n  image: x\n  credentials: [claude, claude]\n"
+	path := filepath.Join(t.TempDir(), "w.yml")
+	os.WriteFile(path, []byte(yml), 0o644)
+	_, err := LoadFile(path)
+	if err == nil {
+		t.Error("expected error for duplicate credentials")
+	}
+}
+
 func TestValidWorkerName(t *testing.T) {
 	valid := []string{
 		"alpha", "my-worker", "worker.v2", "test_1",

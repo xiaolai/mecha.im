@@ -75,7 +75,7 @@ Add an `events:` section to your worker YAML:
 ```yaml
 name: pr-reviewer
 docker:
-  image: mecha-worker-claude:latest
+  image: mecha-worker:latest
   token: claude.xiaolaidev
   env:
     CLAUDE_MODEL: claude-sonnet-4-6

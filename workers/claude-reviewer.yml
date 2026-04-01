@@ -1,6 +1,6 @@
 name: claude-reviewer
 docker:
-  image: mecha-worker-claude:latest
+  image: mecha-worker:latest
   cwd: /path/to/project
   resources:
     cpu: 4

@@ -66,7 +66,7 @@ Use `docker.token` with a `backend.name` reference:
 ```yaml
 name: reviewer
 docker:
-  image: mecha-worker-claude:latest
+  image: mecha-worker:latest
   token: claude.xiaolaidev    # → resolves to sk-ant-oat01-xxx...
 ```
 
@@ -87,13 +87,13 @@ Different workers can use different Claude subscriptions:
 # workers/reviewer-a.yml
 name: reviewer-a
 docker:
-  image: mecha-worker-claude:latest
+  image: mecha-worker:latest
   token: claude.xiaolaidev        # subscription account A
 
 # workers/reviewer-b.yml
 name: reviewer-b
 docker:
-  image: mecha-worker-claude:latest
+  image: mecha-worker:latest
   token: claude.lixiaolai         # subscription account B
 ```
 
