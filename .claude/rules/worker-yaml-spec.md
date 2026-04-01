@@ -8,7 +8,8 @@ globs: ["**/*.go", "workers/**/*.yml"]
 ## Structure Detection
 
 If YAML has `docker:` section → managed worker (mecha controls lifecycle).
-If not → unmanaged (live) worker (mecha just calls the endpoint).
+If YAML has `adapter:` section → adapter worker (in-process LLM API translation).
+If YAML has `endpoint:` field → unmanaged (live) worker (mecha just calls the endpoint).
 
 ## Common Fields
 
@@ -20,8 +21,9 @@ timeout: 30m                   # task timeout (default: 10m)
 
 ## Docker Worker
 
-All LLM workers run in Docker containers. Backend (Claude/Codex/Gemini) is
-determined by the image. All config via `docker.env`.
+The unified image runs Claude as the primary backend via the Agent SDK.
+Codex is available as an MCP tool when credentials are mounted. All config
+via `docker.env`.
 
 ```yaml
 name: claude-reviewer
@@ -94,7 +96,6 @@ Every mecha worker image must:
 - Serve `POST /task` → result contract JSON
 - Include `HEALTHCHECK` in Dockerfile
 - Read config from env vars (no config files inside container)
-- Set `WORKER_BACKEND` env var (`claude` or `codex`)
 
 ## Claude Env Vars
 
@@ -106,8 +107,8 @@ Every mecha worker image must:
 | `CLAUDE_DISALLOWED_TOOLS` | `--disallowed-tools` |
 | `CLAUDE_PERMISSION_MODE` | `--permission-mode` |
 | `CLAUDE_EFFORT` | `--effort` |
-| `CLAUDE_OUTPUT_FORMAT` | `--output-format` |
 | `CLAUDE_MAX_BUDGET_USD` | `--max-budget-usd` |
+| `CLAUDE_MAX_TURNS` | `--max-turns` |
 | `CLAUDE_CODE_OAUTH_TOKEN` | Auth (subscription) |
 | `ANTHROPIC_API_KEY` | Auth (API key) |
 

@@ -41,8 +41,10 @@ docker:
     CLAUDE_SYSTEM_PROMPT: "You review code."
     CLAUDE_ALLOWED_TOOLS: "Read,Grep,Glob,Bash"
     CLAUDE_EFFORT: high
-    CLAUDE_OUTPUT_FORMAT: json
-  token: claude.xiaolaidev              # from ~/.mecha/secrets.yml
+  credentials: [claude]                 # subscription credential mounts (read-only)
+  token: claude.xiaolaidev              # from ~/.mecha/secrets.yml (mutually exclusive with credentials)
+  plugins:                              # Claude Code plugins installed at start
+    - pr-review-toolkit
   labels:                               # custom Docker labels
     team: security
 timeout: 30m                            # task timeout
@@ -64,6 +66,9 @@ timeout: 30m                            # task timeout
 | `docker.token` | No | — | Token reference from `~/.mecha/secrets.yml` |
 | `docker.expose` | No | `false` | Bind to `0.0.0.0` instead of `127.0.0.1` (network-accessible) |
 | `docker.api_key` | No | — | Bearer auth key for `/task` endpoint. **Required** when `expose: true` |
+| `docker.credentials` | No | `[]` | CLI credential mounts, read-only (`[claude]`, `[codex]`, or `[claude, codex]`) |
+| `docker.plugins` | No | `[]` | Claude Code plugins installed at container start |
+| `docker.plugin_marketplaces` | No | `[]` | Plugin marketplace URLs added before plugin install |
 | `docker.labels` | No | `{}` | Custom Docker container labels |
 | `timeout` | No | `10m` | Max task execution time |
 
@@ -84,9 +89,11 @@ The path is validated:
 | Blocked Paths | Reason |
 |---------------|--------|
 | `/etc`, `/proc`, `/sys`, `/dev`, `/boot` | System directories |
+| `$HOME` (home directory itself) | Contains sensitive subdirs |
 | `~/.ssh`, `~/.gnupg` | Credential stores |
 | `~/.aws`, `~/.config/gcloud` | Cloud credentials |
 | `~/.mecha` | Mecha's own config and secrets |
+| `~/.claude`, `~/.codex`, `~/.gemini` | CLI credentials (allowed via `docker.credentials`) |
 
 `mecha doctor` re-checks these paths for workers already in the registry.
 
@@ -174,7 +181,6 @@ Every managed worker image must:
 | Task | `POST /task` → result contract JSON |
 | Healthcheck | Include `HEALTHCHECK` directive in Dockerfile |
 | Config | Read all config from environment variables |
-| Backend | Set `WORKER_BACKEND` env var (`claude`, `codex`, `gemini`) |
 
 ### POST /task Request
 
@@ -214,30 +220,18 @@ Claude uses the Agent SDK `query()` directly. Env vars map to SDK options:
 | `CLAUDE_SYSTEM_PROMPT` | `systemPrompt` | Any string |
 | `CLAUDE_ALLOWED_TOOLS` | `allowedTools` | Comma-separated: `Read,Grep,Glob,Bash` |
 | `CLAUDE_DISALLOWED_TOOLS` | `disallowedTools` | Comma-separated |
-| `CLAUDE_PERMISSION_MODE` | `permissionMode` | `default`, `plan`, `acceptEdits`, `bypassPermissions` |
+| `CLAUDE_PERMISSION_MODE` | `permissionMode` | Defaults to `bypassPermissions` (SDK default for non-interactive use) |
 | `CLAUDE_EFFORT` | `effort` | `low`, `medium`, `high`, `max` |
 | `CLAUDE_MAX_BUDGET_USD` | `maxBudgetUsd` | e.g. `5.00` |
 | `CLAUDE_MAX_TURNS` | `maxTurns` | e.g. `50` |
 
-### Codex
+### Codex (MCP Tool)
 
-Codex uses `codex exec` CLI. Env vars map to CLI flags:
+Codex runs as an MCP child process inside the Claude worker. It is auto-enabled when `~/.codex/auth.json` is mounted via `credentials: [codex]` or when `CODEX_API_KEY` is set. See [Dual-Agent Workers](./dual-agent) for details.
 
-| Env Var | CLI Flag | Values |
-|---------|----------|--------|
-| `CODEX_MODEL` | `--model` | `gpt-5.4`, `gpt-5.4-mini`, etc. |
-| `CODEX_SANDBOX` | `--sandbox` | `read-only`, `workspace-write`, `danger-full-access` |
-| `CODEX_FULL_AUTO` | `--full-auto` | `"true"` to enable auto-approve + workspace-write |
-| `CODEX_EFFORT` | `-c model_reasoning_effort` | `low`, `medium`, `high` |
-
-### Gemini
-
-| Env Var | CLI Flag | Values |
-|---------|----------|--------|
-| `GEMINI_MODEL` | `--model` | `gemini-2.5-pro`, `gemini-2.5-flash`, etc. |
-| `GEMINI_SANDBOX` | `--sandbox` | `"true"` to enable sandboxed execution |
-| `GEMINI_APPROVAL_MODE` | `--approval-mode` | `default`, `auto_edit`, `yolo`, `plan` |
-| `GEMINI_OUTPUT_FORMAT` | `--output-format` | `text`, `json`, `stream-json` |
+::: tip Gemini
+Gemini is not supported as a managed Docker worker — its credential files are encrypted to the host machine. Use Gemini API endpoints as [unmanaged workers](#unmanaged-worker) instead.
+:::
 
 ## State Machine
 

@@ -81,7 +81,7 @@ Both models need their own credentials:
 | Model | Auth method (preferred) | How |
 |---|---|---|
 | Claude | Subscription | `credentials: [claude]` (mounts `~/.claude/`) |
-| Codex | Subscription | `credentials: [codex]` (mounts `~/.codex/auth.json`) |
+| Codex | Subscription | `credentials: [codex]` (mounts `~/.codex/`) |
 
 The backend auto-detects `~/.codex/auth.json` when credentials are mounted — no extra env vars needed.
 

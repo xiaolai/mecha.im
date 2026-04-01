@@ -11,7 +11,7 @@ Print the version.
 
 ```bash
 $ mecha version
-mecha v0.5.2
+mecha v0.5.13
 ```
 
 ## mecha worker add

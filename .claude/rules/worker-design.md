@@ -17,7 +17,8 @@ Same HTTP contract regardless of how the worker runs.
 ## Managed vs Unmanaged
 
 If YAML has `docker:` section → managed (mecha controls lifecycle).
-If not → unmanaged (mecha just calls the endpoint).
+If YAML has `adapter:` section → adapter (mecha runs in-process HTTP adapter).
+If YAML has `endpoint:` field → unmanaged (mecha just calls the endpoint).
 No `type` field. The structure is the answer.
 
 Managed workers run LLM CLIs (Claude, with Codex as MCP tool) inside Docker
@@ -46,25 +47,24 @@ offline → online ↔ busy (automatic, in-container)
 ## Managed Lifecycle
 
 - **persistent**: container stays running across tasks, reused.
-- **disposable**: one container per task, destroyed after (Phase 3).
+- **disposable**: one container per task, destroyed after.
 
-## Adapters (Phase 3)
+## Adapters
 
-Non-Docker LLM APIs (Ollama, vLLM, OpenAI-compatible, etc.) need an adapter
+Non-Docker LLM APIs (Ollama, vLLM, OpenAI-compatible, etc.) use an adapter
 to translate their native API into the mecha worker contract (`GET /health` +
 `POST /task`).
 
-Design: **compiled-in Go adapter registry**, not dynamic plugins or sidecars.
+**Compiled-in Go adapter registry**, not dynamic plugins or sidecars.
 
-```
-adapter/
-  ollama.go     → Ollama /api/chat → worker contract
-  openai.go     → OpenAI /v1/chat/completions → worker contract
-  litellm.go    → LiteLLM proxy → worker contract
-```
+Implemented adapters:
 
-Each adapter is a Go package implementing a common interface. Workers reference
-an adapter by name in YAML:
+| Adapter | File | Upstream API |
+|---|---|---|
+| `ollama` | `internal/adapter/ollama.go` | Ollama `/api/chat` |
+| `openai` | `internal/adapter/openai.go` | OpenAI-compatible `/v1/chat/completions` |
+
+Workers reference an adapter by name in YAML:
 
 ```yaml
 name: local-llm
@@ -77,6 +77,3 @@ timeout: 10m
 
 Mecha starts the adapter in-process (no sidecar, no separate binary). The
 adapter handles health-check translation and request/response mapping.
-
-Current: `scripts/ollama-adapter.py` is a reference implementation (Python,
-not production). Replace with Go adapters in Phase 3.

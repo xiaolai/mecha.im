@@ -104,7 +104,7 @@ When a worker starts, environment variables are assembled in this order:
 
 1. `docker.token` resolved from `secrets.yml` → auto-detected env var
 2. `docker.env` values merged (explicit values win on collision)
-3. `HOME=/tmp` set for non-root container user
+3. `HOME=/home/worker` when `credentials:` is used, otherwise `HOME=/tmp`
 
 So if you set both `token: claude.work` and `env: { CLAUDE_CODE_OAUTH_TOKEN: ... }`, the explicit `env` value wins.
 
