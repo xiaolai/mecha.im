@@ -76,8 +76,7 @@ Mecha auto-detects the token type by its prefix and sets the correct environment
 |---|---|
 | `sk-ant-oat*` | `CLAUDE_CODE_OAUTH_TOKEN` (subscription OAuth) |
 | `sk-ant-*` (other) | `ANTHROPIC_API_KEY` (Console API key) |
-| `sk-*` | `OPENAI_API_KEY` |
-| `AIza*` | `GEMINI_API_KEY` |
+| `sk-*` | `CODEX_API_KEY` |
 
 ## Multi-Account Claude
 

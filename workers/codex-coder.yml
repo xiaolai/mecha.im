@@ -2,7 +2,7 @@ name: codex-coder
 docker:
   image: mecha-worker:latest
   cwd: /path/to/project
-  credentials: codex
+  credentials: [codex]
   resources:
     cpu: 2
     memory: 4G

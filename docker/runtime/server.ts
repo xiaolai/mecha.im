@@ -1,7 +1,6 @@
-import type { TaskRequest, TaskResponse, BackendExecutor } from "./types";
+import type { TaskRequest, BackendExecutor } from "./types";
 
 const PORT = parseInt(process.env.WORKER_PORT || "8081") || 8081;
-const TIMEOUT_MS = parseInt(process.env.WORKER_TIMEOUT || "600000") || 600000;
 const MAX_BODY_BYTES = 10 * 1024 * 1024; // 10MB
 const DRY_RUN = process.env.WORKER_DRY_RUN === "true";
 const API_KEY = process.env.WORKER_API_KEY || "";

@@ -60,7 +60,7 @@ The system prompt tells Claude when and how to use them.
 name: claude-with-codex
 docker:
   image: mecha-worker:latest
-  credentials: claude                    # Claude subscription auth
+  credentials: [claude]                  # Claude subscription auth
   cwd: /path/to/project
   resources:
     cpu: 4
@@ -84,15 +84,15 @@ Both models need their own credentials:
 
 | Model | Auth method | How |
 |---|---|---|
-| Claude | Subscription | `credentials: claude` (mounts `~/.claude/`) or `token: claude.name` |
+| Claude | Subscription | `credentials: [claude]` (mounts `~/.claude/`) or `token: claude.name` |
 | Codex | API key | `CODEX_API_KEY` in `docker.env` or `token: codex.name` |
-| Codex | Subscription | `credentials: codex` (mounts `~/.codex/`) + set `CODEX_MCP: "true"` |
+| Codex | Subscription | `credentials: [codex]` (mounts `~/.codex/`) + set `CODEX_MCP: "true"` |
 
 If using credential mounts for both:
 
 ```yaml
 docker:
-  credentials: claude
+  credentials: [claude]
   env:
     CODEX_MCP: "true"    # enable Codex MCP using mounted credentials
 ```

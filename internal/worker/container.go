@@ -16,7 +16,7 @@ type credentialMount struct {
 // These are read-only mounts for subscription-based CLI auth.
 // Gemini is excluded: its credential file (~/.gemini/gemini-credentials.json)
 // is AES-256-GCM encrypted with scrypt(hostname+username), not portable
-// into containers. Use GEMINI_API_KEY via docker.token instead.
+// into containers. Use Gemini API endpoints as unmanaged workers instead.
 var credentialMounts = map[string]credentialMount{
 	"claude": {HostDir: ".claude", ContainerDir: "/home/worker/.claude"},
 	"codex":  {HostDir: ".codex", ContainerDir: "/home/worker/.codex"},
