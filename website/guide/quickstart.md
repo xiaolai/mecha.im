@@ -60,7 +60,6 @@ docker:
   lifecycle: persistent
   env:
     CLAUDE_MODEL: claude-haiku-4-5-20251001
-    CLAUDE_PERMISSION_MODE: bypassPermissions
     CLAUDE_EFFORT: low
   token: claude.default
 timeout: 10m

@@ -40,7 +40,6 @@ docker:
     CLAUDE_MODEL: claude-sonnet-4-6
     CLAUDE_SYSTEM_PROMPT: "You review code."
     CLAUDE_ALLOWED_TOOLS: "Read,Grep,Glob,Bash"
-    CLAUDE_PERMISSION_MODE: bypassPermissions
     CLAUDE_EFFORT: high
     CLAUDE_OUTPUT_FORMAT: json
   token: claude.xiaolaidev              # from ~/.mecha/secrets.yml
