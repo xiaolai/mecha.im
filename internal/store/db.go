@@ -102,5 +102,22 @@ func migrate(db *sql.DB) error {
 			return fmt.Errorf("commit v3 migration: %w", err)
 		}
 	}
+	if version < 4 {
+		for _, stmt := range strings.Split(schemaV4, ";") {
+			stmt = strings.TrimSpace(stmt)
+			if stmt == "" {
+				continue
+			}
+			if _, err := db.Exec(stmt); err != nil {
+				if strings.Contains(err.Error(), "duplicate column") {
+					continue
+				}
+				return fmt.Errorf("apply schema v4: %w", err)
+			}
+		}
+		if _, err := db.Exec("PRAGMA user_version = 4"); err != nil {
+			return err
+		}
+	}
 	return nil
 }
