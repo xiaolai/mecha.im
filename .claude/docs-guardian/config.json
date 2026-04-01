@@ -20,13 +20,14 @@
     { "source": "internal/source/**", "doc": "website/guide/events.md" },
     { "source": "internal/event/**", "doc": "website/guide/events.md" },
     { "source": "internal/policy/**", "doc": "website/guide/policy.md" },
-    { "source": "internal/adapter/**", "doc": "website/guide/workers.md" },
+    { "source": "internal/adapter/**", "doc": "website/guide/adapters.md" },
     { "source": "docker/**", "doc": "website/guide/installation.md" },
     { "source": "docker/runtime/backends/**", "doc": "website/guide/dual-agent.md" },
     { "source": "internal/worker/container.go", "doc": "website/guide/workers.md" },
     { "source": "internal/store/**", "doc": "website/guide/architecture.md" },
     { "source": "internal/writeback/**", "doc": "website/guide/architecture.md" },
-    { "source": "internal/task/**", "doc": "website/guide/architecture.md" }
+    { "source": "internal/task/**", "doc": "website/guide/architecture.md" },
+    { "source": "cmd/mecha-mcp/**", "doc": "website/guide/mcp-server.md" }
   ],
   "exclude": [
     "node_modules/",

@@ -50,7 +50,7 @@ Fetch the full content of a documentation page by slug.
 {"name": "get-page", "arguments": {"slug": "workers"}}
 ```
 
-Available slugs: `api`, `architecture`, `cli`, `dual-agent`, `events`, `go-api`, `index`, `installation`, `mcp-server`, `policy`, `quickstart`, `secrets`, `server`, `workers`.
+Available slugs: `adapters`, `api`, `architecture`, `cli`, `dual-agent`, `events`, `go-api`, `index`, `installation`, `mcp-server`, `policy`, `quickstart`, `secrets`, `server`, `workers`.
 
 ### search-docs
 
