@@ -41,35 +41,69 @@ Mecha is a single binary — no runtime dependencies. What else you need depends
 
 ## Install Mecha
 
-### Option A: Download Binary (Recommended)
+### Option A: Homebrew (Recommended)
 
-Download the latest release for your platform:
+The fastest way on macOS or Linux:
+
+```bash
+brew install xiaolai/tap/mecha
+```
+
+The formula auto-updates with each release.
+
+### Option B: Install Script
+
+One command, auto-detects platform:
+
+::: code-group
+```bash [macOS / Linux]
+curl -fsSL https://raw.githubusercontent.com/xiaolai/mecha.im/main/scripts/install.sh | sh
+```
+
+```powershell [Windows (WSL)]
+irm https://raw.githubusercontent.com/xiaolai/mecha.im/main/scripts/install.ps1 | iex
+```
+:::
+
+Pin a specific version with `MECHA_VERSION=v0.5.11` or change the install directory with `MECHA_INSTALL_DIR=/opt/bin`.
+
+### Option C: Go Install
+
+Requires Go 1.26+:
+
+```bash
+go install mecha.im/cmd/mecha@latest
+```
+
+### Option D: Download Binary
+
+Download the latest release for your platform from the [releases page](https://github.com/xiaolai/mecha.im/releases/latest):
 
 ::: code-group
 ```bash [macOS (Apple Silicon)]
-curl -L https://github.com/xiaolai/mecha.im/releases/latest/download/mecha-darwin-arm64.tar.gz | tar xz
+curl -fsSL https://github.com/xiaolai/mecha.im/releases/latest/download/mecha-darwin-arm64.tar.gz | tar xz
 sudo mv mecha /usr/local/bin/
 ```
 
 ```bash [macOS (Intel)]
-curl -L https://github.com/xiaolai/mecha.im/releases/latest/download/mecha-darwin-amd64.tar.gz | tar xz
+curl -fsSL https://github.com/xiaolai/mecha.im/releases/latest/download/mecha-darwin-amd64.tar.gz | tar xz
 sudo mv mecha /usr/local/bin/
 ```
 
 ```bash [Linux (x86_64)]
-curl -L https://github.com/xiaolai/mecha.im/releases/latest/download/mecha-linux-amd64.tar.gz | tar xz
+curl -fsSL https://github.com/xiaolai/mecha.im/releases/latest/download/mecha-linux-amd64.tar.gz | tar xz
 sudo mv mecha /usr/local/bin/
 ```
 
 ```bash [Linux (ARM64)]
-curl -L https://github.com/xiaolai/mecha.im/releases/latest/download/mecha-linux-arm64.tar.gz | tar xz
+curl -fsSL https://github.com/xiaolai/mecha.im/releases/latest/download/mecha-linux-arm64.tar.gz | tar xz
 sudo mv mecha /usr/local/bin/
 ```
 :::
 
 macOS binaries are code-signed and notarized by Apple.
 
-### Option B: Build from Source
+### Option E: Build from Source
 
 Requires Go 1.26+:
 
@@ -78,12 +112,6 @@ git clone https://github.com/xiaolai/mecha.im.git
 cd mecha.im
 make build
 sudo cp mecha /usr/local/bin/
-```
-
-### Option C: Go Install
-
-```bash
-go install mecha.im/cmd/mecha@latest
 ```
 
 ### Verify
@@ -133,18 +161,20 @@ sudo usermod -aG docker $USER   # log out and back in
 ### Build Worker Images
 
 ```bash
-make image-claude    # Claude Code CLI worker
-make image-codex     # Codex CLI worker
-make image-gemini    # Gemini CLI worker
+make image    # builds mecha-worker (Claude + Codex)
 ```
 
-Or build all three:
+Or equivalently:
 
 ```bash
-make images
+make image
 ```
 
 Each image is built on `mecha-worker-base` (Ubuntu + Bun runtime + tools like git, curl, ripgrep).
+
+::: tip Gemini workers
+Gemini is not supported as a managed Docker worker — its credential files are encrypted to the host machine and not portable into containers. Use Gemini API endpoints as [unmanaged workers](./workers) instead.
+:::
 
 ## Set Up Secrets
 

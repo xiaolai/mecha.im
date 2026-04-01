@@ -82,9 +82,8 @@ func DetectTokenEnvVar(token string) (string, string) {
 	case strings.HasPrefix(token, "sk-ant-"):
 		return "ANTHROPIC_API_KEY", token
 	case strings.HasPrefix(token, "sk-"):
-		return "OPENAI_API_KEY", token
-	case strings.HasPrefix(token, "AIza"):
-		return "GEMINI_API_KEY", token
+		// Codex CLI reads CODEX_API_KEY at runtime, not OPENAI_API_KEY.
+		return "CODEX_API_KEY", token
 	default:
 		return "", token
 	}

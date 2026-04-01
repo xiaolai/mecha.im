@@ -26,10 +26,10 @@ You now have a `./mecha` binary.
 ## Step 2: Build the worker image
 
 ```bash
-make image-claude
+make image
 ```
 
-This builds `mecha-worker-base` (Bun + common tools) and `mecha-worker-claude` (base + Claude Code CLI).
+This builds `mecha-worker-base` (Bun + common tools) and `mecha-worker` (base + Claude Code CLI).
 
 ## Step 3: Set up secrets
 
@@ -53,7 +53,7 @@ Replace `YOUR_CLAUDE_SETUP_TOKEN_HERE` with your token from `claude setup-token`
 cat > workers/my-reviewer.yml << 'EOF'
 name: my-reviewer
 docker:
-  image: mecha-worker-claude:latest
+  image: mecha-worker:latest
   resources:
     cpu: 2
     memory: 4G

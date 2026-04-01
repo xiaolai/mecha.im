@@ -22,7 +22,7 @@ Define a worker:
 ```yaml
 name: pr-reviewer
 docker:
-  image: mecha-worker-claude:latest
+  image: mecha-worker:latest
   token: claude.default
   env:
     CLAUDE_MODEL: claude-sonnet-4-6
@@ -50,17 +50,39 @@ Every PR now gets an automated security review.
 
 ## Install
 
+### Homebrew (macOS / Linux)
+
+```bash
+brew install xiaolai/tap/mecha
+```
+
+### Install script (macOS / Linux)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/xiaolai/mecha.im/main/scripts/install.sh | sh
+```
+
+### Go install
+
+```bash
+go install mecha.im/cmd/mecha@latest
+```
+
+### Manual download
+
+Signed and notarized binaries for every release:
+
 ```bash
 # macOS (Apple Silicon)
-curl -L https://github.com/xiaolai/mecha.im/releases/latest/download/mecha-darwin-arm64.tar.gz | tar xz
+curl -fsSL https://github.com/xiaolai/mecha.im/releases/latest/download/mecha-darwin-arm64.tar.gz | tar xz
 sudo mv mecha /usr/local/bin/
 
 # Linux (x86_64)
-curl -L https://github.com/xiaolai/mecha.im/releases/latest/download/mecha-linux-amd64.tar.gz | tar xz
+curl -fsSL https://github.com/xiaolai/mecha.im/releases/latest/download/mecha-linux-amd64.tar.gz | tar xz
 sudo mv mecha /usr/local/bin/
 ```
 
-Or build from source (requires Go 1.26+): `git clone` + `make build`.
+All platforms: [latest release](https://github.com/xiaolai/mecha.im/releases/latest)
 
 Docker 28+ needed for container workers only. Adapter workers (Ollama, vLLM) need no Docker.
 

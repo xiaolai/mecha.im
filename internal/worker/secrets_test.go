@@ -78,8 +78,8 @@ func TestDetectTokenEnvVar(t *testing.T) {
 	}{
 		{"sk-ant-oat01-abc", "CLAUDE_CODE_OAUTH_TOKEN"},
 		{"sk-ant-api03-def", "ANTHROPIC_API_KEY"},
-		{"sk-proj-abc123xyz", "OPENAI_API_KEY"},
-		{"AIzaSyBmmkGm-test", "GEMINI_API_KEY"},
+		{"sk-proj-abc123xyz", "CODEX_API_KEY"},
+		{"AIzaSyBmmkGm-test", ""},
 		{"unknown-token", ""},
 	}
 	for _, tt := range tests {

@@ -29,7 +29,7 @@ flowchart TD
 ```yaml
 name: claude-reviewer
 docker:
-  image: mecha-worker-claude:latest     # required
+  image: mecha-worker:latest     # required
   cwd: /path/to/project                 # host dir → /workspace in container
   resources:
     cpu: 4                              # CPU cores
@@ -98,7 +98,7 @@ Set `lifecycle: disposable` to create a fresh container per task. The container 
 ```yaml
 name: sandbox-runner
 docker:
-  image: mecha-worker-claude:latest
+  image: mecha-worker:latest
   lifecycle: disposable
   token: claude.xiaolaidev
 timeout: 10m
