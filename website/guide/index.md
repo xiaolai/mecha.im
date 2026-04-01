@@ -15,7 +15,7 @@ You want multiple AI agents — a code reviewer, a bug triager, a doc writer —
 
 Mecha gives you a YAML-driven lifecycle for LLM workers:
 
-```
+```bash
 mecha worker add workers/reviewer.yml    # define it
 mecha worker start reviewer              # run it (Docker container)
 curl http://localhost:32768/task          # use it
