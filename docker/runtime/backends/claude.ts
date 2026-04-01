@@ -2,16 +2,28 @@ import { query } from "@anthropic-ai/claude-agent-sdk";
 import type { TaskResponse } from "../types";
 
 const TIMEOUT_MS = parseInt(process.env.WORKER_TIMEOUT || "600000") || 600000;
-// Codex MCP is enabled when:
-// 1. Subscription credentials are mounted (~/.codex/auth.json exists), or
-// 2. Explicitly set via CODEX_MCP=true (for API key users who set CODEX_API_KEY in env)
+// Codex MCP auto-detection:
+// 1. Subscription credentials mounted (~/.codex/auth.json exists), or
+// 2. API key user with CODEX_API_KEY set in env
+// CODEX_MCP=true forces enablement but still requires auth to be present.
 import { existsSync } from "node:fs";
 const CODEX_CRED_PATH = `${process.env.HOME || "/home/worker"}/.codex/auth.json`;
-const CODEX_MCP_ENABLED = process.env.CODEX_MCP === "true" || existsSync(CODEX_CRED_PATH);
+const CODEX_HAS_CREDS = existsSync(CODEX_CRED_PATH);
+const CODEX_HAS_KEY = !!process.env.CODEX_API_KEY;
+const CODEX_MCP_REQUESTED = process.env.CODEX_MCP === "true" || CODEX_HAS_CREDS || CODEX_HAS_KEY;
 const CODEX_MCP_TOOLS = ["mcp__codex__codex", "mcp__codex__codex-reply", "mcp__codex__websearch"];
 
+// Fail fast: if CODEX_MCP=true but no auth is available, error at startup
+if (process.env.CODEX_MCP === "true" && !CODEX_HAS_CREDS && !CODEX_HAS_KEY) {
+  console.error("CODEX_MCP=true but no auth found: need ~/.codex/auth.json (credentials mount) or CODEX_API_KEY");
+  process.exit(1);
+}
+
+const CODEX_MCP_ENABLED = CODEX_MCP_REQUESTED && (CODEX_HAS_CREDS || CODEX_HAS_KEY);
+
 if (CODEX_MCP_ENABLED) {
-  console.log("codex MCP enabled — codex mcp-server will be spawned as child process");
+  const method = CODEX_HAS_CREDS ? "subscription credentials" : "API key";
+  console.log(`codex MCP enabled via ${method} — codex mcp-server will be spawned as child process`);
 }
 
 export async function executeTask(prompt: string): Promise<TaskResponse> {
@@ -63,12 +75,13 @@ export async function executeTask(prompt: string): Promise<TaskResponse> {
       },
     };
 
-    // Add Codex MCP tools to allowed tools
-    const allowed = (options.allowedTools as string[]) || [];
-    for (const tool of CODEX_MCP_TOOLS) {
-      if (!allowed.includes(tool)) allowed.push(tool);
+    // Only auto-add Codex tools when no explicit CLAUDE_ALLOWED_TOOLS was set.
+    // If the operator specified an allowlist, they control what tools are available.
+    if (!process.env.CLAUDE_ALLOWED_TOOLS) {
+      options.allowedTools = [...CODEX_MCP_TOOLS];
     }
-    if (allowed.length > 0) options.allowedTools = allowed;
+    // Respect CLAUDE_DISALLOWED_TOOLS as a hard veto — never override it.
+    // Operators who want Codex tools but not websearch can disallow it.
   }
 
   try {

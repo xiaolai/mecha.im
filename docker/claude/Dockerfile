@@ -3,14 +3,20 @@ FROM mecha-worker-base
 USER root
 
 # Install Claude Code CLI (required by Agent SDK as subprocess)
-# Download installer, verify it's a shell script (not HTML/error page), then execute.
+# NOTE: No versioned/checksummed installer URL is published by Anthropic.
+# Mitigations: download to file, verify shebang, verify file size is reasonable
+# (not an HTML error page), verify installed binary runs.
 SHELL ["/bin/bash", "-c"]
 RUN INSTALLER=$(mktemp) \
     && curl -fsSL https://claude.ai/install.sh -o "$INSTALLER" \
     && head -1 "$INSTALLER" | grep -q '^#!/' \
+    && SIZE=$(wc -c < "$INSTALLER") \
+    && test "$SIZE" -gt 500 \
     && bash "$INSTALLER" \
     && rm "$INSTALLER"
-RUN cp "$(readlink -f /root/.local/bin/claude)" /usr/local/bin/claude \
+RUN CLAUDE_BIN="$(readlink -f /root/.local/bin/claude)" \
+    && test -f "$CLAUDE_BIN" \
+    && cp "$CLAUDE_BIN" /usr/local/bin/claude \
     && chmod +x /usr/local/bin/claude \
     && claude --version
 
