@@ -30,7 +30,7 @@ The server listens on `:8090` by default (override with `ADDR`).
 
 ## MCP Tools
 
-The server exposes three tools to MCP clients:
+The server exposes six tools to MCP clients:
 
 ### list-topics
 
@@ -60,12 +60,41 @@ Search all pages by keyword. Returns matching pages with truncated previews (500
 {"name": "search-docs", "arguments": {"query": "credentials"}}
 ```
 
+### get-spec
+
+Fetch a project rule/spec from `.claude/rules/` by name.
+
+```json
+{"name": "get-spec", "arguments": {"name": "worker-yaml-spec"}}
+```
+
+Available specs: `domain-model`, `go-conventions`, `security`, `secrets`, `worker-yaml-spec`, `worker-design`, `result-contract`, `documentation`, `rules-sync`.
+
+### get-examples
+
+List or fetch example worker YAML files from `workers/`.
+
+```json
+{"name": "get-examples", "arguments": {}}
+{"name": "get-examples", "arguments": {"name": "claude-reviewer"}}
+```
+
+### get-version
+
+Return current mecha version and recent changes.
+
+```json
+{"name": "get-version", "arguments": {}}
+```
+
 ## Configuration
 
 | Env var | Default | Purpose |
 |---|---|---|
 | `DOCS_DIR` | `website/guide` | Directory containing markdown files |
 | `REPO_DIR` | `.` | Git repo root (for webhook `git pull`) |
+| `RULES_DIR` | `.claude/rules` | Directory containing rule/spec markdown files |
+| `EXAMPLES_DIR` | `workers` | Directory containing example worker YAML files |
 | `GITHUB_MECHA_MCP_WEBHOOK_SECRET` | — | HMAC secret for GitHub webhook validation |
 | `ADDR` | `:8090` | Listen address |
 

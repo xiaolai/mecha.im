@@ -20,6 +20,8 @@ func Open(path string) (*sql.DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
+	// Restrict DB file permissions — contains worker definitions with env vars.
+	os.Chmod(path, 0o600)
 	db.SetMaxOpenConns(1)
 	for _, pragma := range []string{
 		"PRAGMA journal_mode=WAL",
@@ -98,6 +100,23 @@ func migrate(db *sql.DB) error {
 		}
 		if err := tx.Commit(); err != nil {
 			return fmt.Errorf("commit v3 migration: %w", err)
+		}
+	}
+	if version < 4 {
+		for _, stmt := range strings.Split(schemaV4, ";") {
+			stmt = strings.TrimSpace(stmt)
+			if stmt == "" {
+				continue
+			}
+			if _, err := db.Exec(stmt); err != nil {
+				if strings.Contains(err.Error(), "duplicate column") {
+					continue
+				}
+				return fmt.Errorf("apply schema v4: %w", err)
+			}
+		}
+		if _, err := db.Exec("PRAGMA user_version = 4"); err != nil {
+			return err
 		}
 	}
 	return nil
