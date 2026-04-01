@@ -62,7 +62,12 @@ func NewDockerClient(host string) (*DockerClient, error) {
 }
 
 // extractHost parses the hostname from a Docker host URL (e.g., "tcp://remote:2375" → "remote").
+// Returns "" for local connections (unix sockets, localhost, loopback).
 func extractHost(host string) string {
+	// Unix sockets are always local
+	if strings.HasPrefix(host, "unix://") || strings.HasPrefix(host, "/") {
+		return ""
+	}
 	// Strip scheme
 	if i := strings.Index(host, "://"); i >= 0 {
 		host = host[i+3:]
