@@ -42,9 +42,11 @@ type DockerConfig struct {
 	Lifecycle   string            `yaml:"lifecycle,omitempty"`
 	Env         map[string]string `yaml:"env,omitempty"`
 	Token       string            `yaml:"token,omitempty"`
-	APIKey      string            `yaml:"api_key,omitempty"`
-	Expose      bool              `yaml:"expose,omitempty"`
-	Labels      map[string]string `yaml:"labels,omitempty"`
+	APIKey             string            `yaml:"api_key,omitempty"`
+	Expose             bool              `yaml:"expose,omitempty"`
+	Labels             map[string]string `yaml:"labels,omitempty"`
+	Plugins            []string          `yaml:"plugins,omitempty"`
+	PluginMarketplaces []string          `yaml:"plugin_marketplaces,omitempty"`
 }
 
 // ResourceConfig specifies container CPU, memory, and process limits.

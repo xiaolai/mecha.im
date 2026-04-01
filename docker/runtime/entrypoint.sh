@@ -1,9 +1,7 @@
 #!/bin/bash
 set -e
 
-# --- Install Claude CLI at container start (always latest) ---
-# The installer accepts a version arg: bash -s -- <version>
-# We install latest by omitting the version, with 3 retries.
+# --- Install latest CLIs at container start time ---
 
 echo "installing claude code CLI..."
 for attempt in 1 2 3; do
@@ -19,7 +17,6 @@ for attempt in 1 2 3; do
 done
 claude --version
 
-# --- Install Codex CLI at container start (always latest) ---
 echo "installing codex CLI..."
 bun install -g @openai/codex
 codex --version
@@ -31,6 +28,30 @@ cat > "$HOME/.claude/settings.json" <<'SETTINGS'
   "enableAllProjectMcpServers": true
 }
 SETTINGS
+
+# --- Install plugins (like claude-code-action) ---
+# CLAUDE_PLUGIN_MARKETPLACES: newline-separated list of marketplace URLs
+# CLAUDE_PLUGINS: newline-separated list of plugin names
+
+if [ -n "$CLAUDE_PLUGIN_MARKETPLACES" ]; then
+  echo "adding plugin marketplaces..."
+  while IFS= read -r marketplace; do
+    marketplace=$(echo "$marketplace" | xargs)
+    [ -z "$marketplace" ] && continue
+    echo "  adding marketplace: $marketplace"
+    claude plugin marketplace add "$marketplace"
+  done <<< "$CLAUDE_PLUGIN_MARKETPLACES"
+fi
+
+if [ -n "$CLAUDE_PLUGINS" ]; then
+  echo "installing plugins..."
+  while IFS= read -r plugin; do
+    plugin=$(echo "$plugin" | xargs)
+    [ -z "$plugin" ] && continue
+    echo "  installing: $plugin"
+    claude plugin install "$plugin"
+  done <<< "$CLAUDE_PLUGINS"
+fi
 
 # --- Start services ---
 

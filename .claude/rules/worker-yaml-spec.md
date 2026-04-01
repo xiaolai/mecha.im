@@ -39,6 +39,11 @@ docker:
     CLAUDE_SYSTEM_PROMPT: "You review PRs for security issues."
     CLAUDE_ALLOWED_TOOLS: "Read,Grep,Glob,Bash"
     CLAUDE_EFFORT: high
+  plugins:                         # optional, installed at container start via `claude plugin install`
+    - pr-review-toolkit
+    - codex-toolkit
+  plugin_marketplaces:             # optional, added before plugin install
+    - https://github.com/anthropics/claude-code-plugins.git
   api_key: my-secret-key          # optional, enables Bearer auth on /task
   expose: true                    # optional, bind to 0.0.0.0 (default: 127.0.0.1)
   labels:                         # optional custom labels
