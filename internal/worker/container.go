@@ -70,24 +70,34 @@ func BuildContainerEnv(dc *DockerConfig, validate func(k, v string) error) (map[
 	return env, nil
 }
 
+// ResolveCwd canonicalizes a cwd path: resolves symlinks, makes absolute,
+// verifies it exists and is a directory. Used by both validation and mount building.
+func ResolveCwd(cwd string) (string, error) {
+	resolved, err := filepath.EvalSymlinks(cwd)
+	if err != nil {
+		return "", fmt.Errorf("resolve cwd %q: %w", cwd, err)
+	}
+	resolved, err = filepath.Abs(resolved)
+	if err != nil {
+		return "", fmt.Errorf("abs cwd %q: %w", cwd, err)
+	}
+	info, err := os.Stat(resolved)
+	if err != nil {
+		return "", fmt.Errorf("stat cwd %q: %w", cwd, err)
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("cwd %q is not a directory", cwd)
+	}
+	return resolved, nil
+}
+
 // BuildContainerMounts resolves docker.cwd and docker.credentials into bind mounts.
 func BuildContainerMounts(dc *DockerConfig) ([]MountCfg, error) {
 	var mounts []MountCfg
 	if dc.Cwd != "" {
-		resolved, err := filepath.EvalSymlinks(dc.Cwd)
+		resolved, err := ResolveCwd(dc.Cwd)
 		if err != nil {
-			return nil, fmt.Errorf("resolve cwd %q: %w", dc.Cwd, err)
-		}
-		resolved, err = filepath.Abs(resolved)
-		if err != nil {
-			return nil, fmt.Errorf("abs cwd %q: %w", dc.Cwd, err)
-		}
-		info, err := os.Stat(resolved)
-		if err != nil {
-			return nil, fmt.Errorf("stat cwd %q: %w", dc.Cwd, err)
-		}
-		if !info.IsDir() {
-			return nil, fmt.Errorf("cwd %q is not a directory", dc.Cwd)
+			return nil, err
 		}
 		mounts = append(mounts, MountCfg{
 			Source: resolved, Target: "/workspace", ReadOnly: false,

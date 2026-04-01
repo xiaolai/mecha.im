@@ -3,22 +3,24 @@ FROM mecha-worker-base
 USER root
 
 # Install Claude Code CLI (required by Agent SDK as subprocess)
+# Download installer, verify it's a shell script (not HTML/error page), then execute.
 SHELL ["/bin/bash", "-c"]
-RUN curl -fsSL https://claude.ai/install.sh | bash \
-    || { sleep 5 && curl -fsSL https://claude.ai/install.sh | bash; }
+RUN INSTALLER=$(mktemp) \
+    && curl -fsSL https://claude.ai/install.sh -o "$INSTALLER" \
+    && head -1 "$INSTALLER" | grep -q '^#!/' \
+    && bash "$INSTALLER" \
+    && rm "$INSTALLER"
 RUN cp "$(readlink -f /root/.local/bin/claude)" /usr/local/bin/claude \
-    && chmod +x /usr/local/bin/claude
+    && chmod +x /usr/local/bin/claude \
+    && claude --version
 
-# Install Claude Agent SDK
-WORKDIR /app
-RUN bun add @anthropic-ai/claude-agent-sdk
+# Claude Agent SDK is pinned in docker/runtime/package.json and installed
+# by the base image's bun install step. No separate install needed here.
 
-# Install Codex CLI (available as MCP server for dual-agent workers)
-RUN bun install -g @openai/codex
-
-# Credential mount targets for both CLIs
-RUN mkdir -p /home/worker/.claude /home/worker/.codex \
-    && chown worker:worker /home/worker/.claude /home/worker/.codex
+# Credential mount target
+RUN mkdir -p /home/worker/.claude && chown worker:worker /home/worker/.claude
+# Note: Codex CLI will be installed here once the MCP wiring in claude.ts is implemented.
+# See dev-docs/research/dual-agent-worker.md for the design.
 
 USER worker
 

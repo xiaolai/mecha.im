@@ -33,8 +33,8 @@ github:
 
 | CLI | Docker worker auth | Method |
 |-----|---|---|
-| Claude | `credentials: claude` or `token: claude.name` | Credential mount or OAuth env var |
-| Codex | `credentials: codex` or `token: codex.name` | Credential mount or `CODEX_API_KEY` env var |
+| Claude | `credentials: [claude]` or `token: claude.name` | Credential mount or OAuth env var |
+| Codex | `credentials: [codex]` or `token: codex.name` | Credential mount or `CODEX_API_KEY` env var |
 
 Gemini is not supported as a managed Docker worker — its credential files are
 scrypt-encrypted to hostname+username, not portable into containers.
@@ -61,7 +61,7 @@ The CLI inside uses its native auth flow — no env var injection needed.
 name: codex-coder
 docker:
   image: mecha-worker:latest
-  credentials: codex             # mounts ~/.codex/ → /home/worker/.codex/:ro
+  credentials: [codex]           # mounts ~/.codex/ → /home/worker/.codex/:ro
   env:
     CODEX_MODEL: gpt-5.4
 ```
@@ -98,13 +98,13 @@ Mecha auto-detects token type by prefix:
 
 ### Claude
 
-1. `credentials: claude` → mounts `~/.claude/` read-only
+1. `credentials: [claude]` → mounts `~/.claude/` read-only
 2. `token: claude.name` → from `~/.mecha/secrets.yml`, sets `CLAUDE_CODE_OAUTH_TOKEN`
 3. Fall through to host default (Keychain / `~/.claude/.credentials.json`)
 
 ### Codex
 
-1. `credentials: codex` → mounts `~/.codex/` read-only (subscription login session)
+1. `credentials: [codex]` → mounts `~/.codex/` read-only (subscription login session)
 2. `token: codex.name` → from `~/.mecha/secrets.yml`, sets `CODEX_API_KEY`
 3. `CODEX_API_KEY` env var directly in `docker.env`
 
@@ -140,5 +140,5 @@ All log output and error messages must redact these patterns
 - Mecha loads secrets once at startup, holds in memory, never persists.
 - Workers receive secrets via environment variables or read-only credential mounts, never CLI args.
 - Credential mounts are always read-only. Workers cannot modify host credentials.
-- Secrets file must be mode 0600. Mecha warns if permissions are too open.
+- Secrets file must be mode 0600. Mecha rejects the file if permissions are too open.
 - Token type is auto-detected by prefix. No manual type annotation needed.

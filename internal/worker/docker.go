@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/netip"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/moby/moby/api/types/container"
@@ -15,7 +17,8 @@ import (
 // DockerClient wraps the moby Docker client for container lifecycle operations.
 // Call Close() when done.
 type DockerClient struct {
-	cli *client.Client
+	cli      *client.Client
+	hostAddr string // reachable host for remote Docker daemons (empty = localhost)
 }
 
 // ContainerCfg holds all parameters needed to create a Docker container.
@@ -38,6 +41,8 @@ type MountCfg struct {
 }
 
 // NewDockerClient creates a Docker client. Empty host uses DOCKER_HOST env var.
+// For remote Docker hosts (tcp://...), the hostAddr is extracted for endpoint
+// resolution so health checks and task dispatch reach the correct machine.
 func NewDockerClient(host string) (*DockerClient, error) {
 	opts := []client.Opt{client.FromEnv, client.WithAPIVersionNegotiation()}
 	if host != "" {
@@ -47,7 +52,29 @@ func NewDockerClient(host string) (*DockerClient, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create docker client: %w", err)
 	}
-	return &DockerClient{cli: cli}, nil
+	var hostAddr string
+	if host != "" {
+		hostAddr = extractHost(host)
+	} else if envHost := os.Getenv("DOCKER_HOST"); envHost != "" {
+		hostAddr = extractHost(envHost)
+	}
+	return &DockerClient{cli: cli, hostAddr: hostAddr}, nil
+}
+
+// extractHost parses the hostname from a Docker host URL (e.g., "tcp://remote:2375" → "remote").
+func extractHost(host string) string {
+	// Strip scheme
+	if i := strings.Index(host, "://"); i >= 0 {
+		host = host[i+3:]
+	}
+	// Strip port
+	if i := strings.LastIndex(host, ":"); i >= 0 {
+		host = host[:i]
+	}
+	if host == "" || host == "localhost" || host == "127.0.0.1" || host == "::1" {
+		return ""
+	}
+	return host
 }
 
 // Pull downloads a Docker image, waiting for completion. Returns error on failure.
@@ -173,7 +200,11 @@ func (d *DockerClient) Endpoint(ctx context.Context, id string) (string, error) 
 	}
 	host := bindings[0].HostIP.String()
 	if !bindings[0].HostIP.IsValid() || host == "0.0.0.0" {
-		host = "127.0.0.1"
+		if d.hostAddr != "" {
+			host = d.hostAddr
+		} else {
+			host = "127.0.0.1"
+		}
 	}
 	return "http://" + host + ":" + bindings[0].HostPort, nil
 }

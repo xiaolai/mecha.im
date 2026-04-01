@@ -20,7 +20,7 @@ If YAML has `docker:` section → managed (mecha controls lifecycle).
 If not → unmanaged (mecha just calls the endpoint).
 No `type` field. The structure is the answer.
 
-Managed workers run LLM CLIs (Claude, Codex, Gemini) inside Docker
+Managed workers run LLM CLIs (Claude, with Codex as MCP tool) inside Docker
 containers. All configuration via container env vars. Workspace
 mounted from host via bind mount.
 
@@ -34,7 +34,7 @@ offline → online ↔ busy (automatic, in-container)
 
 - **offline**: definition exists, container stopped or absent.
 - **online**: container running, health check passing, accepting tasks.
-- **busy**: executing a task (tracked inside container via 429 response). Defined but not yet surfaced to Go registry — Phase 3.
+- **busy**: executing a task (tracked in-container via 429, surfaced to Go registry via `SetBusy`/`SetOnline`).
 - **error**: health check failed or container exited.
 
 ## Five Verbs
@@ -68,9 +68,10 @@ an adapter by name in YAML:
 
 ```yaml
 name: local-llm
-adapter: ollama
-upstream: http://spark01:11434
-model: gemma2:9b
+adapter:
+  type: ollama
+  upstream: http://spark01:11434
+  model: gemma2:9b
 timeout: 10m
 ```
 
