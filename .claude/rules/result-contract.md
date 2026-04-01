@@ -20,7 +20,8 @@ Every worker returns the same structure. Every field optional.
     "model": "claude-sonnet-4-6",
     "input_tokens": 5000,
     "output_tokens": 2000,
-    "duration_ms": 45000
+    "duration_ms": 45000,
+    "exit_code": 0
   }
 }
 ```

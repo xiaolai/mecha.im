@@ -17,7 +17,7 @@ Current direct dependencies:
 
 - `github.com/spf13/cobra` — CLI
 - `gopkg.in/yaml.v3` — config parsing
-- `github.com/moby/moby` — container management (Docker SDK, moby module path)
+- `github.com/moby/moby/{api,client}` — container management (Docker SDK, split moby modules)
 - `modernc.org/sqlite` — SQLite persistence (workers, tasks, events)
 
 Do not add dependencies without justification.
