@@ -38,7 +38,6 @@ docker:
     CLAUDE_MODEL: claude-sonnet-4-6
     CLAUDE_SYSTEM_PROMPT: "You review PRs for security issues."
     CLAUDE_ALLOWED_TOOLS: "Read,Grep,Glob,Bash"
-    CLAUDE_PERMISSION_MODE: bypassPermissions
     CLAUDE_EFFORT: high
   api_key: my-secret-key          # optional, enables Bearer auth on /task
   expose: true                    # optional, bind to 0.0.0.0 (default: 127.0.0.1)
@@ -108,6 +107,8 @@ Every mecha worker image must:
 | `ANTHROPIC_API_KEY` | Auth (API key) |
 
 Claude backend uses the Agent SDK `query()` directly (not CLI flags).
+`CLAUDE_PERMISSION_MODE` defaults to `bypassPermissions` (SDK default for
+non-interactive use) — no need to set it unless you want to restrict.
 Env vars are mapped to SDK options in `docker/runtime/backends/claude.ts`.
 
 ## Codex Env Vars

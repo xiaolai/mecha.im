@@ -17,9 +17,10 @@ RUN groupadd -r worker && useradd -r -g worker -m -s /bin/bash worker
 
 COPY runtime/ /app/
 WORKDIR /app
-RUN chmod +x /app/entrypoint.sh
+RUN bun install --production \
+    && chmod +x /app/entrypoint.sh
 
-# /app must be writable by worker for runtime SDK install
+# /app must be writable by worker for runtime CLI installs
 RUN chown -R worker:worker /app
 
 WORKDIR /workspace

@@ -68,7 +68,6 @@ docker:
   env:
     CLAUDE_MODEL: claude-sonnet-4-6
     CLAUDE_EFFORT: high
-    CLAUDE_PERMISSION_MODE: bypassPermissions
     CLAUDE_SYSTEM_PROMPT: |
       You are a code review agent. Use your built-in tools for file access.
       When you need a second opinion or web search, use the Codex MCP tools.
