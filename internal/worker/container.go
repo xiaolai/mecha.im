@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // credentialMount defines a host→container bind mount for CLI subscription auth.
@@ -67,6 +68,14 @@ func BuildContainerEnv(dc *DockerConfig, validate func(k, v string) error) (map[
 	} else {
 		env["HOME"] = "/tmp"
 	}
+
+	if len(dc.Plugins) > 0 {
+		env["CLAUDE_PLUGINS"] = strings.Join(dc.Plugins, "\n")
+	}
+	if len(dc.PluginMarketplaces) > 0 {
+		env["CLAUDE_PLUGIN_MARKETPLACES"] = strings.Join(dc.PluginMarketplaces, "\n")
+	}
+
 	return env, nil
 }
 
