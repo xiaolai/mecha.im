@@ -50,9 +50,11 @@ func (s *Server) handlePostTask(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to create task")
 		return
 	}
+	tasksCreated.Add(1)
 
 	select {
 	case s.pending <- t.ID:
+		queueDepth.Add(1)
 		writeJSON(w, http.StatusAccepted, t)
 	default:
 		if err := s.tasks.Fail(r.Context(), t.ID, "task queue full"); err != nil {
