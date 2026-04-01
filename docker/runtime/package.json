@@ -5,7 +5,5 @@
   "scripts": {
     "start": "bun run server.ts"
   },
-  "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "0.2.86"
-  }
+  "dependencies": {}
 }
