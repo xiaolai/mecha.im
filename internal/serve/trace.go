@@ -11,7 +11,9 @@ type traceKey struct{}
 // withTraceID adds a trace ID to the context.
 func withTraceID(ctx context.Context) context.Context {
 	b := make([]byte, 8)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		return ctx // degrade gracefully — no trace ID
+	}
 	return context.WithValue(ctx, traceKey{}, hex.EncodeToString(b))
 }
 

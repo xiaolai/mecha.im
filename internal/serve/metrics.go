@@ -2,6 +2,7 @@ package serve
 
 import (
 	"expvar"
+	"sync"
 	"time"
 )
 
@@ -19,16 +20,19 @@ var (
 	writebackFail   = expvar.NewInt("writeback_fail")
 )
 
-// latencyTracker keeps a running average of dispatch latency.
+// latencyTracker keeps a running average of dispatch latency (thread-safe).
 type latencyTracker struct {
+	mu    sync.Mutex
 	sum   float64
 	count int64
 }
 
 func (lt *latencyTracker) observe(d time.Duration) {
+	lt.mu.Lock()
 	lt.count++
 	lt.sum += float64(d.Milliseconds())
 	dispatchLatency.Set(lt.sum / float64(lt.count))
+	lt.mu.Unlock()
 }
 
 var latency latencyTracker

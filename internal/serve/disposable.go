@@ -83,8 +83,12 @@ func (s *Server) disposableContainer(ctx context.Context, entry worker.Entry) (e
 	cleanup = func() {
 		rmCtx, cancel := context.WithTimeout(context.Background(), disposableStopTimeout)
 		defer cancel()
-		_ = dock.Stop(rmCtx, containerID, 5*time.Second)
-		_ = dock.Remove(rmCtx, containerID)
+		if stopErr := dock.Stop(rmCtx, containerID, 5*time.Second); stopErr != nil {
+			s.logger.Warn("disposable: stop cleanup failed", "container", containerID, "err", stopErr)
+		}
+		if rmErr := dock.Remove(rmCtx, containerID); rmErr != nil {
+			s.logger.Warn("disposable: remove cleanup failed", "container", containerID, "err", rmErr)
+		}
 		dock.Close()
 	}
 
@@ -138,7 +142,9 @@ func (s *Server) dispatchDisposable(ctx context.Context, taskID string, t *task.
 
 	if err != nil {
 		redacted := worker.RedactSecrets(err.Error())
-		_ = s.tasks.Fail(ctx, taskID, redacted)
+		if failErr := s.tasks.Fail(ctx, taskID, redacted); failErr != nil {
+			s.logger.Error("disposable: fail task", "id", taskID, "err", failErr)
+		}
 		s.completeEvent(ctx, t.EventID, false)
 		s.logger.Error("disposable: container failed", "id", taskID, "err", redacted)
 		return
@@ -151,7 +157,10 @@ func (s *Server) dispatchDisposable(ctx context.Context, taskID string, t *task.
 	result, err := s.sendTask(ctx, ep, taskID, t.Prompt, entry.Worker.Timeout, apiKey)
 	if err != nil {
 		redacted := worker.RedactSecrets(err.Error())
-		_ = s.tasks.Fail(ctx, taskID, redacted)
+		if failErr := s.tasks.Fail(ctx, taskID, redacted); failErr != nil {
+			s.logger.Error("disposable: fail task after send", "id", taskID, "err", failErr)
+		}
+		tasksFailed.Add(1)
 		s.completeEvent(ctx, t.EventID, false)
 		s.logger.Error("disposable: send failed", "id", taskID, "err", redacted)
 		return
