@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"mecha.im/internal/store"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/workers"
 )
 
 func TestWorkerAddCmdFile(t *testing.T) {
@@ -172,11 +172,11 @@ func TestWorkerAddDirDuplicate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatalf("NewRegistry: %v", err)
 	}
-	if err := reg.Add(&worker.Worker{Name: "first", Endpoint: "http://localhost:1111"}); err != nil {
+	if err := reg.Add(&workers.Worker{Name: "first", Endpoint: "http://localhost:1111"}); err != nil {
 		t.Fatalf("pre-add: %v", err)
 	}
 	db.Close()
@@ -267,11 +267,11 @@ func TestWorkerRemoveCmdLive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatalf("NewRegistry: %v", err)
 	}
-	if err := reg.Add(&worker.Worker{Name: "removable", Endpoint: "http://localhost:1111"}); err != nil {
+	if err := reg.Add(&workers.Worker{Name: "removable", Endpoint: "http://localhost:1111"}); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
 	db.Close()
@@ -338,13 +338,13 @@ func TestWorkerStartCmdAdapterReject(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatalf("NewRegistry: %v", err)
 	}
-	if err := reg.Add(&worker.Worker{
+	if err := reg.Add(&workers.Worker{
 		Name: "adapter-worker",
-		Adapter: &worker.AdapterConfig{
+		Adapter: &workers.AdapterConfig{
 			Type:     "ollama",
 			Upstream: "http://localhost:11434",
 			Model:    "gemma2:9b",
@@ -386,12 +386,12 @@ func TestWorkerStopCmdLiveOffline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatalf("NewRegistry: %v", err)
 	}
 	// Add a live worker that is offline — stopping should fail
-	if err := reg.Add(&worker.Worker{Name: "offline-live", Endpoint: "http://localhost:1111"}); err != nil {
+	if err := reg.Add(&workers.Worker{Name: "offline-live", Endpoint: "http://localhost:1111"}); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
 	db.Close()

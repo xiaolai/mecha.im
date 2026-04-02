@@ -3,31 +3,31 @@ package serve
 import (
 	"testing"
 
-	"mecha.im/internal/event"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/events"
+	"mecha.im/internal/workers"
 )
 
 func TestMatchesRule(t *testing.T) {
-	ev := &event.Event{
+	ev := &events.Event{
 		Source: "github",
 		Type:   "pull_request.opened",
-		Attrs:  event.Attrs{"action": "opened", "number": 42},
+		Attrs:  events.Attrs{"action": "opened", "number": 42},
 	}
 
 	tests := []struct {
 		name string
-		rule worker.EventRule
+		rule workers.EventRule
 		want bool
 	}{
-		{"exact match", worker.EventRule{Source: "github", On: []string{"pull_request.opened"}}, true},
-		{"wrong source", worker.EventRule{Source: "gitlab", On: []string{"pull_request.opened"}}, false},
-		{"wrong type", worker.EventRule{Source: "github", On: []string{"push"}}, false},
-		{"multiple on types", worker.EventRule{Source: "github", On: []string{"push", "pull_request.opened"}}, true},
-		{"filter match", worker.EventRule{Source: "github", On: []string{"pull_request.opened"}, Filter: map[string]string{"action": "opened"}}, true},
-		{"filter mismatch", worker.EventRule{Source: "github", On: []string{"pull_request.opened"}, Filter: map[string]string{"action": "closed"}}, false},
-		{"filter missing key", worker.EventRule{Source: "github", On: []string{"pull_request.opened"}, Filter: map[string]string{"missing": "val"}}, false},
-		{"empty on", worker.EventRule{Source: "github", On: []string{}}, false},
-		{"numeric filter", worker.EventRule{Source: "github", On: []string{"pull_request.opened"}, Filter: map[string]string{"number": "42"}}, true},
+		{"exact match", workers.EventRule{Source: "github", On: []string{"pull_request.opened"}}, true},
+		{"wrong source", workers.EventRule{Source: "gitlab", On: []string{"pull_request.opened"}}, false},
+		{"wrong type", workers.EventRule{Source: "github", On: []string{"push"}}, false},
+		{"multiple on types", workers.EventRule{Source: "github", On: []string{"push", "pull_request.opened"}}, true},
+		{"filter match", workers.EventRule{Source: "github", On: []string{"pull_request.opened"}, Filter: map[string]string{"action": "opened"}}, true},
+		{"filter mismatch", workers.EventRule{Source: "github", On: []string{"pull_request.opened"}, Filter: map[string]string{"action": "closed"}}, false},
+		{"filter missing key", workers.EventRule{Source: "github", On: []string{"pull_request.opened"}, Filter: map[string]string{"missing": "val"}}, false},
+		{"empty on", workers.EventRule{Source: "github", On: []string{}}, false},
+		{"numeric filter", workers.EventRule{Source: "github", On: []string{"pull_request.opened"}, Filter: map[string]string{"number": "42"}}, true},
 	}
 
 	for _, tt := range tests {
@@ -40,21 +40,21 @@ func TestMatchesRule(t *testing.T) {
 }
 
 func TestMatchesRuleNilAttrs(t *testing.T) {
-	ev := &event.Event{Source: "github", Type: "push", Attrs: nil}
-	rule := worker.EventRule{Source: "github", On: []string{"push"}, Filter: map[string]string{"ref": "main"}}
+	ev := &events.Event{Source: "github", Type: "push", Attrs: nil}
+	rule := workers.EventRule{Source: "github", On: []string{"push"}, Filter: map[string]string{"ref": "main"}}
 	if matchesRule(rule, ev) {
 		t.Error("should not match when attrs is nil and filter requires a key")
 	}
 }
 
 func TestRenderPrompt(t *testing.T) {
-	rule := worker.EventRule{
+	rule := workers.EventRule{
 		Prompt: "Review PR #{{ .number }} by {{ .actor }} on {{ .subject }}",
 	}
-	ev := &event.Event{
+	ev := &events.Event{
 		Actor:   "alice",
 		Subject: "org/repo",
-		Attrs:   event.Attrs{"number": 42},
+		Attrs:   events.Attrs{"number": 42},
 	}
 	got, err := renderPrompt(rule, ev)
 	if err != nil {
@@ -66,8 +66,8 @@ func TestRenderPrompt(t *testing.T) {
 }
 
 func TestRenderPromptMissingKey(t *testing.T) {
-	rule := worker.EventRule{Prompt: "{{ .nonexistent }}"}
-	ev := &event.Event{Attrs: event.Attrs{}}
+	rule := workers.EventRule{Prompt: "{{ .nonexistent }}"}
+	ev := &events.Event{Attrs: events.Attrs{}}
 	_, err := renderPrompt(rule, ev)
 	if err == nil {
 		t.Error("expected error for missing key with missingkey=error")
@@ -75,8 +75,8 @@ func TestRenderPromptMissingKey(t *testing.T) {
 }
 
 func TestRenderPromptInvalidTemplate(t *testing.T) {
-	rule := worker.EventRule{Prompt: "{{ .unclosed"}
-	ev := &event.Event{Attrs: event.Attrs{}}
+	rule := workers.EventRule{Prompt: "{{ .unclosed"}
+	ev := &events.Event{Attrs: events.Attrs{}}
 	_, err := renderPrompt(rule, ev)
 	if err == nil {
 		t.Error("expected error for malformed template")
@@ -84,11 +84,11 @@ func TestRenderPromptInvalidTemplate(t *testing.T) {
 }
 
 func TestBuildTaskContext(t *testing.T) {
-	ev := &event.Event{
+	ev := &events.Event{
 		Source:  "github",
 		Actor:   "alice",
 		Subject: "org/repo",
-		Attrs: event.Attrs{
+		Attrs: events.Attrs{
 			"repo_owner": "org",
 			"repo_name":  "repo",
 			"number":     42,

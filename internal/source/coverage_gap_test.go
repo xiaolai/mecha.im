@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"mecha.im/internal/event"
-	"mecha.im/internal/policy"
+	"mecha.im/internal/events"
+	"mecha.im/internal/policies"
 )
 
 // --- 1. Authenticated() markers ---
@@ -32,7 +32,7 @@ func TestAuthenticatedMarkers(t *testing.T) {
 type stubTrigger struct{ name string }
 
 func (s *stubTrigger) Name() string { return s.name }
-func (s *stubTrigger) Start(_ context.Context, _ func(*event.Event)) error {
+func (s *stubTrigger) Start(_ context.Context, _ func(*events.Event)) error {
 	return nil
 }
 
@@ -60,7 +60,7 @@ func TestRegisterTrigger(t *testing.T) {
 type stubResponder struct{ name string }
 
 func (s *stubResponder) Name() string { return s.name }
-func (s *stubResponder) Respond(_ context.Context, _ *event.Event, _ policy.Result) error {
+func (s *stubResponder) Respond(_ context.Context, _ *events.Event, _ policies.Result) error {
 	return nil
 }
 
@@ -144,33 +144,33 @@ func TestParseIssueComment(t *testing.T) {
 func TestCommentBody(t *testing.T) {
 	tests := []struct {
 		name string
-		res  policy.Result
+		res  policies.Result
 		want string
 	}{
 		{
 			name: "prefers Comment.Body",
-			res: policy.Result{
+			res: policies.Result{
 				Output:  "fallback output",
-				Comment: &policy.CommentAction{Body: "explicit comment"},
+				Comment: &policies.CommentAction{Body: "explicit comment"},
 			},
 			want: "explicit comment",
 		},
 		{
 			name: "falls back to Output when Comment is nil",
-			res:  policy.Result{Output: "output text"},
+			res:  policies.Result{Output: "output text"},
 			want: "output text",
 		},
 		{
 			name: "falls back to Output when Comment.Body is empty",
-			res: policy.Result{
+			res: policies.Result{
 				Output:  "output text",
-				Comment: &policy.CommentAction{Body: ""},
+				Comment: &policies.CommentAction{Body: ""},
 			},
 			want: "output text",
 		},
 		{
 			name: "both empty returns empty",
-			res:  policy.Result{},
+			res:  policies.Result{},
 			want: "",
 		},
 	}
@@ -405,9 +405,9 @@ func TestGitHubGetNon200(t *testing.T) {
 	defer func() { githubAPIBase = old }()
 
 	src := NewGitHubSource("", "test-token")
-	ev := &event.Event{
+	ev := &events.Event{
 		Type: "pull_request.opened",
-		Attrs: event.Attrs{
+		Attrs: events.Attrs{
 			"repo_owner": "org",
 			"repo_name":  "repo",
 			"number":     1,
@@ -443,9 +443,9 @@ func TestGitHubGetInvalidJSON(t *testing.T) {
 	defer func() { githubAPIBase = old }()
 
 	src := NewGitHubSource("", "test-token")
-	ev := &event.Event{
+	ev := &events.Event{
 		Type: "pull_request.opened",
-		Attrs: event.Attrs{
+		Attrs: events.Attrs{
 			"repo_owner": "org",
 			"repo_name":  "repo",
 			"number":     1,
@@ -494,9 +494,9 @@ func TestGitHubGetPaginatedWithLink(t *testing.T) {
 	defer func() { githubAPIBase = old }()
 
 	src := NewGitHubSource("", "test-token")
-	ev := &event.Event{
+	ev := &events.Event{
 		Type: "pull_request.opened",
-		Attrs: event.Attrs{
+		Attrs: events.Attrs{
 			"repo_owner": "org",
 			"repo_name":  "repo",
 			"number":     1,
@@ -720,16 +720,16 @@ func TestGitLabResponderIssueNotePath(t *testing.T) {
 	defer srv.Close()
 
 	resp := NewGitLabResponder(srv.URL, "token")
-	ev := &event.Event{
+	ev := &events.Event{
 		Type: "issue.opened",
-		Attrs: event.Attrs{
+		Attrs: events.Attrs{
 			"repo_owner": "org",
 			"repo_name":  "repo",
 			"number":     5,
 		},
 	}
-	res := policy.Result{
-		Comment: &policy.CommentAction{Body: "Comment body"},
+	res := policies.Result{
+		Comment: &policies.CommentAction{Body: "Comment body"},
 	}
 	err := resp.Respond(context.Background(), ev, res)
 	if err != nil {
@@ -800,9 +800,9 @@ func TestGitHubGetPaginatedNon200(t *testing.T) {
 	defer func() { githubAPIBase = old }()
 
 	src := NewGitHubSource("", "test-token")
-	ev := &event.Event{
+	ev := &events.Event{
 		Type: "pull_request.opened",
-		Attrs: event.Attrs{
+		Attrs: events.Attrs{
 			"repo_owner": "org",
 			"repo_name":  "repo",
 			"number":     1,
@@ -895,17 +895,17 @@ func TestGitLabResponderCommentBody(t *testing.T) {
 	defer srv.Close()
 
 	resp := NewGitLabResponder(srv.URL, "token")
-	ev := &event.Event{
+	ev := &events.Event{
 		Type: "merge_request.opened",
-		Attrs: event.Attrs{
+		Attrs: events.Attrs{
 			"repo_owner": "org",
 			"repo_name":  "repo",
 			"number":     1,
 		},
 	}
-	res := policy.Result{
+	res := policies.Result{
 		Output:  "fallback",
-		Comment: &policy.CommentAction{Body: "explicit comment body"},
+		Comment: &policies.CommentAction{Body: "explicit comment body"},
 	}
 	err := resp.Respond(context.Background(), ev, res)
 	if err != nil {

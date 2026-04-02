@@ -6,7 +6,7 @@ import (
 	"hash/fnv"
 	"time"
 
-	"mecha.im/internal/event"
+	"mecha.im/internal/events"
 )
 
 // CronTrigger generates events on a fixed schedule.
@@ -25,7 +25,7 @@ func NewCronTrigger(name string, interval time.Duration, subject string) *CronTr
 func (c *CronTrigger) Name() string { return c.name }
 
 // Start runs the cron loop, emitting events until ctx is cancelled.
-func (c *CronTrigger) Start(ctx context.Context, emit func(*event.Event)) error {
+func (c *CronTrigger) Start(ctx context.Context, emit func(*events.Event)) error {
 	ticker := time.NewTicker(c.interval)
 	defer ticker.Stop()
 	for {
@@ -33,12 +33,12 @@ func (c *CronTrigger) Start(ctx context.Context, emit func(*event.Event)) error 
 		case <-ctx.Done():
 			return ctx.Err()
 		case t := <-ticker.C:
-			ev := &event.Event{
+			ev := &events.Event{
 				Source:  "cron",
 				Type:    "tick",
 				Actor:   c.name,
 				Subject: c.subject,
-				Attrs:   event.Attrs{"tick_time": t.Format(time.RFC3339)},
+				Attrs:   events.Attrs{"tick_time": t.Format(time.RFC3339)},
 			}
 			// Dedup key prevents duplicate processing if emit is slow
 			h := fnv.New64a()

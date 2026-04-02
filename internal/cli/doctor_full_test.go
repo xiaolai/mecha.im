@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"mecha.im/internal/store"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/workers"
 )
 
 func TestDoctorCmdStructure(t *testing.T) {
@@ -136,11 +136,11 @@ func TestRunWorkerChecksWithWorkers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatalf("NewRegistry: %v", err)
 	}
-	reg.Add(&worker.Worker{Name: "live-w", Endpoint: "http://localhost:1"})
+	reg.Add(&workers.Worker{Name: "live-w", Endpoint: "http://localhost:1"})
 	db.Close()
 	t.Setenv("MECHA_DB_PATH", dbPath)
 
@@ -156,12 +156,12 @@ func TestRunWorkerChecksCancelled(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatalf("NewRegistry: %v", err)
 	}
-	reg.Add(&worker.Worker{Name: "w1", Endpoint: "http://localhost:1"})
-	reg.Add(&worker.Worker{Name: "w2", Endpoint: "http://localhost:2"})
+	reg.Add(&workers.Worker{Name: "w1", Endpoint: "http://localhost:1"})
+	reg.Add(&workers.Worker{Name: "w2", Endpoint: "http://localhost:2"})
 	db.Close()
 	t.Setenv("MECHA_DB_PATH", dbPath)
 
@@ -175,7 +175,7 @@ func TestRunWorkerChecksCancelled(t *testing.T) {
 }
 
 func TestCheckWorkerEntryLive(t *testing.T) {
-	e := worker.Entry{Worker: &worker.Worker{Name: "live", Endpoint: "http://x"}}
+	e := workers.Entry{Worker: &workers.Worker{Name: "live", Endpoint: "http://x"}}
 	// Live worker with no Docker or Adapter — no checks to fail
 	ok := checkWorkerEntry(context.Background(), e, nil, nil)
 	if !ok {
@@ -185,9 +185,9 @@ func TestCheckWorkerEntryLive(t *testing.T) {
 
 func TestCheckWorkerEntryDocker(t *testing.T) {
 	cwd := t.TempDir()
-	e := worker.Entry{Worker: &worker.Worker{
+	e := workers.Entry{Worker: &workers.Worker{
 		Name: "docker-w",
-		Docker: &worker.DockerConfig{
+		Docker: &workers.DockerConfig{
 			Image: "test:latest",
 			Cwd:   cwd,
 		},
@@ -201,21 +201,21 @@ func TestCheckWorkerEntryDocker(t *testing.T) {
 
 func TestCheckWorkerCwdValid(t *testing.T) {
 	cwd := t.TempDir()
-	w := &worker.Worker{Docker: &worker.DockerConfig{Cwd: cwd}}
+	w := &workers.Worker{Docker: &workers.DockerConfig{Cwd: cwd}}
 	if !checkWorkerCwd(w) {
 		t.Error("checkWorkerCwd should pass for valid directory")
 	}
 }
 
 func TestCheckWorkerCwdEmpty(t *testing.T) {
-	w := &worker.Worker{Docker: &worker.DockerConfig{Cwd: ""}}
+	w := &workers.Worker{Docker: &workers.DockerConfig{Cwd: ""}}
 	if !checkWorkerCwd(w) {
 		t.Error("checkWorkerCwd should pass for empty cwd")
 	}
 }
 
 func TestCheckWorkerCwdNonexistent(t *testing.T) {
-	w := &worker.Worker{Docker: &worker.DockerConfig{Cwd: "/nonexistent/path"}}
+	w := &workers.Worker{Docker: &workers.DockerConfig{Cwd: "/nonexistent/path"}}
 	if checkWorkerCwd(w) {
 		t.Error("checkWorkerCwd should fail for nonexistent path")
 	}
@@ -225,52 +225,52 @@ func TestCheckWorkerCwdIsFile(t *testing.T) {
 	dir := t.TempDir()
 	fpath := filepath.Join(dir, "file.txt")
 	os.WriteFile(fpath, []byte("hello"), 0o644)
-	w := &worker.Worker{Docker: &worker.DockerConfig{Cwd: fpath}}
+	w := &workers.Worker{Docker: &workers.DockerConfig{Cwd: fpath}}
 	if checkWorkerCwd(w) {
 		t.Error("checkWorkerCwd should fail for file path")
 	}
 }
 
 func TestCheckWorkerTokenNoToken(t *testing.T) {
-	w := &worker.Worker{Docker: &worker.DockerConfig{Token: ""}}
+	w := &workers.Worker{Docker: &workers.DockerConfig{Token: ""}}
 	if !checkWorkerToken(w, nil) {
 		t.Error("should pass with no token")
 	}
 }
 
 func TestCheckWorkerTokenNoSecrets(t *testing.T) {
-	w := &worker.Worker{Docker: &worker.DockerConfig{Token: "claude.dev"}}
+	w := &workers.Worker{Docker: &workers.DockerConfig{Token: "claude.dev"}}
 	if !checkWorkerToken(w, nil) {
 		t.Error("should pass (warn) with no secrets file")
 	}
 }
 
 func TestCheckWorkerTokenResolves(t *testing.T) {
-	secrets := &worker.Secrets{
+	secrets := &workers.Secrets{
 		Tokens: map[string]map[string]string{
 			"claude": {"dev": "sk-ant-test"},
 		},
 	}
-	w := &worker.Worker{Docker: &worker.DockerConfig{Token: "claude.dev"}}
+	w := &workers.Worker{Docker: &workers.DockerConfig{Token: "claude.dev"}}
 	if !checkWorkerToken(w, secrets) {
 		t.Error("should pass when token resolves")
 	}
 }
 
 func TestCheckWorkerTokenMissing(t *testing.T) {
-	secrets := &worker.Secrets{
+	secrets := &workers.Secrets{
 		Tokens: map[string]map[string]string{
 			"claude": {"dev": "sk-ant-test"},
 		},
 	}
-	w := &worker.Worker{Docker: &worker.DockerConfig{Token: "claude.prod"}}
+	w := &workers.Worker{Docker: &workers.DockerConfig{Token: "claude.prod"}}
 	if checkWorkerToken(w, secrets) {
 		t.Error("should fail when token not found")
 	}
 }
 
 func TestCheckWorkerImageNilClient(t *testing.T) {
-	w := &worker.Worker{Docker: &worker.DockerConfig{Image: "test:latest"}}
+	w := &workers.Worker{Docker: &workers.DockerConfig{Image: "test:latest"}}
 	// No Docker client → skip (return true)
 	if !checkWorkerImage(context.Background(), w, nil) {
 		t.Error("should pass with nil docker client")
@@ -278,7 +278,7 @@ func TestCheckWorkerImageNilClient(t *testing.T) {
 }
 
 func TestCheckWorkerImageCustomHost(t *testing.T) {
-	w := &worker.Worker{Docker: &worker.DockerConfig{
+	w := &workers.Worker{Docker: &workers.DockerConfig{
 		Image: "test:latest",
 		Host:  "tcp://remote:2375",
 	}}
@@ -294,7 +294,7 @@ func TestCheckAdapterUpstreamReachable(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	w := &worker.Worker{Adapter: &worker.AdapterConfig{
+	w := &workers.Worker{Adapter: &workers.AdapterConfig{
 		Type:     "ollama",
 		Upstream: srv.URL,
 	}}
@@ -304,7 +304,7 @@ func TestCheckAdapterUpstreamReachable(t *testing.T) {
 }
 
 func TestCheckAdapterUpstreamUnreachable(t *testing.T) {
-	w := &worker.Worker{Adapter: &worker.AdapterConfig{
+	w := &workers.Worker{Adapter: &workers.AdapterConfig{
 		Type:     "ollama",
 		Upstream: "http://127.0.0.1:1",
 	}}
@@ -324,7 +324,7 @@ func TestCheckAdapterUpstreamOpenAIPath(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	w := &worker.Worker{Adapter: &worker.AdapterConfig{
+	w := &workers.Worker{Adapter: &workers.AdapterConfig{
 		Type:     "openai",
 		Upstream: srv.URL,
 	}}
@@ -393,11 +393,11 @@ func TestWorkerStartCmdOnline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatalf("NewRegistry: %v", err)
 	}
-	w := &worker.Worker{Name: "online-w", Endpoint: "http://localhost:1"}
+	w := &workers.Worker{Name: "online-w", Endpoint: "http://localhost:1"}
 	reg.Add(w)
 	reg.Start("online-w") // Make it online
 	db.Close()
@@ -425,11 +425,11 @@ func TestWorkerStartCmdLiveHealthy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatalf("NewRegistry: %v", err)
 	}
-	reg.Add(&worker.Worker{Name: "healthy-live", Endpoint: srv.URL})
+	reg.Add(&workers.Worker{Name: "healthy-live", Endpoint: srv.URL})
 	db.Close()
 
 	cmd := workerStartCmd()
@@ -452,11 +452,11 @@ func TestWorkerStartCmdLiveUnhealthy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatalf("NewRegistry: %v", err)
 	}
-	reg.Add(&worker.Worker{Name: "sick-live", Endpoint: srv.URL})
+	reg.Add(&workers.Worker{Name: "sick-live", Endpoint: srv.URL})
 	db.Close()
 
 	cmd := workerStartCmd()
@@ -475,11 +475,11 @@ func TestWorkerStopCmdLiveOnline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatalf("NewRegistry: %v", err)
 	}
-	reg.Add(&worker.Worker{Name: "stop-me", Endpoint: "http://localhost:1"})
+	reg.Add(&workers.Worker{Name: "stop-me", Endpoint: "http://localhost:1"})
 	reg.Start("stop-me")
 	db.Close()
 
@@ -498,13 +498,13 @@ func TestWorkerStopCmdAdapter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatalf("NewRegistry: %v", err)
 	}
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name: "adapter-stop",
-		Adapter: &worker.AdapterConfig{
+		Adapter: &workers.AdapterConfig{
 			Type: "ollama", Upstream: "http://localhost:11434", Model: "test",
 		},
 	}
@@ -527,13 +527,13 @@ func TestWorkerRemoveCmdManaged(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatalf("NewRegistry: %v", err)
 	}
-	reg.Add(&worker.Worker{
+	reg.Add(&workers.Worker{
 		Name:   "managed-rm",
-		Docker: &worker.DockerConfig{Image: "test:latest"},
+		Docker: &workers.DockerConfig{Image: "test:latest"},
 	})
 	db.Close()
 

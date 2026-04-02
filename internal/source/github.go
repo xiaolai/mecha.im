@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"strings"
 
-	"mecha.im/internal/event"
+	"mecha.im/internal/events"
 )
 
 // GitHubSource parses GitHub webhook payloads into events.
@@ -33,7 +33,7 @@ func (g *GitHubSource) Authenticated() {}
 
 // Parse validates the HMAC signature and normalizes the webhook payload.
 // No network calls — hydration is separate.
-func (g *GitHubSource) Parse(headers http.Header, body []byte) (*event.Event, error) {
+func (g *GitHubSource) Parse(headers http.Header, body []byte) (*events.Event, error) {
 	if g.secret != "" {
 		sig := headers.Get("X-Hub-Signature-256")
 		if !validateSignature(g.secret, body, sig) {
@@ -58,12 +58,12 @@ func (g *GitHubSource) Parse(headers http.Header, body []byte) (*event.Event, er
 		eventType = ghEvent + "." + action
 	}
 
-	ev := &event.Event{
+	ev := &events.Event{
 		DeliveryID: deliveryID,
 		Source:     "github",
 		Type:       eventType,
 		Raw:        json.RawMessage(body),
-		Attrs:      make(event.Attrs),
+		Attrs:      make(events.Attrs),
 	}
 
 	// Extract Actor
@@ -99,7 +99,7 @@ func (g *GitHubSource) Parse(headers http.Header, body []byte) (*event.Event, er
 	return ev, nil
 }
 
-func parsePullRequest(payload map[string]any, ev *event.Event) {
+func parsePullRequest(payload map[string]any, ev *events.Event) {
 	pr, _ := payload["pull_request"].(map[string]any)
 	if pr == nil {
 		return
@@ -136,7 +136,7 @@ func parsePullRequest(payload map[string]any, ev *event.Event) {
 	}
 }
 
-func parsePush(payload map[string]any, ev *event.Event) {
+func parsePush(payload map[string]any, ev *events.Event) {
 	ref, _ := payload["ref"].(string)
 	ev.Attrs["ref"] = ref
 	if after, ok := payload["after"].(string); ok {
@@ -161,7 +161,7 @@ func parsePush(payload map[string]any, ev *event.Event) {
 	}
 }
 
-func parseIssue(payload map[string]any, ev *event.Event) {
+func parseIssue(payload map[string]any, ev *events.Event) {
 	issue, _ := payload["issue"].(map[string]any)
 	if issue == nil {
 		return
@@ -171,7 +171,7 @@ func parseIssue(payload map[string]any, ev *event.Event) {
 	ev.Attrs["body"], _ = issue["body"].(string)
 }
 
-func parseIssueComment(payload map[string]any, ev *event.Event) {
+func parseIssueComment(payload map[string]any, ev *events.Event) {
 	if issue, ok := payload["issue"].(map[string]any); ok {
 		ev.Attrs["number"] = intVal(issue["number"])
 		ev.Attrs["title"], _ = issue["title"].(string)

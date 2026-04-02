@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"mecha.im/internal/worker"
+	"mecha.im/internal/workers"
 )
 
 const testImage = "mecha-worker:latest"
@@ -46,14 +46,14 @@ func TestRuntime_CLIsInstalled(t *testing.T) {
 	skipIfNoDocker(t)
 	skipIfNoImage(t, testImage)
 
-	cli, err := worker.NewDockerClient("")
+	cli, err := workers.NewDockerClient("")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cli.Close()
 
 	ctx := context.Background()
-	cfg := worker.ContainerCfg{
+	cfg := workers.ContainerCfg{
 		Name:   "mecha-test-runtime-cli",
 		Image:  testImage,
 		Env:    map[string]string{"CLAUDE_MODEL": "test"},
@@ -106,14 +106,14 @@ func TestRuntime_SettingsFile(t *testing.T) {
 	skipIfNoDocker(t)
 	skipIfNoImage(t, testImage)
 
-	cli, err := worker.NewDockerClient("")
+	cli, err := workers.NewDockerClient("")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cli.Close()
 
 	ctx := context.Background()
-	cfg := worker.ContainerCfg{
+	cfg := workers.ContainerCfg{
 		Name:   "mecha-test-runtime-settings",
 		Image:  testImage,
 		Env:    map[string]string{"CLAUDE_MODEL": "test"},
@@ -152,7 +152,7 @@ func TestRuntime_CodexMCPNoAuth(t *testing.T) {
 	skipIfNoDocker(t)
 	skipIfNoImage(t, testImage)
 
-	cli, err := worker.NewDockerClient("")
+	cli, err := workers.NewDockerClient("")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +161,7 @@ func TestRuntime_CodexMCPNoAuth(t *testing.T) {
 	ctx := context.Background()
 
 	// CODEX_MCP=true without any auth → should exit 1
-	cfg := worker.ContainerCfg{
+	cfg := workers.ContainerCfg{
 		Name:  "mecha-test-mcp-noauth",
 		Image: testImage,
 		Env: map[string]string{
@@ -211,14 +211,14 @@ func TestRuntime_CodexMCPWithAPIKey(t *testing.T) {
 	skipIfNoDocker(t)
 	skipIfNoImage(t, testImage)
 
-	cli, err := worker.NewDockerClient("")
+	cli, err := workers.NewDockerClient("")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cli.Close()
 
 	ctx := context.Background()
-	cfg := worker.ContainerCfg{
+	cfg := workers.ContainerCfg{
 		Name:  "mecha-test-mcp-apikey",
 		Image: testImage,
 		Env: map[string]string{
@@ -256,14 +256,14 @@ func TestRuntime_NoCodexMCPByDefault(t *testing.T) {
 	skipIfNoDocker(t)
 	skipIfNoImage(t, testImage)
 
-	cli, err := worker.NewDockerClient("")
+	cli, err := workers.NewDockerClient("")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cli.Close()
 
 	ctx := context.Background()
-	cfg := worker.ContainerCfg{
+	cfg := workers.ContainerCfg{
 		Name:   "mecha-test-no-mcp",
 		Image:  testImage,
 		Env:    map[string]string{"CLAUDE_MODEL": "test"},
@@ -299,14 +299,14 @@ func TestRuntime_PluginEnvVars(t *testing.T) {
 	skipIfNoDocker(t)
 	skipIfNoImage(t, testImage)
 
-	cli, err := worker.NewDockerClient("")
+	cli, err := workers.NewDockerClient("")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cli.Close()
 
 	ctx := context.Background()
-	cfg := worker.ContainerCfg{
+	cfg := workers.ContainerCfg{
 		Name:  "mecha-test-plugins",
 		Image: testImage,
 		Env: map[string]string{
@@ -355,23 +355,23 @@ func TestRuntime_DualCredentialMount(t *testing.T) {
 	}
 
 	// Use Docker SDK directly — the CLI's health timeout is too short for runtime install.
-	dc := &worker.DockerConfig{
+	dc := &workers.DockerConfig{
 		Image:       testImage,
 		Credentials: []string{"claude", "codex"},
 	}
-	mounts, err := worker.BuildContainerMounts(dc)
+	mounts, err := workers.BuildContainerMounts(dc)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	cli, err := worker.NewDockerClient("")
+	cli, err := workers.NewDockerClient("")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cli.Close()
 
 	ctx := context.Background()
-	cfg := worker.ContainerCfg{
+	cfg := workers.ContainerCfg{
 		Name:   "mecha-test-cred-mount",
 		Image:  testImage,
 		Env:    map[string]string{"CLAUDE_MODEL": "test"},
@@ -413,14 +413,14 @@ func TestRuntime_HealthDuringInstall(t *testing.T) {
 	skipIfNoDocker(t)
 	skipIfNoImage(t, testImage)
 
-	cli, err := worker.NewDockerClient("")
+	cli, err := workers.NewDockerClient("")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cli.Close()
 
 	ctx := context.Background()
-	cfg := worker.ContainerCfg{
+	cfg := workers.ContainerCfg{
 		Name:   "mecha-test-health-phase",
 		Image:  testImage,
 		Env:    map[string]string{"CLAUDE_MODEL": "test"},

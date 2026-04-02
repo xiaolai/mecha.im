@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"mecha.im/internal/event"
+	"mecha.im/internal/events"
 )
 
 func testHMAC(secret string, body []byte) string {
@@ -131,10 +131,10 @@ func TestGitHubHydratePRWithBaseSHA(t *testing.T) {
 	defer func() { githubAPIBase = old }()
 
 	src := NewGitHubSource("", "test-token")
-	ev := &event.Event{
+	ev := &events.Event{
 		Type:    "pull_request.opened",
 		Subject: "org/repo",
-		Attrs: event.Attrs{
+		Attrs: events.Attrs{
 			"repo_owner": "org",
 			"repo_name":  "repo",
 			"number":     42,
@@ -186,10 +186,10 @@ func TestGitHubHydrateSHAPinnedFiles(t *testing.T) {
 	defer func() { githubAPIBase = old }()
 
 	src := NewGitHubSource("", "test-token")
-	ev := &event.Event{
+	ev := &events.Event{
 		Type:    "pull_request.opened",
 		Subject: "org/repo",
-		Attrs: event.Attrs{
+		Attrs: events.Attrs{
 			"repo_owner": "org",
 			"repo_name":  "repo",
 			"number":     1,
@@ -231,10 +231,10 @@ func TestGitHubHydratePaginationFallback(t *testing.T) {
 	defer func() { githubAPIBase = old }()
 
 	src := NewGitHubSource("", "test-token")
-	ev := &event.Event{
+	ev := &events.Event{
 		Type:    "pull_request.opened",
 		Subject: "org/repo",
-		Attrs: event.Attrs{
+		Attrs: events.Attrs{
 			"repo_owner": "org",
 			"repo_name":  "repo",
 			"number":     1,
@@ -251,7 +251,7 @@ func TestGitHubHydratePaginationFallback(t *testing.T) {
 
 func TestGitHubHydrateSkipsWithoutToken(t *testing.T) {
 	src := NewGitHubSource("", "")
-	ev := &event.Event{Type: "pull_request.opened", Attrs: event.Attrs{"number": 1}}
+	ev := &events.Event{Type: "pull_request.opened", Attrs: events.Attrs{"number": 1}}
 	err := src.Hydrate(context.Background(), ev)
 	if err != nil {
 		t.Fatalf("should succeed without token: %v", err)
@@ -263,7 +263,7 @@ func TestGitHubHydrateSkipsWithoutToken(t *testing.T) {
 
 func TestGitHubHydrateSkipsNonPR(t *testing.T) {
 	src := NewGitHubSource("", "token")
-	ev := &event.Event{Type: "push", Attrs: event.Attrs{"number": 0}}
+	ev := &events.Event{Type: "push", Attrs: events.Attrs{"number": 0}}
 	err := src.Hydrate(context.Background(), ev)
 	if err != nil {
 		t.Fatalf("Hydrate() error: %v", err)

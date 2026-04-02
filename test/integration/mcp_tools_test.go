@@ -12,12 +12,12 @@ import (
 	"testing"
 	"time"
 
-	"mecha.im/internal/event"
+	"mecha.im/internal/events"
 	"mecha.im/internal/serve"
 	"mecha.im/internal/source"
 	"mecha.im/internal/store"
-	"mecha.im/internal/task"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/tasks"
+	"mecha.im/internal/workers"
 )
 
 // findFreePort finds an available TCP port on localhost.
@@ -50,7 +50,7 @@ func mockWorker(result string) *httptest.Server {
 
 // startTestServer creates a fully wired mecha server for integration tests.
 // It opens a temp DB, registers the provided workers, and starts serving.
-func startTestServer(t *testing.T, workers []*worker.Worker, sources *source.Registry) (serverURL string, cleanup func()) {
+func startTestServer(t *testing.T, workerList []*workers.Worker, sources *source.Registry) (serverURL string, cleanup func()) {
 	t.Helper()
 
 	dbPath := tempDBPath(t)
@@ -59,11 +59,11 @@ func startTestServer(t *testing.T, workers []*worker.Worker, sources *source.Reg
 		t.Fatalf("open db: %v", err)
 	}
 
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatalf("create registry: %v", err)
 	}
-	for _, w := range workers {
+	for _, w := range workerList {
 		if err := reg.Add(w); err != nil {
 			t.Fatalf("add worker %s: %v", w.Name, err)
 		}
@@ -74,16 +74,16 @@ func startTestServer(t *testing.T, workers []*worker.Worker, sources *source.Reg
 		}
 	}
 
-	tasks := task.NewStore(db)
-	events := event.NewStore(db)
+	taskStore := tasks.NewStore(db)
+	evStore := events.NewStore(db)
 
 	port := findFreePort(t)
 	addr := fmt.Sprintf("127.0.0.1:%d", port)
 
 	cfg := serve.Config{
 		Registry: reg,
-		Tasks:    tasks,
-		Events:   events,
+		Tasks:    taskStore,
+		Events:   evStore,
 		Sources:  sources,
 		Addr:     addr,
 	}
@@ -180,13 +180,13 @@ func TestMCP_TaskSubmitAndStatus(t *testing.T) {
 	mock := mockWorker(workerResult)
 	defer mock.Close()
 
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:     "reviewer",
 		Endpoint: mock.URL,
 		Timeout:  30 * time.Second,
 	}
 
-	serverURL, cleanup := startTestServer(t, []*worker.Worker{w}, nil)
+	serverURL, cleanup := startTestServer(t, []*workers.Worker{w}, nil)
 	defer cleanup()
 
 	// Submit task via HTTP API (what MCP mecha-task tool does)
@@ -221,12 +221,12 @@ func TestMCP_WorkerList(t *testing.T) {
 	mock := mockWorker(`{"output":"ok"}`)
 	defer mock.Close()
 
-	workers := []*worker.Worker{
+	workerList := []*workers.Worker{
 		{Name: "alpha", Endpoint: mock.URL, Timeout: 5 * time.Minute},
 		{Name: "beta", Endpoint: mock.URL, Timeout: 5 * time.Minute},
 	}
 
-	serverURL, cleanup := startTestServer(t, workers, nil)
+	serverURL, cleanup := startTestServer(t, workerList, nil)
 	defer cleanup()
 
 	body, status := apiGet(t, serverURL, "/workers")
@@ -261,13 +261,13 @@ func TestMCP_TaskList(t *testing.T) {
 	mock := mockWorker(`{"output":"listed"}`)
 	defer mock.Close()
 
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:     "list-worker",
 		Endpoint: mock.URL,
 		Timeout:  30 * time.Second,
 	}
 
-	serverURL, cleanup := startTestServer(t, []*worker.Worker{w}, nil)
+	serverURL, cleanup := startTestServer(t, []*workers.Worker{w}, nil)
 	defer cleanup()
 
 	// Create two tasks.
@@ -288,10 +288,10 @@ func TestMCP_TaskList(t *testing.T) {
 	if status != 200 {
 		t.Fatalf("GET /tasks status = %d", status)
 	}
-	var tasks []map[string]any
-	json.Unmarshal(body, &tasks)
-	if len(tasks) < 2 {
-		t.Fatalf("expected at least 2 tasks, got %d", len(tasks))
+	var taskList []map[string]any
+	json.Unmarshal(body, &taskList)
+	if len(taskList) < 2 {
+		t.Fatalf("expected at least 2 tasks, got %d", len(taskList))
 	}
 }
 
@@ -299,13 +299,13 @@ func TestMCP_Metrics(t *testing.T) {
 	mock := mockWorker(`{"output":"done"}`)
 	defer mock.Close()
 
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:     "metric-worker",
 		Endpoint: mock.URL,
 		Timeout:  30 * time.Second,
 	}
 
-	serverURL, cleanup := startTestServer(t, []*worker.Worker{w}, nil)
+	serverURL, cleanup := startTestServer(t, []*workers.Worker{w}, nil)
 	defer cleanup()
 
 	// Submit and wait for a task to complete so metrics are populated

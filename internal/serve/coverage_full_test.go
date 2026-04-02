@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"mecha.im/internal/event"
-	"mecha.im/internal/policy"
+	"mecha.im/internal/events"
+	"mecha.im/internal/policies"
 	"mecha.im/internal/source"
 	"mecha.im/internal/store"
-	"mecha.im/internal/task"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/tasks"
+	"mecha.im/internal/workers"
 )
 
 // ---- 1. scanPending tests ----
@@ -31,12 +31,12 @@ func TestScanPendingRecoverOrphan(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
 	ctx := context.Background()
-	tk, _ := tasks.Create(ctx, "w1", "orphan-prompt")
+	tk, _ := taskStore.Create(ctx, "w1", "orphan-prompt")
 
 	s.scanPending(ctx)
 
@@ -59,14 +59,14 @@ func TestScanPendingSkipsFutureRetry(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
 	ctx := context.Background()
-	tk, _ := tasks.Create(ctx, "w1", "retry-prompt")
+	tk, _ := taskStore.Create(ctx, "w1", "retry-prompt")
 	// Use RetryOrFail to set next_retry_at in the future
-	tasks.RetryOrFail(ctx, tk.ID, "transient error")
+	taskStore.RetryOrFail(ctx, tk.ID, "transient error")
 
 	s.scanPending(ctx)
 
@@ -89,13 +89,13 @@ func TestScanPendingSkipsDispatched(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
 	ctx := context.Background()
-	tk, _ := tasks.Create(ctx, "w1", "dispatched-prompt")
-	tasks.SetDispatched(ctx, tk.ID)
+	tk, _ := taskStore.Create(ctx, "w1", "dispatched-prompt")
+	taskStore.SetDispatched(ctx, tk.ID)
 
 	s.scanPending(ctx)
 
@@ -116,27 +116,27 @@ func TestScanPendingDedupCompletedFails(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	events := event.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Events: events, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	evStore := events.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Events: evStore, Addr: "127.0.0.1:0"})
 
 	ctx := context.Background()
-	ev := &event.Event{Source: "github", Type: "push"}
-	events.Create(ctx, ev)
+	ev := &events.Event{Source: "github", Type: "push"}
+	evStore.Create(ctx, ev)
 
 	dedupKey := ev.ID + ":" + "w1"
 
 	// First task: completed (we create via normal API)
-	tk1, _ := tasks.CreateWithEvent(ctx, "w1", "p1", "{}", ev.ID)
-	tasks.SetDispatched(ctx, tk1.ID)
-	tasks.Complete(ctx, tk1.ID, `{"output":"done"}`)
+	tk1, _ := taskStore.CreateWithEvent(ctx, "w1", "p1", "{}", ev.ID)
+	taskStore.SetDispatched(ctx, tk1.ID)
+	taskStore.Complete(ctx, tk1.ID, `{"output":"done"}`)
 
 	// Second task: create without event, then set its dedup_key via SQL.
 	// Since the unique index enforces uniqueness, we first clear the
 	// completed task's dedup_key (it's already completed so scanPending
 	// won't pick it up), then assign it to the pending task.
-	tk2, _ := tasks.Create(ctx, "w1", "p2")
+	tk2, _ := taskStore.Create(ctx, "w1", "p2")
 	db.ExecContext(ctx, `UPDATE tasks SET dedup_key = '' WHERE id = ?`, tk1.ID)
 	db.ExecContext(ctx, `UPDATE tasks SET dedup_key = ? WHERE id = ?`, dedupKey, tk2.ID)
 	// Restore the completed task's dedup_key for HasCompletedDedup to find
@@ -159,8 +159,8 @@ func TestScanPendingDedupCompletedFails(t *testing.T) {
 		// Good — not enqueued
 	}
 
-	got, _ := tasks.Get(ctx, tk2.ID)
-	if got.State != task.StateFailed {
+	got, _ := taskStore.Get(ctx, tk2.ID)
+	if got.State != tasks.StateFailed {
 		t.Errorf("duplicate task state = %q, want failed", got.State)
 	}
 	if !strings.Contains(got.ErrorMsg, "duplicate") {
@@ -175,9 +175,9 @@ func TestScanPendingDBError(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
 	db.Close()
 	// Should not panic
@@ -193,10 +193,10 @@ func TestScanPendingQueueFull(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
 
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
 	ctx := context.Background()
 	// Fill the channel
@@ -205,7 +205,7 @@ func TestScanPendingQueueFull(t *testing.T) {
 	}
 
 	// Create an orphan task
-	tasks.Create(ctx, "w1", "overflow-prompt")
+	taskStore.Create(ctx, "w1", "overflow-prompt")
 
 	// Should not panic or block
 	s.scanPending(ctx)
@@ -226,14 +226,14 @@ func TestScanRetriesEnqueuesRetryableTasks(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
 	ctx := context.Background()
-	tk, _ := tasks.Create(ctx, "w1", "retry-prompt")
+	tk, _ := taskStore.Create(ctx, "w1", "retry-prompt")
 	// Set the task into a retry state with a past next_retry_at
-	tasks.RetryOrFail(ctx, tk.ID, "transient error")
+	taskStore.RetryOrFail(ctx, tk.ID, "transient error")
 
 	// Manually override next_retry_at to be in the past
 	now := time.Now().Add(-10 * time.Minute)
@@ -257,9 +257,9 @@ func TestScanRetriesDBError(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
 	db.Close()
 	// Should not panic
@@ -274,13 +274,13 @@ func TestScanRetriesQueueFull(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
 	ctx := context.Background()
-	tk, _ := tasks.Create(ctx, "w1", "retry-prompt")
-	tasks.RetryOrFail(ctx, tk.ID, "transient error")
+	tk, _ := taskStore.Create(ctx, "w1", "retry-prompt")
+	taskStore.RetryOrFail(ctx, tk.ID, "transient error")
 	now := time.Now().Add(-10 * time.Minute)
 	db.ExecContext(ctx, `UPDATE tasks SET next_retry_at = ? WHERE id = ?`, now.Unix(), tk.ID)
 
@@ -306,15 +306,15 @@ func TestScanRetriesContextCancelled(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
 	ctx := context.Background()
 	// Create multiple retryable tasks
 	for i := 0; i < 3; i++ {
-		tk, _ := tasks.Create(ctx, "w1", fmt.Sprintf("prompt-%d", i))
-		tasks.RetryOrFail(ctx, tk.ID, "transient error")
+		tk, _ := taskStore.Create(ctx, "w1", fmt.Sprintf("prompt-%d", i))
+		taskStore.RetryOrFail(ctx, tk.ID, "transient error")
 		now := time.Now().Add(-10 * time.Minute)
 		db.ExecContext(ctx, `UPDATE tasks SET next_retry_at = ? WHERE id = ?`, now.Unix(), tk.ID)
 	}
@@ -335,9 +335,9 @@ func TestReconcileUnhealthyWorkerSetError(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
 	// Create a mock health endpoint that returns 503
 	unhealthy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -346,9 +346,9 @@ func TestReconcileUnhealthyWorkerSetError(t *testing.T) {
 	defer unhealthy.Close()
 
 	// Register a worker with Docker config (required for reconcile to check)
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:   "unhealthy-w",
-		Docker: &worker.DockerConfig{Image: "test:latest"},
+		Docker: &workers.DockerConfig{Image: "test:latest"},
 	}
 	reg.Add(w)
 	reg.Start("unhealthy-w")
@@ -364,7 +364,7 @@ func TestReconcileUnhealthyWorkerSetError(t *testing.T) {
 	if !ok {
 		t.Fatal("worker not found")
 	}
-	if entry.State != worker.StateError {
+	if entry.State != workers.StateError {
 		t.Errorf("state = %q, want error", entry.State)
 	}
 }
@@ -380,9 +380,9 @@ func TestReconcileRecoveredWorkerAttemptOnline(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
 	// Create a mock health endpoint that returns 200
 	healthy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -390,9 +390,9 @@ func TestReconcileRecoveredWorkerAttemptOnline(t *testing.T) {
 	}))
 	defer healthy.Close()
 
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:   "recovered-w",
-		Docker: &worker.DockerConfig{Image: "test:latest"},
+		Docker: &workers.DockerConfig{Image: "test:latest"},
 	}
 	reg.Add(w)
 	reg.Start("recovered-w")
@@ -425,12 +425,12 @@ func TestReconcileSkipsWorkerWithoutDocker(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
 	// Worker without Docker config
-	w := &worker.Worker{Name: "plain-w", Endpoint: "http://x"}
+	w := &workers.Worker{Name: "plain-w", Endpoint: "http://x"}
 	reg.Add(w)
 	reg.Start("plain-w")
 
@@ -438,7 +438,7 @@ func TestReconcileSkipsWorkerWithoutDocker(t *testing.T) {
 	s.reconcile(context.Background(), nil)
 
 	entry, _ := reg.Get("plain-w")
-	if entry.State != worker.StateOnline {
+	if entry.State != workers.StateOnline {
 		t.Errorf("plain worker state changed to %q, should remain online", entry.State)
 	}
 }
@@ -451,13 +451,13 @@ func TestReconcileSkipsNoContainerID(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:   "no-cid-w",
-		Docker: &worker.DockerConfig{Image: "test:latest"},
+		Docker: &workers.DockerConfig{Image: "test:latest"},
 	}
 	reg.Add(w)
 	reg.Start("no-cid-w")
@@ -466,7 +466,7 @@ func TestReconcileSkipsNoContainerID(t *testing.T) {
 	s.reconcile(context.Background(), nil)
 
 	entry, _ := reg.Get("no-cid-w")
-	if entry.State != worker.StateOnline {
+	if entry.State != workers.StateOnline {
 		t.Errorf("worker without container_id should remain online, got %q", entry.State)
 	}
 }
@@ -480,9 +480,9 @@ func TestReconcileTruncatesLongContainerID(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
 	// Unhealthy endpoint to trigger the log
 	unhealthy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -490,9 +490,9 @@ func TestReconcileTruncatesLongContainerID(t *testing.T) {
 	}))
 	defer unhealthy.Close()
 
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:   "long-cid-w",
-		Docker: &worker.DockerConfig{Image: "test:latest"},
+		Docker: &workers.DockerConfig{Image: "test:latest"},
 	}
 	reg.Add(w)
 	reg.Start("long-cid-w")
@@ -506,7 +506,7 @@ func TestReconcileTruncatesLongContainerID(t *testing.T) {
 	s.reconcile(context.Background(), nil)
 
 	entry, _ := reg.Get("long-cid-w")
-	if entry.State != worker.StateError {
+	if entry.State != workers.StateError {
 		t.Errorf("state = %q, want error (long CID test)", entry.State)
 	}
 }
@@ -521,9 +521,9 @@ func TestReconcileLoopStopsOnCancel(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
@@ -552,10 +552,10 @@ func TestLimiterCleanupLoopStopsOnCancel(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
 	limiter := NewRateLimiter(1.0, 5)
-	s := New(Config{Registry: reg, Tasks: tasks, Limiter: limiter, Addr: "127.0.0.1:0"})
+	s := New(Config{Registry: reg, Tasks: taskStore, Limiter: limiter, Addr: "127.0.0.1:0"})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
@@ -584,22 +584,22 @@ func TestDispatchTaskRateLimited(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
 	// Zero burst = always deny
 	limiter := NewRateLimiter(0.0, 0)
-	s := New(Config{Registry: reg, Tasks: tasks, Limiter: limiter, Addr: "127.0.0.1:0"})
+	s := New(Config{Registry: reg, Tasks: taskStore, Limiter: limiter, Addr: "127.0.0.1:0"})
 
 	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"output":"ok"}`))
 	}))
 	defer mock.Close()
 
-	reg.Add(&worker.Worker{Name: "rl-w", Endpoint: mock.URL})
+	reg.Add(&workers.Worker{Name: "rl-w", Endpoint: mock.URL})
 	reg.Start("rl-w")
 
 	ctx := context.Background()
-	tk, _ := tasks.Create(ctx, "rl-w", "test")
+	tk, _ := taskStore.Create(ctx, "rl-w", "test")
 	s.dispatchTask(ctx, tk.ID)
 
 	// Task should be re-queued into pending
@@ -614,7 +614,7 @@ func TestDispatchTaskRateLimited(t *testing.T) {
 
 	// Worker should be back to online (not stuck in busy)
 	entry, _ := reg.Get("rl-w")
-	if entry.State != worker.StateOnline {
+	if entry.State != workers.StateOnline {
 		t.Errorf("worker state = %q, want online after rate limit", entry.State)
 	}
 }
@@ -627,17 +627,17 @@ func TestDispatchTaskRateLimitedQueueFull(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
 	limiter := NewRateLimiter(0.0, 0) // always deny
-	s := New(Config{Registry: reg, Tasks: tasks, Limiter: limiter, Addr: "127.0.0.1:0"})
+	s := New(Config{Registry: reg, Tasks: taskStore, Limiter: limiter, Addr: "127.0.0.1:0"})
 
 	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"output":"ok"}`))
 	}))
 	defer mock.Close()
 
-	reg.Add(&worker.Worker{Name: "rl-full-w", Endpoint: mock.URL})
+	reg.Add(&workers.Worker{Name: "rl-full-w", Endpoint: mock.URL})
 	reg.Start("rl-full-w")
 
 	ctx := context.Background()
@@ -646,12 +646,12 @@ func TestDispatchTaskRateLimitedQueueFull(t *testing.T) {
 		s.pending <- fmt.Sprintf("fill-%d", i)
 	}
 
-	tk, _ := tasks.Create(ctx, "rl-full-w", "test")
+	tk, _ := taskStore.Create(ctx, "rl-full-w", "test")
 	s.dispatchTask(ctx, tk.ID)
 
 	// Worker should be back to online
 	entry, _ := reg.Get("rl-full-w")
-	if entry.State != worker.StateOnline {
+	if entry.State != workers.StateOnline {
 		t.Errorf("worker state = %q, want online after rate limit + full queue", entry.State)
 	}
 
@@ -670,11 +670,11 @@ func TestStartWithPendingError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	srv := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	srv := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
-	// Close the DB so tasks.Pending returns an error
+	// Close the DB so taskStore.Pending returns an error
 	db.Close()
 
 	err = srv.Start(context.Background())
@@ -695,11 +695,11 @@ func TestStartWithLimiter(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
 	limiter := NewRateLimiter(1.0, 5)
 	srv := New(Config{
-		Registry: reg, Tasks: tasks,
+		Registry: reg, Tasks: taskStore,
 		Limiter: limiter, Addr: "127.0.0.1:0",
 	})
 
@@ -728,12 +728,12 @@ func TestStartRecoversDedupTasks(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	ts := task.NewStore(db)
-	es := event.NewStore(db)
+	reg, _ := workers.NewRegistry(db)
+	ts := tasks.NewStore(db)
+	es := events.NewStore(db)
 
 	ctx := context.Background()
-	ev := &event.Event{Source: "github", Type: "push"}
+	ev := &events.Event{Source: "github", Type: "push"}
 	es.Create(ctx, ev)
 
 	dedupKey := ev.ID + ":" + "w1"
@@ -762,7 +762,7 @@ func TestStartRecoversDedupTasks(t *testing.T) {
 	<-errCh
 
 	got, _ := ts.Get(ctx, tk2.ID)
-	if got.State != task.StateFailed {
+	if got.State != tasks.StateFailed {
 		t.Errorf("dedup task state = %q, want failed", got.State)
 	}
 }
@@ -776,13 +776,13 @@ func TestStartRecoversStuckEvents(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	ts := task.NewStore(db)
-	es := event.NewStore(db)
+	reg, _ := workers.NewRegistry(db)
+	ts := tasks.NewStore(db)
+	es := events.NewStore(db)
 	sources := source.NewRegistry()
 	sources.Register(source.NewGitHubSource("secret", ""))
 
-	ev := &event.Event{Source: "github", Type: "push"}
+	ev := &events.Event{Source: "github", Type: "push"}
 	es.Create(context.Background(), ev)
 
 	srv := New(Config{
@@ -798,7 +798,7 @@ func TestStartRecoversStuckEvents(t *testing.T) {
 	<-errCh
 
 	got, _ := es.Get(context.Background(), ev.ID)
-	if got.State != event.StateSkipped {
+	if got.State != events.StateSkipped {
 		t.Errorf("state = %q, want skipped (recovered, no workers)", got.State)
 	}
 }
@@ -811,7 +811,7 @@ func TestStartRecoverGetTaskError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ts := task.NewStore(db)
+	ts := tasks.NewStore(db)
 
 	ctx := context.Background()
 	// Create a task while DB is still open
@@ -825,8 +825,8 @@ func TestStartRecoverGetTaskError(t *testing.T) {
 	}
 	defer db2.Close()
 
-	reg2, _ := worker.NewRegistry(db2)
-	ts2 := task.NewStore(db2)
+	reg2, _ := workers.NewRegistry(db2)
+	ts2 := tasks.NewStore(db2)
 
 	srv := New(Config{
 		Registry: reg2, Tasks: ts2,
@@ -852,13 +852,13 @@ func TestDispatchDisposableSetDispatched(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name: "disp-sd-w",
-		Docker: &worker.DockerConfig{
+		Docker: &workers.DockerConfig{
 			Image:     "nonexistent:latest",
 			Lifecycle: "disposable",
 		},
@@ -866,14 +866,14 @@ func TestDispatchDisposableSetDispatched(t *testing.T) {
 	reg.Add(w)
 
 	ctx := context.Background()
-	tk, _ := tasks.Create(ctx, "disp-sd-w", "test")
+	tk, _ := taskStore.Create(ctx, "disp-sd-w", "test")
 
 	entry, _ := reg.Get("disp-sd-w")
 	s.dispatchDisposable(ctx, tk.ID, tk, entry)
 
 	// Task should be failed (container creation fails without Docker)
-	got, _ := tasks.Get(ctx, tk.ID)
-	if got.State != task.StateFailed {
+	got, _ := taskStore.Get(ctx, tk.ID)
+	if got.State != tasks.StateFailed {
 		t.Errorf("state = %q, want failed", got.State)
 	}
 	// But it should have been set to dispatched first
@@ -893,13 +893,13 @@ func TestDispatchDisposableAlreadyDispatched(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name: "disp-ad-w",
-		Docker: &worker.DockerConfig{
+		Docker: &workers.DockerConfig{
 			Image:     "nonexistent:latest",
 			Lifecycle: "disposable",
 		},
@@ -907,17 +907,17 @@ func TestDispatchDisposableAlreadyDispatched(t *testing.T) {
 	reg.Add(w)
 
 	ctx := context.Background()
-	tk, _ := tasks.Create(ctx, "disp-ad-w", "test")
-	tasks.SetDispatched(ctx, tk.ID)
+	tk, _ := taskStore.Create(ctx, "disp-ad-w", "test")
+	taskStore.SetDispatched(ctx, tk.ID)
 
 	// Refetch with updated state
-	tk, _ = tasks.Get(ctx, tk.ID)
+	tk, _ = taskStore.Get(ctx, tk.ID)
 
 	entry, _ := reg.Get("disp-ad-w")
 	s.dispatchDisposable(ctx, tk.ID, tk, entry)
 
-	got, _ := tasks.Get(ctx, tk.ID)
-	if got.State != task.StateFailed {
+	got, _ := taskStore.Get(ctx, tk.ID)
+	if got.State != tasks.StateFailed {
 		t.Errorf("state = %q, want failed (already dispatched, container fails)", got.State)
 	}
 }
@@ -929,13 +929,13 @@ func TestDispatchDisposableSetDispatchedDBError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name: "disp-dberr-w",
-		Docker: &worker.DockerConfig{
+		Docker: &workers.DockerConfig{
 			Image:     "nonexistent:latest",
 			Lifecycle: "disposable",
 		},
@@ -943,7 +943,7 @@ func TestDispatchDisposableSetDispatchedDBError(t *testing.T) {
 	reg.Add(w)
 
 	ctx := context.Background()
-	tk, _ := tasks.Create(ctx, "disp-dberr-w", "test")
+	tk, _ := taskStore.Create(ctx, "disp-dberr-w", "test")
 	db.Close()
 
 	entry, _ := reg.Get("disp-dberr-w")
@@ -961,15 +961,15 @@ func TestWebhookSlackChallenge(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	events := event.NewStore(db)
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	evStore := events.NewStore(db)
 	sources := source.NewRegistry()
 	// Register a Slack source (without signing secret for easier testing)
 	sources.Register(source.NewSlackSource(""))
 
 	s := New(Config{
-		Registry: reg, Tasks: tasks, Events: events,
+		Registry: reg, Tasks: taskStore, Events: evStore,
 		Sources: sources, Addr: "127.0.0.1:0",
 	})
 
@@ -1000,20 +1000,20 @@ func TestMatchAndHydrateReloadError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	es := event.NewStore(db)
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	es := events.NewStore(db)
 	sources := source.NewRegistry()
 	ghSrc := source.NewGitHubSource("secret", "")
 	sources.Register(ghSrc)
 
 	s := New(Config{
-		Registry: reg, Tasks: tasks, Events: es,
+		Registry: reg, Tasks: taskStore, Events: es,
 		Sources: sources, Addr: "127.0.0.1:0",
 	})
 
 	ctx := context.Background()
-	ev := &event.Event{Source: "github", Type: "push"}
+	ev := &events.Event{Source: "github", Type: "push"}
 	es.Create(ctx, ev)
 
 	db.Close()
@@ -1031,14 +1031,14 @@ type mockHydratorSource struct {
 }
 
 func (m *mockHydratorSource) Name() string { return m.name }
-func (m *mockHydratorSource) Parse(h http.Header, body []byte) (*event.Event, error) {
-	return &event.Event{
+func (m *mockHydratorSource) Parse(h http.Header, body []byte) (*events.Event, error) {
+	return &events.Event{
 		Source: m.name,
 		Type:   "push",
-		Attrs:  event.Attrs{},
+		Attrs:  events.Attrs{},
 	}, nil
 }
-func (m *mockHydratorSource) Hydrate(ctx context.Context, ev *event.Event) error {
+func (m *mockHydratorSource) Hydrate(ctx context.Context, ev *events.Event) error {
 	m.hydrateCalled = true
 	return m.hydrateErr
 }
@@ -1052,9 +1052,9 @@ func TestMatchAndHydrateHydrationError(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	es := event.NewStore(db)
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	es := events.NewStore(db)
 	sources := source.NewRegistry()
 
 	hydratorSrc := &mockHydratorSource{
@@ -1064,7 +1064,7 @@ func TestMatchAndHydrateHydrationError(t *testing.T) {
 	sources.Register(hydratorSrc)
 
 	s := New(Config{
-		Registry: reg, Tasks: tasks, Events: es,
+		Registry: reg, Tasks: taskStore, Events: es,
 		Sources: sources, Addr: "127.0.0.1:0",
 	})
 
@@ -1074,10 +1074,10 @@ func TestMatchAndHydrateHydrationError(t *testing.T) {
 	}))
 	defer workerSrv.Close()
 
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:     "hydra-w",
 		Endpoint: workerSrv.URL,
-		Events: []worker.EventRule{{
+		Events: []workers.EventRule{{
 			Source: "testhydrator",
 			On:     []string{"push"},
 			Prompt: "test {{ .source }}",
@@ -1087,11 +1087,11 @@ func TestMatchAndHydrateHydrationError(t *testing.T) {
 	reg.Start("hydra-w")
 
 	ctx := context.Background()
-	ev := &event.Event{
+	ev := &events.Event{
 		Source: "testhydrator",
 		Type:   "push",
 		Actor:  "alice",
-		Attrs:  event.Attrs{},
+		Attrs:  events.Attrs{},
 	}
 	es.Create(ctx, ev)
 
@@ -1104,7 +1104,7 @@ func TestMatchAndHydrateHydrationError(t *testing.T) {
 
 	// Event should still have been dispatched despite hydration error
 	got, _ := es.Get(ctx, ev.ID)
-	if got.State != event.StateDispatched {
+	if got.State != events.StateDispatched {
 		t.Errorf("state = %q, want dispatched (hydration error is non-fatal)", got.State)
 	}
 }
@@ -1120,15 +1120,15 @@ func TestMatchAndHydrateBuildTaskContextError(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	es := event.NewStore(db)
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	es := events.NewStore(db)
 	sources := source.NewRegistry()
 	ghSrc := source.NewGitHubSource("secret", "")
 	sources.Register(ghSrc)
 
 	s := New(Config{
-		Registry: reg, Tasks: tasks, Events: es,
+		Registry: reg, Tasks: taskStore, Events: es,
 		Sources: sources, Addr: "127.0.0.1:0",
 	})
 
@@ -1137,10 +1137,10 @@ func TestMatchAndHydrateBuildTaskContextError(t *testing.T) {
 	}))
 	defer workerSrv.Close()
 
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:     "ctx-w",
 		Endpoint: workerSrv.URL,
-		Events: []worker.EventRule{{
+		Events: []workers.EventRule{{
 			Source: "github",
 			On:     []string{"push"},
 			Prompt: "test {{ .source }}",
@@ -1150,18 +1150,18 @@ func TestMatchAndHydrateBuildTaskContextError(t *testing.T) {
 	reg.Start("ctx-w")
 
 	ctx := context.Background()
-	ev := &event.Event{
+	ev := &events.Event{
 		Source: "github",
 		Type:   "push",
 		Actor:  "alice",
-		Attrs:  event.Attrs{},
+		Attrs:  events.Attrs{},
 	}
 	es.Create(ctx, ev)
 
 	s.matchAndHydrate(ctx, ev, ghSrc)
 
 	got, _ := es.Get(ctx, ev.ID)
-	if got.State != event.StateDispatched {
+	if got.State != events.StateDispatched {
 		t.Errorf("state = %q, want dispatched", got.State)
 	}
 }
@@ -1215,20 +1215,20 @@ func TestDoWriteBackNoWritebackOrSources(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "test.db")
 	db, _ := store.Open(path)
 	defer db.Close()
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	events := event.NewStore(db)
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	evStore := events.NewStore(db)
 
 	s := New(Config{
-		Registry: reg, Tasks: tasks, Events: events,
+		Registry: reg, Tasks: taskStore, Events: evStore,
 		Addr: "127.0.0.1:0",
 	})
 
 	ctx := context.Background()
-	ev := &event.Event{Source: "github", Type: "push"}
-	events.Create(ctx, ev)
-	events.SetMatched(ctx, ev.ID, "w")
-	events.SetDispatched(ctx, ev.ID, "t1")
+	ev := &events.Event{Source: "github", Type: "push"}
+	evStore.Create(ctx, ev)
+	evStore.SetMatched(ctx, ev.ID, "w")
+	evStore.SetDispatched(ctx, ev.ID, "t1")
 
 	ok := s.doWriteBack(ctx, "t1", ev.ID, "w", `{"output":"x"}`)
 	if !ok {
@@ -1240,22 +1240,22 @@ func TestDoWriteBackInvalidResultJSON(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "test.db")
 	db, _ := store.Open(path)
 	defer db.Close()
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	events := event.NewStore(db)
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	evStore := events.NewStore(db)
 	sources := source.NewRegistry()
 
 	s := New(Config{
-		Registry: reg, Tasks: tasks, Events: events,
+		Registry: reg, Tasks: taskStore, Events: evStore,
 		Sources: sources, Addr: "127.0.0.1:0",
 	})
 
 	ctx := context.Background()
-	ev := &event.Event{Source: "github", Type: "push"}
-	events.Create(ctx, ev)
-	events.SetMatched(ctx, ev.ID, "w")
-	events.SetDispatched(ctx, ev.ID, "t1")
-	reg.Add(&worker.Worker{Name: "w", Endpoint: "http://x"})
+	ev := &events.Event{Source: "github", Type: "push"}
+	evStore.Create(ctx, ev)
+	evStore.SetMatched(ctx, ev.ID, "w")
+	evStore.SetDispatched(ctx, ev.ID, "t1")
+	reg.Add(&workers.Worker{Name: "w", Endpoint: "http://x"})
 
 	// Invalid JSON result — should still return true (logged as warning)
 	ok := s.doWriteBack(ctx, "t1", ev.ID, "w", "not-json")
@@ -1267,13 +1267,13 @@ func TestDoWriteBackInvalidResultJSON(t *testing.T) {
 func TestDoWriteBackEventGetError(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "test.db")
 	db, _ := store.Open(path)
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	events := event.NewStore(db)
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	evStore := events.NewStore(db)
 	sources := source.NewRegistry()
 
 	s := New(Config{
-		Registry: reg, Tasks: tasks, Events: events,
+		Registry: reg, Tasks: taskStore, Events: evStore,
 		Sources: sources, Addr: "127.0.0.1:0",
 	})
 
@@ -1281,7 +1281,7 @@ func TestDoWriteBackEventGetError(t *testing.T) {
 
 	ok := s.doWriteBack(context.Background(), "t1", "nonexistent-event", "w", `{"output":"x"}`)
 	if ok {
-		t.Error("doWriteBack should fail when event.Get errors")
+		t.Error("doWriteBack should fail when events.Get errors")
 	}
 }
 
@@ -1307,9 +1307,9 @@ func TestPendingLoopStopsOnCancel(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
@@ -1335,9 +1335,9 @@ func TestRetryLoopStopsOnCancel(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
@@ -1360,17 +1360,17 @@ func TestRetryLoopStopsOnCancel(t *testing.T) {
 func TestCompleteEventSuccessDBError(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "test.db")
 	db, _ := store.Open(path)
-	reg2, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	events := event.NewStore(db)
+	reg2, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	evStore := events.NewStore(db)
 	s := New(Config{
-		Registry: reg2, Tasks: tasks, Events: events,
+		Registry: reg2, Tasks: taskStore, Events: evStore,
 		Addr: "127.0.0.1:0",
 	})
 
 	ctx := context.Background()
-	ev := &event.Event{Source: "github", Type: "push"}
-	events.Create(ctx, ev)
+	ev := &events.Event{Source: "github", Type: "push"}
+	evStore.Create(ctx, ev)
 
 	db.Close()
 
@@ -1401,9 +1401,9 @@ func TestMatchAndHydrateSetDispatchedError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	reg, _ := worker.NewRegistry(db)
-	ts := task.NewStore(db)
-	es := event.NewStore(db)
+	reg, _ := workers.NewRegistry(db)
+	ts := tasks.NewStore(db)
+	es := events.NewStore(db)
 	sources := source.NewRegistry()
 	ghSrc := source.NewGitHubSource("secret", "")
 	sources.Register(ghSrc)
@@ -1418,10 +1418,10 @@ func TestMatchAndHydrateSetDispatchedError(t *testing.T) {
 	}))
 	defer workerSrv.Close()
 
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:     "sd-err-w",
 		Endpoint: workerSrv.URL,
-		Events: []worker.EventRule{{
+		Events: []workers.EventRule{{
 			Source: "github",
 			On:     []string{"push"},
 			Prompt: "test {{ .source }}",
@@ -1431,11 +1431,11 @@ func TestMatchAndHydrateSetDispatchedError(t *testing.T) {
 	reg.Start("sd-err-w")
 
 	ctx := context.Background()
-	ev := &event.Event{
+	ev := &events.Event{
 		Source: "github",
 		Type:   "push",
 		Actor:  "alice",
-		Attrs:  event.Attrs{},
+		Attrs:  events.Attrs{},
 	}
 	es.Create(ctx, ev)
 	es.SetMatched(ctx, ev.ID, "sd-err-w")
@@ -1456,14 +1456,14 @@ func TestNewPanicsOnNilRegistry(t *testing.T) {
 			t.Fatal("expected panic")
 		}
 	}()
-	New(Config{Registry: nil, Tasks: task.NewStore(nil), Addr: "127.0.0.1:0"})
+	New(Config{Registry: nil, Tasks: tasks.NewStore(nil), Addr: "127.0.0.1:0"})
 }
 
 func TestNewPanicsOnNilTasks(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "test.db")
 	db, _ := store.Open(path)
 	defer db.Close()
-	reg, _ := worker.NewRegistry(db)
+	reg, _ := workers.NewRegistry(db)
 	defer func() {
 		r := recover()
 		if r == nil {
@@ -1485,25 +1485,25 @@ func TestDispatchTaskTransportErrorRetry(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	es := event.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Events: es, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	es := events.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Events: es, Addr: "127.0.0.1:0"})
 
 	// Worker endpoint that can't connect (transport error)
-	reg.Add(&worker.Worker{Name: "transport-w", Endpoint: "http://127.0.0.1:1"})
+	reg.Add(&workers.Worker{Name: "transport-w", Endpoint: "http://127.0.0.1:1"})
 	reg.Start("transport-w")
 
 	ctx := context.Background()
-	ev := &event.Event{Source: "github", Type: "push"}
+	ev := &events.Event{Source: "github", Type: "push"}
 	es.Create(ctx, ev)
 
-	tk, _ := tasks.CreateWithEvent(ctx, "transport-w", "test", "{}", ev.ID)
+	tk, _ := taskStore.CreateWithEvent(ctx, "transport-w", "test", "{}", ev.ID)
 	s.dispatchTask(ctx, tk.ID)
 
 	// Task should be retried (first attempt → still has retries left)
-	got, _ := tasks.Get(ctx, tk.ID)
-	if got.State != task.StatePending {
+	got, _ := taskStore.Get(ctx, tk.ID)
+	if got.State != tasks.StatePending {
 		t.Errorf("state = %q, want pending (retried)", got.State)
 	}
 	if got.Attempts != 1 {
@@ -1512,7 +1512,7 @@ func TestDispatchTaskTransportErrorRetry(t *testing.T) {
 
 	// Worker should be in error state
 	entry, _ := reg.Get("transport-w")
-	if entry.State != worker.StateError {
+	if entry.State != workers.StateError {
 		t.Errorf("worker state = %q, want error", entry.State)
 	}
 }
@@ -1526,32 +1526,32 @@ func TestDispatchTaskTransportErrorDeadLetter(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	es := event.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Events: es, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	es := events.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Events: es, Addr: "127.0.0.1:0"})
 
-	reg.Add(&worker.Worker{Name: "deadletter-w", Endpoint: "http://127.0.0.1:1"})
+	reg.Add(&workers.Worker{Name: "deadletter-w", Endpoint: "http://127.0.0.1:1"})
 	reg.Start("deadletter-w")
 
 	ctx := context.Background()
-	ev := &event.Event{Source: "github", Type: "push"}
+	ev := &events.Event{Source: "github", Type: "push"}
 	es.Create(ctx, ev)
 
-	tk, _ := tasks.CreateWithEvent(ctx, "deadletter-w", "test", "{}", ev.ID)
+	tk, _ := taskStore.CreateWithEvent(ctx, "deadletter-w", "test", "{}", ev.ID)
 	// Pre-set attempts to max_retries - 1 to trigger dead-letter on next failure
 	db.ExecContext(ctx, `UPDATE tasks SET attempts = 2, max_retries = 3 WHERE id = ?`, tk.ID)
 
 	s.dispatchTask(ctx, tk.ID)
 
-	got, _ := tasks.Get(ctx, tk.ID)
-	if got.State != task.StateFailed {
+	got, _ := taskStore.Get(ctx, tk.ID)
+	if got.State != tasks.StateFailed {
 		t.Errorf("state = %q, want failed (dead-lettered)", got.State)
 	}
 
 	// Event should be failed too
 	gotEv, _ := es.Get(ctx, ev.ID)
-	if gotEv.State != event.StateFailed {
+	if gotEv.State != events.StateFailed {
 		t.Errorf("event state = %q, want failed", gotEv.State)
 	}
 }
@@ -1565,10 +1565,10 @@ func TestDispatchTaskNonTransportSendError(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	es := event.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Events: es, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	es := events.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Events: es, Addr: "127.0.0.1:0"})
 
 	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(500)
@@ -1576,30 +1576,30 @@ func TestDispatchTaskNonTransportSendError(t *testing.T) {
 	}))
 	defer mock.Close()
 
-	reg.Add(&worker.Worker{Name: "fail500-w", Endpoint: mock.URL})
+	reg.Add(&workers.Worker{Name: "fail500-w", Endpoint: mock.URL})
 	reg.Start("fail500-w")
 
 	ctx := context.Background()
-	ev := &event.Event{Source: "github", Type: "push"}
+	ev := &events.Event{Source: "github", Type: "push"}
 	es.Create(ctx, ev)
 
-	tk, _ := tasks.CreateWithEvent(ctx, "fail500-w", "test", "{}", ev.ID)
+	tk, _ := taskStore.CreateWithEvent(ctx, "fail500-w", "test", "{}", ev.ID)
 	s.dispatchTask(ctx, tk.ID)
 
-	got, _ := tasks.Get(ctx, tk.ID)
-	if got.State != task.StateFailed {
+	got, _ := taskStore.Get(ctx, tk.ID)
+	if got.State != tasks.StateFailed {
 		t.Errorf("state = %q, want failed (500 error)", got.State)
 	}
 
 	// Worker should be back to online (non-transport errors don't set error state)
 	entry, _ := reg.Get("fail500-w")
-	if entry.State != worker.StateOnline {
+	if entry.State != workers.StateOnline {
 		t.Errorf("worker state = %q, want online after 500 (non-transport)", entry.State)
 	}
 
 	// Event should be failed
 	gotEv, _ := es.Get(ctx, ev.ID)
-	if gotEv.State != event.StateFailed {
+	if gotEv.State != events.StateFailed {
 		t.Errorf("event state = %q, want failed", gotEv.State)
 	}
 }
@@ -1620,13 +1620,13 @@ func TestDispatchTaskDockerAPIKey(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name: "docker-key-w",
-		Docker: &worker.DockerConfig{
+		Docker: &workers.DockerConfig{
 			Image:     "test:latest",
 			Lifecycle: "persistent",
 			APIKey:    "docker-secret-key",
@@ -1641,7 +1641,7 @@ func TestDispatchTaskDockerAPIKey(t *testing.T) {
 	reg.Reload()
 
 	ctx := context.Background()
-	tk, _ := tasks.Create(ctx, "docker-key-w", "test")
+	tk, _ := taskStore.Create(ctx, "docker-key-w", "test")
 	s.dispatchTask(ctx, tk.ID)
 
 	if gotAuth != "Bearer docker-secret-key" {
@@ -1658,22 +1658,22 @@ func TestDispatchTaskWriteBackFailure(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	es := event.NewStore(db)
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	es := events.NewStore(db)
 	sources := source.NewRegistry()
 
 	// Register a responder that always fails
 	mockResp := &mockResponder{
 		name: "github",
-		fn: func(ctx context.Context, ev *event.Event, res policy.Result) error {
+		fn: func(ctx context.Context, ev *events.Event, res policies.Result) error {
 			return fmt.Errorf("writeback failed")
 		},
 	}
 	sources.RegisterResponder(mockResp)
 
 	s := New(Config{
-		Registry: reg, Tasks: tasks, Events: es,
+		Registry: reg, Tasks: taskStore, Events: es,
 		Sources: sources, Addr: "127.0.0.1:0",
 	})
 
@@ -1682,27 +1682,27 @@ func TestDispatchTaskWriteBackFailure(t *testing.T) {
 	}))
 	defer mock.Close()
 
-	reg.Add(&worker.Worker{Name: "wb-fail-w", Endpoint: mock.URL})
+	reg.Add(&workers.Worker{Name: "wb-fail-w", Endpoint: mock.URL})
 	reg.Start("wb-fail-w")
 
 	ctx := context.Background()
-	ev := &event.Event{Source: "github", Type: "push", Attrs: event.Attrs{}}
+	ev := &events.Event{Source: "github", Type: "push", Attrs: events.Attrs{}}
 	es.Create(ctx, ev)
 	es.SetMatched(ctx, ev.ID, "wb-fail-w")
 	es.SetDispatched(ctx, ev.ID, "placeholder")
 
-	tk, _ := tasks.CreateWithEvent(ctx, "wb-fail-w", "test", "{}", ev.ID)
+	tk, _ := taskStore.CreateWithEvent(ctx, "wb-fail-w", "test", "{}", ev.ID)
 	s.dispatchTask(ctx, tk.ID)
 
 	// Task should be completed (we complete before writeback)
-	got, _ := tasks.Get(ctx, tk.ID)
-	if got.State != task.StateCompleted {
+	got, _ := taskStore.Get(ctx, tk.ID)
+	if got.State != tasks.StateCompleted {
 		t.Errorf("state = %q, want completed", got.State)
 	}
 
 	// Event should NOT be completed (writeback failed)
 	gotEv, _ := es.Get(ctx, ev.ID)
-	if gotEv.State == event.StateCompleted {
+	if gotEv.State == events.StateCompleted {
 		t.Error("event should not be completed when writeback fails")
 	}
 }
@@ -1717,13 +1717,13 @@ func TestScanPendingGetTaskError(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
 	ctx := context.Background()
 	// Create task normally
-	tk, _ := tasks.Create(ctx, "w1", "test")
+	tk, _ := taskStore.Create(ctx, "w1", "test")
 	// Corrupt the task by removing it from DB but keeping it pending
 	// (simulates a race or data inconsistency)
 	db.ExecContext(ctx, `DELETE FROM tasks WHERE id = ?`, tk.ID)
@@ -1744,12 +1744,12 @@ func TestScanPendingDedupCheckError(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
 	ctx := context.Background()
-	tk, _ := tasks.Create(ctx, "w1", "test")
+	tk, _ := taskStore.Create(ctx, "w1", "test")
 	// Set a dedup_key on the task — HasCompletedDedup will be called
 	db.ExecContext(ctx, `UPDATE tasks SET dedup_key = ? WHERE id = ?`, "some-dedup-key", tk.ID)
 
@@ -1775,11 +1775,11 @@ func TestHandlePostTaskQueueFull(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
-	reg.Add(&worker.Worker{Name: "qf-w", Endpoint: "http://x"})
+	reg.Add(&workers.Worker{Name: "qf-w", Endpoint: "http://x"})
 	reg.Start("qf-w")
 
 	// Fill the pending channel
@@ -1826,17 +1826,17 @@ func TestMatchAndHydrateCreateTaskError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	reg, _ := worker.NewRegistry(db)
-	ts := task.NewStore(db)
-	es := event.NewStore(db)
+	reg, _ := workers.NewRegistry(db)
+	ts := tasks.NewStore(db)
+	es := events.NewStore(db)
 	sources := source.NewRegistry()
 	ghSrc := source.NewGitHubSource("secret", "")
 	sources.Register(ghSrc)
 
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:     "create-err-w",
 		Endpoint: "http://unused",
-		Events: []worker.EventRule{{
+		Events: []workers.EventRule{{
 			Source: "github",
 			On:     []string{"push"},
 			Prompt: "test {{ .source }}",
@@ -1851,7 +1851,7 @@ func TestMatchAndHydrateCreateTaskError(t *testing.T) {
 	})
 
 	ctx := context.Background()
-	ev := &event.Event{Source: "github", Type: "push", Actor: "alice", Attrs: event.Attrs{}}
+	ev := &events.Event{Source: "github", Type: "push", Actor: "alice", Attrs: events.Attrs{}}
 	es.Create(ctx, ev)
 
 	// Close DB to force CreateWithEvent to fail
@@ -1870,17 +1870,17 @@ func TestMatchAndHydrateSetMatchedError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	reg, _ := worker.NewRegistry(db)
-	ts := task.NewStore(db)
-	es := event.NewStore(db)
+	reg, _ := workers.NewRegistry(db)
+	ts := tasks.NewStore(db)
+	es := events.NewStore(db)
 	sources := source.NewRegistry()
 	ghSrc := source.NewGitHubSource("secret", "")
 	sources.Register(ghSrc)
 
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:     "match-err-w",
 		Endpoint: "http://unused",
-		Events: []worker.EventRule{{
+		Events: []workers.EventRule{{
 			Source: "github",
 			On:     []string{"push"},
 			Prompt: "test {{ .source }}",
@@ -1895,7 +1895,7 @@ func TestMatchAndHydrateSetMatchedError(t *testing.T) {
 	})
 
 	ctx := context.Background()
-	ev := &event.Event{Source: "github", Type: "push", Actor: "alice", Attrs: event.Attrs{}}
+	ev := &events.Event{Source: "github", Type: "push", Actor: "alice", Attrs: events.Attrs{}}
 	es.Create(ctx, ev)
 
 	// Close DB to force SetMatched to fail
@@ -1912,9 +1912,9 @@ func TestDoWriteBackLegacyWritebackError(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "test.db")
 	db, _ := store.Open(path)
 	defer db.Close()
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	events := event.NewStore(db)
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	evStore := events.NewStore(db)
 
 	// Create a server with writeback but no sources with responder
 	// Use a mock GitHub server that returns errors
@@ -1925,16 +1925,16 @@ func TestDoWriteBackLegacyWritebackError(t *testing.T) {
 	defer ghSrv.Close()
 
 	s := New(Config{
-		Registry: reg, Tasks: tasks, Events: events,
+		Registry: reg, Tasks: taskStore, Events: evStore,
 		Addr: "127.0.0.1:0",
 	})
 
 	ctx := context.Background()
-	ev := &event.Event{Source: "unknown-source", Type: "push", Attrs: event.Attrs{}}
-	events.Create(ctx, ev)
-	events.SetMatched(ctx, ev.ID, "w")
-	events.SetDispatched(ctx, ev.ID, "t1")
-	reg.Add(&worker.Worker{Name: "w", Endpoint: "http://x"})
+	ev := &events.Event{Source: "unknown-source", Type: "push", Attrs: events.Attrs{}}
+	evStore.Create(ctx, ev)
+	evStore.SetMatched(ctx, ev.ID, "w")
+	evStore.SetDispatched(ctx, ev.ID, "t1")
+	reg.Add(&workers.Worker{Name: "w", Endpoint: "http://x"})
 
 	// No responder for "unknown-source", no writeback → should return true
 	ok := s.doWriteBack(ctx, "t1", ev.ID, "w", `{"output":"x"}`)
@@ -1951,24 +1951,24 @@ func TestDoWriteBackPolicyApplyError(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "test.db")
 	db, _ := store.Open(path)
 	defer db.Close()
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	events := event.NewStore(db)
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	evStore := events.NewStore(db)
 	sources := source.NewRegistry()
 
 	s := New(Config{
-		Registry: reg, Tasks: tasks, Events: events,
+		Registry: reg, Tasks: taskStore, Events: evStore,
 		Sources: sources, Addr: "127.0.0.1:0",
 	})
 
 	ctx := context.Background()
-	ev := &event.Event{Source: "github", Type: "push", Attrs: event.Attrs{}}
-	events.Create(ctx, ev)
-	events.SetMatched(ctx, ev.ID, "w")
-	events.SetDispatched(ctx, ev.ID, "t1")
+	ev := &events.Event{Source: "github", Type: "push", Attrs: events.Attrs{}}
+	evStore.Create(ctx, ev)
+	evStore.SetMatched(ctx, ev.ID, "w")
+	evStore.SetDispatched(ctx, ev.ID, "t1")
 
 	// Worker with policy that should parse but we test the getWorkerPolicy error path
-	reg.Add(&worker.Worker{
+	reg.Add(&workers.Worker{
 		Name:     "w",
 		Endpoint: "http://x",
 		Policy:   map[string]any{"comment": "bad-value"},
@@ -1984,16 +1984,16 @@ func TestDoWriteBackPolicyApplyError(t *testing.T) {
 // ---- Start: events recovery error paths ----
 
 func TestStartReceivedEventsDBError(t *testing.T) {
-	// When events.Received() errors, it should log but not fail Start.
+	// When evStore.Received() errors, it should log but not fail Start.
 	path := filepath.Join(t.TempDir(), "test.db")
 	db, err := store.Open(path)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	reg, _ := worker.NewRegistry(db)
-	ts := task.NewStore(db)
-	es := event.NewStore(db)
+	reg, _ := workers.NewRegistry(db)
+	ts := tasks.NewStore(db)
+	es := events.NewStore(db)
 	sources := source.NewRegistry()
 
 	// Create server config
@@ -2032,8 +2032,8 @@ func TestStartRecoveryDedupCheckError(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	ts := task.NewStore(db)
+	reg, _ := workers.NewRegistry(db)
+	ts := tasks.NewStore(db)
 
 	ctx := context.Background()
 	tk, _ := ts.Create(ctx, "w1", "p1")
@@ -2056,7 +2056,7 @@ func TestStartRecoveryDedupCheckError(t *testing.T) {
 
 	got, _ := ts.Get(ctx, tk.ID)
 	// Task should be recovered and attempted dispatch (fails because no worker)
-	if got.State != task.StateFailed {
+	if got.State != tasks.StateFailed {
 		t.Errorf("state = %q, want failed (recovered, no worker)", got.State)
 	}
 }
@@ -2071,8 +2071,8 @@ func TestStartRecoveryQueueFull(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	ts := task.NewStore(db)
+	reg, _ := workers.NewRegistry(db)
+	ts := tasks.NewStore(db)
 
 	ctx := context.Background()
 	// Create many pending tasks (more than channel capacity)
@@ -2113,14 +2113,14 @@ func TestWebhookOversizedBody(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	events := event.NewStore(db)
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	evStore := events.NewStore(db)
 	sources := source.NewRegistry()
 	sources.Register(source.NewGitHubSource("secret", ""))
 
 	s := New(Config{
-		Registry: reg, Tasks: tasks, Events: events,
+		Registry: reg, Tasks: taskStore, Events: evStore,
 		Sources: sources, Addr: "127.0.0.1:0",
 	})
 
@@ -2179,9 +2179,9 @@ func TestMatchAndHydrateSetSkippedError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	reg, _ := worker.NewRegistry(db)
-	ts := task.NewStore(db)
-	es := event.NewStore(db)
+	reg, _ := workers.NewRegistry(db)
+	ts := tasks.NewStore(db)
+	es := events.NewStore(db)
 	sources := source.NewRegistry()
 	ghSrc := source.NewGitHubSource("secret", "")
 	sources.Register(ghSrc)
@@ -2192,7 +2192,7 @@ func TestMatchAndHydrateSetSkippedError(t *testing.T) {
 	})
 
 	ctx := context.Background()
-	ev := &event.Event{Source: "github", Type: "push", Attrs: event.Attrs{}}
+	ev := &events.Event{Source: "github", Type: "push", Attrs: events.Attrs{}}
 	es.Create(ctx, ev)
 
 	// Close DB to force SetSkipped to error
@@ -2212,9 +2212,9 @@ func TestMatchAndHydrateEnqueueTimeout(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	ts := task.NewStore(db)
-	es := event.NewStore(db)
+	reg, _ := workers.NewRegistry(db)
+	ts := tasks.NewStore(db)
+	es := events.NewStore(db)
 	sources := source.NewRegistry()
 	ghSrc := source.NewGitHubSource("secret", "")
 	sources.Register(ghSrc)
@@ -2229,10 +2229,10 @@ func TestMatchAndHydrateEnqueueTimeout(t *testing.T) {
 	}))
 	defer workerSrv.Close()
 
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:     "enqueue-w",
 		Endpoint: workerSrv.URL,
-		Events: []worker.EventRule{{
+		Events: []workers.EventRule{{
 			Source: "github",
 			On:     []string{"push"},
 			Prompt: "test {{ .source }}",
@@ -2247,7 +2247,7 @@ func TestMatchAndHydrateEnqueueTimeout(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	ev := &event.Event{Source: "github", Type: "push", Actor: "alice", Attrs: event.Attrs{}}
+	ev := &events.Event{Source: "github", Type: "push", Actor: "alice", Attrs: events.Attrs{}}
 	es.Create(ctx, ev)
 
 	// Cancel context immediately — enqueue will fail via ctx.Done
@@ -2274,9 +2274,9 @@ func TestDispatchTaskSetDispatchedErrorPath(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
 	workerCalled := false
 	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -2285,11 +2285,11 @@ func TestDispatchTaskSetDispatchedErrorPath(t *testing.T) {
 	}))
 	defer mock.Close()
 
-	reg.Add(&worker.Worker{Name: "sd2-w", Endpoint: mock.URL})
+	reg.Add(&workers.Worker{Name: "sd2-w", Endpoint: mock.URL})
 	reg.Start("sd2-w")
 
 	ctx := context.Background()
-	tk, _ := tasks.Create(ctx, "sd2-w", "test")
+	tk, _ := taskStore.Create(ctx, "sd2-w", "test")
 
 	// Make DB read-only — Get succeeds but SetDispatched fails
 	db.Exec("PRAGMA query_only = ON")
@@ -2302,7 +2302,7 @@ func TestDispatchTaskSetDispatchedErrorPath(t *testing.T) {
 	}
 }
 
-// ---- dispatchTask: SetBusy failure with tasks.Fail error ----
+// ---- dispatchTask: SetBusy failure with taskStore.Fail error ----
 
 func TestDispatchTaskSetBusyFailWithDBError(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "test.db")
@@ -2312,23 +2312,23 @@ func TestDispatchTaskSetBusyFailWithDBError(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
-	reg.Add(&worker.Worker{Name: "busy-db-w", Endpoint: "http://x"})
+	reg.Add(&workers.Worker{Name: "busy-db-w", Endpoint: "http://x"})
 	reg.Start("busy-db-w")
 	// Make SetBusy fail by setting worker to busy first
 	reg.SetBusy("busy-db-w")
 
 	ctx := context.Background()
-	tk, _ := tasks.Create(ctx, "busy-db-w", "test")
+	tk, _ := taskStore.Create(ctx, "busy-db-w", "test")
 
-	// Make DB read-only so tasks.Fail also errors
+	// Make DB read-only so taskStore.Fail also errors
 	db.Exec("PRAGMA query_only = ON")
 	defer db.Exec("PRAGMA query_only = OFF")
 
-	// Should not panic — SetBusy fails, then tasks.Fail also fails
+	// Should not panic — SetBusy fails, then taskStore.Fail also fails
 	s.dispatchTask(ctx, tk.ID)
 }
 
@@ -2342,9 +2342,9 @@ func TestDispatchTaskCompleteErrorSetOnlineError(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
 	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Make DB read-only AFTER sendTask is called (during the request handler)
@@ -2353,13 +2353,13 @@ func TestDispatchTaskCompleteErrorSetOnlineError(t *testing.T) {
 	}))
 	defer mock.Close()
 
-	reg.Add(&worker.Worker{Name: "comp2-w", Endpoint: mock.URL})
+	reg.Add(&workers.Worker{Name: "comp2-w", Endpoint: mock.URL})
 	reg.Start("comp2-w")
 
 	ctx := context.Background()
-	tk, _ := tasks.Create(ctx, "comp2-w", "test")
+	tk, _ := taskStore.Create(ctx, "comp2-w", "test")
 	// Already dispatched, so SetDispatched is skipped
-	tasks.SetDispatched(ctx, tk.ID)
+	taskStore.SetDispatched(ctx, tk.ID)
 
 	s.dispatchTask(ctx, tk.ID)
 
@@ -2383,17 +2383,17 @@ func TestDispatchTaskTransportRetryOrFailError(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
 	// Worker with unreachable endpoint (transport error)
-	reg.Add(&worker.Worker{Name: "retry-err-w", Endpoint: "http://127.0.0.1:1"})
+	reg.Add(&workers.Worker{Name: "retry-err-w", Endpoint: "http://127.0.0.1:1"})
 	reg.Start("retry-err-w")
 
 	ctx := context.Background()
-	tk, _ := tasks.Create(ctx, "retry-err-w", "test")
-	tasks.SetDispatched(ctx, tk.ID)
+	tk, _ := taskStore.Create(ctx, "retry-err-w", "test")
+	taskStore.SetDispatched(ctx, tk.ID)
 
 	// Make DB read-only so RetryOrFail errors (Get still works)
 	db.Exec("PRAGMA query_only = ON")
@@ -2403,7 +2403,7 @@ func TestDispatchTaskTransportRetryOrFailError(t *testing.T) {
 	s.dispatchTask(ctx, tk.ID)
 }
 
-// ---- dispatchTask: non-transport error with tasks.Fail error ----
+// ---- dispatchTask: non-transport error with taskStore.Fail error ----
 
 func TestDispatchTaskNonTransportFailError(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "test.db")
@@ -2413,9 +2413,9 @@ func TestDispatchTaskNonTransportFailError(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
 	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(500)
@@ -2423,14 +2423,14 @@ func TestDispatchTaskNonTransportFailError(t *testing.T) {
 	}))
 	defer mock.Close()
 
-	reg.Add(&worker.Worker{Name: "fail-db-w", Endpoint: mock.URL})
+	reg.Add(&workers.Worker{Name: "fail-db-w", Endpoint: mock.URL})
 	reg.Start("fail-db-w")
 
 	ctx := context.Background()
-	tk, _ := tasks.Create(ctx, "fail-db-w", "test")
-	tasks.SetDispatched(ctx, tk.ID)
+	tk, _ := taskStore.Create(ctx, "fail-db-w", "test")
+	taskStore.SetDispatched(ctx, tk.ID)
 
-	// Make DB read-only so tasks.Fail errors
+	// Make DB read-only so taskStore.Fail errors
 	db.Exec("PRAGMA query_only = ON")
 	defer db.Exec("PRAGMA query_only = OFF")
 
@@ -2448,14 +2448,14 @@ func TestDispatchTaskWorkerNotFoundFailError(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
 	ctx := context.Background()
-	tk, _ := tasks.Create(ctx, "ghost-w", "test")
+	tk, _ := taskStore.Create(ctx, "ghost-w", "test")
 
-	// Make DB read-only so tasks.Fail errors when worker not found
+	// Make DB read-only so taskStore.Fail errors when worker not found
 	db.Exec("PRAGMA query_only = ON")
 	defer db.Exec("PRAGMA query_only = OFF")
 
@@ -2473,21 +2473,21 @@ func TestDispatchTaskWorkerUnavailableFailError(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	es := event.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Events: es, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	es := events.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Events: es, Addr: "127.0.0.1:0"})
 
 	// Worker with no endpoint
-	reg.Add(&worker.Worker{Name: "no-ep-db-w"})
+	reg.Add(&workers.Worker{Name: "no-ep-db-w"})
 	reg.Start("no-ep-db-w")
 
 	ctx := context.Background()
-	ev := &event.Event{Source: "github", Type: "push"}
+	ev := &events.Event{Source: "github", Type: "push"}
 	es.Create(ctx, ev)
-	tk, _ := tasks.CreateWithEvent(ctx, "no-ep-db-w", "test", "{}", ev.ID)
+	tk, _ := taskStore.CreateWithEvent(ctx, "no-ep-db-w", "test", "{}", ev.ID)
 
-	// Make DB read-only so tasks.Fail and completeEvent error
+	// Make DB read-only so taskStore.Fail and completeEvent error
 	db.Exec("PRAGMA query_only = ON")
 	defer db.Exec("PRAGMA query_only = OFF")
 
@@ -2502,7 +2502,7 @@ func TestGetWorkerPolicyParseError(t *testing.T) {
 	defer cleanup()
 
 	// Worker with policy config that fails to parse
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:     "parse-err-w",
 		Endpoint: "http://x",
 		Policy:   map[string]any{"comment": "not-a-map-value"},
@@ -2561,11 +2561,11 @@ func TestStartServerServeError(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
 
 	// First server occupies the port
-	srv1 := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	srv1 := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 	ctx1, cancel1 := context.WithCancel(context.Background())
 	defer cancel1()
 	errCh1 := make(chan error, 1)
@@ -2588,9 +2588,9 @@ func TestWebhookCreateDedupKeyActive(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	es := event.NewStore(db)
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	es := events.NewStore(db)
 	sources := source.NewRegistry()
 
 	// Use a custom source that produces events with dedup_key
@@ -2598,12 +2598,12 @@ func TestWebhookCreateDedupKeyActive(t *testing.T) {
 	sources.Register(mockSrc)
 
 	s := New(Config{
-		Registry: reg, Tasks: tasks, Events: es,
+		Registry: reg, Tasks: taskStore, Events: es,
 		Sources: sources, Addr: "127.0.0.1:0",
 	})
 
 	// Create an active event with the same dedup_key
-	activeEv := &event.Event{Source: "dedup-src", Type: "test", DedupKey: "test-dedup-key"}
+	activeEv := &events.Event{Source: "dedup-src", Type: "test", DedupKey: "test-dedup-key"}
 	es.Create(context.Background(), activeEv)
 
 	// POST another event with the same dedup_key → should get duplicate response
@@ -2629,12 +2629,12 @@ type mockDedupSource struct {
 }
 
 func (m *mockDedupSource) Name() string { return m.name }
-func (m *mockDedupSource) Parse(h http.Header, body []byte) (*event.Event, error) {
-	return &event.Event{
+func (m *mockDedupSource) Parse(h http.Header, body []byte) (*events.Event, error) {
+	return &events.Event{
 		Source:   m.name,
 		Type:     "test",
 		DedupKey: m.dedupKey,
-		Attrs:    event.Attrs{},
+		Attrs:    events.Attrs{},
 	}, nil
 }
 func (m *mockDedupSource) Authenticated() {}
@@ -2649,14 +2649,14 @@ func TestWebhookCreatePersistError(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	es := event.NewStore(db)
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	es := events.NewStore(db)
 	sources := source.NewRegistry()
 	sources.Register(source.NewGitHubSource("secret", ""))
 
 	s := New(Config{
-		Registry: reg, Tasks: tasks, Events: es,
+		Registry: reg, Tasks: taskStore, Events: es,
 		Sources: sources, Addr: "127.0.0.1:0",
 	})
 
@@ -2687,14 +2687,14 @@ func TestWebhookSlackChallengeInvalidJSON(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	events := event.NewStore(db)
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	evStore := events.NewStore(db)
 	sources := source.NewRegistry()
 	sources.Register(source.NewSlackSource(""))
 
 	s := New(Config{
-		Registry: reg, Tasks: tasks, Events: events,
+		Registry: reg, Tasks: taskStore, Events: evStore,
 		Sources: sources, Addr: "127.0.0.1:0",
 	})
 
@@ -2717,17 +2717,17 @@ func TestMatchAndHydrateSetFailedOnRenderError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	reg, _ := worker.NewRegistry(db)
-	ts := task.NewStore(db)
-	es := event.NewStore(db)
+	reg, _ := workers.NewRegistry(db)
+	ts := tasks.NewStore(db)
+	es := events.NewStore(db)
 	sources := source.NewRegistry()
 	ghSrc := source.NewGitHubSource("secret", "")
 	sources.Register(ghSrc)
 
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:     "render-err-w",
 		Endpoint: "http://unused",
-		Events: []worker.EventRule{{
+		Events: []workers.EventRule{{
 			Source: "github",
 			On:     []string{"push"},
 			Prompt: "{{ .nonexistent_key }}",
@@ -2742,7 +2742,7 @@ func TestMatchAndHydrateSetFailedOnRenderError(t *testing.T) {
 	})
 
 	ctx := context.Background()
-	ev := &event.Event{Source: "github", Type: "push", Actor: "alice", Attrs: event.Attrs{}}
+	ev := &events.Event{Source: "github", Type: "push", Actor: "alice", Attrs: events.Attrs{}}
 	es.Create(ctx, ev)
 
 	// Close DB to force SetFailed to error after render error

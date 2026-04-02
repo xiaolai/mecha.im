@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"mecha.im/internal/store"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/workers"
 )
 
 func TestWorkerLsCmdEmpty(t *testing.T) {
@@ -51,16 +51,16 @@ func TestWorkerLsCmdPopulated(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatalf("NewRegistry: %v", err)
 	}
 
-	workers := []*worker.Worker{
+	workerList := []*workers.Worker{
 		{Name: "live-one", Endpoint: "http://localhost:9001"},
 		{Name: "live-two", Endpoint: "http://localhost:9002"},
 	}
-	for _, w := range workers {
+	for _, w := range workerList {
 		if err := reg.Add(w); err != nil {
 			t.Fatalf("Add %s: %v", w.Name, err)
 		}
@@ -101,14 +101,14 @@ func TestWorkerLsCmdPopulated(t *testing.T) {
 }
 
 func TestProbeHealthConcurrentOffline(t *testing.T) {
-	entries := []worker.Entry{
+	entries := []workers.Entry{
 		{
-			Worker: &worker.Worker{Name: "w1", Endpoint: "http://localhost:1"},
-			State:  worker.StateOffline,
+			Worker: &workers.Worker{Name: "w1", Endpoint: "http://localhost:1"},
+			State:  workers.StateOffline,
 		},
 		{
-			Worker: &worker.Worker{Name: "w2", Endpoint: ""},
-			State:  worker.StateOffline,
+			Worker: &workers.Worker{Name: "w2", Endpoint: ""},
+			State:  workers.StateOffline,
 		},
 	}
 	results := probeHealthConcurrent(entries)
@@ -123,10 +123,10 @@ func TestProbeHealthConcurrentOffline(t *testing.T) {
 }
 
 func TestProbeHealthConcurrentError(t *testing.T) {
-	entries := []worker.Entry{
+	entries := []workers.Entry{
 		{
-			Worker: &worker.Worker{Name: "w1", Endpoint: "http://localhost:1"},
-			State:  worker.StateError,
+			Worker: &workers.Worker{Name: "w1", Endpoint: "http://localhost:1"},
+			State:  workers.StateError,
 			Error:  "connection refused",
 		},
 	}
@@ -150,10 +150,10 @@ func TestProbeHealthConcurrentOnlineHealthy(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	entries := []worker.Entry{
+	entries := []workers.Entry{
 		{
-			Worker: &worker.Worker{Name: "healthy", Endpoint: srv.URL},
-			State:  worker.StateOnline,
+			Worker: &workers.Worker{Name: "healthy", Endpoint: srv.URL},
+			State:  workers.StateOnline,
 		},
 	}
 	results := probeHealthConcurrent(entries)
@@ -167,10 +167,10 @@ func TestProbeHealthConcurrentOnlineHealthy(t *testing.T) {
 
 func TestProbeHealthConcurrentOnlineUnreachable(t *testing.T) {
 	// Use a port that is guaranteed to not be listening
-	entries := []worker.Entry{
+	entries := []workers.Entry{
 		{
-			Worker: &worker.Worker{Name: "down", Endpoint: "http://127.0.0.1:1"},
-			State:  worker.StateOnline,
+			Worker: &workers.Worker{Name: "down", Endpoint: "http://127.0.0.1:1"},
+			State:  workers.StateOnline,
 		},
 	}
 	results := probeHealthConcurrent(entries)
@@ -193,10 +193,10 @@ func TestProbeHealthConcurrentRuntimeEndpoint(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	entries := []worker.Entry{
+	entries := []workers.Entry{
 		{
-			Worker:          &worker.Worker{Name: "runtime", Endpoint: "http://127.0.0.1:1"},
-			State:           worker.StateOnline,
+			Worker:          &workers.Worker{Name: "runtime", Endpoint: "http://127.0.0.1:1"},
+			State:           workers.StateOnline,
 			RuntimeEndpoint: srv.URL,
 		},
 	}
@@ -216,23 +216,23 @@ func TestProbeHealthConcurrentMixed(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	entries := []worker.Entry{
+	entries := []workers.Entry{
 		{
-			Worker: &worker.Worker{Name: "offline-w"},
-			State:  worker.StateOffline,
+			Worker: &workers.Worker{Name: "offline-w"},
+			State:  workers.StateOffline,
 		},
 		{
-			Worker: &worker.Worker{Name: "healthy-w", Endpoint: srv.URL},
-			State:  worker.StateOnline,
+			Worker: &workers.Worker{Name: "healthy-w", Endpoint: srv.URL},
+			State:  workers.StateOnline,
 		},
 		{
-			Worker: &worker.Worker{Name: "error-w", Endpoint: "http://localhost:1"},
-			State:  worker.StateError,
+			Worker: &workers.Worker{Name: "error-w", Endpoint: "http://localhost:1"},
+			State:  workers.StateError,
 			Error:  "some error",
 		},
 		{
-			Worker: &worker.Worker{Name: "no-ep"},
-			State:  worker.StateOnline,
+			Worker: &workers.Worker{Name: "no-ep"},
+			State:  workers.StateOnline,
 		},
 	}
 	results := probeHealthConcurrent(entries)
@@ -248,10 +248,10 @@ func TestProbeHealthConcurrentMixed(t *testing.T) {
 }
 
 func TestProbeHealthConcurrentErrorRedaction(t *testing.T) {
-	entries := []worker.Entry{
+	entries := []workers.Entry{
 		{
-			Worker: &worker.Worker{Name: "secret-error", Endpoint: "http://localhost:1"},
-			State:  worker.StateError,
+			Worker: &workers.Worker{Name: "secret-error", Endpoint: "http://localhost:1"},
+			State:  workers.StateError,
 			Error:  "token was ghp_abc123secret",
 		},
 	}

@@ -10,18 +10,18 @@ import (
 	"testing"
 	"time"
 
-	"mecha.im/internal/event"
-	"mecha.im/internal/policy"
+	"mecha.im/internal/events"
+	"mecha.im/internal/policies"
 	"mecha.im/internal/source"
 	"mecha.im/internal/store"
-	"mecha.im/internal/task"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/tasks"
+	"mecha.im/internal/workers"
 )
 
 // Suppress unused import warnings
-var _ = event.NewStore
+var _ = events.NewStore
 var _ = source.NewRegistry
-var _ policy.Filter = &policy.AllowAll{}
+var _ policies.Filter = &policies.AllowAll{}
 
 // --- withTraceID ---
 
@@ -73,9 +73,9 @@ func TestHandleGetTaskInternalError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
 	// Close DB to trigger internal error (not "not found")
 	db.Close()
@@ -100,9 +100,9 @@ func TestHandleGetTaskNotFound(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
 	req := httptest.NewRequest("GET", "/task/nonexistent", nil)
 	req.SetPathValue("id", "nonexistent")
@@ -124,9 +124,9 @@ func TestHandleGetTaskMissingID(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
 	req := httptest.NewRequest("GET", "/task/", nil)
 	req.SetPathValue("id", "")
@@ -148,13 +148,13 @@ func TestGetWorkerPolicyNotFound(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
 	f := s.getWorkerPolicy("nonexistent-worker")
 	// Should return AllowAll for missing worker
-	_, ok := f.(*policy.AllowAll)
+	_, ok := f.(*policies.AllowAll)
 	if !ok {
 		t.Errorf("expected AllowAll for missing worker, got %T", f)
 	}
@@ -170,16 +170,16 @@ func TestGetWorkerPolicyNilPolicy(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
 	// Add a worker with nil policy
-	w := &worker.Worker{Name: "no-policy", Endpoint: "http://localhost:8080"}
+	w := &workers.Worker{Name: "no-policy", Endpoint: "http://localhost:8080"}
 	reg.Add(w)
 
 	f := s.getWorkerPolicy("no-policy")
-	_, ok := f.(*policy.AllowAll)
+	_, ok := f.(*policies.AllowAll)
 	if !ok {
 		t.Errorf("expected AllowAll for nil policy, got %T", f)
 	}
@@ -194,9 +194,9 @@ func TestScanPendingDBErrorMax(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
 	db.Close()
 
@@ -214,14 +214,14 @@ func TestScanPendingQueueFullMax(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
 	ctx := context.Background()
 
 	// Create a task
-	tk, _ := tasks.Create(ctx, "w", "prompt")
+	tk, _ := taskStore.Create(ctx, "w", "prompt")
 	_ = tk
 
 	// Fill the queue
@@ -247,9 +247,9 @@ func TestScanRetriesDBErrorMax(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
 	db.Close()
 
@@ -327,18 +327,18 @@ func TestDispatchTaskWorkerNotFound(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
 	ctx := context.Background()
-	tk, _ := tasks.Create(ctx, "missing-worker", "test prompt")
+	tk, _ := taskStore.Create(ctx, "missing-worker", "test prompt")
 
 	s.dispatchTask(ctx, tk.ID)
 
 	// Task should be failed
-	got, _ := tasks.Get(ctx, tk.ID)
-	if got.State != task.StateFailed {
+	got, _ := taskStore.Get(ctx, tk.ID)
+	if got.State != tasks.StateFailed {
 		t.Errorf("state = %s, want failed", got.State)
 	}
 }
@@ -353,20 +353,20 @@ func TestDispatchTaskWorkerUnavailable(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
 	ctx := context.Background()
-	w := &worker.Worker{Name: "offline-w", Endpoint: "http://localhost:9999"}
+	w := &workers.Worker{Name: "offline-w", Endpoint: "http://localhost:9999"}
 	reg.Add(w)
 	// Worker is offline by default
 
-	tk, _ := tasks.Create(ctx, "offline-w", "test prompt")
+	tk, _ := taskStore.Create(ctx, "offline-w", "test prompt")
 	s.dispatchTask(ctx, tk.ID)
 
-	got, _ := tasks.Get(ctx, tk.ID)
-	if got.State != task.StateFailed {
+	got, _ := taskStore.Get(ctx, tk.ID)
+	if got.State != tasks.StateFailed {
 		t.Errorf("state = %s, want failed", got.State)
 	}
 }
@@ -387,9 +387,9 @@ func TestSendTaskNon200(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
 	_, err = s.sendTask(context.Background(), srv.URL, "task-1", "prompt", 10*time.Second, "")
 	if err == nil {
@@ -415,9 +415,9 @@ func TestSendTaskWithAPIKeyMax(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
 	_, err = s.sendTask(context.Background(), srv.URL, "task-1", "prompt", 10*time.Second, "my-api-key")
 	if err != nil {
@@ -431,26 +431,26 @@ func TestSendTaskWithAPIKeyMax(t *testing.T) {
 // --- matchesRule ---
 
 func TestMatchesRuleFilter(t *testing.T) {
-	rule := worker.EventRule{
+	rule := workers.EventRule{
 		Source: "github",
 		On:     []string{"push"},
 		Filter: map[string]string{"ref": "refs/heads/main"},
 		Prompt: "review {{.ref}}",
 	}
-	ev := &event.Event{
+	ev := &events.Event{
 		Source: "github",
 		Type:   "push",
-		Attrs:  event.Attrs{"ref": "refs/heads/main"},
+		Attrs:  events.Attrs{"ref": "refs/heads/main"},
 	}
 	if !matchesRule(rule, ev) {
 		t.Error("expected match")
 	}
 
 	// Non-matching filter
-	ev2 := &event.Event{
+	ev2 := &events.Event{
 		Source: "github",
 		Type:   "push",
-		Attrs:  event.Attrs{"ref": "refs/heads/develop"},
+		Attrs:  events.Attrs{"ref": "refs/heads/develop"},
 	}
 	if matchesRule(rule, ev2) {
 		t.Error("expected no match for different ref")
@@ -460,11 +460,11 @@ func TestMatchesRuleFilter(t *testing.T) {
 // --- buildTaskContext: well-known attrs ---
 
 func TestBuildTaskContextAttrs(t *testing.T) {
-	ev := &event.Event{
+	ev := &events.Event{
 		Source:  "github",
 		Actor:   "user",
 		Subject: "org/repo",
-		Attrs: event.Attrs{
+		Attrs: events.Attrs{
 			"repo_owner": "org",
 			"repo_name":  "repo",
 			"number":     42,
@@ -520,9 +520,9 @@ func TestCompleteEventNoStore(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 	// events is nil — should not panic
 	s.completeEvent(context.Background(), "ev-1", true)
 	s.completeEvent(context.Background(), "", true)
@@ -542,17 +542,17 @@ func TestWriteJSONMarshalErrorMax(t *testing.T) {
 // --- renderPrompt ---
 
 func TestRenderPromptMax(t *testing.T) {
-	rule := worker.EventRule{
+	rule := workers.EventRule{
 		Source: "github",
 		On:     []string{"push"},
 		Prompt: "Review {{.subject}} by {{.actor}}",
 	}
-	ev := &event.Event{
+	ev := &events.Event{
 		Source:  "github",
 		Type:    "push",
 		Actor:   "alice",
 		Subject: "org/repo",
-		Attrs:   event.Attrs{},
+		Attrs:   events.Attrs{},
 	}
 	result, err := renderPrompt(rule, ev)
 	if err != nil {
@@ -564,10 +564,10 @@ func TestRenderPromptMax(t *testing.T) {
 }
 
 func TestRenderPromptInvalidTemplateMax(t *testing.T) {
-	rule := worker.EventRule{
+	rule := workers.EventRule{
 		Prompt: "{{.missing_field_that_does_not_exist_in_data_wontwork",
 	}
-	_, err := renderPrompt(rule, &event.Event{Attrs: event.Attrs{}})
+	_, err := renderPrompt(rule, &events.Event{Attrs: events.Attrs{}})
 	if err == nil {
 		t.Error("expected error for invalid template")
 	}

@@ -10,21 +10,21 @@ import (
 	"time"
 
 	"mecha.im/internal/logs"
-	"mecha.im/internal/event"
+	"mecha.im/internal/events"
 	"mecha.im/internal/source"
-	"mecha.im/internal/task"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/tasks"
+	"mecha.im/internal/workers"
 	"mecha.im/internal/writeback"
 )
 
 // Server is the mecha HTTP daemon that accepts tasks and dispatches to workers.
 type Server struct {
-	reg       *worker.Registry
-	tasks     *task.Store
-	events    *event.Store
+	reg       *workers.Registry
+	tasks     *tasks.Store
+	events    *events.Store
 	sources   *source.Registry
 	writeback *writeback.Client
-	docker    *worker.DockerClient
+	docker    *workers.DockerClient
 	limiter   *RateLimiter
 	logs      *logs.Store
 	pending   chan string
@@ -36,12 +36,12 @@ type Server struct {
 
 // Config holds server startup parameters.
 type Config struct {
-	Registry  *worker.Registry
-	Tasks     *task.Store
-	Events    *event.Store
+	Registry  *workers.Registry
+	Tasks     *tasks.Store
+	Events    *events.Store
 	Sources   *source.Registry
 	WriteBack *writeback.Client
-	Docker    *worker.DockerClient
+	Docker    *workers.DockerClient
 	Limiter   *RateLimiter
 	Logs      *logs.Store
 	Addr      string
@@ -182,7 +182,7 @@ func (s *Server) Start(ctx context.Context) error {
 					continue
 				}
 				s.logger.Info("recovering stuck event", "event", eid, "source", ev.Source)
-				go func(ev *event.Event, src source.Source) {
+				go func(ev *events.Event, src source.Source) {
 					rctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 					defer cancel()
 					s.matchAndHydrate(rctx, ev, src)

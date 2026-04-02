@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"mecha.im/internal/worker"
+	"mecha.im/internal/workers"
 )
 
 func TestCheckWorkerCwd(t *testing.T) {
@@ -19,9 +19,9 @@ func TestCheckWorkerCwd(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			w := &worker.Worker{
+			w := &workers.Worker{
 				Name:   "test",
-				Docker: &worker.DockerConfig{Image: "test", Cwd: tt.cwd},
+				Docker: &workers.DockerConfig{Image: "test", Cwd: tt.cwd},
 			}
 			if got := checkWorkerCwd(w); got != tt.want {
 				t.Errorf("checkWorkerCwd(%q) = %v, want %v", tt.cwd, got, tt.want)
@@ -31,7 +31,7 @@ func TestCheckWorkerCwd(t *testing.T) {
 }
 
 func TestCheckWorkerToken(t *testing.T) {
-	secrets := &worker.Secrets{
+	secrets := &workers.Secrets{
 		Tokens: map[string]map[string]string{
 			"claude": {"work": "sk-ant-oat01-abc"},
 		},
@@ -39,7 +39,7 @@ func TestCheckWorkerToken(t *testing.T) {
 	tests := []struct {
 		name    string
 		token   string
-		secrets *worker.Secrets
+		secrets *workers.Secrets
 		want    bool
 	}{
 		{"no token", "", secrets, true},
@@ -49,9 +49,9 @@ func TestCheckWorkerToken(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			w := &worker.Worker{
+			w := &workers.Worker{
 				Name:   "test",
-				Docker: &worker.DockerConfig{Image: "test", Token: tt.token},
+				Docker: &workers.DockerConfig{Image: "test", Token: tt.token},
 			}
 			if got := checkWorkerToken(w, tt.secrets); got != tt.want {
 				t.Errorf("checkWorkerToken(%q) = %v, want %v", tt.token, got, tt.want)
@@ -61,8 +61,8 @@ func TestCheckWorkerToken(t *testing.T) {
 }
 
 func TestCheckWorkerEntryNoDocker(t *testing.T) {
-	e := worker.Entry{
-		Worker: &worker.Worker{
+	e := workers.Entry{
+		Worker: &workers.Worker{
 			Name:     "live",
 			Endpoint: "http://localhost:9999",
 		},

@@ -7,15 +7,15 @@ import (
 	"strings"
 	"testing"
 
-	"mecha.im/internal/worker"
+	"mecha.im/internal/workers"
 )
 
 func TestPostTaskAutoSelectRoundRobin(t *testing.T) {
 	s, cleanup := testServer(t)
 	defer cleanup()
 
-	s.reg.Add(&worker.Worker{Name: "aa", Endpoint: "http://a"})
-	s.reg.Add(&worker.Worker{Name: "bb", Endpoint: "http://b"})
+	s.reg.Add(&workers.Worker{Name: "aa", Endpoint: "http://a"})
+	s.reg.Add(&workers.Worker{Name: "bb", Endpoint: "http://b"})
 	s.reg.Start("aa")
 	s.reg.Start("bb")
 
@@ -49,7 +49,7 @@ func TestPostTaskQueueFull(t *testing.T) {
 	s, cleanup := testServer(t)
 	defer cleanup()
 
-	s.reg.Add(&worker.Worker{Name: "w", Endpoint: "http://x"})
+	s.reg.Add(&workers.Worker{Name: "w", Endpoint: "http://x"})
 	s.reg.Start("w")
 
 	// Fill the channel

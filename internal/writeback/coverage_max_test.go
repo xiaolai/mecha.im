@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"mecha.im/internal/event"
-	"mecha.im/internal/policy"
+	"mecha.im/internal/events"
+	"mecha.im/internal/policies"
 )
 
 // --- WriteBackResult: number=0 (no comment, no label) ---
@@ -25,17 +25,17 @@ func TestWriteBackResultNoNumberMax(t *testing.T) {
 	defer restore()
 
 	c := NewClient("token", nil)
-	ev := &event.Event{
+	ev := &events.Event{
 		ID: "ev-no-number",
-		Attrs: event.Attrs{
+		Attrs: events.Attrs{
 			"repo_owner": "org",
 			"repo_name":  "repo",
 			// number is 0 (default)
 		},
 	}
-	res := policy.Result{
-		Comment: &policy.CommentAction{Body: "test"},
-		Labels:  &policy.LabelAction{Add: []string{"bug"}},
+	res := policies.Result{
+		Comment: &policies.CommentAction{Body: "test"},
+		Labels:  &policies.LabelAction{Add: []string{"bug"}},
 	}
 	err := c.WriteBackResult(context.Background(), ev, res)
 	if err != nil {
@@ -56,17 +56,17 @@ func TestWriteBackResultInvalidStatusState(t *testing.T) {
 	defer restore()
 
 	c := NewClient("token", slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})))
-	ev := &event.Event{
+	ev := &events.Event{
 		ID: "ev-invalid-status",
-		Attrs: event.Attrs{
+		Attrs: events.Attrs{
 			"repo_owner": "org",
 			"repo_name":  "repo",
 			"number":     1,
 			"head_sha":   "abc",
 		},
 	}
-	res := policy.Result{
-		Status: &policy.StatusAction{State: "invalid_state", Description: "bad"},
+	res := policies.Result{
+		Status: &policies.StatusAction{State: "invalid_state", Description: "bad"},
 	}
 	err := c.WriteBackResult(context.Background(), ev, res)
 	if err != nil {
@@ -94,16 +94,16 @@ func TestWriteBackResultCommitSuggestionMax(t *testing.T) {
 	defer restore()
 
 	c := NewClient("token", nil)
-	ev := &event.Event{
+	ev := &events.Event{
 		ID: "ev-commit",
-		Attrs: event.Attrs{
+		Attrs: events.Attrs{
 			"repo_owner": "org",
 			"repo_name":  "repo",
 			"number":     42,
 		},
 	}
-	res := policy.Result{
-		Commit: &policy.CommitAction{
+	res := policies.Result{
+		Commit: &policies.CommitAction{
 			Message: "fix typo",
 			Diff:    "--- a/file.go\n+++ b/file.go\n@@ -1 +1 @@\n-old\n+new",
 		},
@@ -133,17 +133,17 @@ func TestWriteBackResultStatusMax(t *testing.T) {
 	defer restore()
 
 	c := NewClient("token", nil)
-	ev := &event.Event{
+	ev := &events.Event{
 		ID: "ev-status",
-		Attrs: event.Attrs{
+		Attrs: events.Attrs{
 			"repo_owner": "org",
 			"repo_name":  "repo",
 			"number":     1,
 			"head_sha":   "abc123",
 		},
 	}
-	res := policy.Result{
-		Status: &policy.StatusAction{State: "success", Description: "all good"},
+	res := policies.Result{
+		Status: &policies.StatusAction{State: "success", Description: "all good"},
 	}
 	err := c.WriteBackResult(context.Background(), ev, res)
 	if err != nil {
@@ -167,17 +167,17 @@ func TestWriteBackResultStatusEmptySha(t *testing.T) {
 	defer restore()
 
 	c := NewClient("token", nil)
-	ev := &event.Event{
+	ev := &events.Event{
 		ID: "ev-no-sha",
-		Attrs: event.Attrs{
+		Attrs: events.Attrs{
 			"repo_owner": "org",
 			"repo_name":  "repo",
 			"number":     1,
 			// no head_sha
 		},
 	}
-	res := policy.Result{
-		Status: &policy.StatusAction{State: "success", Description: "test"},
+	res := policies.Result{
+		Status: &policies.StatusAction{State: "success", Description: "test"},
 	}
 	err := c.WriteBackResult(context.Background(), ev, res)
 	if err != nil {
@@ -233,7 +233,7 @@ func TestInitGithubAPIURL(t *testing.T) {
 
 func TestWriteBackResultNilClientMax(t *testing.T) {
 	var c *Client
-	err := c.WriteBackResult(context.Background(), &event.Event{}, policy.Result{})
+	err := c.WriteBackResult(context.Background(), &events.Event{}, policies.Result{})
 	if err != nil {
 		t.Errorf("nil client should return nil: %v", err)
 	}
@@ -243,8 +243,8 @@ func TestWriteBackResultNilClientMax(t *testing.T) {
 
 func TestWriteBackResultEmptyTokenMax(t *testing.T) {
 	c := NewClient("", nil)
-	err := c.WriteBackResult(context.Background(), &event.Event{}, policy.Result{
-		Comment: &policy.CommentAction{Body: "test"},
+	err := c.WriteBackResult(context.Background(), &events.Event{}, policies.Result{
+		Comment: &policies.CommentAction{Body: "test"},
 	})
 	if err != nil {
 		t.Errorf("empty token should return nil: %v", err)
@@ -269,16 +269,16 @@ func TestWriteBackResultLabelsRemoveError(t *testing.T) {
 	defer restore()
 
 	c := NewClient("token", slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})))
-	ev := &event.Event{
+	ev := &events.Event{
 		ID: "ev-label-err",
-		Attrs: event.Attrs{
+		Attrs: events.Attrs{
 			"repo_owner": "org",
 			"repo_name":  "repo",
 			"number":     1,
 		},
 	}
-	res := policy.Result{
-		Labels: &policy.LabelAction{
+	res := policies.Result{
+		Labels: &policies.LabelAction{
 			Add:    []string{"bug"},
 			Remove: []string{"stale"},
 		},
@@ -302,20 +302,20 @@ func TestWriteBackResultAllPaths(t *testing.T) {
 	defer restore()
 
 	c := NewClient("token", nil)
-	ev := &event.Event{
+	ev := &events.Event{
 		ID: "ev-all",
-		Attrs: event.Attrs{
+		Attrs: events.Attrs{
 			"repo_owner": "org",
 			"repo_name":  "repo",
 			"number":     5,
 			"head_sha":   "sha123",
 		},
 	}
-	res := policy.Result{
-		Comment: &policy.CommentAction{Body: "review"},
-		Labels:  &policy.LabelAction{Add: []string{"reviewed"}, Remove: []string{"pending"}},
-		Status:  &policy.StatusAction{State: "success", Description: "done"},
-		Commit:  &policy.CommitAction{Message: "fix", Diff: "+line"},
+	res := policies.Result{
+		Comment: &policies.CommentAction{Body: "review"},
+		Labels:  &policies.LabelAction{Add: []string{"reviewed"}, Remove: []string{"pending"}},
+		Status:  &policies.StatusAction{State: "success", Description: "done"},
+		Commit:  &policies.CommitAction{Message: "fix", Diff: "+line"},
 	}
 	err := c.WriteBackResult(context.Background(), ev, res)
 	if err != nil {

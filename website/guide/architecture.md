@@ -62,11 +62,11 @@ The single binary handles worker management, event routing, task dispatch, and p
 | `internal/cli/` | Cobra commands, Docker lifecycle, adapter management |
 | `internal/serve/` | HTTP server, dispatch loop, retry, rate limiter, metrics |
 | `internal/source/` | Event sources: GitHub, GitLab, Slack, Telegram, Cron, Generic |
-| `internal/event/` | Event types, store, dedup enforcement |
-| `internal/task/` | Task lifecycle, retry with exponential backoff |
-| `internal/policy/` | Policy filter: comment, labels, status, commit, metadata |
+| `internal/events/` | Event types, store, dedup enforcement |
+| `internal/tasks/` | Task lifecycle, retry with exponential backoff |
+| `internal/policies/` | Policy filter: comment, labels, status, commit, metadata |
 | `internal/adapter/` | LLM adapters: Ollama, OpenAI-compatible |
-| `internal/worker/` | Config, registry, Docker client, secrets, health, redaction |
+| `internal/workers/` | Config, registry, Docker client, secrets, health, redaction |
 | `internal/writeback/` | GitHub write-back (comments, labels, status, diffs) |
 | `internal/store/` | SQLite database, versioned migrations (V1-V5) |
 

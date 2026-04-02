@@ -8,10 +8,10 @@ import (
 	"testing"
 
 	"mecha.im/internal/store"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/workers"
 )
 
-func newTestRegistry(t *testing.T) *worker.Registry {
+func newTestRegistry(t *testing.T) *workers.Registry {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "test.db")
 	db, err := store.Open(path)
@@ -19,7 +19,7 @@ func newTestRegistry(t *testing.T) *worker.Registry {
 		t.Fatalf("store.Open: %v", err)
 	}
 	t.Cleanup(func() { db.Close() })
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatalf("NewRegistry: %v", err)
 	}
@@ -28,7 +28,7 @@ func newTestRegistry(t *testing.T) *worker.Registry {
 
 func TestPrintYAML(t *testing.T) {
 	// printYAML writes to os.Stdout. Capture it.
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:     "test-worker",
 		Endpoint: "http://localhost:9000",
 	}
@@ -61,9 +61,9 @@ func TestPrintYAML(t *testing.T) {
 }
 
 func TestPrintYAMLDocker(t *testing.T) {
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name: "managed-worker",
-		Docker: &worker.DockerConfig{
+		Docker: &workers.DockerConfig{
 			Image: "ghcr.io/test:v1",
 			Env:   map[string]string{"FOO": "bar"},
 		},
@@ -95,7 +95,7 @@ func TestPrintYAMLDocker(t *testing.T) {
 
 func TestShowWorkerConfig(t *testing.T) {
 	reg := newTestRegistry(t)
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:     "show-test",
 		Endpoint: "http://localhost:8000",
 	}
@@ -169,7 +169,7 @@ func TestShowAllConfigEmpty(t *testing.T) {
 func TestShowAllConfigMultiple(t *testing.T) {
 	reg := newTestRegistry(t)
 	for _, name := range []string{"alpha", "bravo"} {
-		if err := reg.Add(&worker.Worker{Name: name, Endpoint: "http://localhost:9000"}); err != nil {
+		if err := reg.Add(&workers.Worker{Name: name, Endpoint: "http://localhost:9000"}); err != nil {
 			t.Fatalf("Add %s: %v", name, err)
 		}
 	}
@@ -214,11 +214,11 @@ func TestConfigCmdIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatalf("NewRegistry: %v", err)
 	}
-	if err := reg.Add(&worker.Worker{Name: "cfg-test", Endpoint: "http://localhost:5555"}); err != nil {
+	if err := reg.Add(&workers.Worker{Name: "cfg-test", Endpoint: "http://localhost:5555"}); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
 	db.Close()
