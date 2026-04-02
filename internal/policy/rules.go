@@ -50,15 +50,17 @@ type MetadataPolicy struct {
 const truncationSuffix = "\n\n... (truncated by policy)"
 
 // Apply filters the result according to the configured rules.
+// The returned Result is safe to mutate — pointer fields are shallow-copied
+// so the caller's original Result is never modified.
 func (r *RuleFilter) Apply(_ context.Context, _ *event.Event, res Result) (Result, Decision, error) {
 	var d Decision
-	filtered := res
+	filtered := Result{Output: res.Output}
 
-	filtered.Comment = r.applyComment(filtered.Comment, &d)
-	filtered.Labels = r.applyLabels(filtered.Labels, &d)
-	filtered.Status = r.applyStatus(filtered.Status, &d)
-	filtered.Commit = r.applyCommit(filtered.Commit, &d)
-	filtered.Metadata = r.applyMetadata(filtered.Metadata, &d)
+	filtered.Comment = r.applyComment(copyComment(res.Comment), &d)
+	filtered.Labels = r.applyLabels(copyLabels(res.Labels), &d)
+	filtered.Status = r.applyStatus(copyStatus(res.Status), &d)
+	filtered.Commit = r.applyCommit(copyCommit(res.Commit), &d)
+	filtered.Metadata = r.applyMetadata(copyMetadata(res.Metadata), &d)
 
 	return filtered, d, nil
 }
