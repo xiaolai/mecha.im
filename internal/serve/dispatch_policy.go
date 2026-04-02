@@ -7,6 +7,7 @@ import (
 	"net"
 	"strings"
 
+	"mecha.im/internal/audit"
 	"mecha.im/internal/policy"
 )
 
@@ -68,6 +69,12 @@ func (s *Server) doWriteBack(ctx context.Context, taskID, eventID, workerName, r
 	}
 	s.logger.Info("dispatch: policy applied", "task", taskID, "worker", workerName,
 		"allowed", decision.Allowed, "denied", decision.Denied)
+	policyOutcome := audit.OK
+	if len(decision.Denied) > 0 {
+		policyOutcome = audit.Deny
+	}
+	s.record(audit.Entry{TraceID: eventID, TaskID: taskID, Worker: workerName, Action: audit.PolicyApplied, Outcome: policyOutcome,
+		Detail: audit.MarshalDetail(map[string]any{"allowed": decision.Allowed, "denied": decision.Denied})})
 	if s.sources != nil {
 		if resp, ok := s.sources.GetResponder(ev.Source); ok {
 			if wbErr := resp.Respond(ctx, ev, filtered); wbErr != nil {

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"mecha.im/internal/audit"
 	"mecha.im/internal/event"
 	"mecha.im/internal/source"
 )
@@ -79,6 +80,9 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusAccepted, ev)
 
+	s.record(audit.Entry{TraceID: ev.ID, EventID: ev.ID, Action: audit.EventReceived, Outcome: audit.OK,
+		Detail: audit.MarshalDetail(map[string]string{"source": ev.Source, "type": ev.Type})})
+
 	webhooksReceived.Add(1)
 	// Match + hydrate + dispatch in background with timeout
 	ctx, cancel := context.WithTimeout(withTraceID(context.Background()), 5*time.Minute)
@@ -139,6 +143,7 @@ func (s *Server) matchAndHydrate(ctx context.Context, ev *event.Event, src sourc
 				s.logger.Error("webhook: set matched", "event", ev.ID, "err", err)
 				return
 			}
+			s.record(audit.Entry{TraceID: ev.ID, EventID: ev.ID, Worker: entry.Worker.Name, Action: audit.EventMatched, Outcome: audit.OK})
 
 			taskCtx, ctxErr := buildTaskContext(ev)
 			if ctxErr != nil {

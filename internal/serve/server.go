@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"mecha.im/internal/audit"
 	"mecha.im/internal/event"
 	"mecha.im/internal/source"
 	"mecha.im/internal/task"
@@ -25,6 +26,7 @@ type Server struct {
 	writeback *writeback.Client
 	docker    *worker.DockerClient
 	limiter   *RateLimiter
+	audit     *audit.Store
 	pending   chan string
 	addr      string
 	apiKey    string
@@ -41,6 +43,7 @@ type Config struct {
 	WriteBack *writeback.Client
 	Docker    *worker.DockerClient
 	Limiter   *RateLimiter
+	Audit     *audit.Store
 	Addr      string
 	APIKey    string
 	Logger    *slog.Logger
@@ -62,6 +65,7 @@ func New(cfg Config) *Server {
 		writeback: cfg.WriteBack,
 		docker:    cfg.Docker,
 		limiter:   cfg.Limiter,
+		audit:     cfg.Audit,
 		pending:   make(chan string, 256),
 		addr:      cfg.Addr,
 		apiKey:    cfg.APIKey,
@@ -75,6 +79,9 @@ func New(cfg Config) *Server {
 	mux.HandleFunc("GET /health", s.handleHealth)
 	mux.Handle("GET /debug/vars", expvar.Handler())
 	mux.HandleFunc("GET /metrics", prometheusHandler())
+	if s.audit != nil {
+		mux.HandleFunc("GET /audit", s.handleAudit)
+	}
 	if s.sources != nil && s.events != nil {
 		mux.HandleFunc("POST /webhook/{source}", s.handleWebhook)
 		mux.HandleFunc("GET /webhook/{source}", s.handleWebhook)
