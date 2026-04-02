@@ -126,7 +126,7 @@ Each rule in the `events:` section defines when the worker should handle an even
 | `on` | Yes | List of event types to match |
 | `filter` | No | Key-value payload filters (equality match) |
 | `prompt` | Yes | Go template rendered with event data |
-| `auto` | No | Auto-dispatch (default: true). False = future manual approval |
+| `auto` | No | Auto-dispatch (default: true). Set `false` to match without dispatching |
 
 ### GitHub Event Types
 
@@ -228,7 +228,7 @@ Each event source uses its own deduplication strategy:
 | Source | Dedup key | Method |
 |--------|-----------|--------|
 | GitHub | `X-GitHub-Delivery` header | Unique per delivery |
-| GitLab | `X-Gitlab-Event-UUID` header (preferred), falls back to `X-Request-Id` | Unique per delivery |
+| GitLab | `X-Gitlab-Event-UUID` header (preferred), falls back to `X-Gitlab-Instance/X-Request-Id` | Unique per delivery |
 | Slack | `event_id` from payload | Unique per event |
 | Telegram | Content hash (SHA-256 of body) | Deterministic |
 | Generic | Content hash (SHA-256 of event type + body) | Deterministic |
@@ -270,6 +270,44 @@ events:
 ```
 :::
 <!-- @formatter:on -->
+
+### GitLab Write-Back
+
+The `GitLabResponder` writes task results back to GitLab merge requests and issues. It is registered as a `Responder` and is keyed by `ev.Source` (so GitLab events automatically use it).
+
+**Capabilities:**
+
+| Result field | GitLab action |
+|------|-------------|
+| `comment.body` | Posts a note on the MR or issue |
+| `status.state` | Sets commit status on `head_sha` (context name: `mecha`) |
+| `labels.add` | Adds labels to the MR or issue |
+| `labels.remove` | Removes labels from the MR or issue |
+| `commit.diff` | Posts a note with the suggested diff as a markdown code block |
+
+**State mapping (GitHub to GitLab):**
+
+| GitHub state | GitLab state |
+|---|---|
+| `error` | `failed` |
+| `failure` | `failed` |
+| `pending` | `pending` |
+| `success` | `success` |
+
+**Configuration:**
+
+The GitLab Responder requires a GitLab Personal Access Token (PAT) with `api` scope, separate from the `gitlab.webhook_secret` used for webhook verification. Create the responder with:
+
+```go
+resp := source.NewGitLabResponder("https://gitlab.com/api/v4", "glpat-xxx...")
+registry.RegisterResponder(resp)
+```
+
+The project path (`owner/repo`) is extracted from event attrs and URL-encoded automatically (`owner/repo` becomes `owner%2Frepo` in API calls).
+
+::: info
+Commit status requires the event to have a `head_sha` attr. If `head_sha` is empty, the status update is silently skipped.
+:::
 
 ## Slack Source
 
@@ -362,6 +400,52 @@ events:
     on:
       - message
     prompt: "Reply to this Telegram message: {{.text}}"
+```
+:::
+<!-- @formatter:on -->
+
+## Cron Trigger
+
+The cron trigger generates events on a fixed schedule. Unlike webhook sources (which are passive), CronTrigger is an active trigger that emits events at a configurable interval.
+
+Cron triggers are registered programmatically -- not via `secrets.yml`. They implement the `Trigger` interface and are started by `mecha serve`.
+
+### How It Works
+
+`NewCronTrigger(name, interval, subject)` creates a trigger that fires every `interval`. When it fires, it emits an event with these fields:
+
+| Field | Value |
+|-------|-------|
+| `Source` | `cron` |
+| `Type` | `tick` |
+| `Actor` | Trigger name (the `name` argument) |
+| `Subject` | The `subject` argument |
+| `DedupKey` | FNV-64a hash of `name:subject:unix_time` |
+
+The `DedupKey` is computed as an FNV-64a hash of the trigger name, subject, and Unix timestamp. This prevents duplicate processing if the emit callback is slow -- a tick that has already been emitted (and is still active) will be blocked by dedup enforcement.
+
+### Template Variables
+
+::: v-pre
+| Variable | Description |
+|----------|-------------|
+| `{{.tick_time}}` | RFC 3339 timestamp of when the tick fired |
+| `{{.actor}}` | Trigger name |
+| `{{.subject}}` | Trigger subject |
+:::
+
+### Cron Worker Example
+
+<!-- @formatter:off -->
+::: v-pre
+```yaml
+events:
+  - source: cron
+    on:
+      - tick
+    prompt: |
+      Run the scheduled task at {{.tick_time}}.
+      Schedule: {{.actor}} / {{.subject}}
 ```
 :::
 <!-- @formatter:on -->

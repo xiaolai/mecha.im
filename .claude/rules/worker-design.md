@@ -72,6 +72,7 @@ adapter:
   type: ollama
   upstream: http://spark01:11434
   model: gemma2:9b
+  api_key: sk-xxx          # optional, for OpenAI-compatible endpoints
 timeout: 10m
 ```
 

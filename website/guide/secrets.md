@@ -81,11 +81,16 @@ telegram:
 | Source | Field | Verification |
 |--------|-------|-------------|
 | GitHub | `github.webhook_secret` | HMAC-SHA256 (`X-Hub-Signature-256`) |
+| GitHub | `github.token` | PAT for API calls (diff fetch + write-back) |
 | GitLab | `gitlab.webhook_secret` | Token comparison (`X-Gitlab-Token`) |
 | Slack | `slack.signing_secret` | HMAC-SHA256 (`v0=` scheme) + replay protection |
 | Telegram | `telegram.secret_token` | Token comparison (`X-Telegram-Bot-Api-Secret-Token`) |
 
 Sources are only registered when their secrets are present. No secret = source disabled.
+
+::: tip GitLab Write-Back
+GitLab write-back (comments, commit status, labels) requires a GitLab Personal Access Token (PAT) with `api` scope. This is separate from `gitlab.webhook_secret` (which is for webhook verification only). The PAT is passed directly to `NewGitLabResponder(apiBase, token)` at registration time -- it is not stored in `secrets.yml`.
+:::
 
 ## Referencing Tokens in Worker YAML
 

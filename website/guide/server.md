@@ -91,8 +91,10 @@ Tasks that exhaust all retries are dead-lettered (permanently failed). Non-trans
 mecha_tasks_created 42
 mecha_tasks_completed 38
 mecha_tasks_failed 2
+mecha_tasks_recovered 5
 mecha_tasks_retried 3
 mecha_tasks_rate_limited 1
+mecha_tasks_dedup_skipped 0
 mecha_dispatch_latency_ms_avg 4500.000000
 mecha_queue_depth 0
 mecha_webhooks_received 40
@@ -109,13 +111,14 @@ The `/metrics` endpoint is public (no API key required) for scraper access.
 
 ## Background Loops
 
-The server runs three background loops:
+The server runs four background loops:
 
 | Loop | Interval | Purpose |
 |------|----------|---------|
 | Retry scan | 30s | Re-enqueues tasks whose backoff delay has elapsed |
 | Pending scan | 60s | Catches orphaned pending tasks not in the dispatch channel |
 | Reconciliation | 60s | Detects registry/Docker state drift (health checks) |
+| Rate limiter cleanup | 5m | Removes stale per-worker buckets (unused for 10m) |
 | Rate limiter cleanup | 5m | Removes stale per-worker buckets |
 
 ## Graceful Shutdown
