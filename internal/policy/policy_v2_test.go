@@ -26,7 +26,8 @@ func TestTruncationRespectsMaxLength(t *testing.T) {
 		{"short body not truncated", 100, "short", 5},
 		{"exact length not truncated", 50, strings.Repeat("a", 50), 50},
 		{"long body truncated", 50, strings.Repeat("a", 200), 50},
-		{"very small max includes at least 1 char", 1, strings.Repeat("a", 100), 28}, // 1 content + 27 suffix
+		{"very small max hard-truncates without suffix", 1, strings.Repeat("a", 100), 1},
+		{"max equals suffix length hard-truncates", 27, strings.Repeat("a", 100), 27},
 		{"CJK truncated", 30, "你好世界！测试测试测试", 30},
 	}
 	for _, tt := range tests {
