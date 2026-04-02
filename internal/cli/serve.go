@@ -9,12 +9,13 @@ import (
 	"syscall"
 
 	"github.com/spf13/cobra"
-	"mecha.im/internal/event"
+	"mecha.im/internal/logs"
+	"mecha.im/internal/events"
 	"mecha.im/internal/serve"
 	"mecha.im/internal/source"
 	"mecha.im/internal/store"
-	"mecha.im/internal/task"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/tasks"
+	"mecha.im/internal/workers"
 	"mecha.im/internal/writeback"
 )
 
@@ -25,7 +26,7 @@ func serveCmd() *cobra.Command {
 		Short: "Start the mecha HTTP server",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Load server config (~/.mecha/config.yml)
-			srvCfg, err := worker.LoadServerConfig()
+			srvCfg, err := workers.LoadServerConfig()
 			if err != nil {
 				return fmt.Errorf("load config: %w", err)
 			}
@@ -51,23 +52,24 @@ func serveCmd() *cobra.Command {
 			}
 			defer db.Close()
 
-			reg, err := worker.NewRegistry(db)
+			reg, err := workers.NewRegistry(db)
 			if err != nil {
 				return fmt.Errorf("load registry: %w", err)
 			}
-			tasks := task.NewStore(db)
-			events := event.NewStore(db)
+			taskStore := tasks.NewStore(db)
+			evStore := events.NewStore(db)
+			auditLog := logs.NewStore(db, nil)
 
 			logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 				Level: slog.LevelInfo,
 			}))
 
 			// Load secrets for GitHub adapter + write-back
-			secretsPath, err := worker.DefaultSecretsPath()
+			secretsPath, err := workers.DefaultSecretsPath()
 			if err != nil {
 				return fmt.Errorf("resolve secrets path: %w", err)
 			}
-			secrets, err := worker.LoadSecrets(secretsPath)
+			secrets, err := workers.LoadSecrets(secretsPath)
 			if err != nil {
 				// LoadSecrets already returns empty for missing file;
 				// other errors (bad permissions, invalid YAML) are fatal.
@@ -113,11 +115,12 @@ func serveCmd() *cobra.Command {
 
 			srv := serve.New(serve.Config{
 				Registry:  reg,
-				Tasks:     tasks,
-				Events:    events,
+				Tasks:     taskStore,
+				Events:    evStore,
 				Sources:   sources,
 				WriteBack: wb,
 				Limiter:   limiter,
+				Logs:     auditLog,
 				Addr:      addr,
 				APIKey:    apiKey,
 				Logger:    logger,
@@ -125,7 +128,7 @@ func serveCmd() *cobra.Command {
 
 			// Auto-start adapter workers (in-process, need long-lived server)
 			for _, entry := range reg.List() {
-				if entry.Worker.IsAdapter() && entry.State == worker.StateOffline {
+				if entry.Worker.IsAdapter() && entry.State == workers.StateOffline {
 					if err := adapterStart(reg, entry.Worker.Name); err != nil {
 						logger.Warn("adapter start failed", "worker", entry.Worker.Name, "err", err)
 					} else {

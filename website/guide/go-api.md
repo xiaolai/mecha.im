@@ -49,6 +49,12 @@ Worker configuration, Docker lifecycle, registry, secrets, and health checking.
 | `IsAdapter() bool` | True if worker uses an in-process adapter |
 | `TypeLabel() string` | Returns `"managed"`, `"adapter"`, or `"live"` |
 
+### Entry Methods
+
+| Method | Description |
+|--------|-------------|
+| `Sanitized() Entry` | Return a deep copy with env vars, token, and API key fields redacted. Use for API responses and logs |
+
 ### EventRule Methods
 
 | Method | Description |
@@ -245,6 +251,7 @@ Policy filtering for write-back results.
 | `CommitPolicy` | Controls code change suggestions (allow, `MaxSize` max diff bytes) |
 | `MetadataPolicy` | Controls whether metadata is included in the result (allow). When denied, metadata is redacted |
 | `Decision` | Records what the policy allowed and denied |
+| `ValidStatusStates` | `map[string]bool` — canonical set: `error`, `failure`, `pending`, `success` |
 
 ### Functions
 
@@ -374,6 +381,58 @@ Server configuration loaded from `~/.mecha/config.yml`.
 |----------|-------------|
 | `DefaultServerConfig() ServerConfig` | Returns config with defaults (`Addr: "127.0.0.1:21212"`, empty `APIKey`) |
 | `LoadServerConfig() (ServerConfig, error)` | Read `~/.mecha/config.yml`. Returns defaults if the file is missing |
+
+## logs
+
+Structured pipeline audit trail. Records observations at each pipeline stage.
+
+### Types
+
+| Type | Description |
+|------|-------------|
+| `Entry` | Single log record: trace_id, action, outcome, event_id, task_id, worker, attempt, error, detail |
+| `Filter` | Query constraints: TraceID, EventID, TaskID, Worker, Action (prefix match), Since, Until, Limit |
+| `Logger` | Interface with single method `Record(Entry)` |
+| `Store` | SQLite-backed log store implementing `Logger` |
+
+### Functions
+
+| Function | Description |
+|----------|-------------|
+| `NewStore(db, logger) *Store` | Create a log store. Logger is used for write-error fallback |
+| `Store.Record(e Entry)` | Persist a log entry. Fire-and-forget: errors logged, never propagated |
+| `Store.Query(ctx, Filter) ([]Entry, error)` | Retrieve entries matching filter. Results ordered by ID desc, max 1000 |
+| `Store.Prune(ctx, before time.Time) (int64, error)` | Delete entries older than `before`. Returns count deleted |
+| `MarshalDetail(v any) string` | Marshal value to redacted JSON string for the Detail field |
+
+### Action Constants
+
+| Constant | Value | Pipeline Phase |
+|----------|-------|----------------|
+| `EventReceived` | `event.received` | Webhook |
+| `EventDuplicate` | `event.duplicate` | Webhook |
+| `EventMatched` | `event.matched` | Match |
+| `EventSkipped` | `event.skipped` | Match |
+| `EventHydrated` | `event.hydrated` | Match |
+| `TaskCreated` | `task.created` | Dispatch |
+| `TaskSent` | `task.sent` | Dispatch |
+| `TaskRateLimited` | `task.rate_limited` | Dispatch |
+| `TaskRetry` | `task.retry` | Dispatch |
+| `TaskDeadLetter` | `task.dead_letter` | Dispatch |
+| `PolicyApplied` | `policy.applied` | Policy |
+| `WritebackOK` | `writeback.ok` | Write-back |
+| `WritebackFail` | `writeback.fail` | Write-back |
+| `WorkerState` | `worker.state` | Worker |
+
+### Outcome Constants
+
+| Constant | Value | Meaning |
+|----------|-------|---------|
+| `OK` | `ok` | Success |
+| `Fail` | `fail` | Permanent failure |
+| `Skip` | `skip` | Skipped (no match, no action) |
+| `Retry` | `retry` | Transient failure, will retry |
+| `Deny` | `deny` | Blocked by policy |
 
 ## store
 

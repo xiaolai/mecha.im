@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"mecha.im/internal/event"
+	"mecha.im/internal/events"
 	"mecha.im/internal/serve"
 	"mecha.im/internal/source"
 	"mecha.im/internal/store"
-	"mecha.im/internal/task"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/tasks"
+	"mecha.im/internal/workers"
 )
 
 func TestDisposable_FullLifecycle(t *testing.T) {
@@ -41,15 +41,15 @@ func TestDisposable_FullLifecycle(t *testing.T) {
 			}
 			defer db.Close()
 
-			reg, _ := worker.NewRegistry(db)
-			tasks := task.NewStore(db)
-			events := event.NewStore(db)
+			reg, _ := workers.NewRegistry(db)
+			taskStore := tasks.NewStore(db)
+			evStore := events.NewStore(db)
 			sources := source.NewRegistry()
 
 			workerName := "disposable-e2e-" + b.backend
-			w := &worker.Worker{
+			w := &workers.Worker{
 				Name: workerName,
-				Docker: &worker.DockerConfig{
+				Docker: &workers.DockerConfig{
 					Image:     b.image,
 					Lifecycle: "disposable",
 					Env:       map[string]string{b.envKey: "test"},
@@ -70,8 +70,8 @@ func TestDisposable_FullLifecycle(t *testing.T) {
 
 			srv := serve.New(serve.Config{
 				Registry: reg,
-				Tasks:    tasks,
-				Events:   events,
+				Tasks:    taskStore,
+				Events:   evStore,
 				Sources:  sources,
 				Addr:     addr,
 			})
@@ -99,7 +99,7 @@ func TestDisposable_FullLifecycle(t *testing.T) {
 				t.Fatalf("POST /task: status %d", resp.StatusCode)
 			}
 
-			var tk task.Task
+			var tk tasks.Task
 			json.NewDecoder(resp.Body).Decode(&tk)
 			t.Logf("created task %s for disposable %s worker", tk.ID, b.backend)
 
@@ -108,19 +108,19 @@ func TestDisposable_FullLifecycle(t *testing.T) {
 			for {
 				select {
 				case <-deadline:
-					got, _ := tasks.Get(ctx, tk.ID)
+					got, _ := taskStore.Get(ctx, tk.ID)
 					cancel()
 					<-errCh
 					t.Fatalf("task did not complete within 90s (state: %s, error: %s)", got.State, got.ErrorMsg)
 				default:
-					got, _ := tasks.Get(ctx, tk.ID)
-					if got.State == task.StateCompleted {
+					got, _ := taskStore.Get(ctx, tk.ID)
+					if got.State == tasks.StateCompleted {
 						t.Logf("disposable %s task completed successfully", b.backend)
 						cancel()
 						<-errCh
 						return
 					}
-					if got.State == task.StateFailed {
+					if got.State == tasks.StateFailed {
 						cancel()
 						<-errCh
 						// Container may fail due to missing auth — that's OK

@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"time"
 
-	"mecha.im/internal/event"
+	"mecha.im/internal/events"
 )
 
 // SlackSource parses Slack webhook payloads into events.
@@ -34,7 +34,7 @@ func (s *SlackSource) Authenticated() {}
 // Parse validates the HMAC signature and normalizes the webhook payload.
 // URL verification challenges are returned as ErrSlackChallenge; the caller
 // should use VerifyChallenge() to extract the response.
-func (s *SlackSource) Parse(headers http.Header, body []byte) (*event.Event, error) {
+func (s *SlackSource) Parse(headers http.Header, body []byte) (*events.Event, error) {
 	if s.signingSecret != "" {
 		if err := s.verifySignature(headers, body); err != nil {
 			return nil, err
@@ -54,7 +54,7 @@ func (s *SlackSource) Parse(headers http.Header, body []byte) (*event.Event, err
 	return s.parseEventPayload(payload, body)
 }
 
-func (s *SlackSource) parseEventPayload(payload map[string]any, body []byte) (*event.Event, error) {
+func (s *SlackSource) parseEventPayload(payload map[string]any, body []byte) (*events.Event, error) {
 	eventID, _ := payload["event_id"].(string)
 	evData, _ := payload["event"].(map[string]any)
 	if evData == nil {
@@ -67,12 +67,12 @@ func (s *SlackSource) parseEventPayload(payload map[string]any, body []byte) (*e
 		eventType = eventType + "." + subtype
 	}
 
-	ev := &event.Event{
+	ev := &events.Event{
 		DeliveryID: eventID,
 		Source:     "slack",
 		Type:       eventType,
 		Raw:        json.RawMessage(body),
-		Attrs:      make(event.Attrs),
+		Attrs:      make(events.Attrs),
 	}
 
 	// Actor

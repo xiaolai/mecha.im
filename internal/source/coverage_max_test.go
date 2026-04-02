@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"mecha.im/internal/event"
-	"mecha.im/internal/policy"
+	"mecha.im/internal/events"
+	"mecha.im/internal/policies"
 )
 
 // --- Authenticated() markers (0% each) — call them directly ---
@@ -102,20 +102,20 @@ func TestGitLabResponderFullResult(t *testing.T) {
 	defer srv.Close()
 
 	resp := NewGitLabResponder(srv.URL, "token")
-	ev := &event.Event{
+	ev := &events.Event{
 		Type: "merge_request.opened",
-		Attrs: event.Attrs{
+		Attrs: events.Attrs{
 			"repo_owner": "org",
 			"repo_name":  "repo",
 			"number":     1,
 			"head_sha":   "abc123",
 		},
 	}
-	res := policy.Result{
-		Comment: &policy.CommentAction{Body: "review comment"},
-		Status:  &policy.StatusAction{State: "success", Description: "all ok"},
-		Labels:  &policy.LabelAction{Add: []string{"reviewed"}, Remove: []string{"pending"}},
-		Commit:  &policy.CommitAction{Message: "fix", Diff: "+line"},
+	res := policies.Result{
+		Comment: &policies.CommentAction{Body: "review comment"},
+		Status:  &policies.StatusAction{State: "success", Description: "all ok"},
+		Labels:  &policies.LabelAction{Add: []string{"reviewed"}, Remove: []string{"pending"}},
+		Commit:  &policies.CommitAction{Message: "fix", Diff: "+line"},
 	}
 	err := resp.Respond(context.Background(), ev, res)
 	if err != nil {
@@ -153,9 +153,9 @@ func TestGitLabDoRequestBadURL(t *testing.T) {
 
 func TestHydrateNonPREvent(t *testing.T) {
 	src := NewGitHubSource("", "token")
-	ev := &event.Event{
+	ev := &events.Event{
 		Type: "push",
-		Attrs: event.Attrs{
+		Attrs: events.Attrs{
 			"repo_owner": "org",
 			"repo_name":  "repo",
 			"number":     1,
@@ -175,9 +175,9 @@ func TestHydrateNonPREvent(t *testing.T) {
 
 func TestHydrateNoToken(t *testing.T) {
 	src := NewGitHubSource("", "")
-	ev := &event.Event{
+	ev := &events.Event{
 		Type: "pull_request.opened",
-		Attrs: event.Attrs{
+		Attrs: events.Attrs{
 			"number": 1,
 		},
 	}
@@ -191,9 +191,9 @@ func TestHydrateNoToken(t *testing.T) {
 
 func TestHydrateZeroNumber(t *testing.T) {
 	src := NewGitHubSource("", "token")
-	ev := &event.Event{
+	ev := &events.Event{
 		Type:  "pull_request.opened",
-		Attrs: event.Attrs{},
+		Attrs: events.Attrs{},
 	}
 	err := src.Hydrate(context.Background(), ev)
 	if err != nil {
@@ -220,16 +220,16 @@ func TestSourceInitGithubAPIURL(t *testing.T) {
 
 func TestGitLabResponderEmptyResult(t *testing.T) {
 	resp := NewGitLabResponder("http://unused", "token")
-	ev := &event.Event{
+	ev := &events.Event{
 		Type: "merge_request.opened",
-		Attrs: event.Attrs{
+		Attrs: events.Attrs{
 			"repo_owner": "org",
 			"repo_name":  "repo",
 			"number":     1,
 		},
 	}
 	// Completely empty result should short-circuit
-	err := resp.Respond(context.Background(), ev, policy.Result{})
+	err := resp.Respond(context.Background(), ev, policies.Result{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -239,11 +239,11 @@ func TestGitLabResponderEmptyResult(t *testing.T) {
 
 func TestGitLabResponderMissingRepo(t *testing.T) {
 	resp := NewGitLabResponder("http://unused", "token")
-	ev := &event.Event{
+	ev := &events.Event{
 		Type:  "merge_request.opened",
-		Attrs: event.Attrs{},
+		Attrs: events.Attrs{},
 	}
-	res := policy.Result{Output: "something"}
+	res := policies.Result{Output: "something"}
 	err := resp.Respond(context.Background(), ev, res)
 	if err == nil {
 		t.Error("expected error for missing repo info")
@@ -260,16 +260,16 @@ func TestGitLabResponderServerError(t *testing.T) {
 	defer srv.Close()
 
 	resp := NewGitLabResponder(srv.URL, "token")
-	ev := &event.Event{
+	ev := &events.Event{
 		Type: "merge_request.opened",
-		Attrs: event.Attrs{
+		Attrs: events.Attrs{
 			"repo_owner": "org",
 			"repo_name":  "repo",
 			"number":     1,
 		},
 	}
-	res := policy.Result{
-		Comment: &policy.CommentAction{Body: "test"},
+	res := policies.Result{
+		Comment: &policies.CommentAction{Body: "test"},
 	}
 	err := resp.Respond(context.Background(), ev, res)
 	if err == nil {
@@ -375,17 +375,17 @@ func TestGitLabResponderEmptyLabels(t *testing.T) {
 	defer srv.Close()
 
 	resp := NewGitLabResponder(srv.URL, "token")
-	ev := &event.Event{
+	ev := &events.Event{
 		Type: "merge_request.opened",
-		Attrs: event.Attrs{
+		Attrs: events.Attrs{
 			"repo_owner": "org",
 			"repo_name":  "repo",
 			"number":     1,
 		},
 	}
 	// Labels with empty Add and Remove
-	res := policy.Result{
-		Labels: &policy.LabelAction{Add: nil, Remove: nil},
+	res := policies.Result{
+		Labels: &policies.LabelAction{Add: nil, Remove: nil},
 	}
 	err := resp.Respond(context.Background(), ev, res)
 	if err != nil {
@@ -404,16 +404,16 @@ func TestGitLabResponderLabelsOnIssue(t *testing.T) {
 	defer srv.Close()
 
 	resp := NewGitLabResponder(srv.URL, "token")
-	ev := &event.Event{
+	ev := &events.Event{
 		Type: "issue.opened",
-		Attrs: event.Attrs{
+		Attrs: events.Attrs{
 			"repo_owner": "org",
 			"repo_name":  "repo",
 			"number":     5,
 		},
 	}
-	res := policy.Result{
-		Labels: &policy.LabelAction{Add: []string{"bug"}},
+	res := policies.Result{
+		Labels: &policies.LabelAction{Add: []string{"bug"}},
 	}
 	err := resp.Respond(context.Background(), ev, res)
 	if err != nil {
@@ -478,9 +478,9 @@ func TestHydrateLargeDiffTruncation(t *testing.T) {
 	defer func() { githubAPIBase = old }()
 
 	src := NewGitHubSource("", "token")
-	ev := &event.Event{
+	ev := &events.Event{
 		Type: "pull_request.opened",
-		Attrs: event.Attrs{
+		Attrs: events.Attrs{
 			"repo_owner": "org",
 			"repo_name":  "repo",
 			"number":     1,
@@ -521,9 +521,9 @@ func TestHydrateCompareFilesPath(t *testing.T) {
 	defer func() { githubAPIBase = old }()
 
 	src := NewGitHubSource("", "token")
-	ev := &event.Event{
+	ev := &events.Event{
 		Type: "pull_request.opened",
-		Attrs: event.Attrs{
+		Attrs: events.Attrs{
 			"repo_owner": "org",
 			"repo_name":  "repo",
 			"number":     1,

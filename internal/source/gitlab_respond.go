@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"mecha.im/internal/event"
-	"mecha.im/internal/policy"
+	"mecha.im/internal/events"
+	"mecha.im/internal/policies"
 )
 
 // GitLabResponder writes results back to GitLab merge requests and issues.
@@ -35,7 +35,7 @@ func NewGitLabResponder(apiBase, token string) *GitLabResponder {
 func (g *GitLabResponder) Name() string { return "gitlab" }
 
 // Respond posts results to the merge request or issue referenced by the event.
-func (g *GitLabResponder) Respond(ctx context.Context, ev *event.Event, res policy.Result) error {
+func (g *GitLabResponder) Respond(ctx context.Context, ev *events.Event, res policies.Result) error {
 	// Short-circuit if there's nothing to write back.
 	if res.Output == "" && res.Comment == nil && res.Status == nil && res.Labels == nil && res.Commit == nil {
 		return nil
@@ -75,7 +75,7 @@ func (g *GitLabResponder) Respond(ctx context.Context, ev *event.Event, res poli
 	return errors.Join(errs...)
 }
 
-func (g *GitLabResponder) extractTarget(ev *event.Event) (string, int, error) {
+func (g *GitLabResponder) extractTarget(ev *events.Event) (string, int, error) {
 	owner, _ := ev.Attrs["repo_owner"].(string)
 	repo, _ := ev.Attrs["repo_name"].(string)
 	if owner == "" || repo == "" {
@@ -85,7 +85,7 @@ func (g *GitLabResponder) extractTarget(ev *event.Event) (string, int, error) {
 	return owner + "/" + repo, number, nil
 }
 
-func (g *GitLabResponder) postNote(ctx context.Context, ev *event.Event, project string, number int, body string) error {
+func (g *GitLabResponder) postNote(ctx context.Context, ev *events.Event, project string, number int, body string) error {
 	var url string
 	if strings.HasPrefix(ev.Type, "merge_request") || strings.HasPrefix(ev.Type, "note") {
 		url = fmt.Sprintf("%s/projects/%s/merge_requests/%d/notes", g.apiBase, encodeProject(project), number)
@@ -107,7 +107,7 @@ func (g *GitLabResponder) setCommitStatus(ctx context.Context, project, sha, sta
 	return g.doRequest(ctx, "POST", url, payload)
 }
 
-func (g *GitLabResponder) updateLabels(ctx context.Context, ev *event.Event, project string, number int, labels *policy.LabelAction) error {
+func (g *GitLabResponder) updateLabels(ctx context.Context, ev *events.Event, project string, number int, labels *policies.LabelAction) error {
 	if labels == nil || (len(labels.Add) == 0 && len(labels.Remove) == 0) {
 		return nil
 	}
@@ -149,7 +149,7 @@ func (g *GitLabResponder) doRequest(ctx context.Context, method, url string, pay
 	return nil
 }
 
-func commentBody(res policy.Result) string {
+func commentBody(res policies.Result) string {
 	if res.Comment != nil && res.Comment.Body != "" {
 		return res.Comment.Body
 	}

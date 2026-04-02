@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"mecha.im/internal/event"
+	"mecha.im/internal/events"
 )
 
 // TelegramSource parses Telegram Bot API webhook payloads into events.
@@ -30,7 +30,7 @@ func (t *TelegramSource) Name() string { return "telegram" }
 func (t *TelegramSource) Authenticated() {}
 
 // Parse validates the secret token and normalizes the webhook payload.
-func (t *TelegramSource) Parse(headers http.Header, body []byte) (*event.Event, error) {
+func (t *TelegramSource) Parse(headers http.Header, body []byte) (*events.Event, error) {
 	if t.secretToken != "" {
 		token := headers.Get("X-Telegram-Bot-Api-Secret-Token")
 		if subtle.ConstantTimeCompare([]byte(token), []byte(t.secretToken)) != 1 {
@@ -52,11 +52,11 @@ func (t *TelegramSource) Parse(headers http.Header, body []byte) (*event.Event, 
 	h := sha256.Sum256(body)
 	deliveryID := "telegram:" + hex.EncodeToString(h[:16])
 
-	ev := &event.Event{
+	ev := &events.Event{
 		DeliveryID: deliveryID,
 		Source:     "telegram",
 		Raw:        json.RawMessage(body),
-		Attrs:      make(event.Attrs),
+		Attrs:      make(events.Attrs),
 	}
 	ev.Attrs["update_id"] = updateID
 
@@ -94,7 +94,7 @@ func (t *TelegramSource) Parse(headers http.Header, body []byte) (*event.Event, 
 	return ev, nil
 }
 
-func (t *TelegramSource) parseMessage(msg map[string]any, ev *event.Event, eventType string) {
+func (t *TelegramSource) parseMessage(msg map[string]any, ev *events.Event, eventType string) {
 	ev.Type = eventType
 
 	if from, ok := msg["from"].(map[string]any); ok {
@@ -131,7 +131,7 @@ func (t *TelegramSource) parseMessage(msg map[string]any, ev *event.Event, event
 	}
 }
 
-func (t *TelegramSource) parseCallbackQuery(cq map[string]any, ev *event.Event) {
+func (t *TelegramSource) parseCallbackQuery(cq map[string]any, ev *events.Event) {
 	ev.Type = "callback_query"
 	if from, ok := cq["from"].(map[string]any); ok {
 		ev.Actor, _ = from["username"].(string)
@@ -150,7 +150,7 @@ func (t *TelegramSource) parseCallbackQuery(cq map[string]any, ev *event.Event) 
 	}
 }
 
-func (t *TelegramSource) parseInlineQuery(iq map[string]any, ev *event.Event) {
+func (t *TelegramSource) parseInlineQuery(iq map[string]any, ev *events.Event) {
 	ev.Type = "inline_query"
 	if from, ok := iq["from"].(map[string]any); ok {
 		ev.Actor, _ = from["username"].(string)

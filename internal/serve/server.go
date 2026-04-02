@@ -9,22 +9,24 @@ import (
 	"net/http"
 	"time"
 
-	"mecha.im/internal/event"
+	"mecha.im/internal/logs"
+	"mecha.im/internal/events"
 	"mecha.im/internal/source"
-	"mecha.im/internal/task"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/tasks"
+	"mecha.im/internal/workers"
 	"mecha.im/internal/writeback"
 )
 
 // Server is the mecha HTTP daemon that accepts tasks and dispatches to workers.
 type Server struct {
-	reg       *worker.Registry
-	tasks     *task.Store
-	events    *event.Store
+	reg       *workers.Registry
+	tasks     *tasks.Store
+	events    *events.Store
 	sources   *source.Registry
 	writeback *writeback.Client
-	docker    *worker.DockerClient
+	docker    *workers.DockerClient
 	limiter   *RateLimiter
+	logs      *logs.Store
 	pending   chan string
 	addr      string
 	apiKey    string
@@ -34,13 +36,14 @@ type Server struct {
 
 // Config holds server startup parameters.
 type Config struct {
-	Registry  *worker.Registry
-	Tasks     *task.Store
-	Events    *event.Store
+	Registry  *workers.Registry
+	Tasks     *tasks.Store
+	Events    *events.Store
 	Sources   *source.Registry
 	WriteBack *writeback.Client
-	Docker    *worker.DockerClient
+	Docker    *workers.DockerClient
 	Limiter   *RateLimiter
+	Logs      *logs.Store
 	Addr      string
 	APIKey    string
 	Logger    *slog.Logger
@@ -62,6 +65,7 @@ func New(cfg Config) *Server {
 		writeback: cfg.WriteBack,
 		docker:    cfg.Docker,
 		limiter:   cfg.Limiter,
+		logs:      cfg.Logs,
 		pending:   make(chan string, 256),
 		addr:      cfg.Addr,
 		apiKey:    cfg.APIKey,
@@ -75,6 +79,9 @@ func New(cfg Config) *Server {
 	mux.HandleFunc("GET /health", s.handleHealth)
 	mux.Handle("GET /debug/vars", expvar.Handler())
 	mux.HandleFunc("GET /metrics", prometheusHandler())
+	if s.logs != nil {
+		mux.HandleFunc("GET /logs", s.handleLogs)
+	}
 	if s.sources != nil && s.events != nil {
 		mux.HandleFunc("POST /webhook/{source}", s.handleWebhook)
 		mux.HandleFunc("GET /webhook/{source}", s.handleWebhook)
@@ -175,7 +182,7 @@ func (s *Server) Start(ctx context.Context) error {
 					continue
 				}
 				s.logger.Info("recovering stuck event", "event", eid, "source", ev.Source)
-				go func(ev *event.Event, src source.Source) {
+				go func(ev *events.Event, src source.Source) {
 					rctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 					defer cancel()
 					s.matchAndHydrate(rctx, ev, src)

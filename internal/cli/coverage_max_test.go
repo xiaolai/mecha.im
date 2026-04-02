@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"mecha.im/internal/store"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/workers"
 )
 
 // --- registry: error paths ---
@@ -18,7 +18,7 @@ func TestRegistryClosedDB(t *testing.T) {
 	}
 	db.Close()
 
-	_, err = worker.NewRegistry(db)
+	_, err = workers.NewRegistry(db)
 	if err == nil {
 		t.Error("expected error from closed DB")
 	}
@@ -61,7 +61,7 @@ func TestDockerStartWorkerNotFound(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +82,7 @@ func TestDockerStopWorkerNotFound(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +103,7 @@ func TestDockerRemoveWorkerNotFound(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,14 +124,14 @@ func TestDockerStopEmptyContainerID(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name: "empty-cid",
-		Docker: &worker.DockerConfig{
+		Docker: &workers.DockerConfig{
 			Image: "test:latest",
 		},
 	}

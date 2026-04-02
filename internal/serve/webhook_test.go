@@ -14,11 +14,11 @@ import (
 	"testing"
 	"time"
 
-	"mecha.im/internal/event"
+	"mecha.im/internal/events"
 	"mecha.im/internal/source"
 	"mecha.im/internal/store"
-	"mecha.im/internal/task"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/tasks"
+	"mecha.im/internal/workers"
 	"mecha.im/internal/writeback"
 )
 
@@ -33,19 +33,19 @@ func signGitHub(secret string, body []byte) string {
 // testWebhookServer creates a server with sources, events, workers, and
 // a mock GitHub API for write-back. It wires the full pipeline:
 // webhook → parse → match → hydrate → dispatch → policy → respond.
-func testWebhookServer(t *testing.T, ghHandler http.Handler, apiKey string) (*Server, *event.Store, *source.Registry, func()) {
+func testWebhookServer(t *testing.T, ghHandler http.Handler, apiKey string) (*Server, *events.Store, *source.Registry, func()) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "test.db")
 	db, err := store.Open(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatal(err)
 	}
-	tasks := task.NewStore(db)
-	events := event.NewStore(db)
+	taskStore := tasks.NewStore(db)
+	evStore := events.NewStore(db)
 
 	ghSrv := httptest.NewServer(ghHandler)
 	restore := writeback.OverrideAPIBase(ghSrv.URL)
@@ -57,14 +57,14 @@ func testWebhookServer(t *testing.T, ghHandler http.Handler, apiKey string) (*Se
 
 	s := New(Config{
 		Registry:  reg,
-		Tasks:     tasks,
-		Events:    events,
+		Tasks:     taskStore,
+		Events:    evStore,
 		Sources:   sources,
 		WriteBack: wb,
 		Addr:      "127.0.0.1:0",
 		APIKey:    apiKey,
 	})
-	return s, events, sources, func() {
+	return s, evStore, sources, func() {
 		restore()
 		ghSrv.Close()
 		db.Close()
@@ -72,7 +72,7 @@ func testWebhookServer(t *testing.T, ghHandler http.Handler, apiKey string) (*Se
 }
 
 // waitForEventState polls until the event reaches the expected state or timeout.
-func waitForEventState(t *testing.T, es *event.Store, eventID string, want event.State, timeout time.Duration) {
+func waitForEventState(t *testing.T, es *events.Store, eventID string, want events.State, timeout time.Duration) {
 	t.Helper()
 	deadline := time.After(timeout)
 	for {
@@ -109,10 +109,10 @@ func TestWebhookFullPipeline_GitHubPR(t *testing.T) {
 	}))
 	defer workerSrv.Close()
 
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:     "pr-reviewer",
 		Endpoint: workerSrv.URL,
-		Events: []worker.EventRule{{
+		Events: []workers.EventRule{{
 			Source: "github",
 			On:     []string{"pull_request.opened"},
 			Prompt: "Review PR #{{ .number }} by {{ .actor }}: {{ .title }}",
@@ -157,7 +157,7 @@ func TestWebhookFullPipeline_GitHubPR(t *testing.T) {
 	}
 
 	// Verify event was created
-	var evResp event.Event
+	var evResp events.Event
 	if err := json.Unmarshal(rec2.Body.Bytes(), &evResp); err != nil {
 		t.Fatalf("unmarshal event response: %v", err)
 	}
@@ -172,7 +172,7 @@ func TestWebhookFullPipeline_GitHubPR(t *testing.T) {
 	}
 
 	// Wait for full pipeline completion
-	waitForEventState(t, es, evResp.ID, event.StateCompleted, 10*time.Second)
+	waitForEventState(t, es, evResp.ID, events.StateCompleted, 10*time.Second)
 
 	// Verify GitHub write-back: comment + status
 	calls := rec.getCalls()
@@ -336,9 +336,9 @@ func TestWebhookNoMatchingWorker(t *testing.T) {
 		t.Fatalf("status = %d, want 202", rec.Code)
 	}
 
-	var evResp event.Event
+	var evResp events.Event
 	json.Unmarshal(rec.Body.Bytes(), &evResp)
-	waitForEventState(t, es, evResp.ID, event.StateSkipped, 5*time.Second)
+	waitForEventState(t, es, evResp.ID, events.StateSkipped, 5*time.Second)
 }
 
 func TestWebhookAutoFalseSkipped(t *testing.T) {
@@ -347,10 +347,10 @@ func TestWebhookAutoFalseSkipped(t *testing.T) {
 
 	// Worker with auto: false should not dispatch
 	autoFalse := false
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:     "manual-worker",
 		Endpoint: "http://unused",
-		Events: []worker.EventRule{{
+		Events: []workers.EventRule{{
 			Source: "github",
 			On:     []string{"pull_request.opened"},
 			Prompt: "review",
@@ -369,10 +369,10 @@ func TestWebhookAutoFalseSkipped(t *testing.T) {
 	rec := httptest.NewRecorder()
 	s.httpSrv.Handler.ServeHTTP(rec, req)
 
-	var evResp event.Event
+	var evResp events.Event
 	json.Unmarshal(rec.Body.Bytes(), &evResp)
 	// auto: false → event ends up skipped (no auto rules matched)
-	waitForEventState(t, es, evResp.ID, event.StateSkipped, 5*time.Second)
+	waitForEventState(t, es, evResp.ID, events.StateSkipped, 5*time.Second)
 }
 
 // --- Event listing ---
@@ -389,7 +389,7 @@ func TestWebhookEventListAndGet(t *testing.T) {
 	rec := httptest.NewRecorder()
 	s.httpSrv.Handler.ServeHTTP(rec, req)
 
-	var evResp event.Event
+	var evResp events.Event
 	json.Unmarshal(rec.Body.Bytes(), &evResp)
 
 	// GET /events
@@ -399,9 +399,9 @@ func TestWebhookEventListAndGet(t *testing.T) {
 	if rec2.Code != 200 {
 		t.Fatalf("list events: status = %d", rec2.Code)
 	}
-	var events []event.Event
-	json.Unmarshal(rec2.Body.Bytes(), &events)
-	if len(events) == 0 {
+	var evList []events.Event
+	json.Unmarshal(rec2.Body.Bytes(), &evList)
+	if len(evList) == 0 {
 		t.Error("expected at least one event")
 	}
 
@@ -412,7 +412,7 @@ func TestWebhookEventListAndGet(t *testing.T) {
 	if rec3.Code != 200 {
 		t.Fatalf("get event: status = %d", rec3.Code)
 	}
-	var got event.Event
+	var got events.Event
 	json.Unmarshal(rec3.Body.Bytes(), &got)
 	if got.Source != "github" {
 		t.Errorf("Source = %q", got.Source)
@@ -429,19 +429,19 @@ func TestCrashRecoverySourceGone(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	es := event.NewStore(db)
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	es := events.NewStore(db)
 	sources := source.NewRegistry() // empty — no sources registered
 
-	ev := &event.Event{Source: "gone-source", Type: "push"}
+	ev := &events.Event{Source: "gone-source", Type: "push"}
 	if err := es.Create(context.Background(), ev); err != nil {
 		t.Fatal(err)
 	}
 
 	srv := New(Config{
 		Registry: reg,
-		Tasks:    tasks,
+		Tasks:    taskStore,
 		Events:   es,
 		Sources:  sources,
 		Addr:     "127.0.0.1:0",
@@ -455,7 +455,7 @@ func TestCrashRecoverySourceGone(t *testing.T) {
 	<-errCh
 
 	got, _ := es.Get(context.Background(), ev.ID)
-	if got.State != event.StateFailed {
+	if got.State != events.StateFailed {
 		t.Errorf("state = %q, want failed (source gone)", got.State)
 	}
 	db.Close()
@@ -469,20 +469,20 @@ func TestCrashRecoveryReprocess(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	es := event.NewStore(db)
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	es := events.NewStore(db)
 	sources := source.NewRegistry()
 	sources.Register(source.NewGitHubSource("secret", ""))
 
-	ev := &event.Event{Source: "github", Type: "push"}
+	ev := &events.Event{Source: "github", Type: "push"}
 	if err := es.Create(context.Background(), ev); err != nil {
 		t.Fatal(err)
 	}
 
 	srv := New(Config{
 		Registry: reg,
-		Tasks:    tasks,
+		Tasks:    taskStore,
 		Events:   es,
 		Sources:  sources,
 		Addr:     "127.0.0.1:0",
@@ -497,7 +497,7 @@ func TestCrashRecoveryReprocess(t *testing.T) {
 
 	// No workers registered → event should be skipped (re-matched but no match)
 	got, _ := es.Get(context.Background(), ev.ID)
-	if got.State != event.StateSkipped {
+	if got.State != events.StateSkipped {
 		t.Errorf("state = %q, want skipped (re-matched, no workers)", got.State)
 	}
 	db.Close()
@@ -519,10 +519,10 @@ func TestWebhookPolicyBlocksWriteBack(t *testing.T) {
 	}))
 	defer workerSrv.Close()
 
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:     "policy-worker",
 		Endpoint: workerSrv.URL,
-		Events: []worker.EventRule{{
+		Events: []workers.EventRule{{
 			Source: "github",
 			On:     []string{"push"},
 			Prompt: "analyze push by {{ .actor }}",
@@ -551,9 +551,9 @@ func TestWebhookPolicyBlocksWriteBack(t *testing.T) {
 	rec2 := httptest.NewRecorder()
 	s.httpSrv.Handler.ServeHTTP(rec2, req)
 
-	var evResp event.Event
+	var evResp events.Event
 	json.Unmarshal(rec2.Body.Bytes(), &evResp)
-	waitForEventState(t, es, evResp.ID, event.StateCompleted, 10*time.Second)
+	waitForEventState(t, es, evResp.ID, events.StateCompleted, 10*time.Second)
 
 	// Comment should be blocked, status should pass
 	calls := rec.getCalls()
@@ -588,10 +588,10 @@ func TestWebhookMultipleSources(t *testing.T) {
 	}))
 	defer workerSrv.Close()
 
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:     "slack-bot",
 		Endpoint: workerSrv.URL,
-		Events: []worker.EventRule{{
+		Events: []workers.EventRule{{
 			Source: "slack",
 			On:     []string{"message"},
 			Prompt: "respond to: {{ .text }}",
@@ -619,9 +619,9 @@ func TestWebhookMultipleSources(t *testing.T) {
 		t.Fatalf("slack webhook: status = %d, want 202: %s", rec.Code, rec.Body.String())
 	}
 
-	var evResp event.Event
+	var evResp events.Event
 	json.Unmarshal(rec.Body.Bytes(), &evResp)
-	waitForEventState(t, es, evResp.ID, event.StateCompleted, 10*time.Second)
+	waitForEventState(t, es, evResp.ID, events.StateCompleted, 10*time.Second)
 
 	// Verify the event metadata
 	ev, _ := es.Get(context.Background(), evResp.ID)
@@ -645,10 +645,10 @@ func TestWebhookWorkerFailure(t *testing.T) {
 	}))
 	defer workerSrv.Close()
 
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:     "failing-worker",
 		Endpoint: workerSrv.URL,
-		Events: []worker.EventRule{{
+		Events: []workers.EventRule{{
 			Source: "github",
 			On:     []string{"push"},
 			Prompt: "analyze",
@@ -669,9 +669,9 @@ func TestWebhookWorkerFailure(t *testing.T) {
 	rec := httptest.NewRecorder()
 	s.httpSrv.Handler.ServeHTTP(rec, req)
 
-	var evResp event.Event
+	var evResp events.Event
 	json.Unmarshal(rec.Body.Bytes(), &evResp)
-	waitForEventState(t, es, evResp.ID, event.StateFailed, 10*time.Second)
+	waitForEventState(t, es, evResp.ID, events.StateFailed, 10*time.Second)
 }
 
 // --- Concurrent webhooks ---
@@ -693,10 +693,10 @@ func TestWebhookConcurrent(t *testing.T) {
 	}))
 	defer workerSrv.Close()
 
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:     "concurrent-w",
 		Endpoint: workerSrv.URL,
-		Events: []worker.EventRule{{
+		Events: []workers.EventRule{{
 			Source: "github",
 			On:     []string{"push"},
 			Prompt: "analyze",
@@ -724,7 +724,7 @@ func TestWebhookConcurrent(t *testing.T) {
 			rec := httptest.NewRecorder()
 			s.httpSrv.Handler.ServeHTTP(rec, req)
 			if rec.Code == http.StatusAccepted {
-				var evResp event.Event
+				var evResp events.Event
 				json.Unmarshal(rec.Body.Bytes(), &evResp)
 				eventIDs[idx] = evResp.ID
 			}
@@ -768,9 +768,9 @@ func TestWebhookAttrsPersisted(t *testing.T) {
 	rec := httptest.NewRecorder()
 	s.httpSrv.Handler.ServeHTTP(rec, req)
 
-	var evResp event.Event
+	var evResp events.Event
 	json.Unmarshal(rec.Body.Bytes(), &evResp)
-	waitForEventState(t, es, evResp.ID, event.StateSkipped, 5*time.Second)
+	waitForEventState(t, es, evResp.ID, events.StateSkipped, 5*time.Second)
 
 	// Verify attrs were persisted to DB
 	ev, _ := es.Get(context.Background(), evResp.ID)
@@ -802,10 +802,10 @@ func TestWebhookGitLabPipeline(t *testing.T) {
 	}))
 	defer workerSrv.Close()
 
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:     "gl-reviewer",
 		Endpoint: workerSrv.URL,
-		Events: []worker.EventRule{{
+		Events: []workers.EventRule{{
 			Source: "gitlab",
 			On:     []string{"merge_request.open"},
 			Prompt: "Review MR by {{ .actor }}",
@@ -844,9 +844,9 @@ func TestWebhookGitLabPipeline(t *testing.T) {
 		t.Fatalf("gitlab webhook: status = %d, want 202: %s", rec2.Code, rec2.Body.String())
 	}
 
-	var evResp event.Event
+	var evResp events.Event
 	json.Unmarshal(rec2.Body.Bytes(), &evResp)
-	waitForEventState(t, es, evResp.ID, event.StateCompleted, 10*time.Second)
+	waitForEventState(t, es, evResp.ID, events.StateCompleted, 10*time.Second)
 
 	ev, _ := es.Get(context.Background(), evResp.ID)
 	if ev.Actor != "dev" {
@@ -872,10 +872,10 @@ func TestWebhookFilterMatching(t *testing.T) {
 	defer workerSrv.Close()
 
 	// Worker that only matches action=closed
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:     "close-handler",
 		Endpoint: workerSrv.URL,
-		Events: []worker.EventRule{{
+		Events: []workers.EventRule{{
 			Source: "github",
 			On:     []string{"pull_request.closed"},
 			Filter: map[string]string{"action": "closed"},
@@ -898,9 +898,9 @@ func TestWebhookFilterMatching(t *testing.T) {
 	rec := httptest.NewRecorder()
 	s.httpSrv.Handler.ServeHTTP(rec, req)
 
-	var evResp event.Event
+	var evResp events.Event
 	json.Unmarshal(rec.Body.Bytes(), &evResp)
-	waitForEventState(t, es, evResp.ID, event.StateSkipped, 5*time.Second)
+	waitForEventState(t, es, evResp.ID, events.StateSkipped, 5*time.Second)
 }
 
 // --- Event listing with state filter ---
@@ -910,8 +910,8 @@ func TestWebhookEventListByState(t *testing.T) {
 	defer cleanup()
 
 	// Create events in different states
-	ev1 := &event.Event{Source: "github", Type: "push"}
-	ev2 := &event.Event{Source: "github", Type: "push"}
+	ev1 := &events.Event{Source: "github", Type: "push"}
+	ev2 := &events.Event{Source: "github", Type: "push"}
 	es.Create(context.Background(), ev1)
 	es.Create(context.Background(), ev2)
 	es.SetMatched(context.Background(), ev2.ID, "w")
@@ -923,17 +923,17 @@ func TestWebhookEventListByState(t *testing.T) {
 	if rec.Code != 200 {
 		t.Fatalf("status = %d", rec.Code)
 	}
-	var events []event.Event
-	json.Unmarshal(rec.Body.Bytes(), &events)
-	if len(events) != 1 {
-		t.Errorf("received events = %d, want 1", len(events))
+	var evList []events.Event
+	json.Unmarshal(rec.Body.Bytes(), &evList)
+	if len(evList) != 1 {
+		t.Errorf("received events = %d, want 1", len(evList))
 	}
 
 	// Filter by matched
 	req2 := httptest.NewRequest("GET", "/events?state=matched", nil)
 	rec2 := httptest.NewRecorder()
 	s.httpSrv.Handler.ServeHTTP(rec2, req2)
-	var matched []event.Event
+	var matched []events.Event
 	json.Unmarshal(rec2.Body.Bytes(), &matched)
 	if len(matched) != 1 {
 		t.Errorf("matched events = %d, want 1", len(matched))
@@ -974,9 +974,9 @@ func TestWebhookHydrationOnlyOnMatch(t *testing.T) {
 	rec := httptest.NewRecorder()
 	s.httpSrv.Handler.ServeHTTP(rec, req)
 
-	var evResp event.Event
+	var evResp events.Event
 	json.Unmarshal(rec.Body.Bytes(), &evResp)
-	waitForEventState(t, es, evResp.ID, event.StateSkipped, 5*time.Second)
+	waitForEventState(t, es, evResp.ID, events.StateSkipped, 5*time.Second)
 
 	if hydrateCalled {
 		t.Error("hydration should not run when no worker matches")

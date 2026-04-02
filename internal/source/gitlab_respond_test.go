@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"mecha.im/internal/event"
-	"mecha.im/internal/policy"
+	"mecha.im/internal/events"
+	"mecha.im/internal/policies"
 )
 
 func TestGitLabResponder_Name(t *testing.T) {
@@ -31,15 +31,15 @@ func TestGitLabResponder_PostComment(t *testing.T) {
 	defer srv.Close()
 
 	resp := NewGitLabResponder(srv.URL, "my-token")
-	ev := &event.Event{
+	ev := &events.Event{
 		Type: "merge_request.opened",
-		Attrs: event.Attrs{
+		Attrs: events.Attrs{
 			"repo_owner": "acme",
 			"repo_name":  "app",
 			"number":     42,
 		},
 	}
-	res := policy.Result{Output: "LGTM, looks good"}
+	res := policies.Result{Output: "LGTM, looks good"}
 	err := resp.Respond(context.Background(), ev, res)
 	if err != nil {
 		t.Fatal(err)
@@ -57,8 +57,8 @@ func TestGitLabResponder_PostComment(t *testing.T) {
 
 func TestGitLabResponder_EmptyResult(t *testing.T) {
 	resp := NewGitLabResponder("https://gitlab.com/api/v4", "token")
-	ev := &event.Event{Type: "merge_request.opened", Attrs: event.Attrs{}}
-	err := resp.Respond(context.Background(), ev, policy.Result{})
+	ev := &events.Event{Type: "merge_request.opened", Attrs: events.Attrs{}}
+	err := resp.Respond(context.Background(), ev, policies.Result{})
 	if err != nil {
 		t.Errorf("empty result should not error: %v", err)
 	}

@@ -105,6 +105,21 @@ mecha_events_dedup_skipped 2
 
 The `/metrics` endpoint is public (no API key required) for scraper access.
 
+### Log (Structured Pipeline Trace)
+
+`GET /logs` returns structured pipeline observations — every event received, match decision, policy evaluation, dispatch attempt, and write-back result:
+
+```
+GET /logs?event={id}              — trace one event's journey
+GET /logs?task={id}               — trace one task's lifecycle
+GET /logs?worker={name}&since=1h  — worker activity feed
+GET /logs?action=policy&since=24h — all policy decisions today
+GET /logs?trace={id}              — full causal chain
+GET /logs?limit=50                — latest 50 entries
+```
+
+Each entry has: `id` (auto-increment), `trace_id`, `ts`, `action`, `outcome` (ok/fail/skip/retry/deny), `event_id`, `task_id`, `worker`, `attempt`, `error`, `detail` (sparse JSON). All secret patterns are redacted before write.
+
 ### Debug Vars
 
 `GET /debug/vars` exposes Go's expvar endpoint with all metrics as JSON.
@@ -117,9 +132,8 @@ The server runs four background loops:
 |------|----------|---------|
 | Retry scan | 30s | Re-enqueues tasks whose backoff delay has elapsed |
 | Pending scan | 60s | Catches orphaned pending tasks not in the dispatch channel |
-| Reconciliation | 60s | Detects registry/Docker state drift (health checks) |
+| Reconciliation | 60s | Detects registry/Docker state drift (Docker workers only) |
 | Rate limiter cleanup | 5m | Removes stale per-worker buckets (unused for 10m) |
-| Rate limiter cleanup | 5m | Removes stale per-worker buckets |
 
 ## Graceful Shutdown
 

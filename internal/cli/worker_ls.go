@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/workers"
 )
 
 func workerLsCmd() *cobra.Command {
@@ -33,7 +33,7 @@ func workerLsCmd() *cobra.Command {
 					endpoint = e.Worker.Endpoint
 				}
 				health := probeResults[i]
-				if health == "unreachable" && e.State == worker.StateOnline {
+				if health == "unreachable" && e.State == workers.StateOnline {
 					if setErr := reg.SetError(e.Worker.Name, "health check failed"); setErr != nil {
 						fmt.Fprintf(os.Stderr, "warning: failed to set error state for %s: %v\n", e.Worker.Name, setErr)
 					}
@@ -51,7 +51,7 @@ func workerLsCmd() *cobra.Command {
 	}
 }
 
-func probeHealthConcurrent(entries []worker.Entry) []string {
+func probeHealthConcurrent(entries []workers.Entry) []string {
 	results := make([]string, len(entries))
 	var wg sync.WaitGroup
 	for i, e := range entries {
@@ -59,18 +59,18 @@ func probeHealthConcurrent(entries []worker.Entry) []string {
 		if ep == "" {
 			ep = e.Worker.Endpoint
 		}
-		if e.State == worker.StateOffline || ep == "" {
+		if e.State == workers.StateOffline || ep == "" {
 			results[i] = "-"
 			continue
 		}
-		if e.State == worker.StateError {
-			results[i] = worker.RedactSecrets(e.Error)
+		if e.State == workers.StateError {
+			results[i] = workers.RedactSecrets(e.Error)
 			continue
 		}
 		wg.Add(1)
 		go func(idx int, endpoint string) {
 			defer wg.Done()
-			if err := worker.CheckHealth(endpoint, 5*time.Second); err != nil {
+			if err := workers.CheckHealth(endpoint, 5*time.Second); err != nil {
 				results[idx] = "unreachable"
 			} else {
 				results[idx] = "ok"

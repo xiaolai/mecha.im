@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/workers"
 )
 
 func configCmd() *cobra.Command {
@@ -24,7 +24,7 @@ func configCmd() *cobra.Command {
 	}
 }
 
-func showWorkerConfig(reg *worker.Registry, name string) error {
+func showWorkerConfig(reg *workers.Registry, name string) error {
 	e, ok := reg.Get(name)
 	if !ok {
 		return fmt.Errorf("worker %q not found", name)
@@ -32,7 +32,7 @@ func showWorkerConfig(reg *worker.Registry, name string) error {
 	return printYAML(e.Worker)
 }
 
-func showAllConfig(reg *worker.Registry) error {
+func showAllConfig(reg *workers.Registry) error {
 	entries := reg.List()
 	if len(entries) == 0 {
 		fmt.Println("no workers registered")

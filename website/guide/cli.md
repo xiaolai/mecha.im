@@ -11,7 +11,7 @@ Print the version.
 
 ```bash
 $ mecha version
-mecha v0.5.14
+mecha v0.5.15
 ```
 
 ## mecha worker add
@@ -98,7 +98,7 @@ api-service   live     error   http://100.64.0.3:8080  unreachable
 |--------|-------------|
 | NAME | Worker name from YAML |
 | TYPE | `managed` (Docker), `adapter` (in-process), or `live` (unmanaged) |
-| STATE | `offline`, `online`, or `error` |
+| STATE | `offline`, `online`, `busy`, or `error` |
 | ENDPOINT | Runtime URL (managed: auto-assigned port, live: from YAML) |
 | HEALTH | `ok`, `unreachable`, `-` (offline), or error message |
 

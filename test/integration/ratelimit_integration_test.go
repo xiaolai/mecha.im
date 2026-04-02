@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"mecha.im/internal/event"
+	"mecha.im/internal/events"
 	"mecha.im/internal/serve"
 	"mecha.im/internal/store"
-	"mecha.im/internal/task"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/tasks"
+	"mecha.im/internal/workers"
 )
 
 func TestRateLimit_ThrottlesAndRequeues(t *testing.T) {
@@ -45,11 +45,11 @@ func TestRateLimit_ThrottlesAndRequeues(t *testing.T) {
 		t.Fatalf("open db: %v", err)
 	}
 
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatalf("create registry: %v", err)
 	}
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:     "rl-worker",
 		Endpoint: mock.URL,
 		Timeout:  30 * time.Second,
@@ -61,8 +61,8 @@ func TestRateLimit_ThrottlesAndRequeues(t *testing.T) {
 		t.Fatalf("start worker: %v", err)
 	}
 
-	tasks := task.NewStore(db)
-	events := event.NewStore(db)
+	taskStore := tasks.NewStore(db)
+	evStore := events.NewStore(db)
 
 	port := findFreePort(t)
 	addr := fmt.Sprintf("127.0.0.1:%d", port)
@@ -73,8 +73,8 @@ func TestRateLimit_ThrottlesAndRequeues(t *testing.T) {
 
 	srv := serve.New(serve.Config{
 		Registry: reg,
-		Tasks:    tasks,
-		Events:   events,
+		Tasks:    taskStore,
+		Events:   evStore,
 		Limiter:  limiter,
 		Addr:     addr,
 	})

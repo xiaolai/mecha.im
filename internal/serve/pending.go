@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"mecha.im/internal/task"
+	"mecha.im/internal/tasks"
 )
 
 const (
@@ -45,7 +45,7 @@ func (s *Server) scanPending(ctx context.Context) {
 			continue
 		}
 		// Skip dispatched tasks (worker is processing them)
-		if t.State == task.StateDispatched {
+		if t.State == tasks.StateDispatched {
 			continue
 		}
 		// Dedup check: don't re-dispatch if already completed

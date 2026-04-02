@@ -1,11 +1,11 @@
 ---
-description: Mecha domain model — four nouns, their verbs, and the pipeline
+description: Mecha domain model — five nouns, their verbs, and the pipeline
 globs: "**/*.go"
 ---
 
 # Domain Model
 
-Mecha has exactly four nouns: Event, Worker, Task, Policy.
+Mecha has exactly five nouns: Event, Worker, Task, Policy, Log.
 
 ## Pipeline
 
@@ -43,12 +43,14 @@ Events are provider-neutral. All provider-specific data lives in `Attrs`.
 - **Worker**: add, remove, start, stop, ls
 - **Task**: create, dispatch, complete, fail, retry
 - **Policy**: filter
+- **Log**: record, query, prune
 
 ## Rules
 
 - Each verb belongs to exactly one noun. No orphan verbs.
 - Each verb changes exactly one noun.
 - Nouns don't know each other. Connected only through the pipeline.
+- Exception: Log observes all other nouns (references their IDs) but never changes them.
 - One noun, one lifecycle.
 - No hidden nouns. Unowned logic means a missing noun.
 - Verbs are idempotent where possible.

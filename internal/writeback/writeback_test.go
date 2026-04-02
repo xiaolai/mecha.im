@@ -9,16 +9,16 @@ import (
 	"strings"
 	"testing"
 
-	"mecha.im/internal/event"
-	"mecha.im/internal/policy"
+	"mecha.im/internal/events"
+	"mecha.im/internal/policies"
 )
 
-func testEvent() *event.Event {
-	return &event.Event{
+func testEvent() *events.Event {
+	return &events.Event{
 		ID:      "ev-1",
 		Actor:   "alice",
 		Subject: "testorg/testrepo",
-		Attrs: event.Attrs{
+		Attrs: events.Attrs{
 			"repo_owner": "testorg",
 			"repo_name":  "testrepo",
 			"number":     42,
@@ -29,7 +29,7 @@ func testEvent() *event.Event {
 
 func TestWriteBackResultNilClient(t *testing.T) {
 	var c *Client
-	err := c.WriteBackResult(context.Background(), testEvent(), policy.Result{})
+	err := c.WriteBackResult(context.Background(), testEvent(), policies.Result{})
 	if err != nil {
 		t.Errorf("nil client should return nil, got %v", err)
 	}
@@ -37,7 +37,7 @@ func TestWriteBackResultNilClient(t *testing.T) {
 
 func TestWriteBackResultEmptyToken(t *testing.T) {
 	c := NewClient("", slog.Default())
-	err := c.WriteBackResult(context.Background(), testEvent(), policy.Result{})
+	err := c.WriteBackResult(context.Background(), testEvent(), policies.Result{})
 	if err != nil {
 		t.Errorf("empty token should return nil, got %v", err)
 	}
@@ -58,8 +58,8 @@ func TestWriteBackResultComment(t *testing.T) {
 	defer func() { apiBase = old }()
 
 	c := NewClient("test-token", slog.Default())
-	err := c.WriteBackResult(context.Background(), testEvent(), policy.Result{
-		Comment: &policy.CommentAction{Body: "hello"},
+	err := c.WriteBackResult(context.Background(), testEvent(), policies.Result{
+		Comment: &policies.CommentAction{Body: "hello"},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -89,8 +89,8 @@ func TestWriteBackResultStatus(t *testing.T) {
 	defer func() { apiBase = old }()
 
 	c := NewClient("test-token", slog.Default())
-	err := c.WriteBackResult(context.Background(), testEvent(), policy.Result{
-		Status: &policy.StatusAction{State: "success", Description: "ok"},
+	err := c.WriteBackResult(context.Background(), testEvent(), policies.Result{
+		Status: &policies.StatusAction{State: "success", Description: "ok"},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -111,8 +111,8 @@ func TestWriteBackResultInvalidStatus(t *testing.T) {
 	defer func() { apiBase = old }()
 
 	c := NewClient("test-token", slog.Default())
-	err := c.WriteBackResult(context.Background(), testEvent(), policy.Result{
-		Status: &policy.StatusAction{State: "invalid-state"},
+	err := c.WriteBackResult(context.Background(), testEvent(), policies.Result{
+		Status: &policies.StatusAction{State: "invalid-state"},
 	})
 	if err != nil {
 		t.Fatalf("invalid status should not error, got %v", err)
@@ -136,8 +136,8 @@ func TestWriteBackResultLabels(t *testing.T) {
 	defer func() { apiBase = old }()
 
 	c := NewClient("test-token", slog.Default())
-	err := c.WriteBackResult(context.Background(), testEvent(), policy.Result{
-		Labels: &policy.LabelAction{Add: []string{"bug"}, Remove: []string{"stale"}},
+	err := c.WriteBackResult(context.Background(), testEvent(), policies.Result{
+		Labels: &policies.LabelAction{Add: []string{"bug"}, Remove: []string{"stale"}},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -161,9 +161,9 @@ func TestWriteBackResultErrorsJoined(t *testing.T) {
 	defer func() { apiBase = old }()
 
 	c := NewClient("test-token", slog.Default())
-	err := c.WriteBackResult(context.Background(), testEvent(), policy.Result{
-		Comment: &policy.CommentAction{Body: "hello"},
-		Status:  &policy.StatusAction{State: "success"},
+	err := c.WriteBackResult(context.Background(), testEvent(), policies.Result{
+		Comment: &policies.CommentAction{Body: "hello"},
+		Status:  &policies.StatusAction{State: "success"},
 	})
 	if err == nil {
 		t.Fatal("expected error")
@@ -195,8 +195,8 @@ func TestWriteBackResultCommitSuggestion(t *testing.T) {
 	defer restore()
 
 	c := NewClient("test-token", slog.Default())
-	err := c.WriteBackResult(context.Background(), testEvent(), policy.Result{
-		Commit: &policy.CommitAction{Message: "fix typo", Diff: "--- a/f.go\n+++ b/f.go"},
+	err := c.WriteBackResult(context.Background(), testEvent(), policies.Result{
+		Commit: &policies.CommitAction{Message: "fix typo", Diff: "--- a/f.go\n+++ b/f.go"},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -215,8 +215,8 @@ func TestWriteBackResultCommitNoDiff(t *testing.T) {
 	defer restore()
 
 	c := NewClient("test-token", slog.Default())
-	err := c.WriteBackResult(context.Background(), testEvent(), policy.Result{
-		Commit: &policy.CommitAction{Message: "fix", Diff: ""},
+	err := c.WriteBackResult(context.Background(), testEvent(), policies.Result{
+		Commit: &policies.CommitAction{Message: "fix", Diff: ""},
 	})
 	if err != nil {
 		t.Fatalf("should succeed without API call: %v", err)
@@ -235,9 +235,9 @@ func TestWriteBackResultNoNumber(t *testing.T) {
 	ev := testEvent()
 	ev.Attrs["number"] = 0
 	c := NewClient("test-token", slog.Default())
-	err := c.WriteBackResult(context.Background(), ev, policy.Result{
-		Comment: &policy.CommentAction{Body: "hello"},
-		Labels:  &policy.LabelAction{Add: []string{"bug"}},
+	err := c.WriteBackResult(context.Background(), ev, policies.Result{
+		Comment: &policies.CommentAction{Body: "hello"},
+		Labels:  &policies.LabelAction{Add: []string{"bug"}},
 	})
 	if err != nil {
 		t.Fatalf("should succeed with no actions: %v", err)

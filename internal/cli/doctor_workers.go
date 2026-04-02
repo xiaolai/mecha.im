@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"mecha.im/internal/store"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/workers"
 )
 
 func runWorkerChecks(ctx context.Context) bool {
@@ -26,7 +26,7 @@ func runWorkerChecks(ctx context.Context) bool {
 		return true // already reported by checkDatabase
 	}
 	defer db.Close()
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		fmt.Println("\nWorkers")
 		printStatus("fail", "load worker registry: "+err.Error())
@@ -57,7 +57,7 @@ func runWorkerChecks(ctx context.Context) bool {
 	return ok
 }
 
-func checkWorkerEntry(ctx context.Context, e worker.Entry, secrets *worker.Secrets, dc *worker.DockerClient) bool {
+func checkWorkerEntry(ctx context.Context, e workers.Entry, secrets *workers.Secrets, dc *workers.DockerClient) bool {
 	ok := true
 	w := e.Worker
 	if w.Docker != nil {
@@ -71,7 +71,7 @@ func checkWorkerEntry(ctx context.Context, e worker.Entry, secrets *worker.Secre
 	return ok
 }
 
-func checkWorkerCwd(w *worker.Worker) bool {
+func checkWorkerCwd(w *workers.Worker) bool {
 	if w.Docker.Cwd == "" {
 		return true
 	}
@@ -89,7 +89,7 @@ func checkWorkerCwd(w *worker.Worker) bool {
 		printStatus("fail", fmt.Sprintf("    cwd %s is not a directory", w.Docker.Cwd))
 		return false
 	}
-	if worker.IsSensitivePath(resolved) {
+	if workers.IsSensitivePath(resolved) {
 		printStatus("fail", fmt.Sprintf("    cwd %s resolves to sensitive path %s", w.Docker.Cwd, resolved))
 		return false
 	}
@@ -101,7 +101,7 @@ func checkWorkerCwd(w *worker.Worker) bool {
 	return true
 }
 
-func checkWorkerToken(w *worker.Worker, secrets *worker.Secrets) bool {
+func checkWorkerToken(w *workers.Worker, secrets *workers.Secrets) bool {
 	if w.Docker.Token == "" {
 		return true
 	}
@@ -118,7 +118,7 @@ func checkWorkerToken(w *worker.Worker, secrets *worker.Secrets) bool {
 	return true
 }
 
-func checkWorkerImage(ctx context.Context, w *worker.Worker, dc *worker.DockerClient) bool {
+func checkWorkerImage(ctx context.Context, w *workers.Worker, dc *workers.DockerClient) bool {
 	if dc == nil {
 		return true
 	}
@@ -141,7 +141,7 @@ func checkWorkerImage(ctx context.Context, w *worker.Worker, dc *worker.DockerCl
 	return true
 }
 
-func checkAdapterUpstream(w *worker.Worker) bool {
+func checkAdapterUpstream(w *workers.Worker) bool {
 	// Each adapter type has a different health endpoint:
 	// ollama: GET /, openai: GET /v1/models
 	healthPath := "/"
@@ -175,20 +175,20 @@ func probeHTTP(url string, timeout time.Duration) error {
 	return nil
 }
 
-func loadSecretsQuiet() *worker.Secrets {
-	path, err := worker.DefaultSecretsPath()
+func loadSecretsQuiet() *workers.Secrets {
+	path, err := workers.DefaultSecretsPath()
 	if err != nil {
 		return nil
 	}
-	s, err := worker.LoadSecrets(path)
+	s, err := workers.LoadSecrets(path)
 	if err != nil {
 		return nil
 	}
 	return s
 }
 
-func dockerClientQuiet() *worker.DockerClient {
-	dc, err := worker.NewDockerClient("")
+func dockerClientQuiet() *workers.DockerClient {
+	dc, err := workers.NewDockerClient("")
 	if err != nil {
 		return nil
 	}

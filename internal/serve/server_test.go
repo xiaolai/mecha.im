@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"mecha.im/internal/store"
-	"mecha.im/internal/task"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/tasks"
+	"mecha.im/internal/workers"
 )
 
 func TestStartAndShutdown(t *testing.T) {
@@ -19,12 +19,12 @@ func TestStartAndShutdown(t *testing.T) {
 	}
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
 
 	srv := New(Config{
 		Registry: reg,
-		Tasks:    tasks,
+		Tasks:    taskStore,
 		Addr:     "127.0.0.1:0",
 	})
 
@@ -53,12 +53,12 @@ func TestStartBadAddr(t *testing.T) {
 	db, _ := store.Open(path)
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
 
 	srv := New(Config{
 		Registry: reg,
-		Tasks:    tasks,
+		Tasks:    taskStore,
 		Addr:     "999.999.999.999:99999", // invalid address
 	})
 
@@ -73,8 +73,8 @@ func TestStartWithRecovery(t *testing.T) {
 	db, _ := store.Open(path)
 	defer db.Close()
 
-	reg, _ := worker.NewRegistry(db)
-	ts := task.NewStore(db)
+	reg, _ := workers.NewRegistry(db)
+	ts := tasks.NewStore(db)
 
 	// Create pending tasks before server starts
 	ctx := context.Background()
@@ -97,10 +97,10 @@ func TestStartWithRecovery(t *testing.T) {
 	// Tasks should have been recovered and attempted (failed because no workers)
 	got1, _ := ts.Get(ctx, t1.ID)
 	got2, _ := ts.Get(ctx, t2.ID)
-	if got1.State != task.StateFailed {
+	if got1.State != tasks.StateFailed {
 		t.Errorf("t1 state = %q, want failed (recovered)", got1.State)
 	}
-	if got2.State != task.StateFailed {
+	if got2.State != tasks.StateFailed {
 		t.Errorf("t2 state = %q, want failed (recovered)", got2.State)
 	}
 

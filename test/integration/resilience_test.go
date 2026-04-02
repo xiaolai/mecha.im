@@ -16,12 +16,12 @@ import (
 	"testing"
 	"time"
 
-	"mecha.im/internal/event"
+	"mecha.im/internal/events"
 	"mecha.im/internal/serve"
 	"mecha.im/internal/source"
 	"mecha.im/internal/store"
-	"mecha.im/internal/task"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/tasks"
+	"mecha.im/internal/workers"
 )
 
 // signGitHub computes the HMAC-SHA256 signature for a GitHub webhook.
@@ -68,11 +68,11 @@ func TestResilience_CrashRecoveryPendingTasks(t *testing.T) {
 	}
 
 	// 2. Register the worker and start the server.
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatalf("create registry: %v", err)
 	}
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:     "recovery-worker",
 		Endpoint: mock.URL,
 		Timeout:  30 * time.Second,
@@ -84,15 +84,15 @@ func TestResilience_CrashRecoveryPendingTasks(t *testing.T) {
 		t.Fatalf("start worker: %v", err)
 	}
 
-	tasks := task.NewStore(db)
-	events := event.NewStore(db)
+	taskStore := tasks.NewStore(db)
+	evStore := events.NewStore(db)
 	port := findFreePort(t)
 	addr := fmt.Sprintf("127.0.0.1:%d", port)
 
 	srv := serve.New(serve.Config{
 		Registry: reg,
-		Tasks:    tasks,
-		Events:   events,
+		Tasks:    taskStore,
+		Events:   evStore,
 		Addr:     addr,
 	})
 
@@ -122,11 +122,11 @@ func TestResilience_CrashRecoveryPendingTasks(t *testing.T) {
 	}
 
 	// Verify the task reached completed state.
-	tsk, err := tasks.Get(context.Background(), "recovered-task-001")
+	tsk, err := taskStore.Get(context.Background(), "recovered-task-001")
 	if err != nil {
 		t.Fatalf("get task: %v", err)
 	}
-	if tsk.State != task.StateCompleted {
+	if tsk.State != tasks.StateCompleted {
 		t.Errorf("task state = %q, want completed", tsk.State)
 	}
 }
@@ -167,15 +167,15 @@ func TestResilience_CrashRecoveryStuckEvents(t *testing.T) {
 	}))
 	defer mock.Close()
 
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatalf("create registry: %v", err)
 	}
-	wk := &worker.Worker{
+	wk := &workers.Worker{
 		Name:     "event-worker",
 		Endpoint: mock.URL,
 		Timeout:  30 * time.Second,
-		Events: []worker.EventRule{
+		Events: []workers.EventRule{
 			{
 				Source: "github",
 				On:     []string{"pull_request.opened"},
@@ -190,8 +190,8 @@ func TestResilience_CrashRecoveryStuckEvents(t *testing.T) {
 		t.Fatalf("start worker: %v", err)
 	}
 
-	tasks := task.NewStore(db)
-	evStore := event.NewStore(db)
+	taskStore := tasks.NewStore(db)
+	evStore := events.NewStore(db)
 	srcReg := source.NewRegistry()
 	ghSrc := source.NewGitHubSource("", "")
 	srcReg.Register(ghSrc)
@@ -201,7 +201,7 @@ func TestResilience_CrashRecoveryStuckEvents(t *testing.T) {
 
 	srv := serve.New(serve.Config{
 		Registry: reg,
-		Tasks:    tasks,
+		Tasks:    taskStore,
 		Events:   evStore,
 		Sources:  srcReg,
 		Addr:     addr,
@@ -223,7 +223,7 @@ func TestResilience_CrashRecoveryStuckEvents(t *testing.T) {
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
 		ev, err := evStore.Get(context.Background(), "stuck-evt-001")
-		if err == nil && (ev.State == event.StateCompleted || ev.State == event.StateDispatched) {
+		if err == nil && (ev.State == events.StateCompleted || ev.State == events.StateDispatched) {
 			return // success
 		}
 		time.Sleep(100 * time.Millisecond)
@@ -231,7 +231,7 @@ func TestResilience_CrashRecoveryStuckEvents(t *testing.T) {
 
 	// Check final event state.
 	ev, _ := evStore.Get(context.Background(), "stuck-evt-001")
-	if ev != nil && ev.State != event.StateReceived {
+	if ev != nil && ev.State != events.StateReceived {
 		// If it transitioned at all, that counts as recovery working
 		return
 	}
@@ -264,15 +264,15 @@ func TestResilience_ConcurrentWebhooks(t *testing.T) {
 		t.Fatalf("open db: %v", err)
 	}
 
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatalf("create registry: %v", err)
 	}
-	wk := &worker.Worker{
+	wk := &workers.Worker{
 		Name:     "concurrent-worker",
 		Endpoint: mock.URL,
 		Timeout:  30 * time.Second,
-		Events: []worker.EventRule{
+		Events: []workers.EventRule{
 			{
 				Source: "github",
 				On:     []string{"push"},
@@ -287,8 +287,8 @@ func TestResilience_ConcurrentWebhooks(t *testing.T) {
 		t.Fatalf("start worker: %v", err)
 	}
 
-	tasks := task.NewStore(db)
-	evStore := event.NewStore(db)
+	taskStore := tasks.NewStore(db)
+	evStore := events.NewStore(db)
 	srcReg := source.NewRegistry()
 	ghSrc := source.NewGitHubSource(secret, "")
 	srcReg.Register(ghSrc)
@@ -298,7 +298,7 @@ func TestResilience_ConcurrentWebhooks(t *testing.T) {
 
 	srv := serve.New(serve.Config{
 		Registry: reg,
-		Tasks:    tasks,
+		Tasks:    taskStore,
 		Events:   evStore,
 		Sources:  srcReg,
 		Addr:     addr,
@@ -402,13 +402,13 @@ func TestResilience_WorkerGoesOfflineMidDispatch(t *testing.T) {
 	}))
 	defer mock.Close()
 
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:     "flaky-worker",
 		Endpoint: mock.URL,
 		Timeout:  5 * time.Second,
 	}
 
-	serverURL, cleanup := startTestServer(t, []*worker.Worker{w}, nil)
+	serverURL, cleanup := startTestServer(t, []*workers.Worker{w}, nil)
 	defer cleanup()
 
 	// Submit a task to the flaky worker.

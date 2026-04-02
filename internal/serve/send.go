@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"mecha.im/internal/worker"
+	"mecha.im/internal/workers"
 )
 
 func (s *Server) sendTask(ctx context.Context, endpoint, taskID, prompt string, timeout time.Duration, apiKey string) (string, error) {
@@ -45,7 +45,7 @@ func (s *Server) sendTask(ctx context.Context, endpoint, taskID, prompt string, 
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("worker returned %d: %s", resp.StatusCode, worker.RedactSecrets(string(body)))
+		return "", fmt.Errorf("worker returned %d: %s", resp.StatusCode, workers.RedactSecrets(string(body)))
 	}
 
 	return string(body), nil

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"mecha.im/internal/worker"
+	"mecha.im/internal/workers"
 )
 
 func TestAdapterStartNotFound(t *testing.T) {
@@ -28,9 +28,9 @@ func TestAdapterStartUnhealthyUpstream(t *testing.T) {
 	defer srv.Close()
 
 	reg := newTestRegistry(t)
-	reg.Add(&worker.Worker{
+	reg.Add(&workers.Worker{
 		Name: "unhealthy-adapter",
-		Adapter: &worker.AdapterConfig{
+		Adapter: &workers.AdapterConfig{
 			Type:     "ollama",
 			Upstream: srv.URL,
 			Model:    "test",
@@ -46,16 +46,16 @@ func TestAdapterStartUnhealthyUpstream(t *testing.T) {
 	}
 	// Worker should be in error state
 	e, _ := reg.Get("unhealthy-adapter")
-	if e.State != worker.StateError {
+	if e.State != workers.StateError {
 		t.Errorf("state = %s, want error", e.State)
 	}
 }
 
 func TestAdapterStartUnknownType(t *testing.T) {
 	reg := newTestRegistry(t)
-	reg.Add(&worker.Worker{
+	reg.Add(&workers.Worker{
 		Name: "bad-type",
-		Adapter: &worker.AdapterConfig{
+		Adapter: &workers.AdapterConfig{
 			Type:     "vllm",
 			Upstream: "http://localhost:1",
 			Model:    "test",
@@ -79,9 +79,9 @@ func TestAdapterStartHealthyUpstream(t *testing.T) {
 	defer srv.Close()
 
 	reg := newTestRegistry(t)
-	reg.Add(&worker.Worker{
+	reg.Add(&workers.Worker{
 		Name: "healthy-adapter",
-		Adapter: &worker.AdapterConfig{
+		Adapter: &workers.AdapterConfig{
 			Type:     "ollama",
 			Upstream: srv.URL,
 			Model:    "test",
@@ -101,7 +101,7 @@ func TestAdapterStartHealthyUpstream(t *testing.T) {
 	if e.RuntimeEndpoint == "" {
 		t.Error("runtime endpoint should be set")
 	}
-	if e.State != worker.StateOnline {
+	if e.State != workers.StateOnline {
 		t.Errorf("state = %s, want online", e.State)
 	}
 }
