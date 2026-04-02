@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"mecha.im/internal/audit"
+	"mecha.im/internal/logs"
 	"mecha.im/internal/event"
 	"mecha.im/internal/source"
 )
@@ -80,8 +80,8 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusAccepted, ev)
 
-	s.record(audit.Entry{TraceID: ev.ID, EventID: ev.ID, Action: audit.EventReceived, Outcome: audit.OK,
-		Detail: audit.MarshalDetail(map[string]string{"source": ev.Source, "type": ev.Type})})
+	s.record(logs.Entry{TraceID: ev.ID, EventID: ev.ID, Action: logs.EventReceived, Outcome: logs.OK,
+		Detail: logs.MarshalDetail(map[string]string{"source": ev.Source, "type": ev.Type})})
 
 	webhooksReceived.Add(1)
 	// Match + hydrate + dispatch in background with timeout
@@ -143,7 +143,7 @@ func (s *Server) matchAndHydrate(ctx context.Context, ev *event.Event, src sourc
 				s.logger.Error("webhook: set matched", "event", ev.ID, "err", err)
 				return
 			}
-			s.record(audit.Entry{TraceID: ev.ID, EventID: ev.ID, Worker: entry.Worker.Name, Action: audit.EventMatched, Outcome: audit.OK})
+			s.record(logs.Entry{TraceID: ev.ID, EventID: ev.ID, Worker: entry.Worker.Name, Action: logs.EventMatched, Outcome: logs.OK})
 
 			taskCtx, ctxErr := buildTaskContext(ev)
 			if ctxErr != nil {

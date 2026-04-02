@@ -1,4 +1,4 @@
-package audit
+package logs
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"mecha.im/internal/worker"
 )
 
-// Store persists audit entries to SQLite and provides query access.
+// Store persists log entries to SQLite and provides query access.
 type Store struct {
 	db     *sql.DB
 	logger *slog.Logger
@@ -37,18 +37,18 @@ func (s *Store) Record(e Entry) {
 	e.Detail = worker.RedactSecrets(e.Detail)
 
 	_, err := s.db.Exec(
-		`INSERT INTO audit (trace_id, ts, action, outcome, event_id, task_id, worker, attempt, error, detail)
+		`INSERT INTO logs (trace_id, ts, action, outcome, event_id, task_id, worker, attempt, error, detail)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		e.TraceID, e.TS, e.Action, e.Outcome,
 		e.EventID, e.TaskID, e.Worker, e.Attempt,
 		e.Error, e.Detail,
 	)
 	if err != nil {
-		s.logger.Warn("audit: write failed", "action", e.Action, "err", err)
+		s.logger.Warn("logs: write failed", "action", e.Action, "err", err)
 	}
 }
 
-// Query returns audit entries matching the filter.
+// Query returns log entries matching the filter.
 func (s *Store) Query(ctx context.Context, f Filter) ([]Entry, error) {
 	if f.Limit <= 0 {
 		f.Limit = 100
@@ -90,7 +90,7 @@ func (s *Store) Query(ctx context.Context, f Filter) ([]Entry, error) {
 		args = append(args, f.Until.Unix())
 	}
 
-	query := "SELECT id, trace_id, ts, action, outcome, event_id, task_id, worker, attempt, error, detail FROM audit"
+	query := "SELECT id, trace_id, ts, action, outcome, event_id, task_id, worker, attempt, error, detail FROM logs"
 	if len(where) > 0 {
 		query += " WHERE " + strings.Join(where, " AND ")
 	}
@@ -99,7 +99,7 @@ func (s *Store) Query(ctx context.Context, f Filter) ([]Entry, error) {
 
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("audit query: %w", err)
+		return nil, fmt.Errorf("logs query: %w", err)
 	}
 	defer rows.Close()
 
@@ -108,7 +108,7 @@ func (s *Store) Query(ctx context.Context, f Filter) ([]Entry, error) {
 		var e Entry
 		if err := rows.Scan(&e.ID, &e.TraceID, &e.TS, &e.Action, &e.Outcome,
 			&e.EventID, &e.TaskID, &e.Worker, &e.Attempt, &e.Error, &e.Detail); err != nil {
-			return nil, fmt.Errorf("audit scan: %w", err)
+			return nil, fmt.Errorf("logs scan: %w", err)
 		}
 		entries = append(entries, e)
 	}
@@ -117,9 +117,9 @@ func (s *Store) Query(ctx context.Context, f Filter) ([]Entry, error) {
 
 // Prune deletes entries older than the given time. Returns count deleted.
 func (s *Store) Prune(ctx context.Context, before time.Time) (int64, error) {
-	res, err := s.db.ExecContext(ctx, "DELETE FROM audit WHERE ts < ?", before.Unix())
+	res, err := s.db.ExecContext(ctx, "DELETE FROM logs WHERE ts < ?", before.Unix())
 	if err != nil {
-		return 0, fmt.Errorf("audit prune: %w", err)
+		return 0, fmt.Errorf("logs prune: %w", err)
 	}
 	return res.RowsAffected()
 }

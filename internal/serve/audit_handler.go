@@ -5,19 +5,19 @@ import (
 	"strconv"
 	"time"
 
-	"mecha.im/internal/audit"
+	"mecha.im/internal/logs"
 )
 
-// record is a nil-safe helper that writes an audit entry if the audit store exists.
-func (s *Server) record(e audit.Entry) {
-	if s.audit != nil {
-		s.audit.Record(e)
+// record is a nil-safe helper that writes a log entry if the log store exists.
+func (s *Server) record(e logs.Entry) {
+	if s.logs != nil {
+		s.logs.Record(e)
 	}
 }
 
-func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
-	f := audit.Filter{
+	f := logs.Filter{
 		TraceID: q.Get("trace"),
 		EventID: q.Get("event"),
 		TaskID:  q.Get("task"),
@@ -35,9 +35,9 @@ func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	entries, err := s.audit.Query(r.Context(), f)
+	entries, err := s.logs.Query(r.Context(), f)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "audit query failed")
+		writeError(w, http.StatusInternalServerError, "log query failed")
 		return
 	}
 	if entries == nil {
