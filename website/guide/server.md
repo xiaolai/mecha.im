@@ -105,6 +105,21 @@ mecha_events_dedup_skipped 2
 
 The `/metrics` endpoint is public (no API key required) for scraper access.
 
+### Audit Trail
+
+`GET /audit` returns structured pipeline observations — every event received, match decision, policy evaluation, dispatch attempt, and write-back result:
+
+```
+GET /audit?event={id}              — trace one event's journey
+GET /audit?task={id}               — trace one task's lifecycle
+GET /audit?worker={name}&since=1h  — worker activity feed
+GET /audit?action=policy&since=24h — all policy decisions today
+GET /audit?trace={id}              — full causal chain
+GET /audit?limit=50                — latest 50 entries
+```
+
+Each entry has: `id` (auto-increment), `trace_id`, `ts`, `action`, `outcome` (ok/fail/skip/retry/deny), `event_id`, `task_id`, `worker`, `attempt`, `error`, `detail` (sparse JSON). All secret patterns are redacted before write.
+
 ### Debug Vars
 
 `GET /debug/vars` exposes Go's expvar endpoint with all metrics as JSON.
