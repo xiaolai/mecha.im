@@ -136,5 +136,13 @@ func migrate(db *sql.DB) error {
 			return err
 		}
 	}
+	if version < 6 {
+		if _, err := db.Exec(schemaV6); err != nil {
+			return fmt.Errorf("apply schema v6: %w", err)
+		}
+		if _, err := db.Exec("PRAGMA user_version = 6"); err != nil {
+			return err
+		}
+	}
 	return nil
 }

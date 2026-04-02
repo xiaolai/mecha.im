@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"mecha.im/internal/audit"
 	"mecha.im/internal/task"
 	"mecha.im/internal/worker"
 )
@@ -145,9 +146,11 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 			}
 			if retried {
 				tasksRetried.Add(1)
+				s.record(audit.Entry{TraceID: t.EventID, TaskID: taskID, Worker: t.WorkerName, Action: audit.TaskRetry, Outcome: audit.Retry, Attempt: t.Attempts + 1, Error: redacted})
 				s.logger.Info("dispatch: task queued for retry", "id", taskID, "worker", t.WorkerName)
 			} else {
 				tasksFailed.Add(1)
+				s.record(audit.Entry{TraceID: t.EventID, TaskID: taskID, Worker: t.WorkerName, Action: audit.TaskDeadLetter, Outcome: audit.Fail, Attempt: t.Attempts + 1, Error: redacted})
 				s.completeEvent(ctx, t.EventID, false)
 				s.logger.Error("dispatch: task dead-lettered", "id", taskID, "err", redacted)
 			}
@@ -197,5 +200,6 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 
 	tasksCompleted.Add(1)
 	latency.observe(time.Since(dispatchStart))
+	s.record(audit.Entry{TraceID: t.EventID, TaskID: taskID, Worker: t.WorkerName, Action: audit.TaskSent, Outcome: audit.OK, Attempt: t.Attempts})
 	s.logger.Info("task completed", "id", taskID, "worker", t.WorkerName)
 }

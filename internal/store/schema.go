@@ -105,3 +105,26 @@ ALTER TABLE tasks ADD COLUMN max_retries INTEGER NOT NULL DEFAULT 3;
 ALTER TABLE tasks ADD COLUMN next_retry_at INTEGER;
 CREATE INDEX IF NOT EXISTS idx_tasks_retry ON tasks(state, next_retry_at) WHERE state = 'pending' AND next_retry_at IS NOT NULL;
 `
+
+// schemaV6 adds the audit trail table.
+const schemaV6 = `
+CREATE TABLE IF NOT EXISTS audit (
+	id       INTEGER PRIMARY KEY AUTOINCREMENT,
+	trace_id TEXT NOT NULL DEFAULT '',
+	ts       INTEGER NOT NULL,
+	action   TEXT NOT NULL,
+	outcome  TEXT NOT NULL DEFAULT 'ok',
+	event_id TEXT NOT NULL DEFAULT '',
+	task_id  TEXT NOT NULL DEFAULT '',
+	worker   TEXT NOT NULL DEFAULT '',
+	attempt  INTEGER NOT NULL DEFAULT 0,
+	error    TEXT NOT NULL DEFAULT '',
+	detail   TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_trace ON audit(trace_id) WHERE trace_id != '';
+CREATE INDEX IF NOT EXISTS idx_audit_event ON audit(event_id) WHERE event_id != '';
+CREATE INDEX IF NOT EXISTS idx_audit_task ON audit(task_id) WHERE task_id != '';
+CREATE INDEX IF NOT EXISTS idx_audit_action_ts ON audit(action, ts);
+CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit(ts);
+`
