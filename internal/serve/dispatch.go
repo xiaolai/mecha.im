@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"mecha.im/internal/logs"
-	"mecha.im/internal/task"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/tasks"
+	"mecha.im/internal/workers"
 )
 
 var dispatchClient = &http.Client{
@@ -77,7 +77,7 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 	if ep == "" {
 		ep = entry.Worker.Endpoint
 	}
-	if ep == "" || entry.State != worker.StateOnline {
+	if ep == "" || entry.State != workers.StateOnline {
 		if err := s.tasks.Fail(ctx, taskID, fmt.Sprintf("worker %q not available (state: %s)", t.WorkerName, entry.State)); err != nil {
 			s.logger.Error("dispatch: fail task", "id", taskID, "err", err)
 		}
@@ -89,7 +89,7 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 	dispatchStart := time.Now()
 
 	// Mark dispatched — skip if already dispatched (recovery path)
-	if t.State == task.StatePending {
+	if t.State == tasks.StatePending {
 		if err := s.tasks.SetDispatched(ctx, taskID); err != nil {
 			s.logger.Error("dispatch: set dispatched", "id", taskID, "err", err)
 			return
@@ -137,7 +137,7 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 	}
 	result, err := s.sendTask(ctx, ep, taskID, t.Prompt, entry.Worker.Timeout, apiKey)
 	if err != nil {
-		redacted := worker.RedactSecrets(err.Error())
+		redacted := workers.RedactSecrets(err.Error())
 		// Retry transient errors; permanently fail the rest.
 		if isTransportError(err) {
 			retried, retryErr := s.tasks.RetryOrFail(ctx, taskID, redacted)

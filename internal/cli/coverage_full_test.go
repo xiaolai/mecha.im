@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"mecha.im/internal/store"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/workers"
 )
 
 // ---------- serveCmd ----------
@@ -143,13 +143,13 @@ func TestServeCmdAdapterAutoStart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatalf("NewRegistry: %v", err)
 	}
-	reg.Add(&worker.Worker{
+	reg.Add(&workers.Worker{
 		Name: "auto-adapter",
-		Adapter: &worker.AdapterConfig{
+		Adapter: &workers.AdapterConfig{
 			Type:     "ollama",
 			Upstream: srv.URL,
 			Model:    "test",
@@ -193,9 +193,9 @@ func TestServeCmdDefaultDBPath(t *testing.T) {
 
 func TestDockerStartInvalidCredentials(t *testing.T) {
 	reg := newTestRegistry(t)
-	reg.Add(&worker.Worker{
+	reg.Add(&workers.Worker{
 		Name: "bad-cred",
-		Docker: &worker.DockerConfig{
+		Docker: &workers.DockerConfig{
 			Image:       "test:latest",
 			Credentials: []string{"gemini"},
 		},
@@ -219,13 +219,13 @@ func TestDockerStopWithContainerIDNoDocker(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatalf("NewRegistry: %v", err)
 	}
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name: "has-container",
-		Docker: &worker.DockerConfig{
+		Docker: &workers.DockerConfig{
 			Image: "test:latest",
 		},
 	}
@@ -240,7 +240,7 @@ func TestDockerStopWithContainerIDNoDocker(t *testing.T) {
 		t.Fatalf("store.Open: %v", err)
 	}
 	defer db2.Close()
-	reg2, err := worker.NewRegistry(db2)
+	reg2, err := workers.NewRegistry(db2)
 	if err != nil {
 		t.Fatalf("NewRegistry: %v", err)
 	}
@@ -376,7 +376,7 @@ func TestCheckSecretsInvalidYAML(t *testing.T) {
 
 func TestCheckWorkerImageCustomHostWithDC(t *testing.T) {
 	// Even if a DockerClient is provided, custom Host should skip the check
-	w := &worker.Worker{Docker: &worker.DockerConfig{
+	w := &workers.Worker{Docker: &workers.DockerConfig{
 		Image: "test:latest",
 		Host:  "tcp://remote:2375",
 	}}
@@ -419,14 +419,14 @@ func TestWorkerStartCmdManagedDockerFail(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatalf("NewRegistry: %v", err)
 	}
 	// Add a managed Docker worker with a bad cwd to trigger validation error
-	reg.Add(&worker.Worker{
+	reg.Add(&workers.Worker{
 		Name: "docker-fail",
-		Docker: &worker.DockerConfig{
+		Docker: &workers.DockerConfig{
 			Image: "test:latest",
 			Cwd:   "/nonexistent/impossible/path",
 		},
@@ -448,11 +448,11 @@ func TestWorkerStartCmdAlreadyOnline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatalf("NewRegistry: %v", err)
 	}
-	w := &worker.Worker{Name: "already-up", Endpoint: "http://localhost:1"}
+	w := &workers.Worker{Name: "already-up", Endpoint: "http://localhost:1"}
 	reg.Add(w)
 	reg.Start("already-up")
 	db.Close()
@@ -477,13 +477,13 @@ func TestWorkerStopCmdManagedWithContainerID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatalf("NewRegistry: %v", err)
 	}
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name: "managed-stop",
-		Docker: &worker.DockerConfig{
+		Docker: &workers.DockerConfig{
 			Image: "test:latest",
 		},
 	}
@@ -513,13 +513,13 @@ func TestWorkerStopCmdAdapterWorker(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatalf("NewRegistry: %v", err)
 	}
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name: "adapter-to-stop",
-		Adapter: &worker.AdapterConfig{
+		Adapter: &workers.AdapterConfig{
 			Type: "ollama", Upstream: "http://localhost:11434", Model: "test",
 		},
 	}
@@ -544,11 +544,11 @@ func TestWorkerLsCmdOnlineUnreachable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatalf("NewRegistry: %v", err)
 	}
-	w := &worker.Worker{Name: "unreachable-w", Endpoint: "http://127.0.0.1:1"}
+	w := &workers.Worker{Name: "unreachable-w", Endpoint: "http://127.0.0.1:1"}
 	reg.Add(w)
 	reg.Start("unreachable-w") // Make it online
 	db.Close()
@@ -608,13 +608,13 @@ func TestWorkerRemoveCmdManagedWorker(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatalf("NewRegistry: %v", err)
 	}
-	reg.Add(&worker.Worker{
+	reg.Add(&workers.Worker{
 		Name:   "docker-rm",
-		Docker: &worker.DockerConfig{Image: "test:latest"},
+		Docker: &workers.DockerConfig{Image: "test:latest"},
 	})
 	db.Close()
 
@@ -707,7 +707,7 @@ func TestCheckWorkerCwdSensitivePath(t *testing.T) {
 	if err != nil {
 		t.Skip("cannot resolve home dir")
 	}
-	w := &worker.Worker{Docker: &worker.DockerConfig{Cwd: home}}
+	w := &workers.Worker{Docker: &workers.DockerConfig{Cwd: home}}
 	if checkWorkerCwd(w) {
 		t.Error("checkWorkerCwd should fail for home directory (sensitive path)")
 	}
@@ -721,9 +721,9 @@ func TestCheckWorkerEntryAdapter(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	e := worker.Entry{Worker: &worker.Worker{
+	e := workers.Entry{Worker: &workers.Worker{
 		Name: "adapter-check",
-		Adapter: &worker.AdapterConfig{
+		Adapter: &workers.AdapterConfig{
 			Type:     "ollama",
 			Upstream: srv.URL,
 			Model:    "test",
@@ -745,12 +745,12 @@ func TestWorkerStartCmdLiveNoEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatalf("NewRegistry: %v", err)
 	}
 	// Worker with no endpoint — should start without health check
-	w := &worker.Worker{Name: "no-ep-live", Endpoint: ""}
+	w := &workers.Worker{Name: "no-ep-live", Endpoint: ""}
 	reg.Add(w)
 	db.Close()
 
@@ -775,9 +775,9 @@ func TestDockerStartTokenResolutionWithSecrets(t *testing.T) {
 	t.Setenv("HOME", dir)
 
 	reg := newTestRegistry(t)
-	reg.Add(&worker.Worker{
+	reg.Add(&workers.Worker{
 		Name: "token-worker",
-		Docker: &worker.DockerConfig{
+		Docker: &workers.DockerConfig{
 			Image: "test:latest",
 			Token: "claude.dev",
 		},

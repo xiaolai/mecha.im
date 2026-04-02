@@ -127,7 +127,7 @@ Not supported as a managed Docker worker. Use unmanaged endpoints.
 ## Redaction
 
 All log output and error messages must redact these patterns
-(canonical list — matches `internal/worker/redact.go`):
+(canonical list — matches `internal/workers/redact.go`):
 
 - `sk-ant-*` (Anthropic OAuth + API)
 - `sk-*` (OpenAI, 20+ chars)

@@ -3,11 +3,11 @@ package cli
 import (
 	"testing"
 
-	"mecha.im/internal/worker"
+	"mecha.im/internal/workers"
 )
 
 func TestNewAdapterOllama(t *testing.T) {
-	ac := &worker.AdapterConfig{
+	ac := &workers.AdapterConfig{
 		Type:     "ollama",
 		Upstream: "http://localhost:11434",
 		Model:    "gemma2:9b",
@@ -22,7 +22,7 @@ func TestNewAdapterOllama(t *testing.T) {
 }
 
 func TestNewAdapterOpenAI(t *testing.T) {
-	ac := &worker.AdapterConfig{
+	ac := &workers.AdapterConfig{
 		Type:     "openai",
 		Upstream: "http://localhost:8080",
 		Model:    "gpt-4",
@@ -38,7 +38,7 @@ func TestNewAdapterOpenAI(t *testing.T) {
 }
 
 func TestNewAdapterUnknown(t *testing.T) {
-	ac := &worker.AdapterConfig{
+	ac := &workers.AdapterConfig{
 		Type:     "vllm",
 		Upstream: "http://localhost:8000",
 		Model:    "llama-3",
@@ -62,7 +62,7 @@ func TestNewAdapterKnownTypes(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.adapterType, func(t *testing.T) {
-			ac := &worker.AdapterConfig{
+			ac := &workers.AdapterConfig{
 				Type:     tt.adapterType,
 				Upstream: "http://localhost:1234",
 				Model:    "test-model",

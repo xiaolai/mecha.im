@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"mecha.im/internal/event"
+	"mecha.im/internal/events"
 )
 
 func TestCronTrigger(t *testing.T) {
@@ -16,15 +16,15 @@ func TestCronTrigger(t *testing.T) {
 	}
 
 	var count atomic.Int32
-	events := make(chan *event.Event, 10)
+	evCh := make(chan *events.Event, 10)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
 
-	go cron.Start(ctx, func(ev *event.Event) {
+	go cron.Start(ctx, func(ev *events.Event) {
 		count.Add(1)
 		select {
-		case events <- ev:
+		case evCh <- ev:
 		default:
 		}
 	})
@@ -39,7 +39,7 @@ func TestCronTrigger(t *testing.T) {
 
 	// Read one event safely from channel
 	select {
-	case ev := <-events:
+	case ev := <-evCh:
 		if ev.Source != "cron" {
 			t.Errorf("Source = %q", ev.Source)
 		}

@@ -1,6 +1,6 @@
 ---
 description: Worker architecture — endpoint abstraction, managed vs unmanaged, state machine
-globs: "internal/worker/**/*.go"
+globs: "internal/workers/**/*.go"
 ---
 
 # Worker Design

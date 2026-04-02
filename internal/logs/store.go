@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"mecha.im/internal/worker"
+	"mecha.im/internal/workers"
 )
 
 // Store persists log entries to SQLite and provides query access.
@@ -33,8 +33,8 @@ func (s *Store) Record(e Entry) {
 		e.TS = time.Now().Unix()
 	}
 	// Redact secrets from error and detail fields.
-	e.Error = worker.RedactSecrets(e.Error)
-	e.Detail = worker.RedactSecrets(e.Detail)
+	e.Error = workers.RedactSecrets(e.Error)
+	e.Detail = workers.RedactSecrets(e.Detail)
 
 	_, err := s.db.Exec(
 		`INSERT INTO logs (trace_id, ts, action, outcome, event_id, task_id, worker, attempt, error, detail)
@@ -130,5 +130,5 @@ func MarshalDetail(v any) string {
 	if err != nil {
 		return "{}"
 	}
-	return worker.RedactSecrets(string(data))
+	return workers.RedactSecrets(string(data))
 }

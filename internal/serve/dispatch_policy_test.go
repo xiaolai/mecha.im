@@ -11,29 +11,29 @@ import (
 	"testing"
 	"time"
 
-	"mecha.im/internal/event"
-	"mecha.im/internal/policy"
+	"mecha.im/internal/events"
+	"mecha.im/internal/policies"
 	"mecha.im/internal/store"
-	"mecha.im/internal/task"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/tasks"
+	"mecha.im/internal/workers"
 	"mecha.im/internal/writeback"
 )
 
 // testFullServer creates a server with registry, tasks, events, and writeback.
 // The mock GitHub server records all API calls for assertions.
-func testFullServer(t *testing.T, ghHandler http.Handler) (*Server, *event.Store, func()) {
+func testFullServer(t *testing.T, ghHandler http.Handler) (*Server, *events.Store, func()) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "test.db")
 	db, err := store.Open(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatal(err)
 	}
-	tasks := task.NewStore(db)
-	events := event.NewStore(db)
+	taskStore := tasks.NewStore(db)
+	evStore := events.NewStore(db)
 
 	ghSrv := httptest.NewServer(ghHandler)
 	restore := writeback.OverrideAPIBase(ghSrv.URL)
@@ -41,12 +41,12 @@ func testFullServer(t *testing.T, ghHandler http.Handler) (*Server, *event.Store
 
 	s := New(Config{
 		Registry:  reg,
-		Tasks:     tasks,
-		Events:    events,
+		Tasks:     taskStore,
+		Events:    evStore,
 		WriteBack: wb,
 		Addr:      "127.0.0.1:0",
 	})
-	return s, events, func() {
+	return s, evStore, func() {
 		restore()
 		ghSrv.Close()
 		db.Close()
@@ -98,7 +98,7 @@ func readBody(r *http.Request) ([]byte, error) {
 
 // setupDispatchEvent creates a worker, event, and task wired together and ready
 // for dispatch. Returns task ID and event ID.
-func setupDispatchEvent(t *testing.T, s *Server, es *event.Store, workerEndpoint string, w *worker.Worker) (string, string) {
+func setupDispatchEvent(t *testing.T, s *Server, es *events.Store, workerEndpoint string, w *workers.Worker) (string, string) {
 	t.Helper()
 	ctx := context.Background()
 
@@ -109,12 +109,12 @@ func setupDispatchEvent(t *testing.T, s *Server, es *event.Store, workerEndpoint
 		t.Fatal(err)
 	}
 
-	ev := &event.Event{
+	ev := &events.Event{
 		Source:  "github",
 		Type:    "pull_request",
 		Actor:   "alice",
 		Subject: "testorg/testrepo",
-		Attrs: event.Attrs{
+		Attrs: events.Attrs{
 			"repo_owner": "testorg",
 			"repo_name":  "testrepo",
 			"number":     42,
@@ -155,20 +155,20 @@ func TestDoWriteBack_AllowAll(t *testing.T) {
 	}))
 	defer workerSrv.Close()
 
-	w := &worker.Worker{Name: "allow-all-w", Endpoint: workerSrv.URL}
+	w := &workers.Worker{Name: "allow-all-w", Endpoint: workerSrv.URL}
 	taskID, eventID := setupDispatchEvent(t, s, es, workerSrv.URL, w)
 
 	s.dispatchTask(context.Background(), taskID)
 
 	// Task should be completed
 	tk, _ := s.tasks.Get(context.Background(), taskID)
-	if tk.State != task.StateCompleted {
+	if tk.State != tasks.StateCompleted {
 		t.Errorf("task state = %q, want completed", tk.State)
 	}
 
 	// Event should be completed (writeback succeeded, no policy blocking)
 	ev, _ := es.Get(context.Background(), eventID)
-	if ev.State != event.StateCompleted {
+	if ev.State != events.StateCompleted {
 		t.Errorf("event state = %q, want completed", ev.State)
 	}
 
@@ -211,7 +211,7 @@ func TestDoWriteBack_PolicyBlocksComment(t *testing.T) {
 	}))
 	defer workerSrv.Close()
 
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:     "block-comment-w",
 		Endpoint: workerSrv.URL,
 		Policy: map[string]any{
@@ -225,7 +225,7 @@ func TestDoWriteBack_PolicyBlocksComment(t *testing.T) {
 
 	// Event should still complete (policy blocking is not a failure)
 	ev, _ := es.Get(context.Background(), eventID)
-	if ev.State != event.StateCompleted {
+	if ev.State != events.StateCompleted {
 		t.Errorf("event state = %q, want completed", ev.State)
 	}
 
@@ -263,7 +263,7 @@ func TestDoWriteBack_PolicyBlocksAll(t *testing.T) {
 	}))
 	defer workerSrv.Close()
 
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:     "block-all-w",
 		Endpoint: workerSrv.URL,
 		Policy: map[string]any{
@@ -278,7 +278,7 @@ func TestDoWriteBack_PolicyBlocksAll(t *testing.T) {
 	s.dispatchTask(context.Background(), taskID)
 
 	ev, _ := es.Get(context.Background(), eventID)
-	if ev.State != event.StateCompleted {
+	if ev.State != events.StateCompleted {
 		t.Errorf("event state = %q, want completed", ev.State)
 	}
 
@@ -302,7 +302,7 @@ func TestDoWriteBack_PolicyTruncatesComment(t *testing.T) {
 	}))
 	defer workerSrv.Close()
 
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:     "truncate-w",
 		Endpoint: workerSrv.URL,
 		Policy: map[string]any{
@@ -349,7 +349,7 @@ func TestDoWriteBack_PolicyLabelBlocklist(t *testing.T) {
 	}))
 	defer workerSrv.Close()
 
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:     "blocklist-w",
 		Endpoint: workerSrv.URL,
 		Policy: map[string]any{
@@ -393,18 +393,18 @@ func TestDoWriteBack_UnparseableResult(t *testing.T) {
 	}))
 	defer workerSrv.Close()
 
-	w := &worker.Worker{Name: "bad-json-w", Endpoint: workerSrv.URL}
+	w := &workers.Worker{Name: "bad-json-w", Endpoint: workerSrv.URL}
 	taskID, eventID := setupDispatchEvent(t, s, es, workerSrv.URL, w)
 
 	s.dispatchTask(context.Background(), taskID)
 
 	tk, _ := s.tasks.Get(context.Background(), taskID)
-	if tk.State != task.StateCompleted {
+	if tk.State != tasks.StateCompleted {
 		t.Errorf("task state = %q, want completed", tk.State)
 	}
 
 	ev, _ := es.Get(context.Background(), eventID)
-	if ev.State != event.StateCompleted {
+	if ev.State != events.StateCompleted {
 		t.Errorf("event state = %q, want completed (unparseable result is not a failure)", ev.State)
 	}
 
@@ -429,18 +429,18 @@ func TestDoWriteBack_GitHubError_EventStaysDispatched(t *testing.T) {
 	}))
 	defer workerSrv.Close()
 
-	w := &worker.Worker{Name: "gh-fail-w", Endpoint: workerSrv.URL}
+	w := &workers.Worker{Name: "gh-fail-w", Endpoint: workerSrv.URL}
 	taskID, eventID := setupDispatchEvent(t, s, es, workerSrv.URL, w)
 
 	s.dispatchTask(context.Background(), taskID)
 
 	tk, _ := s.tasks.Get(context.Background(), taskID)
-	if tk.State != task.StateCompleted {
+	if tk.State != tasks.StateCompleted {
 		t.Errorf("task state = %q, want completed (result stored even if writeback fails)", tk.State)
 	}
 
 	ev, _ := es.Get(context.Background(), eventID)
-	if ev.State != event.StateDispatched {
+	if ev.State != events.StateDispatched {
 		t.Errorf("event state = %q, want dispatched (writeback failed, stays for retry)", ev.State)
 	}
 }
@@ -450,7 +450,7 @@ func TestDoWriteBack_SendError_EventFailed(t *testing.T) {
 	s, es, cleanup := testFullServer(t, rec.handler())
 	defer cleanup()
 
-	w := &worker.Worker{Name: "send-fail-w", Endpoint: "http://127.0.0.1:1"}
+	w := &workers.Worker{Name: "send-fail-w", Endpoint: "http://127.0.0.1:1"}
 	taskID, eventID := setupDispatchEvent(t, s, es, "http://127.0.0.1:1", w)
 
 	// First dispatch: transport error (connection refused) → retry with backoff.
@@ -458,7 +458,7 @@ func TestDoWriteBack_SendError_EventFailed(t *testing.T) {
 	s.dispatchTask(context.Background(), taskID)
 
 	tk, _ := s.tasks.Get(context.Background(), taskID)
-	if tk.State != task.StatePending {
+	if tk.State != tasks.StatePending {
 		t.Errorf("task state after first attempt = %q, want pending (retry)", tk.State)
 	}
 	if tk.Attempts != 1 {
@@ -469,12 +469,12 @@ func TestDoWriteBack_SendError_EventFailed(t *testing.T) {
 	s.dispatchTask(context.Background(), taskID)
 
 	tk, _ = s.tasks.Get(context.Background(), taskID)
-	if tk.State != task.StateFailed {
+	if tk.State != tasks.StateFailed {
 		t.Errorf("task state after second attempt = %q, want failed", tk.State)
 	}
 
 	ev, _ := es.Get(context.Background(), eventID)
-	if ev.State != event.StateFailed {
+	if ev.State != events.StateFailed {
 		t.Errorf("event state = %q, want failed", ev.State)
 	}
 
@@ -488,10 +488,10 @@ func TestGetWorkerPolicy_None(t *testing.T) {
 	s, _, cleanup := testFullServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	defer cleanup()
 
-	s.reg.Add(&worker.Worker{Name: "no-policy-w", Endpoint: "http://x"})
+	s.reg.Add(&workers.Worker{Name: "no-policy-w", Endpoint: "http://x"})
 
 	filter := s.getWorkerPolicy("no-policy-w")
-	if _, ok := filter.(*policy.AllowAll); !ok {
+	if _, ok := filter.(*policies.AllowAll); !ok {
 		t.Errorf("expected *AllowAll, got %T", filter)
 	}
 }
@@ -500,7 +500,7 @@ func TestGetWorkerPolicy_Configured(t *testing.T) {
 	s, _, cleanup := testFullServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	defer cleanup()
 
-	s.reg.Add(&worker.Worker{
+	s.reg.Add(&workers.Worker{
 		Name:     "policy-w",
 		Endpoint: "http://x",
 		Policy: map[string]any{
@@ -509,7 +509,7 @@ func TestGetWorkerPolicy_Configured(t *testing.T) {
 	})
 
 	filter := s.getWorkerPolicy("policy-w")
-	if _, ok := filter.(*policy.AllowAll); ok {
+	if _, ok := filter.(*policies.AllowAll); ok {
 		t.Error("expected RuleFilter, got AllowAll")
 	}
 }
@@ -519,7 +519,7 @@ func TestGetWorkerPolicy_WorkerNotFound(t *testing.T) {
 	defer cleanup()
 
 	filter := s.getWorkerPolicy("ghost")
-	if _, ok := filter.(*policy.AllowAll); !ok {
+	if _, ok := filter.(*policies.AllowAll); !ok {
 		t.Errorf("expected *AllowAll for missing worker, got %T", filter)
 	}
 }
@@ -529,7 +529,7 @@ func TestCompleteEvent_Success(t *testing.T) {
 	defer cleanup()
 	ctx := context.Background()
 
-	ev := &event.Event{Source: "github", Type: "push"}
+	ev := &events.Event{Source: "github", Type: "push"}
 	es.Create(ctx, ev)
 	es.SetMatched(ctx, ev.ID, "w")
 	es.SetDispatched(ctx, ev.ID, "t1")
@@ -537,7 +537,7 @@ func TestCompleteEvent_Success(t *testing.T) {
 	s.completeEvent(ctx, ev.ID, true)
 
 	got, _ := es.Get(ctx, ev.ID)
-	if got.State != event.StateCompleted {
+	if got.State != events.StateCompleted {
 		t.Errorf("state = %q, want completed", got.State)
 	}
 }
@@ -547,7 +547,7 @@ func TestCompleteEvent_Failure(t *testing.T) {
 	defer cleanup()
 	ctx := context.Background()
 
-	ev := &event.Event{Source: "github", Type: "push"}
+	ev := &events.Event{Source: "github", Type: "push"}
 	es.Create(ctx, ev)
 	es.SetMatched(ctx, ev.ID, "w")
 	es.SetDispatched(ctx, ev.ID, "t1")
@@ -555,7 +555,7 @@ func TestCompleteEvent_Failure(t *testing.T) {
 	s.completeEvent(ctx, ev.ID, false)
 
 	got, _ := es.Get(ctx, ev.ID)
-	if got.State != event.StateFailed {
+	if got.State != events.StateFailed {
 		t.Errorf("state = %q, want failed", got.State)
 	}
 }
@@ -572,10 +572,10 @@ func TestDoWriteBack_NoEventStore(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "test.db")
 	db, _ := store.Open(path)
 	defer db.Close()
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
 
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
 	ok := s.doWriteBack(context.Background(), "t1", "e1", "w1", `{"output":"x"}`)
 	if !ok {
@@ -608,7 +608,7 @@ func TestDispatchFullPipeline_WithEvents(t *testing.T) {
 	}))
 	defer workerSrv.Close()
 
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:     "pipeline-w",
 		Endpoint: workerSrv.URL,
 		Policy: map[string]any{
@@ -630,7 +630,7 @@ func TestDispatchFullPipeline_WithEvents(t *testing.T) {
 			t.Fatal("pipeline timed out")
 		default:
 			ev, _ := es.Get(context.Background(), eventID)
-			if ev.State == event.StateCompleted {
+			if ev.State == events.StateCompleted {
 				cancel()
 				calls := rec.getCalls()
 				if len(calls) == 0 {

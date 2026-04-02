@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"mecha.im/internal/event"
-	"mecha.im/internal/policy"
+	"mecha.im/internal/events"
+	"mecha.im/internal/policies"
 	"mecha.im/internal/source"
 	"mecha.im/internal/store"
-	"mecha.im/internal/task"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/tasks"
+	"mecha.im/internal/workers"
 )
 
 // --- Webhook handler coverage: verification, GET, body errors ---
@@ -28,8 +28,8 @@ type mockVerifierSource struct {
 }
 
 func (m *mockVerifierSource) Name() string { return "meta" }
-func (m *mockVerifierSource) Parse(h http.Header, body []byte) (*event.Event, error) {
-	return &event.Event{Source: "meta", Type: "message", Attrs: event.Attrs{}}, nil
+func (m *mockVerifierSource) Parse(h http.Header, body []byte) (*events.Event, error) {
+	return &events.Event{Source: "meta", Type: "message", Attrs: events.Attrs{}}, nil
 }
 func (m *mockVerifierSource) Verify(r *http.Request) ([]byte, error) {
 	return m.verifyResp, m.verifyErr
@@ -85,10 +85,10 @@ func TestWebhookPromptRenderError(t *testing.T) {
 	defer cleanup()
 
 	// Worker with invalid template → render fails → event should be failed
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:     "bad-prompt",
 		Endpoint: "http://unused",
-		Events: []worker.EventRule{{
+		Events: []workers.EventRule{{
 			Source: "github",
 			On:     []string{"push"},
 			Prompt: "{{ .nonexistent_key }}", // missingkey=error will fail
@@ -105,9 +105,9 @@ func TestWebhookPromptRenderError(t *testing.T) {
 	rec := httptest.NewRecorder()
 	s.httpSrv.Handler.ServeHTTP(rec, req)
 
-	var evResp event.Event
+	var evResp events.Event
 	json.Unmarshal(rec.Body.Bytes(), &evResp)
-	waitForEventState(t, es, evResp.ID, event.StateFailed, 5*time.Second)
+	waitForEventState(t, es, evResp.ID, events.StateFailed, 5*time.Second)
 }
 
 // --- handleGetTask missing id edge case ---
@@ -139,10 +139,10 @@ func TestHandlerListTasksFilterDispatched(t *testing.T) {
 	req := httptest.NewRequest("GET", "/tasks?state=dispatched", nil)
 	rec := httptest.NewRecorder()
 	s.httpSrv.Handler.ServeHTTP(rec, req)
-	var tasks []task.Task
-	json.Unmarshal(rec.Body.Bytes(), &tasks)
-	if len(tasks) != 1 {
-		t.Errorf("dispatched tasks = %d, want 1", len(tasks))
+	var taskList []tasks.Task
+	json.Unmarshal(rec.Body.Bytes(), &taskList)
+	if len(taskList) != 1 {
+		t.Errorf("dispatched tasks = %d, want 1", len(taskList))
 	}
 }
 
@@ -154,9 +154,9 @@ func TestDispatchDisposableRouting(t *testing.T) {
 	s, cleanup := testServer(t)
 	defer cleanup()
 
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name: "disp-w",
-		Docker: &worker.DockerConfig{
+		Docker: &workers.DockerConfig{
 			Image:     "nonexistent:latest",
 			Lifecycle: "disposable",
 		},
@@ -169,7 +169,7 @@ func TestDispatchDisposableRouting(t *testing.T) {
 
 	// Task should fail because Docker can't connect (or image missing)
 	got, _ := s.tasks.Get(context.Background(), tk.ID)
-	if got.State != task.StateFailed {
+	if got.State != tasks.StateFailed {
 		t.Errorf("state = %q, want failed (disposable container fails)", got.State)
 	}
 }
@@ -182,7 +182,7 @@ func TestGetWorkerPolicyInvalid(t *testing.T) {
 	defer cleanup()
 
 	// Worker with invalid policy config (wrong type)
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:     "bad-policy-w",
 		Endpoint: "http://x",
 		Policy:   map[string]any{"comment": "not-a-map"},
@@ -192,10 +192,10 @@ func TestGetWorkerPolicyInvalid(t *testing.T) {
 	filter := s.getWorkerPolicy("bad-policy-w")
 	// Should return DenyAll for unparseable config
 	ctx := context.Background()
-	ev := &event.Event{Source: "github", Type: "push"}
+	ev := &events.Event{Source: "github", Type: "push"}
 	es.Create(ctx, ev)
 
-	result := policy.Result{Comment: &policy.CommentAction{Body: "test"}}
+	result := policies.Result{Comment: &policies.CommentAction{Body: "test"}}
 	_, decision, _ := filter.Apply(ctx, ev, result)
 	_ = decision
 	// DenyAll should block everything — we don't assert exact type,
@@ -209,7 +209,7 @@ func TestDoWriteBackResponderPath(t *testing.T) {
 	var responderCalled bool
 	mockResp := &mockResponder{
 		name: "github",
-		fn: func(ctx context.Context, ev *event.Event, res policy.Result) error {
+		fn: func(ctx context.Context, ev *events.Event, res policies.Result) error {
 			responderCalled = true
 			return nil
 		},
@@ -218,27 +218,27 @@ func TestDoWriteBackResponderPath(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "test.db")
 	db, _ := store.Open(path)
 	defer db.Close()
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	events := event.NewStore(db)
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	evStore := events.NewStore(db)
 	sources := source.NewRegistry()
 	sources.RegisterResponder(mockResp)
 
 	s := New(Config{
 		Registry: reg,
-		Tasks:    tasks,
-		Events:   events,
+		Tasks:    taskStore,
+		Events:   evStore,
 		Sources:  sources,
 		Addr:     "127.0.0.1:0",
 	})
 
 	// Create event and test doWriteBack
 	ctx := context.Background()
-	ev := &event.Event{Source: "github", Type: "push"}
-	events.Create(ctx, ev)
-	events.SetMatched(ctx, ev.ID, "w")
-	events.SetDispatched(ctx, ev.ID, "t1")
-	reg.Add(&worker.Worker{Name: "w", Endpoint: "http://x"})
+	ev := &events.Event{Source: "github", Type: "push"}
+	evStore.Create(ctx, ev)
+	evStore.SetMatched(ctx, ev.ID, "w")
+	evStore.SetDispatched(ctx, ev.ID, "t1")
+	reg.Add(&workers.Worker{Name: "w", Endpoint: "http://x"})
 
 	ok := s.doWriteBack(ctx, "t1", ev.ID, "w", `{"output":"test","comment":{"body":"hi"}}`)
 	if !ok {
@@ -293,9 +293,9 @@ func TestCompleteEventNilEvents(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "test.db")
 	db, _ := store.Open(path)
 	defer db.Close()
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
 	// Should not panic
 	s.completeEvent(context.Background(), "e1", true)
@@ -305,27 +305,27 @@ func TestCompleteEventNilEvents(t *testing.T) {
 // === DB-closed error path tests ===
 // These close the DB before calling handlers to trigger error branches.
 
-func testServerWithClosedDB(t *testing.T) (*Server, *event.Store, func()) {
+func testServerWithClosedDB(t *testing.T) (*Server, *events.Store, func()) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "test.db")
 	db, err := store.Open(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	events := event.NewStore(db)
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	evStore := events.NewStore(db)
 	sources := source.NewRegistry()
 	sources.Register(source.NewGitHubSource("test-secret", ""))
 
 	s := New(Config{
 		Registry: reg,
-		Tasks:    tasks,
-		Events:   events,
+		Tasks:    taskStore,
+		Events:   evStore,
 		Sources:  sources,
 		Addr:     "127.0.0.1:0",
 	})
-	return s, events, func() { db.Close() }
+	return s, evStore, func() { db.Close() }
 }
 
 func TestWebhookDeliveryCheckDBError(t *testing.T) {
@@ -426,7 +426,7 @@ func TestHandlerGetTaskDBError(t *testing.T) {
 func TestHandlerPostTaskDBError(t *testing.T) {
 	s, cleanup := testServer(t)
 	// Add a worker first (while DB is open)
-	s.reg.Add(&worker.Worker{Name: "w", Endpoint: "http://x"})
+	s.reg.Add(&workers.Worker{Name: "w", Endpoint: "http://x"})
 	s.reg.Start("w")
 	cleanup() // now close DB
 
@@ -440,7 +440,7 @@ func TestHandlerPostTaskDBError(t *testing.T) {
 }
 
 func TestHandlerListEventsEmptyResult(t *testing.T) {
-	// events.List returns nil (not []) → should return []
+	// evStore.List returns nil (not []) → should return []
 	s, _, _, cleanup := testWebhookServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}), "")
 	defer cleanup()
 
@@ -509,7 +509,7 @@ func TestDoWriteBackPolicyError(t *testing.T) {
 	defer cleanup()
 
 	// Worker with invalid policy → DenyAll
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:     "deny-w",
 		Endpoint: "http://x",
 		Policy:   map[string]any{"comment": "invalid-not-a-map"},
@@ -517,12 +517,12 @@ func TestDoWriteBackPolicyError(t *testing.T) {
 	s.reg.Add(w)
 
 	ctx := context.Background()
-	ev := &event.Event{
+	ev := &events.Event{
 		Source:  "github",
 		Type:    "push",
 		Actor:   "u",
 		Subject: "o/r",
-		Attrs:   event.Attrs{"repo_owner": "o", "repo_name": "r"},
+		Attrs:   events.Attrs{"repo_owner": "o", "repo_name": "r"},
 	}
 	es.Create(ctx, ev)
 	es.SetMatched(ctx, ev.ID, "deny-w")
@@ -544,7 +544,7 @@ func TestDoWriteBackPolicyError(t *testing.T) {
 func TestDoWriteBackResponderError(t *testing.T) {
 	mockResp := &mockResponder{
 		name: "github",
-		fn: func(ctx context.Context, ev *event.Event, res policy.Result) error {
+		fn: func(ctx context.Context, ev *events.Event, res policies.Result) error {
 			return fmt.Errorf("responder exploded")
 		},
 	}
@@ -552,23 +552,23 @@ func TestDoWriteBackResponderError(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "test.db")
 	db, _ := store.Open(path)
 	defer db.Close()
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	events := event.NewStore(db)
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	evStore := events.NewStore(db)
 	sources := source.NewRegistry()
 	sources.RegisterResponder(mockResp)
 
 	s := New(Config{
-		Registry: reg, Tasks: tasks, Events: events,
+		Registry: reg, Tasks: taskStore, Events: evStore,
 		Sources: sources, Addr: "127.0.0.1:0",
 	})
 
 	ctx := context.Background()
-	ev := &event.Event{Source: "github", Type: "push"}
-	events.Create(ctx, ev)
-	events.SetMatched(ctx, ev.ID, "w")
-	events.SetDispatched(ctx, ev.ID, "t1")
-	reg.Add(&worker.Worker{Name: "w", Endpoint: "http://x"})
+	ev := &events.Event{Source: "github", Type: "push"}
+	evStore.Create(ctx, ev)
+	evStore.SetMatched(ctx, ev.ID, "w")
+	evStore.SetDispatched(ctx, ev.ID, "t1")
+	reg.Add(&workers.Worker{Name: "w", Endpoint: "http://x"})
 
 	ok := s.doWriteBack(ctx, "t1", ev.ID, "w", `{"output":"x"}`)
 	if ok {
@@ -600,11 +600,11 @@ func TestSendTaskDefaultTimeout(t *testing.T) {
 // === buildTaskContext: marshal error ===
 
 func TestBuildTaskContextAllAttrs(t *testing.T) {
-	ev := &event.Event{
+	ev := &events.Event{
 		Source:  "github",
 		Actor:   "alice",
 		Subject: "org/repo",
-		Attrs: event.Attrs{
+		Attrs: events.Attrs{
 			"repo_owner": "org",
 			"repo_name":  "repo",
 			"number":     42,
@@ -669,7 +669,7 @@ func TestDispatchTaskFailsWorkerNotFoundDBError(t *testing.T) {
 	tk, _ := s.tasks.Create(context.Background(), "ghost", "test")
 	cleanup() // close DB — Fail() will error
 
-	// Should not panic even though tasks.Fail errors
+	// Should not panic even though taskStore.Fail errors
 	s.dispatchTask(context.Background(), tk.ID)
 }
 
@@ -681,7 +681,7 @@ func TestDispatchTaskSetDispatchedError(t *testing.T) {
 	}))
 	defer mock.Close()
 
-	s.reg.Add(&worker.Worker{Name: "sd-err", Endpoint: mock.URL})
+	s.reg.Add(&workers.Worker{Name: "sd-err", Endpoint: mock.URL})
 	s.reg.Start("sd-err")
 	tk, _ := s.tasks.Create(context.Background(), "sd-err", "test")
 	cleanup() // close DB — SetDispatched will error
@@ -698,7 +698,7 @@ func TestDispatchTaskCompleteError(t *testing.T) {
 	}))
 	defer mock.Close()
 
-	s.reg.Add(&worker.Worker{Name: "comp-err", Endpoint: mock.URL})
+	s.reg.Add(&workers.Worker{Name: "comp-err", Endpoint: mock.URL})
 	s.reg.Start("comp-err")
 	tk, _ := s.tasks.Create(context.Background(), "comp-err", "test")
 	s.tasks.SetDispatched(context.Background(), tk.ID)
@@ -708,7 +708,7 @@ func TestDispatchTaskCompleteError(t *testing.T) {
 
 	// Worker should not be stuck in busy
 	entry, ok := s.reg.Get("comp-err")
-	if ok && entry.State == worker.StateBusy {
+	if ok && entry.State == workers.StateBusy {
 		t.Error("worker should not be stuck in busy after Complete error")
 	}
 }
@@ -717,10 +717,10 @@ func TestDispatchTaskCompleteError(t *testing.T) {
 
 type mockResponder struct {
 	name string
-	fn   func(ctx context.Context, ev *event.Event, res policy.Result) error
+	fn   func(ctx context.Context, ev *events.Event, res policies.Result) error
 }
 
 func (m *mockResponder) Name() string { return m.name }
-func (m *mockResponder) Respond(ctx context.Context, ev *event.Event, res policy.Result) error {
+func (m *mockResponder) Respond(ctx context.Context, ev *events.Event, res policies.Result) error {
 	return m.fn(ctx, ev, res)
 }

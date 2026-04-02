@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"mecha.im/internal/source"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/workers"
 )
 
 func TestCron_TriggerGeneratesEvents(t *testing.T) {
@@ -23,18 +23,18 @@ func TestCron_TriggerGeneratesEvents(t *testing.T) {
 	sources := source.NewRegistry()
 	sources.Register(source.NewGenericSource("cron-sim", "X-Event-Type"))
 
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:     "cron-handler",
 		Endpoint: mock.URL,
 		Timeout:  30 * time.Second,
-		Events: []worker.EventRule{{
+		Events: []workers.EventRule{{
 			Source: "cron-sim",
 			On:     []string{"tick"},
 			Prompt: "Handle cron tick at {{.tick_time}}",
 		}},
 	}
 
-	serverURL, cleanup := startTestServerWithSources(t, []*worker.Worker{w}, sources)
+	serverURL, cleanup := startTestServerWithSources(t, []*workers.Worker{w}, sources)
 	defer cleanup()
 
 	// Start a goroutine that POSTs tick events every 200ms.
@@ -91,7 +91,7 @@ func TestCron_TriggerGeneratesEvents(t *testing.T) {
 
 // startTestServerWithSources is a variant of startTestServer that accepts
 // a pre-built source registry (for registering GenericSource etc.).
-func startTestServerWithSources(t *testing.T, workers []*worker.Worker, sources *source.Registry) (serverURL string, cleanup func()) {
+func startTestServerWithSources(t *testing.T, workerList []*workers.Worker, sources *source.Registry) (serverURL string, cleanup func()) {
 	t.Helper()
-	return startTestServer(t, workers, sources)
+	return startTestServer(t, workerList, sources)
 }

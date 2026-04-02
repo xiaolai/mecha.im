@@ -15,9 +15,9 @@ import (
 	"testing"
 	"time"
 
-	"mecha.im/internal/event"
+	"mecha.im/internal/events"
 	"mecha.im/internal/source"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/workers"
 )
 
 // slackSignature computes the Slack HMAC-SHA256 signature.
@@ -250,10 +250,10 @@ func TestSource_GitLabWebhookPipeline(t *testing.T) {
 	defer cleanup()
 
 	// Register a worker matching GitLab merge_request.open events.
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:     "gitlab-mr-reviewer",
 		Endpoint: mockWkr.URL,
-		Events: []worker.EventRule{{
+		Events: []workers.EventRule{{
 			Source: "gitlab",
 			On:     []string{"merge_request.open"},
 			Prompt: "Review MR #{{.number}}",
@@ -313,7 +313,7 @@ func TestSource_GitLabWebhookPipeline(t *testing.T) {
 		default:
 			evs, _ := pts.Events.List(context.Background(), "")
 			for _, ev := range evs {
-				if ev.Source == "gitlab" && ev.State == event.StateCompleted {
+				if ev.Source == "gitlab" && ev.State == events.StateCompleted {
 					// Verify the GitLab API received a note (comment).
 					calls := glRec.getCalls()
 					var hasNote bool

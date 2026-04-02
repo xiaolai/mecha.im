@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"mecha.im/internal/store"
-	"mecha.im/internal/task"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/tasks"
+	"mecha.im/internal/workers"
 )
 
 func testDispatchServer(t *testing.T) (*Server, func()) {
@@ -22,9 +22,9 @@ func testDispatchServer(t *testing.T) (*Server, func()) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0"})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 	return s, func() { db.Close() }
 }
 
@@ -37,7 +37,7 @@ func TestDispatchLoop(t *testing.T) {
 	}))
 	defer mock.Close()
 
-	s.reg.Add(&worker.Worker{Name: "loop-w", Endpoint: mock.URL})
+	s.reg.Add(&workers.Worker{Name: "loop-w", Endpoint: mock.URL})
 	s.reg.Start("loop-w")
 
 	tk, _ := s.tasks.Create(context.Background(), "loop-w", "test")
@@ -55,7 +55,7 @@ func TestDispatchLoop(t *testing.T) {
 			t.Fatal("dispatch timed out")
 		default:
 			got, _ := s.tasks.Get(context.Background(), tk.ID)
-			if got.State == task.StateCompleted {
+			if got.State == tasks.StateCompleted {
 				cancel()
 				return
 			}
@@ -68,7 +68,7 @@ func TestDispatchBusyWorkerRejected(t *testing.T) {
 	s, cleanup := testDispatchServer(t)
 	defer cleanup()
 
-	s.reg.Add(&worker.Worker{Name: "busy-w", Endpoint: "http://x"})
+	s.reg.Add(&workers.Worker{Name: "busy-w", Endpoint: "http://x"})
 	s.reg.Start("busy-w")
 	s.reg.SetBusy("busy-w")
 
@@ -76,7 +76,7 @@ func TestDispatchBusyWorkerRejected(t *testing.T) {
 	s.dispatchTask(context.Background(), tk.ID)
 
 	got, _ := s.tasks.Get(context.Background(), tk.ID)
-	if got.State != task.StateFailed {
+	if got.State != tasks.StateFailed {
 		t.Errorf("state = %q, want failed (worker busy)", got.State)
 	}
 }
@@ -90,7 +90,7 @@ func TestDispatchRecoveredTask(t *testing.T) {
 	}))
 	defer mock.Close()
 
-	s.reg.Add(&worker.Worker{Name: "rec-w", Endpoint: mock.URL})
+	s.reg.Add(&workers.Worker{Name: "rec-w", Endpoint: mock.URL})
 	s.reg.Start("rec-w")
 
 	// Create task and mark as dispatched (simulating recovery)
@@ -100,7 +100,7 @@ func TestDispatchRecoveredTask(t *testing.T) {
 	s.dispatchTask(context.Background(), tk.ID)
 
 	got, _ := s.tasks.Get(context.Background(), tk.ID)
-	if got.State != task.StateCompleted {
+	if got.State != tasks.StateCompleted {
 		t.Errorf("state = %q, want completed (recovered task)", got.State)
 	}
 }
@@ -184,14 +184,14 @@ func TestDispatchWorkerNoEndpoint(t *testing.T) {
 	defer cleanup()
 
 	// Worker with no endpoint
-	s.reg.Add(&worker.Worker{Name: "no-ep"})
+	s.reg.Add(&workers.Worker{Name: "no-ep"})
 	s.reg.Start("no-ep")
 
 	tk, _ := s.tasks.Create(context.Background(), "no-ep", "test")
 	s.dispatchTask(context.Background(), tk.ID)
 
 	got, _ := s.tasks.Get(context.Background(), tk.ID)
-	if got.State != task.StateFailed {
+	if got.State != tasks.StateFailed {
 		t.Errorf("state = %q, want failed (no endpoint)", got.State)
 	}
 }
@@ -204,7 +204,7 @@ func TestDispatchWorkerNotFound(t *testing.T) {
 	s.dispatchTask(context.Background(), tk.ID)
 
 	got, _ := s.tasks.Get(context.Background(), tk.ID)
-	if got.State != task.StateFailed {
+	if got.State != tasks.StateFailed {
 		t.Errorf("state = %q, want failed", got.State)
 	}
 }
@@ -214,7 +214,7 @@ func TestDispatchTransportErrorSetsWorkerError(t *testing.T) {
 	defer cleanup()
 
 	// Worker endpoint that immediately closes connection
-	s.reg.Add(&worker.Worker{Name: "dead-w", Endpoint: "http://127.0.0.1:1"})
+	s.reg.Add(&workers.Worker{Name: "dead-w", Endpoint: "http://127.0.0.1:1"})
 	s.reg.Start("dead-w")
 
 	tk, _ := s.tasks.Create(context.Background(), "dead-w", "test")
@@ -222,7 +222,7 @@ func TestDispatchTransportErrorSetsWorkerError(t *testing.T) {
 
 	// Worker should be in error state (not online)
 	entry, _ := s.reg.Get("dead-w")
-	if entry.State != worker.StateError {
+	if entry.State != workers.StateError {
 		t.Errorf("worker state = %q, want error", entry.State)
 	}
 }
@@ -242,19 +242,19 @@ func TestDispatchTaskCompleteFailureStopsEventCompletion(t *testing.T) {
 	}))
 	defer mock.Close()
 
-	s.reg.Add(&worker.Worker{Name: "db-fail-w", Endpoint: mock.URL})
+	s.reg.Add(&workers.Worker{Name: "db-fail-w", Endpoint: mock.URL})
 	s.reg.Start("db-fail-w")
 
 	tk, _ := s.tasks.Create(context.Background(), "db-fail-w", "test")
 
-	// Close DB to force tasks.Complete to fail
+	// Close DB to force taskStore.Complete to fail
 	cleanup()
 
 	s.dispatchTask(context.Background(), tk.ID)
 
 	// Worker should be restored to online (not stuck in busy)
 	entry, ok := s.reg.Get("db-fail-w")
-	if ok && entry.State == worker.StateBusy {
+	if ok && entry.State == workers.StateBusy {
 		t.Error("worker should not be stuck in busy after DB failure")
 	}
 }

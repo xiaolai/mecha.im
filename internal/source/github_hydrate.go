@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"mecha.im/internal/event"
+	"mecha.im/internal/events"
 )
 
 const maxDiffSize = 500 * 1024 // 500KB
@@ -25,7 +25,7 @@ func init() {
 
 // Hydrate enriches an event with data from the GitHub API.
 // Uses SHA-pinned endpoints to avoid TOCTOU with mutable PR state.
-func (g *GitHubSource) Hydrate(ctx context.Context, ev *event.Event) error {
+func (g *GitHubSource) Hydrate(ctx context.Context, ev *events.Event) error {
 	number := attrInt(ev.Attrs, "number")
 	if g.token == "" || number == 0 {
 		return nil
@@ -36,7 +36,7 @@ func (g *GitHubSource) Hydrate(ctx context.Context, ev *event.Event) error {
 	return nil
 }
 
-func (g *GitHubSource) hydratePR(ctx context.Context, ev *event.Event) error {
+func (g *GitHubSource) hydratePR(ctx context.Context, ev *events.Event) error {
 	client := &http.Client{Timeout: 30 * time.Second}
 	owner, _ := ev.Attrs["repo_owner"].(string)
 	repo, _ := ev.Attrs["repo_name"].(string)
@@ -189,6 +189,6 @@ func extractCompareFiles(body string) []string {
 }
 
 // attrInt extracts an integer from Attrs (handles float64 from JSON).
-func attrInt(attrs event.Attrs, key string) int {
+func attrInt(attrs events.Attrs, key string) int {
 	return intVal(attrs[key])
 }

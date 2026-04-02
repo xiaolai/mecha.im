@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"mecha.im/internal/adapter"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/workers"
 )
 
 // adapterRunners holds running adapter runners keyed by worker name.
@@ -20,7 +20,7 @@ var (
 )
 
 // adapterStart creates and starts an in-process adapter runner.
-func adapterStart(reg *worker.Registry, name string) error {
+func adapterStart(reg *workers.Registry, name string) error {
 	e, ok := reg.Get(name)
 	if !ok {
 		return fmt.Errorf("worker %q not found", name)
@@ -71,7 +71,7 @@ func adapterStop(name string) {
 	}
 }
 
-func newAdapter(ac *worker.AdapterConfig) (adapter.Adapter, error) {
+func newAdapter(ac *workers.AdapterConfig) (adapter.Adapter, error) {
 	switch ac.Type {
 	case "ollama":
 		return adapter.NewOllamaAdapter(ac.Upstream, ac.Model), nil

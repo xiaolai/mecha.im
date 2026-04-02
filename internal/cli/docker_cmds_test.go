@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"mecha.im/internal/worker"
+	"mecha.im/internal/workers"
 )
 
 func TestWaitForHealthSuccess(t *testing.T) {
@@ -28,12 +28,12 @@ func TestWaitForHealthSuccess(t *testing.T) {
 	// We can't call waitForHealth directly (it needs DockerClient.Endpoint),
 	// but we can test the underlying CheckHealth with repeated calls.
 	// First call should fail:
-	err := worker.CheckHealth(srv.URL, 2*time.Second)
+	err := workers.CheckHealth(srv.URL, 2*time.Second)
 	if err == nil {
 		t.Error("first health check should fail")
 	}
 	// Second call should succeed:
-	err = worker.CheckHealth(srv.URL, 2*time.Second)
+	err = workers.CheckHealth(srv.URL, 2*time.Second)
 	if err != nil {
 		t.Errorf("second health check should pass: %v", err)
 	}
@@ -47,7 +47,7 @@ func TestWaitForHealthTimeout(t *testing.T) {
 	defer srv.Close()
 
 	// Verify CheckHealth correctly fails
-	err := worker.CheckHealth(srv.URL, 1*time.Second)
+	err := workers.CheckHealth(srv.URL, 1*time.Second)
 	if err == nil {
 		t.Error("health check should fail for 503")
 	}
@@ -77,9 +77,9 @@ func TestDockerStopNotFound(t *testing.T) {
 
 func TestDockerStopNoContainerID(t *testing.T) {
 	reg := newTestRegistry(t)
-	reg.Add(&worker.Worker{
+	reg.Add(&workers.Worker{
 		Name: "no-container",
-		Docker: &worker.DockerConfig{
+		Docker: &workers.DockerConfig{
 			Image: "test:latest",
 		},
 	})
@@ -101,9 +101,9 @@ func TestDockerRemoveNotFound(t *testing.T) {
 
 func TestDockerRemoveNoContainerID(t *testing.T) {
 	reg := newTestRegistry(t)
-	reg.Add(&worker.Worker{
+	reg.Add(&workers.Worker{
 		Name: "clean-worker",
-		Docker: &worker.DockerConfig{
+		Docker: &workers.DockerConfig{
 			Image: "test:latest",
 		},
 	})
@@ -118,9 +118,9 @@ func TestDockerRemoveNoContainerID(t *testing.T) {
 func TestDockerStartValidationFail(t *testing.T) {
 	reg := newTestRegistry(t)
 	// Add worker with a cwd that doesn't exist → Validate should fail
-	reg.Add(&worker.Worker{
+	reg.Add(&workers.Worker{
 		Name: "bad-cwd",
-		Docker: &worker.DockerConfig{
+		Docker: &workers.DockerConfig{
 			Image: "test:latest",
 			Cwd:   "/nonexistent/impossible/path",
 		},
@@ -139,9 +139,9 @@ func TestDockerStartBadToken(t *testing.T) {
 	t.Setenv("HOME", dir)
 
 	reg := newTestRegistry(t)
-	reg.Add(&worker.Worker{
+	reg.Add(&workers.Worker{
 		Name: "bad-token",
-		Docker: &worker.DockerConfig{
+		Docker: &workers.DockerConfig{
 			Image: "test:latest",
 			Token: "claude.nonexistent",
 		},
@@ -154,9 +154,9 @@ func TestDockerStartBadToken(t *testing.T) {
 
 func TestDockerStopGraceful(t *testing.T) {
 	reg := newTestRegistry(t)
-	reg.Add(&worker.Worker{
+	reg.Add(&workers.Worker{
 		Name: "no-id",
-		Docker: &worker.DockerConfig{
+		Docker: &workers.DockerConfig{
 			Image: "test:latest",
 		},
 	})

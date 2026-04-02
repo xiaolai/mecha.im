@@ -12,11 +12,11 @@ import (
 	"time"
 
 	"mecha.im/internal/adapter"
-	"mecha.im/internal/event"
+	"mecha.im/internal/events"
 	"mecha.im/internal/serve"
 	"mecha.im/internal/store"
-	"mecha.im/internal/task"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/tasks"
+	"mecha.im/internal/workers"
 )
 
 func TestAdapter_OllamaEndToEnd(t *testing.T) {
@@ -77,15 +77,15 @@ func TestAdapter_OllamaEndToEnd(t *testing.T) {
 		t.Fatalf("open db: %v", err)
 	}
 
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatalf("create registry: %v", err)
 	}
 
 	// Register the worker with the adapter's endpoint.
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name: "ollama-test",
-		Adapter: &worker.AdapterConfig{
+		Adapter: &workers.AdapterConfig{
 			Type:     "ollama",
 			Upstream: mockOllama.URL,
 			Model:    "test-model",
@@ -100,16 +100,16 @@ func TestAdapter_OllamaEndToEnd(t *testing.T) {
 		t.Fatalf("set runtime: %v", err)
 	}
 
-	tasks := task.NewStore(db)
-	events := event.NewStore(db)
+	taskStore := tasks.NewStore(db)
+	evStore := events.NewStore(db)
 
 	port := findFreePort(t)
 	addr := fmt.Sprintf("127.0.0.1:%d", port)
 
 	srv := serve.New(serve.Config{
 		Registry: reg,
-		Tasks:    tasks,
-		Events:   events,
+		Tasks:    taskStore,
+		Events:   evStore,
 		Addr:     addr,
 	})
 

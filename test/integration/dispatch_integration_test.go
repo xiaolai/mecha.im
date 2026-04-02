@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"mecha.im/internal/worker"
+	"mecha.im/internal/workers"
 )
 
 func TestDispatch_MultiWorkerRoundRobin(t *testing.T) {
@@ -49,16 +49,16 @@ func TestDispatch_MultiWorkerRoundRobin(t *testing.T) {
 	}()
 
 	// Register all 3 workers.
-	workers := make([]*worker.Worker, len(entries))
+	workerList := make([]*workers.Worker, len(entries))
 	for i, e := range entries {
-		workers[i] = &worker.Worker{
+		workerList[i] = &workers.Worker{
 			Name:     e.name,
 			Endpoint: e.server.URL,
 			Timeout:  30 * time.Second,
 		}
 	}
 
-	serverURL, cleanup := startTestServer(t, workers, nil)
+	serverURL, cleanup := startTestServer(t, workerList, nil)
 	defer cleanup()
 
 	// Submit 6 tasks WITHOUT specifying a worker name.

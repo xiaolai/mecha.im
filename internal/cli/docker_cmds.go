@@ -7,12 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"mecha.im/internal/worker"
+	"mecha.im/internal/workers"
 )
 
 const dockerTimeout = 30 * time.Second
 
-func dockerStart(reg *worker.Registry, name string) error {
+func dockerStart(reg *workers.Registry, name string) error {
 	e, ok := reg.Get(name)
 	if !ok {
 		return fmt.Errorf("worker %q not found", name)
@@ -33,12 +33,12 @@ func dockerStart(reg *worker.Registry, name string) error {
 		return err
 	}
 
-	userStr, err := worker.CurrentUser()
+	userStr, err := workers.CurrentUser()
 	if err != nil {
 		return fmt.Errorf("resolve user for container: %w", err)
 	}
 
-	dock, err := worker.NewDockerClient(dc.Host)
+	dock, err := workers.NewDockerClient(dc.Host)
 	if err != nil {
 		return err
 	}
@@ -49,7 +49,7 @@ func dockerStart(reg *worker.Registry, name string) error {
 		labels[k] = v
 	}
 
-	cfg := worker.ContainerCfg{
+	cfg := workers.ContainerCfg{
 		Name:      "mecha-worker-" + name,
 		Image:     dc.Image,
 		Env:       env,
@@ -109,7 +109,7 @@ func dockerStart(reg *worker.Registry, name string) error {
 	return reg.SetRuntime(name, containerID, endpoint)
 }
 
-func dockerStop(reg *worker.Registry, name string) error {
+func dockerStop(reg *workers.Registry, name string) error {
 	e, ok := reg.Get(name)
 	if !ok {
 		return fmt.Errorf("worker %q not found", name)
@@ -118,7 +118,7 @@ func dockerStop(reg *worker.Registry, name string) error {
 		return reg.ClearRuntime(name)
 	}
 	dc := e.Worker.Docker
-	dock, err := worker.NewDockerClient(dc.Host)
+	dock, err := workers.NewDockerClient(dc.Host)
 	if err != nil {
 		return err
 	}
@@ -135,13 +135,13 @@ func dockerStop(reg *worker.Registry, name string) error {
 	return reg.StopRuntime(name)
 }
 
-func dockerRemove(reg *worker.Registry, name string) error {
+func dockerRemove(reg *workers.Registry, name string) error {
 	e, ok := reg.Get(name)
 	if !ok {
 		return nil
 	}
 	dc := e.Worker.Docker
-	dock, err := worker.NewDockerClient(dc.Host)
+	dock, err := workers.NewDockerClient(dc.Host)
 	if err != nil {
 		return err
 	}
@@ -166,7 +166,7 @@ func dockerRemove(reg *worker.Registry, name string) error {
 	return reg.ClearRuntime(name)
 }
 
-func waitForHealth(dock *worker.DockerClient, id string, timeout time.Duration) (string, error) {
+func waitForHealth(dock *workers.DockerClient, id string, timeout time.Duration) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
@@ -183,7 +183,7 @@ func waitForHealth(dock *worker.DockerClient, id string, timeout time.Duration) 
 		case <-ctx.Done():
 			return "", fmt.Errorf("timed out waiting for health on %s", endpoint)
 		case <-ticker.C:
-			if err := worker.CheckHealth(endpoint, 3*time.Second); err == nil {
+			if err := workers.CheckHealth(endpoint, 3*time.Second); err == nil {
 				return endpoint, nil
 			}
 		}

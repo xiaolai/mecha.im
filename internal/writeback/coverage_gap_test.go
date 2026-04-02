@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"mecha.im/internal/event"
-	"mecha.im/internal/policy"
+	"mecha.im/internal/events"
+	"mecha.im/internal/policies"
 )
 
 // --- 1. Respond() delegates to WriteBackResult ---
@@ -26,16 +26,16 @@ func TestRespondDelegatesToWriteBackResult(t *testing.T) {
 	defer restore()
 
 	c := NewClient("test-token", nil) // also tests nil logger
-	ev := &event.Event{
+	ev := &events.Event{
 		ID: "ev-respond",
-		Attrs: event.Attrs{
+		Attrs: events.Attrs{
 			"repo_owner": "org",
 			"repo_name":  "repo",
 			"number":     1,
 		},
 	}
-	res := policy.Result{
-		Comment: &policy.CommentAction{Body: "respond test"},
+	res := policies.Result{
+		Comment: &policies.CommentAction{Body: "respond test"},
 	}
 	err := c.Respond(context.Background(), ev, res)
 	if err != nil {
@@ -78,7 +78,7 @@ func TestAttrInt(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			attrs := event.Attrs{"key": tt.val}
+			attrs := events.Attrs{"key": tt.val}
 			got := attrInt(attrs, "key")
 			if got != tt.want {
 				t.Errorf("attrInt(%T(%v)) = %d, want %d", tt.val, tt.val, got, tt.want)
@@ -88,7 +88,7 @@ func TestAttrInt(t *testing.T) {
 }
 
 func TestAttrIntMissingKey(t *testing.T) {
-	attrs := event.Attrs{}
+	attrs := events.Attrs{}
 	got := attrInt(attrs, "nonexistent")
 	if got != 0 {
 		t.Errorf("attrInt(missing key) = %d, want 0", got)

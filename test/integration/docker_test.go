@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"mecha.im/internal/worker"
+	"mecha.im/internal/workers"
 )
 
 func skipIfNoDocker(t *testing.T) {
@@ -17,7 +17,7 @@ func skipIfNoDocker(t *testing.T) {
 	if _, err := exec.LookPath("docker"); err != nil {
 		t.Skip("docker not available")
 	}
-	cli, err := worker.NewDockerClient("")
+	cli, err := workers.NewDockerClient("")
 	if err != nil {
 		t.Skipf("docker client: %v", err)
 	}
@@ -34,7 +34,7 @@ func skipIfNoImage(t *testing.T, img string) {
 
 func TestDocker_ClientConnect(t *testing.T) {
 	skipIfNoDocker(t)
-	cli, err := worker.NewDockerClient("")
+	cli, err := workers.NewDockerClient("")
 	if err != nil {
 		t.Fatalf("connect: %v", err)
 	}
@@ -55,19 +55,19 @@ func TestDocker_CreateStartStop(t *testing.T) {
 	for _, img := range images {
 		t.Run(img.backend, func(t *testing.T) {
 			skipIfNoImage(t, img.image)
-			cli, err := worker.NewDockerClient("")
+			cli, err := workers.NewDockerClient("")
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer cli.Close()
 
 			ctx := context.Background()
-			cfg := worker.ContainerCfg{
+			cfg := workers.ContainerCfg{
 				Name:   "mecha-test-" + img.backend,
 				Image:  img.image,
 				Env:    map[string]string{img.envKey: "test"},
 				Labels: map[string]string{"mecha.test": "true"},
-				User:   func() string { u, _ := worker.CurrentUser(); return u }(),
+				User:   func() string { u, _ := workers.CurrentUser(); return u }(),
 			}
 
 			id, err := cli.Create(ctx, cfg)

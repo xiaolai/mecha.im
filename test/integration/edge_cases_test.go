@@ -13,10 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"mecha.im/internal/event"
-	"mecha.im/internal/policy"
+	"mecha.im/internal/events"
+	"mecha.im/internal/policies"
 	"mecha.im/internal/source"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/workers"
 )
 
 func boolPtr(b bool) *bool { return &b }
@@ -74,13 +74,13 @@ func TestEdge_SlowWorkerTimeout(t *testing.T) {
 	}))
 	defer mock.Close()
 
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:     "slow-worker",
 		Endpoint: mock.URL,
 		Timeout:  2 * time.Second,
 	}
 
-	serverURL, cleanup := startTestServer(t, []*worker.Worker{w}, nil)
+	serverURL, cleanup := startTestServer(t, []*workers.Worker{w}, nil)
 	defer cleanup()
 
 	body, status := apiPost(t, serverURL, "/task", map[string]string{
@@ -172,10 +172,10 @@ func TestEdge_EmptyWorkerResult(t *testing.T) {
 	pts, cleanup := newPipelineServer(t, sources, ghSrv.URL)
 	defer cleanup()
 
-	wk := &worker.Worker{
+	wk := &workers.Worker{
 		Name:     "empty-worker",
 		Endpoint: mockW.URL,
-		Events: []worker.EventRule{{
+		Events: []workers.EventRule{{
 			Source: "github",
 			On:     []string{"pull_request.opened"},
 			Prompt: "Review PR #{{.number}}",
@@ -216,7 +216,7 @@ func TestEdge_EmptyWorkerResult(t *testing.T) {
 		default:
 			evs, _ := pts.Events.List(context.Background(), "")
 			for _, ev := range evs {
-				if ev.State == event.StateCompleted {
+				if ev.State == events.StateCompleted {
 					// Verify zero GitHub API calls (nothing to write back).
 					if calls := ghCalls.Load(); calls != 0 {
 						t.Errorf("expected 0 GitHub API calls, got %d", calls)
@@ -260,10 +260,10 @@ func TestEdge_NonJSONWorkerResult(t *testing.T) {
 	pts, cleanup := newPipelineServer(t, sources, ghSrv.URL)
 	defer cleanup()
 
-	wk := &worker.Worker{
+	wk := &workers.Worker{
 		Name:     "nonjson-worker",
 		Endpoint: mockW.URL,
-		Events: []worker.EventRule{{
+		Events: []workers.EventRule{{
 			Source: "github",
 			On:     []string{"pull_request.opened"},
 			Prompt: "Review PR #{{.number}}",
@@ -304,7 +304,7 @@ func TestEdge_NonJSONWorkerResult(t *testing.T) {
 		default:
 			evs, _ := pts.Events.List(context.Background(), "")
 			for _, ev := range evs {
-				if ev.State == event.StateCompleted || ev.State == event.StateDispatched {
+				if ev.State == events.StateCompleted || ev.State == events.StateDispatched {
 					// The task completed without panic. doWriteBack returns true
 					// on JSON parse failure (logs warning, nothing to write back).
 					return
@@ -346,10 +346,10 @@ func TestEdge_EventRuleAutoFalse(t *testing.T) {
 	pts, cleanup := newPipelineServer(t, sources, ghSrv.URL)
 	defer cleanup()
 
-	wk := &worker.Worker{
+	wk := &workers.Worker{
 		Name:     "manual-worker",
 		Endpoint: mockW.URL,
-		Events: []worker.EventRule{{
+		Events: []workers.EventRule{{
 			Source: "github",
 			On:     []string{"pull_request.opened"},
 			Prompt: "Review PR #{{.number}}",
@@ -395,7 +395,7 @@ func TestEdge_EventRuleAutoFalse(t *testing.T) {
 	ev := evs[0]
 	// When Auto=false, the rule match is skipped. If no other rule matches,
 	// the event is set to "skipped".
-	if ev.State != event.StateSkipped {
+	if ev.State != events.StateSkipped {
 		t.Errorf("event state = %q, want skipped (Auto=false should skip dispatch)", ev.State)
 	}
 
@@ -440,10 +440,10 @@ func TestEdge_EventRuleFilterMatch(t *testing.T) {
 	pts, cleanup := newPipelineServer(t, sources, ghSrv.URL)
 	defer cleanup()
 
-	wk := &worker.Worker{
+	wk := &workers.Worker{
 		Name:     "filter-worker",
 		Endpoint: mockW.URL,
-		Events: []worker.EventRule{{
+		Events: []workers.EventRule{{
 			Source: "github",
 			On:     []string{"pull_request.opened"},
 			Filter: map[string]string{"base_branch": "main"},
@@ -511,7 +511,7 @@ func TestEdge_EventRuleFilterMatch(t *testing.T) {
 			// Check if both events have settled (not in received state).
 			settled := 0
 			for _, ev := range evs {
-				if ev.State != event.StateReceived && ev.State != event.StateMatched {
+				if ev.State != events.StateReceived && ev.State != events.StateMatched {
 					settled++
 				}
 			}
@@ -526,10 +526,10 @@ func TestEdge_EventRuleFilterMatch(t *testing.T) {
 			}
 			var skippedCount, dispatchedCount int
 			for _, ev := range evs {
-				if ev.State == event.StateSkipped {
+				if ev.State == events.StateSkipped {
 					skippedCount++
 				}
-				if ev.State == event.StateDispatched || ev.State == event.StateCompleted {
+				if ev.State == events.StateDispatched || ev.State == events.StateCompleted {
 					dispatchedCount++
 				}
 			}
@@ -585,10 +585,10 @@ func TestEdge_WriteBackFailureEventStaysDispatched(t *testing.T) {
 	pts, cleanup := newPipelineServer(t, sources, ghSrv.URL)
 	defer cleanup()
 
-	wk := &worker.Worker{
+	wk := &workers.Worker{
 		Name:     "wb-fail-worker",
 		Endpoint: mockW.URL,
-		Events: []worker.EventRule{{
+		Events: []workers.EventRule{{
 			Source: "github",
 			On:     []string{"pull_request.opened"},
 			Prompt: "Review PR #{{.number}}",
@@ -631,7 +631,7 @@ func TestEdge_WriteBackFailureEventStaysDispatched(t *testing.T) {
 	}
 	ev := evs[0]
 	// Event should stay in dispatched state because write-back failed.
-	if ev.State != event.StateDispatched {
+	if ev.State != events.StateDispatched {
 		t.Errorf("event state = %q, want dispatched (write-back failed)", ev.State)
 	}
 
@@ -653,7 +653,7 @@ type failingResponder struct {
 
 func (f *failingResponder) Name() string { return f.name }
 
-func (f *failingResponder) Respond(_ context.Context, _ *event.Event, _ policy.Result) error {
+func (f *failingResponder) Respond(_ context.Context, _ *events.Event, _ policies.Result) error {
 	return fmt.Errorf("simulated write-back failure")
 }
 

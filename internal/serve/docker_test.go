@@ -8,15 +8,15 @@ import (
 	"testing"
 	"time"
 
-	"mecha.im/internal/event"
+	"mecha.im/internal/events"
 	"mecha.im/internal/source"
 	"mecha.im/internal/store"
-	"mecha.im/internal/task"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/tasks"
+	"mecha.im/internal/workers"
 )
 
 func dockerAvailable() bool {
-	dc, err := worker.NewDockerClient("")
+	dc, err := workers.NewDockerClient("")
 	if err != nil {
 		return false
 	}
@@ -34,14 +34,14 @@ func testServerWithDocker(t *testing.T) (*Server, func()) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatal(err)
 	}
-	tasks := task.NewStore(db)
-	events := event.NewStore(db)
+	taskStore := tasks.NewStore(db)
+	evStore := events.NewStore(db)
 
-	dc, err := worker.NewDockerClient("")
+	dc, err := workers.NewDockerClient("")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,8 +50,8 @@ func testServerWithDocker(t *testing.T) (*Server, func()) {
 
 	s := New(Config{
 		Registry: reg,
-		Tasks:    tasks,
-		Events:   events,
+		Tasks:    taskStore,
+		Events:   evStore,
 		Sources:  source.NewRegistry(),
 		Docker:   dc,
 		Addr:     "127.0.0.1:0",
@@ -71,10 +71,10 @@ func TestDisposableContainerCreatesAndCleansUp(t *testing.T) {
 	s, cleanup := testServerWithDocker(t)
 	defer cleanup()
 
-	entry := worker.Entry{
-		Worker: &worker.Worker{
+	entry := workers.Entry{
+		Worker: &workers.Worker{
 			Name: "disp-test",
-			Docker: &worker.DockerConfig{
+			Docker: &workers.DockerConfig{
 				Image:     "mecha-worker:latest",
 				Lifecycle: "disposable",
 			},
@@ -108,10 +108,10 @@ func TestDisposableContainerValidationError(t *testing.T) {
 	defer cleanup()
 
 	// Empty image → validation error
-	entry := worker.Entry{
-		Worker: &worker.Worker{
+	entry := workers.Entry{
+		Worker: &workers.Worker{
 			Name: "bad-disp",
-			Docker: &worker.DockerConfig{
+			Docker: &workers.DockerConfig{
 				Image: "", // invalid
 			},
 		},
@@ -134,10 +134,10 @@ func TestDisposableContainerBadEnv(t *testing.T) {
 	defer cleanup()
 
 	// Reserved env var → build env error
-	entry := worker.Entry{
-		Worker: &worker.Worker{
+	entry := workers.Entry{
+		Worker: &workers.Worker{
 			Name: "badenv-disp",
-			Docker: &worker.DockerConfig{
+			Docker: &workers.DockerConfig{
 				Image: "mecha-worker:latest",
 				Env:   map[string]string{"WORKER_BACKEND": "illegal"},
 			},
@@ -163,9 +163,9 @@ func TestDispatchDisposableFullPipeline(t *testing.T) {
 	ctx := context.Background()
 
 	// Add disposable worker
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name: "disp-pipeline",
-		Docker: &worker.DockerConfig{
+		Docker: &workers.DockerConfig{
 			Image:     "mecha-worker:latest",
 			Lifecycle: "disposable",
 		},
@@ -191,7 +191,7 @@ func TestDispatchDisposableFullPipeline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get task: %v", err)
 	}
-	if tk.State != task.StateCompleted && tk.State != task.StateFailed {
+	if tk.State != tasks.StateCompleted && tk.State != tasks.StateFailed {
 		t.Errorf("task state = %s, want completed or failed", tk.State)
 	}
 	t.Logf("disposable dispatch: state=%s", tk.State)
@@ -202,7 +202,7 @@ func TestWaitForDisposableHealthTimeout(t *testing.T) {
 		t.Skip("Docker daemon not available")
 	}
 
-	dock, err := worker.NewDockerClient("")
+	dock, err := workers.NewDockerClient("")
 	if err != nil {
 		t.Fatalf("NewDockerClient: %v", err)
 	}
@@ -211,7 +211,7 @@ func TestWaitForDisposableHealthTimeout(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a container that won't serve on 8080 (base image exits quickly)
-	id, err := dock.Create(ctx, worker.ContainerCfg{
+	id, err := dock.Create(ctx, workers.ContainerCfg{
 		Name:  "mecha-test-health-timeout",
 		Image: "mecha-worker-base:latest",
 		Env:   map[string]string{"HOME": "/tmp"},

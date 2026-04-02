@@ -5,7 +5,7 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"mecha.im/internal/worker"
+	"mecha.im/internal/workers"
 )
 
 type taskRequest struct {
@@ -33,7 +33,7 @@ func (s *Server) handlePostTask(w http.ResponseWriter, r *http.Request) {
 		entries := s.reg.List()
 		var online []string
 		for _, e := range entries {
-			if e.State == worker.StateOnline {
+			if e.State == workers.StateOnline {
 				online = append(online, e.Worker.Name)
 			}
 		}
@@ -98,7 +98,7 @@ func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleListWorkers(w http.ResponseWriter, r *http.Request) {
 	entries := s.reg.List()
-	sanitized := make([]worker.Entry, len(entries))
+	sanitized := make([]workers.Entry, len(entries))
 	for i := range entries {
 		sanitized[i] = entries[i].Sanitized()
 	}

@@ -11,7 +11,7 @@ export interface TaskRequest {
   };
 }
 
-/** Outbound task result — matches the Go result contract (internal/policy/result.go). All fields optional except output. */
+/** Outbound task result — matches the Go result contract (internal/policies/result.go). All fields optional except output. */
 export interface TaskResponse {
   output: string;
   comment?: { target: string; body: string };
