@@ -50,3 +50,8 @@ fail immediately without retry.
 - The worker decides what to return. Policy decides what gets through.
 - Responder is looked up by `ev.Source`. Target override is planned but not yet implemented.
 - Failed tasks with retry attempts remaining are re-queued with exponential backoff.
+- Status state validated by policy (error/failure/pending/success only).
+- Comment truncation includes suffix in max_length (total never exceeds limit).
+- Label matching is case-insensitive. Blocklist takes precedence over allowlist.
+- Commit diffs exceeding max_size are rejected entirely (not truncated).
+- Metadata can be redacted via `metadata: {allow: false}`.
