@@ -26,7 +26,7 @@ tokens:
   codex:
     default: sk-xxx...                 # OpenAI API key
   gemini:
-    default: AIza...                   # Google API key
+    default: AIza...                   # Google API key (unmanaged workers only)
 ```
 
 Set permissions:
@@ -35,7 +35,7 @@ Set permissions:
 chmod 600 ~/.mecha/secrets.yml
 ```
 
-Mecha warns if the file is readable by others.
+Mecha rejects the file with an error if permissions are too open (not `0600`).
 
 ## Getting Tokens
 
