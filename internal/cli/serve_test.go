@@ -21,8 +21,8 @@ func TestServeCmdFlags(t *testing.T) {
 	}
 	// Verify defaults
 	addr, _ := f.GetString("addr")
-	if addr != "127.0.0.1:8080" {
-		t.Errorf("default addr = %q, want 127.0.0.1:8080", addr)
+	if addr != "127.0.0.1:21212" {
+		t.Errorf("default addr = %q, want 127.0.0.1:21212", addr)
 	}
 }
 

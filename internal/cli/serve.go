@@ -24,6 +24,19 @@ func serveCmd() *cobra.Command {
 		Use:   "serve",
 		Short: "Start the mecha HTTP server",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Load server config (~/.mecha/config.yml)
+			srvCfg, err := worker.LoadServerConfig()
+			if err != nil {
+				return fmt.Errorf("load config: %w", err)
+			}
+			// CLI flags override config file; config file overrides defaults.
+			if !cmd.Flags().Changed("addr") {
+				addr = srvCfg.Addr
+			}
+			if !cmd.Flags().Changed("api-key") && srvCfg.APIKey != "" {
+				apiKey = srvCfg.APIKey
+			}
+
 			path := os.Getenv("MECHA_DB_PATH")
 			if path == "" {
 				var err error
@@ -127,7 +140,7 @@ func serveCmd() *cobra.Command {
 			return srv.Start(ctx)
 		},
 	}
-	cmd.Flags().StringVar(&addr, "addr", "127.0.0.1:8080", "listen address")
+	cmd.Flags().StringVar(&addr, "addr", "127.0.0.1:21212", "listen address")
 	cmd.Flags().StringVar(&apiKey, "api-key", "", "API key for authentication")
 	return cmd
 }

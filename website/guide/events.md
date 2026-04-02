@@ -18,7 +18,7 @@ Every event — regardless of source — has the same shape:
 | `Actor` | Who triggered it | username, login, bot name |
 | `Subject` | What it's about | `owner/repo`, `#channel`, schedule name |
 | `Attrs` | Provider-specific data | `repo_owner`, `number`, `diff`, `text` |
-| `DedupKey` | Semantic dedup key | Content hash for polls/cron (reserved) |
+| `DedupKey` | Semantic dedup key (enforced) | Content hash for polls/cron — active events block duplicates |
 
 `Actor` and `Subject` are universal — available for all sources. `Attrs` keys are provider-specific (e.g., `repo_owner` exists for GitHub/GitLab but not for a custom webhook).
 
@@ -33,7 +33,7 @@ Every event — regardless of source — has the same shape:
 | `Authenticated` | Marker | Sources with built-in auth (HMAC, token) skip API key check |
 | `Responder` | Outbound | Writes results back to the source platform |
 
-GitHub and GitLab implement `Source` + `Hydrator` + `Authenticated`. Generic sources implement only `Source`.
+GitHub and GitLab implement `Source` + `Hydrator` + `Authenticated`. Slack and Telegram implement `Source` + `Authenticated`. Generic sources implement only `Source`.
 
 ## Pipeline
 
@@ -113,7 +113,7 @@ In your GitHub repo settings → Webhooks:
 ### 4. Start the Server
 
 ```bash
-mecha serve --addr 0.0.0.0:8080 --api-key YOUR_API_KEY
+mecha serve --addr 0.0.0.0:21212 --api-key YOUR_API_KEY
 ```
 
 ## Event Rules
@@ -225,11 +225,16 @@ stateDiagram-v2
 
 Each event source uses its own deduplication strategy:
 
-| Source | Dedup key | Header |
+| Source | Dedup key | Method |
 |--------|-----------|--------|
 | GitHub | `X-GitHub-Delivery` header | Unique per delivery |
 | GitLab | `X-Gitlab-Event-UUID` header (preferred), falls back to `X-Request-Id` | Unique per delivery |
+| Slack | `event_id` from payload | Unique per event |
+| Telegram | Content hash (SHA-256 of body) | Deterministic |
 | Generic | Content hash (SHA-256 of event type + body) | Deterministic |
+| Cron | FNV hash of (name, subject, unix_time) | Prevents duplicate ticks |
+
+Additionally, events with a non-empty `DedupKey` are blocked if an active event (received, matched, or dispatched) with the same key already exists. Terminal states (completed, failed, skipped) release the key.
 
 ## GitLab Source
 
@@ -262,6 +267,101 @@ events:
     on:
       - merge_request.open
     prompt: "Review MR #{{.number}}: {{.title}}"
+```
+:::
+<!-- @formatter:on -->
+
+## Slack Source
+
+Add `slack.signing_secret` to `~/.mecha/secrets.yml`:
+
+```yaml
+slack:
+  signing_secret: your_slack_signing_secret
+```
+
+Slack webhooks are verified via HMAC-SHA256 (`v0=` scheme) with replay protection (5-minute timestamp window). URL verification challenges are handled automatically.
+
+### Slack Event Types
+
+| Type | Trigger |
+|------|---------|
+| `message` | Message posted in channel |
+| `message.bot_message` | Bot message |
+| `app_mention` | Bot mentioned |
+| `reaction_added` | Emoji reaction |
+
+### Slack Template Variables
+
+::: v-pre
+| Variable | Description |
+|----------|-------------|
+| `{{.channel}}` | Channel ID |
+| `{{.text}}` | Message text |
+| `{{.sender}}` | User ID |
+| `{{.thread_ts}}` | Thread timestamp |
+| `{{.ts}}` | Message timestamp |
+| `{{.team_id}}` | Workspace ID |
+:::
+
+### Slack Worker Example
+
+<!-- @formatter:off -->
+::: v-pre
+```yaml
+events:
+  - source: slack
+    on:
+      - message
+    prompt: "Respond to this Slack message: {{.text}}"
+```
+:::
+<!-- @formatter:on -->
+
+## Telegram Source
+
+Add `telegram.secret_token` to `~/.mecha/secrets.yml`:
+
+```yaml
+telegram:
+  secret_token: your_telegram_secret_token
+```
+
+Telegram webhooks are verified via `X-Telegram-Bot-Api-Secret-Token` header (constant-time comparison).
+
+### Telegram Event Types
+
+| Type | Trigger |
+|------|---------|
+| `message` | New message |
+| `edited_message` | Message edited |
+| `callback_query` | Inline button pressed |
+| `inline_query` | Inline query |
+
+### Telegram Template Variables
+
+::: v-pre
+| Variable | Description |
+|----------|-------------|
+| `{{.text}}` | Message text |
+| `{{.chat_id}}` | Chat ID |
+| `{{.chat_type}}` | `private`, `group`, `supergroup`, `channel` |
+| `{{.sender}}` | Username |
+| `{{.from_id}}` | User ID |
+| `{{.message_id}}` | Message ID |
+| `{{.callback_data}}` | Callback button data |
+:::
+
+### Telegram Worker Example
+
+<!-- @formatter:off -->
+::: v-pre
+```yaml
+events:
+  - source: telegram
+    on:
+      - message
+    prompt: "Reply to this Telegram message: {{.text}}"
 ```
 :::
 <!-- @formatter:on -->
@@ -308,6 +408,8 @@ The diff is rendered as a markdown code block in the PR comment. Requires `polic
 
 - GitHub webhooks verified via HMAC-SHA256 (constant-time comparison)
 - GitLab webhooks verified via `X-Gitlab-Token` (constant-time comparison)
-- Authenticated sources (GitHub, GitLab) are exempt from API key auth — they use their own verification. Generic sources without built-in auth must supply the server API key
+- Slack webhooks verified via HMAC-SHA256 (`v0=` scheme) with 5-minute replay protection
+- Telegram webhooks verified via `X-Telegram-Bot-Api-Secret-Token` (constant-time comparison)
+- Authenticated sources (GitHub, GitLab, Slack, Telegram) are exempt from API key auth — they use their own verification. Generic sources without built-in auth must supply the server API key
 - Diff is fetched using SHA-pinned compare endpoints (immutable)
 - Delivery deduplication prevents replay attacks

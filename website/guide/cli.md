@@ -175,16 +175,18 @@ Start the HTTP server for task dispatch and webhook handling.
 
 ```bash
 $ mecha serve
-time=... level=INFO msg=serving addr=127.0.0.1:8080
+time=... level=INFO msg=serving addr=127.0.0.1:21212
 
-$ mecha serve --addr 0.0.0.0:8080 --api-key my-secret
-time=... level=INFO msg=serving addr=0.0.0.0:8080
+$ mecha serve --addr 0.0.0.0:21212 --api-key my-secret
+time=... level=INFO msg=serving addr=0.0.0.0:21212
 ```
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--addr` | `127.0.0.1:8080` | Listen address |
+| `--addr` | `127.0.0.1:21212` | Listen address |
 | `--api-key` | (empty) | API key for authentication |
+
+Flags are overridden by `~/.mecha/config.yml` if present (see [Server Config](./server#config-file)). CLI flags take highest priority.
 
 The server provides HTTP endpoints for task management, worker status, and webhook handling. See [API Reference](./api) and [Events](./events).
 
@@ -195,6 +197,8 @@ Shutdown: `Ctrl+C` (SIGINT) or `kill` (SIGTERM). In-flight tasks complete before
 | Variable | Description |
 |----------|-------------|
 | `MECHA_DB_PATH` | Override database location (default: `~/.mecha/mecha.db`) |
+| `MECHA_API_URL` | Override mecha API URL for MCP server (default: from config.yml) |
+| `MECHA_API_KEY` | Override API key for MCP server (default: from config.yml) |
 
 ## Exit Codes
 

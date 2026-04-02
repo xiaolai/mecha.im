@@ -26,6 +26,8 @@ in the same commit.
 | `internal/event/types.go` (Event struct) | `domain-model.md` — event model fields |
 | `internal/event/dedup.go` (dedup enforcement) | `domain-model.md` — DedupKey description |
 | `internal/task/retry.go` (retry logic) | `domain-model.md` — Task verbs |
+| `internal/worker/config_server.go` (ServerConfig) | website `server.md` — config file section |
+| `cmd/mecha-mcp/tools.go` (orchestration tools) | website `mcp-server.md` — tool list |
 | `internal/policy/result.go` (Result struct) | `result-contract.md` — JSON example |
 | `internal/adapter/*.go` (adapter types) | `worker-design.md` — adapter section |
 | `internal/cli/helpers.go` (reserved env vars) | `security.md` — reserved keys list |
