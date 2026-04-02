@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"mecha.im/internal/store"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/workers"
 )
 
 func workerCmd() *cobra.Command {
@@ -23,7 +23,7 @@ func workerCmd() *cobra.Command {
 	return cmd
 }
 
-func registry() *worker.Registry {
+func registry() *workers.Registry {
 	path := os.Getenv("MECHA_DB_PATH")
 	if path == "" {
 		var err error
@@ -38,7 +38,7 @@ func registry() *worker.Registry {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
-	r, err := worker.NewRegistry(db)
+	r, err := workers.NewRegistry(db)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
@@ -66,8 +66,8 @@ func workerAddCmd() *cobra.Command {
 	}
 }
 
-func addFile(reg *worker.Registry, path string) error {
-	w, err := worker.LoadFile(path)
+func addFile(reg *workers.Registry, path string) error {
+	w, err := workers.LoadFile(path)
 	if err != nil {
 		return fmt.Errorf("load %s: %w", path, err)
 	}
@@ -78,17 +78,17 @@ func addFile(reg *worker.Registry, path string) error {
 	return nil
 }
 
-func addDir(reg *worker.Registry, dir string) error {
-	workers, err := worker.LoadDir(dir)
+func addDir(reg *workers.Registry, dir string) error {
+	workerList, err := workers.LoadDir(dir)
 	if err != nil {
 		return err
 	}
-	for _, w := range workers {
+	for _, w := range workerList {
 		if _, exists := reg.Get(w.Name); exists {
 			return fmt.Errorf("worker %q already exists, aborting batch add", w.Name)
 		}
 	}
-	for _, w := range workers {
+	for _, w := range workerList {
 		if err := reg.Add(w); err != nil {
 			return err
 		}
@@ -135,7 +135,7 @@ func workerStartCmd() *cobra.Command {
 			if !ok {
 				return fmt.Errorf("worker %q not found", name)
 			}
-			if e.State != worker.StateOffline {
+			if e.State != workers.StateOffline {
 				return fmt.Errorf("worker %q must be offline to start (current: %s)", name, e.State)
 			}
 			if e.Worker.IsManaged() {
@@ -152,7 +152,7 @@ func workerStartCmd() *cobra.Command {
 				return err
 			}
 			if e.Worker.Endpoint != "" {
-				if err := worker.CheckHealth(e.Worker.Endpoint, 5*time.Second); err != nil {
+				if err := workers.CheckHealth(e.Worker.Endpoint, 5*time.Second); err != nil {
 					if setErr := reg.SetError(name, err.Error()); setErr != nil {
 						fmt.Fprintf(os.Stderr, "warning: failed to set error state for %s: %v\n", name, setErr)
 					}

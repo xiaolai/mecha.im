@@ -4,26 +4,26 @@ import (
 	"context"
 	"net/http"
 
-	"mecha.im/internal/event"
-	"mecha.im/internal/policy"
+	"mecha.im/internal/events"
+	"mecha.im/internal/policies"
 )
 
 // Source parses incoming webhooks into normalized events.
 type Source interface {
 	Name() string
-	Parse(headers http.Header, body []byte) (*event.Event, error)
+	Parse(headers http.Header, body []byte) (*events.Event, error)
 }
 
 // Trigger generates events actively (cron, polling, subscriptions).
 // Start runs until ctx is cancelled. Events are emitted via the emit callback.
 type Trigger interface {
 	Name() string
-	Start(ctx context.Context, emit func(*event.Event)) error
+	Start(ctx context.Context, emit func(*events.Event)) error
 }
 
 // Hydrator enriches an event with additional data (e.g., fetching diffs).
 type Hydrator interface {
-	Hydrate(ctx context.Context, ev *event.Event) error
+	Hydrate(ctx context.Context, ev *events.Event) error
 }
 
 // Authenticated is a marker interface for sources that validate webhooks
@@ -42,7 +42,7 @@ type Verifier interface {
 // Name returns the responder identifier (e.g., "github", "slack").
 type Responder interface {
 	Name() string
-	Respond(ctx context.Context, ev *event.Event, res policy.Result) error
+	Respond(ctx context.Context, ev *events.Event, res policies.Result) error
 }
 
 // Registry holds registered event sources, triggers, and responders by name.

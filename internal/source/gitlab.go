@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"mecha.im/internal/event"
+	"mecha.im/internal/events"
 )
 
 // GitLabSource parses GitLab webhook payloads into events.
@@ -28,7 +28,7 @@ func (g *GitLabSource) Name() string { return "gitlab" }
 func (g *GitLabSource) Authenticated() {}
 
 // Parse validates the token and normalizes the webhook payload.
-func (g *GitLabSource) Parse(headers http.Header, body []byte) (*event.Event, error) {
+func (g *GitLabSource) Parse(headers http.Header, body []byte) (*events.Event, error) {
 	if g.secret != "" {
 		token := headers.Get("X-Gitlab-Token")
 		if subtle.ConstantTimeCompare([]byte(token), []byte(g.secret)) != 1 {
@@ -57,12 +57,12 @@ func (g *GitLabSource) Parse(headers http.Header, body []byte) (*event.Event, er
 		}
 	}
 
-	ev := &event.Event{
+	ev := &events.Event{
 		DeliveryID: deliveryID,
 		Source:     "gitlab",
 		Type:       eventType,
 		Raw:        json.RawMessage(body),
-		Attrs:      make(event.Attrs),
+		Attrs:      make(events.Attrs),
 	}
 
 	// Extract Actor — top-level user_username preferred per GitLab docs
@@ -128,7 +128,7 @@ func normalizeGitLabEvent(glEvent string, payload map[string]any) string {
 	}
 }
 
-func parseGitLabMergeRequest(payload map[string]any, ev *event.Event) {
+func parseGitLabMergeRequest(payload map[string]any, ev *events.Event) {
 	attrs, _ := payload["object_attributes"].(map[string]any)
 	if attrs == nil {
 		return
@@ -150,7 +150,7 @@ func parseGitLabMergeRequest(payload map[string]any, ev *event.Event) {
 	}
 }
 
-func parseGitLabPush(payload map[string]any, ev *event.Event) {
+func parseGitLabPush(payload map[string]any, ev *events.Event) {
 	ref, _ := payload["ref"].(string)
 	ev.Attrs["ref"] = ref
 	if after, ok := payload["after"].(string); ok {
@@ -172,7 +172,7 @@ func parseGitLabPush(payload map[string]any, ev *event.Event) {
 	}
 }
 
-func parseGitLabNote(payload map[string]any, ev *event.Event) {
+func parseGitLabNote(payload map[string]any, ev *events.Event) {
 	attrs, _ := payload["object_attributes"].(map[string]any)
 	if attrs != nil {
 		ev.Attrs["comment"], _ = attrs["note"].(string)
@@ -186,7 +186,7 @@ func parseGitLabNote(payload map[string]any, ev *event.Event) {
 	}
 }
 
-func parseGitLabIssue(payload map[string]any, ev *event.Event) {
+func parseGitLabIssue(payload map[string]any, ev *events.Event) {
 	attrs, _ := payload["object_attributes"].(map[string]any)
 	if attrs == nil {
 		return

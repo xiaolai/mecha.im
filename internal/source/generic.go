@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"mecha.im/internal/event"
+	"mecha.im/internal/events"
 )
 
 // GenericSource parses arbitrary JSON webhook payloads.
@@ -32,7 +32,7 @@ func NewGenericSource(name, typeHeader string) *GenericSource {
 func (g *GenericSource) Name() string { return g.name }
 
 // Parse extracts the event type from the header and passes the JSON payload through.
-func (g *GenericSource) Parse(headers http.Header, body []byte) (*event.Event, error) {
+func (g *GenericSource) Parse(headers http.Header, body []byte) (*events.Event, error) {
 	eventType := headers.Get(g.typeHeader)
 	if eventType == "" {
 		return nil, fmt.Errorf("missing %s header", g.typeHeader)
@@ -47,12 +47,12 @@ func (g *GenericSource) Parse(headers http.Header, body []byte) (*event.Event, e
 	h := sha256.Sum256(append([]byte(eventType+":"), body...))
 	deliveryID := g.name + ":" + hex.EncodeToString(h[:16])
 
-	ev := &event.Event{
+	ev := &events.Event{
 		DeliveryID: deliveryID,
 		Source:     g.name,
 		Type:       eventType,
 		Raw:        json.RawMessage(body),
-		Attrs:      make(event.Attrs),
+		Attrs:      make(events.Attrs),
 	}
 
 	// Copy all top-level string/number fields into Attrs for template access

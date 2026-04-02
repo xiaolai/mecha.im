@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"mecha.im/internal/task"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/tasks"
+	"mecha.im/internal/workers"
 )
 
 const (
@@ -21,7 +21,7 @@ const (
 // disposableContainer creates a one-shot container, waits for health, and
 // returns the endpoint plus a cleanup function. Caller must call cleanup
 // when done (even on error).
-func (s *Server) disposableContainer(ctx context.Context, entry worker.Entry) (endpoint string, cleanup func(), err error) {
+func (s *Server) disposableContainer(ctx context.Context, entry workers.Entry) (endpoint string, cleanup func(), err error) {
 	dc := entry.Worker.Docker
 	cleanup = func() {} // safe default
 
@@ -30,7 +30,7 @@ func (s *Server) disposableContainer(ctx context.Context, entry worker.Entry) (e
 		return "", cleanup, fmt.Errorf("validate config: %w", err)
 	}
 
-	dock, err := worker.NewDockerClient(dc.Host)
+	dock, err := workers.NewDockerClient(dc.Host)
 	if err != nil {
 		return "", cleanup, fmt.Errorf("docker client: %w", err)
 	}
@@ -38,17 +38,17 @@ func (s *Server) disposableContainer(ctx context.Context, entry worker.Entry) (e
 	suffix := randomSuffix()
 	name := fmt.Sprintf("mecha-disposable-%s-%s", entry.Worker.Name, suffix)
 
-	env, err := worker.BuildContainerEnv(dc, validateDisposableEnv)
+	env, err := workers.BuildContainerEnv(dc, validateDisposableEnv)
 	if err != nil {
 		dock.Close()
 		return "", cleanup, fmt.Errorf("build env: %w", err)
 	}
-	mounts, err := worker.BuildContainerMounts(dc)
+	mounts, err := workers.BuildContainerMounts(dc)
 	if err != nil {
 		dock.Close()
 		return "", cleanup, fmt.Errorf("build mounts: %w", err)
 	}
-	userStr, err := worker.CurrentUser()
+	userStr, err := workers.CurrentUser()
 	if err != nil {
 		dock.Close()
 		return "", cleanup, fmt.Errorf("resolve user: %w", err)
@@ -62,7 +62,7 @@ func (s *Server) disposableContainer(ctx context.Context, entry worker.Entry) (e
 		labels[k] = v
 	}
 
-	cfg := worker.ContainerCfg{
+	cfg := workers.ContainerCfg{
 		Name:      name,
 		Image:     dc.Image,
 		Env:       env,
@@ -103,7 +103,7 @@ func (s *Server) disposableContainer(ctx context.Context, entry worker.Entry) (e
 	return ep, cleanup, nil
 }
 
-func waitForDisposableHealth(parent context.Context, dock *worker.DockerClient, id string, timeout time.Duration) (string, error) {
+func waitForDisposableHealth(parent context.Context, dock *workers.DockerClient, id string, timeout time.Duration) (string, error) {
 	ctx, cancel := context.WithTimeout(parent, timeout)
 	defer cancel()
 
@@ -119,7 +119,7 @@ func waitForDisposableHealth(parent context.Context, dock *worker.DockerClient, 
 		case <-ctx.Done():
 			return "", fmt.Errorf("timed out waiting for health on %s", ep)
 		case <-ticker.C:
-			if err := worker.CheckHealth(ep, 3*time.Second); err == nil {
+			if err := workers.CheckHealth(ep, 3*time.Second); err == nil {
 				return ep, nil
 			}
 		}
@@ -128,8 +128,8 @@ func waitForDisposableHealth(parent context.Context, dock *worker.DockerClient, 
 
 // dispatchDisposable handles one-shot container lifecycle for a single task.
 // Creates a fresh container, sends the task, tears it down, then completes.
-func (s *Server) dispatchDisposable(ctx context.Context, taskID string, t *task.Task, entry worker.Entry) {
-	if t.State == task.StatePending {
+func (s *Server) dispatchDisposable(ctx context.Context, taskID string, t *tasks.Task, entry workers.Entry) {
+	if t.State == tasks.StatePending {
 		if err := s.tasks.SetDispatched(ctx, taskID); err != nil {
 			s.logger.Error("disposable: set dispatched", "id", taskID, "err", err)
 			return
@@ -141,7 +141,7 @@ func (s *Server) dispatchDisposable(ctx context.Context, taskID string, t *task.
 	defer cleanup()
 
 	if err != nil {
-		redacted := worker.RedactSecrets(err.Error())
+		redacted := workers.RedactSecrets(err.Error())
 		if failErr := s.tasks.Fail(ctx, taskID, redacted); failErr != nil {
 			s.logger.Error("disposable: fail task", "id", taskID, "err", failErr)
 		}
@@ -156,7 +156,7 @@ func (s *Server) dispatchDisposable(ctx context.Context, taskID string, t *task.
 	}
 	result, err := s.sendTask(ctx, ep, taskID, t.Prompt, entry.Worker.Timeout, apiKey)
 	if err != nil {
-		redacted := worker.RedactSecrets(err.Error())
+		redacted := workers.RedactSecrets(err.Error())
 		if failErr := s.tasks.Fail(ctx, taskID, redacted); failErr != nil {
 			s.logger.Error("disposable: fail task after send", "id", taskID, "err", failErr)
 		}

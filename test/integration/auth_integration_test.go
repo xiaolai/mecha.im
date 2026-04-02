@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
-	"mecha.im/internal/event"
+	"mecha.im/internal/events"
 	"mecha.im/internal/serve"
 	"mecha.im/internal/source"
 	"mecha.im/internal/store"
-	"mecha.im/internal/task"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/tasks"
+	"mecha.im/internal/workers"
 )
 
 func TestAuth_APIKeyEnforcement(t *testing.T) {
@@ -31,11 +31,11 @@ func TestAuth_APIKeyEnforcement(t *testing.T) {
 		t.Fatalf("open db: %v", err)
 	}
 
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatalf("create registry: %v", err)
 	}
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:     "auth-worker",
 		Endpoint: mock.URL,
 		Timeout:  30 * time.Second,
@@ -47,8 +47,8 @@ func TestAuth_APIKeyEnforcement(t *testing.T) {
 		t.Fatalf("start worker: %v", err)
 	}
 
-	tasks := task.NewStore(db)
-	events := event.NewStore(db)
+	taskStore := tasks.NewStore(db)
+	evStore := events.NewStore(db)
 
 	// Register both an authenticated source (GitHub) and a non-authenticated
 	// source (GenericSource).
@@ -61,8 +61,8 @@ func TestAuth_APIKeyEnforcement(t *testing.T) {
 
 	srv := serve.New(serve.Config{
 		Registry: reg,
-		Tasks:    tasks,
-		Events:   events,
+		Tasks:    taskStore,
+		Events:   evStore,
 		Sources:  sources,
 		APIKey:   apiKey,
 		Addr:     addr,

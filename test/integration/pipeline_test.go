@@ -15,12 +15,12 @@ import (
 	"testing"
 	"time"
 
-	"mecha.im/internal/event"
+	"mecha.im/internal/events"
 	"mecha.im/internal/serve"
 	"mecha.im/internal/source"
 	"mecha.im/internal/store"
-	"mecha.im/internal/task"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/tasks"
+	"mecha.im/internal/workers"
 	"mecha.im/internal/writeback"
 )
 
@@ -94,9 +94,9 @@ func prWebhookPayload(owner, repo string, number int) []byte {
 type pipelineTestServer struct {
 	Addr     string
 	DB       *sql.DB
-	Registry *worker.Registry
-	Tasks    *task.Store
-	Events   *event.Store
+	Registry *workers.Registry
+	Tasks    *tasks.Store
+	Events   *events.Store
 	Sources  *source.Registry
 	Cancel   context.CancelFunc
 }
@@ -112,12 +112,12 @@ func newPipelineServer(t *testing.T, sources *source.Registry, ghSrvURL string) 
 		t.Fatalf("store.Open: %v", err)
 	}
 
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
-		t.Fatalf("worker.NewRegistry: %v", err)
+		t.Fatalf("workers.NewRegistry: %v", err)
 	}
-	tasks := task.NewStore(db)
-	events := event.NewStore(db)
+	taskStore := tasks.NewStore(db)
+	evStore := events.NewStore(db)
 
 	restore := writeback.OverrideAPIBase(ghSrvURL)
 	wb := writeback.NewClient("test-gh-token", nil)
@@ -127,8 +127,8 @@ func newPipelineServer(t *testing.T, sources *source.Registry, ghSrvURL string) 
 
 	srv := serve.New(serve.Config{
 		Registry:  reg,
-		Tasks:     tasks,
-		Events:    events,
+		Tasks:     taskStore,
+		Events:    evStore,
 		Sources:   sources,
 		WriteBack: wb,
 		Addr:      addr,
@@ -145,8 +145,8 @@ func newPipelineServer(t *testing.T, sources *source.Registry, ghSrvURL string) 
 		Addr:     addr,
 		DB:       db,
 		Registry: reg,
-		Tasks:    tasks,
-		Events:   events,
+		Tasks:    taskStore,
+		Events:   evStore,
 		Sources:  sources,
 		Cancel:   cancel,
 	}
@@ -190,10 +190,10 @@ func TestPipeline_WebhookToWriteBack(t *testing.T) {
 	defer cleanup()
 
 	// Register a worker with an event rule matching pull_request.opened.
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:     "pr-reviewer",
 		Endpoint: mockWorker.URL,
-		Events: []worker.EventRule{{
+		Events: []workers.EventRule{{
 			Source: "github",
 			On:     []string{"pull_request.opened"},
 			Prompt: "Review PR #{{.number}} by {{.sender}}",
@@ -237,7 +237,7 @@ func TestPipeline_WebhookToWriteBack(t *testing.T) {
 		default:
 			evs, _ := pts.Events.List(context.Background(), "")
 			for _, ev := range evs {
-				if ev.State == event.StateCompleted {
+				if ev.State == events.StateCompleted {
 					// Verify GitHub API received comment and status.
 					calls := rec.getCalls()
 					var hasComment, hasStatus bool
@@ -294,10 +294,10 @@ func TestPipeline_PolicyFiltersWriteBack(t *testing.T) {
 	defer cleanup()
 
 	// Worker policy: block labels, allow comment.
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:     "policy-test-worker",
 		Endpoint: mockWorker.URL,
-		Events: []worker.EventRule{{
+		Events: []workers.EventRule{{
 			Source: "github",
 			On:     []string{"pull_request.opened"},
 			Prompt: "Review PR #{{.number}}",
@@ -342,7 +342,7 @@ func TestPipeline_PolicyFiltersWriteBack(t *testing.T) {
 		default:
 			evs, _ := pts.Events.List(context.Background(), "")
 			for _, ev := range evs {
-				if ev.State == event.StateCompleted {
+				if ev.State == events.StateCompleted {
 					calls := rec.getCalls()
 					var hasComment bool
 					for _, c := range calls {
@@ -428,10 +428,10 @@ func TestPipeline_NoMatchingWorker(t *testing.T) {
 	defer cleanup()
 
 	// Register a worker that only matches "push" events -- not pull_request.
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:     "push-only-worker",
 		Endpoint: "http://127.0.0.1:1",
-		Events: []worker.EventRule{{
+		Events: []workers.EventRule{{
 			Source: "github",
 			On:     []string{"push"},
 			Prompt: "Handle push",
@@ -474,7 +474,7 @@ func TestPipeline_NoMatchingWorker(t *testing.T) {
 		default:
 			evs, _ := pts.Events.List(context.Background(), "")
 			for _, ev := range evs {
-				if ev.State == event.StateSkipped {
+				if ev.State == events.StateSkipped {
 					return // success
 				}
 			}

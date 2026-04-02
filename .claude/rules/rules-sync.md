@@ -13,22 +13,22 @@ in the same commit.
 
 | When you change... | Check this rules file |
 |---|---|
-| `internal/worker/config.go` (struct fields) | `worker-yaml-spec.md` — YAML fields, Docker config |
-| `internal/worker/secrets.go` (token detection) | `secrets.md` — prefix table, resolution order |
-| `internal/worker/container.go` (env/mounts) | `secrets.md` — resolution order, HOME logic |
-| `internal/worker/validate.go` (sensitive paths) | `worker-yaml-spec.md` — blocked paths |
-| `internal/worker/types.go` (State enum) | `worker-design.md` — state machine |
-| `internal/worker/redact.go` (patterns) | `secrets.md` — redaction patterns list |
+| `internal/workers/config.go` (struct fields) | `worker-yaml-spec.md` — YAML fields, Docker config |
+| `internal/workers/secrets.go` (token detection) | `secrets.md` — prefix table, resolution order |
+| `internal/workers/container.go` (env/mounts) | `secrets.md` — resolution order, HOME logic |
+| `internal/workers/validate.go` (sensitive paths) | `worker-yaml-spec.md` — blocked paths |
+| `internal/workers/types.go` (State enum) | `worker-design.md` — state machine |
+| `internal/workers/redact.go` (patterns) | `secrets.md` — redaction patterns list |
 | `internal/source/source.go` (interfaces) | `domain-model.md` — provider interfaces table |
 | `internal/source/slack.go` (Slack source) | `secrets.md` — Slack signing_secret field |
 | `internal/source/telegram.go` (Telegram source) | `secrets.md` — Telegram secret_token field |
 | `internal/source/gitlab_respond.go` (responder) | `domain-model.md` — responder capabilities |
-| `internal/event/types.go` (Event struct) | `domain-model.md` — event model fields |
-| `internal/event/dedup.go` (dedup enforcement) | `domain-model.md` — DedupKey description |
-| `internal/task/retry.go` (retry logic) | `domain-model.md` — Task verbs |
-| `internal/worker/config_server.go` (ServerConfig) | website `server.md` — config file section |
+| `internal/events/types.go` (Event struct) | `domain-model.md` — event model fields |
+| `internal/events/dedup.go` (dedup enforcement) | `domain-model.md` — DedupKey description |
+| `internal/tasks/retry.go` (retry logic) | `domain-model.md` — Task verbs |
+| `internal/workers/config_server.go` (ServerConfig) | website `server.md` — config file section |
 | `cmd/mecha-mcp/tools.go` (orchestration tools) | website `mcp-server.md` — tool list |
-| `internal/policy/result.go` (Result struct) | `result-contract.md` — JSON example |
+| `internal/policies/result.go` (Result struct) | `result-contract.md` — JSON example |
 | `internal/adapter/*.go` (adapter types) | `worker-design.md` — adapter section |
 | `internal/cli/helpers.go` (reserved env vars) | `security.md` — reserved keys list |
 | `docker/runtime/backends/claude.ts` (env vars) | `worker-yaml-spec.md` — Claude env var table |

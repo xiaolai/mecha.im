@@ -8,7 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"mecha.im/internal/event"
+	"mecha.im/internal/logs"
+	"mecha.im/internal/events"
 	"mecha.im/internal/source"
 )
 
@@ -67,7 +68,7 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.events.Create(r.Context(), ev); err != nil {
-		if isUniqueViolation(err) || errors.Is(err, event.ErrDuplicateDedup) {
+		if isUniqueViolation(err) || errors.Is(err, events.ErrDuplicateDedup) {
 			eventsDedupSkip.Add(1)
 			writeJSON(w, http.StatusOK, map[string]string{"status": "duplicate"})
 			return
@@ -78,6 +79,9 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusAccepted, ev)
+
+	s.record(logs.Entry{TraceID: ev.ID, EventID: ev.ID, Action: logs.EventReceived, Outcome: logs.OK,
+		Detail: logs.MarshalDetail(map[string]string{"source": ev.Source, "type": ev.Type})})
 
 	webhooksReceived.Add(1)
 	// Match + hydrate + dispatch in background with timeout
@@ -94,7 +98,7 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 	}()
 }
 
-func (s *Server) matchAndHydrate(ctx context.Context, ev *event.Event, src source.Source) {
+func (s *Server) matchAndHydrate(ctx context.Context, ev *events.Event, src source.Source) {
 	if err := s.reg.Reload(); err != nil {
 		s.logger.Error("webhook: reload registry", "err", err)
 	}
@@ -139,6 +143,7 @@ func (s *Server) matchAndHydrate(ctx context.Context, ev *event.Event, src sourc
 				s.logger.Error("webhook: set matched", "event", ev.ID, "err", err)
 				return
 			}
+			s.record(logs.Entry{TraceID: ev.ID, EventID: ev.ID, Worker: entry.Worker.Name, Action: logs.EventMatched, Outcome: logs.OK})
 
 			taskCtx, ctxErr := buildTaskContext(ev)
 			if ctxErr != nil {
@@ -179,16 +184,16 @@ func (s *Server) matchAndHydrate(ctx context.Context, ev *event.Event, src sourc
 
 func (s *Server) handleListEvents(w http.ResponseWriter, r *http.Request) {
 	state := r.URL.Query().Get("state")
-	events, err := s.events.List(r.Context(), state)
+	evList, err := s.events.List(r.Context(), state)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
-	if events == nil {
+	if evList == nil {
 		writeJSON(w, http.StatusOK, []any{})
 		return
 	}
-	writeJSON(w, http.StatusOK, events)
+	writeJSON(w, http.StatusOK, evList)
 }
 
 func (s *Server) handleGetEvent(w http.ResponseWriter, r *http.Request) {

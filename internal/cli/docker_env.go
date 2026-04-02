@@ -3,11 +3,11 @@ package cli
 import (
 	"fmt"
 
-	"mecha.im/internal/worker"
+	"mecha.im/internal/workers"
 )
 
-func buildContainerEnv(dc *worker.DockerConfig) (map[string]string, error) {
-	return worker.BuildContainerEnv(dc, validateEnvEntry)
+func buildContainerEnv(dc *workers.DockerConfig) (map[string]string, error) {
+	return workers.BuildContainerEnv(dc, validateEnvEntry)
 }
 
 func validateEnvEntry(k, v string) error {
@@ -17,6 +17,6 @@ func validateEnvEntry(k, v string) error {
 	return nil
 }
 
-func buildContainerMounts(dc *worker.DockerConfig) ([]worker.MountCfg, error) {
-	return worker.BuildContainerMounts(dc)
+func buildContainerMounts(dc *workers.DockerConfig) ([]workers.MountCfg, error) {
+	return workers.BuildContainerMounts(dc)
 }

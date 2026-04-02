@@ -57,15 +57,15 @@ func TestCountRows(t *testing.T) {
 	}
 	defer db.Close()
 
-	workers, tasks, err := countRows(db)
+	wCount, tCount, err := countRows(db)
 	if err != nil {
 		t.Fatalf("countRows: %v", err)
 	}
-	if workers != 0 {
-		t.Errorf("workers = %d, want 0", workers)
+	if wCount != 0 {
+		t.Errorf("workers = %d, want 0", wCount)
 	}
-	if tasks != 0 {
-		t.Errorf("tasks = %d, want 0", tasks)
+	if tCount != 0 {
+		t.Errorf("tasks = %d, want 0", tCount)
 	}
 }
 

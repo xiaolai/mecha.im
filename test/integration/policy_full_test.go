@@ -12,13 +12,13 @@ import (
 	"testing"
 	"time"
 
-	"mecha.im/internal/event"
-	"mecha.im/internal/policy"
+	"mecha.im/internal/events"
+	"mecha.im/internal/policies"
 	"mecha.im/internal/serve"
 	"mecha.im/internal/source"
 	"mecha.im/internal/store"
-	"mecha.im/internal/task"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/tasks"
+	"mecha.im/internal/workers"
 )
 
 // ghAPICall records a single call to the mock GitHub API.
@@ -93,17 +93,17 @@ func startPolicyTestServer(
 	}))
 	t.Cleanup(mockW.Close)
 
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatalf("create registry: %v", err)
 	}
 
-	wk := &worker.Worker{
+	wk := &workers.Worker{
 		Name:     "policy-worker",
 		Endpoint: mockW.URL,
 		Timeout:  30 * time.Second,
 		Policy:   policyConfig,
-		Events: []worker.EventRule{
+		Events: []workers.EventRule{
 			{
 				Source: "github",
 				On:     []string{"pull_request.opened"},
@@ -118,8 +118,8 @@ func startPolicyTestServer(
 		t.Fatalf("start worker: %v", err)
 	}
 
-	tasks := task.NewStore(db)
-	evStore := event.NewStore(db)
+	taskStore := tasks.NewStore(db)
+	evStore := events.NewStore(db)
 
 	srcReg := source.NewRegistry()
 	ghSrc := source.NewGitHubSource("test-secret", "fake-token")
@@ -140,7 +140,7 @@ func startPolicyTestServer(
 
 	srv := serve.New(serve.Config{
 		Registry: reg,
-		Tasks:    tasks,
+		Tasks:    taskStore,
 		Events:   evStore,
 		Sources:  srcReg,
 		Addr:     addr,
@@ -173,12 +173,12 @@ type mockResponder struct {
 
 type responderCall struct {
 	EventID string
-	Result  policy.Result
+	Result  policies.Result
 }
 
 func (m *mockResponder) Name() string { return m.name }
 
-func (m *mockResponder) Respond(_ context.Context, ev *event.Event, res policy.Result) error {
+func (m *mockResponder) Respond(_ context.Context, ev *events.Event, res policies.Result) error {
 	m.mu.Lock()
 	m.calls = append(m.calls, responderCall{EventID: ev.ID, Result: res})
 	m.mu.Unlock()

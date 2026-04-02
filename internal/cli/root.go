@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/workers"
 )
 
 // Version is set at build time via -ldflags.
@@ -23,7 +23,7 @@ func Execute() {
 	root.AddCommand(doctorCmd())
 	root.AddCommand(versionCmd())
 	if err := root.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, worker.RedactSecrets(err.Error()))
+		fmt.Fprintln(os.Stderr, workers.RedactSecrets(err.Error()))
 		os.Exit(1)
 	}
 }

@@ -9,7 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"mecha.im/internal/store"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/workers"
 )
 
 const doctorTimeout = 60 * time.Second
@@ -88,28 +88,28 @@ func checkDatabase() bool {
 		return false
 	}
 	defer db.Close()
-	workers, tasks, err := countRows(db)
+	wCount, tCount, err := countRows(db)
 	if err != nil {
 		printStatus("fail", "database schema broken: "+err.Error())
 		return false
 	}
-	printStatus("ok", fmt.Sprintf("database opens (%d workers, %d tasks)", workers, tasks))
+	printStatus("ok", fmt.Sprintf("database opens (%d workers, %d tasks)", wCount, tCount))
 	return true
 }
 
 func countRows(db *sql.DB) (int, int, error) {
-	var workers, tasks int
-	if err := db.QueryRow("SELECT COUNT(*) FROM workers").Scan(&workers); err != nil {
+	var wCount, tCount int
+	if err := db.QueryRow("SELECT COUNT(*) FROM workers").Scan(&wCount); err != nil {
 		return 0, 0, fmt.Errorf("count workers: %w", err)
 	}
-	if err := db.QueryRow("SELECT COUNT(*) FROM tasks").Scan(&tasks); err != nil {
+	if err := db.QueryRow("SELECT COUNT(*) FROM tasks").Scan(&tCount); err != nil {
 		return 0, 0, fmt.Errorf("count tasks: %w", err)
 	}
-	return workers, tasks, nil
+	return wCount, tCount, nil
 }
 
 func checkSecrets() bool {
-	path, err := worker.DefaultSecretsPath()
+	path, err := workers.DefaultSecretsPath()
 	if err != nil {
 		printStatus("fail", "cannot resolve secrets path: "+err.Error())
 		return false
@@ -118,7 +118,7 @@ func checkSecrets() bool {
 		printStatus("warn", "~/.mecha/secrets.yml not found (optional)")
 		return true
 	}
-	secrets, err := worker.LoadSecrets(path)
+	secrets, err := workers.LoadSecrets(path)
 	if err != nil {
 		printStatus("fail", "secrets: "+err.Error())
 		return false
@@ -129,7 +129,7 @@ func checkSecrets() bool {
 }
 
 func checkDocker(ctx context.Context) bool {
-	dc, err := worker.NewDockerClient("")
+	dc, err := workers.NewDockerClient("")
 	if err != nil {
 		printStatus("fail", "docker client: "+err.Error())
 		return false
@@ -147,7 +147,7 @@ func checkDocker(ctx context.Context) bool {
 }
 
 func printStatus(status, msg string) {
-	msg = worker.RedactSecrets(msg)
+	msg = workers.RedactSecrets(msg)
 	var prefix string
 	switch status {
 	case "ok":

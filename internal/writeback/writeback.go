@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"time"
 
-	"mecha.im/internal/event"
-	"mecha.im/internal/policy"
+	"mecha.im/internal/events"
+	"mecha.im/internal/policies"
 )
 
 // validStatusStates are the GitHub commit status API allowed values.
@@ -41,12 +41,12 @@ func (c *Client) Name() string { return "github" }
 
 // Respond writes a policy-filtered result back to GitHub.
 // Implements source.Responder.
-func (c *Client) Respond(ctx context.Context, ev *event.Event, res policy.Result) error {
+func (c *Client) Respond(ctx context.Context, ev *events.Event, res policies.Result) error {
 	return c.WriteBackResult(ctx, ev, res)
 }
 
 // WriteBackResult writes a policy-filtered result to GitHub.
-func (c *Client) WriteBackResult(ctx context.Context, ev *event.Event, res policy.Result) error {
+func (c *Client) WriteBackResult(ctx context.Context, ev *events.Event, res policies.Result) error {
 	if c == nil || c.token == "" {
 		return nil
 	}
@@ -99,7 +99,7 @@ func (c *Client) WriteBackResult(ctx context.Context, ev *event.Event, res polic
 }
 
 // attrInt extracts an integer from Attrs (handles float64 from JSON).
-func attrInt(attrs event.Attrs, key string) int {
+func attrInt(attrs events.Attrs, key string) int {
 	switch n := attrs[key].(type) {
 	case float64:
 		return int(n)

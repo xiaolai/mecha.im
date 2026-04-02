@@ -5,7 +5,7 @@ globs: "**/*.go"
 
 # Result Contract
 
-> Implemented in Go (`internal/policy/result.go`) and TypeScript (`docker/runtime/types.ts`).
+> Implemented in Go (`internal/policies/result.go`) and TypeScript (`docker/runtime/types.ts`).
 
 Every worker returns the same structure. Every field optional.
 

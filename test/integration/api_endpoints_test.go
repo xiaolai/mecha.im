@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"mecha.im/internal/event"
+	"mecha.im/internal/events"
 	"mecha.im/internal/serve"
 	"mecha.im/internal/source"
 	"mecha.im/internal/store"
-	"mecha.im/internal/task"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/tasks"
+	"mecha.im/internal/workers"
 )
 
 // TestAPI_TaskQueueFull is skipped because the pending channel size (256) is
@@ -76,7 +76,7 @@ func TestAPI_EventListAndGet(t *testing.T) {
 			evs, _ := pts.Events.List(context.Background(), "")
 			skipped := 0
 			for _, ev := range evs {
-				if ev.State == event.StateSkipped {
+				if ev.State == events.StateSkipped {
 					skipped++
 				}
 			}
@@ -292,11 +292,11 @@ func TestAPI_GracefulShutdown(t *testing.T) {
 		t.Fatalf("open db: %v", err)
 	}
 
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatalf("create registry: %v", err)
 	}
-	wk := &worker.Worker{
+	wk := &workers.Worker{
 		Name:     "slow-but-finishes",
 		Endpoint: mock.URL,
 		Timeout:  10 * time.Second,
@@ -308,16 +308,16 @@ func TestAPI_GracefulShutdown(t *testing.T) {
 		t.Fatalf("start worker: %v", err)
 	}
 
-	tasks := task.NewStore(db)
-	events := event.NewStore(db)
+	taskStore := tasks.NewStore(db)
+	evStore := events.NewStore(db)
 
 	port := findFreePort(t)
 	addr := fmt.Sprintf("127.0.0.1:%d", port)
 
 	srv := serve.New(serve.Config{
 		Registry: reg,
-		Tasks:    tasks,
-		Events:   events,
+		Tasks:    taskStore,
+		Events:   evStore,
 		Addr:     addr,
 	})
 
@@ -360,14 +360,14 @@ func TestAPI_GracefulShutdown(t *testing.T) {
 	// may or may not complete depending on whether the HTTP server
 	// shutdown interrupts the in-flight request. The important thing is
 	// that the server shut down cleanly (no hang, no panic).
-	tsk, err := tasks.Get(context.Background(), taskID)
+	tsk, err := taskStore.Get(context.Background(), taskID)
 	if err != nil {
 		t.Logf("get task after shutdown: %v (task may not have been dispatched)", err)
 	} else {
 		t.Logf("task state after shutdown: %s", tsk.State)
 		// If the task completed, great. If it's still pending/dispatched,
 		// that's acceptable — the server didn't hang.
-		if tsk.State == task.StateCompleted {
+		if tsk.State == tasks.StateCompleted {
 			if !strings.Contains(tsk.Result, "done after delay") {
 				t.Errorf("task result = %q, expected to contain 'done after delay'", tsk.Result)
 			}

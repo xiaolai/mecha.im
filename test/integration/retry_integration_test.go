@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"mecha.im/internal/event"
+	"mecha.im/internal/events"
 	"mecha.im/internal/serve"
 	"mecha.im/internal/store"
-	"mecha.im/internal/task"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/tasks"
+	"mecha.im/internal/workers"
 )
 
 func TestRetry_TransportErrorRecovers(t *testing.T) {
@@ -59,11 +59,11 @@ func TestRetry_TransportErrorRecovers(t *testing.T) {
 		t.Fatalf("open db: %v", err)
 	}
 
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatalf("create registry: %v", err)
 	}
-	w := &worker.Worker{
+	w := &workers.Worker{
 		Name:     "retry-worker",
 		Endpoint: mock.URL,
 		Timeout:  10 * time.Second,
@@ -75,16 +75,16 @@ func TestRetry_TransportErrorRecovers(t *testing.T) {
 		t.Fatalf("start worker: %v", err)
 	}
 
-	tasks := task.NewStore(db)
-	events := event.NewStore(db)
+	taskStore := tasks.NewStore(db)
+	evStore := events.NewStore(db)
 
 	port := findFreePort(t)
 	addr := fmt.Sprintf("127.0.0.1:%d", port)
 
 	srv := serve.New(serve.Config{
 		Registry: reg,
-		Tasks:    tasks,
-		Events:   events,
+		Tasks:    taskStore,
+		Events:   evStore,
 		Addr:     addr,
 	})
 
@@ -120,8 +120,8 @@ func TestRetry_TransportErrorRecovers(t *testing.T) {
 	// pending state with attempts > 0.
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
-		tsk, getErr := tasks.Get(ctx, taskID)
-		if getErr == nil && tsk.State == task.StatePending && tsk.Attempts > 0 {
+		tsk, getErr := taskStore.Get(ctx, taskID)
+		if getErr == nil && tsk.State == tasks.StatePending && tsk.Attempts > 0 {
 			break
 		}
 		time.Sleep(100 * time.Millisecond)

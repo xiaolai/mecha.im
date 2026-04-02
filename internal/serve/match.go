@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"text/template"
 
-	"mecha.im/internal/event"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/events"
+	"mecha.im/internal/workers"
 )
 
-func matchesRule(rule worker.EventRule, ev *event.Event) bool {
+func matchesRule(rule workers.EventRule, ev *events.Event) bool {
 	if rule.Source != ev.Source {
 		return false
 	}
@@ -33,7 +33,7 @@ func matchesRule(rule worker.EventRule, ev *event.Event) bool {
 	return true
 }
 
-func renderPrompt(rule worker.EventRule, ev *event.Event) (string, error) {
+func renderPrompt(rule workers.EventRule, ev *events.Event) (string, error) {
 	tmpl, err := template.New("prompt").Option("missingkey=error").Parse(rule.Prompt)
 	if err != nil {
 		return "", fmt.Errorf("parse template: %w", err)
@@ -54,7 +54,7 @@ func renderPrompt(rule worker.EventRule, ev *event.Event) (string, error) {
 	return buf.String(), nil
 }
 
-func buildTaskContext(ev *event.Event) (string, error) {
+func buildTaskContext(ev *events.Event) (string, error) {
 	ctx := map[string]any{
 		"source":  ev.Source,
 		"actor":   ev.Actor,

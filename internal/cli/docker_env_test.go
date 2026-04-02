@@ -6,19 +6,19 @@ import (
 	"strings"
 	"testing"
 
-	"mecha.im/internal/worker"
+	"mecha.im/internal/workers"
 )
 
 func TestBuildContainerEnv(t *testing.T) {
 	tests := []struct {
 		name    string
-		dc      *worker.DockerConfig
+		dc      *workers.DockerConfig
 		wantErr string
 		check   func(*testing.T, map[string]string)
 	}{
 		{
 			name: "clean env passthrough",
-			dc:   &worker.DockerConfig{Env: map[string]string{"FOO": "bar", "BAZ": "123"}},
+			dc:   &workers.DockerConfig{Env: map[string]string{"FOO": "bar", "BAZ": "123"}},
 			check: func(t *testing.T, env map[string]string) {
 				if env["FOO"] != "bar" {
 					t.Errorf("FOO = %q", env["FOO"])
@@ -27,7 +27,7 @@ func TestBuildContainerEnv(t *testing.T) {
 		},
 		{
 			name: "HOME always set",
-			dc:   &worker.DockerConfig{Env: map[string]string{}},
+			dc:   &workers.DockerConfig{Env: map[string]string{}},
 			check: func(t *testing.T, env map[string]string) {
 				if env["HOME"] != "/tmp" {
 					t.Errorf("HOME = %q, want /tmp", env["HOME"])
@@ -36,7 +36,7 @@ func TestBuildContainerEnv(t *testing.T) {
 		},
 		{
 			name: "GITHUB_TOKEN allowed",
-			dc:   &worker.DockerConfig{Env: map[string]string{"GITHUB_TOKEN": "ghp_xxx"}},
+			dc:   &workers.DockerConfig{Env: map[string]string{"GITHUB_TOKEN": "ghp_xxx"}},
 			check: func(t *testing.T, env map[string]string) {
 				if env["GITHUB_TOKEN"] != "ghp_xxx" {
 					t.Errorf("GITHUB_TOKEN = %q", env["GITHUB_TOKEN"])
@@ -45,22 +45,22 @@ func TestBuildContainerEnv(t *testing.T) {
 		},
 		{
 			name:    "reserved WORKER_BACKEND blocked",
-			dc:      &worker.DockerConfig{Env: map[string]string{"WORKER_BACKEND": "bad"}},
+			dc:      &workers.DockerConfig{Env: map[string]string{"WORKER_BACKEND": "bad"}},
 			wantErr: "reserved",
 		},
 		{
 			name:    "reserved HOME blocked",
-			dc:      &worker.DockerConfig{Env: map[string]string{"HOME": "/root"}},
+			dc:      &workers.DockerConfig{Env: map[string]string{"HOME": "/root"}},
 			wantErr: "reserved",
 		},
 		{
 			name:    "token ref with no matching token",
-			dc:      &worker.DockerConfig{Token: "claude.nonexistent"},
+			dc:      &workers.DockerConfig{Token: "claude.nonexistent"},
 			wantErr: "resolve token",
 		},
 		{
 			name: "empty token skips resolution",
-			dc:   &worker.DockerConfig{Token: "", Env: map[string]string{"X": "1"}},
+			dc:   &workers.DockerConfig{Token: "", Env: map[string]string{"X": "1"}},
 			check: func(t *testing.T, env map[string]string) {
 				if env["X"] != "1" {
 					t.Errorf("X = %q", env["X"])
@@ -92,7 +92,7 @@ func TestBuildContainerEnv(t *testing.T) {
 
 func TestBuildContainerMounts(t *testing.T) {
 	t.Run("empty cwd", func(t *testing.T) {
-		dc := &worker.DockerConfig{}
+		dc := &workers.DockerConfig{}
 		mounts, err := buildContainerMounts(dc)
 		if err != nil {
 			t.Fatalf("error: %v", err)
@@ -104,7 +104,7 @@ func TestBuildContainerMounts(t *testing.T) {
 
 	t.Run("valid directory", func(t *testing.T) {
 		dir := t.TempDir()
-		dc := &worker.DockerConfig{Cwd: dir}
+		dc := &workers.DockerConfig{Cwd: dir}
 		mounts, err := buildContainerMounts(dc)
 		if err != nil {
 			t.Fatalf("error: %v", err)
@@ -123,7 +123,7 @@ func TestBuildContainerMounts(t *testing.T) {
 		if err := os.Symlink(dir, link); err != nil {
 			t.Skip("symlinks not supported")
 		}
-		dc := &worker.DockerConfig{Cwd: link}
+		dc := &workers.DockerConfig{Cwd: link}
 		mounts, err := buildContainerMounts(dc)
 		if err != nil {
 			t.Fatalf("error: %v", err)
@@ -134,7 +134,7 @@ func TestBuildContainerMounts(t *testing.T) {
 	})
 
 	t.Run("nonexistent path", func(t *testing.T) {
-		dc := &worker.DockerConfig{Cwd: "/nonexistent/path/abc"}
+		dc := &workers.DockerConfig{Cwd: "/nonexistent/path/abc"}
 		_, err := buildContainerMounts(dc)
 		if err == nil {
 			t.Error("expected error for nonexistent path")
@@ -144,7 +144,7 @@ func TestBuildContainerMounts(t *testing.T) {
 	t.Run("file not directory", func(t *testing.T) {
 		f := filepath.Join(t.TempDir(), "file.txt")
 		os.WriteFile(f, []byte("x"), 0o644)
-		dc := &worker.DockerConfig{Cwd: f}
+		dc := &workers.DockerConfig{Cwd: f}
 		_, err := buildContainerMounts(dc)
 		if err == nil || !strings.Contains(err.Error(), "not a directory") {
 			t.Errorf("error = %v", err)

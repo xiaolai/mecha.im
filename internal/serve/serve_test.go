@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"mecha.im/internal/store"
-	"mecha.im/internal/task"
-	"mecha.im/internal/worker"
+	"mecha.im/internal/tasks"
+	"mecha.im/internal/workers"
 )
 
 func testServer(t *testing.T) (*Server, func()) {
@@ -22,15 +22,15 @@ func testServer(t *testing.T) (*Server, func()) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	reg, err := worker.NewRegistry(db)
+	reg, err := workers.NewRegistry(db)
 	if err != nil {
 		t.Fatal(err)
 	}
-	tasks := task.NewStore(db)
+	taskStore := tasks.NewStore(db)
 
 	s := New(Config{
 		Registry: reg,
-		Tasks:    tasks,
+		Tasks:    taskStore,
 		Addr:     "127.0.0.1:0",
 	})
 	return s, func() { db.Close() }
@@ -90,7 +90,7 @@ func TestPostTaskAndGet(t *testing.T) {
 	}))
 	defer mockWorker.Close()
 
-	w := &worker.Worker{Name: "mock", Endpoint: mockWorker.URL}
+	w := &workers.Worker{Name: "mock", Endpoint: mockWorker.URL}
 	if err := s.reg.Add(w); err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +109,7 @@ func TestPostTaskAndGet(t *testing.T) {
 		t.Fatalf("post status = %d: %s", rec.Code, rec.Body.String())
 	}
 
-	var created task.Task
+	var created tasks.Task
 	json.Unmarshal(rec.Body.Bytes(), &created)
 	if created.ID == "" {
 		t.Fatal("expected task ID")
@@ -133,9 +133,9 @@ func TestPostTaskAndGet(t *testing.T) {
 	if rec2.Code != 200 {
 		t.Fatalf("get status = %d", rec2.Code)
 	}
-	var got task.Task
+	var got tasks.Task
 	json.Unmarshal(rec2.Body.Bytes(), &got)
-	if got.State != task.StateCompleted {
+	if got.State != tasks.StateCompleted {
 		t.Errorf("state = %q, want completed", got.State)
 	}
 	if !strings.Contains(got.Result, "hello") {
@@ -150,9 +150,9 @@ func testServerWithKey(t *testing.T, key string) (*Server, func()) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	reg, _ := worker.NewRegistry(db)
-	tasks := task.NewStore(db)
-	s := New(Config{Registry: reg, Tasks: tasks, Addr: "127.0.0.1:0", APIKey: key})
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0", APIKey: key})
 	return s, func() { db.Close() }
 }
 
@@ -224,10 +224,10 @@ func TestListTasks(t *testing.T) {
 	req2 := httptest.NewRequest("GET", "/tasks?state=pending", nil)
 	rec2 := httptest.NewRecorder()
 	s.httpSrv.Handler.ServeHTTP(rec2, req2)
-	var tasks []task.Task
-	json.Unmarshal(rec2.Body.Bytes(), &tasks)
-	if len(tasks) != 1 {
-		t.Errorf("pending tasks = %d, want 1", len(tasks))
+	var taskList []tasks.Task
+	json.Unmarshal(rec2.Body.Bytes(), &taskList)
+	if len(taskList) != 1 {
+		t.Errorf("pending tasks = %d, want 1", len(taskList))
 	}
 }
 
@@ -247,14 +247,14 @@ func TestDispatchToOfflineWorker(t *testing.T) {
 	s, cleanup := testServer(t)
 	defer cleanup()
 
-	s.reg.Add(&worker.Worker{Name: "offline-w", Endpoint: "http://x"})
+	s.reg.Add(&workers.Worker{Name: "offline-w", Endpoint: "http://x"})
 	// Worker is offline — don't start it
 
 	tk, _ := s.tasks.Create(context.Background(), "offline-w", "test")
 	s.dispatchTask(context.Background(), tk.ID)
 
 	got, _ := s.tasks.Get(context.Background(), tk.ID)
-	if got.State != task.StateFailed {
+	if got.State != tasks.StateFailed {
 		t.Errorf("state = %q, want failed", got.State)
 	}
 	if !strings.Contains(got.ErrorMsg, "not available") {
@@ -272,14 +272,14 @@ func TestDispatchWorkerReturnsError(t *testing.T) {
 	}))
 	defer mock.Close()
 
-	s.reg.Add(&worker.Worker{Name: "err-w", Endpoint: mock.URL})
+	s.reg.Add(&workers.Worker{Name: "err-w", Endpoint: mock.URL})
 	s.reg.Start("err-w")
 
 	tk, _ := s.tasks.Create(context.Background(), "err-w", "test")
 	s.dispatchTask(context.Background(), tk.ID)
 
 	got, _ := s.tasks.Get(context.Background(), tk.ID)
-	if got.State != task.StateFailed {
+	if got.State != tasks.StateFailed {
 		t.Errorf("state = %q, want failed", got.State)
 	}
 }
@@ -314,8 +314,8 @@ func TestListWorkers(t *testing.T) {
 	s, cleanup := testServer(t)
 	defer cleanup()
 
-	s.reg.Add(&worker.Worker{Name: "a", Endpoint: "http://x"})
-	s.reg.Add(&worker.Worker{Name: "b", Endpoint: "http://y"})
+	s.reg.Add(&workers.Worker{Name: "a", Endpoint: "http://x"})
+	s.reg.Add(&workers.Worker{Name: "b", Endpoint: "http://y"})
 
 	req := httptest.NewRequest("GET", "/workers", nil)
 	rec := httptest.NewRecorder()
@@ -324,7 +324,7 @@ func TestListWorkers(t *testing.T) {
 	if rec.Code != 200 {
 		t.Fatalf("status = %d", rec.Code)
 	}
-	var entries []worker.Entry
+	var entries []workers.Entry
 	json.Unmarshal(rec.Body.Bytes(), &entries)
 	if len(entries) != 2 {
 		t.Errorf("got %d workers", len(entries))

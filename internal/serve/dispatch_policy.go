@@ -7,10 +7,11 @@ import (
 	"net"
 	"strings"
 
-	"mecha.im/internal/policy"
+	"mecha.im/internal/logs"
+	"mecha.im/internal/policies"
 )
 
-func (s *Server) getWorkerPolicy(workerName string) policy.Filter {
+func (s *Server) getWorkerPolicy(workerName string) policies.Filter {
 	entry, ok := s.reg.Get(workerName)
 	if !ok || entry.Worker.Policy == nil {
 		if ok && entry.Worker.IsManaged() {
@@ -18,12 +19,12 @@ func (s *Server) getWorkerPolicy(workerName string) policy.Filter {
 		} else {
 			s.logger.Warn("dispatch: no policy configured, using AllowAll", "worker", workerName)
 		}
-		return &policy.AllowAll{}
+		return &policies.AllowAll{}
 	}
-	f, err := policy.ParseRules(entry.Worker.Policy)
+	f, err := policies.ParseRules(entry.Worker.Policy)
 	if err != nil {
 		s.logger.Error("dispatch: invalid policy config, denying all write-back", "worker", workerName, "err", err)
-		return &policy.DenyAll{}
+		return &policies.DenyAll{}
 	}
 	return f
 }
@@ -55,7 +56,7 @@ func (s *Server) doWriteBack(ctx context.Context, taskID, eventID, workerName, r
 		s.logger.Error("dispatch: get event for writeback", "task", taskID, "err", err)
 		return false
 	}
-	var res policy.Result
+	var res policies.Result
 	if err := json.Unmarshal([]byte(result), &res); err != nil {
 		s.logger.Warn("dispatch: parse result for policy", "task", taskID, "err", err)
 		return true
@@ -68,6 +69,12 @@ func (s *Server) doWriteBack(ctx context.Context, taskID, eventID, workerName, r
 	}
 	s.logger.Info("dispatch: policy applied", "task", taskID, "worker", workerName,
 		"allowed", decision.Allowed, "denied", decision.Denied)
+	policyOutcome := logs.OK
+	if len(decision.Denied) > 0 {
+		policyOutcome = logs.Deny
+	}
+	s.record(logs.Entry{TraceID: eventID, TaskID: taskID, Worker: workerName, Action: logs.PolicyApplied, Outcome: policyOutcome,
+		Detail: logs.MarshalDetail(map[string]any{"allowed": decision.Allowed, "denied": decision.Denied})})
 	if s.sources != nil {
 		if resp, ok := s.sources.GetResponder(ev.Source); ok {
 			if wbErr := resp.Respond(ctx, ev, filtered); wbErr != nil {
