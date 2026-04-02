@@ -31,6 +31,10 @@ func main() {
 	reloadPages()
 	log.Printf("loaded %d docs, %d rules, %d examples", len(getPages()), len(getRules()), len(getExamples()))
 
+	initAPI()
+	toolDefs = append(toolDefs, orchestrationTools...)
+	log.Printf("mecha API: %s (%d tools registered)", mechaAPI, len(toolDefs))
+
 	if webhookSecret != "" {
 		log.Printf("github webhook enabled (HMAC validated)")
 	} else {

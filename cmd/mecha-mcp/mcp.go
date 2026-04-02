@@ -42,7 +42,7 @@ func handleMCP(msg mcpRequest) mcpResponse {
 		return mcpResponse{JSONRPC: "2.0", ID: msg.ID, Result: map[string]any{
 			"protocolVersion": "2024-11-05",
 			"capabilities":   map[string]any{"tools": map[string]any{}},
-			"serverInfo":     map[string]any{"name": "mecha-docs", "version": Version},
+			"serverInfo":     map[string]any{"name": "mecha", "version": Version},
 		}}
 	case "tools/list":
 		return mcpResponse{JSONRPC: "2.0", ID: msg.ID, Result: map[string]any{"tools": toolDefs}}
@@ -68,6 +68,12 @@ func handleToolCall(id any, name string, args map[string]any) mcpResponse {
 		return mcpResponse{JSONRPC: "2.0", ID: id, Result: map[string]any{"content": []map[string]any{{"type": "text", "text": s}}, "isError": true}}
 	}
 
+	// Orchestration tools (task/worker/event)
+	if resp, ok := handleOrchestrationTool(id, name, args); ok {
+		return resp
+	}
+
+	// Documentation tools
 	switch name {
 	case "list-topics":
 		pp := getPages()

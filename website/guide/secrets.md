@@ -59,6 +59,34 @@ Get from [platform.openai.com](https://platform.openai.com). Starts with `sk-`.
 
 Get from [aistudio.google.com/apikey](https://aistudio.google.com/apikey). Starts with `AIza`.
 
+## Webhook Secrets
+
+Configure webhook signature verification for event sources:
+
+```yaml
+github:
+  token: ghp_your_github_pat
+  webhook_secret: whsec_your_webhook_secret
+
+gitlab:
+  webhook_secret: your_gitlab_secret
+
+slack:
+  signing_secret: your_slack_signing_secret
+
+telegram:
+  secret_token: your_telegram_bot_secret_token
+```
+
+| Source | Field | Verification |
+|--------|-------|-------------|
+| GitHub | `github.webhook_secret` | HMAC-SHA256 (`X-Hub-Signature-256`) |
+| GitLab | `gitlab.webhook_secret` | Token comparison (`X-Gitlab-Token`) |
+| Slack | `slack.signing_secret` | HMAC-SHA256 (`v0=` scheme) + replay protection |
+| Telegram | `telegram.secret_token` | Token comparison (`X-Telegram-Bot-Api-Secret-Token`) |
+
+Sources are only registered when their secrets are present. No secret = source disabled.
+
 ## Referencing Tokens in Worker YAML
 
 Use `docker.token` with a `backend.name` reference:
