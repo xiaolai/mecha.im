@@ -92,6 +92,12 @@ Fire a webhook event to a registered source.
 {"name": "mecha-fire-event", "arguments": {"source": "generic", "body": "{\"text\":\"hello\"}"}}
 ```
 
+Pass `event_type` to set the `X-Event-Type` header, which generic sources use to determine the event type:
+
+```json
+{"name": "mecha-fire-event", "arguments": {"source": "jenkins", "body": "{\"status\":\"failure\"}", "event_type": "build.completed"}}
+```
+
 ### mecha-metrics
 
 Get current server metrics in readable format.

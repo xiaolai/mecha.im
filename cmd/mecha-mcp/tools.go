@@ -78,8 +78,9 @@ var orchestrationTools = []map[string]any{
 		"inputSchema": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"source": map[string]any{"type": "string", "description": "Source name (e.g., github, gitlab, slack)"},
-				"body":   map[string]any{"type": "string", "description": "Raw JSON webhook payload"},
+				"source":     map[string]any{"type": "string", "description": "Source name (e.g., github, gitlab, slack)"},
+				"body":       map[string]any{"type": "string", "description": "Raw JSON webhook payload"},
+				"event_type": map[string]any{"type": "string", "description": "Event type header (X-Event-Type) for generic sources"},
 			},
 			"required": []string{"source", "body"},
 		},

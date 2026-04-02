@@ -17,6 +17,18 @@ If YAML has `endpoint:` field → unmanaged (live) worker (mecha just calls the 
 name: worker-name              # required, unique, matches [a-zA-Z0-9][a-zA-Z0-9_.-]*
 endpoint: http://host:port     # for unmanaged workers only
 timeout: 30m                   # task timeout (default: 10m)
+events:                        # event routing rules (optional)
+  - source: github
+    on: [pull_request.opened]
+    filter: {base_branch: main}
+    prompt: "Review PR #{{.number}}"
+    auto: true                 # auto-dispatch (default: true)
+policy:                        # write-back policy (optional, default: AllowAll)
+  comment: {allow: true, max_length: 10000}
+  labels: {allow: true, allowed: [bug], blocked: [approved]}
+  status: {allow: true}
+  commit: {allow: true, max_size: 50000}
+  metadata: {allow: false}
 ```
 
 ## Docker Worker
@@ -150,5 +162,34 @@ timeout: 30m
 
 Cache: `~/.mecha/models.json` — written by `mecha serve` (Phase 3).
 Script: `scripts/refresh-models.sh` — discovery logic.
+
+## Docker Image Layers
+
+```
+mecha-worker-base          <- common runtime
+├── mecha-worker-claude    <- + Claude SDK + CLI
+├── mecha-worker-codex     <- + OpenAI SDK + Codex CLI
+├── mecha-worker-gemini    <- + Google AI SDK
+└── mecha-worker-ollama    <- + Ollama client (Ollama runs elsewhere)
+```
+
+Base image includes: bash, git, curl, jq, ripgrep, make/gcc/g++, openssh-client,
+python3, node 22, bun. Excludes: gh CLI (writes go through mecha), docker,
+cloud CLIs, linters, editors (project-specific or unnecessary).
+
+### Per-Project Extension
+
+```dockerfile
+FROM mecha-worker-claude:latest
+RUN apt-get update && apt-get install -y golang-go
+```
+
+Or specify a custom image in worker YAML:
+
+```yaml
+name: claude-go-project
+docker:
+  image: my-registry/mecha-worker-claude-go:latest
+```
 
 See `.claude/rules/secrets.md` for token types, resolution, and redaction.

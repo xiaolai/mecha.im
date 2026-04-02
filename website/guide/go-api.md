@@ -169,6 +169,13 @@ Event types and SQLite persistence.
 | `SetSkipped(ctx, id) error` | Transition received -> skipped |
 | `UpdateAttrs(ctx, id, attrs) error` | Persist hydrated attrs back to the database |
 | `Received(ctx) ([]string, error)` | Return IDs of events stuck in received state (crash recovery) |
+| `DedupKeyActive(ctx, dedupKey) (bool, error)` | Check if an active event (received, matched, or dispatched) with the given dedup key exists. Terminal states (completed, failed, skipped) do not block |
+
+### Dedup Errors
+
+| Symbol | Description |
+|--------|-------------|
+| `ErrDuplicateDedup` | Sentinel error returned by `Create` when an event with the same `DedupKey` is already active |
 
 ## task
 
@@ -204,6 +211,16 @@ Task types and SQLite persistence.
 | `Complete(ctx, id, result) error` | Mark as completed with result |
 | `Fail(ctx, id, errMsg) error` | Mark as failed with error |
 | `Pending(ctx) ([]string, error)` | Return IDs of pending/dispatched tasks (for recovery) |
+| `RetryOrFail(ctx, id, errMsg) (bool, error)` | Increment attempt counter and either re-queue for retry (with exponential backoff) or mark as permanently failed (dead-letter). Returns true if re-queued |
+| `ReadyForRetry(ctx) ([]string, error)` | Return IDs of pending tasks whose retry delay has elapsed (`next_retry_at <= now`) |
+| `HasCompletedDedup(ctx, dedupKey) (bool, error)` | Check if a task with the given dedup key has already completed (prevents duplicate dispatch during crash recovery) |
+
+### Retry Constants
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `DefaultMaxRetries` | `3` | Default number of retry attempts before dead-letter |
+| `RetryBaseDelay` | `30s` | Base delay for exponential backoff (`30s`, `60s`, `120s`) |
 
 ## policy
 
@@ -223,9 +240,10 @@ Policy filtering for write-back results.
 | `DenyAll` | Blocks all write-back actions (used for invalid policy config) |
 | `AllowAll` | Passes everything through (used when no policy is configured) |
 | `CommentPolicy` | Controls comment write-back (allow, max_length) |
-| `LabelPolicy` | Controls label write-back (allow, blocked list) |
+| `LabelPolicy` | Controls label write-back (allow, blocked list, `Allowed` allowlist for restrictive filtering) |
 | `StatusPolicy` | Controls commit status write-back (allow) |
-| `CommitPolicy` | Controls code change suggestions (allow) |
+| `CommitPolicy` | Controls code change suggestions (allow, `MaxSize` max diff bytes) |
+| `MetadataPolicy` | Controls whether metadata is included in the result (allow). When denied, metadata is redacted |
 | `Decision` | Records what the policy allowed and denied |
 
 ### Functions
@@ -254,7 +272,12 @@ Webhook source parsing (GitHub, GitLab, generic).
 | `Registry` | Holds registered sources, triggers, and responders by name |
 | `GitHubSource` | Parses GitHub webhook payloads. Validates HMAC-SHA256. Implements `Authenticated` |
 | `GitLabSource` | Parses GitLab webhook payloads. Validates X-Gitlab-Token. Implements `Authenticated` |
+| `SlackSource` | Parses Slack webhook payloads. Validates HMAC-SHA256 (`v0=` scheme) with 5-minute replay protection. Implements `Authenticated` |
+| `TelegramSource` | Parses Telegram Bot API webhook payloads. Validates `X-Telegram-Bot-Api-Secret-Token` (constant-time comparison). Implements `Authenticated` |
+| `CronTrigger` | Active trigger that emits `tick` events on a fixed interval. Implements `Trigger` |
+| `GitLabResponder` | Writes task results back to GitLab MRs and issues (comments, status, labels, commit suggestions). Implements `Responder` |
 | `GenericSource` | Parses arbitrary JSON webhooks. Event type from configurable header. No built-in auth |
+| `ErrSlackChallenge` | Sentinel error returned by `SlackSource.Parse` when the payload is a `url_verification` challenge |
 
 ### Constructors
 
@@ -263,6 +286,10 @@ Webhook source parsing (GitHub, GitLab, generic).
 | `NewRegistry() *Registry` | Create an empty source registry |
 | `NewGitHubSource(secret, token) *GitHubSource` | Create GitHub webhook source |
 | `NewGitLabSource(secret) *GitLabSource` | Create GitLab webhook source |
+| `NewSlackSource(signingSecret) *SlackSource` | Create Slack webhook source with HMAC-SHA256 verification |
+| `NewTelegramSource(secretToken) *TelegramSource` | Create Telegram webhook source with secret token verification |
+| `NewCronTrigger(name, interval, subject) *CronTrigger` | Create a cron trigger that fires every `interval` |
+| `NewGitLabResponder(apiBase, token) *GitLabResponder` | Create a GitLab write-back responder (requires PAT with `api` scope) |
 | `NewGenericSource(name, typeHeader) *GenericSource` | Create generic webhook source |
 
 ### Registry Methods
@@ -283,6 +310,7 @@ Webhook source parsing (GitHub, GitLab, generic).
 | Method | Description |
 |--------|-------------|
 | `GitHubSource.Hydrate(ctx, ev) error` | Enrich a GitHub event with diff and file data |
+| `VerifyChallenge(body) ([]byte, bool)` | Extract Slack `url_verification` challenge response from a webhook payload. Returns the JSON response and true if the payload is a challenge, false otherwise |
 
 ## adapter
 
@@ -318,6 +346,7 @@ HTTP server, webhook dispatch, and task management.
 |------|-------------|
 | `Server` | HTTP daemon that accepts tasks and dispatches to workers |
 | `Config` | Server startup parameters (registry, stores, sources, addr, api key) |
+| `RateLimiter` | Per-worker token bucket rate limiter. Cleanup runs every 5m, removes buckets unused for 10m |
 
 ### Functions
 
@@ -325,6 +354,26 @@ HTTP server, webhook dispatch, and task management.
 |----------|-------------|
 | `New(cfg Config) *Server` | Create a server (does not start it) |
 | `Start(ctx) error` | Begin serving HTTP and the dispatch loop. Blocks until ctx is cancelled |
+| `NewRateLimiter(rate, burst) *RateLimiter` | Create a per-worker rate limiter. `rate` is requests/second/worker, `burst` is max concurrent |
+| `RateLimiter.Allow(workerName) bool` | Check if a request is allowed (consumes a token). Returns false if rate-limited |
+| `RateLimiter.Cleanup()` | Remove stale buckets not used in the last 10 minutes |
+
+## worker (config)
+
+Server configuration loaded from `~/.mecha/config.yml`.
+
+### Types
+
+| Type | Description |
+|------|-------------|
+| `ServerConfig` | Server config with `Addr` (listen address) and `APIKey` fields, loaded from YAML |
+
+### Functions
+
+| Function | Description |
+|----------|-------------|
+| `DefaultServerConfig() ServerConfig` | Returns config with defaults (`Addr: "127.0.0.1:21212"`, empty `APIKey`) |
+| `LoadServerConfig() (ServerConfig, error)` | Read `~/.mecha/config.yml`. Returns defaults if the file is missing |
 
 ## store
 

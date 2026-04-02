@@ -11,7 +11,7 @@ Print the version.
 
 ```bash
 $ mecha version
-mecha v0.5.13
+mecha v0.5.14
 ```
 
 ## mecha worker add
@@ -62,6 +62,10 @@ started api-service
 
 **Unmanaged workers**: mecha marks the worker online and probes its endpoint. If the health check fails, the worker transitions to error state with a warning.
 
+::: warning Adapter workers
+Adapter workers cannot be started individually -- they run in-process and are auto-started by `mecha serve`. Running `mecha worker start` on an adapter worker will return an error.
+:::
+
 ## mecha worker stop
 
 Stop a worker. Transitions from online (or error) to offline.
@@ -93,7 +97,7 @@ api-service   live     error   http://100.64.0.3:8080  unreachable
 | Column | Description |
 |--------|-------------|
 | NAME | Worker name from YAML |
-| TYPE | `managed` (Docker) or `live` (unmanaged) |
+| TYPE | `managed` (Docker), `adapter` (in-process), or `live` (unmanaged) |
 | STATE | `offline`, `online`, or `error` |
 | ENDPOINT | Runtime URL (managed: auto-assigned port, live: from YAML) |
 | HEALTH | `ok`, `unreachable`, `-` (offline), or error message |
@@ -186,7 +190,7 @@ time=... level=INFO msg=serving addr=0.0.0.0:21212
 | `--addr` | `127.0.0.1:21212` | Listen address |
 | `--api-key` | (empty) | API key for authentication |
 
-Flags are overridden by `~/.mecha/config.yml` if present (see [Server Config](./server#config-file)). CLI flags take highest priority.
+If not set via flags, values are read from `~/.mecha/config.yml` (see [Server Config](./server#config-file)). CLI flags take highest priority.
 
 The server provides HTTP endpoints for task management, worker status, and webhook handling. See [API Reference](./api) and [Events](./events).
 

@@ -10,7 +10,7 @@ const (
 	StateOffline State = "offline"
 	// StateOnline means the worker is healthy and accepting tasks.
 	StateOnline State = "online"
-	// StateBusy means the worker is executing a task (tracked in-container, Phase 3).
+	// StateBusy means the worker is executing a task.
 	StateBusy State = "busy"
 	// StateError means the health check failed or the container exited.
 	StateError State = "error"

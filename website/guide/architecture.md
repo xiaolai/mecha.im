@@ -9,34 +9,66 @@ description: How mecha works under the hood.
 
 ```mermaid
 flowchart TB
-    subgraph Host ["Host Machine"]
-        CLI[mecha CLI]
-        DB[(~/.mecha/mecha.db)]
-        Secrets[(~/.mecha/secrets.yml)]
-        CLI --> DB
-        CLI --> Secrets
+    subgraph Inbound ["Event Sources"]
+        GH[GitHub Webhooks]
+        GL[GitLab Webhooks]
+        SL[Slack Events]
+        TG[Telegram Updates]
+        CR[Cron Triggers]
+        MCP[MCP Clients]
     end
 
-    subgraph Docker ["Docker"]
-        C1[mecha-worker Container]
+    subgraph Mecha ["mecha serve :21212"]
+        Router[Event Router]
+        Queue[Task Queue + Retry]
+        Policy[Policy Filter]
+        WB[Write-Back]
     end
 
-    CLI -->|create/start/stop| Docker
-    C1 -->|POST /task| SDK[Claude Agent SDK]
-    C1 -.->|MCP child process| Codex[codex mcp-server]
+    subgraph Workers ["Workers"]
+        DK[Docker Containers]
+        AD[Adapter - Ollama/OpenAI]
+        LV[Live Endpoints]
+    end
+
+    subgraph Storage ["Storage"]
+        DB[(mecha.db)]
+        Secrets[(secrets.yml)]
+        Config[(config.yml)]
+    end
+
+    GH & GL & SL & TG & CR -->|webhooks| Router
+    MCP -->|POST /task| Queue
+    Router -->|match + hydrate| Queue
+    Queue -->|dispatch| Workers
+    Workers -->|result| Policy
+    Policy -->|filtered| WB
+    WB -->|comments, labels, status| GH & GL
+    Mecha --> DB
+    Mecha --> Secrets
+    Mecha --> Config
 ```
 
 ## Components
 
 ### mecha binary (Go)
 
-The single binary handles all worker management:
+The single binary handles worker management, event routing, task dispatch, and policy enforcement:
 
 | Package | Responsibility |
 |---------|---------------|
-| `cmd/mecha/` | Entry point |
-| `internal/cli/` | Cobra commands, Docker lifecycle glue |
+| `cmd/mecha/` | CLI entry point |
+| `cmd/mecha-mcp/` | MCP server (14 tools: docs + orchestration) |
+| `internal/cli/` | Cobra commands, Docker lifecycle, adapter management |
+| `internal/serve/` | HTTP server, dispatch loop, retry, rate limiter, metrics |
+| `internal/source/` | Event sources: GitHub, GitLab, Slack, Telegram, Cron, Generic |
+| `internal/event/` | Event types, store, dedup enforcement |
+| `internal/task/` | Task lifecycle, retry with exponential backoff |
+| `internal/policy/` | Policy filter: comment, labels, status, commit, metadata |
+| `internal/adapter/` | LLM adapters: Ollama, OpenAI-compatible |
 | `internal/worker/` | Config, registry, Docker client, secrets, health, redaction |
+| `internal/writeback/` | GitHub write-back (comments, labels, status, diffs) |
+| `internal/store/` | SQLite database, versioned migrations (V1-V5) |
 
 ### Worker runtime (TypeScript/Bun)
 
@@ -158,5 +190,6 @@ flowchart LR
 |------------|---------|---------|
 | `github.com/spf13/cobra` | 1.10.2 | CLI framework |
 | `gopkg.in/yaml.v3` | 3.0.1 | Worker YAML parsing |
-| `github.com/moby/moby` | client 0.3.0 | Docker container management |
+| `github.com/moby/moby/api` | 1.54.0 | Docker API types |
+| `github.com/moby/moby/client` | 0.3.0 | Docker container management |
 | `modernc.org/sqlite` | 1.48.0 | SQLite persistence (workers, tasks, events) |

@@ -65,7 +65,7 @@ irm https://raw.githubusercontent.com/xiaolai/mecha.im/main/scripts/install.ps1 
 ```
 :::
 
-Pin a specific version with `MECHA_VERSION=v0.5.13` or change the install directory with `MECHA_INSTALL_DIR=/opt/bin`.
+Pin a specific version with `MECHA_VERSION=v0.5.14` or change the install directory with `MECHA_INSTALL_DIR=/opt/bin`.
 
 ### Option C: Go Install
 
