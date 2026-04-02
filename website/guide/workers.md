@@ -243,6 +243,7 @@ stateDiagram-v2
     busy --> online : task complete
     online --> offline : worker stop
     online --> error : health check failed
+    busy --> error : health check failed
     error --> offline : worker stop
     offline --> [*] : worker remove
 ```

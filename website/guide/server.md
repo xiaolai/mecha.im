@@ -132,9 +132,8 @@ The server runs four background loops:
 |------|----------|---------|
 | Retry scan | 30s | Re-enqueues tasks whose backoff delay has elapsed |
 | Pending scan | 60s | Catches orphaned pending tasks not in the dispatch channel |
-| Reconciliation | 60s | Detects registry/Docker state drift (health checks) |
+| Reconciliation | 60s | Detects registry/Docker state drift (Docker workers only) |
 | Rate limiter cleanup | 5m | Removes stale per-worker buckets (unused for 10m) |
-| Rate limiter cleanup | 5m | Removes stale per-worker buckets |
 
 ## Graceful Shutdown
 
