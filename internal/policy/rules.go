@@ -71,21 +71,19 @@ func (r *RuleFilter) applyComment(c *CommentAction, d *Decision) *CommentAction 
 		d.Denied = append(d.Denied, "comment: blocked by policy")
 		return nil
 	}
-	if r.Comment != nil && r.Comment.MaxLength > 0 {
+	if r.Comment != nil && r.Comment.MaxLength > 0 && utf8.RuneCountInString(c.Body) > r.Comment.MaxLength {
+		runes := []rune(c.Body)
+		cc := *c
 		suffixLen := utf8.RuneCountInString(truncationSuffix)
-		limit := r.Comment.MaxLength
-		if limit <= suffixLen {
-			limit = 1 // at least 1 rune of content
+		if r.Comment.MaxLength <= suffixLen {
+			// Limit too small for suffix — hard-truncate without suffix
+			cc.Body = string(runes[:r.Comment.MaxLength])
 		} else {
-			limit -= suffixLen // reserve space for suffix
+			contentLimit := r.Comment.MaxLength - suffixLen
+			cc.Body = string(runes[:contentLimit]) + truncationSuffix
 		}
-		if utf8.RuneCountInString(c.Body) > r.Comment.MaxLength {
-			runes := []rune(c.Body)
-			cc := *c
-			cc.Body = string(runes[:limit]) + truncationSuffix
-			d.Allowed = append(d.Allowed, "comment (truncated)")
-			return &cc
-		}
+		d.Allowed = append(d.Allowed, "comment (truncated)")
+		return &cc
 	}
 	d.Allowed = append(d.Allowed, "comment")
 	return c
@@ -158,11 +156,11 @@ func filterLabels(labels *LabelAction, policy *LabelPolicy, d *Decision) *LabelA
 	filteredAdd := filterLabelList(labels.Add, allowSet, blockSet, hasAllowlist, "add", d)
 	filteredRemove := filterLabelList(labels.Remove, allowSet, blockSet, hasAllowlist, "remove", d)
 
-	result := &LabelAction{Add: filteredAdd, Remove: filteredRemove}
-	if len(filteredAdd) > 0 || len(filteredRemove) > 0 {
-		d.Allowed = append(d.Allowed, "labels")
+	if len(filteredAdd) == 0 && len(filteredRemove) == 0 {
+		return nil
 	}
-	return result
+	d.Allowed = append(d.Allowed, "labels")
+	return &LabelAction{Add: filteredAdd, Remove: filteredRemove}
 }
 
 func filterLabelList(labels []string, allow, block map[string]bool, hasAllowlist bool, action string, d *Decision) []string {

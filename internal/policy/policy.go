@@ -35,6 +35,9 @@ func (d *DenyAll) Apply(_ context.Context, _ *event.Event, res Result) (Result, 
 	if res.Commit != nil {
 		denied = append(denied, "commit: denied (invalid policy config)")
 	}
+	if res.Metadata != nil {
+		denied = append(denied, "metadata: denied (invalid policy config)")
+	}
 	return Result{Output: res.Output}, Decision{Denied: denied}, nil
 }
 
@@ -55,6 +58,9 @@ func (a *AllowAll) Apply(_ context.Context, _ *event.Event, res Result) (Result,
 	}
 	if res.Commit != nil {
 		allowed = append(allowed, "commit")
+	}
+	if res.Metadata != nil {
+		allowed = append(allowed, "metadata")
 	}
 	return res, Decision{Allowed: allowed}, nil
 }
