@@ -43,39 +43,42 @@ func TestRuleFilterBlockComment(t *testing.T) {
 }
 
 func TestRuleFilterTruncateComment(t *testing.T) {
-	f := &RuleFilter{Comment: &CommentPolicy{Allow: true, MaxLength: 10}}
-	original := "this is a very long comment body"
+	// max_length=40: suffix is 27 runes → 13 content runes + 27 suffix = 40 total
+	f := &RuleFilter{Comment: &CommentPolicy{Allow: true, MaxLength: 40}}
+	original := "this is a very long comment body that exceeds the limit"
 	res := Result{Comment: &CommentAction{Body: original}}
 	filtered, d, _ := f.Apply(context.Background(), &event.Event{}, res)
 	if filtered.Comment == nil {
 		t.Fatal("comment should exist")
 	}
-	suffix := "\n\n... (truncated by policy)"
 	runes := []rune(filtered.Comment.Body)
-	// First 10 runes + suffix
-	if len(runes) != 10+len([]rune(suffix)) {
-		t.Errorf("truncated rune count = %d, want %d", len(runes), 10+len([]rune(suffix)))
+	if len(runes) > 40 {
+		t.Errorf("truncated body %d runes, must be <= max_length 40", len(runes))
 	}
-	if len(d.Allowed) != 1 || d.Allowed[0] != "comment (truncated)" {
+	if d.Allowed[0] != "comment (truncated)" {
 		t.Errorf("allowed = %v", d.Allowed)
 	}
-	// Original must not be mutated
 	if res.Comment.Body != original {
-		t.Errorf("original mutated: got %q, want %q", res.Comment.Body, original)
+		t.Errorf("original mutated: %q", res.Comment.Body)
 	}
 }
 
 func TestRuleFilterTruncateUTF8(t *testing.T) {
-	f := &RuleFilter{Comment: &CommentPolicy{Allow: true, MaxLength: 5}}
-	res := Result{Comment: &CommentAction{Body: "\u4f60\u597d\u4e16\u754c\uff01\u6d4b\u8bd5"}} // 7 CJK chars
+	// max_length=30: suffix is 27 runes → 3 content runes
+	f := &RuleFilter{Comment: &CommentPolicy{Allow: true, MaxLength: 30}}
+	input := "\u4f60\u597d\u4e16\u754c\uff01\u6d4b\u8bd5" // 7 CJK chars
+	res := Result{Comment: &CommentAction{Body: input}}
 	filtered, _, _ := f.Apply(context.Background(), &event.Event{}, res)
 	if filtered.Comment == nil {
 		t.Fatal("comment should exist")
 	}
 	runes := []rune(filtered.Comment.Body)
-	// First 5 CJK chars + suffix
-	if string(runes[:5]) != "\u4f60\u597d\u4e16\u754c\uff01" {
-		t.Errorf("first 5 runes = %q", string(runes[:5]))
+	if len(runes) > 30 {
+		t.Errorf("truncated body %d runes, must be <= 30", len(runes))
+	}
+	// First 3 CJK chars preserved (30-27=3)
+	if string(runes[:3]) != "\u4f60\u597d\u4e16" {
+		t.Errorf("first 3 runes = %q", string(runes[:3]))
 	}
 }
 

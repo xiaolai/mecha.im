@@ -47,9 +47,12 @@ func TestDenyAllApply(t *testing.T) {
 		t.Error("Commit should be nil after DenyAll")
 	}
 
-	// Decision should list all denied categories
-	if len(decision.Denied) != 4 {
-		t.Errorf("Denied count = %d, want 4; denied = %v", len(decision.Denied), decision.Denied)
+	// All 5 categories denied (comment, labels, status, commit, metadata)
+	if filtered.Metadata != nil {
+		t.Error("Metadata should be nil after DenyAll")
+	}
+	if len(decision.Denied) != 5 {
+		t.Errorf("Denied count = %d, want 5; denied = %v", len(decision.Denied), decision.Denied)
 	}
 	if len(decision.Allowed) != 0 {
 		t.Errorf("Allowed = %v, want empty", decision.Allowed)
@@ -60,7 +63,8 @@ func TestDenyAllApply(t *testing.T) {
 		"comment: denied (invalid policy config)": true,
 		"labels: denied (invalid policy config)":  true,
 		"status: denied (invalid policy config)":  true,
-		"commit: denied (invalid policy config)":  true,
+		"commit: denied (invalid policy config)":   true,
+		"metadata: denied (invalid policy config)": true,
 	}
 	for _, msg := range decision.Denied {
 		if !wantDenied[msg] {

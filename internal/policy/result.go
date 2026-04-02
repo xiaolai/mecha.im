@@ -34,3 +34,8 @@ type CommitAction struct {
 	Message string `json:"message"`
 	Diff    string `json:"diff"`
 }
+
+// ValidStatusStates are the allowed commit status states (GitHub API).
+var ValidStatusStates = map[string]bool{
+	"error": true, "failure": true, "pending": true, "success": true,
+}
