@@ -9,7 +9,7 @@ import (
 	"syscall"
 
 	"github.com/spf13/cobra"
-	"mecha.im/internal/audit"
+	"mecha.im/internal/logs"
 	"mecha.im/internal/event"
 	"mecha.im/internal/serve"
 	"mecha.im/internal/source"
@@ -58,7 +58,7 @@ func serveCmd() *cobra.Command {
 			}
 			tasks := task.NewStore(db)
 			events := event.NewStore(db)
-			auditLog := audit.NewStore(db, nil)
+			auditLog := logs.NewStore(db, nil)
 
 			logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 				Level: slog.LevelInfo,
@@ -120,7 +120,7 @@ func serveCmd() *cobra.Command {
 				Sources:   sources,
 				WriteBack: wb,
 				Limiter:   limiter,
-				Audit:     auditLog,
+				Logs:     auditLog,
 				Addr:      addr,
 				APIKey:    apiKey,
 				Logger:    logger,
