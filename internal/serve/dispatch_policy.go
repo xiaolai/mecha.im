@@ -13,7 +13,11 @@ import (
 func (s *Server) getWorkerPolicy(workerName string) policy.Filter {
 	entry, ok := s.reg.Get(workerName)
 	if !ok || entry.Worker.Policy == nil {
-		s.logger.Warn("dispatch: no policy configured, using AllowAll", "worker", workerName)
+		if ok && entry.Worker.IsManaged() {
+			s.logger.Warn("dispatch: managed worker has no policy — all write-back allowed (add policy section to worker YAML)", "worker", workerName)
+		} else {
+			s.logger.Warn("dispatch: no policy configured, using AllowAll", "worker", workerName)
+		}
 		return &policy.AllowAll{}
 	}
 	f, err := policy.ParseRules(entry.Worker.Policy)
