@@ -49,6 +49,12 @@ Worker configuration, Docker lifecycle, registry, secrets, and health checking.
 | `IsAdapter() bool` | True if worker uses an in-process adapter |
 | `TypeLabel() string` | Returns `"managed"`, `"adapter"`, or `"live"` |
 
+### Entry Methods
+
+| Method | Description |
+|--------|-------------|
+| `Sanitized() Entry` | Return a deep copy with env vars, token, and API key fields redacted. Use for API responses and logs |
+
 ### EventRule Methods
 
 | Method | Description |
