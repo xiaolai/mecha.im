@@ -266,9 +266,10 @@ func TestDispatchWorkerReturnsError(t *testing.T) {
 	s, cleanup := testServer(t)
 	defer cleanup()
 
+	// Use 422 — a non-transport error (only 5xx is transport)
 	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(500)
-		w.Write([]byte(`{"error":"internal"}`))
+		w.WriteHeader(422)
+		w.Write([]byte(`{"error":"unprocessable"}`))
 	}))
 	defer mock.Close()
 

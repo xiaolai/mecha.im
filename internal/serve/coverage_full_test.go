@@ -1552,8 +1552,8 @@ func TestDispatchTaskTransportErrorDeadLetter(t *testing.T) {
 	}
 }
 
-func TestDispatchTaskNonTransportSendError(t *testing.T) {
-	// A non-transport error (e.g., 500) should fail the task immediately.
+func TestDispatchTask5xxRetried(t *testing.T) {
+	// A 5xx error is a transport error — task is retried, worker set to error state.
 	path := filepath.Join(t.TempDir(), "test.db")
 	db, err := store.Open(path)
 	if err != nil {
@@ -1583,20 +1583,15 @@ func TestDispatchTaskNonTransportSendError(t *testing.T) {
 	s.dispatchTask(ctx, tk.ID)
 
 	got, _ := taskStore.Get(ctx, tk.ID)
-	if got.State != tasks.StateFailed {
-		t.Errorf("state = %q, want failed (500 error)", got.State)
+	// 5xx is now retryable — task should be pending (retry queued), not failed
+	if got.State != tasks.StatePending {
+		t.Errorf("state = %q, want pending (5xx triggers retry)", got.State)
 	}
 
-	// Worker should be back to online (non-transport errors don't set error state)
+	// Worker should be in error state (transport error path)
 	entry, _ := reg.Get("fail500-w")
-	if entry.State != workers.StateOnline {
-		t.Errorf("worker state = %q, want online after 500 (non-transport)", entry.State)
-	}
-
-	// Event should be failed
-	gotEv, _ := es.Get(ctx, ev.ID)
-	if gotEv.State != events.StateFailed {
-		t.Errorf("event state = %q, want failed", gotEv.State)
+	if entry.State != workers.StateError {
+		t.Errorf("worker state = %q, want error after 5xx", entry.State)
 	}
 }
 
