@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"strings"
 	"time"
 
 	"mecha.im/internal/logs"
@@ -200,7 +199,7 @@ func (s *Server) handleGetEvent(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	ev, err := s.events.Get(r.Context(), id)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, events.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "event not found")
 		} else {
 			writeError(w, http.StatusInternalServerError, "internal error")

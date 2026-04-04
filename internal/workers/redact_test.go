@@ -45,7 +45,7 @@ func TestRedactSecrets(t *testing.T) {
 		},
 		{
 			name:  "bearer token",
-			input: "header: Bearer sometoken123.test",
+			input: "header: Bearer sometoken123.test-abcdef",
 			want:  "header: [REDACTED]",
 		},
 		{

@@ -639,9 +639,10 @@ func TestWebhookWorkerFailure(t *testing.T) {
 	s, es, _, cleanup := testWebhookServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}), "")
 	defer cleanup()
 
+	// Use 422 (non-transport error) — 5xx errors now trigger retry, not immediate failure
 	workerSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(500)
-		w.Write([]byte(`{"error":"internal failure"}`))
+		w.WriteHeader(422)
+		w.Write([]byte(`{"error":"unprocessable"}`))
 	}))
 	defer workerSrv.Close()
 

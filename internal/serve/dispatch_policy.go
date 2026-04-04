@@ -122,8 +122,12 @@ func isTransportError(err error) bool {
 	}
 	// Fallback: string matching for wrapped errors that lose type info
 	msg := err.Error()
-	return strings.Contains(msg, "connection refused") ||
+	if strings.Contains(msg, "connection refused") ||
 		strings.Contains(msg, "no such host") ||
 		strings.Contains(msg, "connection reset") ||
-		strings.Contains(msg, "deadline exceeded")
+		strings.Contains(msg, "deadline exceeded") {
+		return true
+	}
+	// 5xx from workers are transient (overloaded, restarting)
+	return strings.Contains(msg, "worker returned 5")
 }
