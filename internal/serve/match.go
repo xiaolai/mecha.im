@@ -38,15 +38,17 @@ func renderPrompt(rule workers.EventRule, ev *events.Event) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("parse template: %w", err)
 	}
-	// Build template data from Attrs + universal fields
+	// Build template data: attrs first, then universal fields.
+	// Universal fields set AFTER attrs so user-controlled attrs
+	// cannot override them (e.g., a crafted "source" attr).
 	data := make(map[string]any)
+	for k, v := range ev.Attrs {
+		data[k] = v
+	}
 	data["actor"] = ev.Actor
 	data["subject"] = ev.Subject
 	data["source"] = ev.Source
 	data["type"] = ev.Type
-	for k, v := range ev.Attrs {
-		data[k] = v
-	}
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {
 		return "", fmt.Errorf("execute template: %w", err)

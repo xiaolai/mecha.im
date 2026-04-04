@@ -4,9 +4,13 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"time"
 )
+
+// ErrNotFound is returned when a task does not exist.
+var ErrNotFound = errors.New("not found")
 
 func genID() (string, error) {
 	b := make([]byte, 16)
@@ -42,7 +46,7 @@ func scanTask(s scanner) (*Task, error) {
 		&nextRetryAt, &createdAt, &updatedAt, &dispatchedAt, &completedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("task not found")
+			return nil, fmt.Errorf("task: %w", ErrNotFound)
 		}
 		return nil, fmt.Errorf("scan task: %w", err)
 	}

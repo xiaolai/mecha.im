@@ -1,10 +1,11 @@
 package serve
 
 import (
+	"errors"
 	"net/http"
-	"strings"
 	"sync/atomic"
 
+	"mecha.im/internal/tasks"
 	"mecha.im/internal/workers"
 )
 
@@ -16,7 +17,20 @@ type taskRequest struct {
 var workerRoundRobin atomic.Uint64
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	qLen := len(s.pending)
+	qCap := cap(s.pending)
+	resp := map[string]any{
+		"status":      "ok",
+		"queue_depth": qLen,
+		"queue_cap":   qCap,
+	}
+	if float64(qLen) > float64(qCap)*0.9 {
+		resp["status"] = "degraded"
+		resp["reason"] = "pending queue near capacity"
+		writeJSON(w, http.StatusServiceUnavailable, resp)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func (s *Server) handlePostTask(w http.ResponseWriter, r *http.Request) {
@@ -72,7 +86,7 @@ func (s *Server) handleGetTask(w http.ResponseWriter, r *http.Request) {
 	}
 	t, err := s.tasks.Get(r.Context(), id)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, tasks.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "task not found")
 		} else {
 			writeError(w, http.StatusInternalServerError, "internal error")

@@ -29,7 +29,8 @@ func showWorkerConfig(reg *workers.Registry, name string) error {
 	if !ok {
 		return fmt.Errorf("worker %q not found", name)
 	}
-	return printYAML(e.Worker)
+	sanitized := e.Sanitized()
+	return printYAML(sanitized.Worker)
 }
 
 func showAllConfig(reg *workers.Registry) error {
@@ -42,7 +43,8 @@ func showAllConfig(reg *workers.Registry) error {
 		if i > 0 {
 			fmt.Println("---")
 		}
-		if err := printYAML(e.Worker); err != nil {
+		sanitized := e.Sanitized()
+		if err := printYAML(sanitized.Worker); err != nil {
 			return err
 		}
 	}

@@ -16,7 +16,7 @@ var secretPatterns = regexp.MustCompile(
 		`AIza[a-zA-Z0-9_-]{30,}|` + // Google API key
 		`ya29\.[a-zA-Z0-9_.-]+|` + // Google OAuth access token
 		`glpat-[a-zA-Z0-9_-]+|` + // GitLab PAT
-		`Bearer\s+[a-zA-Z0-9._-]+` + // Bearer tokens
+		`Bearer\s+[a-zA-Z0-9._-]{20,}` + // Bearer tokens (20+ chars to avoid matching prose)
 		`)`,
 )
 

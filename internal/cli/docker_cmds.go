@@ -70,10 +70,11 @@ func dockerStart(reg *workers.Registry, name string) error {
 	defer cancel()
 	containerID, err := dock.Create(ctx, cfg)
 	if err != nil {
-		if setErr := reg.SetError(name, err.Error()); setErr != nil {
+		redacted := workers.RedactSecrets(err.Error())
+		if setErr := reg.SetError(name, redacted); setErr != nil {
 			fmt.Fprintf(os.Stderr, "warning: failed to set error state for %s: %v\n", name, setErr)
 		}
-		return fmt.Errorf("create container: %w", err)
+		return fmt.Errorf("create container: %s", redacted)
 	}
 
 	ctx2, cancel2 := context.WithTimeout(context.Background(), dockerTimeout)
@@ -84,10 +85,11 @@ func dockerStart(reg *workers.Registry, name string) error {
 			fmt.Fprintf(os.Stderr, "warning: failed to remove container %s: %v\n", containerID, rmErr)
 		}
 		rmCancel()
-		if setErr := reg.SetError(name, err.Error()); setErr != nil {
+		redacted := workers.RedactSecrets(err.Error())
+		if setErr := reg.SetError(name, redacted); setErr != nil {
 			fmt.Fprintf(os.Stderr, "warning: failed to set error state for %s: %v\n", name, setErr)
 		}
-		return fmt.Errorf("start container: %w", err)
+		return fmt.Errorf("start container: %s", redacted)
 	}
 
 	endpoint, err := waitForHealth(dock, containerID, 30*time.Second)
@@ -100,10 +102,11 @@ func dockerStart(reg *workers.Registry, name string) error {
 			fmt.Fprintf(os.Stderr, "warning: failed to remove container %s: %v\n", containerID, rmErr)
 		}
 		stopCancel()
-		if setErr := reg.SetError(name, err.Error()); setErr != nil {
+		redacted := workers.RedactSecrets(err.Error())
+		if setErr := reg.SetError(name, redacted); setErr != nil {
 			fmt.Fprintf(os.Stderr, "warning: failed to set error state for %s: %v\n", name, setErr)
 		}
-		return fmt.Errorf("health check: %w", err)
+		return fmt.Errorf("health check: %s", redacted)
 	}
 
 	return reg.SetRuntime(name, containerID, endpoint)

@@ -54,95 +54,62 @@ func migrate(db *sql.DB) error {
 	if err := db.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
 		return fmt.Errorf("read user_version: %w", err)
 	}
-	if version < 1 {
-		if _, err := db.Exec(schemaV1); err != nil {
-			return fmt.Errorf("apply schema v1: %w", err)
-		}
-		if _, err := db.Exec("PRAGMA user_version = 1"); err != nil {
-			return err
-		}
+	type migration struct {
+		version int
+		stmts   []string
 	}
-	if version < 2 {
-		for _, stmt := range strings.Split(schemaV2, ";") {
-			stmt = strings.TrimSpace(stmt)
-			if stmt == "" {
-				continue
-			}
-			if _, err := db.Exec(stmt); err != nil {
-				// Ignore "duplicate column" for idempotent re-runs
-				if strings.Contains(err.Error(), "duplicate column") {
-					continue
-				}
-				return fmt.Errorf("apply schema v2: %w", err)
-			}
-		}
-		if _, err := db.Exec("PRAGMA user_version = 2"); err != nil {
-			return err
-		}
+	migrations := []migration{
+		{1, splitStatements(schemaV1)},
+		{2, splitStatements(schemaV2)},
+		{3, splitStatements(schemaV3)},
+		{4, splitStatements(schemaV4)},
+		{5, splitStatements(schemaV5)},
+		{6, splitStatements(schemaV6)},
 	}
-	if version < 3 {
-		tx, err := db.Begin()
-		if err != nil {
-			return fmt.Errorf("begin v3 migration: %w", err)
+	for _, m := range migrations {
+		if version >= m.version {
+			continue
 		}
-		defer tx.Rollback()
-		for _, stmt := range strings.Split(schemaV3, ";") {
-			stmt = strings.TrimSpace(stmt)
-			if stmt == "" {
-				continue
-			}
-			if _, err := tx.Exec(stmt); err != nil {
-				return fmt.Errorf("apply schema v3: %w", err)
-			}
-		}
-		if _, err := tx.Exec("PRAGMA user_version = 3"); err != nil {
-			return err
-		}
-		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("commit v3 migration: %w", err)
-		}
-	}
-	if version < 4 {
-		for _, stmt := range strings.Split(schemaV4, ";") {
-			stmt = strings.TrimSpace(stmt)
-			if stmt == "" {
-				continue
-			}
-			if _, err := db.Exec(stmt); err != nil {
-				if strings.Contains(err.Error(), "duplicate column") {
-					continue
-				}
-				return fmt.Errorf("apply schema v4: %w", err)
-			}
-		}
-		if _, err := db.Exec("PRAGMA user_version = 4"); err != nil {
-			return err
-		}
-	}
-	if version < 5 {
-		for _, stmt := range strings.Split(schemaV5, ";") {
-			stmt = strings.TrimSpace(stmt)
-			if stmt == "" {
-				continue
-			}
-			if _, err := db.Exec(stmt); err != nil {
-				if strings.Contains(err.Error(), "duplicate column") {
-					continue
-				}
-				return fmt.Errorf("apply schema v5: %w", err)
-			}
-		}
-		if _, err := db.Exec("PRAGMA user_version = 5"); err != nil {
-			return err
-		}
-	}
-	if version < 6 {
-		if _, err := db.Exec(schemaV6); err != nil {
-			return fmt.Errorf("apply schema v6: %w", err)
-		}
-		if _, err := db.Exec("PRAGMA user_version = 6"); err != nil {
+		if err := applyMigration(db, m.version, m.stmts); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// applyMigration runs all statements in a single transaction and sets user_version.
+// If the transaction fails, all changes are rolled back atomically.
+func applyMigration(db *sql.DB, ver int, stmts []string) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin v%d migration: %w", ver, err)
+	}
+	defer tx.Rollback()
+	for _, stmt := range stmts {
+		if _, err := tx.Exec(stmt); err != nil {
+			if strings.Contains(err.Error(), "duplicate column") {
+				continue
+			}
+			return fmt.Errorf("apply schema v%d: %w", ver, err)
+		}
+	}
+	if _, err := tx.Exec(fmt.Sprintf("PRAGMA user_version = %d", ver)); err != nil {
+		return fmt.Errorf("set user_version %d: %w", ver, err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit v%d migration: %w", ver, err)
+	}
+	return nil
+}
+
+// splitStatements splits a multi-statement SQL string on semicolons.
+func splitStatements(sql string) []string {
+	var stmts []string
+	for _, s := range strings.Split(sql, ";") {
+		s = strings.TrimSpace(s)
+		if s != "" {
+			stmts = append(stmts, s)
+		}
+	}
+	return stmts
 }

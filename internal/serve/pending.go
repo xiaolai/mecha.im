@@ -23,7 +23,14 @@ func (s *Server) pendingLoop(ctx context.Context) {
 			s.logger.Info("pending loop stopped")
 			return
 		case <-ticker.C:
-			s.scanPending(ctx)
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						s.logger.Error("pending loop: panic", "panic", r)
+					}
+				}()
+				s.scanPending(ctx)
+			}()
 		}
 	}
 }
@@ -66,7 +73,7 @@ func (s *Server) scanPending(ctx context.Context) {
 		case s.pending <- id:
 			s.logger.Info("pending: recovered orphan", "id", id)
 		default:
-			// Queue still full, will retry next scan
+			s.logger.Warn("pending: queue full, skipping orphan", "id", id)
 		}
 	}
 }

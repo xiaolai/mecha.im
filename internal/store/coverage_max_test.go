@@ -3,7 +3,6 @@ package store
 import (
 	"database/sql"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	_ "modernc.org/sqlite"
@@ -86,18 +85,6 @@ func TestMigrateFromV2(t *testing.T) {
 	if version != 6 {
 		t.Errorf("version = %d, want 6", version)
 	}
-}
-
-// splitStatements splits a multi-statement SQL string by semicolons.
-func splitStatements(sql string) []string {
-	var stmts []string
-	for _, s := range strings.Split(sql, ";") {
-		s = strings.TrimSpace(s)
-		if s != "" {
-			stmts = append(stmts, s)
-		}
-	}
-	return stmts
 }
 
 func TestMigrateFromV3(t *testing.T) {

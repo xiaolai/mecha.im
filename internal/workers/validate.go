@@ -122,6 +122,9 @@ func (a *AdapterConfig) Validate() error {
 	if a.Upstream == "" {
 		return fmt.Errorf("adapter.upstream is required")
 	}
+	if err := ValidateUpstreamURL(a.Upstream); err != nil {
+		return fmt.Errorf("adapter.upstream: %w", err)
+	}
 	if a.Model == "" {
 		return fmt.Errorf("adapter.model is required")
 	}

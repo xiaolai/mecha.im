@@ -39,6 +39,25 @@ func (r *Registry) load() error {
 	return rows.Err()
 }
 
+// persistEntry writes a single entry's mutable state to SQLite. Used for
+// state-only transitions (SetBusy, SetOnline, SetError, Recover) to avoid
+// rewriting the entire registry table on every state change.
+func (r *Registry) persistEntry(e *Entry) error {
+	var startedAt sql.NullInt64
+	if e.StartedAt != nil {
+		startedAt = sql.NullInt64{Int64: e.StartedAt.Unix(), Valid: true}
+	}
+	_, err := r.db.Exec(
+		`UPDATE workers SET state = ?, error_msg = ?, container_id = ?, endpoint = ?, started_at = ?
+		 WHERE name = ?`,
+		string(e.State), e.Error, e.ContainerID, e.RuntimeEndpoint, startedAt, e.Worker.Name,
+	)
+	if err != nil {
+		return fmt.Errorf("persist entry %q: %w", e.Worker.Name, err)
+	}
+	return nil
+}
+
 func (r *Registry) persist(entries map[string]*Entry) error {
 	tx, err := r.db.Begin()
 	if err != nil {

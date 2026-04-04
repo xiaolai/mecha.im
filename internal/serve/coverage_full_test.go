@@ -370,9 +370,8 @@ func TestReconcileUnhealthyWorkerSetError(t *testing.T) {
 }
 
 func TestReconcileRecoveredWorkerAttemptOnline(t *testing.T) {
-	// reconcile calls SetOnline when an error-state worker passes health check.
-	// SetOnline currently requires StateBusy, so the transition fails silently.
-	// This test exercises the recovery path (StateError + healthy = attempt SetOnline).
+	// reconcile calls Recover when an error-state worker passes health check.
+	// Recover transitions error -> online.
 	path := filepath.Join(t.TempDir(), "test.db")
 	db, err := store.Open(path)
 	if err != nil {
@@ -403,18 +402,15 @@ func TestReconcileRecoveredWorkerAttemptOnline(t *testing.T) {
 		"container456", healthy.URL, "recovered-w")
 	reg.Reload()
 
-	// Should not panic. The reconcile path for StateError+healthy is exercised.
 	s.reconcile(context.Background(), nil)
 
-	// Verify reconcile attempted the recovery (state might remain error
-	// because SetOnline requires StateBusy, but the code path executed).
 	entry, ok := reg.Get("recovered-w")
 	if !ok {
 		t.Fatal("worker not found")
 	}
-	// SetOnline(error→online) silently fails, so state stays error.
-	// The important thing is the code path was covered without panics.
-	_ = entry.State
+	if entry.State != workers.StateOnline {
+		t.Errorf("state = %q, want online (Recover should transition error -> online)", entry.State)
+	}
 }
 
 func TestReconcileSkipsWorkerWithoutDocker(t *testing.T) {
@@ -1556,8 +1552,8 @@ func TestDispatchTaskTransportErrorDeadLetter(t *testing.T) {
 	}
 }
 
-func TestDispatchTaskNonTransportSendError(t *testing.T) {
-	// A non-transport error (e.g., 500) should fail the task immediately.
+func TestDispatchTask5xxRetried(t *testing.T) {
+	// A 5xx error is a transport error — task is retried, worker set to error state.
 	path := filepath.Join(t.TempDir(), "test.db")
 	db, err := store.Open(path)
 	if err != nil {
@@ -1587,20 +1583,15 @@ func TestDispatchTaskNonTransportSendError(t *testing.T) {
 	s.dispatchTask(ctx, tk.ID)
 
 	got, _ := taskStore.Get(ctx, tk.ID)
-	if got.State != tasks.StateFailed {
-		t.Errorf("state = %q, want failed (500 error)", got.State)
+	// 5xx is now retryable — task should be pending (retry queued), not failed
+	if got.State != tasks.StatePending {
+		t.Errorf("state = %q, want pending (5xx triggers retry)", got.State)
 	}
 
-	// Worker should be back to online (non-transport errors don't set error state)
+	// Worker should be in error state (transport error path)
 	entry, _ := reg.Get("fail500-w")
-	if entry.State != workers.StateOnline {
-		t.Errorf("worker state = %q, want online after 500 (non-transport)", entry.State)
-	}
-
-	// Event should be failed
-	gotEv, _ := es.Get(ctx, ev.ID)
-	if gotEv.State != events.StateFailed {
-		t.Errorf("event state = %q, want failed", gotEv.State)
+	if entry.State != workers.StateError {
+		t.Errorf("worker state = %q, want error after 5xx", entry.State)
 	}
 }
 
@@ -2098,8 +2089,8 @@ func TestIsTransportErrorTyped(t *testing.T) {
 	if !isTransportError(context.DeadlineExceeded) {
 		t.Error("context.DeadlineExceeded should be transport error")
 	}
-	if !isTransportError(context.Canceled) {
-		t.Error("context.Canceled should be transport error")
+	if isTransportError(context.Canceled) {
+		t.Error("context.Canceled should NOT be transport error (shutdown, not transport)")
 	}
 }
 
