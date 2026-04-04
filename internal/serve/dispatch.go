@@ -37,7 +37,9 @@ func (s *Server) dispatchLoop(ctx context.Context) {
 				s.logger.Warn("dispatch: shutdown while waiting for slot", "task", taskID)
 				return
 			}
+			s.dispatchWg.Add(1)
 			go func(id string) {
+				defer s.dispatchWg.Done()
 				defer func() { <-sem }() // release slot
 				defer func() {
 					if r := recover(); r != nil {

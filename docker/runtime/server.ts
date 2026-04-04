@@ -20,6 +20,12 @@ try {
   process.exit(1);
 }
 
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  const enc = new TextEncoder();
+  return crypto.subtle.timingSafeEqual(enc.encode(a), enc.encode(b));
+}
+
 function checkApiKey(req: Request): Response | null {
   if (!API_KEY) return null;
   const url = new URL(req.url);
@@ -28,7 +34,8 @@ function checkApiKey(req: Request): Response | null {
   const authHeader = req.headers.get("authorization") || "";
   const apiKeyHeader = req.headers.get("x-api-key") || "";
 
-  if (authHeader === `Bearer ${API_KEY}` || apiKeyHeader === API_KEY) {
+  const expectedBearer = `Bearer ${API_KEY}`;
+  if (timingSafeEqual(authHeader, expectedBearer) || timingSafeEqual(apiKeyHeader, API_KEY)) {
     return null;
   }
   return Response.json({ error: "unauthorized" }, { status: 401 });
