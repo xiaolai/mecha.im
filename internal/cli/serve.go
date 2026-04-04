@@ -110,6 +110,12 @@ func serveCmd() *cobra.Command {
 				sources.RegisterResponder(wb)
 			}
 
+			// Warn if binding to non-loopback without authentication
+			if apiKey == "" && !isLoopback(addr) {
+				logger.Warn("WARNING: serving on non-loopback address without API key — all endpoints are unauthenticated",
+					"addr", addr)
+			}
+
 			// Rate limiter: 2 req/s per worker, burst of 5
 			limiter := serve.NewRateLimiter(2.0, 5)
 

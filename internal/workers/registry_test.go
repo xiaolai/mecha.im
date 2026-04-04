@@ -204,6 +204,42 @@ func TestRegistryGetReturnsCopy(t *testing.T) {
 	}
 }
 
+func TestRecoverFromError(t *testing.T) {
+	r := testRegistry(t)
+	if err := r.Add(testWorker("w")); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Start("w"); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.SetError("w", "was unhealthy"); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Recover("w"); err != nil {
+		t.Fatal(err)
+	}
+	e, _ := r.Get("w")
+	if e.State != StateOnline {
+		t.Errorf("state = %q, want online", e.State)
+	}
+	if e.Error != "" {
+		t.Errorf("error = %q, want empty", e.Error)
+	}
+}
+
+func TestRecoverRequiresErrorState(t *testing.T) {
+	r := testRegistry(t)
+	if err := r.Add(testWorker("w")); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Start("w"); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Recover("w"); err == nil {
+		t.Error("Recover from online should fail")
+	}
+}
+
 func TestSetErrorRedactsSecrets(t *testing.T) {
 	r := testRegistry(t)
 	if err := r.Add(testWorker("w")); err != nil {

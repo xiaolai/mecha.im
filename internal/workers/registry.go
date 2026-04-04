@@ -140,6 +140,19 @@ func (r *Registry) ClearRuntime(name string) error {
 	})
 }
 
+// Recover transitions a worker from error back to online. Used by the
+// reconcile loop when a previously-errored container passes health checks.
+func (r *Registry) Recover(name string) error {
+	return r.mutateEntry(name, func(e *Entry) error {
+		if e.State != StateError {
+			return fmt.Errorf("worker %q must be in error to recover (current: %s)", name, e.State)
+		}
+		e.State = StateOnline
+		e.Error = ""
+		return nil
+	})
+}
+
 // SetBusy transitions a worker from online to busy (task dispatched).
 func (r *Registry) SetBusy(name string) error {
 	return r.mutateEntry(name, func(e *Entry) error {
