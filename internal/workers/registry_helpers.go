@@ -27,8 +27,9 @@ func (r *Registry) mutateEntry(name string, fn func(e *Entry) error) error {
 	if err := fn(clone[name]); err != nil {
 		return err
 	}
-	if err := r.persist(clone); err != nil {
-		return fmt.Errorf("persist registry: %w", err)
+	// Use single-entry persist for state-only mutations (O(1) instead of O(N)).
+	if err := r.persistEntry(clone[name]); err != nil {
+		return fmt.Errorf("persist entry: %w", err)
 	}
 	r.entries = clone
 	return nil

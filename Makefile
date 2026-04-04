@@ -24,7 +24,7 @@ cover-html: cover
 # Coverage gate — fails if total coverage drops below threshold
 cover-check: cover
 	@total=$$(go tool cover -func=coverage.out | tail -1 | awk '{print $$3}' | tr -d '%'); \
-	threshold=60; \
+	threshold=80; \
 	echo "Total coverage: $${total}% (threshold: $${threshold}%)"; \
 	if [ "$$(echo "$${total} < $${threshold}" | bc -l)" = "1" ]; then \
 		echo "FAIL: coverage $${total}% below $${threshold}% threshold"; \

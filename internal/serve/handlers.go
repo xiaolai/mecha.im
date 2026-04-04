@@ -1,10 +1,11 @@
 package serve
 
 import (
+	"errors"
 	"net/http"
-	"strings"
 	"sync/atomic"
 
+	"mecha.im/internal/tasks"
 	"mecha.im/internal/workers"
 )
 
@@ -85,7 +86,7 @@ func (s *Server) handleGetTask(w http.ResponseWriter, r *http.Request) {
 	}
 	t, err := s.tasks.Get(r.Context(), id)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, tasks.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "task not found")
 		} else {
 			writeError(w, http.StatusInternalServerError, "internal error")
