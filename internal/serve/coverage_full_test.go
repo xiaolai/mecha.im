@@ -370,9 +370,8 @@ func TestReconcileUnhealthyWorkerSetError(t *testing.T) {
 }
 
 func TestReconcileRecoveredWorkerAttemptOnline(t *testing.T) {
-	// reconcile calls SetOnline when an error-state worker passes health check.
-	// SetOnline currently requires StateBusy, so the transition fails silently.
-	// This test exercises the recovery path (StateError + healthy = attempt SetOnline).
+	// reconcile calls Recover when an error-state worker passes health check.
+	// Recover transitions error -> online.
 	path := filepath.Join(t.TempDir(), "test.db")
 	db, err := store.Open(path)
 	if err != nil {
@@ -403,18 +402,15 @@ func TestReconcileRecoveredWorkerAttemptOnline(t *testing.T) {
 		"container456", healthy.URL, "recovered-w")
 	reg.Reload()
 
-	// Should not panic. The reconcile path for StateError+healthy is exercised.
 	s.reconcile(context.Background(), nil)
 
-	// Verify reconcile attempted the recovery (state might remain error
-	// because SetOnline requires StateBusy, but the code path executed).
 	entry, ok := reg.Get("recovered-w")
 	if !ok {
 		t.Fatal("worker not found")
 	}
-	// SetOnline(error→online) silently fails, so state stays error.
-	// The important thing is the code path was covered without panics.
-	_ = entry.State
+	if entry.State != workers.StateOnline {
+		t.Errorf("state = %q, want online (Recover should transition error -> online)", entry.State)
+	}
 }
 
 func TestReconcileSkipsWorkerWithoutDocker(t *testing.T) {
@@ -2098,8 +2094,8 @@ func TestIsTransportErrorTyped(t *testing.T) {
 	if !isTransportError(context.DeadlineExceeded) {
 		t.Error("context.DeadlineExceeded should be transport error")
 	}
-	if !isTransportError(context.Canceled) {
-		t.Error("context.Canceled should be transport error")
+	if isTransportError(context.Canceled) {
+		t.Error("context.Canceled should NOT be transport error (shutdown, not transport)")
 	}
 }
 

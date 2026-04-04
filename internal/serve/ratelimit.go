@@ -86,7 +86,14 @@ func (s *Server) limiterCleanupLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			s.limiter.Cleanup()
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						s.logger.Error("limiter cleanup loop: panic", "panic", r)
+					}
+				}()
+				s.limiter.Cleanup()
+			}()
 		}
 	}
 }

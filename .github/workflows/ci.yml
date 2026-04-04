@@ -17,6 +17,8 @@ jobs:
       - run: go vet ./...
       - run: go test -race ./...
       - run: go build -o /dev/null ./cmd/mecha
+      - run: go build -o /dev/null ./cmd/mecha-mcp
+      - run: make cover-check
 
   docker:
     runs-on: ubuntu-latest

@@ -13,3 +13,14 @@ var reservedEnvKeys = map[string]bool{
 func isReservedEnvKey(k string) bool {
 	return reservedEnvKeys[strings.ToLower(k)]
 }
+
+// isLoopback returns true if the listen address binds only to localhost.
+func isLoopback(addr string) bool {
+	host := addr
+	if i := strings.LastIndex(addr, ":"); i >= 0 {
+		host = addr[:i]
+	}
+	host = strings.TrimPrefix(host, "[")
+	host = strings.TrimSuffix(host, "]")
+	return host == "" || host == "127.0.0.1" || host == "::1" || host == "localhost"
+}

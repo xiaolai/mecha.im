@@ -304,8 +304,8 @@ func TestIsTransportErrorMax(t *testing.T) {
 		{"no such host", true},
 		{"connection reset", true},
 		{"deadline exceeded", true},
-		{"context canceled", true},
-		{"EOF", true},
+		{"context canceled", false},
+		{"EOF", false},
 		{"some app error", false},
 	}
 	for _, tt := range tests {
