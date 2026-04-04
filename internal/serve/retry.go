@@ -20,7 +20,14 @@ func (s *Server) retryLoop(ctx context.Context) {
 			s.logger.Info("retry loop stopped")
 			return
 		case <-ticker.C:
-			s.scanRetries(ctx)
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						s.logger.Error("retry loop: panic", "panic", r)
+					}
+				}()
+				s.scanRetries(ctx)
+			}()
 		}
 	}
 }

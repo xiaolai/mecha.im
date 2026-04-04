@@ -37,7 +37,9 @@ func (s *Server) dispatchLoop(ctx context.Context) {
 				s.logger.Warn("dispatch: shutdown while waiting for slot", "task", taskID)
 				return
 			}
+			s.dispatchWg.Add(1)
 			go func(id string) {
+				defer s.dispatchWg.Done()
 				defer func() { <-sem }() // release slot
 				defer func() {
 					if r := recover(); r != nil {
@@ -114,13 +116,15 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 		}
 	}()
 
-	// Rate limit check — re-queue if worker is throttled
+	// Rate limit check — re-queue if worker is throttled.
+	// Sleep before re-queue to avoid a tight busy loop that burns CPU.
 	if s.limiter != nil && !s.limiter.Allow(t.WorkerName) {
 		tasksRateLimited.Add(1)
 		workerRestored = true
 		if onlineErr := s.reg.SetOnline(t.WorkerName); onlineErr != nil {
 			s.logger.Warn("dispatch: set online after rate limit", "id", taskID, "err", onlineErr)
 		}
+		time.Sleep(500 * time.Millisecond)
 		select {
 		case s.pending <- taskID:
 			s.logger.Info("dispatch: rate limited, re-queued", "id", taskID, "worker", t.WorkerName)

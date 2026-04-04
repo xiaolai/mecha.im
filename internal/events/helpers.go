@@ -5,9 +5,13 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 )
+
+// ErrNotFound is returned when an event does not exist.
+var ErrNotFound = errors.New("not found")
 
 type rowScanner interface{ Scan(dest ...any) error }
 
@@ -20,7 +24,7 @@ func scanEvent(s rowScanner) (*Event, error) {
 		&attrsStr, &raw, &state, &wn, &tid, &createdAt, &updatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("event not found")
+			return nil, fmt.Errorf("event: %w", ErrNotFound)
 		}
 		return nil, fmt.Errorf("scan event: %w", err)
 	}

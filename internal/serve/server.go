@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"mecha.im/internal/logs"
@@ -27,11 +28,12 @@ type Server struct {
 	docker    *workers.DockerClient
 	limiter   *RateLimiter
 	logs      *logs.Store
-	pending   chan string
-	addr      string
-	apiKey    string
-	httpSrv   *http.Server
-	logger    *slog.Logger
+	pending    chan string
+	dispatchWg sync.WaitGroup
+	addr       string
+	apiKey     string
+	httpSrv    *http.Server
+	logger     *slog.Logger
 }
 
 // Config holds server startup parameters.
@@ -96,12 +98,23 @@ func New(cfg Config) *Server {
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      60 * time.Second,
 		IdleTimeout:       120 * time.Second,
+		MaxHeaderBytes:    1 << 20, // 1MB — prevents oversized header DoS
 	}
 	return s
 }
 
 // Start begins serving HTTP and the dispatch loop. Blocks until ctx is cancelled.
 func (s *Server) Start(ctx context.Context) error {
+	// Cleanup orphaned disposable containers from previous crashes
+	if s.docker != nil {
+		removed, cleanupErr := s.docker.CleanupOrphanDisposables(ctx)
+		if cleanupErr != nil {
+			s.logger.Warn("orphan cleanup failed", "err", cleanupErr)
+		} else if removed > 0 {
+			s.logger.Info("cleaned up orphan disposable containers", "count", removed)
+		}
+	}
+
 	// Start dispatch loop first so recovered tasks are consumed
 	go s.dispatchLoop(ctx)
 
@@ -121,75 +134,10 @@ func (s *Server) Start(ctx context.Context) error {
 		go s.reconcileLoop(ctx, s.docker, 60*time.Second)
 	}
 
-	// Recover pending tasks from previous run
-	ids, err := s.tasks.Pending(ctx)
-	if err != nil {
+	if err := s.recoverTasks(ctx); err != nil {
 		return fmt.Errorf("recover pending tasks: %w", err)
 	}
-	for _, id := range ids {
-		// Check idempotency: if a task with the same dedup_key already completed,
-		// skip re-dispatch to prevent duplicate write-back (e.g., duplicate PR comments).
-		t, getErr := s.tasks.Get(ctx, id)
-		if getErr != nil {
-			s.logger.Warn("recover: get task failed", "id", id, "err", getErr)
-			continue
-		}
-		if t.DedupKey != "" {
-			dup, dupErr := s.tasks.HasCompletedDedup(ctx, t.DedupKey)
-			if dupErr != nil {
-				s.logger.Warn("recover: dedup check failed", "id", id, "err", dupErr)
-				continue
-			}
-			if dup {
-				tasksDedupSkip.Add(1)
-				s.logger.Info("recover: skipping duplicate task", "id", id, "dedup_key", t.DedupKey)
-				if failErr := s.tasks.Fail(ctx, id, "skipped: duplicate of completed task"); failErr != nil {
-					s.logger.Warn("recover: fail dedup task", "id", id, "err", failErr)
-				}
-				continue
-			}
-		}
-		select {
-		case s.pending <- id:
-			tasksRecovered.Add(1)
-			s.logger.Info("recovered task", "id", id)
-		default:
-			s.logger.Warn("pending queue full, skipping recovery", "id", id)
-		}
-	}
-
-	// Recover events stuck in "received" state (crashed before matching).
-	// Re-run matchAndHydrate if the source is still registered; otherwise
-	// mark as failed for manual review.
-	if s.events != nil && s.sources != nil {
-		stuckIDs, err := s.events.Received(ctx)
-		if err != nil {
-			s.logger.Error("recover received events", "err", err)
-		} else {
-			for _, eid := range stuckIDs {
-				ev, err := s.events.Get(ctx, eid)
-				if err != nil {
-					s.logger.Error("recover: get event", "event", eid, "err", err)
-					continue
-				}
-				src, ok := s.sources.Get(ev.Source)
-				if !ok {
-					// Source no longer registered — mark failed
-					if err := s.events.SetFailed(ctx, eid); err != nil {
-						s.logger.Error("recover: fail event", "event", eid, "err", err)
-					}
-					s.logger.Warn("recovered stuck event (source gone, marked failed)", "event", eid, "source", ev.Source)
-					continue
-				}
-				s.logger.Info("recovering stuck event", "event", eid, "source", ev.Source)
-				go func(ev *events.Event, src source.Source) {
-					rctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-					defer cancel()
-					s.matchAndHydrate(rctx, ev, src)
-				}(ev, src)
-			}
-		}
-	}
+	s.recoverEvents(ctx)
 
 	ln, err := net.Listen("tcp", s.addr)
 	if err != nil {
@@ -206,6 +154,15 @@ func (s *Server) Start(ctx context.Context) error {
 		shutCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		s.httpSrv.Shutdown(shutCtx)
+		// Wait for in-flight dispatches to finish (bounded by shutCtx)
+		done := make(chan struct{})
+		go func() { s.dispatchWg.Wait(); close(done) }()
+		select {
+		case <-done:
+			s.logger.Info("all dispatches drained")
+		case <-shutCtx.Done():
+			s.logger.Warn("shutdown timeout — some dispatches may still be running")
+		}
 		return nil
 	case err := <-errCh:
 		if err == http.ErrServerClosed {
