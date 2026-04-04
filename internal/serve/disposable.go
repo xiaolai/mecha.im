@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"mecha.im/internal/logs"
 	"mecha.im/internal/tasks"
 	"mecha.im/internal/workers"
 )
@@ -175,6 +176,8 @@ func (s *Server) dispatchDisposable(ctx context.Context, taskID string, t *tasks
 	if wbOk {
 		s.completeEvent(ctx, t.EventID, true)
 	}
+	tasksCompleted.Add(1)
+	s.record(logs.Entry{TraceID: t.EventID, TaskID: taskID, Worker: entry.Worker.Name, Action: logs.TaskSent, Outcome: logs.OK, Attempt: t.Attempts})
 	s.logger.Info("disposable: task completed", "id", taskID, "worker", entry.Worker.Name)
 }
 

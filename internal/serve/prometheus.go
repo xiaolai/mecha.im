@@ -7,8 +7,16 @@ import (
 	"strings"
 )
 
+// counterMetrics lists expvar names that are monotonically increasing counters.
+var counterMetrics = map[string]bool{
+	"tasks_created": true, "tasks_completed": true, "tasks_failed": true,
+	"tasks_recovered": true, "tasks_retried": true, "tasks_dedup_skipped": true,
+	"tasks_rate_limited": true, "webhooks_received": true,
+	"writeback_ok": true, "writeback_fail": true, "events_dedup_skipped": true,
+}
+
 // prometheusHandler serves metrics in Prometheus text exposition format.
-// Converts all expvar integers and floats to Prometheus gauge lines.
+// Distinguishes counters (monotonically increasing) from gauges.
 // No external dependency — pure stdlib.
 func prometheusHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -16,11 +24,15 @@ func prometheusHandler() http.HandlerFunc {
 		var b strings.Builder
 		expvar.Do(func(kv expvar.KeyValue) {
 			name := sanitizeMetricName(kv.Key)
+			ptype := "gauge"
+			if counterMetrics[kv.Key] {
+				ptype = "counter"
+			}
 			switch v := kv.Value.(type) {
 			case *expvar.Int:
-				fmt.Fprintf(&b, "# TYPE mecha_%s gauge\nmecha_%s %d\n", name, name, v.Value())
+				fmt.Fprintf(&b, "# TYPE mecha_%s %s\nmecha_%s %d\n", name, ptype, name, v.Value())
 			case *expvar.Float:
-				fmt.Fprintf(&b, "# TYPE mecha_%s gauge\nmecha_%s %f\n", name, name, v.Value())
+				fmt.Fprintf(&b, "# TYPE mecha_%s %s\nmecha_%s %f\n", name, ptype, name, v.Value())
 			}
 		})
 		w.Write([]byte(b.String()))
