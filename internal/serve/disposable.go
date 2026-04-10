@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	disposableHealthTimeout = 60 * time.Second
+	disposableHealthTimeout = 90 * time.Second // first boot installs CLIs (~60s)
 	disposableHealthPoll    = 2 * time.Second
 	disposableStopTimeout   = 10 * time.Second
 )

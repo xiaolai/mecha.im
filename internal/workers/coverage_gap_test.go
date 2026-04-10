@@ -7,13 +7,19 @@ import (
 
 // --- 1. Sanitized() ---
 
-func TestSanitizedDockerEnvRedacted(t *testing.T) {
+// TestSanitizedDockerEnv verifies that Sanitized() only redacts actual secret
+// values in docker.env (not plain config like model names), preserves the token
+// reference name, and clears the worker API key.
+func TestSanitizedDockerEnv(t *testing.T) {
 	e := &Entry{
 		Worker: &Worker{
 			Name: "w1",
 			Docker: &DockerConfig{
-				Image:  "x",
-				Env:    map[string]string{"SECRET": "hunter2", "TOKEN": "abc123"},
+				Image: "x",
+				Env: map[string]string{
+					"CLAUDE_MODEL": "claude-sonnet-4-6",          // non-secret: must be preserved
+					"ANTHROPIC_API_KEY": "sk-ant-abc123def456789", // real secret: must be redacted
+				},
 				Token:  "claude.work",
 				APIKey: "my-api-key",
 			},
@@ -22,19 +28,24 @@ func TestSanitizedDockerEnvRedacted(t *testing.T) {
 	}
 	s := e.Sanitized()
 
-	for k, v := range s.Worker.Docker.Env {
-		if v != "***" {
-			t.Errorf("Sanitized Env[%s] = %q, want ***", k, v)
-		}
+	// Non-secret env vars must be preserved as-is.
+	if got := s.Worker.Docker.Env["CLAUDE_MODEL"]; got != "claude-sonnet-4-6" {
+		t.Errorf("Sanitized Env[CLAUDE_MODEL] = %q, want claude-sonnet-4-6", got)
 	}
-	if s.Worker.Docker.Token != "" {
-		t.Errorf("Sanitized Token = %q, want empty", s.Worker.Docker.Token)
+	// Real secrets must be redacted.
+	if got := s.Worker.Docker.Env["ANTHROPIC_API_KEY"]; got != "[REDACTED]" {
+		t.Errorf("Sanitized Env[ANTHROPIC_API_KEY] = %q, want [REDACTED]", got)
 	}
+	// Token is a reference name (e.g. "claude.work"), not the secret value — must be preserved.
+	if s.Worker.Docker.Token != "claude.work" {
+		t.Errorf("Sanitized Token = %q, want claude.work", s.Worker.Docker.Token)
+	}
+	// Worker API key (bearer auth on /task) must be cleared.
 	if s.Worker.Docker.APIKey != "" {
 		t.Errorf("Sanitized APIKey = %q, want empty", s.Worker.Docker.APIKey)
 	}
 
-	// Original must be unchanged
+	// Original must be unchanged.
 	if e.Worker.Docker.Token != "claude.work" {
 		t.Error("original Token was mutated")
 	}
