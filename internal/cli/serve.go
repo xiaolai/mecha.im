@@ -146,6 +146,22 @@ func serveCmd() *cobra.Command {
 			ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 			defer stop()
 
+			// SIGHUP: hot-reload secrets.yml without restarting.
+			sigHUP := make(chan os.Signal, 1)
+			signal.Notify(sigHUP, syscall.SIGHUP)
+			go func() {
+				for {
+					select {
+					case <-sigHUP:
+						if err := srv.ReloadSecrets(secretsPath); err != nil {
+							logger.Error("reload secrets", "err", err)
+						}
+					case <-ctx.Done():
+						return
+					}
+				}
+			}()
+
 			return srv.Start(ctx)
 		},
 	}

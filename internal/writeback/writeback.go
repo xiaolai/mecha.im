@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"mecha.im/internal/events"
@@ -18,7 +19,9 @@ var validStatusStates = map[string]bool{
 
 // Client writes task results back to GitHub.
 // Implements source.Responder.
+// Thread-safe: token can be hot-reloaded via UpdateToken on SIGHUP.
 type Client struct {
+	mu     sync.RWMutex
 	token  string
 	http   *http.Client
 	logger *slog.Logger
@@ -36,6 +39,22 @@ func NewClient(token string, logger *slog.Logger) *Client {
 	}
 }
 
+// UpdateToken replaces the GitHub API token without restarting.
+// Safe to call concurrently with in-flight write-back requests.
+func (c *Client) UpdateToken(token string) {
+	c.mu.Lock()
+	c.token = token
+	c.mu.Unlock()
+}
+
+// currentToken returns the token with a read lock, safe for concurrent use.
+func (c *Client) currentToken() string {
+	c.mu.RLock()
+	t := c.token
+	c.mu.RUnlock()
+	return t
+}
+
 // Name returns "github" (implements source.Responder).
 func (c *Client) Name() string { return "github" }
 
@@ -47,7 +66,7 @@ func (c *Client) Respond(ctx context.Context, ev *events.Event, res policies.Res
 
 // WriteBackResult writes a policy-filtered result to GitHub.
 func (c *Client) WriteBackResult(ctx context.Context, ev *events.Event, res policies.Result) error {
-	if c == nil || c.token == "" {
+	if c == nil || c.currentToken() == "" {
 		return nil
 	}
 	owner, _ := ev.Attrs["repo_owner"].(string)
