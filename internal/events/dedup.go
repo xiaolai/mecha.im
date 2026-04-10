@@ -28,7 +28,9 @@ func (s *Store) Received(ctx context.Context) ([]string, error) {
 
 // DedupKeyActive checks if a non-empty dedup_key already exists in an active
 // (non-terminal) state. Active states are: received, matched, dispatched.
-// Terminal states (completed, failed, skipped) do not block new events.
+// Terminal states (completed, failed, skipped, write_back_failed) do not block
+// new events. write_back_failed is terminal for dedup purposes because the
+// task already completed successfully — only the write-back is being retried.
 func (s *Store) DedupKeyActive(ctx context.Context, dedupKey string) (bool, error) {
 	if dedupKey == "" {
 		return false, nil
@@ -36,9 +38,9 @@ func (s *Store) DedupKeyActive(ctx context.Context, dedupKey string) (bool, erro
 	var count int
 	err := s.db.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM events
-		 WHERE dedup_key = ? AND state NOT IN (?, ?, ?)`,
+		 WHERE dedup_key = ? AND state NOT IN (?, ?, ?, ?)`,
 		dedupKey,
-		string(StateCompleted), string(StateFailed), string(StateSkipped),
+		string(StateCompleted), string(StateFailed), string(StateSkipped), string(StateWriteBackFailed),
 	).Scan(&count)
 	if err != nil {
 		return false, fmt.Errorf("check dedup key: %w", err)

@@ -195,11 +195,22 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 	}
 
 	// Write-back after task is durably completed.
-	// Event completion is gated on write-back success — failed events stay
-	// "dispatched" for retry, which creates a new task on re-dispatch.
-	wbOk := s.doWriteBack(ctx, taskID, t.EventID, t.WorkerName, result)
+	// On success: transition event dispatched → completed.
+	// On failure: transition event dispatched → write_back_failed so the
+	// writeBackRetryLoop can retry without leaving the event orphaned.
+	wbOk, wbErr := s.doWriteBack(ctx, taskID, t.EventID, t.WorkerName, result)
 	if wbOk {
 		s.completeEvent(ctx, t.EventID, true)
+	} else if t.EventID != "" && s.events != nil {
+		errMsg := ""
+		if wbErr != nil {
+			errMsg = wbErr.Error()
+		}
+		if setErr := s.events.SetWriteBackFailed(ctx, t.EventID, workers.RedactSecrets(errMsg)); setErr != nil {
+			s.logger.Error("dispatch: set write_back_failed", "event", t.EventID, "err", setErr)
+		} else {
+			s.logger.Warn("dispatch: write-back failed, queued for retry", "task", taskID, "event", t.EventID)
+		}
 	}
 
 	tasksCompleted.Add(1)

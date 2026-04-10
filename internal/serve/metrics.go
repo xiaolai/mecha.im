@@ -18,9 +18,11 @@ var (
 	dispatchLatency  = expvar.NewFloat("dispatch_latency_ms_avg")
 	queueDepth       = expvar.NewInt("queue_depth")
 	webhooksReceived = expvar.NewInt("webhooks_received")
-	writebackOK      = expvar.NewInt("writeback_ok")
-	writebackFail    = expvar.NewInt("writeback_fail")
-	eventsDedupSkip  = expvar.NewInt("events_dedup_skipped")
+	writebackOK         = expvar.NewInt("writeback_ok")
+	writebackFail       = expvar.NewInt("writeback_fail")
+	writebackRetryOK    = expvar.NewInt("writeback_retry_ok")
+	writebackDeadLetter = expvar.NewInt("writeback_dead_letter")
+	eventsDedupSkip     = expvar.NewInt("events_dedup_skipped")
 )
 
 // latencyTracker keeps a running average of dispatch latency (thread-safe).

@@ -106,6 +106,14 @@ ALTER TABLE tasks ADD COLUMN next_retry_at INTEGER;
 CREATE INDEX IF NOT EXISTS idx_tasks_retry ON tasks(state, next_retry_at) WHERE state = 'pending' AND next_retry_at IS NOT NULL;
 `
 
+// schemaV7 adds write-back retry tracking to events.
+// write_back_attempts counts how many write-back attempts have been made.
+// write_back_last_err stores the most recent write-back error for diagnosis.
+const schemaV7 = `
+ALTER TABLE events ADD COLUMN write_back_attempts INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE events ADD COLUMN write_back_last_err TEXT NOT NULL DEFAULT ''
+`
+
 // schemaV6 adds the structured log table.
 const schemaV6 = `
 CREATE TABLE IF NOT EXISTS logs (

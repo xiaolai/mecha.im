@@ -414,7 +414,7 @@ func TestDoWriteBack_UnparseableResult(t *testing.T) {
 	}
 }
 
-func TestDoWriteBack_GitHubError_EventStaysDispatched(t *testing.T) {
+func TestDoWriteBack_GitHubError_EventQueuesForRetry(t *testing.T) {
 	s, es, cleanup := testFullServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(500)
 		w.Write([]byte(`{"message":"internal server error"}`))
@@ -434,14 +434,17 @@ func TestDoWriteBack_GitHubError_EventStaysDispatched(t *testing.T) {
 
 	s.dispatchTask(context.Background(), taskID)
 
+	// Task must be completed (result is durable) even when write-back fails.
 	tk, _ := s.tasks.Get(context.Background(), taskID)
 	if tk.State != tasks.StateCompleted {
 		t.Errorf("task state = %q, want completed (result stored even if writeback fails)", tk.State)
 	}
 
+	// Event must be in write_back_failed state — not left in dispatched.
+	// The writeBackRetryLoop will pick it up and retry.
 	ev, _ := es.Get(context.Background(), eventID)
-	if ev.State != events.StateDispatched {
-		t.Errorf("event state = %q, want dispatched (writeback failed, stays for retry)", ev.State)
+	if ev.State != events.StateWriteBackFailed {
+		t.Errorf("event state = %q, want write_back_failed (queued for retry)", ev.State)
 	}
 }
 
@@ -577,7 +580,7 @@ func TestDoWriteBack_NoEventStore(t *testing.T) {
 
 	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
-	ok := s.doWriteBack(context.Background(), "t1", "e1", "w1", `{"output":"x"}`)
+	ok, _ := s.doWriteBack(context.Background(), "t1", "e1", "w1", `{"output":"x"}`)
 	if !ok {
 		t.Error("doWriteBack should return true when events is nil")
 	}
@@ -588,7 +591,7 @@ func TestDoWriteBack_EmptyEventID(t *testing.T) {
 	s, _, cleanup := testFullServer(t, rec.handler())
 	defer cleanup()
 
-	ok := s.doWriteBack(context.Background(), "t1", "", "w1", `{"output":"x"}`)
+	ok, _ := s.doWriteBack(context.Background(), "t1", "", "w1", `{"output":"x"}`)
 	if !ok {
 		t.Error("doWriteBack should return true when eventID is empty")
 	}

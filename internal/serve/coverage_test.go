@@ -240,7 +240,7 @@ func TestDoWriteBackResponderPath(t *testing.T) {
 	evStore.SetDispatched(ctx, ev.ID, "t1")
 	reg.Add(&workers.Worker{Name: "w", Endpoint: "http://x"})
 
-	ok := s.doWriteBack(ctx, "t1", ev.ID, "w", `{"output":"test","comment":{"body":"hi"}}`)
+	ok, _ := s.doWriteBack(ctx, "t1", ev.ID, "w", `{"output":"test","comment":{"body":"hi"}}`)
 	if !ok {
 		t.Error("doWriteBack should succeed")
 	}
@@ -528,7 +528,7 @@ func TestDoWriteBackPolicyError(t *testing.T) {
 	es.SetMatched(ctx, ev.ID, "deny-w")
 	es.SetDispatched(ctx, ev.ID, "t1")
 
-	ok := s.doWriteBack(ctx, "t1", ev.ID, "deny-w", `{"output":"x","comment":{"body":"hi"}}`)
+	ok, _ := s.doWriteBack(ctx, "t1", ev.ID, "deny-w", `{"output":"x","comment":{"body":"hi"}}`)
 	if !ok {
 		t.Error("doWriteBack with DenyAll should still succeed (just blocks everything)")
 	}
@@ -570,7 +570,7 @@ func TestDoWriteBackResponderError(t *testing.T) {
 	evStore.SetDispatched(ctx, ev.ID, "t1")
 	reg.Add(&workers.Worker{Name: "w", Endpoint: "http://x"})
 
-	ok := s.doWriteBack(ctx, "t1", ev.ID, "w", `{"output":"x"}`)
+	ok, _ := s.doWriteBack(ctx, "t1", ev.ID, "w", `{"output":"x"}`)
 	if ok {
 		t.Error("doWriteBack should fail when responder returns error")
 	}

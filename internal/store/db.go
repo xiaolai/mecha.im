@@ -65,6 +65,7 @@ func migrate(db *sql.DB) error {
 		{4, splitStatements(schemaV4)},
 		{5, splitStatements(schemaV5)},
 		{6, splitStatements(schemaV6)},
+		{7, splitStatements(schemaV7)},
 	}
 	for _, m := range migrations {
 		if version >= m.version {

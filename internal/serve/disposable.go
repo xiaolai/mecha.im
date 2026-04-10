@@ -172,9 +172,19 @@ func (s *Server) dispatchDisposable(ctx context.Context, taskID string, t *tasks
 		s.logger.Error("disposable: complete task failed", "id", taskID, "err", completeErr)
 		return
 	}
-	wbOk := s.doWriteBack(ctx, taskID, t.EventID, entry.Worker.Name, result)
+	wbOk, wbErr := s.doWriteBack(ctx, taskID, t.EventID, entry.Worker.Name, result)
 	if wbOk {
 		s.completeEvent(ctx, t.EventID, true)
+	} else if t.EventID != "" && s.events != nil {
+		errMsg := ""
+		if wbErr != nil {
+			errMsg = wbErr.Error()
+		}
+		if setErr := s.events.SetWriteBackFailed(ctx, t.EventID, workers.RedactSecrets(errMsg)); setErr != nil {
+			s.logger.Error("disposable: set write_back_failed", "event", t.EventID, "err", setErr)
+		} else {
+			s.logger.Warn("disposable: write-back failed, queued for retry", "task", taskID, "event", t.EventID)
+		}
 	}
 	tasksCompleted.Add(1)
 	s.record(logs.Entry{TraceID: t.EventID, TaskID: taskID, Worker: entry.Worker.Name, Action: logs.TaskSent, Outcome: logs.OK, Attempt: t.Attempts})

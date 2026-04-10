@@ -44,28 +44,32 @@ func (s *Server) completeEvent(ctx context.Context, eventID string, success bool
 	}
 }
 
-func (s *Server) doWriteBack(ctx context.Context, taskID, eventID, workerName, result string) bool {
+// doWriteBack applies policy filtering and writes the result back to the source
+// platform (GitHub comment, label, status, etc.). Returns (true, nil) on
+// success, (false, err) on failure. A nil error with false means write-back
+// was intentionally skipped (no writeback configured).
+func (s *Server) doWriteBack(ctx context.Context, taskID, eventID, workerName, result string) (bool, error) {
 	if eventID == "" || s.events == nil {
-		return true
+		return true, nil
 	}
 	if s.writeback == nil && s.sources == nil {
-		return true
+		return true, nil
 	}
 	ev, err := s.events.Get(ctx, eventID)
 	if err != nil {
 		s.logger.Error("dispatch: get event for writeback", "task", taskID, "err", err)
-		return false
+		return false, err
 	}
 	var res policies.Result
 	if err := json.Unmarshal([]byte(result), &res); err != nil {
 		s.logger.Warn("dispatch: parse result for policy", "task", taskID, "err", err)
-		return true
+		return true, nil
 	}
 	policyFilter := s.getWorkerPolicy(workerName)
 	filtered, decision, err := policyFilter.Apply(ctx, ev, res)
 	if err != nil {
 		s.logger.Error("dispatch: policy error", "task", taskID, "err", err)
-		return false
+		return false, err
 	}
 	s.logger.Info("dispatch: policy applied", "task", taskID, "worker", workerName,
 		"allowed", decision.Allowed, "denied", decision.Denied)
@@ -80,21 +84,21 @@ func (s *Server) doWriteBack(ctx context.Context, taskID, eventID, workerName, r
 			if wbErr := resp.Respond(ctx, ev, filtered); wbErr != nil {
 				writebackFail.Add(1)
 				s.logger.Error("dispatch: responder failed", "task", taskID, "event", eventID, "source", ev.Source, "err", wbErr)
-				return false
+				return false, wbErr
 			}
 			writebackOK.Add(1)
-			return true
+			return true, nil
 		}
 	}
 	if s.writeback != nil {
 		if wbErr := s.writeback.WriteBackResult(ctx, ev, filtered); wbErr != nil {
 			writebackFail.Add(1)
 			s.logger.Error("dispatch: write-back failed", "task", taskID, "event", eventID, "err", wbErr)
-			return false
+			return false, wbErr
 		}
 		writebackOK.Add(1)
 	}
-	return true
+	return true, nil
 }
 
 // isUniqueViolation checks if an error is a SQLite unique constraint violation.

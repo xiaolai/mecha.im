@@ -129,6 +129,13 @@ func (s *Server) Start(ctx context.Context) error {
 	// Start pending scan — catches orphaned tasks not in the channel
 	go s.pendingLoop(ctx)
 
+	// Start write-back retry loop — retries events whose write-back failed
+	// transiently (GitHub rate limit, network error). Without this loop,
+	// failed write-backs leave events permanently in "dispatched" state.
+	if s.events != nil {
+		go s.writeBackRetryLoop(ctx)
+	}
+
 	// Start reconciliation loop — detects registry/Docker state drift
 	if s.docker != nil {
 		go s.reconcileLoop(ctx, s.docker, 60*time.Second)
