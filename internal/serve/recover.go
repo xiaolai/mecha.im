@@ -74,7 +74,9 @@ func (s *Server) recoverEvents(ctx context.Context) {
 			continue
 		}
 		s.logger.Info("recovering stuck event", "event", eid, "source", ev.Source)
+		s.dispatchWg.Add(1)
 		go func(ev *events.Event, src source.Source) {
+			defer s.dispatchWg.Done()
 			rctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 			defer cancel()
 			s.matchAndHydrate(rctx, ev, src)
