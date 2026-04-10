@@ -40,8 +40,8 @@ func TestMigrateFromV1(t *testing.T) {
 	if err := db2.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 6 {
-		t.Errorf("version = %d, want 6", version)
+	if version != 7 {
+		t.Errorf("version = %d, want 7", version)
 	}
 }
 
@@ -82,8 +82,8 @@ func TestMigrateFromV2(t *testing.T) {
 	if err := db2.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 6 {
-		t.Errorf("version = %d, want 6", version)
+	if version != 7 {
+		t.Errorf("version = %d, want 7", version)
 	}
 }
 
@@ -117,8 +117,8 @@ func TestMigrateFromV3(t *testing.T) {
 	if err := db2.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 6 {
-		t.Errorf("version = %d, want 6", version)
+	if version != 7 {
+		t.Errorf("version = %d, want 7", version)
 	}
 }
 
@@ -151,8 +151,8 @@ func TestMigrateFromV4(t *testing.T) {
 	if err := db2.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 6 {
-		t.Errorf("version = %d, want 6", version)
+	if version != 7 {
+		t.Errorf("version = %d, want 7", version)
 	}
 }
 
@@ -254,8 +254,8 @@ func TestMigrateV2DuplicateColumn(t *testing.T) {
 	if err := db2.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 6 {
-		t.Errorf("version = %d, want 6", version)
+	if version != 7 {
+		t.Errorf("version = %d, want 7", version)
 	}
 }
 
@@ -292,8 +292,8 @@ func TestMigrateV4DuplicateColumn(t *testing.T) {
 	if err := db2.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 6 {
-		t.Errorf("version = %d, want 6", version)
+	if version != 7 {
+		t.Errorf("version = %d, want 7", version)
 	}
 }
 
@@ -328,8 +328,8 @@ func TestMigrateV5DuplicateColumn(t *testing.T) {
 	if err := db2.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 6 {
-		t.Errorf("version = %d, want 6", version)
+	if version != 7 {
+		t.Errorf("version = %d, want 7", version)
 	}
 }
 

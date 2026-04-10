@@ -172,6 +172,68 @@ func (s *Store) SetSkipped(ctx context.Context, id string) error {
 		"UPDATE events SET state = ?, updated_at = ? WHERE id = ? AND state = ?")
 }
 
+// SetWriteBackFailed transitions dispatched → write_back_failed and records
+// the error. Increments write_back_attempts on each call.
+func (s *Store) SetWriteBackFailed(ctx context.Context, id, errMsg string) error {
+	now := time.Now().Unix()
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE events SET state = ?, write_back_attempts = write_back_attempts + 1,
+		 write_back_last_err = ?, updated_at = ?
+		 WHERE id = ? AND state IN (?, ?)`,
+		string(StateWriteBackFailed), errMsg, now, id,
+		string(StateDispatched), string(StateWriteBackFailed),
+	)
+	if err != nil {
+		return fmt.Errorf("set write_back_failed: %w", err)
+	}
+	return checkRows(res, id, "write_back_failed")
+}
+
+// SetWriteBackCompleted transitions write_back_failed → completed after a
+// successful retry.
+func (s *Store) SetWriteBackCompleted(ctx context.Context, id string) error {
+	now := time.Now().Unix()
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE events SET state = ?, updated_at = ? WHERE id = ? AND state = ?`,
+		string(StateCompleted), now, id, string(StateWriteBackFailed),
+	)
+	if err != nil {
+		return fmt.Errorf("set write_back_completed: %w", err)
+	}
+	return checkRows(res, id, "completed")
+}
+
+// WriteBackFailed returns events whose write-back failed and are pending retry.
+// Each row includes the event id, task_id, worker_name, and attempt count.
+type WriteBackRetryRow struct {
+	EventID          string
+	TaskID           string
+	WorkerName       string
+	WriteBackAttempts int
+}
+
+// WriteBackFailed lists events in write_back_failed state ordered by created_at.
+func (s *Store) WriteBackFailed(ctx context.Context) ([]WriteBackRetryRow, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, task_id, worker_name, write_back_attempts FROM events
+		 WHERE state = ? ORDER BY created_at`,
+		string(StateWriteBackFailed),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query write_back_failed: %w", err)
+	}
+	defer rows.Close()
+	var out []WriteBackRetryRow
+	for rows.Next() {
+		var r WriteBackRetryRow
+		if err := rows.Scan(&r.EventID, &r.TaskID, &r.WorkerName, &r.WriteBackAttempts); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
 
 func (s *Store) transition(ctx context.Context, id string, from, to State, query string) error {
 	now := time.Now().Unix()

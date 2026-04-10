@@ -21,6 +21,11 @@ const (
 	StateFailed State = "failed"
 	// StateSkipped means no matching worker was found for this event.
 	StateSkipped State = "skipped"
+	// StateWriteBackFailed means the task completed but write-back to the
+	// platform (GitHub comment, label, status) failed. The event is queued
+	// for write-back retry. This is a non-terminal transient state — it does
+	// NOT block new dedup events (unlike dispatched).
+	StateWriteBackFailed State = "write_back_failed"
 )
 
 // Attrs holds provider-specific fields available to prompt templates.

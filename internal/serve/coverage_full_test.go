@@ -1200,7 +1200,7 @@ func TestDoWriteBackNoEventID(t *testing.T) {
 	defer cleanup()
 
 	// No event ID → should return true (no-op)
-	ok := s.doWriteBack(context.Background(), "t1", "", "w", `{"output":"x"}`)
+	ok, _ := s.doWriteBack(context.Background(), "t1", "", "w", `{"output":"x"}`)
 	if !ok {
 		t.Error("doWriteBack with empty eventID should return true")
 	}
@@ -1226,7 +1226,7 @@ func TestDoWriteBackNoWritebackOrSources(t *testing.T) {
 	evStore.SetMatched(ctx, ev.ID, "w")
 	evStore.SetDispatched(ctx, ev.ID, "t1")
 
-	ok := s.doWriteBack(ctx, "t1", ev.ID, "w", `{"output":"x"}`)
+	ok, _ := s.doWriteBack(ctx, "t1", ev.ID, "w", `{"output":"x"}`)
 	if !ok {
 		t.Error("doWriteBack with no writeback/sources should return true")
 	}
@@ -1254,7 +1254,7 @@ func TestDoWriteBackInvalidResultJSON(t *testing.T) {
 	reg.Add(&workers.Worker{Name: "w", Endpoint: "http://x"})
 
 	// Invalid JSON result — should still return true (logged as warning)
-	ok := s.doWriteBack(ctx, "t1", ev.ID, "w", "not-json")
+	ok, _ := s.doWriteBack(ctx, "t1", ev.ID, "w", "not-json")
 	if !ok {
 		t.Error("doWriteBack with invalid JSON should return true (warning only)")
 	}
@@ -1275,7 +1275,7 @@ func TestDoWriteBackEventGetError(t *testing.T) {
 
 	db.Close()
 
-	ok := s.doWriteBack(context.Background(), "t1", "nonexistent-event", "w", `{"output":"x"}`)
+	ok, _ := s.doWriteBack(context.Background(), "t1", "nonexistent-event", "w", `{"output":"x"}`)
 	if ok {
 		t.Error("doWriteBack should fail when events.Get errors")
 	}
@@ -1928,7 +1928,7 @@ func TestDoWriteBackLegacyWritebackError(t *testing.T) {
 	reg.Add(&workers.Worker{Name: "w", Endpoint: "http://x"})
 
 	// No responder for "unknown-source", no writeback → should return true
-	ok := s.doWriteBack(ctx, "t1", ev.ID, "w", `{"output":"x"}`)
+	ok, _ := s.doWriteBack(ctx, "t1", ev.ID, "w", `{"output":"x"}`)
 	if !ok {
 		t.Error("doWriteBack should succeed when no responder and no writeback")
 	}
@@ -1965,7 +1965,7 @@ func TestDoWriteBackPolicyApplyError(t *testing.T) {
 		Policy:   map[string]any{"comment": "bad-value"},
 	})
 
-	ok := s.doWriteBack(ctx, "t1", ev.ID, "w", `{"output":"x","comment":{"body":"hi"}}`)
+	ok, _ := s.doWriteBack(ctx, "t1", ev.ID, "w", `{"output":"x","comment":{"body":"hi"}}`)
 	// DenyAll blocks everything but doesn't error
 	if !ok {
 		t.Error("doWriteBack with DenyAll policy should still return true")
