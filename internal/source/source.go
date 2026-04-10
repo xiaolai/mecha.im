@@ -3,6 +3,7 @@ package source
 import (
 	"context"
 	"net/http"
+	"sync"
 
 	"mecha.im/internal/events"
 	"mecha.im/internal/policies"
@@ -46,7 +47,9 @@ type Responder interface {
 }
 
 // Registry holds registered event sources, triggers, and responders by name.
+// Thread-safe: safe for concurrent reads and SIGHUP-triggered hot-reload writes.
 type Registry struct {
+	mu         sync.RWMutex
 	sources    map[string]Source
 	triggers   map[string]Trigger
 	responders map[string]Responder
@@ -61,45 +64,60 @@ func NewRegistry() *Registry {
 	}
 }
 
-// Register adds a source to the registry.
+// Register adds or replaces a source in the registry.
+// Safe to call concurrently with Get (e.g., on SIGHUP hot-reload).
 func (r *Registry) Register(s Source) {
+	r.mu.Lock()
 	r.sources[s.Name()] = s
+	r.mu.Unlock()
 }
 
 // RegisterTrigger adds an active trigger to the registry.
 func (r *Registry) RegisterTrigger(t Trigger) {
+	r.mu.Lock()
 	r.triggers[t.Name()] = t
+	r.mu.Unlock()
 }
 
 // RegisterResponder adds a responder to the registry.
 func (r *Registry) RegisterResponder(resp Responder) {
+	r.mu.Lock()
 	r.responders[resp.Name()] = resp
+	r.mu.Unlock()
 }
 
 // Get returns a source by name.
 func (r *Registry) Get(name string) (Source, bool) {
+	r.mu.RLock()
 	s, ok := r.sources[name]
+	r.mu.RUnlock()
 	return s, ok
 }
 
 // GetTrigger returns a trigger by name.
 func (r *Registry) GetTrigger(name string) (Trigger, bool) {
+	r.mu.RLock()
 	t, ok := r.triggers[name]
+	r.mu.RUnlock()
 	return t, ok
 }
 
 // GetResponder returns a responder by name.
 func (r *Registry) GetResponder(name string) (Responder, bool) {
+	r.mu.RLock()
 	resp, ok := r.responders[name]
+	r.mu.RUnlock()
 	return resp, ok
 }
 
-// Triggers returns a copy of all registered triggers.
+// Triggers returns a snapshot of all registered triggers.
 func (r *Registry) Triggers() map[string]Trigger {
+	r.mu.RLock()
 	cp := make(map[string]Trigger, len(r.triggers))
 	for k, v := range r.triggers {
 		cp[k] = v
 	}
+	r.mu.RUnlock()
 	return cp
 }
 
@@ -108,5 +126,8 @@ func (r *Registry) Len() int {
 	if r == nil {
 		return 0
 	}
-	return len(r.sources)
+	r.mu.RLock()
+	n := len(r.sources)
+	r.mu.RUnlock()
+	return n
 }

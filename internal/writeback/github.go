@@ -60,7 +60,7 @@ func (c *Client) removeLabel(ctx context.Context, owner, repo string, number int
 	if err != nil {
 		return fmt.Errorf("create delete request: %w", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Authorization", "Bearer "+c.currentToken())
 	req.Header.Set("Accept", "application/vnd.github+json")
 	resp, err := c.http.Do(req)
 	if err != nil {
@@ -89,7 +89,7 @@ func (c *Client) githubPost(ctx context.Context, url string, payload []byte) err
 	if err != nil {
 		return fmt.Errorf("create post request: %w", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Authorization", "Bearer "+c.currentToken())
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := c.http.Do(req)
