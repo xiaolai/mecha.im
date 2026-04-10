@@ -2,7 +2,6 @@ package serve
 
 import (
 	"context"
-	"expvar"
 	"fmt"
 	"log/slog"
 	"net"
@@ -79,7 +78,6 @@ func New(cfg Config) *Server {
 	mux.HandleFunc("GET /tasks", s.handleListTasks)
 	mux.HandleFunc("GET /workers", s.handleListWorkers)
 	mux.HandleFunc("GET /health", s.handleHealth)
-	mux.Handle("GET /debug/vars", expvar.Handler())
 	mux.HandleFunc("GET /metrics", prometheusHandler())
 	if s.logs != nil {
 		mux.HandleFunc("GET /logs", s.handleLogs)
