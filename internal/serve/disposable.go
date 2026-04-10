@@ -158,12 +158,31 @@ func (s *Server) dispatchDisposable(ctx context.Context, taskID string, t *tasks
 	result, err := s.sendTask(ctx, ep, taskID, t.Prompt, entry.Worker.Timeout, apiKey)
 	if err != nil {
 		redacted := workers.RedactSecrets(err.Error())
-		if failErr := s.tasks.Fail(ctx, taskID, redacted); failErr != nil {
-			s.logger.Error("disposable: fail task after send", "id", taskID, "err", failErr)
+		// Mirror persistent worker retry logic: transport errors are retried,
+		// non-transport errors (4xx, invalid response) fail immediately.
+		if isTransportError(err) {
+			retried, retryErr := s.tasks.RetryOrFail(ctx, taskID, redacted)
+			if retryErr != nil {
+				s.logger.Error("disposable: retry-or-fail", "id", taskID, "err", retryErr)
+			}
+			if retried {
+				tasksRetried.Add(1)
+				s.record(logs.Entry{TraceID: t.EventID, TaskID: taskID, Worker: entry.Worker.Name, Action: logs.TaskRetry, Outcome: logs.Retry, Attempt: t.Attempts + 1, Error: redacted})
+				s.logger.Info("disposable: task queued for retry", "id", taskID, "worker", entry.Worker.Name)
+			} else {
+				tasksFailed.Add(1)
+				s.record(logs.Entry{TraceID: t.EventID, TaskID: taskID, Worker: entry.Worker.Name, Action: logs.TaskDeadLetter, Outcome: logs.Fail, Attempt: t.Attempts + 1, Error: redacted})
+				s.completeEvent(ctx, t.EventID, false)
+				s.logger.Error("disposable: task dead-lettered", "id", taskID, "err", redacted)
+			}
+		} else {
+			if failErr := s.tasks.Fail(ctx, taskID, redacted); failErr != nil {
+				s.logger.Error("disposable: fail task after send", "id", taskID, "err", failErr)
+			}
+			tasksFailed.Add(1)
+			s.completeEvent(ctx, t.EventID, false)
+			s.logger.Error("disposable: send failed", "id", taskID, "err", redacted)
 		}
-		tasksFailed.Add(1)
-		s.completeEvent(ctx, t.EventID, false)
-		s.logger.Error("disposable: send failed", "id", taskID, "err", redacted)
 		return
 	}
 
