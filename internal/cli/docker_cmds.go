@@ -10,7 +10,10 @@ import (
 	"mecha.im/internal/workers"
 )
 
-const dockerTimeout = 30 * time.Second
+const (
+	dockerTimeout        = 30 * time.Second
+	persistentHealthTimeout = 90 * time.Second // first boot installs CLIs (~60s)
+)
 
 func dockerStart(reg *workers.Registry, name string) error {
 	e, ok := reg.Get(name)
@@ -92,7 +95,7 @@ func dockerStart(reg *workers.Registry, name string) error {
 		return fmt.Errorf("start container: %s", redacted)
 	}
 
-	endpoint, err := waitForHealth(dock, containerID, 30*time.Second)
+	endpoint, err := waitForHealth(dock, containerID, persistentHealthTimeout)
 	if err != nil {
 		stopCtx, stopCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		if stopErr := dock.Stop(stopCtx, containerID, 5*time.Second); stopErr != nil {
