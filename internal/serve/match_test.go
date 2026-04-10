@@ -83,6 +83,61 @@ func TestRenderPromptInvalidTemplate(t *testing.T) {
 	}
 }
 
+func TestSanitizeTemplateValue(t *testing.T) {
+	tests := []struct {
+		name  string
+		input any
+		want  any
+	}{
+		{"plain string unchanged", "hello world", "hello world"},
+		{"open brace neutralized", "{{range .}}", "{ {range .} }"},
+		{"double close neutralized", "foo}}bar", "foo} }bar"},
+		{"both braces neutralized", "{{.secret}}", "{ {.secret} }"},
+		{"non-string int unchanged", 42, 42},
+		{"non-string bool unchanged", true, true},
+		{"non-string nil unchanged", nil, nil},
+		{"nested directives neutralized", "{{range .}}{{.}}{{end}}", "{ {range .} }{ {.} }{ {end} }"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := sanitizeTemplateValue(tt.input)
+			if got != tt.want {
+				t.Errorf("sanitizeTemplateValue(%v) = %v, want %v", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestRenderPromptInjectionBlocked verifies that user-controlled ev.Attrs values
+// containing Go template directives are not executed. A PR body containing
+// "{{range .}}...{{end}}" must be passed through literally, not expanded.
+func TestRenderPromptInjectionBlocked(t *testing.T) {
+	rule := workers.EventRule{
+		Prompt: "Review PR: {{ .body }}",
+	}
+	ev := &events.Event{
+		Actor:   "attacker",
+		Subject: "org/repo",
+		Attrs: events.Attrs{
+			// Simulates a malicious PR body trying to enumerate template data.
+			"body": "{{range $k,$v := .}}key={{$k}} {{end}}",
+		},
+	}
+	got, err := renderPrompt(rule, ev)
+	if err != nil {
+		t.Fatalf("renderPrompt() error = %v", err)
+	}
+	// The directive must appear literally — not expanded.
+	if got == "Review PR: key=actor key=body key=source key=subject key=type " {
+		t.Error("template injection executed — directives were not sanitized")
+	}
+	// The sanitized braces must appear as literal text.
+	want := "Review PR: { {range $k,$v := .} }key={ {$k} } { {end} }"
+	if got != want {
+		t.Errorf("renderPrompt() = %q, want %q", got, want)
+	}
+}
+
 func TestBuildTaskContext(t *testing.T) {
 	ev := &events.Event{
 		Source:  "github",
