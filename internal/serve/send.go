@@ -19,10 +19,13 @@ func (s *Server) sendTask(ctx context.Context, endpoint, taskID, prompt string, 
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	payload, _ := json.Marshal(map[string]string{
+	payload, err := json.Marshal(map[string]string{
 		"id":     taskID,
 		"prompt": prompt,
 	})
+	if err != nil {
+		return "", fmt.Errorf("marshal task payload: %w", err)
+	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint+"/task", bytes.NewReader(payload))
 	if err != nil {
