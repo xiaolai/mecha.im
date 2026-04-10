@@ -2,6 +2,7 @@ package workers
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,18 +30,33 @@ type Secrets struct {
 
 // LoadSecrets reads a secrets YAML file. Returns empty secrets if file doesn't exist.
 // Returns an error if file permissions are too open (want 0600).
+//
+// Uses open-then-fstat to eliminate the TOCTOU race: the permission check and
+// the read operate on the same file descriptor, so a symlink swap between stat
+// and read cannot cause us to read from an unauthorized file.
 func LoadSecrets(path string) (*Secrets, error) {
-	data, err := os.ReadFile(path)
+	f, err := os.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return &Secrets{}, nil
 		}
-		return nil, fmt.Errorf("read secrets: %w", err)
+		return nil, fmt.Errorf("open secrets: %w", err)
 	}
-	info, err := os.Stat(path)
-	if err == nil && info.Mode().Perm()&0o077 != 0 {
+	defer f.Close()
+
+	// fstat the open fd — not the path — prevents TOCTOU via symlink swap.
+	info, err := f.Stat()
+	if err != nil {
+		return nil, fmt.Errorf("stat secrets: %w", err)
+	}
+	if info.Mode().Perm()&0o077 != 0 {
 		return nil, fmt.Errorf("secrets file %s has permissions %04o (want 0600) — fix with: chmod 600 %s",
 			path, info.Mode().Perm(), path)
+	}
+
+	data, err := io.ReadAll(f)
+	if err != nil {
+		return nil, fmt.Errorf("read secrets: %w", err)
 	}
 	var s Secrets
 	if err := yaml.Unmarshal(data, &s); err != nil {
