@@ -158,9 +158,15 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 				s.completeEvent(ctx, t.EventID, false)
 				s.logger.Error("dispatch: task dead-lettered", "id", taskID, "err", redacted)
 			}
-			workerRestored = true
+			// Set worker to error state. If SetError fails (e.g. SQLite
+			// busy), leave workerRestored=false so the defer safety-net
+			// calls SetOnline — returning the worker to online rather than
+			// leaving it permanently stuck in StateBusy.
 			if setErr := s.reg.SetError(t.WorkerName, redacted); setErr != nil {
 				s.logger.Error("dispatch: set worker error state", "worker", t.WorkerName, "err", setErr)
+				// workerRestored remains false; defer will call SetOnline.
+			} else {
+				workerRestored = true
 			}
 		} else {
 			if failErr := s.tasks.Fail(ctx, taskID, redacted); failErr != nil {
