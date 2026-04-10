@@ -9,6 +9,10 @@ import (
 
 const (
 	pendingScanInterval = 60 * time.Second
+	// staleDispatchTimeout is how long a task may remain in "dispatched" state
+	// before the pending scan re-enqueues it. Must exceed the longest realistic
+	// task timeout (default 10m) to avoid racing with an active dispatch goroutine.
+	staleDispatchTimeout = 15 * time.Minute
 )
 
 // pendingLoop scans for orphaned pending tasks (created but never dispatched
@@ -51,9 +55,16 @@ func (s *Server) scanPending(ctx context.Context) {
 		if t.NextRetryAt != nil && t.NextRetryAt.After(time.Now()) {
 			continue
 		}
-		// Skip dispatched tasks (worker is processing them)
+		// Skip dispatched tasks that are still within the staleness window.
+		// Re-enqueue stale dispatched tasks: a dispatch goroutine that panicked
+		// after SetBusy leaves the task stuck in "dispatched" forever because
+		// Complete/Fail never run. After staleDispatchTimeout (15m > any task
+		// timeout), we can safely assume the original goroutine is gone.
 		if t.State == tasks.StateDispatched {
-			continue
+			if time.Since(t.UpdatedAt) < staleDispatchTimeout {
+				continue
+			}
+			s.logger.Warn("pending: stale dispatched task, re-enqueuing", "id", id, "age", time.Since(t.UpdatedAt).Truncate(time.Second))
 		}
 		// Dedup check: don't re-dispatch if already completed
 		if t.DedupKey != "" {
