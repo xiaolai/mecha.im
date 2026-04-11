@@ -12,10 +12,6 @@ import (
 	"mecha.im/internal/policies"
 )
 
-// validStatusStates are the GitHub commit status API allowed values.
-var validStatusStates = map[string]bool{
-	"error": true, "failure": true, "pending": true, "success": true,
-}
 
 // Client writes task results back to GitHub.
 // Implements source.Responder.
@@ -82,7 +78,7 @@ func (c *Client) WriteBackResult(ctx context.Context, ev *events.Event, res poli
 		}
 	}
 	if res.Status != nil && res.Status.State != "" {
-		if !validStatusStates[res.Status.State] {
+		if !policies.ValidStatusStates[res.Status.State] {
 			c.logger.Warn("writeback: invalid status state, skipping", "event", ev.ID, "state", res.Status.State)
 		} else {
 			sha, _ := ev.Attrs["head_sha"].(string)
