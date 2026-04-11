@@ -215,11 +215,13 @@ stateDiagram-v2
     matched --> dispatched : task created
     dispatched --> completed : result + write-back OK
     dispatched --> failed : worker send error
-    note right of dispatched : write-back failure keeps event dispatched (retry eligible)
+    dispatched --> write_back_failed : write-back transient error
+    write_back_failed --> completed : retry succeeded
+    write_back_failed --> failed : retry exhausted (dead-letter)
 ```
 
 - **received → failed**: on startup, events stuck in `received` (crashed before matching) are re-processed if the source is still registered, or marked `failed` if the source is gone
-- **dispatched → dispatched**: if write-back fails but the task completed, the event stays `dispatched` (not `failed`) so it can be retried
+- **dispatched → write_back_failed**: if the worker task completed but write-back to the external platform failed (GitHub rate limit, transient network, 5xx), the event transitions to `write_back_failed` and is retried by the background write-back retry loop (30s interval). After `max_retries` attempts, it is dead-lettered to `failed`.
 
 ## Delivery Deduplication
 

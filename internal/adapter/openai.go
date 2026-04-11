@@ -29,8 +29,12 @@ func NewOpenAIAdapter(upstream, model, apiKey string) *OpenAIAdapter {
 	}
 }
 
+// Name returns the adapter's canonical identifier ("openai").
 func (o *OpenAIAdapter) Name() string { return "openai" }
 
+// Health probes the OpenAI-compatible upstream via GET /v1/models and returns
+// an error if the upstream is unreachable or responds with a non-200 status.
+// Sends the Authorization header when an API key is configured.
 func (o *OpenAIAdapter) Health(ctx context.Context) error {
 	req, err := http.NewRequestWithContext(ctx, "GET", o.upstream+"/v1/models", nil)
 	if err != nil {
@@ -50,6 +54,8 @@ func (o *OpenAIAdapter) Health(ctx context.Context) error {
 	return nil
 }
 
+// SendTask sends a prompt to the upstream /v1/chat/completions endpoint and
+// returns the marshaled mecha result contract JSON (output + metadata).
 func (o *OpenAIAdapter) SendTask(ctx context.Context, prompt string) ([]byte, error) {
 	start := time.Now()
 

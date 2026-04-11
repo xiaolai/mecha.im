@@ -58,7 +58,7 @@ $ mecha worker start api-service
 started api-service
 ```
 
-**Managed workers**: mecha creates a Docker container, injects env vars and tokens, starts it, and waits for `GET /health` to return 200. If health doesn't pass within 30 seconds, the container is stopped and removed.
+**Managed workers**: mecha creates a Docker container, injects env vars and tokens, starts it, and waits for `GET /health` to return 200. If health doesn't pass within 90 seconds, the container is stopped and removed. The generous window covers first-boot CLI install cost (~60s) for Claude/Codex workers.
 
 **Unmanaged workers**: mecha marks the worker online and probes its endpoint. If the health check fails, the worker transitions to error state with a warning.
 

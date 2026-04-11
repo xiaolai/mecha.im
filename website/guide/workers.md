@@ -59,14 +59,14 @@ timeout: 30m                            # task timeout
 | `docker.cwd` | No | — | Host directory mounted read-write to `/workspace` |
 | `docker.resources.cpu` | No | unlimited | CPU cores |
 | `docker.resources.memory` | No | unlimited | Memory limit (`512M`, `4G`) |
-| `docker.resources.pids` | No | unlimited | Max processes |
+| `docker.resources.pids` | No | `1024` | Max processes. Defaults to 1024 to prevent fork-bomb attacks from a compromised worker image. Raise explicitly if a legitimate worker needs more |
 | `docker.lifecycle` | No | `persistent` | `persistent` (reuse container) or `disposable` (new container per task) |
 | `docker.host` | No | local socket | Docker daemon URL (e.g. `unix:///var/run/docker.sock`) |
 | `docker.env` | No | `{}` | Environment variables passed to container |
 | `docker.token` | No | — | Token reference from `~/.mecha/secrets.yml` |
 | `docker.expose` | No | `false` | Bind to `0.0.0.0` instead of `127.0.0.1` (network-accessible) |
 | `docker.api_key` | No | — | Bearer auth key for `/task` endpoint. **Required** when `expose: true` |
-| `docker.credentials` | No | `[]` | CLI credential mounts, read-only (`[claude]`, `[codex]`, or `[claude, codex]`) |
+| `docker.credentials` | No | `[]` | CLI credential mounts, read-only (`[claude]`, `[codex]`, or `[claude, codex]`). **Mutually exclusive with `docker.token`** — pick one per worker |
 | `docker.plugins` | No | `[]` | Claude Code plugins installed at container start |
 | `docker.plugin_marketplaces` | No | `[]` | Plugin marketplace URLs added before plugin install |
 | `docker.labels` | No | `{}` | Custom Docker container labels |
@@ -156,9 +156,16 @@ timeout: 15m
 | `adapter.type` | Yes | `ollama` or `openai` |
 | `adapter.upstream` | Yes | Base URL of the LLM API |
 | `adapter.model` | Yes | Model name passed to the API |
-| `adapter.api_key` | No | API key for authenticated endpoints |
+| `adapter.api_key` | No | Inline API key. Kept in memory only (`json:"-"`) — not persisted to SQLite |
+| `adapter.token` | No | `~/.mecha/secrets.yml` reference (e.g. `codex.default`). Resolved at adapter start, survives restarts |
 
-Mecha starts an in-process HTTP server when you run `worker start`. The adapter translates the worker contract (`GET /health`, `POST /task`) into native API calls.
+Adapters run in-process and are auto-started by `mecha serve` (you do not run
+`mecha worker start` on an adapter). The adapter translates the worker contract
+(`GET /health`, `POST /task`) into native API calls against `adapter.upstream`.
+
+Prefer `adapter.token` over `adapter.api_key` when you want the secret to
+survive a `mecha serve` restart: `api_key` is an in-memory convenience that is
+intentionally never written to `mecha.db`.
 
 ## Unmanaged Worker
 
@@ -197,16 +204,42 @@ Every managed worker image must:
 
 ### POST /task Response
 
+All fields except `output` are optional. Workers drive write-back by returning
+any combination of `comment`, `status`, `labels`, and `commit` — mecha routes
+each through the Responder registered for the event's source (GitHub, GitLab,
+Slack, etc.), filtered by the worker's `policy` block.
+
 ```json
 {
   "output": "The PR has a SQL injection vulnerability...",
+  "comment": {
+    "target": "pr:42",
+    "body": "## Security Review\n\nFound 1 issue:\n- main.go:123 — unchecked SQL interpolation"
+  },
+  "status": {
+    "state": "failure",
+    "description": "1 security issue found"
+  },
+  "labels": {
+    "add": ["security-review-failed"],
+    "remove": ["needs-review"]
+  },
+  "commit": {
+    "message": "fix: parameterize SQL query",
+    "diff": "--- a/main.go\n+++ b/main.go\n@@ -123 +123 @@\n-query := \"SELECT * FROM users WHERE id=\" + id\n+query := \"SELECT * FROM users WHERE id=?\""
+  },
   "metadata": {
     "model": "claude-sonnet-4-6",
     "duration_ms": 45000,
+    "input_tokens": 5000,
+    "output_tokens": 2000,
     "exit_code": 0
   }
 }
 ```
+
+See [Events & Webhooks — Write-Back](./events#write-back-responder) for the
+full Responder flow and [Policy](./policy) for the filtering rules.
 
 ## Backend-Specific Env Vars
 

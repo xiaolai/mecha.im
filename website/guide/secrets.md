@@ -144,5 +144,5 @@ So if you set both `token: claude.work` and `env: { CLAUDE_CODE_OAUTH_TOKEN: ...
 ## Security
 
 - Tokens are injected as container environment variables, not CLI arguments
-- Reserved keys (`WORKER_BACKEND`, `WORKER_PORT`, `WORKER_API_KEY`, `WORKER_TIMEOUT`, `WORKER_DRY_RUN`, `HOME`) cannot be overridden via `docker.env`
+- Reserved keys (`WORKER_PORT`, `WORKER_API_KEY`, `WORKER_TIMEOUT`, `WORKER_DRY_RUN`, `HOME`) cannot be overridden via `docker.env`
 - Error messages are redacted before display — token patterns replaced with `[REDACTED]`
