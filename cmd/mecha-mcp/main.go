@@ -41,7 +41,9 @@ func main() {
 		log.Printf("warning: GITHUB_MECHA_MCP_WEBHOOK_SECRET not set, webhook endpoint disabled")
 	}
 
-	addr := ":8090"
+	// Bind to localhost by default — prevents remote CSRF.
+	// Set ADDR=:8090 only if you need external access (e.g., Docker networking).
+	addr := "127.0.0.1:8090"
 	if v := os.Getenv("ADDR"); v != "" {
 		addr = v
 	}
@@ -51,7 +53,9 @@ func main() {
 	mux.HandleFunc("POST /message", handleMessage)
 	mux.HandleFunc("POST /webhook", handleWebhook)
 	mux.HandleFunc("OPTIONS /", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		if !setLocalCORSHeaders(w, r) {
+			return
+		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 		w.WriteHeader(http.StatusNoContent)
