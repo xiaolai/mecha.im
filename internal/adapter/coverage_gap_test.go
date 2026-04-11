@@ -15,6 +15,7 @@ import (
 // --- 1. Name() on OllamaAdapter and OpenAIAdapter ---
 
 func TestOllamaAdapterName(t *testing.T) {
+	t.Parallel()
 	a := NewOllamaAdapter("http://localhost:11434", "gemma2:9b")
 	if got := a.Name(); got != "ollama" {
 		t.Errorf("Name() = %q, want %q", got, "ollama")
@@ -22,6 +23,7 @@ func TestOllamaAdapterName(t *testing.T) {
 }
 
 func TestOpenAIAdapterName(t *testing.T) {
+	t.Parallel()
 	a := NewOpenAIAdapter("http://localhost:8080", "gpt-4", "key")
 	if got := a.Name(); got != "openai" {
 		t.Errorf("Name() = %q, want %q", got, "openai")
@@ -31,6 +33,7 @@ func TestOpenAIAdapterName(t *testing.T) {
 // --- 2. writeAdapterError ---
 
 func TestWriteAdapterError(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		status int
@@ -66,6 +69,7 @@ func TestWriteAdapterError(t *testing.T) {
 // --- 3. handleHealth busy path ---
 
 func TestRunnerHealthBusy(t *testing.T) {
+	t.Parallel()
 	r, err := NewRunner(&mockAdapter{output: "hello"}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -115,6 +119,7 @@ func (e *errorAdapter) SendTask(_ context.Context, _ string) ([]byte, error) {
 }
 
 func TestRunnerTaskInvalidJSON(t *testing.T) {
+	t.Parallel()
 	r, err := NewRunner(&mockAdapter{output: "ok"}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -135,6 +140,7 @@ func TestRunnerTaskInvalidJSON(t *testing.T) {
 }
 
 func TestRunnerTaskSendError(t *testing.T) {
+	t.Parallel()
 	r, err := NewRunner(&errorAdapter{sendErr: fmt.Errorf("upstream down")}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -161,6 +167,7 @@ func TestRunnerTaskSendError(t *testing.T) {
 }
 
 func TestRunnerTaskBusy429(t *testing.T) {
+	t.Parallel()
 	r, err := NewRunner(&mockAdapter{output: "ok"}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -186,6 +193,7 @@ func TestRunnerTaskBusy429(t *testing.T) {
 // --- 5. Start — basic lifecycle ---
 
 func TestRunnerStartStop(t *testing.T) {
+	t.Parallel()
 	r, err := NewRunner(&mockAdapter{output: "ok"}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -225,6 +233,7 @@ func TestRunnerStartStop(t *testing.T) {
 // --- Additional: Ollama health non-200 ---
 
 func TestOllamaAdapterHealthNon200(t *testing.T) {
+	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(500)
 	}))
@@ -240,6 +249,7 @@ func TestOllamaAdapterHealthNon200(t *testing.T) {
 // --- Additional: Ollama SendTask non-200 ---
 
 func TestOllamaAdapterSendTaskNon200(t *testing.T) {
+	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(400)
 		w.Write([]byte("bad request"))
@@ -256,6 +266,7 @@ func TestOllamaAdapterSendTaskNon200(t *testing.T) {
 // --- Additional: OpenAI health non-200 ---
 
 func TestOpenAIAdapterHealthNon200(t *testing.T) {
+	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(401)
 	}))
@@ -271,6 +282,7 @@ func TestOpenAIAdapterHealthNon200(t *testing.T) {
 // --- Additional: OpenAI SendTask non-200 ---
 
 func TestOpenAIAdapterSendTaskNon200(t *testing.T) {
+	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(500)
 		w.Write([]byte("internal error"))
@@ -287,6 +299,7 @@ func TestOpenAIAdapterSendTaskNon200(t *testing.T) {
 // --- Additional: OpenAI no API key ---
 
 func TestOpenAIAdapterNoAPIKey(t *testing.T) {
+	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "" {
 			t.Error("expected no Authorization header when apiKey is empty")
@@ -323,6 +336,7 @@ func TestOpenAIAdapterNoAPIKey(t *testing.T) {
 // --- Additional: OpenAI empty choices ---
 
 func TestOpenAIAdapterEmptyChoices(t *testing.T) {
+	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{

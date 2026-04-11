@@ -16,21 +16,25 @@ import (
 // --- Authenticated() markers (0% each) — call them directly ---
 
 func TestGitHubAuthenticated(t *testing.T) {
+	t.Parallel()
 	src := NewGitHubSource("secret", "token")
 	src.Authenticated() // must not panic
 }
 
 func TestGitLabAuthenticated(t *testing.T) {
+	t.Parallel()
 	src := NewGitLabSource("secret")
 	src.Authenticated()
 }
 
 func TestSlackAuthenticated(t *testing.T) {
+	t.Parallel()
 	src := NewSlackSource("secret")
 	src.Authenticated()
 }
 
 func TestTelegramAuthenticated(t *testing.T) {
+	t.Parallel()
 	src := NewTelegramSource("secret")
 	src.Authenticated()
 }
@@ -38,6 +42,7 @@ func TestTelegramAuthenticated(t *testing.T) {
 // --- parsePullRequest: no labels, no base sha ---
 
 func TestParsePullRequestNoLabelsNoBaseSha(t *testing.T) {
+	t.Parallel()
 	src := NewGitHubSource("", "")
 	body := []byte(`{
 		"action": "opened",
@@ -70,6 +75,7 @@ func TestParsePullRequestNoLabelsNoBaseSha(t *testing.T) {
 // --- parseIssue: nil issue ---
 
 func TestParseIssueNilIssue(t *testing.T) {
+	t.Parallel()
 	src := NewGitHubSource("", "")
 	body := []byte(`{
 		"action": "opened",
@@ -93,6 +99,7 @@ func TestParseIssueNilIssue(t *testing.T) {
 // --- GitLab Respond: status + labels + commit combined ---
 
 func TestGitLabResponderFullResult(t *testing.T) {
+	t.Parallel()
 	calls := make(map[string]int)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Use RequestURI to see the raw (encoded) path
@@ -142,6 +149,7 @@ func TestGitLabResponderFullResult(t *testing.T) {
 // --- doRequest: bad URL ---
 
 func TestGitLabDoRequestBadURL(t *testing.T) {
+	t.Parallel()
 	resp := NewGitLabResponder("://bad", "token")
 	err := resp.doRequest(context.Background(), "POST", "://bad", []byte("{}"))
 	if err == nil {
@@ -152,6 +160,7 @@ func TestGitLabDoRequestBadURL(t *testing.T) {
 // --- Hydrate: non-PR event type ---
 
 func TestHydrateNonPREvent(t *testing.T) {
+	t.Parallel()
 	src := NewGitHubSource("", "token")
 	ev := &events.Event{
 		Type: "push",
@@ -174,6 +183,7 @@ func TestHydrateNonPREvent(t *testing.T) {
 // --- Hydrate: no token ---
 
 func TestHydrateNoToken(t *testing.T) {
+	t.Parallel()
 	src := NewGitHubSource("", "")
 	ev := &events.Event{
 		Type: "pull_request.opened",
@@ -190,6 +200,7 @@ func TestHydrateNoToken(t *testing.T) {
 // --- Hydrate: number=0 ---
 
 func TestHydrateZeroNumber(t *testing.T) {
+	t.Parallel()
 	src := NewGitHubSource("", "token")
 	ev := &events.Event{
 		Type:  "pull_request.opened",
@@ -219,6 +230,7 @@ func TestSourceInitGithubAPIURL(t *testing.T) {
 // --- GitLab Respond: empty result ---
 
 func TestGitLabResponderEmptyResult(t *testing.T) {
+	t.Parallel()
 	resp := NewGitLabResponder("http://unused", "token")
 	ev := &events.Event{
 		Type: "merge_request.opened",
@@ -238,6 +250,7 @@ func TestGitLabResponderEmptyResult(t *testing.T) {
 // --- GitLab Respond: missing repo info ---
 
 func TestGitLabResponderMissingRepo(t *testing.T) {
+	t.Parallel()
 	resp := NewGitLabResponder("http://unused", "token")
 	ev := &events.Event{
 		Type:  "merge_request.opened",
@@ -253,6 +266,7 @@ func TestGitLabResponderMissingRepo(t *testing.T) {
 // --- GitLab Respond: server error ---
 
 func TestGitLabResponderServerError(t *testing.T) {
+	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(500)
 		w.Write([]byte("internal error"))
@@ -280,6 +294,7 @@ func TestGitLabResponderServerError(t *testing.T) {
 // --- Telegram Parse: callback_query ---
 
 func TestTelegramParseCallbackQuery(t *testing.T) {
+	t.Parallel()
 	src := NewTelegramSource("")
 	body := []byte(`{
 		"update_id": 123,
@@ -306,6 +321,7 @@ func TestTelegramParseCallbackQuery(t *testing.T) {
 // --- Telegram Parse: inline_query ---
 
 func TestTelegramParseInlineQuery(t *testing.T) {
+	t.Parallel()
 	src := NewTelegramSource("")
 	body := []byte(`{
 		"update_id": 124,
@@ -329,6 +345,7 @@ func TestTelegramParseInlineQuery(t *testing.T) {
 // --- Telegram Parse: unknown update type ---
 
 func TestTelegramParseUnknown(t *testing.T) {
+	t.Parallel()
 	src := NewTelegramSource("")
 	body := []byte(`{"update_id": 125, "channel_post": {}}`)
 	ev, err := src.Parse(http.Header{}, body)
@@ -343,6 +360,7 @@ func TestTelegramParseUnknown(t *testing.T) {
 // --- Telegram Parse: edited_message ---
 
 func TestTelegramParseEditedMessage(t *testing.T) {
+	t.Parallel()
 	src := NewTelegramSource("")
 	body := []byte(`{
 		"update_id": 126,
@@ -368,6 +386,7 @@ func TestTelegramParseEditedMessage(t *testing.T) {
 // --- GitLab Respond: updateLabels with empty labels ---
 
 func TestGitLabResponderEmptyLabels(t *testing.T) {
+	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("no API call expected for empty labels")
 		w.WriteHeader(201)
@@ -396,6 +415,7 @@ func TestGitLabResponderEmptyLabels(t *testing.T) {
 // --- GitLab Respond: issue note path (non-MR type) ---
 
 func TestGitLabResponderLabelsOnIssue(t *testing.T) {
+	t.Parallel()
 	var gotPath string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotPath = r.Method + " " + r.RequestURI
@@ -430,6 +450,7 @@ func TestGitLabResponderLabelsOnIssue(t *testing.T) {
 // --- mapStatusState ---
 
 func TestMapStatusStateMax(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input string
 		want  string
@@ -451,6 +472,7 @@ func TestMapStatusStateMax(t *testing.T) {
 // --- encodeProject ---
 
 func TestEncodeProjectMax(t *testing.T) {
+	t.Parallel()
 	got := encodeProject("org/repo")
 	if got != "org%2Frepo" {
 		t.Errorf("encodeProject() = %q", got)
@@ -541,6 +563,7 @@ func TestHydrateCompareFilesPath(t *testing.T) {
 // --- Telegram: non-map message in update ---
 
 func TestTelegramParseNonMapMessage(t *testing.T) {
+	t.Parallel()
 	src := NewTelegramSource("")
 	body := []byte(`{"update_id": 127, "message": "not a map"}`)
 	ev, err := src.Parse(http.Header{}, body)
@@ -556,6 +579,7 @@ func TestTelegramParseNonMapMessage(t *testing.T) {
 // --- Telegram: non-map edited_message in update ---
 
 func TestTelegramParseNonMapEditedMessage(t *testing.T) {
+	t.Parallel()
 	src := NewTelegramSource("")
 	body := []byte(`{"update_id": 128, "edited_message": "not a map"}`)
 	ev, err := src.Parse(http.Header{}, body)
@@ -570,6 +594,7 @@ func TestTelegramParseNonMapEditedMessage(t *testing.T) {
 // --- Telegram: non-map callback_query ---
 
 func TestTelegramParseNonMapCallbackQuery(t *testing.T) {
+	t.Parallel()
 	src := NewTelegramSource("")
 	body := []byte(`{"update_id": 129, "callback_query": "not a map"}`)
 	ev, err := src.Parse(http.Header{}, body)
@@ -584,6 +609,7 @@ func TestTelegramParseNonMapCallbackQuery(t *testing.T) {
 // --- Telegram: non-map inline_query ---
 
 func TestTelegramParseNonMapInlineQuery(t *testing.T) {
+	t.Parallel()
 	src := NewTelegramSource("")
 	body := []byte(`{"update_id": 130, "inline_query": "not a map"}`)
 	ev, err := src.Parse(http.Header{}, body)
@@ -598,6 +624,7 @@ func TestTelegramParseNonMapInlineQuery(t *testing.T) {
 // --- Telegram message: from without username (first_name fallback) ---
 
 func TestTelegramParseFromFirstNameFallback(t *testing.T) {
+	t.Parallel()
 	src := NewTelegramSource("")
 	body := []byte(`{
 		"update_id": 131,
@@ -619,6 +646,7 @@ func TestTelegramParseFromFirstNameFallback(t *testing.T) {
 // --- Registry Len: nil registry ---
 
 func TestRegistryLenNil(t *testing.T) {
+	t.Parallel()
 	var r *Registry
 	if r.Len() != 0 {
 		t.Error("nil registry Len should be 0")

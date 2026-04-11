@@ -19,13 +19,11 @@ import (
 	"mecha.im/internal/workers"
 )
 
-// TestAPI_TaskQueueFull is skipped because the pending channel size (256) is
-// hardcoded in serve.New and the dispatch loop drains it too fast for reliable
-// 429 testing. The single-worker busy state causes rapid failure of all tasks
-// in the dispatch loop, preventing the channel from filling. A true queue-full
-// test would require making the channel size configurable.
+// TestAPI_TaskQueueFull is tested at the unit level in internal/serve/handlers_test.go
+// (TestPostTaskQueueFull). The queue-full path cannot be reliably tested at the
+// integration level because the dispatch loop drains the channel concurrently.
 func TestAPI_TaskQueueFull(t *testing.T) {
-	t.Skip("pending channel size (256) is hardcoded; queue-full path requires configurable channel size")
+	t.Skip("tested at unit level in internal/serve/handlers_test.go — dispatch loop races with submissions")
 }
 
 // TestAPI_EventListAndGet verifies the /events and /event/{id} endpoints

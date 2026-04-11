@@ -17,6 +17,7 @@ func apply(f Filter, res Result) (Result, Decision) {
 // --- Bug fix: truncation respects max_length ---
 
 func TestTruncationRespectsMaxLength(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		maxLength int
@@ -48,6 +49,7 @@ func TestTruncationRespectsMaxLength(t *testing.T) {
 // --- Bug fix: case-insensitive label matching ---
 
 func TestLabelBlocklistCaseInsensitive(t *testing.T) {
+	t.Parallel()
 	f := &RuleFilter{Labels: &LabelPolicy{Allow: true, Blocked: []string{"Approved", "DO-NOT-MERGE"}}}
 	res := Result{Labels: &LabelAction{
 		Add:    []string{"approved", "bug", "DO-NOT-MERGE", "do-not-merge"},
@@ -80,6 +82,7 @@ func TestLabelBlocklistCaseInsensitive(t *testing.T) {
 // --- New: label allowlist ---
 
 func TestLabelAllowlist(t *testing.T) {
+	t.Parallel()
 	f := &RuleFilter{Labels: &LabelPolicy{Allow: true, Allowed: []string{"bug", "enhancement"}}}
 	res := Result{Labels: &LabelAction{
 		Add:    []string{"bug", "approved", "Enhancement"},
@@ -109,6 +112,7 @@ func TestLabelAllowlist(t *testing.T) {
 }
 
 func TestLabelAllowlistAndBlocklistCombined(t *testing.T) {
+	t.Parallel()
 	// Blocklist takes precedence over allowlist
 	f := &RuleFilter{Labels: &LabelPolicy{
 		Allow:   true,
@@ -126,6 +130,7 @@ func TestLabelAllowlistAndBlocklistCombined(t *testing.T) {
 // --- New: status state validation ---
 
 func TestStatusStateValidation(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		state string
 		want  bool // true = allowed
@@ -158,6 +163,7 @@ func TestStatusStateValidation(t *testing.T) {
 // --- New: commit diff size limit ---
 
 func TestCommitDiffMaxSize(t *testing.T) {
+	t.Parallel()
 	f := &RuleFilter{Commit: &CommitPolicy{Allow: true, MaxSize: 100}}
 
 	// Under limit
@@ -177,6 +183,7 @@ func TestCommitDiffMaxSize(t *testing.T) {
 }
 
 func TestCommitDiffNoLimit(t *testing.T) {
+	t.Parallel()
 	f := &RuleFilter{Commit: &CommitPolicy{Allow: true}} // MaxSize=0 means no limit
 	r, _ := apply(f, Result{Commit: &CommitAction{Diff: strings.Repeat("x", 10_000_000)}})
 	if r.Commit == nil {
@@ -187,6 +194,7 @@ func TestCommitDiffNoLimit(t *testing.T) {
 // --- New: metadata redaction ---
 
 func TestMetadataRedaction(t *testing.T) {
+	t.Parallel()
 	f := &RuleFilter{Metadata: &MetadataPolicy{Allow: false}}
 	res := Result{
 		Output:   "hello",
@@ -205,6 +213,7 @@ func TestMetadataRedaction(t *testing.T) {
 }
 
 func TestMetadataAllowed(t *testing.T) {
+	t.Parallel()
 	f := &RuleFilter{Metadata: &MetadataPolicy{Allow: true}}
 	res := Result{Metadata: map[string]any{"model": "claude"}}
 	r, _ := apply(f, res)
@@ -214,6 +223,7 @@ func TestMetadataAllowed(t *testing.T) {
 }
 
 func TestMetadataNoPolicyAllowed(t *testing.T) {
+	t.Parallel()
 	f := &RuleFilter{} // no metadata policy = allow by default
 	res := Result{Metadata: map[string]any{"model": "claude"}}
 	r, _ := apply(f, res)
@@ -225,6 +235,7 @@ func TestMetadataNoPolicyAllowed(t *testing.T) {
 // --- New: ParseRules for new fields ---
 
 func TestParseRulesLabelAllowlist(t *testing.T) {
+	t.Parallel()
 	raw := map[string]any{
 		"labels": map[string]any{
 			"allow":   true,
@@ -246,6 +257,7 @@ func TestParseRulesLabelAllowlist(t *testing.T) {
 }
 
 func TestParseRulesCommitMaxSize(t *testing.T) {
+	t.Parallel()
 	raw := map[string]any{
 		"commit": map[string]any{"allow": true, "max_size": float64(50000)},
 	}
@@ -257,6 +269,7 @@ func TestParseRulesCommitMaxSize(t *testing.T) {
 }
 
 func TestParseRulesMetadata(t *testing.T) {
+	t.Parallel()
 	raw := map[string]any{
 		"metadata": map[string]any{"allow": false},
 	}
@@ -268,6 +281,7 @@ func TestParseRulesMetadata(t *testing.T) {
 }
 
 func TestParseRulesMetadataBadType(t *testing.T) {
+	t.Parallel()
 	raw := map[string]any{
 		"metadata": map[string]any{"allow": "no"},
 	}

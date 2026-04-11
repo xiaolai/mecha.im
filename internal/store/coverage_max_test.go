@@ -11,6 +11,7 @@ import (
 // --- migrate: exercise V2→V5 migration paths step by step ---
 
 func TestMigrateFromV1(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "v1.db")
 	// Create a raw DB and set up only V1 schema
 	db, err := sql.Open("sqlite", path)
@@ -46,6 +47,7 @@ func TestMigrateFromV1(t *testing.T) {
 }
 
 func TestMigrateFromV2(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "v2.db")
 	// Create DB with V1 + V2 schema manually
 	db, err := sql.Open("sqlite", path)
@@ -88,6 +90,7 @@ func TestMigrateFromV2(t *testing.T) {
 }
 
 func TestMigrateFromV3(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "v3.db")
 	// First create a fully migrated DB
 	db, err := Open(path)
@@ -123,6 +126,7 @@ func TestMigrateFromV3(t *testing.T) {
 }
 
 func TestMigrateFromV4(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "v4.db")
 	db, err := Open(path)
 	if err != nil {
@@ -159,6 +163,7 @@ func TestMigrateFromV4(t *testing.T) {
 // --- Open: closed DB for pragma failures ---
 
 func TestMigrateQueryClosedDB(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "closed.db")
 	db, err := sql.Open("sqlite", path)
 	if err != nil {
@@ -176,6 +181,7 @@ func TestMigrateQueryClosedDB(t *testing.T) {
 // --- Open: read-only DB for migration failures ---
 
 func TestMigrateReadOnlyDB(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "readonly.db")
 	db, err := sql.Open("sqlite", path)
 	if err != nil {
@@ -200,6 +206,7 @@ func TestMigrateReadOnlyDB(t *testing.T) {
 // --- DefaultDBPath returns correct suffix ---
 
 func TestDefaultDBPathFormat(t *testing.T) {
+	t.Parallel()
 	path, err := DefaultDBPath()
 	if err != nil {
 		t.Fatal(err)
@@ -220,6 +227,7 @@ func TestDefaultDBPathFormat(t *testing.T) {
 // --- V2 migration: duplicate column (idempotent re-run of ALTER TABLE) ---
 
 func TestMigrateV2DuplicateColumn(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "v2dup.db")
 	db, err := sql.Open("sqlite", path)
 	if err != nil {
@@ -262,6 +270,7 @@ func TestMigrateV2DuplicateColumn(t *testing.T) {
 // --- V4 migration: duplicate column ---
 
 func TestMigrateV4DuplicateColumn(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "v4dup.db")
 	// Create a fully migrated DB
 	db, err := Open(path)
@@ -300,6 +309,7 @@ func TestMigrateV4DuplicateColumn(t *testing.T) {
 // --- V5 migration: duplicate column ---
 
 func TestMigrateV5DuplicateColumn(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "v5dup.db")
 	db, err := Open(path)
 	if err != nil {
@@ -336,6 +346,7 @@ func TestMigrateV5DuplicateColumn(t *testing.T) {
 // --- Open: already-existing DB with data ---
 
 func TestOpenExistingDBWithData(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "existing.db")
 	db1, err := Open(path)
 	if err != nil {

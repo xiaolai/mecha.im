@@ -5,6 +5,7 @@ import (
 )
 
 func TestRegistrySourceLifecycle(t *testing.T) {
+	t.Parallel()
 	r := NewRegistry()
 	if r.Len() != 0 {
 		t.Errorf("Len() = %d, want 0", r.Len())
@@ -27,6 +28,7 @@ func TestRegistrySourceLifecycle(t *testing.T) {
 }
 
 func TestRegistryNilLen(t *testing.T) {
+	t.Parallel()
 	var r *Registry
 	if r.Len() != 0 {
 		t.Errorf("nil registry Len() = %d, want 0", r.Len())
@@ -34,6 +36,7 @@ func TestRegistryNilLen(t *testing.T) {
 }
 
 func TestRegistryTriggersCopy(t *testing.T) {
+	t.Parallel()
 	r := NewRegistry()
 	triggers := r.Triggers()
 	if triggers == nil {
@@ -47,6 +50,7 @@ func TestRegistryTriggersCopy(t *testing.T) {
 }
 
 func TestRegistryResponder(t *testing.T) {
+	t.Parallel()
 	r := NewRegistry()
 	_, ok := r.GetResponder("github")
 	if ok {

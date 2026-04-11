@@ -10,6 +10,7 @@ import (
 // --- parseBoolField: non-bool value ---
 
 func TestParseBoolFieldNonBool(t *testing.T) {
+	t.Parallel()
 	m := map[string]any{"allow": "yes"}
 	_, err := parseBoolField(m, "allow", "comment")
 	if err == nil {
@@ -18,6 +19,7 @@ func TestParseBoolFieldNonBool(t *testing.T) {
 }
 
 func TestParseBoolFieldInt(t *testing.T) {
+	t.Parallel()
 	m := map[string]any{"allow": 1}
 	_, err := parseBoolField(m, "allow", "status")
 	if err == nil {
@@ -26,6 +28,7 @@ func TestParseBoolFieldInt(t *testing.T) {
 }
 
 func TestParseBoolFieldMissing(t *testing.T) {
+	t.Parallel()
 	m := map[string]any{}
 	val, err := parseBoolField(m, "allow", "comment")
 	if err != nil {
@@ -39,6 +42,7 @@ func TestParseBoolFieldMissing(t *testing.T) {
 // --- ParseRules: invalid field types ---
 
 func TestParseRulesInvalidCommentAllow(t *testing.T) {
+	t.Parallel()
 	raw := map[string]any{
 		"comment": map[string]any{
 			"allow": "true", // string, not bool
@@ -51,6 +55,7 @@ func TestParseRulesInvalidCommentAllow(t *testing.T) {
 }
 
 func TestParseRulesInvalidLabelsAllow(t *testing.T) {
+	t.Parallel()
 	raw := map[string]any{
 		"labels": map[string]any{
 			"allow": 1,
@@ -63,6 +68,7 @@ func TestParseRulesInvalidLabelsAllow(t *testing.T) {
 }
 
 func TestParseRulesInvalidStatusAllow(t *testing.T) {
+	t.Parallel()
 	raw := map[string]any{
 		"status": map[string]any{
 			"allow": "yes",
@@ -75,6 +81,7 @@ func TestParseRulesInvalidStatusAllow(t *testing.T) {
 }
 
 func TestParseRulesInvalidCommitAllow(t *testing.T) {
+	t.Parallel()
 	raw := map[string]any{
 		"commit": map[string]any{
 			"allow": 0,
@@ -89,6 +96,7 @@ func TestParseRulesInvalidCommitAllow(t *testing.T) {
 // --- filterLabels: nil Blocked list ---
 
 func TestFilterLabelsNilBlocked(t *testing.T) {
+	t.Parallel()
 	labels := &LabelAction{
 		Add:    []string{"bug", "security"},
 		Remove: []string{"stale"},
@@ -106,6 +114,7 @@ func TestFilterLabelsNilBlocked(t *testing.T) {
 }
 
 func TestFilterLabelsNilPolicy(t *testing.T) {
+	t.Parallel()
 	labels := &LabelAction{
 		Add: []string{"a"},
 	}
@@ -119,6 +128,7 @@ func TestFilterLabelsNilPolicy(t *testing.T) {
 // --- AllowAll.Apply: nil fields in Result ---
 
 func TestAllowAllApplyNilFields(t *testing.T) {
+	t.Parallel()
 	a := &AllowAll{}
 	res := Result{Output: "hello"}
 	filtered, decision, err := a.Apply(context.Background(), &events.Event{}, res)
@@ -134,6 +144,7 @@ func TestAllowAllApplyNilFields(t *testing.T) {
 }
 
 func TestAllowAllApplyAllFields(t *testing.T) {
+	t.Parallel()
 	a := &AllowAll{}
 	res := Result{
 		Output:  "out",
@@ -157,6 +168,7 @@ func TestAllowAllApplyAllFields(t *testing.T) {
 // --- RuleFilter.Apply: status denied ---
 
 func TestRuleFilterStatusDenied(t *testing.T) {
+	t.Parallel()
 	r := &RuleFilter{
 		Status: &StatusPolicy{Allow: false},
 	}
@@ -178,6 +190,7 @@ func TestRuleFilterStatusDenied(t *testing.T) {
 // --- RuleFilter.Apply: commit denied ---
 
 func TestRuleFilterCommitDenied(t *testing.T) {
+	t.Parallel()
 	r := &RuleFilter{
 		Commit: &CommitPolicy{Allow: false},
 	}
@@ -199,6 +212,7 @@ func TestRuleFilterCommitDenied(t *testing.T) {
 // --- ParseRules: max_length as float64 (from JSON) ---
 
 func TestParseRulesMaxLengthFloat64(t *testing.T) {
+	t.Parallel()
 	raw := map[string]any{
 		"comment": map[string]any{
 			"allow":      true,
@@ -218,6 +232,7 @@ func TestParseRulesMaxLengthFloat64(t *testing.T) {
 // --- ParseRules: max_length as int ---
 
 func TestParseRulesMaxLengthInt(t *testing.T) {
+	t.Parallel()
 	raw := map[string]any{
 		"comment": map[string]any{
 			"allow":      true,
@@ -237,6 +252,7 @@ func TestParseRulesMaxLengthInt(t *testing.T) {
 // --- ParseRules: labels with blocked list ---
 
 func TestParseRulesLabelsBlocked(t *testing.T) {
+	t.Parallel()
 	raw := map[string]any{
 		"labels": map[string]any{
 			"allow":   true,
@@ -256,6 +272,7 @@ func TestParseRulesLabelsBlocked(t *testing.T) {
 // --- RuleFilter: labels with blocked list filtering ---
 
 func TestRuleFilterLabelsBlocked(t *testing.T) {
+	t.Parallel()
 	r := &RuleFilter{
 		Labels: &LabelPolicy{Allow: true, Blocked: []string{"critical"}},
 	}

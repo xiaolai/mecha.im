@@ -15,6 +15,7 @@ import (
 // --- 1. Authenticated() markers ---
 
 func TestAuthenticatedMarkers(t *testing.T) {
+	t.Parallel()
 	// Compile-time + runtime check that all four sources implement Authenticated.
 	sources := []Authenticated{
 		NewGitHubSource("", ""),
@@ -37,6 +38,7 @@ func (s *stubTrigger) Start(_ context.Context, _ func(*events.Event)) error {
 }
 
 func TestRegisterTrigger(t *testing.T) {
+	t.Parallel()
 	r := NewRegistry()
 	tr := &stubTrigger{name: "my-cron"}
 	r.RegisterTrigger(tr)
@@ -65,6 +67,7 @@ func (s *stubResponder) Respond(_ context.Context, _ *events.Event, _ policies.R
 }
 
 func TestRegisterResponder(t *testing.T) {
+	t.Parallel()
 	r := NewRegistry()
 	resp := &stubResponder{name: "test-responder"}
 	r.RegisterResponder(resp)
@@ -81,6 +84,7 @@ func TestRegisterResponder(t *testing.T) {
 // --- 4. Triggers() returns a copy ---
 
 func TestTriggersCopyIsolation(t *testing.T) {
+	t.Parallel()
 	r := NewRegistry()
 	tr := &stubTrigger{name: "real"}
 	r.RegisterTrigger(tr)
@@ -108,6 +112,7 @@ func TestTriggersCopyIsolation(t *testing.T) {
 // --- 5. parseIssueComment ---
 
 func TestParseIssueComment(t *testing.T) {
+	t.Parallel()
 	src := NewGitHubSource("", "")
 	body := []byte(`{
 		"action": "created",
@@ -142,6 +147,7 @@ func TestParseIssueComment(t *testing.T) {
 // --- 6. commentBody ---
 
 func TestCommentBody(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		res  policies.Result
@@ -188,6 +194,7 @@ func TestCommentBody(t *testing.T) {
 // --- 7. abs ---
 
 func TestAbs(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input int64
 		want  int64
@@ -209,6 +216,7 @@ func TestAbs(t *testing.T) {
 // --- 8. parsePullRequest — labels, nested number, base sha ---
 
 func TestParsePullRequestLabels(t *testing.T) {
+	t.Parallel()
 	src := NewGitHubSource("", "")
 	body := []byte(`{
 		"action": "opened",
@@ -243,6 +251,7 @@ func TestParsePullRequestLabels(t *testing.T) {
 }
 
 func TestParsePullRequestNestedNumber(t *testing.T) {
+	t.Parallel()
 	// When top-level number is 0 or absent, falls back to PR-level number
 	src := NewGitHubSource("", "")
 	body := []byte(`{
@@ -272,6 +281,7 @@ func TestParsePullRequestNestedNumber(t *testing.T) {
 // --- 9. normalizeGitLabEvent ---
 
 func TestNormalizeGitLabEvent(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		glEvent string
@@ -341,6 +351,7 @@ func TestNormalizeGitLabEvent(t *testing.T) {
 // --- 10. parseGitLabNote — note on issue (not MR) ---
 
 func TestParseGitLabNoteOnIssue(t *testing.T) {
+	t.Parallel()
 	src := NewGitLabSource("")
 	body := []byte(`{
 		"object_kind": "note",
@@ -371,6 +382,7 @@ func TestParseGitLabNoteOnIssue(t *testing.T) {
 // --- 11. parseGitLabIssue — nil object_attributes ---
 
 func TestParseGitLabIssueNilAttrs(t *testing.T) {
+	t.Parallel()
 	src := NewGitLabSource("")
 	// Issue Hook with no object_attributes
 	body := []byte(`{
@@ -514,6 +526,7 @@ func TestGitHubGetPaginatedWithLink(t *testing.T) {
 // --- 14. generic.Parse — boolean values ---
 
 func TestGenericSourceParseBoolValues(t *testing.T) {
+	t.Parallel()
 	src := NewGenericSource("test-bool", "X-Event-Type")
 	body := []byte(`{"active": true, "deleted": false, "name": "item", "count": 5.0}`)
 
@@ -541,6 +554,7 @@ func TestGenericSourceParseBoolValues(t *testing.T) {
 // --- Additional: GitLab deliveryID fallback paths ---
 
 func TestGitLabDeliveryIDFallback(t *testing.T) {
+	t.Parallel()
 	src := NewGitLabSource("")
 
 	// No UUID, but has instance + request ID
@@ -560,6 +574,7 @@ func TestGitLabDeliveryIDFallback(t *testing.T) {
 }
 
 func TestGitLabDeliveryIDEmpty(t *testing.T) {
+	t.Parallel()
 	src := NewGitLabSource("")
 
 	body := []byte(`{"user_username": "dev", "project": {"path_with_namespace": "org/repo"}}`)
@@ -579,6 +594,7 @@ func TestGitLabDeliveryIDEmpty(t *testing.T) {
 // --- Additional: GitLab actor extraction via user_username ---
 
 func TestGitLabActorFromUserUsername(t *testing.T) {
+	t.Parallel()
 	src := NewGitLabSource("")
 
 	body := []byte(`{
@@ -602,6 +618,7 @@ func TestGitLabActorFromUserUsername(t *testing.T) {
 // --- Additional: GitHub missing event header ---
 
 func TestGitHubMissingEventHeader(t *testing.T) {
+	t.Parallel()
 	src := NewGitHubSource("", "")
 	_, err := src.Parse(http.Header{}, []byte(`{}`))
 	if err == nil {
@@ -612,6 +629,7 @@ func TestGitHubMissingEventHeader(t *testing.T) {
 // --- Additional: GitHub invalid JSON body ---
 
 func TestGitHubInvalidJSON(t *testing.T) {
+	t.Parallel()
 	src := NewGitHubSource("", "")
 	h := http.Header{}
 	h.Set("X-GitHub-Event", "push")
@@ -624,6 +642,7 @@ func TestGitHubInvalidJSON(t *testing.T) {
 // --- Additional: GitLab missing event header ---
 
 func TestGitLabMissingEventHeader(t *testing.T) {
+	t.Parallel()
 	src := NewGitLabSource("")
 	_, err := src.Parse(http.Header{}, []byte(`{}`))
 	if err == nil {
@@ -634,6 +653,7 @@ func TestGitLabMissingEventHeader(t *testing.T) {
 // --- Additional: GitLab invalid JSON body ---
 
 func TestGitLabInvalidJSON(t *testing.T) {
+	t.Parallel()
 	src := NewGitLabSource("")
 	h := http.Header{}
 	h.Set("X-Gitlab-Event", "Push Hook")
@@ -646,6 +666,7 @@ func TestGitLabInvalidJSON(t *testing.T) {
 // --- Additional: Generic invalid JSON ---
 
 func TestGenericSourceInvalidJSON(t *testing.T) {
+	t.Parallel()
 	src := NewGenericSource("test", "X-Event-Type")
 	h := http.Header{}
 	h.Set("X-Event-Type", "test.event")
@@ -658,6 +679,7 @@ func TestGenericSourceInvalidJSON(t *testing.T) {
 // --- Additional: parseIssueComment with missing fields ---
 
 func TestParseIssueCommentMissingFields(t *testing.T) {
+	t.Parallel()
 	src := NewGitHubSource("", "")
 	// issue_comment with no issue or comment
 	body := []byte(`{
@@ -685,6 +707,7 @@ func TestParseIssueCommentMissingFields(t *testing.T) {
 // --- Additional: GitLab Note Hook with no merge_request or issue ---
 
 func TestParseGitLabNoteNoTarget(t *testing.T) {
+	t.Parallel()
 	src := NewGitLabSource("")
 	body := []byte(`{
 		"object_kind": "note",
@@ -712,6 +735,7 @@ func TestParseGitLabNoteNoTarget(t *testing.T) {
 // --- Additional: GitLab Respond issue note path ---
 
 func TestGitLabResponderIssueNotePath(t *testing.T) {
+	t.Parallel()
 	var gotPath string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotPath = r.RequestURI
@@ -743,6 +767,7 @@ func TestGitLabResponderIssueNotePath(t *testing.T) {
 // --- Additional: GitHub HMAC signature with missing prefix ---
 
 func TestValidateSignatureMissingPrefix(t *testing.T) {
+	t.Parallel()
 	// Signature without sha256= prefix should fail
 	result := validateSignature("secret", []byte("body"), "invalid-no-prefix")
 	if result {
@@ -753,6 +778,7 @@ func TestValidateSignatureMissingPrefix(t *testing.T) {
 // --- Additional: intVal helper ---
 
 func TestIntVal(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input any
 		want  int
@@ -819,6 +845,7 @@ func TestGitHubGetPaginatedNon200(t *testing.T) {
 // --- Additional: Telegram parse with no update_id ---
 
 func TestTelegramParseNoUpdateID(t *testing.T) {
+	t.Parallel()
 	src := NewTelegramSource("")
 	body := []byte(`{"message": {"text": "hi", "from": {"username": "u"}, "chat": {"id": 1}}}`)
 	ev, err := src.Parse(http.Header{}, body)
@@ -833,6 +860,7 @@ func TestTelegramParseNoUpdateID(t *testing.T) {
 // --- Additional: parseNextLink ---
 
 func TestParseNextLink(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		link string
@@ -867,6 +895,7 @@ func TestParseNextLink(t *testing.T) {
 // --- Additional: extractFileList with invalid JSON ---
 
 func TestExtractFileListInvalidJSON(t *testing.T) {
+	t.Parallel()
 	result := extractFileList("not json")
 	if result != nil {
 		t.Errorf("expected nil for invalid JSON, got %v", result)
@@ -876,6 +905,7 @@ func TestExtractFileListInvalidJSON(t *testing.T) {
 // --- Additional: extractCompareFiles with invalid JSON ---
 
 func TestExtractCompareFilesInvalidJSON(t *testing.T) {
+	t.Parallel()
 	result := extractCompareFiles("not json")
 	if result != nil {
 		t.Errorf("expected nil for invalid JSON, got %v", result)
@@ -885,6 +915,7 @@ func TestExtractCompareFilesInvalidJSON(t *testing.T) {
 // --- Additional: GitLab Respond with Comment.Body set ---
 
 func TestGitLabResponderCommentBody(t *testing.T) {
+	t.Parallel()
 	var gotBody string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var payload map[string]string

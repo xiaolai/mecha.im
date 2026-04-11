@@ -23,6 +23,7 @@ func gapTestStore(t *testing.T) *Store {
 // --- 1. HasCompletedDedup() ---
 
 func TestHasCompletedDedupEmptyKey(t *testing.T) {
+	t.Parallel()
 	s := gapTestStore(t)
 	found, err := s.HasCompletedDedup(context.Background(), "")
 	if err != nil {
@@ -34,6 +35,7 @@ func TestHasCompletedDedupEmptyKey(t *testing.T) {
 }
 
 func TestHasCompletedDedupNoMatch(t *testing.T) {
+	t.Parallel()
 	s := gapTestStore(t)
 	ctx := context.Background()
 
@@ -53,6 +55,7 @@ func TestHasCompletedDedupNoMatch(t *testing.T) {
 }
 
 func TestHasCompletedDedupCompleted(t *testing.T) {
+	t.Parallel()
 	s := gapTestStore(t)
 	ctx := context.Background()
 
@@ -77,6 +80,7 @@ func TestHasCompletedDedupCompleted(t *testing.T) {
 }
 
 func TestHasCompletedDedupFailed(t *testing.T) {
+	t.Parallel()
 	s := gapTestStore(t)
 	ctx := context.Background()
 
@@ -100,6 +104,7 @@ func TestHasCompletedDedupFailed(t *testing.T) {
 // --- 2. SetDispatched/Complete/Fail error paths (nonexistent ID) ---
 
 func TestSetDispatchedNonexistentID(t *testing.T) {
+	t.Parallel()
 	s := gapTestStore(t)
 	err := s.SetDispatched(context.Background(), "nonexistent-id")
 	if err == nil {
@@ -111,6 +116,7 @@ func TestSetDispatchedNonexistentID(t *testing.T) {
 }
 
 func TestCompleteNonexistentID(t *testing.T) {
+	t.Parallel()
 	s := gapTestStore(t)
 	err := s.Complete(context.Background(), "nonexistent-id", "result")
 	if err == nil {
@@ -122,6 +128,7 @@ func TestCompleteNonexistentID(t *testing.T) {
 }
 
 func TestFailNonexistentIDGap(t *testing.T) {
+	t.Parallel()
 	s := gapTestStore(t)
 	err := s.Fail(context.Background(), "nonexistent-id", "err")
 	if err == nil {
@@ -135,6 +142,7 @@ func TestFailNonexistentIDGap(t *testing.T) {
 // --- 3. CreateWithEvent dedup_key construction ---
 
 func TestCreateWithEventDedupKey(t *testing.T) {
+	t.Parallel()
 	s := gapTestStore(t)
 	ctx := context.Background()
 
@@ -161,6 +169,7 @@ func TestCreateWithEventDedupKey(t *testing.T) {
 }
 
 func TestCreateWithEventEmptyEventID(t *testing.T) {
+	t.Parallel()
 	s := gapTestStore(t)
 	ctx := context.Background()
 
@@ -178,6 +187,7 @@ func TestCreateWithEventEmptyEventID(t *testing.T) {
 }
 
 func TestCreateWithEventContext(t *testing.T) {
+	t.Parallel()
 	s := gapTestStore(t)
 	ctx := context.Background()
 

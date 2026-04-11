@@ -10,6 +10,7 @@ import (
 // --- 1. DenyAll.Apply() ---
 
 func TestDenyAllApply(t *testing.T) {
+	t.Parallel()
 	d := &DenyAll{}
 	res := Result{
 		Output:  "some output",
@@ -78,6 +79,7 @@ func TestDenyAllApply(t *testing.T) {
 }
 
 func TestDenyAllPartialResult(t *testing.T) {
+	t.Parallel()
 	d := &DenyAll{}
 	// Only comment and status set
 	res := Result{
@@ -100,6 +102,7 @@ func TestDenyAllPartialResult(t *testing.T) {
 }
 
 func TestDenyAllEmptyResult(t *testing.T) {
+	t.Parallel()
 	d := &DenyAll{}
 	res := Result{Output: "just output"}
 

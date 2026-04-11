@@ -20,6 +20,7 @@ func testHMAC(secret string, body []byte) string {
 }
 
 func TestGitHubSourceName(t *testing.T) {
+	t.Parallel()
 	src := NewGitHubSource("secret", "token")
 	if src.Name() != "github" {
 		t.Errorf("Name() = %q, want github", src.Name())
@@ -27,6 +28,7 @@ func TestGitHubSourceName(t *testing.T) {
 }
 
 func TestGitHubSourceParsePR(t *testing.T) {
+	t.Parallel()
 	src := NewGitHubSource("test-secret", "")
 	body := []byte(`{"action":"opened","repository":{"full_name":"org/repo"},"sender":{"login":"user"},"pull_request":{"number":1,"title":"PR","head":{"sha":"abc","ref":"feat"},"base":{"ref":"main"}}}`)
 
@@ -60,6 +62,7 @@ func TestGitHubSourceParsePR(t *testing.T) {
 }
 
 func TestGitHubSourceParseInvalidSignature(t *testing.T) {
+	t.Parallel()
 	src := NewGitHubSource("test-secret", "")
 	body := []byte(`{}`)
 	h := http.Header{}
@@ -73,6 +76,7 @@ func TestGitHubSourceParseInvalidSignature(t *testing.T) {
 }
 
 func TestGitHubSourceParsePush(t *testing.T) {
+	t.Parallel()
 	src := NewGitHubSource("", "")
 	body := []byte(`{"ref":"refs/heads/main","after":"deadbeef1234","compare":"https://example.com/compare","commits":[{"id":"deadbeef12345678","message":"fix bug"}],"repository":{"full_name":"org/repo"},"sender":{"login":"user"}}`)
 
@@ -95,6 +99,7 @@ func TestGitHubSourceParsePush(t *testing.T) {
 }
 
 func TestGitHubSourceParseIssue(t *testing.T) {
+	t.Parallel()
 	src := NewGitHubSource("", "")
 	body := []byte(`{"action":"opened","issue":{"number":5,"title":"Bug","body":"desc"},"repository":{"full_name":"org/repo"},"sender":{"login":"user"}}`)
 
@@ -250,6 +255,7 @@ func TestGitHubHydratePaginationFallback(t *testing.T) {
 }
 
 func TestGitHubHydrateSkipsWithoutToken(t *testing.T) {
+	t.Parallel()
 	src := NewGitHubSource("", "")
 	ev := &events.Event{Type: "pull_request.opened", Attrs: events.Attrs{"number": 1}}
 	err := src.Hydrate(context.Background(), ev)
@@ -262,6 +268,7 @@ func TestGitHubHydrateSkipsWithoutToken(t *testing.T) {
 }
 
 func TestGitHubHydrateSkipsNonPR(t *testing.T) {
+	t.Parallel()
 	src := NewGitHubSource("", "token")
 	ev := &events.Event{Type: "push", Attrs: events.Attrs{"number": 0}}
 	err := src.Hydrate(context.Background(), ev)

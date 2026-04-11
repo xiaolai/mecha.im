@@ -22,6 +22,7 @@ func maxTestStore(t *testing.T) *Store {
 // --- SetDispatched: ExecContext error with closed DB ---
 
 func TestSetDispatchedClosedDB(t *testing.T) {
+	t.Parallel()
 	s := maxTestStore(t)
 	ctx := context.Background()
 
@@ -41,6 +42,7 @@ func TestSetDispatchedClosedDB(t *testing.T) {
 // --- Complete: ExecContext error with closed DB ---
 
 func TestCompleteClosedDB(t *testing.T) {
+	t.Parallel()
 	s := maxTestStore(t)
 	ctx := context.Background()
 
@@ -63,6 +65,7 @@ func TestCompleteClosedDB(t *testing.T) {
 // --- Fail: ExecContext error with closed DB ---
 
 func TestFailClosedDB(t *testing.T) {
+	t.Parallel()
 	s := maxTestStore(t)
 	ctx := context.Background()
 
@@ -82,6 +85,7 @@ func TestFailClosedDB(t *testing.T) {
 // --- CreateWithEvent: ExecContext error with read-only DB ---
 
 func TestCreateWithEventExecError(t *testing.T) {
+	t.Parallel()
 	s := maxTestStore(t)
 	ctx := context.Background()
 
@@ -98,6 +102,7 @@ func TestCreateWithEventExecError(t *testing.T) {
 // --- List: QueryContext error with closed DB ---
 
 func TestListClosedDB(t *testing.T) {
+	t.Parallel()
 	s := maxTestStore(t)
 	ctx := context.Background()
 
@@ -114,6 +119,7 @@ func TestListClosedDB(t *testing.T) {
 // We can at least verify the function works normally, exercising all branches.
 
 func TestListWithMultipleStates(t *testing.T) {
+	t.Parallel()
 	s := maxTestStore(t)
 	ctx := context.Background()
 
@@ -146,6 +152,7 @@ func TestListWithMultipleStates(t *testing.T) {
 // --- Pending: QueryContext error with closed DB ---
 
 func TestPendingClosedDB(t *testing.T) {
+	t.Parallel()
 	s := maxTestStore(t)
 	ctx := context.Background()
 
@@ -160,6 +167,7 @@ func TestPendingClosedDB(t *testing.T) {
 // --- HasCompletedDedup: QueryRowContext error with closed DB ---
 
 func TestHasCompletedDedupClosedDB(t *testing.T) {
+	t.Parallel()
 	s := maxTestStore(t)
 	ctx := context.Background()
 
@@ -174,6 +182,7 @@ func TestHasCompletedDedupClosedDB(t *testing.T) {
 // --- ReadyForRetry: QueryContext error with closed DB ---
 
 func TestReadyForRetryClosedDB(t *testing.T) {
+	t.Parallel()
 	s := maxTestStore(t)
 	ctx := context.Background()
 
@@ -188,6 +197,7 @@ func TestReadyForRetryClosedDB(t *testing.T) {
 // --- Get: error with closed DB ---
 
 func TestGetClosedDB(t *testing.T) {
+	t.Parallel()
 	s := maxTestStore(t)
 	ctx := context.Background()
 
@@ -202,6 +212,7 @@ func TestGetClosedDB(t *testing.T) {
 // --- scanTask: not found branch ---
 
 func TestGetNotFoundMax(t *testing.T) {
+	t.Parallel()
 	s := maxTestStore(t)
 	ctx := context.Background()
 
@@ -214,6 +225,7 @@ func TestGetNotFoundMax(t *testing.T) {
 // --- ReadyForRetry: normal path ---
 
 func TestReadyForRetryNormal(t *testing.T) {
+	t.Parallel()
 	s := maxTestStore(t)
 	ctx := context.Background()
 
@@ -245,6 +257,7 @@ func TestReadyForRetryNormal(t *testing.T) {
 // --- Pending: includes dispatched tasks ---
 
 func TestPendingIncludesDispatched(t *testing.T) {
+	t.Parallel()
 	s := maxTestStore(t)
 	ctx := context.Background()
 
@@ -264,6 +277,7 @@ func TestPendingIncludesDispatched(t *testing.T) {
 // --- RetryOrFail: dead-letter after max retries ---
 
 func TestRetryOrFailDeadLetter(t *testing.T) {
+	t.Parallel()
 	s := maxTestStore(t)
 	ctx := context.Background()
 
@@ -302,6 +316,7 @@ func TestRetryOrFailDeadLetter(t *testing.T) {
 // --- RetryOrFail: Get error ---
 
 func TestRetryOrFailGetError(t *testing.T) {
+	t.Parallel()
 	s := maxTestStore(t)
 	ctx := context.Background()
 

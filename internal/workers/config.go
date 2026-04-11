@@ -28,7 +28,8 @@ type AdapterConfig struct {
 	Type     string `yaml:"type"`               // "ollama" or "openai"
 	Upstream string `yaml:"upstream"`            // base URL of the LLM API
 	Model    string `yaml:"model"`               // model name
-	APIKey   string `yaml:"api_key,omitempty"`   // API key for OpenAI-compatible endpoints
+	APIKey   string `yaml:"api_key,omitempty" json:"-"` // raw API key — NOT persisted to SQLite
+	Token    string `yaml:"token,omitempty"`     // secrets.yml reference (e.g. "codex.default") — persisted
 }
 
 // DockerConfig holds Docker container settings for a managed worker.

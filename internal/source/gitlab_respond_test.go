@@ -12,6 +12,7 @@ import (
 )
 
 func TestGitLabResponder_Name(t *testing.T) {
+	t.Parallel()
 	r := NewGitLabResponder("https://gitlab.com/api/v4", "test-token")
 	if r.Name() != "gitlab" {
 		t.Errorf("Name() = %q", r.Name())
@@ -19,6 +20,7 @@ func TestGitLabResponder_Name(t *testing.T) {
 }
 
 func TestGitLabResponder_PostComment(t *testing.T) {
+	t.Parallel()
 	var gotPath, gotToken, gotBody string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotPath = r.RequestURI
@@ -56,6 +58,7 @@ func TestGitLabResponder_PostComment(t *testing.T) {
 }
 
 func TestGitLabResponder_EmptyResult(t *testing.T) {
+	t.Parallel()
 	resp := NewGitLabResponder("https://gitlab.com/api/v4", "token")
 	ev := &events.Event{Type: "merge_request.opened", Attrs: events.Attrs{}}
 	err := resp.Respond(context.Background(), ev, policies.Result{})
