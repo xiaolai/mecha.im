@@ -13,6 +13,8 @@ var counterMetrics = map[string]bool{
 	"tasks_recovered": true, "tasks_retried": true, "tasks_dedup_skipped": true,
 	"tasks_rate_limited": true, "webhooks_received": true,
 	"writeback_ok": true, "writeback_fail": true, "events_dedup_skipped": true,
+	"writeback_retry_ok": true, "writeback_dead_letter": true,
+	"cron_ticks_dropped_total": true,
 }
 
 // prometheusHandler serves metrics in Prometheus text exposition format.

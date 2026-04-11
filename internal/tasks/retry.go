@@ -11,6 +11,9 @@ const (
 	DefaultMaxRetries = 3
 	// RetryBaseDelay is the base delay for exponential backoff.
 	RetryBaseDelay = 30 * time.Second
+	// RetryMaxDelay caps exponential backoff so high max_retries values
+	// don't produce multi-hour waits between attempts.
+	RetryMaxDelay = 30 * time.Minute
 )
 
 // RetryOrFail increments the attempt counter and either re-queues for retry
@@ -39,8 +42,11 @@ func (s *Store) RetryOrFail(ctx context.Context, id, errMsg string) (bool, error
 		return false, err
 	}
 
-	// Exponential backoff: baseDelay * 2^(attempts-1)
+	// Exponential backoff: baseDelay * 2^(attempts-1), capped at RetryMaxDelay.
 	delay := RetryBaseDelay * time.Duration(1<<(attempts-1))
+	if delay > RetryMaxDelay {
+		delay = RetryMaxDelay
+	}
 	retryAt := now.Add(delay)
 	_, err = s.db.ExecContext(ctx,
 		`UPDATE tasks SET state = ?, error_msg = ?, attempts = ?,
