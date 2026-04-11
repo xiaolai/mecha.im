@@ -144,10 +144,7 @@ func (s *Server) matchAndHydrate(ctx context.Context, ev *events.Event, src sour
 			}
 			s.record(logs.Entry{TraceID: ev.ID, EventID: ev.ID, Worker: entry.Worker.Name, Action: logs.EventMatched, Outcome: logs.OK})
 
-			taskCtx, ctxErr := buildTaskContext(ev)
-			if ctxErr != nil {
-				s.logger.Error("webhook: build task context", "event", ev.ID, "err", ctxErr)
-			}
+			taskCtx := buildTaskContext(ev)
 			t, err := s.tasks.CreateWithEvent(ctx, entry.Worker.Name, prompt, taskCtx, ev.ID)
 			if err != nil {
 				s.logger.Error("webhook: create task", "event", ev.ID, "err", err)

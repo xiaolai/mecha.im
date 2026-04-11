@@ -167,6 +167,11 @@ func (w *Worker) validate() error {
 	if w.Endpoint == "" && w.Docker == nil && w.Adapter == nil {
 		return fmt.Errorf("endpoint, docker, or adapter section is required")
 	}
+	if w.Endpoint != "" {
+		if err := ValidateUpstreamURL(w.Endpoint); err != nil {
+			return fmt.Errorf("endpoint: %w", err)
+		}
+	}
 	if w.Docker != nil && w.Adapter != nil {
 		return fmt.Errorf("cannot have both docker and adapter sections")
 	}

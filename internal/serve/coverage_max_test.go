@@ -472,10 +472,7 @@ func TestBuildTaskContextAttrs(t *testing.T) {
 			"head_sha":   "abc",
 		},
 	}
-	ctx, err := buildTaskContext(ev)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ctx := buildTaskContext(ev)
 	var m map[string]any
 	json.Unmarshal([]byte(ctx), &m)
 	if m["repo_owner"] != "org" {
