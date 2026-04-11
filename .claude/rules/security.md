@@ -19,7 +19,7 @@ Policy-based write filtering is a Phase 5 feature.
 ## Workers Are Configurable
 
 - Workers receive credentials via `docker.env` or `docker.token`.
-- Any env var is allowed except runtime-reserved keys (`WORKER_BACKEND`, `WORKER_PORT`, `WORKER_API_KEY`, `WORKER_TIMEOUT`, `WORKER_DRY_RUN`, `HOME`).
+- Any env var is allowed except runtime-reserved keys (`WORKER_PORT`, `WORKER_API_KEY`, `WORKER_TIMEOUT`, `WORKER_DRY_RUN`, `HOME`).
 - Credential policy (what a worker is allowed to have) is a Phase 5 concern.
 
 ### Secret Delivery

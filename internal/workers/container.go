@@ -27,17 +27,24 @@ var credentialMounts = map[string]credentialMount{
 // Resolves token references from secrets, merges docker.env, sets HOME.
 // The validate function is called for each user-provided env key/value to enforce
 // blocklist and credential checks (injected by the caller).
-func BuildContainerEnv(dc *DockerConfig, validate func(k, v string) error) (map[string]string, error) {
+// If cachedSecrets is non-nil, it is used instead of re-reading ~/.mecha/secrets.yml.
+func BuildContainerEnv(dc *DockerConfig, validate func(k, v string) error, cachedSecrets ...*Secrets) (map[string]string, error) {
 	env := make(map[string]string)
 
 	if dc.Token != "" {
-		secretsPath, err := DefaultSecretsPath()
-		if err != nil {
-			return nil, fmt.Errorf("resolve secrets path: %w", err)
-		}
-		secrets, err := LoadSecrets(secretsPath)
-		if err != nil {
-			return nil, fmt.Errorf("load secrets for token %q: %w", dc.Token, err)
+		var secrets *Secrets
+		if len(cachedSecrets) > 0 && cachedSecrets[0] != nil {
+			secrets = cachedSecrets[0]
+		} else {
+			secretsPath, err := DefaultSecretsPath()
+			if err != nil {
+				return nil, fmt.Errorf("resolve secrets path: %w", err)
+			}
+			var loadErr error
+			secrets, loadErr = LoadSecrets(secretsPath)
+			if loadErr != nil {
+				return nil, fmt.Errorf("load secrets for token %q: %w", dc.Token, loadErr)
+			}
 		}
 		tokenVal, err := secrets.Resolve(dc.Token)
 		if err != nil {

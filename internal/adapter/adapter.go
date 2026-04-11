@@ -127,5 +127,6 @@ func (r *Runner) handleTask(w http.ResponseWriter, req *http.Request) {
 func writeAdapterError(w http.ResponseWriter, status int, msg string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(map[string]string{"error": msg})
+	data, _ := json.Marshal(map[string]string{"error": msg})
+	w.Write(data)
 }

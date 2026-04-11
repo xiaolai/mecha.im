@@ -44,8 +44,8 @@ func TestBuildContainerEnv(t *testing.T) {
 			},
 		},
 		{
-			name:    "reserved WORKER_BACKEND blocked",
-			dc:      &workers.DockerConfig{Env: map[string]string{"WORKER_BACKEND": "bad"}},
+			name:    "reserved WORKER_PORT blocked",
+			dc:      &workers.DockerConfig{Env: map[string]string{"WORKER_PORT": "9999"}},
 			wantErr: "reserved",
 		},
 		{

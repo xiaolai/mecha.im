@@ -119,6 +119,12 @@ export async function executeTask(prompt: string): Promise<TaskResponse> {
   } catch (err) {
     clearTimeout(timeout);
     const msg = err instanceof Error ? err.message : String(err);
+    const stack = err instanceof Error ? err.stack : undefined;
+    if (stack) {
+      console.error(`claude backend error: ${msg}\n${stack}`);
+    } else {
+      console.error(`claude backend error: ${msg}`);
+    }
     if (msg.includes("abort")) {
       return {
         output: "task timed out",
