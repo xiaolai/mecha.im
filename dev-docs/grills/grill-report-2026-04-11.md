@@ -287,10 +287,11 @@ All findings are cited to specific file:line. Every severity label is evidence-b
 - **Evidence:** Three integration tests sleep 500ms–3s instead of polling with deadlines. On a loaded CI machine these produce false positives.
 - **Fix:** Replaced all three `time.Sleep` calls with deterministic polling: `edge_cases_test.go` polls event state with 50ms interval up to 10s deadline; `api_endpoints_test.go` uses `waitForTaskState` to poll for "dispatched" state before listing; `disposable_test.go` uses `waitForServerHealth` instead of a fixed sleep. Also added `waitForTaskState` helper to `mcp_tools_test.go` for reuse. Commit: `297c997d`.
 
-**[MEDIUM-20] Secrets file spec vs implementation mismatch — secrets re-read per container build, not cached at startup**
+**[MEDIUM-20] ✅ FIXED — Secrets file spec vs implementation mismatch — secrets re-read per container build, not cached at startup**
 
 - **File:** `internal/workers/container.go:36-50`
 - **Evidence:** AGENTS.md states "Mecha loads secrets once at startup, holds in memory, never persists." `BuildContainerEnv` calls `LoadSecrets` on every container create. Under disposable-worker load, this is a file read per task.
+- **Fix:** Added `secrets *workers.Secrets` field to `Server` struct. Secrets are loaded once in `Start()` before the dispatch loop begins. `BuildContainerEnv` now accepts optional `cachedSecrets ...*Secrets` variadic parameter — existing callers compile unchanged, `disposable.go` passes the cached instance. Commit: `04cb7a32`.
 
 ---
 
@@ -315,47 +316,54 @@ All findings are cited to specific file:line. Every severity label is evidence-b
 
 - **File:** `internal/serve/prometheus.go:27-36` — no percentiles, no rate computation possible from a gauge.
 
-**[LOW-5] TypeScript backend does not log stack traces for unexpected SDK errors**
+**[LOW-5] ✅ FIXED — TypeScript backend does not log stack traces for unexpected SDK errors**
 
 - **File:** `docker/runtime/backends/claude.ts:119-128` — `err.stack` is not logged, only `err.message`.
+- **Fix:** Added `err.stack` extraction and logging in the catch block. Stack trace is logged alongside the error message when available. Commit: `04cb7a32`.
 
-**[LOW-6] `Docker.Pull` has no progress logging and no size limit**
+**[LOW-6] ✅ FIXED — `Docker.Pull` has no progress logging and no size limit**
 
 - **File:** `internal/workers/docker.go:86-96` — operator cannot distinguish "pull is slow" from "hung" during first start.
+- **Fix:** Added start/completion log messages to `Pull()` with image name and elapsed time. Operators can now see `docker: pulling image X...` and `docker: pulled X in Yms`. Commit: `04cb7a32`.
 
 **[LOW-7] `mecha-mcp` duplicates server config struct instead of importing it**
 
 - **File:** `cmd/mecha-mcp/api.go:47-51` — if `config.yml` format changes, `mecha-mcp` silently uses stale field names.
 
-**[LOW-8] `WORKER_BACKEND` env var reserved but unused in TypeScript server**
+**[LOW-8] ✅ FIXED — `WORKER_BACKEND` env var reserved but unused in TypeScript server**
 
 - **File:** `docker/runtime/server.ts:12`, `internal/cli/helpers.go:7` — backend is unconditionally Claude; the reserved key is dead.
+- **Fix:** Removed `worker_backend` from `reservedEnvKeys` map. Updated all affected tests. Updated `security.md` rules file. The disposable validator still rejects all `worker_*` keys via prefix check, but the CLI-level reserved keys list no longer includes dead entries. Commit: `04cb7a32`.
 
 **[LOW-9] ✅ FIXED — No PID limit default on Docker containers — fork-bomb possible**
 
 - **File:** `internal/workers/docker.go:129-156` — `PidsLimit` only set when `resources.pids > 0`.
 - **Fix:** Added a default `PidsLimit: 1024` in the `else` branch, applied when `resources.pids` is not set in YAML. Operators can raise it explicitly via `resources.pids`. Commit: `c25d38e1`.
 
-**[LOW-10] Remote Docker host allows plaintext TCP — no TLS enforcement**
+**[LOW-10] ✅ FIXED — Remote Docker host allows plaintext TCP — no TLS enforcement**
 
 - **File:** `internal/workers/docker.go:46-62` — `tcp://host:2375` accepted without TLS enforcement.
+- **Fix:** Added a warning to stderr when a non-localhost `tcp://` Docker host is detected, advising use of TLS. Hard-blocking was not appropriate since some internal networks are intentionally plaintext. Commit: `04cb7a32`.
 
-**[LOW-11] `source.Registry` maps have no mutex — latent data race if sources are ever registered post-startup**
+**[LOW-11] ✅ FALSE POSITIVE — `source.Registry` maps have no mutex**
 
-- **File:** `internal/source/source.go:56-63` — safe today, but a footgun for any future hot-registration feature.
+- **File:** `internal/source/source.go:51-56`
+- **Assessment:** The Registry already has `sync.RWMutex` and all public methods (`Register`, `Get`, `Len`, `Triggers`, etc.) use proper `r.mu.Lock()`/`r.mu.RLock()` guards. The grill report incorrectly identified this as unprotected. No code change needed.
 
 **[LOW-12] ✅ FIXED — Migration silently swallows any error containing "duplicate column" substring**
 
 - **File:** `internal/store/db.go:90` — fragile string match for idempotent ALTER TABLE.
 - **Fix:** Tightened the string match to `"duplicate column name"` (the exact SQLite error text) and added `log.Printf` so the skip is visible in operator logs. Commit: `c25d38e1`.
 
-**[LOW-13] No fuzz targets for policy rule parsing or result contract parsing**
+**[LOW-13] ✅ FIXED — No fuzz targets for policy rule parsing or result contract parsing**
 
 - **File:** `internal/source/fuzz_test.go` — fuzz targets exist for sources but not for the policy/result layer which also processes untrusted input (worker output).
+- **Fix:** Added `internal/policies/fuzz_test.go` with `FuzzParseRules` (fuzzes `ParseRules` with JSON-deserialized maps) and `FuzzResultUnmarshal` (fuzzes `Result` struct deserialization). Seed corpus covers all policy sections and malformed input. Commit: `04cb7a32`.
 
-**[LOW-14] `adapter.go` `writeAdapterError` uses `json.Encoder` (trailing newline) — inconsistent with rest of codebase**
+**[LOW-14] ✅ FIXED — `adapter.go` `writeAdapterError` uses `json.Encoder` (trailing newline) — inconsistent with rest of codebase**
 
 - **File:** `internal/adapter/adapter.go:128-131`
+- **Fix:** Replaced `json.NewEncoder(w).Encode()` with `json.Marshal()` + `w.Write()`. Consistent with all other JSON response helpers in the codebase. Commit: `04cb7a32`.
 
 **[LOW-15] ✅ FIXED — No `govulncheck` or container image scanner (Trivy) in CI**
 
@@ -366,9 +374,10 @@ All findings are cited to specific file:line. Every severity label is evidence-b
 
 - **File:** All test files — parallelization would improve CI speed meaningfully for isolated tests.
 
-**[LOW-17] `cmd/mecha-mcp/tools.go` at 305 LOC — over the 200-LOC rule**
+**[LOW-17] ✅ FIXED — `cmd/mecha-mcp/tools.go` at 305 LOC — over the 200-LOC rule**
 
 - **File:** `cmd/mecha-mcp/tools.go:1-305` — schema literals are the cause; splitting to `schemas.go` + `handlers.go` would fix it.
+- **Fix:** Extracted `orchestrationTools` schema definitions to `cmd/mecha-mcp/schemas.go` (93 LOC). `tools.go` now contains only handler functions (197 LOC). Both files are under the 200-LOC limit. Commit: `04cb7a32`.
 
 ---
 
