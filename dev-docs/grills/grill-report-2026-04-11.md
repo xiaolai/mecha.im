@@ -326,9 +326,10 @@ All findings are cited to specific file:line. Every severity label is evidence-b
 - **File:** `internal/workers/docker.go:86-96` — operator cannot distinguish "pull is slow" from "hung" during first start.
 - **Fix:** Added start/completion log messages to `Pull()` with image name and elapsed time. Operators can now see `docker: pulling image X...` and `docker: pulled X in Yms`. Commit: `04cb7a32`.
 
-**[LOW-7] `mecha-mcp` duplicates server config struct instead of importing it**
+**[LOW-7] ✅ FIXED — `mecha-mcp` duplicates server config struct instead of importing it**
 
 - **File:** `cmd/mecha-mcp/api.go:47-51` — if `config.yml` format changes, `mecha-mcp` silently uses stale field names.
+- **Fix:** Replaced inline anonymous struct and `loadMechaConfig()` function with `workers.LoadServerConfig()` which returns `workers.ServerConfig`. Removed `gopkg.in/yaml.v3` and `path/filepath` imports from `api.go`. Single source of truth for config format. Commit: `f63ff2a4`.
 
 **[LOW-8] ✅ FIXED — `WORKER_BACKEND` env var reserved but unused in TypeScript server**
 
