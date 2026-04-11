@@ -175,7 +175,21 @@ func serveCmd() *cobra.Command {
 				}
 			}()
 
-			return srv.Start(ctx)
+			err = srv.Start(ctx)
+
+			// Stop all in-process adapter runners after server shutdown.
+			adapterRunnersMu.Lock()
+			names := make([]string, 0, len(adapterRunners))
+			for n := range adapterRunners {
+				names = append(names, n)
+			}
+			adapterRunnersMu.Unlock()
+			for _, n := range names {
+				adapterStop(n)
+				logger.Info("adapter stopped", "worker", n)
+			}
+
+			return err
 		},
 	}
 	cmd.Flags().StringVar(&addr, "addr", "127.0.0.1:21212", "listen address")

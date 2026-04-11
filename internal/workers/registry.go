@@ -93,13 +93,10 @@ func (r *Registry) Stop(name string) error {
 }
 
 // SetError transitions a worker to error state with a redacted error message.
-// Valid from any active state (busy, online, error). Calling on an offline
-// worker is a no-op (the worker is already quiescent).
+// Valid from any state — including offline (adapter/container start failures
+// transition offline → error when the startup attempt itself fails).
 func (r *Registry) SetError(name, errMsg string) error {
 	return r.mutateEntry(name, func(e *Entry) error {
-		if e.State == StateOffline {
-			return fmt.Errorf("worker %q is offline — SetError has no effect", name)
-		}
 		e.State = StateError
 		e.Error = RedactSecrets(errMsg)
 		return nil
