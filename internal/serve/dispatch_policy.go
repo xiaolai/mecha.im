@@ -132,6 +132,12 @@ func isTransportError(err error) bool {
 		strings.Contains(msg, "deadline exceeded") {
 		return true
 	}
-	// 5xx from workers are transient (overloaded, restarting)
-	return strings.Contains(msg, "worker returned 5")
+	// Specific 5xx codes that indicate transient failure:
+	//   502 Bad Gateway  — worker container restarting / upstream unreachable
+	//   503 Unavailable  — worker explicitly busy or health check failing
+	//   504 Timeout      — worker took too long to respond
+	// 500/501/505 may indicate a permanent worker bug — don't amplify with retries.
+	return strings.Contains(msg, "worker returned 502") ||
+		strings.Contains(msg, "worker returned 503") ||
+		strings.Contains(msg, "worker returned 504")
 }

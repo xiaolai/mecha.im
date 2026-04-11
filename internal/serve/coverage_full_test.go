@@ -1552,8 +1552,9 @@ func TestDispatchTaskTransportErrorDeadLetter(t *testing.T) {
 	}
 }
 
-func TestDispatchTask5xxRetried(t *testing.T) {
-	// A 5xx error is a transport error — task is retried, worker set to error state.
+func TestDispatchTask500ImmediatelyFailed(t *testing.T) {
+	// 500 is not a transient error — it may indicate a permanent worker bug.
+	// The task should fail immediately without retry. Worker goes back online.
 	path := filepath.Join(t.TempDir(), "test.db")
 	db, err := store.Open(path)
 	if err != nil {
@@ -1583,15 +1584,58 @@ func TestDispatchTask5xxRetried(t *testing.T) {
 	s.dispatchTask(ctx, tk.ID)
 
 	got, _ := taskStore.Get(ctx, tk.ID)
-	// 5xx is now retryable — task should be pending (retry queued), not failed
-	if got.State != tasks.StatePending {
-		t.Errorf("state = %q, want pending (5xx triggers retry)", got.State)
+	// 500 is not retryable — task should fail immediately.
+	if got.State != tasks.StateFailed {
+		t.Errorf("state = %q, want failed (500 is not a transient error)", got.State)
 	}
 
-	// Worker should be in error state (transport error path)
+	// Worker should be back online (non-transport error path calls SetOnline).
 	entry, _ := reg.Get("fail500-w")
+	if entry.State != workers.StateOnline {
+		t.Errorf("worker state = %q, want online after non-transport error", entry.State)
+	}
+}
+
+func TestDispatchTask503Retried(t *testing.T) {
+	// 503 Service Unavailable is genuinely transient — task is retried.
+	path := filepath.Join(t.TempDir(), "test.db")
+	db, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	reg, _ := workers.NewRegistry(db)
+	taskStore := tasks.NewStore(db)
+	es := events.NewStore(db)
+	s := New(Config{Registry: reg, Tasks: taskStore, Events: es, Addr: "127.0.0.1:0"})
+
+	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(503)
+		w.Write([]byte("service unavailable"))
+	}))
+	defer mock.Close()
+
+	reg.Add(&workers.Worker{Name: "fail503-w", Endpoint: mock.URL})
+	reg.Start("fail503-w")
+
+	ctx := context.Background()
+	ev := &events.Event{Source: "github", Type: "push"}
+	es.Create(ctx, ev)
+
+	tk, _ := taskStore.CreateWithEvent(ctx, "fail503-w", "test", "{}", ev.ID)
+	s.dispatchTask(ctx, tk.ID)
+
+	got, _ := taskStore.Get(ctx, tk.ID)
+	// 503 is transient — task should be queued for retry (pending).
+	if got.State != tasks.StatePending {
+		t.Errorf("state = %q, want pending (503 triggers retry)", got.State)
+	}
+
+	// Worker should be in error state (transport error path).
+	entry, _ := reg.Get("fail503-w")
 	if entry.State != workers.StateError {
-		t.Errorf("worker state = %q, want error after 5xx", entry.State)
+		t.Errorf("worker state = %q, want error after 503", entry.State)
 	}
 }
 
