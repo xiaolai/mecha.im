@@ -19,7 +19,7 @@ var counterMetrics = map[string]bool{
 
 // prometheusHandler serves metrics in Prometheus text exposition format.
 // Distinguishes counters (monotonically increasing) from gauges.
-// No external dependency — pure stdlib.
+// Also renders the dispatch latency histogram. No external dependency — pure stdlib.
 func prometheusHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
@@ -37,6 +37,21 @@ func prometheusHandler() http.HandlerFunc {
 				fmt.Fprintf(&b, "# TYPE mecha_%s %s\nmecha_%s %f\n", name, ptype, name, v.Value())
 			}
 		})
+
+		// Render dispatch latency histogram
+		buckets, count, sum := latency.snapshot()
+		if count > 0 {
+			b.WriteString("# TYPE mecha_dispatch_latency_ms histogram\n")
+			cumulative := uint64(0)
+			for i, bound := range histogramBuckets {
+				cumulative += buckets[i]
+				fmt.Fprintf(&b, "mecha_dispatch_latency_ms_bucket{le=\"%.0f\"} %d\n", bound, cumulative)
+			}
+			fmt.Fprintf(&b, "mecha_dispatch_latency_ms_bucket{le=\"+Inf\"} %d\n", count)
+			fmt.Fprintf(&b, "mecha_dispatch_latency_ms_sum %f\n", sum)
+			fmt.Fprintf(&b, "mecha_dispatch_latency_ms_count %d\n", count)
+		}
+
 		w.Write([]byte(b.String()))
 	}
 }
