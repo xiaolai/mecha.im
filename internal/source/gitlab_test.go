@@ -6,6 +6,7 @@ import (
 )
 
 func TestGitLabSourceName(t *testing.T) {
+	t.Parallel()
 	src := NewGitLabSource("secret")
 	if src.Name() != "gitlab" {
 		t.Errorf("Name() = %q, want gitlab", src.Name())
@@ -13,6 +14,7 @@ func TestGitLabSourceName(t *testing.T) {
 }
 
 func TestGitLabSourceParseMergeRequest(t *testing.T) {
+	t.Parallel()
 	src := NewGitLabSource("test-secret")
 	body := []byte(`{
 		"object_kind": "merge_request",
@@ -58,6 +60,7 @@ func TestGitLabSourceParseMergeRequest(t *testing.T) {
 }
 
 func TestGitLabSourceParseInvalidToken(t *testing.T) {
+	t.Parallel()
 	src := NewGitLabSource("correct-secret")
 	h := http.Header{}
 	h.Set("X-Gitlab-Event", "Push Hook")
@@ -70,6 +73,7 @@ func TestGitLabSourceParseInvalidToken(t *testing.T) {
 }
 
 func TestGitLabSourceParsePush(t *testing.T) {
+	t.Parallel()
 	src := NewGitLabSource("")
 	body := []byte(`{
 		"ref": "refs/heads/main",
@@ -95,6 +99,7 @@ func TestGitLabSourceParsePush(t *testing.T) {
 }
 
 func TestGitLabSourceParseNote(t *testing.T) {
+	t.Parallel()
 	src := NewGitLabSource("")
 	body := []byte(`{
 		"object_kind": "note",
@@ -123,6 +128,7 @@ func TestGitLabSourceParseNote(t *testing.T) {
 }
 
 func TestGitLabSourceParseIssue(t *testing.T) {
+	t.Parallel()
 	src := NewGitLabSource("")
 	body := []byte(`{
 		"object_kind": "issue",

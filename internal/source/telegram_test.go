@@ -15,6 +15,7 @@ func telegramHeaders(secret string) http.Header {
 }
 
 func TestTelegramSourceName(t *testing.T) {
+	t.Parallel()
 	src := NewTelegramSource("secret")
 	if got := src.Name(); got != "telegram" {
 		t.Errorf("Name() = %q, want %q", got, "telegram")
@@ -22,6 +23,7 @@ func TestTelegramSourceName(t *testing.T) {
 }
 
 func TestTelegramSourceParseMessage(t *testing.T) {
+	t.Parallel()
 	secret := "my-bot-secret"
 	src := NewTelegramSource(secret)
 
@@ -88,6 +90,7 @@ func TestTelegramSourceParseMessage(t *testing.T) {
 }
 
 func TestTelegramSourceParseEditedMessage(t *testing.T) {
+	t.Parallel()
 	secret := "my-secret"
 	src := NewTelegramSource(secret)
 
@@ -124,6 +127,7 @@ func TestTelegramSourceParseEditedMessage(t *testing.T) {
 }
 
 func TestTelegramSourceParseCallbackQuery(t *testing.T) {
+	t.Parallel()
 	secret := "my-secret"
 	src := NewTelegramSource(secret)
 
@@ -163,6 +167,7 @@ func TestTelegramSourceParseCallbackQuery(t *testing.T) {
 }
 
 func TestTelegramSourceParseInlineQuery(t *testing.T) {
+	t.Parallel()
 	secret := "my-secret"
 	src := NewTelegramSource(secret)
 
@@ -194,6 +199,7 @@ func TestTelegramSourceParseInlineQuery(t *testing.T) {
 }
 
 func TestTelegramSourceParseInvalidToken(t *testing.T) {
+	t.Parallel()
 	src := NewTelegramSource("correct-secret")
 
 	update := map[string]any{
@@ -216,6 +222,7 @@ func TestTelegramSourceParseInvalidToken(t *testing.T) {
 }
 
 func TestTelegramSourceParseUnknown(t *testing.T) {
+	t.Parallel()
 	secret := "my-secret"
 	src := NewTelegramSource(secret)
 
@@ -236,6 +243,7 @@ func TestTelegramSourceParseUnknown(t *testing.T) {
 }
 
 func TestTelegramSourceParseMissingToken(t *testing.T) {
+	t.Parallel()
 	src := NewTelegramSource("my-secret")
 	update := map[string]any{
 		"update_id": float64(1),
@@ -255,6 +263,7 @@ func TestTelegramSourceParseMissingToken(t *testing.T) {
 }
 
 func TestTelegramSourceParseNoSecret(t *testing.T) {
+	t.Parallel()
 	// Empty secret skips verification
 	src := NewTelegramSource("")
 	update := map[string]any{
@@ -277,6 +286,7 @@ func TestTelegramSourceParseNoSecret(t *testing.T) {
 }
 
 func TestTelegramSourceParseInvalidJSON(t *testing.T) {
+	t.Parallel()
 	src := NewTelegramSource("")
 	_, err := src.Parse(http.Header{}, []byte("not json"))
 	if err == nil {
@@ -285,6 +295,7 @@ func TestTelegramSourceParseInvalidJSON(t *testing.T) {
 }
 
 func TestTelegramSourceParseFallbackActor(t *testing.T) {
+	t.Parallel()
 	// When username is empty, falls back to first_name
 	src := NewTelegramSource("")
 	update := map[string]any{
@@ -310,6 +321,7 @@ func TestTelegramSourceParseFallbackActor(t *testing.T) {
 }
 
 func TestTelegramSourceAuthenticated(t *testing.T) {
+	t.Parallel()
 	src := NewTelegramSource("secret")
 	var _ Authenticated = src
 	src.Authenticated()

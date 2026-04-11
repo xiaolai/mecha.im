@@ -14,6 +14,7 @@ import (
 // --- Start: listener error when port is already in use ---
 
 func TestRunnerStartPortConflict(t *testing.T) {
+	t.Parallel()
 	// Grab a port first
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -49,6 +50,7 @@ func TestRunnerStartPortConflict(t *testing.T) {
 // with a valid adapter that returns errors
 
 func TestNewRunnerWithNilLogger(t *testing.T) {
+	t.Parallel()
 	a := &mockAdapter{output: "test"}
 	r, err := NewRunner(a, nil) // nil logger
 	if err != nil {
@@ -63,6 +65,7 @@ func TestNewRunnerWithNilLogger(t *testing.T) {
 // --- Ollama: server returning invalid JSON ---
 
 func TestOllamaSendTaskInvalidJSON(t *testing.T) {
+	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte("not valid json"))
@@ -82,6 +85,7 @@ func TestOllamaSendTaskInvalidJSON(t *testing.T) {
 // --- OpenAI: server returning invalid JSON ---
 
 func TestOpenAISendTaskInvalidJSON(t *testing.T) {
+	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte("not valid json"))
@@ -101,6 +105,7 @@ func TestOpenAISendTaskInvalidJSON(t *testing.T) {
 // --- Ollama: Health with unreachable server ---
 
 func TestOllamaHealthUnreachable(t *testing.T) {
+	t.Parallel()
 	a := NewOllamaAdapter("http://127.0.0.1:1", "model")
 	err := a.Health(context.Background())
 	if err == nil {
@@ -111,6 +116,7 @@ func TestOllamaHealthUnreachable(t *testing.T) {
 // --- OpenAI: Health with unreachable server ---
 
 func TestOpenAIHealthUnreachable(t *testing.T) {
+	t.Parallel()
 	a := NewOpenAIAdapter("http://127.0.0.1:1", "model", "key")
 	err := a.Health(context.Background())
 	if err == nil {
@@ -121,6 +127,7 @@ func TestOpenAIHealthUnreachable(t *testing.T) {
 // --- Ollama: SendTask with unreachable server ---
 
 func TestOllamaSendTaskUnreachable(t *testing.T) {
+	t.Parallel()
 	a := NewOllamaAdapter("http://127.0.0.1:1", "model")
 	_, err := a.SendTask(context.Background(), "test")
 	if err == nil {
@@ -131,6 +138,7 @@ func TestOllamaSendTaskUnreachable(t *testing.T) {
 // --- OpenAI: SendTask with unreachable server ---
 
 func TestOpenAISendTaskUnreachable(t *testing.T) {
+	t.Parallel()
 	a := NewOpenAIAdapter("http://127.0.0.1:1", "model", "key")
 	_, err := a.SendTask(context.Background(), "test")
 	if err == nil {
@@ -141,6 +149,7 @@ func TestOpenAISendTaskUnreachable(t *testing.T) {
 // --- Ollama: successful SendTask ---
 
 func TestOllamaSendTaskSuccess(t *testing.T) {
+	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
@@ -166,6 +175,7 @@ func TestOllamaSendTaskSuccess(t *testing.T) {
 // --- handleHealth: upstream error ---
 
 func TestRunnerHealthUpstreamError(t *testing.T) {
+	t.Parallel()
 	a := &errorAdapter{sendErr: nil}
 	// Override Health to return error
 	failing := &failingHealthAdapter{}

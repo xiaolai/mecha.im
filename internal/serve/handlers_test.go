@@ -47,16 +47,15 @@ func TestPostTaskAutoSelectRoundRobin(t *testing.T) {
 }
 
 func TestPostTaskQueueFull(t *testing.T) {
-	s, cleanup := testServer(t)
+	s, cleanup := testServerWithQueueSize(t, 2)
 	defer cleanup()
 
 	s.reg.Add(&workers.Worker{Name: "w", Endpoint: "http://x"})
 	s.reg.Start("w")
 
-	// Fill the channel
-	for i := 0; i < 256; i++ {
-		s.pending <- "dummy"
-	}
+	// Fill the small channel (size=2)
+	s.pending <- "dummy1"
+	s.pending <- "dummy2"
 
 	req := httptest.NewRequest("POST", "/task", strings.NewReader(`{"prompt":"test","worker":"w"}`))
 	req.Header.Set("Content-Type", "application/json")

@@ -20,6 +20,7 @@ func testStore(t *testing.T) *Store {
 }
 
 func TestCreateAndGet(t *testing.T) {
+	t.Parallel()
 	s := testStore(t)
 	ctx := context.Background()
 	task, err := s.Create(ctx, "worker-1", "hello world")
@@ -46,6 +47,7 @@ func TestCreateAndGet(t *testing.T) {
 }
 
 func TestGetNotFound(t *testing.T) {
+	t.Parallel()
 	s := testStore(t)
 	_, err := s.Get(context.Background(), "nonexistent")
 	if err == nil {
@@ -54,6 +56,7 @@ func TestGetNotFound(t *testing.T) {
 }
 
 func TestFullLifecycle(t *testing.T) {
+	t.Parallel()
 	s := testStore(t)
 	ctx := context.Background()
 
@@ -89,6 +92,7 @@ func TestFullLifecycle(t *testing.T) {
 }
 
 func TestFailFromPending(t *testing.T) {
+	t.Parallel()
 	s := testStore(t)
 	ctx := context.Background()
 	task, _ := s.Create(ctx, "w", "prompt")
@@ -105,6 +109,7 @@ func TestFailFromPending(t *testing.T) {
 }
 
 func TestFailFromDispatched(t *testing.T) {
+	t.Parallel()
 	s := testStore(t)
 	ctx := context.Background()
 	task, _ := s.Create(ctx, "w", "prompt")
@@ -119,6 +124,7 @@ func TestFailFromDispatched(t *testing.T) {
 }
 
 func TestInvalidStateTransition(t *testing.T) {
+	t.Parallel()
 	s := testStore(t)
 	ctx := context.Background()
 	task, _ := s.Create(ctx, "w", "prompt")
@@ -135,6 +141,7 @@ func TestInvalidStateTransition(t *testing.T) {
 }
 
 func TestFailFromCompleted(t *testing.T) {
+	t.Parallel()
 	s := testStore(t)
 	ctx := context.Background()
 	task, _ := s.Create(ctx, "w", "prompt")
@@ -146,6 +153,7 @@ func TestFailFromCompleted(t *testing.T) {
 }
 
 func TestDoubleDispatch(t *testing.T) {
+	t.Parallel()
 	s := testStore(t)
 	ctx := context.Background()
 	task, _ := s.Create(ctx, "w", "prompt")
@@ -156,6 +164,7 @@ func TestDoubleDispatch(t *testing.T) {
 }
 
 func TestFailNonexistent(t *testing.T) {
+	t.Parallel()
 	s := testStore(t)
 	if err := s.Fail(context.Background(), "ghost", "err"); err == nil {
 		t.Error("expected error for nonexistent task")
@@ -163,6 +172,7 @@ func TestFailNonexistent(t *testing.T) {
 }
 
 func TestListAll(t *testing.T) {
+	t.Parallel()
 	s := testStore(t)
 	ctx := context.Background()
 	s.Create(ctx, "w1", "p1")
@@ -179,6 +189,7 @@ func TestListAll(t *testing.T) {
 }
 
 func TestListByState(t *testing.T) {
+	t.Parallel()
 	s := testStore(t)
 	ctx := context.Background()
 	t1, _ := s.Create(ctx, "w", "p1")
@@ -196,6 +207,7 @@ func TestListByState(t *testing.T) {
 }
 
 func TestPendingRecovery(t *testing.T) {
+	t.Parallel()
 	s := testStore(t)
 	ctx := context.Background()
 	t1, _ := s.Create(ctx, "w", "p1")

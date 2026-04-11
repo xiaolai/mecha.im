@@ -72,9 +72,13 @@ adapter:
   type: ollama
   upstream: http://spark01:11434
   model: gemma2:9b
-  api_key: sk-xxx          # optional, for OpenAI-compatible endpoints
+  api_key: sk-xxx          # optional, NOT persisted to SQLite (json:"-")
+  token: codex.default     # optional, secrets.yml reference (persisted, survives restarts)
 timeout: 10m
 ```
+
+Note: `api_key` is never stored in SQLite — use `token` (a `~/.mecha/secrets.yml`
+reference like `codex.default`) for restart-safe secrets. Resolved on adapter startup.
 
 Mecha starts the adapter in-process (no sidecar, no separate binary). The
 adapter handles health-check translation and request/response mapping.

@@ -53,6 +53,8 @@ type Config struct {
 	// DrainTimeout is how long Serve waits for in-flight dispatches after
 	// receiving a shutdown signal. Defaults to 10 minutes if zero.
 	DrainTimeout time.Duration
+	// QueueSize is the pending task channel capacity. Defaults to 256 if zero.
+	QueueSize int
 }
 
 // New creates a server but does not start it.
@@ -67,6 +69,10 @@ func New(cfg Config) *Server {
 	if drain == 0 {
 		drain = 10 * time.Minute
 	}
+	queueSize := cfg.QueueSize
+	if queueSize <= 0 {
+		queueSize = 256
+	}
 	s := &Server{
 		reg:          cfg.Registry,
 		tasks:        cfg.Tasks,
@@ -76,7 +82,7 @@ func New(cfg Config) *Server {
 		docker:       cfg.Docker,
 		limiter:      cfg.Limiter,
 		logs:         cfg.Logs,
-		pending:      make(chan string, 256),
+		pending:      make(chan string, queueSize),
 		addr:         cfg.Addr,
 		apiKey:       cfg.APIKey,
 		drainTimeout: drain,

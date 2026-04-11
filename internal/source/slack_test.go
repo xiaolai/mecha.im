@@ -30,6 +30,7 @@ func slackHeaders(sig, ts string) http.Header {
 }
 
 func TestSlackSourceName(t *testing.T) {
+	t.Parallel()
 	s := NewSlackSource("secret")
 	if got := s.Name(); got != "slack" {
 		t.Errorf("Name() = %q, want %q", got, "slack")
@@ -37,6 +38,7 @@ func TestSlackSourceName(t *testing.T) {
 }
 
 func TestSlackSourceParse(t *testing.T) {
+	t.Parallel()
 	secret := "test-signing-secret"
 	src := NewSlackSource(secret)
 
@@ -86,6 +88,7 @@ func TestSlackSourceParse(t *testing.T) {
 }
 
 func TestSlackSourceParseInvalidSignature(t *testing.T) {
+	t.Parallel()
 	src := NewSlackSource("correct-secret")
 
 	payload := map[string]any{
@@ -106,6 +109,7 @@ func TestSlackSourceParseInvalidSignature(t *testing.T) {
 }
 
 func TestSlackSourceParseExpiredTimestamp(t *testing.T) {
+	t.Parallel()
 	secret := "my-secret"
 	src := NewSlackSource(secret)
 
@@ -128,6 +132,7 @@ func TestSlackSourceParseExpiredTimestamp(t *testing.T) {
 }
 
 func TestSlackSourceParseNoEvent(t *testing.T) {
+	t.Parallel()
 	secret := "my-secret"
 	src := NewSlackSource(secret)
 
@@ -150,6 +155,7 @@ func TestSlackSourceParseNoEvent(t *testing.T) {
 }
 
 func TestSlackSourceParseURLVerification(t *testing.T) {
+	t.Parallel()
 	secret := "my-secret"
 	src := NewSlackSource(secret)
 
@@ -171,6 +177,7 @@ func TestSlackSourceParseURLVerification(t *testing.T) {
 }
 
 func TestSlackSourceParseMissingHeaders(t *testing.T) {
+	t.Parallel()
 	src := NewSlackSource("secret")
 	body := []byte(`{"event_id":"Ev01","event":{"type":"message"}}`)
 
@@ -201,6 +208,7 @@ func TestSlackSourceParseMissingHeaders(t *testing.T) {
 }
 
 func TestSlackSourceParseSubtype(t *testing.T) {
+	t.Parallel()
 	secret := "my-secret"
 	src := NewSlackSource(secret)
 
@@ -228,6 +236,7 @@ func TestSlackSourceParseSubtype(t *testing.T) {
 }
 
 func TestSlackSourceParseNoSecret(t *testing.T) {
+	t.Parallel()
 	// Empty signing secret skips verification
 	src := NewSlackSource("")
 	payload := map[string]any{
@@ -246,6 +255,7 @@ func TestSlackSourceParseNoSecret(t *testing.T) {
 }
 
 func TestVerifyChallenge(t *testing.T) {
+	t.Parallel()
 	payload := map[string]any{
 		"type":      "url_verification",
 		"challenge": "abc123xyz",
@@ -267,6 +277,7 @@ func TestVerifyChallenge(t *testing.T) {
 }
 
 func TestVerifyChallengeNonVerification(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		body []byte
@@ -287,6 +298,7 @@ func TestVerifyChallengeNonVerification(t *testing.T) {
 }
 
 func TestSlackSourceParseThreadTS(t *testing.T) {
+	t.Parallel()
 	secret := "my-secret"
 	src := NewSlackSource(secret)
 
@@ -315,6 +327,7 @@ func TestSlackSourceParseThreadTS(t *testing.T) {
 }
 
 func TestSlackSourceAuthenticated(t *testing.T) {
+	t.Parallel()
 	// Ensure SlackSource implements Authenticated marker interface
 	src := NewSlackSource("secret")
 	var _ Authenticated = src
@@ -323,6 +336,7 @@ func TestSlackSourceAuthenticated(t *testing.T) {
 }
 
 func TestErrSlackChallenge(t *testing.T) {
+	t.Parallel()
 	src := NewSlackSource("secret")
 	body := []byte(`{"type":"url_verification","challenge":"abc"}`)
 	sig, tsStr := slackSignature("secret", time.Now().Unix(), body)
@@ -337,6 +351,7 @@ func TestErrSlackChallenge(t *testing.T) {
 }
 
 func TestSlackSignatureTimestampEdge(t *testing.T) {
+	t.Parallel()
 	secret := "my-secret"
 	src := NewSlackSource(secret)
 
@@ -365,6 +380,7 @@ func TestSlackSignatureTimestampEdge(t *testing.T) {
 }
 
 func TestSlackSourceParseInvalidTimestamp(t *testing.T) {
+	t.Parallel()
 	src := NewSlackSource("secret")
 	body := []byte(`{"event_id":"Ev01","event":{"type":"message"}}`)
 	h := http.Header{}
@@ -382,6 +398,7 @@ func TestSlackSourceParseInvalidTimestamp(t *testing.T) {
 }
 
 func TestSlackSourceParseInvalidJSON(t *testing.T) {
+	t.Parallel()
 	src := NewSlackSource("")
 	_, err := src.Parse(http.Header{}, []byte("not json"))
 	if err == nil {

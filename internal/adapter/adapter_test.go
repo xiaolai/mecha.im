@@ -33,6 +33,7 @@ func (m *mockAdapter) SendTask(ctx context.Context, prompt string) ([]byte, erro
 }
 
 func TestRunnerHealthy(t *testing.T) {
+	t.Parallel()
 	r, err := NewRunner(&mockAdapter{output: "hello"}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -52,6 +53,7 @@ func TestRunnerHealthy(t *testing.T) {
 }
 
 func TestRunnerTask(t *testing.T) {
+	t.Parallel()
 	r, err := NewRunner(&mockAdapter{output: "result:"}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -81,6 +83,7 @@ func TestRunnerTask(t *testing.T) {
 }
 
 func TestRunnerUnhealthyUpstream(t *testing.T) {
+	t.Parallel()
 	r, err := NewRunner(&mockAdapter{healthErr: fmt.Errorf("unreachable")}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -100,6 +103,7 @@ func TestRunnerUnhealthyUpstream(t *testing.T) {
 }
 
 func TestOllamaAdapterHealth(t *testing.T) {
+	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
 		w.Write([]byte("Ollama is running"))
@@ -113,6 +117,7 @@ func TestOllamaAdapterHealth(t *testing.T) {
 }
 
 func TestOllamaAdapterSendTask(t *testing.T) {
+	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
@@ -137,6 +142,7 @@ func TestOllamaAdapterSendTask(t *testing.T) {
 }
 
 func TestOpenAIAdapterSendTask(t *testing.T) {
+	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer test-key" {
 			t.Error("missing auth header")
@@ -168,6 +174,7 @@ func TestOpenAIAdapterSendTask(t *testing.T) {
 }
 
 func TestOpenAIAdapterHealth(t *testing.T) {
+	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"data":[]}`))

@@ -6,6 +6,7 @@ import (
 )
 
 func TestGenericSourceName(t *testing.T) {
+	t.Parallel()
 	src := NewGenericSource("custom", "")
 	if src.Name() != "custom" {
 		t.Errorf("Name() = %q, want custom", src.Name())
@@ -13,6 +14,7 @@ func TestGenericSourceName(t *testing.T) {
 }
 
 func TestGenericSourceParse(t *testing.T) {
+	t.Parallel()
 	src := NewGenericSource("jenkins", "X-Event-Type")
 	body := []byte(`{"build_id": 42, "status": "success", "branch": "main"}`)
 
@@ -38,6 +40,7 @@ func TestGenericSourceParse(t *testing.T) {
 }
 
 func TestGenericSourceMissingHeader(t *testing.T) {
+	t.Parallel()
 	src := NewGenericSource("hook", "")
 	h := http.Header{}
 	_, err := src.Parse(h, []byte(`{}`))
@@ -47,6 +50,7 @@ func TestGenericSourceMissingHeader(t *testing.T) {
 }
 
 func TestGenericSourceCustomHeader(t *testing.T) {
+	t.Parallel()
 	src := NewGenericSource("slack", "X-Slack-Event")
 	body := []byte(`{"type": "message", "text": "hello"}`)
 
@@ -63,6 +67,7 @@ func TestGenericSourceCustomHeader(t *testing.T) {
 }
 
 func TestGenericSourceDefaultHeader(t *testing.T) {
+	t.Parallel()
 	src := NewGenericSource("test", "")
 	if src.typeHeader != "X-Event-Type" {
 		t.Errorf("default header = %q, want X-Event-Type", src.typeHeader)

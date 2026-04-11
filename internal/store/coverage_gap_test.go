@@ -9,6 +9,7 @@ import (
 // --- 1. Open — valid path (covered), non-writable directory ---
 
 func TestOpenNonWritableDirectory(t *testing.T) {
+	t.Parallel()
 	// /dev/null/anything is not a valid directory on any OS
 	_, err := Open("/dev/null/subdir/test.db")
 	if err == nil {
@@ -19,6 +20,7 @@ func TestOpenNonWritableDirectory(t *testing.T) {
 // --- 2. migrate — idempotent re-run ---
 
 func TestMigrateIdempotent(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "test.db")
 
 	// First open creates and migrates
@@ -65,6 +67,7 @@ func TestMigrateIdempotent(t *testing.T) {
 // --- 3. DefaultDBPath ---
 
 func TestDefaultDBPathEndsCorrectly(t *testing.T) {
+	t.Parallel()
 	path, err := DefaultDBPath()
 	if err != nil {
 		t.Fatal(err)
@@ -77,6 +80,7 @@ func TestDefaultDBPathEndsCorrectly(t *testing.T) {
 // --- Additional: Verify all schema versions are applied ---
 
 func TestAllSchemaVersionsApplied(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "test.db")
 	db, err := Open(path)
 	if err != nil {
@@ -97,6 +101,7 @@ func TestAllSchemaVersionsApplied(t *testing.T) {
 // --- Additional: Verify events table columns after migration ---
 
 func TestEventsTableHasExpectedColumns(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "test.db")
 	db, err := Open(path)
 	if err != nil {
@@ -126,6 +131,7 @@ func TestEventsTableHasExpectedColumns(t *testing.T) {
 // --- Additional: Tasks table has retry columns from v5 ---
 
 func TestTasksTableHasRetryColumns(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "test.db")
 	db, err := Open(path)
 	if err != nil {
@@ -143,6 +149,7 @@ func TestTasksTableHasRetryColumns(t *testing.T) {
 // --- Additional: WAL mode preserved after re-open ---
 
 func TestWALModePreserved(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "test.db")
 	db, err := Open(path)
 	if err != nil {

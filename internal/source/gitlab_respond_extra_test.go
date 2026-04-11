@@ -14,6 +14,7 @@ import (
 )
 
 func TestGitLabResponder_Labels(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name         string
 		evType       string
@@ -103,6 +104,7 @@ func TestGitLabResponder_Labels(t *testing.T) {
 }
 
 func TestGitLabResponder_Status(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		state     string
@@ -167,6 +169,7 @@ func TestGitLabResponder_Status(t *testing.T) {
 }
 
 func TestGitLabResponder_CommitSuggestion(t *testing.T) {
+	t.Parallel()
 	var gotPath string
 	var gotPayload map[string]string
 
@@ -215,6 +218,7 @@ func TestGitLabResponder_CommitSuggestion(t *testing.T) {
 }
 
 func TestMapStatusState(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		ghState string
 		want    string
@@ -237,6 +241,7 @@ func TestMapStatusState(t *testing.T) {
 }
 
 func TestGitLabResponder_StatusSkippedWithoutSHA(t *testing.T) {
+	t.Parallel()
 	// If head_sha is missing, status should be skipped (no API call)
 	callCount := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -269,6 +274,7 @@ func TestGitLabResponder_StatusSkippedWithoutSHA(t *testing.T) {
 }
 
 func TestGitLabResponder_LabelsEmptyLists(t *testing.T) {
+	t.Parallel()
 	// Labels with empty add/remove lists should not trigger API call
 	callCount := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -300,6 +306,7 @@ func TestGitLabResponder_LabelsEmptyLists(t *testing.T) {
 }
 
 func TestGitLabResponder_IssueEndpoints(t *testing.T) {
+	t.Parallel()
 	var gotPath string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotPath = r.RequestURI
@@ -329,6 +336,7 @@ func TestGitLabResponder_IssueEndpoints(t *testing.T) {
 }
 
 func TestGitLabResponder_APIError(t *testing.T) {
+	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(403)
 		w.Write([]byte(`{"message":"forbidden"}`))
@@ -355,6 +363,7 @@ func TestGitLabResponder_APIError(t *testing.T) {
 }
 
 func TestGitLabResponder_PrivateTokenHeader(t *testing.T) {
+	t.Parallel()
 	var gotToken string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotToken = r.Header.Get("PRIVATE-TOKEN")
@@ -380,6 +389,7 @@ func TestGitLabResponder_PrivateTokenHeader(t *testing.T) {
 }
 
 func TestGitLabResponder_MissingRepoInfo(t *testing.T) {
+	t.Parallel()
 	resp := NewGitLabResponder("https://gitlab.com/api/v4", "token")
 	ev := &events.Event{
 		Type:  "merge_request.opened",
@@ -396,6 +406,7 @@ func TestGitLabResponder_MissingRepoInfo(t *testing.T) {
 }
 
 func TestEncodeProject(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input string
 		want  string
@@ -415,6 +426,7 @@ func TestEncodeProject(t *testing.T) {
 }
 
 func TestGitLabResponder_MultipleActions(t *testing.T) {
+	t.Parallel()
 	// Test that multiple result fields trigger multiple API calls
 	var paths []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

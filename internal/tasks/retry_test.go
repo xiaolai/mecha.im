@@ -22,6 +22,7 @@ func testRetryStore(t *testing.T) *Store {
 }
 
 func TestRetryOrFail_Retries(t *testing.T) {
+	t.Parallel()
 	s := testRetryStore(t)
 	ctx := context.Background()
 
@@ -61,6 +62,7 @@ func TestRetryOrFail_Retries(t *testing.T) {
 }
 
 func TestRetryOrFail_DeadLetter(t *testing.T) {
+	t.Parallel()
 	s := testRetryStore(t)
 	ctx := context.Background()
 
@@ -105,6 +107,7 @@ func TestRetryOrFail_DeadLetter(t *testing.T) {
 }
 
 func TestRetryOrFail_ExponentialBackoff(t *testing.T) {
+	t.Parallel()
 	s := testRetryStore(t)
 	ctx := context.Background()
 
@@ -139,6 +142,7 @@ func TestRetryOrFail_ExponentialBackoff(t *testing.T) {
 }
 
 func TestReadyForRetry(t *testing.T) {
+	t.Parallel()
 	s := testRetryStore(t)
 	ctx := context.Background()
 
@@ -163,6 +167,7 @@ func TestReadyForRetry(t *testing.T) {
 }
 
 func TestReadyForRetry_SkipsFuture(t *testing.T) {
+	t.Parallel()
 	s := testRetryStore(t)
 	ctx := context.Background()
 
@@ -184,6 +189,7 @@ func TestReadyForRetry_SkipsFuture(t *testing.T) {
 }
 
 func TestReadyForRetry_SkipsNullNextRetry(t *testing.T) {
+	t.Parallel()
 	s := testRetryStore(t)
 	ctx := context.Background()
 
@@ -200,6 +206,7 @@ func TestReadyForRetry_SkipsNullNextRetry(t *testing.T) {
 }
 
 func TestReadyForRetry_MultipleTasks(t *testing.T) {
+	t.Parallel()
 	s := testRetryStore(t)
 	ctx := context.Background()
 
@@ -237,6 +244,7 @@ func TestReadyForRetry_MultipleTasks(t *testing.T) {
 }
 
 func TestRetryOrFail_NonexistentTask(t *testing.T) {
+	t.Parallel()
 	s := testRetryStore(t)
 	ctx := context.Background()
 
@@ -250,6 +258,7 @@ func TestRetryOrFail_NonexistentTask(t *testing.T) {
 }
 
 func TestReadyForRetry_SkipsNonPending(t *testing.T) {
+	t.Parallel()
 	s := testRetryStore(t)
 	ctx := context.Background()
 

@@ -8,6 +8,7 @@ import (
 )
 
 func TestAllowAll(t *testing.T) {
+	t.Parallel()
 	f := &AllowAll{}
 	res := Result{
 		Output:  "hello",
@@ -31,6 +32,7 @@ func TestAllowAll(t *testing.T) {
 }
 
 func TestRuleFilterBlockComment(t *testing.T) {
+	t.Parallel()
 	f := &RuleFilter{Comment: &CommentPolicy{Allow: false}}
 	res := Result{Comment: &CommentAction{Body: "review"}}
 	filtered, d, _ := f.Apply(context.Background(), &events.Event{}, res)
@@ -43,6 +45,7 @@ func TestRuleFilterBlockComment(t *testing.T) {
 }
 
 func TestRuleFilterTruncateComment(t *testing.T) {
+	t.Parallel()
 	// max_length=40: suffix is 27 runes → 13 content runes + 27 suffix = 40 total
 	f := &RuleFilter{Comment: &CommentPolicy{Allow: true, MaxLength: 40}}
 	original := "this is a very long comment body that exceeds the limit"
@@ -64,6 +67,7 @@ func TestRuleFilterTruncateComment(t *testing.T) {
 }
 
 func TestRuleFilterTruncateUTF8(t *testing.T) {
+	t.Parallel()
 	// max_length=30: suffix is 27 runes → 3 content runes
 	f := &RuleFilter{Comment: &CommentPolicy{Allow: true, MaxLength: 30}}
 	input := "\u4f60\u597d\u4e16\u754c\uff01\u6d4b\u8bd5" // 7 CJK chars
@@ -83,6 +87,7 @@ func TestRuleFilterTruncateUTF8(t *testing.T) {
 }
 
 func TestRuleFilterBlockLabels(t *testing.T) {
+	t.Parallel()
 	f := &RuleFilter{Labels: &LabelPolicy{Allow: false}}
 	res := Result{Labels: &LabelAction{Add: []string{"ok"}}}
 	filtered, d, _ := f.Apply(context.Background(), &events.Event{}, res)
@@ -95,6 +100,7 @@ func TestRuleFilterBlockLabels(t *testing.T) {
 }
 
 func TestRuleFilterBlockedLabels(t *testing.T) {
+	t.Parallel()
 	f := &RuleFilter{Labels: &LabelPolicy{Allow: true, Blocked: []string{"approved"}}}
 	res := Result{Labels: &LabelAction{Add: []string{"ok", "approved", "reviewed"}}}
 	filtered, _, _ := f.Apply(context.Background(), &events.Event{}, res)
@@ -112,6 +118,7 @@ func TestRuleFilterBlockedLabels(t *testing.T) {
 }
 
 func TestRuleFilterBlockedLabelRemovals(t *testing.T) {
+	t.Parallel()
 	f := &RuleFilter{Labels: &LabelPolicy{Allow: true, Blocked: []string{"approved", "do-not-merge"}}}
 	res := Result{Labels: &LabelAction{
 		Add:    []string{"needs-review"},
@@ -137,6 +144,7 @@ func TestRuleFilterBlockedLabelRemovals(t *testing.T) {
 }
 
 func TestRuleFilterBlockStatus(t *testing.T) {
+	t.Parallel()
 	f := &RuleFilter{Status: &StatusPolicy{Allow: false}}
 	res := Result{Status: &StatusAction{State: "success"}}
 	filtered, _, _ := f.Apply(context.Background(), &events.Event{}, res)
@@ -146,6 +154,7 @@ func TestRuleFilterBlockStatus(t *testing.T) {
 }
 
 func TestRuleFilterBlockCommit(t *testing.T) {
+	t.Parallel()
 	f := &RuleFilter{Commit: &CommitPolicy{Allow: false}}
 	res := Result{Commit: &CommitAction{Message: "fix"}}
 	filtered, _, _ := f.Apply(context.Background(), &events.Event{}, res)
@@ -155,6 +164,7 @@ func TestRuleFilterBlockCommit(t *testing.T) {
 }
 
 func TestRuleFilterAllowByDefault(t *testing.T) {
+	t.Parallel()
 	f := &RuleFilter{} // no rules = allow all
 	res := Result{
 		Comment: &CommentAction{Body: "review"},
@@ -167,6 +177,7 @@ func TestRuleFilterAllowByDefault(t *testing.T) {
 }
 
 func TestParseRulesNil(t *testing.T) {
+	t.Parallel()
 	f, err := ParseRules(nil)
 	if err != nil {
 		t.Fatal(err)
@@ -177,6 +188,7 @@ func TestParseRulesNil(t *testing.T) {
 }
 
 func TestParseRulesEmpty(t *testing.T) {
+	t.Parallel()
 	f, err := ParseRules(map[string]any{})
 	if err != nil {
 		t.Fatal(err)
@@ -187,6 +199,7 @@ func TestParseRulesEmpty(t *testing.T) {
 }
 
 func TestParseRulesMalformedTypes(t *testing.T) {
+	t.Parallel()
 	// Wrong type for comment (string instead of map) — should not panic
 	raw := map[string]any{
 		"comment": "yes",
@@ -214,6 +227,7 @@ func TestParseRulesMalformedTypes(t *testing.T) {
 }
 
 func TestParseRulesBoolTypeError(t *testing.T) {
+	t.Parallel()
 	raw := map[string]any{
 		"comment": map[string]any{"allow": "yes"},
 	}
@@ -224,6 +238,7 @@ func TestParseRulesBoolTypeError(t *testing.T) {
 }
 
 func TestParseRulesUnknownKeys(t *testing.T) {
+	t.Parallel()
 	raw := map[string]any{
 		"unknown_key": map[string]any{"allow": true},
 		"comment":     map[string]any{"allow": true},
@@ -242,6 +257,7 @@ func TestParseRulesUnknownKeys(t *testing.T) {
 }
 
 func TestRuleFilterEmptyResult(t *testing.T) {
+	t.Parallel()
 	f := &RuleFilter{Comment: &CommentPolicy{Allow: false}}
 	res := Result{} // empty result — no actions
 	_, d, err := f.Apply(context.Background(), &events.Event{}, res)
@@ -254,6 +270,7 @@ func TestRuleFilterEmptyResult(t *testing.T) {
 }
 
 func TestParseRulesWithConfig(t *testing.T) {
+	t.Parallel()
 	raw := map[string]any{
 		"comment": map[string]any{"allow": true, "max_length": float64(5000)},
 		"labels":  map[string]any{"allow": true, "blocked": []any{"approved"}},

@@ -10,6 +10,7 @@ import (
 )
 
 func TestCronTrigger(t *testing.T) {
+	t.Parallel()
 	cron := NewCronTrigger("test-cron", 50*time.Millisecond, "daily-check")
 	if cron.Name() != "test-cron" {
 		t.Fatalf("Name() = %q", cron.Name())

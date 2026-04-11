@@ -36,6 +36,28 @@ func testServer(t *testing.T) (*Server, func()) {
 	return s, func() { db.Close() }
 }
 
+func testServerWithQueueSize(t *testing.T, queueSize int) (*Server, func()) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "test.db")
+	db, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reg, err := workers.NewRegistry(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	taskStore := tasks.NewStore(db)
+
+	s := New(Config{
+		Registry:  reg,
+		Tasks:     taskStore,
+		Addr:      "127.0.0.1:0",
+		QueueSize: queueSize,
+	})
+	return s, func() { db.Close() }
+}
+
 func TestHealthEndpoint(t *testing.T) {
 	s, cleanup := testServer(t)
 	defer cleanup()

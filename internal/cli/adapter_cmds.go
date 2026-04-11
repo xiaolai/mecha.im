@@ -27,6 +27,25 @@ func adapterStart(reg *workers.Registry, name string) error {
 	}
 	ac := e.Worker.Adapter
 
+	// Resolve token reference from secrets.yml if raw api_key is empty.
+	// api_key is json:"-" so it's never persisted to SQLite; on restart,
+	// the token reference is the only way to recover the secret.
+	if ac.APIKey == "" && ac.Token != "" {
+		secretsPath, err := workers.DefaultSecretsPath()
+		if err != nil {
+			return fmt.Errorf("resolve secrets path: %w", err)
+		}
+		secrets, err := workers.LoadSecrets(secretsPath)
+		if err != nil {
+			return fmt.Errorf("load secrets for adapter token %q: %w", ac.Token, err)
+		}
+		resolved, err := secrets.Resolve(ac.Token)
+		if err != nil {
+			return fmt.Errorf("resolve adapter token %q: %w", ac.Token, err)
+		}
+		ac.APIKey = resolved
+	}
+
 	a, err := newAdapter(ac)
 	if err != nil {
 		return fmt.Errorf("create adapter: %w", err)

@@ -385,7 +385,6 @@ func TestEdge_EventRuleAutoFalse(t *testing.T) {
 	// Auto=false means the matched rule is skipped, leaving the event skipped.
 	deadline := time.Now().Add(10 * time.Second)
 	var evs []events.Event
-	var err error
 	for time.Now().Before(deadline) {
 		evs, err = pts.Events.List(context.Background(), "")
 		if err != nil {

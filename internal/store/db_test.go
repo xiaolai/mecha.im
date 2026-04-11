@@ -7,6 +7,7 @@ import (
 )
 
 func TestOpenCreatesDB(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "test.db")
 	db, err := Open(path)
 	if err != nil {
@@ -25,6 +26,7 @@ func TestOpenCreatesDB(t *testing.T) {
 }
 
 func TestOpenIdempotent(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "test.db")
 	db1, err := Open(path)
 	if err != nil {
@@ -40,6 +42,7 @@ func TestOpenIdempotent(t *testing.T) {
 }
 
 func TestDefaultDBPath(t *testing.T) {
+	t.Parallel()
 	path, err := DefaultDBPath()
 	if err != nil {
 		t.Fatal(err)
@@ -53,6 +56,7 @@ func TestDefaultDBPath(t *testing.T) {
 }
 
 func TestOpenBadPath(t *testing.T) {
+	t.Parallel()
 	_, err := Open("/dev/null/impossible/path.db")
 	if err == nil {
 		t.Error("expected error for bad path")
@@ -60,6 +64,7 @@ func TestOpenBadPath(t *testing.T) {
 }
 
 func TestOpenWALMode(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "test.db")
 	db, err := Open(path)
 	if err != nil {
