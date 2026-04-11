@@ -58,14 +58,15 @@ Mecha is under active development. Worker, Task, and Event nouns are implemented
 | Disposable (one-shot) containers | ✅ Implemented |
 | Adapter workers (Ollama, OpenAI-compatible) | ✅ Implemented |
 
-## Four Nouns
+## Five Nouns
 
-The full system (when complete) is built on four concepts:
+The full system is built on five concepts:
 
 - **Event** — something happened (webhook, schedule, API call)
 - **Worker** — takes a prompt, returns a result (Docker container, adapter, or external endpoint)
 - **Task** — an event matched to a worker
 - **Policy** — what a result is allowed to contain
+- **Log** — structured pipeline observations (every event, match, dispatch, write-back) exposed via `GET /logs`. Log observes the other four nouns but never mutates them.
 
 ## Pipeline
 

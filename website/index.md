@@ -1,4 +1,6 @@
 ---
+title: Mecha
+description: Agentic workflow engine — managing event-driven LLM workers with YAML config, policy-controlled write-back, and a single Go binary.
 layout: home
 
 hero:

@@ -167,4 +167,4 @@ Use separate workers when:
 | `CODEX_MCP` | Force-enable Codex MCP (not needed if `~/.codex/auth.json` is mounted) | auto-detected |
 | `CODEX_API_KEY` | Codex API key for non-subscription users | — |
 
-All standard [Claude env vars](/guide/workers#claude-env-vars) are also supported.
+All standard [Claude env vars](/guide/workers#backend-specific-env-vars) are also supported.

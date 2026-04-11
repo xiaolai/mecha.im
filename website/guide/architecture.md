@@ -68,7 +68,7 @@ The single binary handles worker management, event routing, task dispatch, and p
 | `internal/adapter/` | LLM adapters: Ollama, OpenAI-compatible |
 | `internal/workers/` | Config, registry, Docker client, secrets, health, redaction |
 | `internal/writeback/` | GitHub write-back (comments, labels, status, diffs) |
-| `internal/store/` | SQLite database, versioned migrations (V1-V5) |
+| `internal/store/` | SQLite database, versioned migrations (V1-V7) |
 
 ### Worker runtime (TypeScript/Bun)
 
@@ -124,13 +124,17 @@ See [Secrets](./secrets) for full details.
 stateDiagram-v2
     [*] --> offline : add
     offline --> online : start
+    online --> busy : task dispatched
+    busy --> online : task complete
     online --> offline : stop
     online --> error : health check failed
+    busy --> error : health check failed
     error --> offline : stop
     offline --> [*] : remove
 
     note right of offline : Definition exists, container stopped
     note right of online : Container running, health passing
+    note right of busy : Task in flight, returns 429 to new requests
     note right of error : Health check failed or container exited
 ```
 
@@ -148,7 +152,7 @@ sequenceDiagram
     M->>D: Remove old container (crash recovery)
     M->>D: Create container (env, mounts, resources)
     M->>D: Start container
-    loop Every 2s, max 30s
+    loop Every 2s, max 90s
         M->>C: GET /health
         C-->>M: 200 OK
     end

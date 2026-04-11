@@ -17,7 +17,9 @@ DOCS_DIR=website/guide mecha-mcp
 GITHUB_MECHA_MCP_WEBHOOK_SECRET=your-secret mecha-mcp
 ```
 
-The server listens on `:8090` by default (override with `ADDR`).
+The server listens on `127.0.0.1:8090` by default (override with `ADDR`). To
+expose it on all interfaces, set `ADDR=0.0.0.0:8090` explicitly — always pair
+that with an API key so the MCP endpoints are not reachable unauthenticated.
 
 ## Endpoints
 
@@ -171,7 +173,7 @@ Return current mecha version.
 | `RULES_DIR` | `.claude/rules` | Rule/spec markdown directory |
 | `EXAMPLES_DIR` | `workers` | Example worker YAML directory |
 | `GITHUB_MECHA_MCP_WEBHOOK_SECRET` | — | HMAC secret for GitHub webhook |
-| `ADDR` | `:8090` | MCP server listen address |
+| `ADDR` | `127.0.0.1:8090` | MCP server listen address |
 | `MECHA_API_URL` | from config.yml | Override mecha API base URL |
 | `MECHA_API_KEY` | from config.yml | Override mecha API key |
 
