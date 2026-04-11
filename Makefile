@@ -10,7 +10,10 @@ test:
 vet:
 	go vet ./...
 
-ci: vet test build
+bun-test:
+	cd docker/runtime && bun test
+
+ci: vet test bun-test build
 
 # Coverage profile generation
 cover:
@@ -43,4 +46,4 @@ image-base:
 image: image-base
 	docker build -t mecha-worker docker/claude/
 
-.PHONY: build mcp test vet ci clean image-base image cover cover-html cover-check
+.PHONY: build mcp test vet bun-test ci clean image-base image cover cover-html cover-check

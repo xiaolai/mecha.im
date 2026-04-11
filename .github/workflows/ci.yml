@@ -21,6 +21,12 @@ jobs:
       - run: go build -o /dev/null ./cmd/mecha
       - run: go build -o /dev/null ./cmd/mecha-mcp
       - run: make cover-check
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Runtime unit tests (TypeScript)
+        working-directory: docker/runtime
+        run: bun test
 
   docker:
     runs-on: ubuntu-latest
