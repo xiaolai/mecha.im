@@ -170,7 +170,21 @@ jobs:
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           for platform in darwin-arm64 darwin-amd64 linux-arm64 linux-amd64; do
             URL="https://github.com/xiaolai/mecha.im/releases/download/${TAG}/mecha-${platform}.tar.gz"
-            SHA=$(curl -sL "$URL" | shasum -a 256 | awk '{print $1}')
+            # Retry up to 5 times with 30s backoff — GitHub CDN may not have
+            # propagated the release asset immediately after publish (M-14).
+            SHA=""
+            for attempt in 1 2 3 4 5; do
+              SHA=$(curl -fsSL "$URL" 2>/dev/null | shasum -a 256 | awk '{print $1}')
+              if [ -n "$SHA" ] && [ ${#SHA} -eq 64 ]; then
+                break
+              fi
+              echo "Attempt $attempt: asset not ready, waiting 30s..."
+              sleep 30
+            done
+            if [ -z "$SHA" ] || [ ${#SHA} -ne 64 ]; then
+              echo "ERROR: could not fetch valid SHA256 for $platform after 5 attempts"
+              exit 1
+            fi
             VAR="SHA_$(echo "$platform" | tr '-' '_' | tr '[:lower:]' '[:upper:]')"
             echo "${VAR}=${SHA}" >> "$GITHUB_ENV"
           done
