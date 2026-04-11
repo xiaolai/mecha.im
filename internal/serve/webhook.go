@@ -20,6 +20,15 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Per-source rate limiting on webhook ingestion to prevent SQLite
+	// write-lock saturation from burst traffic. Verification challenges
+	// (GET) are exempt — they need to succeed immediately for handshakes.
+	if r.Method != "GET" && s.limiter != nil && !s.limiter.Allow("webhook:"+sourceName) {
+		webhooksRateLimited.Add(1)
+		writeError(w, http.StatusTooManyRequests, "rate limit exceeded")
+		return
+	}
+
 	// Handle verification challenges (Meta, Slack)
 	if r.Method == "GET" {
 		if v, ok := src.(source.Verifier); ok {
