@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -20,8 +21,6 @@ func Open(path string) (*sql.DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
-	// Restrict DB file permissions — contains worker definitions with env vars.
-	os.Chmod(path, 0o600)
 	db.SetMaxOpenConns(1)
 	for _, pragma := range []string{
 		"PRAGMA journal_mode=WAL",
@@ -32,6 +31,12 @@ func Open(path string) (*sql.DB, error) {
 			db.Close()
 			return nil, fmt.Errorf("exec %s: %w", pragma, err)
 		}
+	}
+	// Restrict DB file permissions after first query creates the file.
+	// Contains worker definitions with env vars.
+	if err := os.Chmod(path, 0o600); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("restrict db permissions: %w", err)
 	}
 	if err := migrate(db); err != nil {
 		db.Close()
@@ -88,7 +93,12 @@ func applyMigration(db *sql.DB, ver int, stmts []string) error {
 	defer tx.Rollback()
 	for _, stmt := range stmts {
 		if _, err := tx.Exec(stmt); err != nil {
-			if strings.Contains(err.Error(), "duplicate column") {
+			// ALTER TABLE ADD COLUMN has no IF NOT EXISTS in SQLite. A
+			// "duplicate column name" error means the column exists from a
+			// prior migration run — skip idempotently and log so operators
+			// can see it happened.
+			if strings.Contains(err.Error(), "duplicate column name") {
+				log.Printf("store: migration v%d: column already exists, skipping: %v", ver, err)
 				continue
 			}
 			return fmt.Errorf("apply schema v%d: %w", ver, err)

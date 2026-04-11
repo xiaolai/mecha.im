@@ -139,6 +139,10 @@ func (d *DockerClient) Create(ctx context.Context, cfg ContainerCfg) (string, er
 	}
 	if cfg.Resources.Pids > 0 {
 		resources.PidsLimit = ptr(int64(cfg.Resources.Pids))
+	} else {
+		// Default PID limit prevents fork-bomb attacks from compromised
+		// worker images. Operators can raise it via resources.pids in YAML.
+		resources.PidsLimit = ptr(int64(1024))
 	}
 
 	resp, err := d.cli.ContainerCreate(ctx, client.ContainerCreateOptions{
