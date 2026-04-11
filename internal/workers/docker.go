@@ -53,10 +53,15 @@ func NewDockerClient(host string) (*DockerClient, error) {
 		return nil, fmt.Errorf("create docker client: %w", err)
 	}
 	var hostAddr string
-	if host != "" {
-		hostAddr = extractHost(host)
-	} else if envHost := os.Getenv("DOCKER_HOST"); envHost != "" {
-		hostAddr = extractHost(envHost)
+	effectiveHost := host
+	if effectiveHost == "" {
+		effectiveHost = os.Getenv("DOCKER_HOST")
+	}
+	if effectiveHost != "" {
+		hostAddr = extractHost(effectiveHost)
+		if strings.HasPrefix(effectiveHost, "tcp://") && !strings.HasPrefix(effectiveHost, "tcp://127.0.0.1") && !strings.HasPrefix(effectiveHost, "tcp://localhost") {
+			fmt.Fprintf(os.Stderr, "WARNING: Docker host %q uses plaintext TCP — credentials in transit are unencrypted. Use TLS (https://) for remote Docker daemons.\n", effectiveHost)
+		}
 	}
 	return &DockerClient{cli: cli, hostAddr: hostAddr}, nil
 }
@@ -83,7 +88,10 @@ func extractHost(host string) string {
 }
 
 // Pull downloads a Docker image, waiting for completion. Returns error on failure.
+// Logs progress so operators can distinguish slow pulls from hangs.
 func (d *DockerClient) Pull(ctx context.Context, img string) error {
+	fmt.Fprintf(os.Stderr, "docker: pulling image %s...\n", img)
+	start := time.Now()
 	resp, err := d.cli.ImagePull(ctx, img, client.ImagePullOptions{})
 	if err != nil {
 		return fmt.Errorf("pull image: %w", err)
@@ -92,6 +100,7 @@ func (d *DockerClient) Pull(ctx context.Context, img string) error {
 	if err := resp.Wait(ctx); err != nil {
 		return fmt.Errorf("pull image %s: %w", img, err)
 	}
+	fmt.Fprintf(os.Stderr, "docker: pulled %s in %s\n", img, time.Since(start).Round(time.Millisecond))
 	return nil
 }
 

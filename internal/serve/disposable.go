@@ -39,7 +39,7 @@ func (s *Server) disposableContainer(ctx context.Context, entry workers.Entry) (
 	suffix := randomSuffix()
 	name := fmt.Sprintf("mecha-disposable-%s-%s", entry.Worker.Name, suffix)
 
-	env, err := workers.BuildContainerEnv(dc, validateDisposableEnv)
+	env, err := workers.BuildContainerEnv(dc, validateDisposableEnv, s.secrets)
 	if err != nil {
 		dock.Close()
 		return "", cleanup, fmt.Errorf("build env: %w", err)

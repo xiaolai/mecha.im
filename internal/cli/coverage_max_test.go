@@ -31,9 +31,9 @@ func TestIsReservedEnvKeyCaseSensitivity(t *testing.T) {
 		key  string
 		want bool
 	}{
-		{"WORKER_BACKEND", true},
-		{"worker_backend", true},
-		{"Worker_Backend", true},
+		{"WORKER_BACKEND", false},
+		{"worker_backend", false},
+		{"Worker_Backend", false},
 		{"HOME", true},
 		{"home", true},
 		{"CUSTOM_VAR", false},

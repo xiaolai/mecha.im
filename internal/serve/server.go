@@ -27,6 +27,7 @@ type Server struct {
 	docker       *workers.DockerClient
 	limiter      *RateLimiter
 	logs         *logs.Store
+	secrets      *workers.Secrets
 	pending      chan string
 	dispatchWg   sync.WaitGroup
 	addr         string
@@ -112,6 +113,16 @@ func New(cfg Config) *Server {
 
 // Start begins serving HTTP and the dispatch loop. Blocks until ctx is cancelled.
 func (s *Server) Start(ctx context.Context) error {
+	// Cache secrets once at startup for container builds (M-20: avoid re-reading
+	// ~/.mecha/secrets.yml on every disposable container creation).
+	if secPath, err := workers.DefaultSecretsPath(); err == nil {
+		if sec, err := workers.LoadSecrets(secPath); err == nil {
+			s.secrets = sec
+		} else {
+			s.logger.Warn("load secrets", "err", err)
+		}
+	}
+
 	// Cleanup orphaned disposable containers from previous crashes
 	if s.docker != nil {
 		removed, cleanupErr := s.docker.CleanupOrphanDisposables(ctx)
