@@ -27,28 +27,60 @@ var (
 	webhooksRateLimited  = expvar.NewInt("webhooks_rate_limited")
 )
 
-// latencyTracker computes an exponential moving average (EMA) of dispatch
-// latency. EMA gives more weight to recent observations, making spikes
-// visible within a few tasks rather than requiring thousands of samples
-// to move the needle on a cumulative average.
-// α=0.1 weights the most recent 10 tasks heavily.
+// latencyTracker tracks dispatch latency as both an EMA (for the expvar gauge)
+// and a histogram (for Prometheus percentile queries). The histogram uses fixed
+// bucket boundaries in milliseconds, chosen for LLM task latencies.
 const emaAlpha = 0.1
 
+// histogramBuckets are upper bounds in milliseconds for the Prometheus histogram.
+// Covers sub-second to 10-minute tasks.
+var histogramBuckets = []float64{
+	100, 250, 500, 1000, 2500, 5000, 10000, 30000, 60000, 120000, 300000, 600000,
+}
+
 type latencyTracker struct {
-	mu  sync.Mutex
-	ema float64
+	mu      sync.Mutex
+	ema     float64
+	buckets []uint64 // cumulative counts per bucket
+	count   uint64
+	sum     float64
 }
 
 func (lt *latencyTracker) observe(d time.Duration) {
 	lt.mu.Lock()
 	ms := float64(d.Milliseconds())
 	if lt.ema == 0 {
-		lt.ema = ms // seed with first observation
+		lt.ema = ms
 	} else {
 		lt.ema = emaAlpha*ms + (1-emaAlpha)*lt.ema
 	}
 	dispatchLatency.Set(lt.ema)
+
+	// Update histogram
+	lt.count++
+	lt.sum += ms
+	if lt.buckets == nil {
+		lt.buckets = make([]uint64, len(histogramBuckets))
+	}
+	for i, bound := range histogramBuckets {
+		if ms <= bound {
+			lt.buckets[i]++
+		}
+	}
 	lt.mu.Unlock()
+}
+
+// snapshot returns a copy of the histogram state for rendering.
+func (lt *latencyTracker) snapshot() (buckets []uint64, count uint64, sum float64) {
+	lt.mu.Lock()
+	if lt.buckets != nil {
+		buckets = make([]uint64, len(lt.buckets))
+		copy(buckets, lt.buckets)
+	}
+	count = lt.count
+	sum = lt.sum
+	lt.mu.Unlock()
+	return
 }
 
 var latency latencyTracker

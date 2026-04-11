@@ -312,9 +312,10 @@ All findings are cited to specific file:line. Every severity label is evidence-b
 - **File:** `internal/store/db.go:24` — `os.Chmod(path, 0o600)` — error dropped silently.
 - **Fix:** Now captures and propagates the Chmod error. Also moved the call to after the first PRAGMA executes (which causes SQLite to create the file), since `sql.Open` is lazy and doesn't create the file immediately. Commit: `c25d38e1`.
 
-**[LOW-4] `latencyTracker` exposed as a Prometheus gauge, not a histogram**
+**[LOW-4] ✅ FIXED — `latencyTracker` exposed as a Prometheus gauge, not a histogram**
 
 - **File:** `internal/serve/prometheus.go:27-36` — no percentiles, no rate computation possible from a gauge.
+- **Fix:** Added a proper Prometheus histogram alongside the EMA gauge. `latencyTracker` now tracks bucket counts (12 buckets: 100ms to 10min), total count, and sum. `prometheusHandler` renders `mecha_dispatch_latency_ms_bucket{le="X"}`, `_sum`, and `_count` lines. The EMA gauge is retained for backward compatibility. Zero external deps — pure stdlib. Commit: `2da5ae82`.
 
 **[LOW-5] ✅ FIXED — TypeScript backend does not log stack traces for unexpected SDK errors**
 
