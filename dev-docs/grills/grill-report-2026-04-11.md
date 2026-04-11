@@ -206,10 +206,11 @@ All findings are cited to specific file:line. Every severity label is evidence-b
 - **Evidence:** The `adapterRunners` map is a process-level global. `adapterStop` is wired into `worker stop` CLI command but not into the serve command's graceful shutdown. In-flight adapter requests are abruptly killed on SIGTERM.
 - **Fix:** After `srv.Start(ctx)` returns, iterate `adapterRunners` and call `adapterStop` on each. Adapter runners are stopped with a 5-second context timeout after the server drains dispatches.
 
-**[MEDIUM-6] Webhook endpoint has no rate limiting — SQLite write lock can be saturated**
+**[MEDIUM-6] ✅ FIXED — Webhook endpoint has no rate limiting — SQLite write lock can be saturated**
 
 - **File:** `internal/serve/webhook.go:38`, `internal/serve/ratelimit.go`
 - **Evidence:** `RateLimiter.Allow(workerName)` is called during dispatch, not during webhook ingestion. A burst of 10,000 valid webhook events can saturate the SQLite single-writer lock, filling the 256-slot pending channel and causing task drops.
+- **Fix:** Added per-source rate limiting in `handleWebhook` using `s.limiter.Allow("webhook:"+sourceName)` before body read. Rejected requests return HTTP 429 and increment `webhooks_rate_limited` counter registered in Prometheus output. Commit: `297c997d`.
 
 **[MEDIUM-7] ✅ FIXED — Workers without `policy:` silently get `AllowAll` — managed worker bypass by omission**
 
@@ -274,15 +275,17 @@ All findings are cited to specific file:line. Every severity label is evidence-b
 
 - Already captured as CRITICAL-2. The MEDIUM aspect is information leakage of internal event attribute names to the LLM even without malicious intent.
 
-**[MEDIUM-18] No integration test for `GET /logs` endpoint**
+**[MEDIUM-18] ✅ FIXED — No integration test for `GET /logs` endpoint**
 
 - **File:** `internal/serve/server.go:85`
 - **Evidence:** None of the 22 integration tests call `GET /logs`. Query parsing bugs (duration parsing, limit overflow) go undetected end-to-end.
+- **Fix:** Added `internal/serve/logs_handler_test.go` with 5 unit tests: `TestHandleLogsEmpty`, `TestHandleLogsWithEntries`, `TestHandleLogsFilterByWorker`, `TestHandleLogsLimitParam`, `TestHandleLogsNotRegisteredWithoutLogStore`. Tests verify 200 responses, JSON decoding, worker filter param, limit param, and 404 when no log store configured. Commit: `297c997d`.
 
-**[MEDIUM-19] Integration tests use `time.Sleep` for synchronization — flakiness on slow CI runners**
+**[MEDIUM-19] ✅ FIXED — Integration tests use `time.Sleep` for synchronization — flakiness on slow CI runners**
 
 - **File:** `test/integration/edge_cases_test.go:385`, `api_endpoints_test.go:344`, `disposable_test.go:84`
 - **Evidence:** Three integration tests sleep 500ms–3s instead of polling with deadlines. On a loaded CI machine these produce false positives.
+- **Fix:** Replaced all three `time.Sleep` calls with deterministic polling: `edge_cases_test.go` polls event state with 50ms interval up to 10s deadline; `api_endpoints_test.go` uses `waitForTaskState` to poll for "dispatched" state before listing; `disposable_test.go` uses `waitForServerHealth` instead of a fixed sleep. Also added `waitForTaskState` helper to `mcp_tools_test.go` for reuse. Commit: `297c997d`.
 
 **[MEDIUM-20] Secrets file spec vs implementation mismatch — secrets re-read per container build, not cached at startup**
 
