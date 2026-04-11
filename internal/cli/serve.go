@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 	"mecha.im/internal/logs"
@@ -119,17 +120,29 @@ func serveCmd() *cobra.Command {
 			// Rate limiter: 2 req/s per worker, burst of 5
 			limiter := serve.NewRateLimiter(2.0, 5)
 
+			// MECHA_DRAIN_TIMEOUT controls how long shutdown waits for
+			// in-flight LLM dispatches. Default 10m; override for long tasks.
+			drainTimeout := 10 * time.Minute
+			if v := os.Getenv("MECHA_DRAIN_TIMEOUT"); v != "" {
+				if d, err := time.ParseDuration(v); err == nil {
+					drainTimeout = d
+				} else {
+					logger.Warn("invalid MECHA_DRAIN_TIMEOUT, using default", "value", v, "default", drainTimeout)
+				}
+			}
+
 			srv := serve.New(serve.Config{
-				Registry:  reg,
-				Tasks:     taskStore,
-				Events:    evStore,
-				Sources:   sources,
-				WriteBack: wb,
-				Limiter:   limiter,
-				Logs:     auditLog,
-				Addr:      addr,
-				APIKey:    apiKey,
-				Logger:    logger,
+				Registry:     reg,
+				Tasks:        taskStore,
+				Events:       evStore,
+				Sources:      sources,
+				WriteBack:    wb,
+				Limiter:      limiter,
+				Logs:         auditLog,
+				Addr:         addr,
+				APIKey:       apiKey,
+				Logger:       logger,
+				DrainTimeout: drainTimeout,
 			})
 
 			// Auto-start adapter workers (in-process, need long-lived server)

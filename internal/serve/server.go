@@ -19,35 +19,39 @@ import (
 
 // Server is the mecha HTTP daemon that accepts tasks and dispatches to workers.
 type Server struct {
-	reg       *workers.Registry
-	tasks     *tasks.Store
-	events    *events.Store
-	sources   *source.Registry
-	writeback *writeback.Client
-	docker    *workers.DockerClient
-	limiter   *RateLimiter
-	logs      *logs.Store
-	pending    chan string
-	dispatchWg sync.WaitGroup
-	addr       string
-	apiKey     string
-	httpSrv    *http.Server
-	logger     *slog.Logger
+	reg          *workers.Registry
+	tasks        *tasks.Store
+	events       *events.Store
+	sources      *source.Registry
+	writeback    *writeback.Client
+	docker       *workers.DockerClient
+	limiter      *RateLimiter
+	logs         *logs.Store
+	pending      chan string
+	dispatchWg   sync.WaitGroup
+	addr         string
+	apiKey       string
+	drainTimeout time.Duration
+	httpSrv      *http.Server
+	logger       *slog.Logger
 }
 
 // Config holds server startup parameters.
 type Config struct {
-	Registry  *workers.Registry
-	Tasks     *tasks.Store
-	Events    *events.Store
-	Sources   *source.Registry
-	WriteBack *writeback.Client
-	Docker    *workers.DockerClient
-	Limiter   *RateLimiter
-	Logs      *logs.Store
-	Addr      string
-	APIKey    string
-	Logger    *slog.Logger
+	Registry     *workers.Registry
+	Tasks        *tasks.Store
+	Events       *events.Store
+	Sources      *source.Registry
+	WriteBack    *writeback.Client
+	Docker       *workers.DockerClient
+	Limiter      *RateLimiter
+	Logs         *logs.Store
+	Addr         string
+	APIKey       string
+	Logger       *slog.Logger
+	// DrainTimeout is how long Serve waits for in-flight dispatches after
+	// receiving a shutdown signal. Defaults to 10 minutes if zero.
+	DrainTimeout time.Duration
 }
 
 // New creates a server but does not start it.
@@ -58,19 +62,24 @@ func New(cfg Config) *Server {
 	if cfg.Registry == nil || cfg.Tasks == nil {
 		panic("serve.New: Registry and Tasks must not be nil")
 	}
+	drain := cfg.DrainTimeout
+	if drain == 0 {
+		drain = 10 * time.Minute
+	}
 	s := &Server{
-		reg:       cfg.Registry,
-		tasks:     cfg.Tasks,
-		events:    cfg.Events,
-		sources:   cfg.Sources,
-		writeback: cfg.WriteBack,
-		docker:    cfg.Docker,
-		limiter:   cfg.Limiter,
-		logs:      cfg.Logs,
-		pending:   make(chan string, 256),
-		addr:      cfg.Addr,
-		apiKey:    cfg.APIKey,
-		logger:    cfg.Logger,
+		reg:          cfg.Registry,
+		tasks:        cfg.Tasks,
+		events:       cfg.Events,
+		sources:      cfg.Sources,
+		writeback:    cfg.WriteBack,
+		docker:       cfg.Docker,
+		limiter:      cfg.Limiter,
+		logs:         cfg.Logs,
+		pending:      make(chan string, 256),
+		addr:         cfg.Addr,
+		apiKey:       cfg.APIKey,
+		drainTimeout: drain,
+		logger:       cfg.Logger,
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /task", s.handlePostTask)
@@ -155,8 +164,8 @@ func (s *Server) Start(ctx context.Context) error {
 
 	select {
 	case <-ctx.Done():
-		s.logger.Info("shutting down")
-		shutCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		s.logger.Info("shutting down", "drain_timeout", s.drainTimeout)
+		shutCtx, cancel := context.WithTimeout(context.Background(), s.drainTimeout)
 		defer cancel()
 		s.httpSrv.Shutdown(shutCtx)
 		// Wait for in-flight dispatches to finish (bounded by shutCtx)
