@@ -62,6 +62,9 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if exists {
+		if ev.Source == "cron" {
+			cronTicksDropped.Add(1)
+		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "duplicate"})
 		return
 	}
@@ -69,6 +72,9 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 	if err := s.events.Create(r.Context(), ev); err != nil {
 		if isUniqueViolation(err) || errors.Is(err, events.ErrDuplicateDedup) {
 			eventsDedupSkip.Add(1)
+			if ev.Source == "cron" {
+				cronTicksDropped.Add(1)
+			}
 			writeJSON(w, http.StatusOK, map[string]string{"status": "duplicate"})
 			return
 		}
