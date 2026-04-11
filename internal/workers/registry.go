@@ -93,8 +93,13 @@ func (r *Registry) Stop(name string) error {
 }
 
 // SetError transitions a worker to error state with a redacted error message.
+// Valid from any active state (busy, online, error). Calling on an offline
+// worker is a no-op (the worker is already quiescent).
 func (r *Registry) SetError(name, errMsg string) error {
 	return r.mutateEntry(name, func(e *Entry) error {
+		if e.State == StateOffline {
+			return fmt.Errorf("worker %q is offline — SetError has no effect", name)
+		}
 		e.State = StateError
 		e.Error = RedactSecrets(errMsg)
 		return nil
@@ -117,8 +122,13 @@ func (r *Registry) SetRuntime(name, containerID, endpoint string) error {
 
 // StopRuntime transitions to offline and clears the endpoint, but keeps ContainerID
 // so that Remove can find and delete the stopped container.
+// Returns an error if the worker is busy (task in flight) — the caller must
+// wait for the task to complete before stopping the container.
 func (r *Registry) StopRuntime(name string) error {
 	return r.mutateEntry(name, func(e *Entry) error {
+		if e.State == StateBusy {
+			return fmt.Errorf("worker %q is busy — wait for the task to complete before stopping", name)
+		}
 		e.State = StateOffline
 		e.StartedAt = nil
 		e.RuntimeEndpoint = ""
@@ -129,8 +139,12 @@ func (r *Registry) StopRuntime(name string) error {
 
 // ClearRuntime transitions to offline and clears all runtime fields including ContainerID.
 // Used after container removal.
+// Returns an error if the worker is busy (task in flight).
 func (r *Registry) ClearRuntime(name string) error {
 	return r.mutateEntry(name, func(e *Entry) error {
+		if e.State == StateBusy {
+			return fmt.Errorf("worker %q is busy — wait for the task to complete before clearing runtime", name)
+		}
 		e.State = StateOffline
 		e.StartedAt = nil
 		e.ContainerID = ""
