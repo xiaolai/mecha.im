@@ -288,18 +288,20 @@ All findings are cited to specific file:line. Every severity label is evidence-b
 
 ### LOW
 
-**[LOW-1] `workerRoundRobin` package-level atomic never resets — test ordering dependent**
+**[LOW-1] ✅ FIXED — `workerRoundRobin` package-level atomic never resets — test ordering dependent**
 
 - **File:** `internal/serve/handlers.go:17`, `internal/serve/handlers_test.go:13`
+- **Fix:** Added `workerRoundRobin.Store(0)` at the start of `TestPostTaskAutoSelectRoundRobin` to reset the shared atomic for test isolation. Commit: `c25d38e1`.
 
 **[LOW-2] `TestAPI_TaskQueueFull` unconditionally skipped**
 
 - **File:** `test/integration/api_endpoints_test.go:27`
 - The 429 path for queue-full is only tested by a unit test, not integration. The skip comment is a TODO that has never been resolved.
 
-**[LOW-3] `os.Chmod` error silently discarded on DB file permissions**
+**[LOW-3] ✅ FIXED — `os.Chmod` error silently discarded on DB file permissions**
 
 - **File:** `internal/store/db.go:24` — `os.Chmod(path, 0o600)` — error dropped silently.
+- **Fix:** Now captures and propagates the Chmod error. Also moved the call to after the first PRAGMA executes (which causes SQLite to create the file), since `sql.Open` is lazy and doesn't create the file immediately. Commit: `c25d38e1`.
 
 **[LOW-4] `latencyTracker` exposed as a Prometheus gauge, not a histogram**
 
@@ -321,9 +323,10 @@ All findings are cited to specific file:line. Every severity label is evidence-b
 
 - **File:** `docker/runtime/server.ts:12`, `internal/cli/helpers.go:7` — backend is unconditionally Claude; the reserved key is dead.
 
-**[LOW-9] No PID limit default on Docker containers — fork-bomb possible**
+**[LOW-9] ✅ FIXED — No PID limit default on Docker containers — fork-bomb possible**
 
 - **File:** `internal/workers/docker.go:129-156` — `PidsLimit` only set when `resources.pids > 0`.
+- **Fix:** Added a default `PidsLimit: 1024` in the `else` branch, applied when `resources.pids` is not set in YAML. Operators can raise it explicitly via `resources.pids`. Commit: `c25d38e1`.
 
 **[LOW-10] Remote Docker host allows plaintext TCP — no TLS enforcement**
 
@@ -333,9 +336,10 @@ All findings are cited to specific file:line. Every severity label is evidence-b
 
 - **File:** `internal/source/source.go:56-63` — safe today, but a footgun for any future hot-registration feature.
 
-**[LOW-12] Migration silently swallows any error containing "duplicate column" substring**
+**[LOW-12] ✅ FIXED — Migration silently swallows any error containing "duplicate column" substring**
 
 - **File:** `internal/store/db.go:90` — fragile string match for idempotent ALTER TABLE.
+- **Fix:** Tightened the string match to `"duplicate column name"` (the exact SQLite error text) and added `log.Printf` so the skip is visible in operator logs. Commit: `c25d38e1`.
 
 **[LOW-13] No fuzz targets for policy rule parsing or result contract parsing**
 
