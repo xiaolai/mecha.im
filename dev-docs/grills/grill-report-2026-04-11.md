@@ -240,10 +240,11 @@ All findings are cited to specific file:line. Every severity label is evidence-b
 - **Evidence:** If `buildTaskContext(ev)` fails, `taskCtx` is empty string. The error is logged but `CreateWithEvent` is called anyway. The task is dispatched to the worker with missing structured metadata. No user-visible error; no task failure.
 - **Fix:** Root cause analysis showed `json.Marshal` on a `map[string]any` populated from webhook-deserialized data cannot fail — the error return was dead code. Changed `buildTaskContext` from `(string, error)` to `string`, removing the dead error path and all unreachable handling at call sites. Commit: `f934af24`.
 
-**[MEDIUM-12] Backoff delay schedule uncapped — high `max_retries` values produce absurdly long waits**
+**[MEDIUM-12] ✅ FIXED — Backoff delay schedule uncapped — high `max_retries` values produce absurdly long waits**
 
 - **File:** `internal/tasks/retry.go:43`
 - **Evidence:** `delay = RetryBaseDelay * 2^(attempts-1)`. At `max_retries=10`, attempt 9 delay is 128 minutes. No cap. Operators who set high retry counts will see tasks stuck for hours with no explanation.
+- **Fix:** Added `RetryMaxDelay = 30 * time.Minute` constant and cap the computed delay before writing `next_retry_at`. Commit: `9bd50f9e`.
 
 **[MEDIUM-13] Apple notarization does not staple ticket to the binary**
 
@@ -255,15 +256,17 @@ All findings are cited to specific file:line. Every severity label is evidence-b
 - **File:** `.github/workflows/release.yml:161-175`
 - **Evidence:** The `update-homebrew` job runs immediately after `release` completes and curls the release asset from GitHub CDN. Large assets may still be propagating. A partial upload produces a wrong SHA256 that corrupts the Homebrew formula silently.
 
-**[MEDIUM-15] Cron ticks silently dropped when prior task is still running — no metric**
+**[MEDIUM-15] ✅ FIXED — Cron ticks silently dropped when prior task is still running — no metric**
 
 - **File:** `internal/source/cron.go:28`, `internal/events/dedup.go:32`
 - **Evidence:** Dedup treats `"dispatched"` as active. If a cron fires every 60s but the task takes 90s, every second tick is dropped. The only observable signal is `events_dedup_skipped` counter, which is not cron-specific. Operators cannot know which cron triggers are being dropped.
+- **Fix:** Added `cron_ticks_dropped_total` counter in metrics.go, incremented at both dedup check points in webhook.go when `ev.Source == "cron"`. Registered as a Prometheus counter. Commit: `9bd50f9e`.
 
-**[MEDIUM-16] `dispatchClient` uses cumulative running average for latency metric — useless for alerting**
+**[MEDIUM-16] ✅ FIXED — `dispatchClient` uses cumulative running average for latency metric — useless for alerting**
 
 - **File:** `internal/serve/metrics.go:33-39`
 - **Evidence:** After 10,000 tasks, a 5-minute spike causes less than 0.003% change in the reported average. No P50/P95/P99. No windowed average. The `mecha_dispatch_latency_ms_avg` metric cannot trigger meaningful SLO alerts.
+- **Fix:** Replaced the cumulative running average with an exponential moving average (EMA, α=0.1). The EMA heavily weights the most recent ~10 observations, making spikes visible within a handful of tasks. Renamed expvar from `dispatch_latency_ms_avg` to `dispatch_latency_ms_ema`. Commit: `9bd50f9e`.
 
 **[MEDIUM-17] Template injection via event Attrs (MEDIUM duplicate of CRITICAL-2 for the information-leakage sub-case)**
 
