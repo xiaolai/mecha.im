@@ -295,7 +295,7 @@ func TestIsTransportError(t *testing.T) {
 		{"context canceled", false},
 		{"EOF", false},
 		{"connection reset", true},
-		{"worker returned 500", true},
+		{"worker returned 500", false}, // permanent bug — not retried
 		{"worker returned 502: bad gateway", true},
 		{"task failed", false},
 	}

@@ -1106,9 +1106,8 @@ func TestMatchAndHydrateHydrationError(t *testing.T) {
 }
 
 func TestMatchAndHydrateBuildTaskContextError(t *testing.T) {
-	// buildTaskContext never actually errors with well-formed data,
-	// but we test the path where it does log a warning.
-	// This exercises the ctxErr != nil branch.
+	// buildTaskContext returns a string (no error). This test exercises
+	// the matchAndHydrate path for a valid event with no matching rule.
 	path := filepath.Join(t.TempDir(), "test.db")
 	db, err := store.Open(path)
 	if err != nil {
@@ -2582,9 +2581,8 @@ func TestHandleGetTaskIDEmpty(t *testing.T) {
 
 // ---- buildTaskContext: marshal error ----
 
-// Note: buildTaskContext's json.Marshal error path (match.go:71-73) is
-// unreachable in practice because map[string]any with standard types
-// always marshals successfully. Coverage at 87.5% is expected.
+// Note: buildTaskContext now returns a plain string (no error). The
+// json.Marshal error path was removed since it was unreachable.
 
 // ---- Start: Server.Serve error (non-ErrServerClosed) ----
 

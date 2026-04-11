@@ -615,10 +615,7 @@ func TestBuildTaskContextAllAttrs(t *testing.T) {
 			"sender":     "alice",
 		},
 	}
-	got, err := buildTaskContext(ev)
-	if err != nil {
-		t.Fatal(err)
-	}
+	got := buildTaskContext(ev)
 	var ctx map[string]any
 	json.Unmarshal([]byte(got), &ctx)
 	for _, key := range []string{"source", "actor", "subject", "repo_owner", "number", "diff", "file_list", "head_sha", "sender"} {

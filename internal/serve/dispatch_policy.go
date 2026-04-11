@@ -15,7 +15,11 @@ func (s *Server) getWorkerPolicy(workerName string) policies.Filter {
 	entry, ok := s.reg.Get(workerName)
 	if !ok || entry.Worker.Policy == nil {
 		if ok && entry.Worker.IsManaged() {
-			s.logger.Warn("dispatch: managed worker has no policy — all write-back allowed (add policy section to worker YAML)", "worker", workerName)
+			// Managed workers (Docker) should always have a policy section.
+			// Without one, AllowAll is the fallback — a compromised image can
+			// post comments, labels, and diffs unfiltered. Log at Error so
+			// operators see this in alerting pipelines.
+			s.logger.Error("dispatch: managed worker has no policy — all write-back allowed (add policy section to worker YAML)", "worker", workerName)
 		} else {
 			s.logger.Warn("dispatch: no policy configured, using AllowAll", "worker", workerName)
 		}

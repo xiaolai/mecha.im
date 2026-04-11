@@ -150,10 +150,7 @@ func TestBuildTaskContext(t *testing.T) {
 			"extra":      "ignored",
 		},
 	}
-	got, err := buildTaskContext(ev)
-	if err != nil {
-		t.Fatal(err)
-	}
+	got := buildTaskContext(ev)
 	if got == "{}" {
 		t.Error("expected non-empty context")
 	}

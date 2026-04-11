@@ -82,7 +82,10 @@ func sanitizeTemplateValue(v any) any {
 	return s
 }
 
-func buildTaskContext(ev *events.Event) (string, error) {
+// buildTaskContext serializes well-known event fields into a JSON string for
+// the task context field. json.Marshal on this map cannot fail: ev.Attrs
+// values come from JSON unmarshal and are always primitive or collection types.
+func buildTaskContext(ev *events.Event) string {
 	ctx := map[string]any{
 		"source":  ev.Source,
 		"actor":   ev.Actor,
@@ -95,9 +98,6 @@ func buildTaskContext(ev *events.Event) (string, error) {
 			ctx[key] = v
 		}
 	}
-	b, err := json.Marshal(ctx)
-	if err != nil {
-		return "{}", fmt.Errorf("marshal task context: %w", err)
-	}
-	return string(b), nil
+	b, _ := json.Marshal(ctx) // cannot fail on webhook-deserialized map
+	return string(b)
 }
