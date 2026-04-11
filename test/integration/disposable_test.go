@@ -81,7 +81,7 @@ func TestDisposable_FullLifecycle(t *testing.T) {
 
 			errCh := make(chan error, 1)
 			go func() { errCh <- srv.Start(ctx) }()
-			time.Sleep(1 * time.Second)
+			waitForServerHealth(t, fmt.Sprintf("http://%s", addr), 5*time.Second)
 
 			// POST /task via HTTP — this puts the task on the pending channel
 			body := fmt.Sprintf(`{"prompt":"respond with exactly: disposable works","worker":"%s"}`, workerName)

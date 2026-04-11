@@ -154,6 +154,25 @@ func apiPost(t *testing.T, base, path string, payload any) ([]byte, int) {
 	return body, resp.StatusCode
 }
 
+// waitForTaskState polls GET /task/{id} until the task reaches the target
+// state or timeout, then returns. Fatal if timeout is reached.
+func waitForTaskState(t *testing.T, base, taskID, want string, timeout time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		body, status := apiGet(t, base, "/task/"+taskID)
+		if status == 200 {
+			var result map[string]any
+			json.Unmarshal(body, &result)
+			if state, _ := result["state"].(string); state == want {
+				return
+			}
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatalf("task %s did not reach state %q within %v", taskID, want, timeout)
+}
+
 // pollTaskState polls GET /task/{id} until the task reaches a terminal state
 // or timeout.
 func pollTaskState(t *testing.T, base, taskID string, timeout time.Duration) map[string]any {

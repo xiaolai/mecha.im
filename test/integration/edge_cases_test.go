@@ -381,12 +381,20 @@ func TestEdge_EventRuleAutoFalse(t *testing.T) {
 		t.Fatalf("expected 202, got %d", resp.StatusCode)
 	}
 
-	// Wait 3s and confirm no task was created; event should be skipped.
-	time.Sleep(3 * time.Second)
-
-	evs, err := pts.Events.List(context.Background(), "")
-	if err != nil {
-		t.Fatalf("list events: %v", err)
+	// Poll until the event reaches a terminal state (skipped or failed).
+	// Auto=false means the matched rule is skipped, leaving the event skipped.
+	deadline := time.Now().Add(10 * time.Second)
+	var evs []events.Event
+	var err error
+	for time.Now().Before(deadline) {
+		evs, err = pts.Events.List(context.Background(), "")
+		if err != nil {
+			t.Fatalf("list events: %v", err)
+		}
+		if len(evs) == 1 && (evs[0].State == events.StateSkipped || evs[0].State == events.StateFailed) {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
 	}
 	if len(evs) != 1 {
 		t.Fatalf("expected 1 event, got %d", len(evs))

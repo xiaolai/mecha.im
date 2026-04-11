@@ -340,8 +340,8 @@ func TestAPI_GracefulShutdown(t *testing.T) {
 	json.Unmarshal(body, &resp)
 	taskID, _ := resp["id"].(string)
 
-	// Wait briefly to ensure the task is being dispatched.
-	time.Sleep(500 * time.Millisecond)
+	// Poll until the task is dispatched (in-flight) before shutting down.
+	waitForTaskState(t, serverURL, taskID, "dispatched", 10*time.Second)
 
 	// Cancel the server context (initiate graceful shutdown).
 	cancel()

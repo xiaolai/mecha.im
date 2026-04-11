@@ -22,8 +22,9 @@ var (
 	writebackFail       = expvar.NewInt("writeback_fail")
 	writebackRetryOK    = expvar.NewInt("writeback_retry_ok")
 	writebackDeadLetter = expvar.NewInt("writeback_dead_letter")
-	eventsDedupSkip     = expvar.NewInt("events_dedup_skipped")
-	cronTicksDropped    = expvar.NewInt("cron_ticks_dropped_total")
+	eventsDedupSkip      = expvar.NewInt("events_dedup_skipped")
+	cronTicksDropped     = expvar.NewInt("cron_ticks_dropped_total")
+	webhooksRateLimited  = expvar.NewInt("webhooks_rate_limited")
 )
 
 // latencyTracker computes an exponential moving average (EMA) of dispatch
