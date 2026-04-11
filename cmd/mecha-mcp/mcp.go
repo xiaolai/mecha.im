@@ -8,6 +8,29 @@ import (
 	"time"
 )
 
+// setLocalCORSHeaders sets Access-Control-Allow-Origin to the request's Origin
+// only if it is a trusted localhost origin (http://localhost, http://127.0.0.1,
+// or vscode-webview://). Requests from other origins receive no CORS header,
+// causing browsers to block the cross-origin request.
+//
+// Returns false and writes a 403 if the origin is present and untrusted.
+// Returns true (and sets no header) for direct access (no Origin header).
+func setLocalCORSHeaders(w http.ResponseWriter, r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return true // direct access (curl, CLI tools) — no CORS needed
+	}
+	if strings.HasPrefix(origin, "http://localhost") ||
+		strings.HasPrefix(origin, "http://127.0.0.1") ||
+		strings.HasPrefix(origin, "vscode-webview://") {
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+		w.Header().Add("Vary", "Origin")
+		return true
+	}
+	http.Error(w, "forbidden: cross-origin requests only allowed from localhost", http.StatusForbidden)
+	return false
+}
+
 type mcpRequest struct {
 	JSONRPC string          `json:"jsonrpc"`
 	ID      any             `json:"id,omitempty"`
@@ -153,10 +176,12 @@ func handleSSE(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sessionID := fmt.Sprintf("s-%d", time.Now().UnixNano())
+	if !setLocalCORSHeaders(w, r) {
+		return
+	}
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
 	fmt.Fprintf(w, "event: endpoint\ndata: /message?session=%s\n\n", sessionID)
 	flusher.Flush()
 	ticker := time.NewTicker(30 * time.Second)
@@ -177,7 +202,9 @@ func handleMessage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+	if !setLocalCORSHeaders(w, r) {
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	var msg mcpRequest
 	if err := json.NewDecoder(r.Body).Decode(&msg); err != nil {
