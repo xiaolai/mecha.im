@@ -11,6 +11,7 @@ import (
 )
 
 func TestPostTaskAutoSelectRoundRobin(t *testing.T) {
+	workerRoundRobin.Store(0) // reset shared atomic for test isolation
 	s, cleanup := testServer(t)
 	defer cleanup()
 
