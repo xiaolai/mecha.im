@@ -139,7 +139,7 @@ func (s *Server) dispatchTask(ctx context.Context, taskID string) {
 	if entry.Worker.Docker != nil {
 		apiKey = entry.Worker.Docker.APIKey
 	}
-	result, err := s.sendTask(ctx, ep, taskID, t.Prompt, entry.Worker.Timeout, apiKey)
+	result, err := s.sendTask(ctx, ep, taskID, t.Prompt, t.Context, entry.Worker.Timeout, apiKey)
 	if err != nil {
 		redacted := workers.RedactSecrets(err.Error())
 		// Retry transient errors; permanently fail the rest.

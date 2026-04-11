@@ -155,7 +155,7 @@ func (s *Server) dispatchDisposable(ctx context.Context, taskID string, t *tasks
 	if entry.Worker.Docker != nil {
 		apiKey = entry.Worker.Docker.APIKey
 	}
-	result, err := s.sendTask(ctx, ep, taskID, t.Prompt, entry.Worker.Timeout, apiKey)
+	result, err := s.sendTask(ctx, ep, taskID, t.Prompt, t.Context, entry.Worker.Timeout, apiKey)
 	if err != nil {
 		redacted := workers.RedactSecrets(err.Error())
 		// Mirror persistent worker retry logic: transport errors are retried,

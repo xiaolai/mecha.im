@@ -12,17 +12,21 @@ import (
 	"mecha.im/internal/workers"
 )
 
-func (s *Server) sendTask(ctx context.Context, endpoint, taskID, prompt string, timeout time.Duration, apiKey string) (string, error) {
+func (s *Server) sendTask(ctx context.Context, endpoint, taskID, prompt, taskContext string, timeout time.Duration, apiKey string) (string, error) {
 	if timeout == 0 {
 		timeout = 10 * time.Minute
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	payload, err := json.Marshal(map[string]string{
+	reqBody := map[string]any{
 		"id":     taskID,
 		"prompt": prompt,
-	})
+	}
+	if taskContext != "" {
+		reqBody["context"] = json.RawMessage(taskContext)
+	}
+	payload, err := json.Marshal(reqBody)
 	if err != nil {
 		return "", fmt.Errorf("marshal task payload: %w", err)
 	}

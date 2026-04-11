@@ -3,6 +3,7 @@ package serve
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -105,6 +106,30 @@ func TestDispatchRecoveredTask(t *testing.T) {
 	}
 }
 
+func TestSendTaskForwardsContext(t *testing.T) {
+	var gotBody []byte
+	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotBody, _ = io.ReadAll(r.Body)
+		w.Write([]byte(`{"output":"ok"}`))
+	}))
+	defer mock.Close()
+
+	s, cleanup := testDispatchServer(t)
+	defer cleanup()
+
+	taskCtx := `{"source":"github","actor":"alice","number":42}`
+	_, err := s.sendTask(context.Background(), mock.URL, "t1", "hello", taskCtx, time.Minute, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(gotBody), `"context"`) {
+		t.Errorf("worker body missing context field: %s", gotBody)
+	}
+	if !strings.Contains(string(gotBody), `"alice"`) {
+		t.Errorf("worker body missing context content: %s", gotBody)
+	}
+}
+
 func TestSendTaskWithAPIKey(t *testing.T) {
 	var gotAuth string
 	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -116,7 +141,7 @@ func TestSendTaskWithAPIKey(t *testing.T) {
 	s, cleanup := testDispatchServer(t)
 	defer cleanup()
 
-	result, err := s.sendTask(context.Background(), mock.URL, "t1", "prompt", time.Minute, "my-key")
+	result, err := s.sendTask(context.Background(), mock.URL, "t1", "prompt", "", time.Minute, "my-key")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +164,7 @@ func TestSendTaskNoAPIKey(t *testing.T) {
 	s, cleanup := testDispatchServer(t)
 	defer cleanup()
 
-	s.sendTask(context.Background(), mock.URL, "t1", "prompt", time.Minute, "")
+	s.sendTask(context.Background(), mock.URL, "t1", "prompt", "", time.Minute, "")
 	if gotAuth != "" {
 		t.Errorf("auth = %q, want empty (no key)", gotAuth)
 	}
@@ -154,7 +179,7 @@ func TestSendTaskTimeout(t *testing.T) {
 	s, cleanup := testDispatchServer(t)
 	defer cleanup()
 
-	_, err := s.sendTask(context.Background(), mock.URL, "t1", "prompt", 100*time.Millisecond, "")
+	_, err := s.sendTask(context.Background(), mock.URL, "t1", "prompt", "", 100*time.Millisecond, "")
 	if err == nil {
 		t.Error("expected timeout error")
 	}
@@ -170,7 +195,7 @@ func TestSendTaskWorker500(t *testing.T) {
 	s, cleanup := testDispatchServer(t)
 	defer cleanup()
 
-	_, err := s.sendTask(context.Background(), mock.URL, "t1", "prompt", time.Minute, "")
+	_, err := s.sendTask(context.Background(), mock.URL, "t1", "prompt", "", time.Minute, "")
 	if err == nil {
 		t.Error("expected error for 500")
 	}

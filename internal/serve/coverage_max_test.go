@@ -391,7 +391,7 @@ func TestSendTaskNon200(t *testing.T) {
 	taskStore := tasks.NewStore(db)
 	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
-	_, err = s.sendTask(context.Background(), srv.URL, "task-1", "prompt", 10*time.Second, "")
+	_, err = s.sendTask(context.Background(), srv.URL, "task-1", "prompt", "", 10*time.Second, "")
 	if err == nil {
 		t.Error("expected error for non-200 response")
 	}
@@ -419,7 +419,7 @@ func TestSendTaskWithAPIKeyMax(t *testing.T) {
 	taskStore := tasks.NewStore(db)
 	s := New(Config{Registry: reg, Tasks: taskStore, Addr: "127.0.0.1:0"})
 
-	_, err = s.sendTask(context.Background(), srv.URL, "task-1", "prompt", 10*time.Second, "my-api-key")
+	_, err = s.sendTask(context.Background(), srv.URL, "task-1", "prompt", "", 10*time.Second, "my-api-key")
 	if err != nil {
 		t.Fatal(err)
 	}
