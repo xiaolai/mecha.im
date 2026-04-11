@@ -7,11 +7,10 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
-	"gopkg.in/yaml.v3"
+	"mecha.im/internal/workers"
 )
 
 // mechaAPI is the base URL for the mecha serve instance.
@@ -28,7 +27,7 @@ func initAPI() {
 
 	// Fall back to config file if env vars not set
 	if mechaAPI == "" || mechaAPIKey == "" {
-		if cfg, err := loadMechaConfig(); err == nil {
+		if cfg, err := workers.LoadServerConfig(); err == nil {
 			if mechaAPI == "" && cfg.Addr != "" {
 				mechaAPI = "http://" + cfg.Addr
 			}
@@ -41,27 +40,6 @@ func initAPI() {
 		mechaAPI = "http://127.0.0.1:21212"
 	}
 	mechaAPI = strings.TrimRight(mechaAPI, "/")
-}
-
-// loadMechaConfig reads ~/.mecha/config.yml for addr and api_key.
-func loadMechaConfig() (struct {
-	Addr   string `yaml:"addr"`
-	APIKey string `yaml:"api_key"`
-}, error) {
-	var cfg struct {
-		Addr   string `yaml:"addr"`
-		APIKey string `yaml:"api_key"`
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return cfg, err
-	}
-	data, err := os.ReadFile(filepath.Join(home, ".mecha", "config.yml"))
-	if err != nil {
-		return cfg, err
-	}
-	err = yaml.Unmarshal(data, &cfg)
-	return cfg, err
 }
 
 func apiGet(path string) ([]byte, int, error) {
