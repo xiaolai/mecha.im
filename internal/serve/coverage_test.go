@@ -261,7 +261,7 @@ func TestSendTaskWorker400(t *testing.T) {
 	s, cleanup := testDispatchServer(t)
 	defer cleanup()
 
-	_, err := s.sendTask(context.Background(), mock.URL, "t1", "prompt", time.Minute, "")
+	_, err := s.sendTask(context.Background(), mock.URL, "t1", "prompt", "", time.Minute, "")
 	if err == nil {
 		t.Error("expected error for 400")
 	}
@@ -280,7 +280,7 @@ func TestSendTaskWorker429(t *testing.T) {
 	s, cleanup := testDispatchServer(t)
 	defer cleanup()
 
-	_, err := s.sendTask(context.Background(), mock.URL, "t1", "prompt", time.Minute, "")
+	_, err := s.sendTask(context.Background(), mock.URL, "t1", "prompt", "", time.Minute, "")
 	if err == nil {
 		t.Error("expected error for 429")
 	}
@@ -588,7 +588,7 @@ func TestSendTaskDefaultTimeout(t *testing.T) {
 	defer cleanup()
 
 	// Timeout 0 → defaults to 10 minutes
-	result, err := s.sendTask(context.Background(), mock.URL, "t1", "prompt", 0, "")
+	result, err := s.sendTask(context.Background(), mock.URL, "t1", "prompt", "", 0, "")
 	if err != nil {
 		t.Fatal(err)
 	}
