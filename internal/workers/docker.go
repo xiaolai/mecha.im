@@ -44,11 +44,11 @@ type MountCfg struct {
 // For remote Docker hosts (tcp://...), the hostAddr is extracted for endpoint
 // resolution so health checks and task dispatch reach the correct machine.
 func NewDockerClient(host string) (*DockerClient, error) {
-	opts := []client.Opt{client.FromEnv, client.WithAPIVersionNegotiation()}
+	opts := []client.Opt{client.FromEnv}
 	if host != "" {
 		opts = append(opts, client.WithHost(host))
 	}
-	cli, err := client.NewClientWithOpts(opts...)
+	cli, err := client.New(opts...)
 	if err != nil {
 		return nil, fmt.Errorf("create docker client: %w", err)
 	}
