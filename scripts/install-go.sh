@@ -1,6 +1,6 @@
 #!/bin/sh
 # Install mecha from source via go install.
-# Requires Go 1.26.1+.
+# Requires Go 1.26.2+.
 # Usage: curl -fsSL https://raw.githubusercontent.com/xiaolai/mecha.im/main/scripts/install-go.sh | sh
 set -e
 

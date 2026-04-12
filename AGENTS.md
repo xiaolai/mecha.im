@@ -8,7 +8,7 @@ Four nouns: Event, Worker, Task, Policy. One pipeline. See `.claude/rules/domain
 
 ## Tech Stack
 
-- Go 1.26.1 — single binary, cross-platform (darwin/linux, amd64/arm64)
+- Go 1.26.2 — single binary, cross-platform (darwin/linux, amd64/arm64)
 - Cobra CLI, YAML config, JSON file persistence, Docker API
 - VitePress for documentation (`website/`)
 
