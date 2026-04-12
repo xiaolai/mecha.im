@@ -232,7 +232,7 @@ func TestMechaAPIUnreachable(t *testing.T) {
 
 func TestMechaAPIError(t *testing.T) {
 	cleanup := withMockAPI(t, func(w http.ResponseWriter, r *http.Request) {
-		http.Error(w, `{"error":"forbidden"}`, 403)
+		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 	})
 	defer cleanup()
 

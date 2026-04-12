@@ -225,13 +225,6 @@ func (m *mockResponder) Respond(_ context.Context, ev *events.Event, res policie
 	return nil
 }
 
-func (m *mockResponder) getCalls() []responderCall {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	cp := make([]responderCall, len(m.calls))
-	copy(cp, m.calls)
-	return cp
-}
 
 // sendGitHubWebhook sends a webhook to the mecha server and returns the event ID.
 func sendGitHubWebhook(t *testing.T, serverURL, secret string) string {
