@@ -2,9 +2,9 @@ package workers
 
 import (
 	"context"
-	stderrors "errors"
 	"fmt"
 
+	cerrdefs "github.com/containerd/errdefs"
 	"github.com/moby/moby/client"
 )
 
@@ -31,7 +31,5 @@ func (d *DockerClient) ImageExists(ctx context.Context, image string) (bool, err
 
 // isNotFound checks if the error indicates a missing resource.
 func isNotFound(err error) bool {
-	type notFounder interface{ NotFound() }
-	var nf notFounder
-	return stderrors.As(err, &nf)
+	return cerrdefs.IsNotFound(err)
 }

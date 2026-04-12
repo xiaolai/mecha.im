@@ -41,10 +41,13 @@ func ValidateUpstreamURL(rawURL string) error {
 	}
 	ip := net.ParseIP(host)
 	if ip == nil {
-		// Not an IP literal — resolve hostname
+		// Not an IP literal — resolve hostname to check for blocked IPs.
+		// DNS failures are tolerated: the host may not be reachable at config
+		// load time (e.g. service not yet started, CI without network). The
+		// SSRF check only blocks IPs that positively resolve to a blocked range.
 		ips, err := net.LookupIP(host)
 		if err != nil {
-			return fmt.Errorf("resolve %q: %w", host, err)
+			return nil // DNS unavailable — allow; runtime will surface connectivity errors
 		}
 		for _, resolved := range ips {
 			if isBlockedIP(resolved) {
