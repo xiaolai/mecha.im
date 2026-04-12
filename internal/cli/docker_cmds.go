@@ -12,7 +12,7 @@ import (
 
 const (
 	dockerTimeout        = 30 * time.Second
-	persistentHealthTimeout = 90 * time.Second // first boot installs CLIs (~60s)
+	persistentHealthTimeout = 120 * time.Second // CLIs pre-installed (~5s), but allow headroom for custom images
 )
 
 func dockerStart(reg *workers.Registry, name string) error {

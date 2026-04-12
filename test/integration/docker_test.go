@@ -2,7 +2,6 @@ package integration
 
 import (
 	"context"
-	"net/http"
 	"os"
 	"os/exec"
 	"strings"
@@ -67,7 +66,8 @@ func TestDocker_CreateStartStop(t *testing.T) {
 				Image:  img.image,
 				Env:    map[string]string{img.envKey: "test"},
 				Labels: map[string]string{"mecha.test": "true"},
-				User:   func() string { u, _ := workers.CurrentUser(); return u }(),
+				// Don't set User — let the container use its Dockerfile USER (worker).
+				// Host UID override is only needed for workspace bind mounts.
 			}
 
 			id, err := cli.Create(ctx, cfg)
@@ -89,19 +89,11 @@ func TestDocker_CreateStartStop(t *testing.T) {
 				t.Errorf("endpoint = %q", endpoint)
 			}
 
-			// Wait for health
-			var healthy bool
-			for i := 0; i < 10; i++ {
-				time.Sleep(1 * time.Second)
-				resp, err := http.Get(endpoint + "/health")
-				if err == nil && resp.StatusCode == 200 {
-					resp.Body.Close()
-					healthy = true
-					break
-				}
-			}
-			if !healthy {
-				t.Fatal("health check never passed")
+			// Wait for health — container boots in ~5s with pre-installed CLIs,
+			// but allow up to 120s for CI runners or custom images without pre-install.
+			if !waitForHealth(endpoint, 120*time.Second) {
+				logs := containerLogs(id)
+				t.Fatalf("health check never passed.\nLogs:\n%s", logs)
 			}
 		})
 	}
@@ -145,7 +137,9 @@ func TestDocker_CLILifecycle(t *testing.T) {
 			// Start — creates container
 			out, stderr, code := runMecha(t, reg, "worker", "start", workerName)
 			if code != 0 {
-				t.Fatalf("start failed (code %d): stdout=%s stderr=%s", code, out, stderr)
+				// Dump container logs for debugging
+				logs, _ := exec.Command("docker", "logs", "mecha-worker-"+workerName).CombinedOutput()
+				t.Fatalf("start failed (code %d): stdout=%s stderr=%s\ncontainer logs:\n%s", code, out, stderr, logs)
 			}
 			if !strings.Contains(out, "started") {
 				t.Errorf("expected 'started': %s", out)

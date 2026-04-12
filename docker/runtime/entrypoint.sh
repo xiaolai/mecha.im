@@ -1,29 +1,37 @@
 #!/bin/bash
 set -e
 
-# --- Install latest CLIs at container start time ---
+# --- Install CLIs (skipped if pre-installed at image build time) ---
 
-echo "installing claude code CLI..."
-for attempt in 1 2 3; do
-  if curl -fsSL https://claude.ai/install.sh | bash; then
-    break
-  fi
-  if [ "$attempt" -eq 3 ]; then
-    echo "failed to install claude CLI after 3 attempts" >&2
-    exit 1
-  fi
-  echo "attempt $attempt failed, retrying in 5s..."
-  sleep 5
-done
-claude --version
+if command -v claude >/dev/null 2>&1; then
+  echo "claude CLI already installed: $(claude --version)"
+else
+  echo "installing claude code CLI..."
+  for attempt in 1 2 3; do
+    if curl -fsSL https://claude.ai/install.sh | bash; then
+      break
+    fi
+    if [ "$attempt" -eq 3 ]; then
+      echo "failed to install claude CLI after 3 attempts" >&2
+      exit 1
+    fi
+    echo "attempt $attempt failed, retrying in 5s..."
+    sleep 5
+  done
+  claude --version
+fi
 
-echo "installing codex CLI..."
-mkdir -p "$HOME/.codex-cli" && cd "$HOME/.codex-cli"
-bun init -y > /dev/null 2>&1
-bun add @openai/codex
-ln -sf "$HOME/.codex-cli/node_modules/.bin/codex" "$HOME/.local/bin/codex"
-cd /workspace
-codex --version
+if command -v codex >/dev/null 2>&1; then
+  echo "codex CLI already installed: $(codex --version)"
+else
+  echo "installing codex CLI..."
+  mkdir -p "$HOME/.codex-cli" && cd "$HOME/.codex-cli"
+  bun init -y > /dev/null 2>&1
+  bun add @openai/codex
+  ln -sf "$HOME/.codex-cli/node_modules/.bin/codex" "$HOME/.local/bin/codex"
+  cd /workspace
+  codex --version
+fi
 
 # --- Configure Claude settings ---
 mkdir -p "$HOME/.claude"
