@@ -18,7 +18,7 @@ ci: vet test bun-test build
 # Coverage profile generation — -coverpkg=./... instruments ALL packages,
 # including those without test files, so zero-coverage packages are visible.
 cover:
-	go test -race -coverprofile=coverage.out -covermode=atomic -coverpkg=./... ./...
+	go test -race -coverprofile=coverage.out -covermode=atomic -coverpkg=./... $$(go list ./... | grep -v test/integration)
 	go tool cover -func=coverage.out | tail -1
 
 # HTML coverage report

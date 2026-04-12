@@ -210,6 +210,10 @@ func TestWaitForDisposableHealthTimeout(t *testing.T) {
 
 	ctx := context.Background()
 
+	if exists, _ := dock.ImageExists(ctx, "mecha-worker-base:latest"); !exists {
+		t.Skip("mecha-worker-base:latest image not available")
+	}
+
 	// Create a container that won't serve on 8080 (base image exits quickly)
 	id, err := dock.Create(ctx, workers.ContainerCfg{
 		Name:  "mecha-test-health-timeout",

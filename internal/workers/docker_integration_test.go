@@ -20,6 +20,23 @@ func dockerAvailable() bool {
 	return err == nil
 }
 
+func requireDockerImage(t *testing.T, image string) {
+	t.Helper()
+	if !dockerAvailable() {
+		t.Skip("Docker daemon not available")
+	}
+	dc, err := NewDockerClient("")
+	if err != nil {
+		t.Skipf("NewDockerClient: %v", err)
+	}
+	defer dc.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if exists, _ := dc.ImageExists(ctx, image); !exists {
+		t.Skipf("%s image not available", image)
+	}
+}
+
 func TestDockerClientLifecycle(t *testing.T) {
 	if !dockerAvailable() {
 		t.Skip("Docker daemon not available")
@@ -127,9 +144,7 @@ func TestDockerClientLifecycle(t *testing.T) {
 }
 
 func TestDockerClientCreateExpose(t *testing.T) {
-	if !dockerAvailable() {
-		t.Skip("Docker daemon not available")
-	}
+	requireDockerImage(t, "mecha-worker-base:latest")
 
 	dc, err := NewDockerClient("")
 	if err != nil {
@@ -159,9 +174,7 @@ func TestDockerClientCreateExpose(t *testing.T) {
 }
 
 func TestDockerClientCreateWithResources(t *testing.T) {
-	if !dockerAvailable() {
-		t.Skip("Docker daemon not available")
-	}
+	requireDockerImage(t, "mecha-worker-base:latest")
 
 	dc, err := NewDockerClient("")
 	if err != nil {
@@ -191,9 +204,7 @@ func TestDockerClientCreateWithResources(t *testing.T) {
 }
 
 func TestDockerClientCreateBadMemory(t *testing.T) {
-	if !dockerAvailable() {
-		t.Skip("Docker daemon not available")
-	}
+	requireDockerImage(t, "mecha-worker-base:latest")
 
 	dc, err := NewDockerClient("")
 	if err != nil {
