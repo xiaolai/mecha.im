@@ -70,7 +70,7 @@ Workers reference an adapter by name in YAML:
 name: local-llm
 adapter:
   type: ollama
-  upstream: http://spark01:11434
+  upstream: http://localhost:11434
   model: gemma2:9b
   api_key: sk-xxx          # optional, NOT persisted to SQLite (json:"-")
   token: codex.default     # optional, secrets.yml reference (persisted, survives restarts)

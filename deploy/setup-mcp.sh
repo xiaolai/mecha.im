@@ -1,5 +1,5 @@
 #!/bin/bash
-# Deploy mecha-mcp on linode02. Run with sudo.
+# Deploy mecha-mcp on the target host. Run with sudo.
 # Usage: sudo bash deploy/setup-mcp.sh
 set -e
 
